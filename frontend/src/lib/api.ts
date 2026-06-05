@@ -26,13 +26,9 @@ function isLocalHttpUrl(value?: string) {
   return ["localhost", "127.0.0.1", "0.0.0.0", "::1"].includes(url.hostname);
 }
 
-const configuredApiUrl = normalizeUrl(import.meta.env.VITE_API_URL);
+const configuredApiUrl = import.meta.env.PROD ? undefined : normalizeUrl(import.meta.env.VITE_API_URL);
 
-if (import.meta.env.PROD && isLocalHttpUrl(configuredApiUrl)) {
-  throw new Error("VITE_API_URL nao pode apontar para localhost em producao.");
-}
-
-export const API_URL = configuredApiUrl ?? (import.meta.env.PROD ? "/api" : "http://localhost:4000/api");
+export const API_URL = import.meta.env.PROD ? "/api" : configuredApiUrl && !isLocalHttpUrl(configuredApiUrl) ? configuredApiUrl : "http://localhost:4000/api";
 
 export const api = axios.create({
   baseURL: API_URL,

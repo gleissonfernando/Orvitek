@@ -7,6 +7,7 @@ dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 const localMongoUrl = "mongodb://localhost:27017/ricardinho98";
+const productionPublicUrl = "https://ricardinho98.shardweb.app";
 const isProduction = process.env.NODE_ENV === "production";
 
 function cleanEnvValue(value: unknown) {
@@ -42,7 +43,16 @@ function envSecret(developmentDefault: string) {
 
 function envUrl(name: string, developmentDefault: string, productionDefault?: string) {
   return z.preprocess(
-    (value) => cleanEnvValue(value) ?? (isProduction ? productionDefault ?? "" : developmentDefault),
+    (value) => {
+      const cleaned = cleanEnvValue(value);
+      const fallback = isProduction ? productionDefault ?? "" : developmentDefault;
+
+      if (isProduction && cleaned && isLocalUrl(cleaned)) {
+        return fallback;
+      }
+
+      return cleaned ?? fallback;
+    },
     z
       .string()
       .refine((value) => value === "" || isValidUrl(value), `${name} precisa ser uma URL valida.`)
@@ -67,20 +77,21 @@ function isLocalUrl(value: string) {
   }
 }
 
-function rejectLocalProductionUrl(ctx: z.RefinementCtx, name: string, value?: string) {
-  if (!isProduction || !value || !isLocalUrl(value)) {
-    return;
+const configuredFrontendUrl = cleanEnvValue(process.env.FRONTEND_URL);
+const productionFrontendUrl =
+  configuredFrontendUrl && !isLocalUrl(configuredFrontendUrl) ? normalizeUrl(configuredFrontendUrl) : productionPublicUrl;
+
+function productionSafeUrl(value?: string) {
+  if (!value) {
+    return undefined;
   }
 
-  ctx.addIssue({
-    code: z.ZodIssueCode.custom,
-    path: [name],
-    message: `${name} nao pode apontar para localhost em producao.`
-  });
-}
+  if (isProduction && isLocalUrl(value)) {
+    return undefined;
+  }
 
-const configuredFrontendUrl = cleanEnvValue(process.env.FRONTEND_URL);
-const productionFrontendUrl = configuredFrontendUrl ? normalizeUrl(configuredFrontendUrl) : undefined;
+  return value;
+}
 
 const envSchema = z
   .object({
@@ -115,24 +126,21 @@ const envSchema = z
     DASHBOARD_VERIFICATION_MODE: z.enum(["temporary", "roles"]).default("temporary"),
     DEV_AUTH_ENABLED: envBoolean(false)
   })
-  .superRefine((value, ctx) => {
-    const mongoUrl = cleanEnvValue(value.MONGODB_URI) ?? cleanEnvValue(value.MONGO_URI) ?? cleanEnvValue(value.DATABASE_URL);
-
-    rejectLocalProductionUrl(ctx, "MONGODB_URI", mongoUrl);
-    if (value.REDIS_SESSION_ENABLED) {
-      rejectLocalProductionUrl(ctx, "REDIS_URL", cleanEnvValue(value.REDIS_URL));
-    }
-    rejectLocalProductionUrl(ctx, "DISCORD_CALLBACK_URL", value.DISCORD_CALLBACK_URL);
-    rejectLocalProductionUrl(ctx, "FRONTEND_URL", value.FRONTEND_URL);
-  })
   .transform((value) => {
-    const mongoUrl = cleanEnvValue(value.MONGODB_URI) ?? cleanEnvValue(value.MONGO_URI) ?? cleanEnvValue(value.DATABASE_URL) ?? (isProduction ? "" : localMongoUrl);
+    const mongoUrl =
+      productionSafeUrl(cleanEnvValue(value.MONGODB_URI)) ??
+      productionSafeUrl(cleanEnvValue(value.MONGO_URI)) ??
+      productionSafeUrl(cleanEnvValue(value.DATABASE_URL)) ??
+      (isProduction ? "" : localMongoUrl);
 
     return {
       ...value,
-      DATABASE_URL: cleanEnvValue(value.DATABASE_URL) ?? mongoUrl,
-      MONGO_URI: cleanEnvValue(value.MONGO_URI) ?? mongoUrl,
+      DATABASE_URL: productionSafeUrl(cleanEnvValue(value.DATABASE_URL)) ?? mongoUrl,
+      MONGO_URI: productionSafeUrl(cleanEnvValue(value.MONGO_URI)) ?? mongoUrl,
       MONGODB_URI: mongoUrl,
+      FRONTEND_URL: value.FRONTEND_URL || productionPublicUrl,
+      DISCORD_CALLBACK_URL: value.DISCORD_CALLBACK_URL || `${productionPublicUrl}/auth/discord/callback`,
+      REDIS_URL: value.REDIS_SESSION_ENABLED ? productionSafeUrl(cleanEnvValue(value.REDIS_URL)) ?? "" : "",
       DASHBOARD_AUTH_REQUIRED: isProduction ? true : value.DASHBOARD_AUTH_REQUIRED,
       DEV_AUTH_ENABLED: isProduction ? false : value.DEV_AUTH_ENABLED
     };

@@ -6,6 +6,7 @@ dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 const isProduction = process.env.NODE_ENV === "production";
+const productionPublicUrl = "https://ricardinho98.shardweb.app";
 
 function cleanEnvValue(value: unknown) {
   if (typeof value !== "string") {
@@ -31,7 +32,16 @@ function isValidUrl(value: string) {
 
 function envUrl(name: string, developmentDefault: string, productionDefault?: string) {
   return z.preprocess(
-    (value) => cleanEnvValue(value) ?? (isProduction ? productionDefault ?? "" : developmentDefault),
+    (value) => {
+      const cleaned = cleanEnvValue(value);
+      const fallback = isProduction ? productionDefault ?? "" : developmentDefault;
+
+      if (isProduction && cleaned && isLocalUrl(cleaned)) {
+        return fallback;
+      }
+
+      return cleaned ?? fallback;
+    },
     z
       .string()
       .refine((value) => value === "" || isValidUrl(value), `${name} precisa ser uma URL valida.`)
@@ -48,20 +58,9 @@ function isLocalUrl(value: string) {
   }
 }
 
-function rejectLocalProductionUrl(ctx: z.RefinementCtx, name: string, value?: string) {
-  if (!isProduction || !value || !isLocalUrl(value)) {
-    return;
-  }
-
-  ctx.addIssue({
-    code: z.ZodIssueCode.custom,
-    path: [name],
-    message: `${name} nao pode apontar para localhost em producao.`
-  });
-}
-
 const configuredFrontendUrl = cleanEnvValue(process.env.FRONTEND_URL);
-const productionFrontendUrl = configuredFrontendUrl ? normalizeUrl(configuredFrontendUrl) : undefined;
+const productionFrontendUrl =
+  configuredFrontendUrl && !isLocalUrl(configuredFrontendUrl) ? normalizeUrl(configuredFrontendUrl) : productionPublicUrl;
 
 const envSchema = z
   .object({
@@ -77,10 +76,6 @@ const envSchema = z
     TWITCH_CLIENT_ID: z.string().default(""),
     TWITCH_CLIENT_SECRET: z.string().default(""),
     TWITCH_MONITOR_INTERVAL_MS: z.coerce.number().default(300_000)
-  })
-  .superRefine((value, ctx) => {
-    rejectLocalProductionUrl(ctx, "BACKEND_API_URL", value.BACKEND_API_URL);
-    rejectLocalProductionUrl(ctx, "BACKEND_SOCKET_URL", value.BACKEND_SOCKET_URL);
   });
 
 export const env = envSchema.parse(process.env);

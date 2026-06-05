@@ -75,7 +75,7 @@ Configure as variaveis no painel da Sharclaud usando `.env.example` como checkli
 
 ```env
 NODE_ENV="production"
-FRONTEND_URL="https://seu-dominio.com"
+FRONTEND_URL="https://ricardinho98.shardweb.app"
 MONGODB_URI="mongodb+srv://usuario:senha@cluster.mongodb.net/ricardinho98?retryWrites=true&w=majority"
 SESSION_SECRET="troque-por-um-segredo-grande-de-sessao"
 JWT_SECRET="troque-por-um-segredo-grande-de-jwt"
@@ -83,7 +83,7 @@ BOT_API_TOKEN="troque-por-um-token-interno-do-bot"
 DISCORD_BOT_TOKEN="token-do-bot"
 DISCORD_CLIENT_ID="client-id-oauth"
 DISCORD_CLIENT_SECRET="client-secret-oauth"
-DISCORD_CALLBACK_URL="https://seu-dominio.com/auth/discord/callback"
+DISCORD_CALLBACK_URL="https://ricardinho98.shardweb.app/auth/discord/callback"
 DASHBOARD_AUTH_REQUIRED="true"
 DASHBOARD_AUTHORIZED_USER_IDS="123456789012345678,987654321098765432"
 DEV_AUTH_ENABLED="false"
@@ -119,7 +119,7 @@ DASHBOARD_AUTH_REQUIRED="true"
 
 Crie uma aplicacao no Discord Developer Portal e configure:
 
-- Redirect URI em producao: `https://seu-dominio.com/auth/discord/callback`
+- Redirect URI em producao: `https://ricardinho98.shardweb.app/auth/discord/callback`
 - Redirect URI em desenvolvimento: `http://localhost:4000/auth/discord/callback`
 - Escopos: `identify`, `email`, `guilds`
 
