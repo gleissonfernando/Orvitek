@@ -58,7 +58,7 @@ URLs padrao:
 - Socket.IO: `http://localhost:4000`
 
 Use apenas o `.env` da raiz do projeto. O MongoDB padrao fica em `mongodb://localhost:27017/ricardinho98`.
-Se preferir MongoDB Atlas, troque `DATABASE_URL` no `.env` pela URI do cluster.
+Se preferir MongoDB Atlas, troque `MONGODB_URI` no `.env` pela URI do cluster.
 
 ## OAuth2 Discord
 

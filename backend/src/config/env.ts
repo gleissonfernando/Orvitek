@@ -9,6 +9,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().default(4000),
   DATABASE_URL: z.string().default("mongodb://localhost:27017/ricardinho98"),
+  MONGO_URI: z.string().default("mongodb://localhost:27017/ricardinho98"),
+  MONGODB_URI: z.string().default("mongodb://localhost:27017/ricardinho98"),
   REDIS_URL: z.string().optional().default(""),
   REDIS_SESSION_ENABLED: z
     .string()
