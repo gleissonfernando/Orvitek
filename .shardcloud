@@ -1,10 +1,7 @@
-DISPLAY_NAME=Ricardinho98 Dashboard
-DESCRIPTION=Discord dashboard and bot
+DISPLAY_NAME=Ricardinho98
+DESCRIPTION=Discord dashboard, API and bot
 LANGUAGE=node
-MEMORY=2048
+MEMORY=1024
 VERSION=recommended
 SUBDOMAIN=ricardinho98
-MAIN=index.js
-ENTRYPOINT=index.js
-START=npm run build && npm run start
-CUSTOM_COMMAND=npm run build && npm run start
+CUSTOM_COMMAND=npm start
