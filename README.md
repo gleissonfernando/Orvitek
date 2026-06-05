@@ -73,19 +73,19 @@ Configure as variaveis no painel da Sharclaud usando `.env.example` como checkli
 
 ```env
 NODE_ENV="production"
-SITE_ORIGIN="https://ricardinho98.shardweb.app"
-FRONTEND_URL="https://ricardinho98.shardweb.app"
-MONGODB_URI="mongodb+srv://usuario:senha@cluster.mongodb.net/ricardinho98?retryWrites=true&w=majority"
+SITE_ORIGIN=
+FRONTEND_URL=
+MONGODB_URI=
 SESSION_SECRET="troque-por-um-segredo-grande-de-sessao"
 JWT_SECRET="troque-por-um-segredo-grande-de-jwt"
 BOT_API_TOKEN="troque-por-um-token-interno-do-bot"
 DISCORD_BOT_TOKEN="token-do-bot"
 DISCORD_CLIENT_ID="client-id-oauth"
 DISCORD_CLIENT_SECRET="client-secret-oauth"
-DISCORD_OAUTH_REDIRECT_URI="https://ricardinho98.shardweb.app/auth/discord/callback"
-DISCORD_CALLBACK_URL="https://ricardinho98.shardweb.app/auth/discord/callback"
+DISCORD_OAUTH_REDIRECT_URI=
+DISCORD_CALLBACK_URL=
 DASHBOARD_AUTH_REQUIRED="true"
-DASHBOARD_AUTHORIZED_USER_IDS="123456789012345678,987654321098765432"
+DASHBOARD_AUTHORIZED_USER_IDS=
 DEV_AUTH_ENABLED="false"
 ```
 
