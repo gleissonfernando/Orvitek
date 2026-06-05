@@ -1,5 +1,5 @@
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import type { Request, Response } from "express";
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import type { Request } from "express";
 import { Router } from "express";
 import { env } from "../config/env";
 import {
@@ -27,7 +27,6 @@ import { saveDiscordUser } from "../services/userService";
 export const authRouter = Router();
 const dashboardPath = "/dashboard";
 const errorPath = "/auth/error";
-const OAUTH_STATE_COOKIE = "discord.oauth_state";
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 
 function isApiAuthMount(req: Request) {
@@ -47,21 +46,18 @@ function errorRedirectUrl(reason: string) {
   return env.SITE_ORIGIN ? `${env.SITE_ORIGIN}${path}` : path;
 }
 
-function oauthStateCookieOptions() {
-  return {
-    httpOnly: true,
-    sameSite: "lax" as const,
-    secure: env.NODE_ENV === "production",
-    path: "/auth/discord/callback",
-    maxAge: OAUTH_STATE_TTL_MS
-  };
+function requestFingerprint(req: Request) {
+  return createHash("sha256")
+    .update(req.get("user-agent") ?? "")
+    .digest("base64url");
 }
 
-function signOAuthState(state: string) {
+function createOAuthState(req: Request) {
   const payload = Buffer.from(
     JSON.stringify({
       exp: Date.now() + OAUTH_STATE_TTL_MS,
-      state
+      nonce: randomUUID(),
+      ua: requestFingerprint(req)
     }),
     "utf8"
   ).toString("base64url");
@@ -70,11 +66,11 @@ function signOAuthState(state: string) {
   return `${payload}.${signature}`;
 }
 
-function readSignedOAuthState(token?: string) {
+function verifyOAuthState(token: string, req: Request) {
   const [payload, signature] = token?.split(".") ?? [];
 
   if (!payload || !signature) {
-    return null;
+    return false;
   }
 
   const expected = createHmac("sha256", env.SESSION_SECRET).update(payload).digest("base64url");
@@ -82,32 +78,30 @@ function readSignedOAuthState(token?: string) {
   const expectedBuffer = Buffer.from(expected);
 
   if (signatureBuffer.length !== expectedBuffer.length || !timingSafeEqual(signatureBuffer, expectedBuffer)) {
-    return null;
+    return false;
   }
 
   try {
     const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
       exp?: number;
-      state?: unknown;
+      nonce?: unknown;
+      ua?: unknown;
     };
 
-    if (typeof parsed.exp !== "number" || parsed.exp < Date.now() || typeof parsed.state !== "string") {
-      return null;
+    if (
+      typeof parsed.exp !== "number" ||
+      parsed.exp < Date.now() ||
+      typeof parsed.nonce !== "string" ||
+      typeof parsed.ua !== "string" ||
+      parsed.ua !== requestFingerprint(req)
+    ) {
+      return false;
     }
 
-    return parsed.state;
+    return true;
   } catch {
-    return null;
+    return false;
   }
-}
-
-function setOAuthStateCookie(res: Response, state: string) {
-  res.cookie(OAUTH_STATE_COOKIE, signOAuthState(state), oauthStateCookieOptions());
-}
-
-function clearOAuthStateCookie(res: Response) {
-  const { maxAge: _maxAge, ...options } = oauthStateCookieOptions();
-  res.clearCookie(OAUTH_STATE_COOKIE, options);
 }
 
 function saveSession(req: Request) {
@@ -152,8 +146,7 @@ authRouter.get("/discord", async (req, res) => {
     });
   }
 
-  const state = randomUUID();
-  setOAuthStateCookie(res, state);
+  const state = createOAuthState(req);
 
   return res.redirect(buildDiscordAuthUrl(state));
 });
@@ -169,10 +162,8 @@ authRouter.get("/discord/callback", async (req, res, next) => {
   try {
     const code = typeof req.query.code === "string" ? req.query.code : null;
     const state = typeof req.query.state === "string" ? req.query.state : null;
-    const storedState = readSignedOAuthState(req.cookies?.[OAUTH_STATE_COOKIE]) ?? req.session.oauthState;
-    clearOAuthStateCookie(res);
 
-    if (!code || !state || state !== storedState) {
+    if (!code || !state || !verifyOAuthState(state, req)) {
       clearAuthCookies(res);
       return res.redirect(errorRedirectUrl("callback"));
     }
