@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getSession, loginDev, logout as logoutRequest, verifyAccess } from "../lib/api";
+import { appUrl, dashboardUrl } from "../lib/urls";
 import type { AuthResponse } from "../types";
-
-const DISCORD_AUTH_URL = "https://ricardinho98.shardweb.app/auth/discord";
-const DASHBOARD_URL = "https://ricardinho98.shardweb.app/dashboard";
 
 export function useAuth() {
   const [auth, setAuth] = useState<AuthResponse | null>(null);
@@ -26,7 +24,7 @@ export function useAuth() {
   }, []);
 
   const loginDiscord = useCallback(() => {
-    window.location.href = DISCORD_AUTH_URL;
+    window.location.href = appUrl("/auth/discord");
   }, []);
 
   const loginDevelopment = useCallback(async () => {
@@ -52,7 +50,7 @@ export function useAuth() {
     try {
       const session = await verifyAccess();
       setAuth(session);
-      window.location.replace(DASHBOARD_URL);
+      window.location.replace(dashboardUrl());
     } catch {
       setError("Nao foi possivel validar seu acesso temporario.");
     } finally {

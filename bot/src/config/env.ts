@@ -6,7 +6,7 @@ dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 const isProduction = process.env.NODE_ENV === "production";
-const productionPublicUrl = "https://ricardinho98.shardweb.app";
+const localBackendUrl = "http://localhost:4000";
 
 function cleanEnvValue(value: unknown) {
   if (typeof value !== "string") {
@@ -60,18 +60,16 @@ function isLocalUrl(value: string) {
 
 const configuredFrontendUrl = cleanEnvValue(process.env.FRONTEND_URL);
 const productionFrontendUrl =
-  configuredFrontendUrl && !isLocalUrl(configuredFrontendUrl) ? normalizeUrl(configuredFrontendUrl) : productionPublicUrl;
+  configuredFrontendUrl && !isLocalUrl(configuredFrontendUrl) ? normalizeUrl(configuredFrontendUrl) : "";
+const defaultBackendUrl = isProduction ? productionFrontendUrl : localBackendUrl;
+const defaultBackendApiUrl = defaultBackendUrl ? `${defaultBackendUrl}/api` : "";
 
 const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     DISCORD_BOT_TOKEN: z.string().default(""),
-    BACKEND_API_URL: envUrl(
-      "BACKEND_API_URL",
-      `${productionFrontendUrl}/api`,
-      productionFrontendUrl ? `${productionFrontendUrl}/api` : undefined
-    ),
-    BACKEND_SOCKET_URL: envUrl("BACKEND_SOCKET_URL", productionFrontendUrl, productionFrontendUrl),
+    BACKEND_API_URL: envUrl("BACKEND_API_URL", defaultBackendApiUrl, defaultBackendApiUrl),
+    BACKEND_SOCKET_URL: envUrl("BACKEND_SOCKET_URL", defaultBackendUrl, defaultBackendUrl),
     BOT_API_TOKEN: z.string().default(""),
     TWITCH_CLIENT_ID: z.string().default(""),
     TWITCH_CLIENT_SECRET: z.string().default(""),

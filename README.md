@@ -119,19 +119,19 @@ DASHBOARD_AUTH_REQUIRED="true"
 
 Crie uma aplicacao no Discord Developer Portal e configure:
 
-- Redirect URI: `https://ricardinho98.shardweb.app/auth/discord/callback`
+- Redirect URI: `https://seu-dominio.shardweb.app/auth/discord/callback`
 - Escopos: `identify`, `email`, `guilds`
 
 Para desenvolvimento local, preencha no `.env`:
 
 ```env
-DISCORD_CLIENT_ID=""
-DISCORD_CLIENT_SECRET=""
-SITE_ORIGIN="https://ricardinho98.shardweb.app"
-FRONTEND_URL="https://ricardinho98.shardweb.app"
-DISCORD_OAUTH_REDIRECT_URI="https://ricardinho98.shardweb.app/auth/discord/callback"
-DISCORD_CALLBACK_URL="https://ricardinho98.shardweb.app/auth/discord/callback"
-JWT_SECRET="change-this-jwt-secret"
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+SITE_ORIGIN=
+FRONTEND_URL=
+DISCORD_OAUTH_REDIRECT_URI=
+DISCORD_CALLBACK_URL=
+JWT_SECRET="troque-por-um-segredo-grande-de-jwt"
 DASHBOARD_AUTH_REQUIRED="true"
 DASHBOARD_VERIFICATION_MODE="temporary"
 ```

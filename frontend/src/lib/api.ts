@@ -11,45 +11,17 @@ import type {
   Ticket,
   UpdateTwitchNotificationPayload
 } from "../types";
-
-const PUBLIC_FRONTEND_URL = "https://ricardinho98.shardweb.app";
-
-function normalizeUrl(value?: string) {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed.replace(/\/+$/, "") || "/" : undefined;
-}
-
-function isLocalHttpUrl(value?: string) {
-  if (!value || !/^https?:\/\//i.test(value)) {
-    return false;
-  }
-
-  const url = new URL(value);
-  return ["localhost", "127.0.0.1", "0.0.0.0", "::1"].includes(url.hostname);
-}
-
-function isLocalBrowserOrigin() {
-  return isLocalHttpUrl(window.location.origin);
-}
-
-function publicOrigin() {
-  const configuredPublicUrl = normalizeUrl(import.meta.env.VITE_FRONTEND_URL);
-
-  if (configuredPublicUrl && !isLocalHttpUrl(configuredPublicUrl)) {
-    return configuredPublicUrl;
-  }
-
-  return PUBLIC_FRONTEND_URL;
-}
+import { isLocalBrowserOrigin, normalizePublicUrl, publicOrigin } from "./urls";
 
 function resolveDevelopmentApiUrl() {
-  const configuredApiUrl = normalizeUrl(import.meta.env.VITE_API_URL);
+  const configuredApiUrl = normalizePublicUrl(import.meta.env.VITE_API_URL);
 
-  if (configuredApiUrl && !isLocalHttpUrl(configuredApiUrl)) {
+  if (configuredApiUrl) {
     return configuredApiUrl;
   }
 
-  return isLocalBrowserOrigin() ? `${publicOrigin()}/api` : "/api";
+  const origin = publicOrigin();
+  return isLocalBrowserOrigin() && origin ? `${origin}/api` : "/api";
 }
 
 export const API_URL = import.meta.env.PROD ? "/api" : resolveDevelopmentApiUrl();

@@ -7,7 +7,7 @@ dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 const localMongoUrl = "mongodb://localhost:27017/ricardinho98";
-const productionPublicUrl = "https://ricardinho98.shardweb.app";
+const localFrontendUrl = "http://localhost:5173";
 const isProduction = process.env.NODE_ENV === "production";
 
 function cleanEnvValue(value: unknown) {
@@ -83,8 +83,9 @@ function isLocalUrl(value: string) {
 
 const configuredSiteOrigin = cleanEnvValue(process.env.SITE_ORIGIN) ?? cleanEnvValue(process.env.FRONTEND_URL);
 const productionSiteOrigin =
-  configuredSiteOrigin && !isLocalUrl(configuredSiteOrigin) ? normalizeUrl(configuredSiteOrigin) : productionPublicUrl;
-const canonicalDiscordRedirectUri = discordRedirectUriFor(productionSiteOrigin);
+  configuredSiteOrigin && !isLocalUrl(configuredSiteOrigin) ? normalizeUrl(configuredSiteOrigin) : "";
+const defaultSiteOrigin = isProduction ? productionSiteOrigin : localFrontendUrl;
+const canonicalDiscordRedirectUri = defaultSiteOrigin ? discordRedirectUriFor(defaultSiteOrigin) : "";
 
 function productionSafeUrl(value?: string) {
   if (!value) {
@@ -115,7 +116,7 @@ const envSchema = z
     DISCORD_BOT_TOKEN: z.string().default(""),
     DISCORD_CLIENT_ID: z.string().default(""),
     DISCORD_CLIENT_SECRET: z.string().default(""),
-    SITE_ORIGIN: envUrl("SITE_ORIGIN", productionSiteOrigin, productionSiteOrigin),
+    SITE_ORIGIN: envUrl("SITE_ORIGIN", defaultSiteOrigin, productionSiteOrigin),
     DISCORD_OAUTH_REDIRECT_URI: envUrl(
       "DISCORD_OAUTH_REDIRECT_URI",
       canonicalDiscordRedirectUri,
@@ -129,7 +130,7 @@ const envSchema = z
     DISCORD_SCOPES: z.string().default("identify email guilds"),
     TWITCH_CLIENT_ID: z.string().default(""),
     TWITCH_CLIENT_SECRET: z.string().default(""),
-    FRONTEND_URL: envUrl("FRONTEND_URL", productionSiteOrigin, productionSiteOrigin),
+    FRONTEND_URL: envUrl("FRONTEND_URL", defaultSiteOrigin, productionSiteOrigin),
     DASHBOARD_AUTH_REQUIRED: envBoolean(isProduction),
     DASHBOARD_AUTHORIZED_USER_IDS: z.string().optional().default(""),
     DASHBOARD_VERIFICATION_MODE: z.enum(["temporary", "roles"]).default("temporary"),
@@ -142,7 +143,7 @@ const envSchema = z
       configuredOrigin && !(value.DASHBOARD_AUTH_REQUIRED && isLocalUrl(configuredOrigin))
         ? normalizeUrl(configuredOrigin)
         : productionSiteOrigin;
-    const oauthCallbackUrl = discordRedirectUriFor(oauthFrontendUrl);
+    const oauthCallbackUrl = oauthFrontendUrl ? discordRedirectUriFor(oauthFrontendUrl) : "";
 
     return {
       ...value,
