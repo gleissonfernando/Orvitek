@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto";
-import type { Request } from "express";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import type { Request, Response } from "express";
 import { Router } from "express";
 import { env } from "../config/env";
 import {
@@ -27,6 +27,8 @@ import { saveDiscordUser } from "../services/userService";
 export const authRouter = Router();
 const dashboardPath = "/dashboard";
 const errorPath = "/auth/error";
+const OAUTH_STATE_COOKIE = "discord.oauth_state";
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 
 function isApiAuthMount(req: Request) {
   return req.baseUrl.replace(/\/+$/, "") === "/api/auth";
@@ -43,6 +45,69 @@ function dashboardRedirectUrl() {
 function errorRedirectUrl(reason: string) {
   const path = `${errorPath}?reason=${encodeURIComponent(reason)}`;
   return env.SITE_ORIGIN ? `${env.SITE_ORIGIN}${path}` : path;
+}
+
+function oauthStateCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: env.NODE_ENV === "production",
+    path: "/auth/discord/callback",
+    maxAge: OAUTH_STATE_TTL_MS
+  };
+}
+
+function signOAuthState(state: string) {
+  const payload = Buffer.from(
+    JSON.stringify({
+      exp: Date.now() + OAUTH_STATE_TTL_MS,
+      state
+    }),
+    "utf8"
+  ).toString("base64url");
+  const signature = createHmac("sha256", env.SESSION_SECRET).update(payload).digest("base64url");
+
+  return `${payload}.${signature}`;
+}
+
+function readSignedOAuthState(token?: string) {
+  const [payload, signature] = token?.split(".") ?? [];
+
+  if (!payload || !signature) {
+    return null;
+  }
+
+  const expected = createHmac("sha256", env.SESSION_SECRET).update(payload).digest("base64url");
+  const signatureBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+
+  if (signatureBuffer.length !== expectedBuffer.length || !timingSafeEqual(signatureBuffer, expectedBuffer)) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
+      exp?: number;
+      state?: unknown;
+    };
+
+    if (typeof parsed.exp !== "number" || parsed.exp < Date.now() || typeof parsed.state !== "string") {
+      return null;
+    }
+
+    return parsed.state;
+  } catch {
+    return null;
+  }
+}
+
+function setOAuthStateCookie(res: Response, state: string) {
+  res.cookie(OAUTH_STATE_COOKIE, signOAuthState(state), oauthStateCookieOptions());
+}
+
+function clearOAuthStateCookie(res: Response) {
+  const { maxAge: _maxAge, ...options } = oauthStateCookieOptions();
+  res.clearCookie(OAUTH_STATE_COOKIE, options);
 }
 
 function saveSession(req: Request) {
@@ -88,8 +153,7 @@ authRouter.get("/discord", async (req, res) => {
   }
 
   const state = randomUUID();
-  req.session.oauthState = state;
-  await saveSession(req);
+  setOAuthStateCookie(res, state);
 
   return res.redirect(buildDiscordAuthUrl(state));
 });
@@ -105,8 +169,10 @@ authRouter.get("/discord/callback", async (req, res, next) => {
   try {
     const code = typeof req.query.code === "string" ? req.query.code : null;
     const state = typeof req.query.state === "string" ? req.query.state : null;
+    const storedState = readSignedOAuthState(req.cookies?.[OAUTH_STATE_COOKIE]) ?? req.session.oauthState;
+    clearOAuthStateCookie(res);
 
-    if (!code || !state || state !== req.session.oauthState) {
+    if (!code || !state || state !== storedState) {
       clearAuthCookies(res);
       return res.redirect(errorRedirectUrl("callback"));
     }
