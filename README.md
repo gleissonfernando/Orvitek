@@ -41,15 +41,52 @@ npm run dev:bot
 Ou rode backend e frontend juntos:
 
 ```bash
-npm start
+npm run dev
 ```
 
 Se alguma porta ficar presa por um processo antigo do projeto:
 
 ```bash
 npm run stop
+npm run dev
+```
+
+## Deploy Sharclaud
+
+Use o projeto pela raiz.
+
+Build command:
+
+```bash
+npm install && npm run build
+```
+
+Start command:
+
+```bash
 npm start
 ```
+
+O `npm start` de producao sobe o backend e o bot juntos. O backend tambem serve o build do frontend em `frontend/dist`.
+
+Configure as variaveis no painel da Sharclaud usando os mesmos nomes do `.env` local:
+
+```env
+NODE_ENV="production"
+PORT="4000"
+MONGODB_URI=""
+MONGO_URI=""
+DATABASE_URL=""
+BOT_API_TOKEN=""
+DISCORD_BOT_TOKEN=""
+BACKEND_API_URL="https://sua-url/api"
+BACKEND_SOCKET_URL="https://sua-url"
+FRONTEND_URL="https://sua-url"
+VITE_API_URL="https://sua-url/api"
+VITE_SOCKET_URL="https://sua-url"
+```
+
+Preencha tambem as variaveis de Discord OAuth e Twitch se for usar esses recursos.
 
 URLs padrao:
 

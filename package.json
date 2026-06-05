@@ -9,17 +9,17 @@
     "bot"
   ],
   "scripts": {
-    "prestart": "npm run stop",
-    "start": "concurrently -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "start": "node scripts/start-production.mjs",
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",
     "stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-dev.ps1",
-    "restart": "npm run stop && npm start",
+    "restart": "npm run stop && npm run dev",
     "dev:frontend": "npm run dev --workspace frontend",
     "dev:backend": "npm run dev --workspace backend",
     "dev:bot": "npm run dev --workspace bot",
     "start:frontend": "npm run dev:frontend",
     "start:backend": "npm run dev:backend",
     "start:bot": "npm run dev:bot",
-    "build": "npm run build --workspaces",
+    "build": "npm run prisma:generate && npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces",
     "prisma:generate": "prisma generate --schema backend/prisma/schema.prisma",
     "prisma:push": "prisma db push --schema backend/prisma/schema.prisma"

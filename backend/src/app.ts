@@ -1,4 +1,6 @@
 import "./types/session";
+import fs from "node:fs";
+import path from "node:path";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
@@ -10,6 +12,7 @@ import { sessionMiddleware } from "./middleware/session";
 import { apiRouter } from "./routes";
 
 export const app = express();
+const frontendDistPath = path.resolve(__dirname, "../../frontend/dist");
 
 app.use(
   helmet({
@@ -30,12 +33,20 @@ app.use(express.urlencoded({ extended: true }));
 app.use(sessionMiddleware);
 app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
 
-app.get("/", (_req, res) => {
-  res.json({
-    name: "Discord Dashboard API",
-    status: "online"
-  });
-});
-
 app.use("/api", apiRouter);
+
+if (fs.existsSync(frontendDistPath)) {
+  app.use(express.static(frontendDistPath));
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(frontendDistPath, "index.html"));
+  });
+} else {
+  app.get("/", (_req, res) => {
+    res.json({
+      name: "Discord Dashboard API",
+      status: "online"
+    });
+  });
+}
+
 app.use(errorHandler);
