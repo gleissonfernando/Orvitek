@@ -31,13 +31,14 @@ livesRouter.post("/events", async (req, res, next) => {
     const event = createLiveEvent(input);
     const realtimeEvent = input.type === "started" ? "live:started" : "live:ended";
 
-    await createLog({
+    const log = await createLog({
       guildId: input.guildId,
       type: realtimeEvent,
       message: `${input.streamer} ${input.type === "started" ? "iniciou" : "encerrou"} uma live.`,
       metadata: input
     });
 
+    emitRealtime("logs:new", log);
     emitRealtime(realtimeEvent, event);
 
     return res.status(201).json({

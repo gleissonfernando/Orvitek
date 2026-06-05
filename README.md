@@ -3,7 +3,7 @@
 Arquitetura separada em tres aplicacoes independentes:
 
 - `frontend`: dashboard React + TSX + Vite + Tailwind + componentes no estilo shadcn/ui.
-- `backend`: API Node.js + Express + TypeScript + Prisma + PostgreSQL + Redis + Socket.IO.
+- `backend`: API Node.js + Express + TypeScript + Prisma + MongoDB + Redis + Socket.IO.
 - `bot`: bot Discord.js v14 + TypeScript, sem paginas HTML ou rotas web.
 
 ## Fluxo
@@ -13,7 +13,7 @@ Frontend
   |
   v
 Backend API
-  |-- PostgreSQL
+  |-- MongoDB
   |-- Redis
   v
 Bot Discord
@@ -26,9 +26,6 @@ O frontend nunca acessa banco de dados diretamente. O bot nunca importa ou rende
 ```bash
 npm install
 docker compose up -d
-copy .env.example backend/.env
-copy .env.example bot/.env
-copy .env.example frontend/.env
 npm run prisma:generate
 npm run prisma:push
 ```
@@ -60,13 +57,14 @@ URLs padrao:
 - Backend API: `http://localhost:4000/api`
 - Socket.IO: `http://localhost:4000`
 
-PostgreSQL roda em `postgresql://discord:discord@localhost:5432/discord_platform?schema=public`.
+Use apenas o `.env` da raiz do projeto. O MongoDB padrao fica em `mongodb://localhost:27017/ricardinho98`.
+Se preferir MongoDB Atlas, troque `DATABASE_URL` no `.env` pela URI do cluster.
 
 ## OAuth2 Discord
 
 Por padrao, a dashboard abre sem OAuth2 usando o usuario local `Admin Local`. Esse modo tambem emite JWT httpOnly para manter o mesmo fluxo interno do painel.
 
-Para exigir login Discord novamente, defina no `backend/.env`:
+Para exigir login Discord novamente, defina no `.env`:
 
 ```env
 DASHBOARD_AUTH_REQUIRED="true"
@@ -77,7 +75,7 @@ Crie uma aplicacao no Discord Developer Portal e configure:
 - Redirect URI: `http://localhost:4000/api/auth/discord/callback`
 - Escopos: `identify`, `email`, `guilds`
 
-Preencha no `backend/.env`:
+Preencha no `.env`:
 
 ```env
 DISCORD_CLIENT_ID=""
@@ -99,11 +97,11 @@ Redis tambem fica opcional no ambiente local. Para usar Redis como store de sess
 REDIS_SESSION_ENABLED="true"
 ```
 
-## Social Notifications
+## Lives
 
-O painel inclui a pagina `Social Notifications`, com suporte inicial a alertas de lives da Twitch.
+O painel inclui o gerenciamento de alertas da Twitch dentro da area `Lives`.
 
-Configure no `backend/.env` e no `bot/.env`:
+Configure no `.env`:
 
 ```env
 TWITCH_CLIENT_ID=""

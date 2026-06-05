@@ -61,8 +61,8 @@ export function toDashboardGuilds(guilds: DiscordGuild[]) {
 
 export const demoGuilds: DashboardGuild[] = [
   {
-    id: "110000000000000001",
-    name: "Comunidade Ricardinho",
+    id: "1213384118356803594",
+    name: "Servidor Ricardinho",
     iconUrl: null,
     owner: true,
     isAdmin: true,

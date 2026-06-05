@@ -3,12 +3,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id           String   @id @default(cuid())
+  id           String   @id @default(cuid()) @map("_id")
   discordId    String   @unique
   username     String
   avatar       String?
@@ -21,7 +21,7 @@ model User {
 }
 
 model Guild {
-  id          String          @id
+  id          String          @id @map("_id")
   name        String
   icon        String?
   ownerId     String?
@@ -37,9 +37,9 @@ model Guild {
 }
 
 model GuildSettings {
-  id                  String   @id @default(cuid())
+  id                  String   @id @default(cuid()) @map("_id")
   guildId             String   @unique
-  guild               Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  guild               Guild    @relation(fields: [guildId], references: [id])
   welcomeEnabled      Boolean  @default(false)
   welcomeChannelId    String?
   welcomeMessage      String?
@@ -57,9 +57,9 @@ model GuildSettings {
 }
 
 model LiveConfig {
-  id         String   @id @default(cuid())
+  id         String   @id @default(cuid()) @map("_id")
   guildId    String
-  guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  guild      Guild    @relation(fields: [guildId], references: [id])
   streamerId String
   streamer   String
   platform   String   @default("twitch")
@@ -73,9 +73,9 @@ model LiveConfig {
 }
 
 model Ticket {
-  id        String       @id @default(cuid())
+  id        String       @id @default(cuid()) @map("_id")
   guildId   String
-  guild     Guild        @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  guild     Guild        @relation(fields: [guildId], references: [id])
   channelId String?
   openerId  String
   subject   String
@@ -85,11 +85,11 @@ model Ticket {
 }
 
 model LogEntry {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   guildId   String
-  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  guild     Guild    @relation(fields: [guildId], references: [id])
   userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user      User?    @relation(fields: [userId], references: [id])
   type      String
   message   String
   metadata  Json?
@@ -99,9 +99,9 @@ model LogEntry {
 }
 
 model Statistic {
-  id           String   @id @default(cuid())
+  id           String   @id @default(cuid()) @map("_id")
   guildId      String
-  guild        Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  guild        Guild    @relation(fields: [guildId], references: [id])
   memberCount  Int      @default(0)
   channelCount Int      @default(0)
   liveCount    Int      @default(0)
@@ -112,9 +112,9 @@ model Statistic {
 }
 
 model SocialNotification {
-  id                String   @id @default(cuid())
+  id                String   @id @default(cuid()) @map("_id")
   guildId           String
-  guild             Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  guild             Guild    @relation(fields: [guildId], references: [id])
   userId            String
   platform          String   @default("twitch")
   twitchChannelName String

@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
+import { getGuildLiveOptions } from "../services/discordOptionsService";
 import { getBotStatus } from "../services/statsService";
+import type { AuthSessionUser } from "../types/session";
 
 export const guildsRouter = Router();
 
@@ -52,3 +54,32 @@ guildsRouter.get("/:guildId/stats", (req, res) => {
     }
   });
 });
+
+guildsRouter.get("/:guildId/live-options", async (req, res, next) => {
+  try {
+    const guildId = req.params.guildId;
+
+    if (!guildId) {
+      return res.status(400).json({
+        message: "Servidor obrigatorio."
+      });
+    }
+
+    if (!canManageGuild(res.locals.dashboardAuth.user, guildId)) {
+      return res.status(403).json({
+        message: "Voce nao tem permissao para configurar lives deste servidor."
+      });
+    }
+
+    return res.json({
+      options: await getGuildLiveOptions(guildId)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+function canManageGuild(user: AuthSessionUser, guildId: string) {
+  const guild = user.guilds.find((item) => item.id === guildId);
+  return Boolean(guild && (guild.owner || guild.isAdmin));
+}

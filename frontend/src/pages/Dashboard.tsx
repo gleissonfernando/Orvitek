@@ -22,14 +22,14 @@ import {
 } from "lucide-react";
 import { DashboardLayout } from "../components/layout/dashboard-layout";
 import type { ViewId } from "../components/layout/sidebar";
-import { SocialNotificationsPage } from "./SocialNotificationsPage";
+import { LiveNotificationsPanel } from "../components/social/LiveNotificationsPanel";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Switch } from "../components/ui/switch";
 import { createDashboardSocket } from "../lib/socket";
 import { getGuildSettings, getLives, getLogs, getTickets, patchGuildSettings } from "../lib/api";
-import type { AuthResponse, BotStatus, GuildSettings, LiveEvent, LogEntry, Ticket } from "../types";
+import type { AuthResponse, BotStatus, DashboardGuild, GuildSettings, LiveEvent, LogEntry, Ticket } from "../types";
 
 type DashboardProps = {
   auth: AuthResponse;
@@ -249,10 +249,26 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
     const socket = createDashboardSocket();
 
     socket.on("bot:status", (status: BotStatus) => setBotStatus(status));
-    socket.on("logs:new", (log: LogEntry) => setLogs((current) => [log, ...current].slice(0, 50)));
-    socket.on("live:started", (event: LiveEvent) => setLives((current) => [event, ...current].slice(0, 50)));
-    socket.on("live:ended", (event: LiveEvent) => setLives((current) => [event, ...current].slice(0, 50)));
-    socket.on("tickets:new", (ticket: Ticket) => setTickets((current) => [ticket, ...current].slice(0, 50)));
+    socket.on("logs:new", (log: LogEntry) => {
+      if (log.guildId === selectedGuildId) {
+        setLogs((current) => [log, ...current].slice(0, 50));
+      }
+    });
+    socket.on("live:started", (event: LiveEvent) => {
+      if (event.guildId === selectedGuildId) {
+        setLives((current) => [event, ...current].slice(0, 50));
+      }
+    });
+    socket.on("live:ended", (event: LiveEvent) => {
+      if (event.guildId === selectedGuildId) {
+        setLives((current) => [event, ...current].slice(0, 50));
+      }
+    });
+    socket.on("tickets:new", (ticket: Ticket) => {
+      if (ticket.guildId === selectedGuildId) {
+        setTickets((current) => [ticket, ...current].slice(0, 50));
+      }
+    });
     socket.on("settings:updated", (nextSettings: GuildSettings) => {
       if (nextSettings.guildId === selectedGuildId) {
         setSettings(nextSettings);
@@ -304,13 +320,11 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
         initial={{ opacity: 0, y: 14 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
       >
-        {activeView !== "socialNotifications" ? (
-          <PageHeader
-            activeView={activeView}
-            botStatus={botStatus}
-            guildName={selectedGuild?.name ?? "Servidor"}
-          />
-        ) : null}
+        <PageHeader
+          activeView={activeView}
+          botStatus={botStatus}
+          guildName={selectedGuild?.name ?? "Servidor"}
+        />
 
         {activeView === "overview" ? (
           <OverviewView
@@ -332,9 +346,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
           />
         ) : null}
 
-        {activeView === "socialNotifications" ? <SocialNotificationsPage guild={selectedGuild} /> : null}
-
-        {activeView === "lives" ? <LiveView lives={lives} /> : null}
+        {activeView === "lives" ? <LiveView guild={selectedGuild} lives={lives} /> : null}
         {activeView === "tickets" ? <TicketView tickets={tickets} /> : null}
         {activeView === "logs" ? <LogsView logs={logs} /> : null}
 
@@ -598,32 +610,36 @@ function ConfigCard({
   );
 }
 
-function LiveView({ lives }: { lives: LiveEvent[] }) {
+function LiveView({ guild, lives }: { guild: DashboardGuild | null; lives: LiveEvent[] }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Sistema de lives</CardTitle>
-        <CardDescription>Eventos de início e encerramento recebidos do bot.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          {lives.length ? (
-            lives.map((live) => (
-              <EventRow
-                badge={live.type === "started" ? "Iniciada" : "Encerrada"}
-                icon={Radio}
-                key={live.id}
-                subtitle={live.title ?? live.url ?? "Sem título"}
-                title={live.streamer}
-                time={live.createdAt}
-              />
-            ))
-          ) : (
-            <EmptyState icon={Radio} title="Nenhuma live registrada" />
-          )}
-        </div>
-      </CardContent>
-    </Card>
+    <div className="space-y-6">
+      <LiveNotificationsPanel guild={guild} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Sistema de lives</CardTitle>
+          <CardDescription>Eventos de início e encerramento recebidos do bot.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {lives.length ? (
+              lives.map((live) => (
+                <EventRow
+                  badge={live.type === "started" ? "Iniciada" : "Encerrada"}
+                  icon={Radio}
+                  key={live.id}
+                  subtitle={live.title ?? live.url ?? "Sem título"}
+                  title={live.streamer}
+                  time={live.createdAt}
+                />
+              ))
+            ) : (
+              <EmptyState icon={Radio} title="Nenhuma live registrada" />
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

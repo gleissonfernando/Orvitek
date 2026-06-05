@@ -5,21 +5,25 @@ import type { SocialNotification } from "../../types";
 
 type TwitchChannelItemProps = {
   notification: SocialNotification;
+  channelName: string;
+  roleName: string;
   onEdit: (notification: SocialNotification) => void;
   onDelete: (notification: SocialNotification) => void;
 };
 
-export function TwitchChannelItem({ notification, onDelete, onEdit }: TwitchChannelItemProps) {
+export function TwitchChannelItem({ channelName, notification, onDelete, onEdit, roleName }: TwitchChannelItemProps) {
   return (
-    <article className="flex flex-col gap-3 rounded-2xl border border-[#36414e] bg-[#252d37] p-4 transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(0,0,0,0.38)] sm:flex-row sm:items-center sm:justify-between">
+    <article className="flex flex-col gap-3 rounded-lg border border-zinc-800 bg-zinc-950/70 p-4 transition duration-300 hover:-translate-y-0.5 hover:bg-zinc-900 hover:shadow-[0_18px_50px_rgba(0,0,0,0.38)] sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 items-center gap-3">
-        <Avatar className="h-12 w-12 rounded-2xl" fallback={notification.twitchChannelName} src={notification.twitchAvatar} />
+        <Avatar className="h-12 w-12 rounded-lg" fallback={notification.twitchChannelName} src={notification.twitchAvatar} />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-white">@{notification.twitchChannelName}</p>
-          <a className="block truncate text-xs text-[#b8bec8] hover:text-white" href={notification.twitchChannelUrl} rel="noreferrer" target="_blank">
+          <a className="block truncate text-xs text-zinc-500 hover:text-white" href={notification.twitchChannelUrl} rel="noreferrer" target="_blank">
             {notification.twitchChannelUrl}
           </a>
-          <p className="mt-1 text-xs text-[#b8bec8]">{notification.enabled ? "Ativo" : "Desativado"} • Canal Discord: {notification.discordChannelId}</p>
+          <p className="mt-1 text-xs text-zinc-500">
+            {notification.enabled ? "Ativo" : "Desativado"} | Canal: {channelName} | Mencao: {roleName}
+          </p>
         </div>
       </div>
 

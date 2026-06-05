@@ -82,9 +82,10 @@ export async function logModeration(context: BotContext, guildId: string, user: 
 }
 
 async function sendLog(context: BotContext, payload: { guildId: string; type: string; message: string; userId?: string | null; metadata?: unknown }) {
-  await context.api.postLog(payload).catch((error) => {
+  try {
+    await context.api.postLog(payload);
+  } catch (error) {
     console.warn("[api] falha ao registrar log:", error instanceof Error ? error.message : error);
-  });
-
-  context.socket.emitLog(payload);
+    context.socket.emitLog(payload);
+  }
 }

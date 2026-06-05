@@ -1,29 +1,38 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "../ui/button";
-import type { CreateTwitchNotificationPayload } from "../../types";
+import type { CreateTwitchNotificationPayload, GuildLiveOptions } from "../../types";
 
 type AddTwitchChannelModalProps = {
   open: boolean;
   error: string | null;
+  options: GuildLiveOptions;
   saving: boolean;
   onClose: () => void;
   onSubmit: (payload: CreateTwitchNotificationPayload) => void;
 };
 
-export function AddTwitchChannelModal({ error, onClose, onSubmit, open, saving }: AddTwitchChannelModalProps) {
+export function AddTwitchChannelModal({ error, onClose, onSubmit, open, options, saving }: AddTwitchChannelModalProps) {
   const [twitchChannelInput, setTwitchChannelInput] = useState("");
   const [discordChannelId, setDiscordChannelId] = useState("");
-  const [mentionRoleId, setMentionRoleId] = useState("");
+  const [mentionRoleId, setMentionRoleId] = useState("everyone");
   const [customMessage, setCustomMessage] = useState("");
   const [enabled, setEnabled] = useState(true);
+
+  useEffect(() => {
+    if (!open || discordChannelId || !options.channels.length) {
+      return;
+    }
+
+    setDiscordChannelId(options.channels[0]?.id ?? "");
+  }, [discordChannelId, open, options.channels]);
 
   if (!open) {
     return null;
   }
 
   return (
-    <ModalShell onClose={onClose} title="Add Twitch channel">
+    <ModalShell onClose={onClose} title="Adicionar canal Twitch">
       <form
         className="space-y-4"
         onSubmit={(event) => {
@@ -40,23 +49,43 @@ export function AddTwitchChannelModal({ error, onClose, onSubmit, open, saving }
         <Field label="Link do canal da Twitch">
           <input className="social-input" onChange={(event) => setTwitchChannelInput(event.target.value)} placeholder="https://www.twitch.tv/ricardinn98" value={twitchChannelInput} />
         </Field>
-        <Field label="Canal do Discord">
-          <input className="social-input" onChange={(event) => setDiscordChannelId(event.target.value)} placeholder="ID do canal Discord" value={discordChannelId} />
+        <Field label="Canal para enviar lives">
+          {options.channels.length ? (
+            <select className="social-input" onChange={(event) => setDiscordChannelId(event.target.value)} required value={discordChannelId}>
+              {options.channels.map((channel) => (
+                <option key={channel.id} value={channel.id}>
+                  #{channel.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input className="social-input" onChange={(event) => setDiscordChannelId(event.target.value)} placeholder="Cole o ID do canal Discord" value={discordChannelId} />
+          )}
         </Field>
         <Field label="Cargo para mencionar">
-          <input className="social-input" onChange={(event) => setMentionRoleId(event.target.value)} placeholder="Opcional" value={mentionRoleId} />
+          <select className="social-input" onChange={(event) => setMentionRoleId(event.target.value)} value={mentionRoleId}>
+            <option value="everyone">@everyone</option>
+            <option value="">Sem mencao</option>
+            {options.roles
+              .filter((role) => role.name !== "@everyone")
+              .map((role) => (
+                <option key={role.id} value={role.id}>
+                  @{role.name}
+                </option>
+              ))}
+          </select>
         </Field>
         <Field label="Mensagem personalizada">
           <textarea className="social-input min-h-24 resize-none" onChange={(event) => setCustomMessage(event.target.value)} placeholder="Opcional" value={customMessage} />
         </Field>
-        <label className="flex items-center gap-3 text-sm text-[#b8bec8]">
+        <label className="flex items-center gap-3 text-sm text-zinc-500">
           <input checked={enabled} onChange={(event) => setEnabled(event.target.checked)} type="checkbox" />
-          Ativar notificação
+          Ativar notificacao
         </label>
-        {error ? <p className="rounded-xl border border-[#36414e] bg-[#252d37] p-3 text-sm text-white">{error}</p> : null}
+        {error ? <p className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-sm text-white">{error}</p> : null}
         <div className="flex justify-end gap-2">
           <Button onClick={onClose} type="button" variant="outline">Cancelar</Button>
-          <Button className="bg-[#1684ff] text-white hover:bg-[#1684ff]/90" disabled={saving} type="submit">
+          <Button disabled={saving} type="submit">
             {saving ? "Salvando..." : "Salvar"}
           </Button>
         </div>
@@ -68,10 +97,10 @@ export function AddTwitchChannelModal({ error, onClose, onSubmit, open, saving }
 export function ModalShell({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) {
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl border border-[#36414e] bg-[#29313c] p-5 shadow-[0_32px_100px_rgba(0,0,0,0.62)]">
+      <div className="w-full max-w-lg rounded-lg border border-zinc-800 bg-[#0b0b0b] p-5 shadow-[0_32px_100px_rgba(0,0,0,0.62)]">
         <div className="mb-5 flex items-center justify-between gap-4">
           <h3 className="text-lg font-semibold text-white">{title}</h3>
-          <button className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#252d37] text-[#b8bec8] transition duration-300 hover:text-white" onClick={onClose} type="button">
+          <button className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950 text-zinc-500 transition duration-300 hover:text-white" onClick={onClose} type="button">
             <X className="h-4 w-4" />
           </button>
         </div>

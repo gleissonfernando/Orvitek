@@ -1,4 +1,4 @@
-import { EmbedBuilder, type Client } from "discord.js";
+import { EmbedBuilder, type Client, type MessageMentionOptions } from "discord.js";
 import { env } from "../config/env";
 import type { ApiClient, SocialNotification } from "./apiClient";
 import { getTwitchStream, type TwitchStream } from "./twitchApiService";
@@ -44,6 +44,12 @@ async function processNotification(client: Client, api: ApiClient, notification:
       await api.updateTwitchNotificationState(notification.id, {
         isLive: false
       });
+      await api.notifyLive({
+        guildId: notification.guildId,
+        type: "ended",
+        streamer: notification.twitchChannelName,
+        url: notification.twitchChannelUrl
+      });
     }
 
     return;
@@ -65,6 +71,13 @@ async function processNotification(client: Client, api: ApiClient, notification:
     isLive: true,
     lastStreamId: stream.id,
     lastMessageId: messageId
+  });
+  await api.notifyLive({
+    guildId: notification.guildId,
+    type: "started",
+    streamer: stream.userName || notification.twitchChannelName,
+    title: stream.title,
+    url: `https://www.twitch.tv/${stream.userLogin}`
   });
 }
 
@@ -104,18 +117,48 @@ async function sendLiveAlert(client: Client, notification: SocialNotification, s
     embed.setThumbnail(notification.twitchAvatar);
   }
 
+  const mention = formatMention(notification);
   const contentParts = [
-    notification.mentionRoleId ? `<@&${notification.mentionRoleId}>` : null,
+    mention.content,
     notification.customMessage || null,
     `🔴 @${stream.userLogin} está AO VIVO!`
   ].filter(Boolean);
 
   const message = await channel.send({
+    allowedMentions: mention.allowedMentions,
     content: contentParts.join("\n"),
     embeds: [embed]
   });
 
   return message.id;
+}
+
+function formatMention(notification: SocialNotification): { content: string | null; allowedMentions: MessageMentionOptions } {
+  if (!notification.mentionRoleId) {
+    return {
+      content: null,
+      allowedMentions: {
+        parse: []
+      }
+    };
+  }
+
+  if (notification.mentionRoleId === "everyone" || notification.mentionRoleId === notification.guildId) {
+    return {
+      content: "@everyone",
+      allowedMentions: {
+        parse: ["everyone"] as const
+      }
+    };
+  }
+
+  return {
+    content: `<@&${notification.mentionRoleId}>`,
+    allowedMentions: {
+      parse: [],
+      roles: [notification.mentionRoleId]
+    }
+  };
 }
 
 function delay(ms: number) {

@@ -16,8 +16,8 @@ export function DeleteTwitchChannelModal({ deleting, notification, onClose, onCo
 
   return (
     <ModalShell onClose={onClose} title="Excluir canal Twitch">
-      <p className="text-sm leading-6 text-[#b8bec8]">
-        Remover @{notification.twitchChannelName} das notificações sociais deste servidor?
+      <p className="text-sm leading-6 text-zinc-500">
+        Remover @{notification.twitchChannelName} dos alertas de lives deste servidor?
       </p>
       <div className="mt-5 flex justify-end gap-2">
         <Button onClick={onClose} type="button" variant="outline">Cancelar</Button>

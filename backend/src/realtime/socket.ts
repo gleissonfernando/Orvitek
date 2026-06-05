@@ -23,6 +23,14 @@ export function createSocketServer(httpServer: HttpServer) {
     socket.data.isBot = isBot;
     socket.emit("bot:status", getBotStatus());
 
+    socket.on("disconnect", () => {
+      if (!socket.data.isBot) {
+        return;
+      }
+
+      io.emit("bot:status", updateBotStatus({ online: false }));
+    });
+
     socket.on("bot:status", (payload: { online?: boolean; latency?: number; guilds?: number; users?: number }) => {
       if (!socket.data.isBot) {
         return;
@@ -40,7 +48,7 @@ export function createSocketServer(httpServer: HttpServer) {
       io.emit("logs:new", log);
     });
 
-    socket.on("live:started", (payload: { guildId: string; streamer: string; title?: string; url?: string }) => {
+    socket.on("live:started", async (payload: { guildId: string; streamer: string; title?: string; url?: string }) => {
       if (!socket.data.isBot) {
         return;
       }
@@ -49,11 +57,21 @@ export function createSocketServer(httpServer: HttpServer) {
         ...payload,
         type: "started"
       });
+      const log = await createLog({
+        guildId: payload.guildId,
+        type: "live:started",
+        message: `${payload.streamer} iniciou uma live.`,
+        metadata: {
+          ...payload,
+          type: "started"
+        }
+      });
 
+      io.emit("logs:new", log);
       io.emit("live:started", event);
     });
 
-    socket.on("live:ended", (payload: { guildId: string; streamer: string; title?: string; url?: string }) => {
+    socket.on("live:ended", async (payload: { guildId: string; streamer: string; title?: string; url?: string }) => {
       if (!socket.data.isBot) {
         return;
       }
@@ -62,7 +80,17 @@ export function createSocketServer(httpServer: HttpServer) {
         ...payload,
         type: "ended"
       });
+      const log = await createLog({
+        guildId: payload.guildId,
+        type: "live:ended",
+        message: `${payload.streamer} encerrou uma live.`,
+        metadata: {
+          ...payload,
+          type: "ended"
+        }
+      });
 
+      io.emit("logs:new", log);
       io.emit("live:ended", event);
     });
   });

@@ -82,9 +82,9 @@
 
   .social-input {
     width: 100%;
-    border-radius: 14px;
-    border: 1px solid #36414e;
-    background: #252d37;
+    border-radius: 8px;
+    border: 1px solid #27272a;
+    background: #09090b;
     padding: 0.75rem 0.875rem;
     color: #ffffff;
     outline: none;
@@ -92,12 +92,12 @@
   }
 
   .social-input::placeholder {
-    color: #b8bec8;
+    color: #71717a;
     opacity: 0.62;
   }
 
   .social-input:focus {
-    border-color: #1684ff;
-    box-shadow: 0 0 0 3px rgba(22, 132, 255, 0.14);
+    border-color: #a1a1aa;
+    box-shadow: 0 0 0 3px rgba(161, 161, 170, 0.14);
   }
 }

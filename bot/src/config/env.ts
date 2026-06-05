@@ -1,7 +1,9 @@
+import path from "node:path";
 import dotenv from "dotenv";
 import { z } from "zod";
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 const envSchema = z.object({
   DISCORD_BOT_TOKEN: z.string().default(""),

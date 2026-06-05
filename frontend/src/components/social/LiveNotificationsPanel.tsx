@@ -1,29 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bell, Music2, Youtube } from "lucide-react";
+import { Radio } from "lucide-react";
 import {
   createTwitchNotification,
   deleteTwitchNotification,
+  getGuildLiveOptions,
   getSocialNotifications,
   updateTwitchNotification
-} from "../lib/api";
-import { AddTwitchChannelModal } from "../components/social/AddTwitchChannelModal";
-import { DeleteTwitchChannelModal } from "../components/social/DeleteTwitchChannelModal";
-import { EditTwitchChannelModal } from "../components/social/EditTwitchChannelModal";
-import { SocialCard } from "../components/social/SocialCard";
-import { TwitchNotificationCard } from "../components/social/TwitchNotificationCard";
+} from "../../lib/api";
+import { AddTwitchChannelModal } from "./AddTwitchChannelModal";
+import { DeleteTwitchChannelModal } from "./DeleteTwitchChannelModal";
+import { EditTwitchChannelModal } from "./EditTwitchChannelModal";
+import { TwitchNotificationCard } from "./TwitchNotificationCard";
 import type {
   CreateTwitchNotificationPayload,
   DashboardGuild,
+  GuildLiveOptions,
   SocialNotification,
   UpdateTwitchNotificationPayload
-} from "../types";
+} from "../../types";
 
-type SocialNotificationsPageProps = {
+type LiveNotificationsPanelProps = {
   guild: DashboardGuild | null;
 };
 
-export function SocialNotificationsPage({ guild }: SocialNotificationsPageProps) {
+export function LiveNotificationsPanel({ guild }: LiveNotificationsPanelProps) {
   const [notifications, setNotifications] = useState<SocialNotification[]>([]);
+  const [liveOptions, setLiveOptions] = useState<GuildLiveOptions>({ channels: [], roles: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -39,14 +41,23 @@ export function SocialNotificationsPage({ guild }: SocialNotificationsPageProps)
 
   useEffect(() => {
     if (!guild) {
+      setLoading(false);
+      setNotifications([]);
+      setLiveOptions({ channels: [], roles: [] });
       return;
     }
 
     setLoading(true);
     setError(null);
 
-    getSocialNotifications(guild.id)
-      .then(setNotifications)
+    Promise.all([
+      getSocialNotifications(guild.id),
+      getGuildLiveOptions(guild.id).catch(() => ({ channels: [], roles: [] }))
+    ])
+      .then(([nextNotifications, nextOptions]) => {
+        setNotifications(nextNotifications);
+        setLiveOptions(nextOptions);
+      })
       .catch((requestError: unknown) => setError(readErrorMessage(requestError)))
       .finally(() => setLoading(false));
   }, [guild]);
@@ -108,61 +119,49 @@ export function SocialNotificationsPage({ guild }: SocialNotificationsPageProps)
   }
 
   return (
-    <div className="min-h-[calc(100vh-120px)] rounded-3xl bg-[#1f2731] p-4 sm:p-6">
-      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#29313c] text-white">
-            <Bell className="h-6 w-6" />
+    <section className="space-y-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex min-w-0 items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950 text-white">
+            <Radio className="h-6 w-6" />
           </div>
-          <h2 className="text-3xl font-semibold text-white sm:text-4xl">Social Notifications</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#b8bec8]">
-            Configure alertas sociais por servidor. O foco inicial é monitorar lives da Twitch.
-          </p>
+          <div className="min-w-0">
+            <h3 className="text-xl font-semibold text-white">Notificacoes de lives</h3>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-500">
+              Cadastre canais da Twitch para o bot avisar quando uma transmissao comecar.
+            </p>
+          </div>
         </div>
 
-        <div className="rounded-2xl bg-[#29313c] px-4 py-3 text-sm text-[#b8bec8]">
+        <div className="rounded-lg border border-zinc-900 bg-zinc-950/75 px-4 py-2 text-sm text-zinc-500">
           Twitch: <span className="font-semibold text-white">{twitchCount}/5</span>
         </div>
       </div>
 
-      {loading ? <div className="rounded-2xl bg-[#29313c] p-5 text-[#b8bec8]">Carregando notificações...</div> : null}
-      {error ? <div className="mb-4 rounded-2xl border border-[#36414e] bg-[#252d37] p-4 text-sm text-white">{error}</div> : null}
+      {loading ? <div className="rounded-lg border border-zinc-900 bg-zinc-950/75 p-5 text-sm text-zinc-500">Carregando canais da Twitch...</div> : null}
+      {error ? <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm text-white">{error}</div> : null}
 
-      <div className="space-y-4">
-        <SocialCard
-          actionLabel="Set up"
-          description="Video upload notifications for configured channels."
-          icon={Youtube}
-          iconClassName="text-[#ff0000]"
-          title="YouTube"
-        />
-
-        <TwitchNotificationCard
-          notifications={notifications}
-          onAdd={() => {
-            setError(null);
-            setAddOpen(true);
-          }}
-          onDelete={setDeletingNotification}
-          onEdit={(notification) => {
-            setError(null);
-            setEditing(notification);
-          }}
-        />
-
-        <SocialCard
-          actionLabel="Set up"
-          description="Short video and live notifications for TikTok creators."
-          icon={Music2}
-          title="TikTok"
-        />
-      </div>
+      <TwitchNotificationCard
+        channels={liveOptions.channels}
+        notifications={notifications}
+        onAdd={() => {
+          setError(null);
+          setAddOpen(true);
+        }}
+        onDelete={setDeletingNotification}
+        onEdit={(notification) => {
+          setError(null);
+          setEditing(notification);
+        }}
+        roles={liveOptions.roles}
+      />
 
       <AddTwitchChannelModal
         error={error}
         onClose={() => setAddOpen(false)}
         onSubmit={handleCreate}
         open={addOpen}
+        options={liveOptions}
         saving={saving}
       />
       <EditTwitchChannelModal
@@ -170,6 +169,7 @@ export function SocialNotificationsPage({ guild }: SocialNotificationsPageProps)
         notification={editing}
         onClose={() => setEditing(null)}
         onSubmit={handleUpdate}
+        options={liveOptions}
         saving={saving}
       />
       <DeleteTwitchChannelModal
@@ -178,15 +178,15 @@ export function SocialNotificationsPage({ guild }: SocialNotificationsPageProps)
         onClose={() => setDeletingNotification(null)}
         onConfirm={handleDelete}
       />
-    </div>
+    </section>
   );
 }
 
 function readErrorMessage(error: unknown) {
   if (typeof error === "object" && error && "response" in error) {
     const response = (error as { response?: { data?: { message?: string } } }).response;
-    return response?.data?.message ?? "Não foi possível concluir a ação.";
+    return response?.data?.message ?? "Nao foi possivel concluir a acao.";
   }
 
-  return "Não foi possível concluir a ação.";
+  return "Nao foi possivel concluir a acao.";
 }

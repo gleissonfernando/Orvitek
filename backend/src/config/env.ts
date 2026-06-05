@@ -1,12 +1,14 @@
+import path from "node:path";
 import dotenv from "dotenv";
 import { z } from "zod";
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().default(4000),
-  DATABASE_URL: z.string().default("postgresql://discord:discord@localhost:5432/discord_platform?schema=public"),
+  DATABASE_URL: z.string().default("mongodb://localhost:27017/ricardinho98"),
   REDIS_URL: z.string().optional().default(""),
   REDIS_SESSION_ENABLED: z
     .string()
@@ -19,6 +21,7 @@ const envSchema = z.object({
   JWT_ACCESS_TTL_SECONDS: z.coerce.number().default(60 * 15),
   JWT_REFRESH_TTL_SECONDS: z.coerce.number().default(60 * 60 * 24 * 7),
   BOT_API_TOKEN: z.string().default(""),
+  DISCORD_BOT_TOKEN: z.string().default(""),
   DISCORD_CLIENT_ID: z.string().default(""),
   DISCORD_CLIENT_SECRET: z.string().default(""),
   DISCORD_CALLBACK_URL: z.string().url().default("http://localhost:4000/api/auth/discord/callback"),

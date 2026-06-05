@@ -3,6 +3,7 @@ import type { InternalAxiosRequestConfig } from "axios";
 import type {
   AuthResponse,
   CreateTwitchNotificationPayload,
+  GuildLiveOptions,
   GuildSettings,
   LiveEvent,
   LogEntry,
@@ -70,6 +71,11 @@ export async function logout() {
 export async function getGuildSettings(guildId: string) {
   const { data } = await api.get<{ settings: GuildSettings }>(`/settings/${guildId}`);
   return data.settings;
+}
+
+export async function getGuildLiveOptions(guildId: string) {
+  const { data } = await api.get<{ options: GuildLiveOptions }>(`/guilds/${guildId}/live-options`);
+  return data.options;
 }
 
 export async function patchGuildSettings(guildId: string, payload: Partial<GuildSettings>) {

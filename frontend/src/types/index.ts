@@ -94,6 +94,25 @@ export type Ticket = {
   closedAt?: string | null;
 };
 
+export type GuildChannelOption = {
+  id: string;
+  name: string;
+  parentId: string | null;
+  type: "text" | "announcement";
+};
+
+export type GuildRoleOption = {
+  id: string;
+  name: string;
+  color: number;
+  managed: boolean;
+};
+
+export type GuildLiveOptions = {
+  channels: GuildChannelOption[];
+  roles: GuildRoleOption[];
+};
+
 export type SocialNotification = {
   id: string;
   guildId: string;

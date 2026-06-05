@@ -23,12 +23,7 @@ export async function handlePresenceUpdate(context: BotContext, oldPresence: Pre
       url: streaming.url ?? undefined
     };
 
-    await context.api.notifyLive({
-      ...payload,
-      type: "started"
-    });
-
-    context.socket.emitLiveStarted(payload);
+    await notifyLiveStarted(context, payload);
     return;
   }
 
@@ -40,11 +35,30 @@ export async function handlePresenceUpdate(context: BotContext, oldPresence: Pre
       streamer: newPresence.user?.tag ?? userId
     };
 
+    await notifyLiveEnded(context, payload);
+  }
+}
+
+async function notifyLiveStarted(context: BotContext, payload: { guildId: string; streamer: string; title?: string; url?: string }) {
+  try {
+    await context.api.notifyLive({
+      ...payload,
+      type: "started"
+    });
+  } catch (error) {
+    console.warn("[api] falha ao registrar inicio de live:", error instanceof Error ? error.message : error);
+    context.socket.emitLiveStarted(payload);
+  }
+}
+
+async function notifyLiveEnded(context: BotContext, payload: { guildId: string; streamer: string; title?: string; url?: string }) {
+  try {
     await context.api.notifyLive({
       ...payload,
       type: "ended"
     });
-
+  } catch (error) {
+    console.warn("[api] falha ao registrar fim de live:", error instanceof Error ? error.message : error);
     context.socket.emitLiveEnded(payload);
   }
 }
