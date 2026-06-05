@@ -29,6 +29,14 @@ const dashboardPath = "/dashboard";
 const successPath = "/auth/success";
 const errorPath = "/auth/error";
 
+function isApiAuthMount(req: Request) {
+  return req.baseUrl.replace(/\/+$/, "") === "/api/auth";
+}
+
+function canonicalAuthUrl(path: string, query = "") {
+  return env.FRONTEND_URL ? `${env.FRONTEND_URL}/auth${path}${query}` : `/auth${path}${query}`;
+}
+
 function dashboardRedirectUrl() {
   return env.FRONTEND_URL ? `${env.FRONTEND_URL}${dashboardPath}` : dashboardPath;
 }
@@ -69,6 +77,10 @@ function destroySession(req: Request) {
 }
 
 authRouter.get("/discord", async (req, res) => {
+  if (isApiAuthMount(req)) {
+    return res.redirect(canonicalAuthUrl("/discord"));
+  }
+
   if (!env.DASHBOARD_AUTH_REQUIRED) {
     await issueLocalAccess(req, res);
     return res.redirect(dashboardRedirectUrl());
@@ -88,6 +100,13 @@ authRouter.get("/discord", async (req, res) => {
 });
 
 authRouter.get("/discord/callback", async (req, res, next) => {
+  if (isApiAuthMount(req)) {
+    const queryIndex = req.originalUrl.indexOf("?");
+    const query = queryIndex >= 0 ? req.originalUrl.slice(queryIndex) : "";
+
+    return res.redirect(canonicalAuthUrl("/discord/callback", query));
+  }
+
   try {
     const code = typeof req.query.code === "string" ? req.query.code : null;
     const state = typeof req.query.state === "string" ? req.query.state : null;
