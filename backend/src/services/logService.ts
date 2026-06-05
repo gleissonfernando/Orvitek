@@ -37,10 +37,10 @@ export async function createLog(input: CreateLogInput) {
   try {
     await prisma.guild.upsert({
       where: {
-        discordId: input.guildId
+        id: input.guildId
       },
       create: {
-        discordId: input.guildId,
+        id: input.guildId,
         name: `Guild ${input.guildId}`
       },
       update: {}

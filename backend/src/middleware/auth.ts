@@ -1,23 +1,38 @@
 import type { NextFunction, Request, Response } from "express";
 import { env } from "../config/env";
-import { createPublicDashboardUser } from "../services/publicAuthService";
+import { resolveAuthFromRequest } from "../services/tokenService";
 
 export function isBotRequest(req: Request) {
   const token = req.header("x-bot-token");
   return Boolean(env.BOT_API_TOKEN && token && token === env.BOT_API_TOKEN);
 }
 
+export function requireAuthenticated(req: Request, res: Response, next: NextFunction) {
+  const auth = resolveAuthFromRequest(req, res);
+
+  if (!auth) {
+    return res.status(401).json({ message: "Sessao nao autenticada." });
+  }
+
+  req.session.user = auth.user;
+  res.locals.dashboardAuth = auth;
+  return next();
+}
+
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (!env.DASHBOARD_AUTH_REQUIRED) {
-    req.session.user ??= createPublicDashboardUser();
-    return next();
+  const auth = resolveAuthFromRequest(req, res);
+
+  if (!auth) {
+    return res.status(401).json({ message: "Sessao nao autenticada." });
   }
 
-  if (req.session.user) {
-    return next();
+  if (!auth.verified) {
+    return res.status(403).json({ message: "Verificacao obrigatoria para acessar o painel." });
   }
 
-  return res.status(401).json({ message: "Sessao nao autenticada." });
+  req.session.user = auth.user;
+  res.locals.dashboardAuth = auth;
+  return next();
 }
 
 export function requireBot(req: Request, res: Response, next: NextFunction) {
@@ -29,14 +44,9 @@ export function requireBot(req: Request, res: Response, next: NextFunction) {
 }
 
 export function requireAuthOrBot(req: Request, res: Response, next: NextFunction) {
-  if (!env.DASHBOARD_AUTH_REQUIRED) {
-    req.session.user ??= createPublicDashboardUser();
+  if (isBotRequest(req)) {
     return next();
   }
 
-  if (req.session.user || isBotRequest(req)) {
-    return next();
-  }
-
-  return res.status(401).json({ message: "Autenticacao obrigatoria." });
+  return requireAuth(req, res, next);
 }

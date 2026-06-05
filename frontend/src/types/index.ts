@@ -13,6 +13,7 @@ export type AuthUser = {
   id: string;
   discordId: string;
   username: string;
+  tag: string;
   avatar: string | null;
   email: string | null;
   guilds: DashboardGuild[];
@@ -23,6 +24,17 @@ export type AuthResponse = {
   guilds: DashboardGuild[];
   permissions: {
     canManageGuilds: boolean;
+  };
+  access: {
+    authenticated: boolean;
+    verified: boolean;
+    verificationMode: "temporary" | "roles";
+    tokenExpiresAt: string;
+  };
+  validation?: {
+    allowed: boolean;
+    mode: "temporary" | "roles";
+    temporaryAccess: boolean;
   };
 };
 

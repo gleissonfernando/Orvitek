@@ -4,6 +4,7 @@ export type AuthSessionUser = {
   id: string;
   discordId: string;
   username: string;
+  tag: string;
   avatar: string | null;
   email: string | null;
   guilds: DashboardGuild[];

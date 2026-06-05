@@ -79,3 +79,11 @@ export function discordAvatarUrl(user: Pick<DiscordUser, "id" | "avatar">) {
 
   return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128`;
 }
+
+export function discordUserTag(user: Pick<DiscordUser, "username" | "discriminator" | "global_name">) {
+  if (user.discriminator && user.discriminator !== "0") {
+    return `${user.username}#${user.discriminator}`;
+  }
+
+  return user.global_name ?? user.username;
+}

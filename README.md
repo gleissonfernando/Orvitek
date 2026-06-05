@@ -3,7 +3,7 @@
 Arquitetura separada em tres aplicacoes independentes:
 
 - `frontend`: dashboard React + TSX + Vite + Tailwind + componentes no estilo shadcn/ui.
-- `backend`: API Node.js + Express + TypeScript + Prisma + MongoDB + Redis + Socket.IO.
+- `backend`: API Node.js + Express + TypeScript + Prisma + PostgreSQL + Redis + Socket.IO.
 - `bot`: bot Discord.js v14 + TypeScript, sem paginas HTML ou rotas web.
 
 ## Fluxo
@@ -13,7 +13,7 @@ Frontend
   |
   v
 Backend API
-  |-- MongoDB
+  |-- PostgreSQL
   |-- Redis
   v
 Bot Discord
@@ -60,7 +60,7 @@ URLs padrao:
 - Backend API: `http://localhost:4000/api`
 - Socket.IO: `http://localhost:4000`
 
-MongoDB roda em `mongodb://localhost:27017/discord_platform?replicaSet=rs0`.
+PostgreSQL roda em `postgresql://discord:discord@localhost:5432/discord_platform?schema=public`.
 
 ## OAuth2 Discord
 
@@ -76,13 +76,13 @@ DISCORD_CLIENT_ID=""
 DISCORD_CLIENT_SECRET=""
 DISCORD_CALLBACK_URL="http://localhost:4000/api/auth/discord/callback"
 FRONTEND_URL="http://localhost:5173"
+JWT_SECRET="change-this-jwt-secret"
+DASHBOARD_VERIFICATION_MODE="temporary"
 ```
 
-Por padrao, a dashboard abre sem OAuth2 usando um usuario administrativo local. Para exigir OAuth2 Discord depois, defina no `backend/.env`:
+O login via Discord OAuth2 e obrigatorio. Depois do callback, o backend salva a sessao em JWT httpOnly e redireciona para `/dashboard`.
 
-```env
-DASHBOARD_AUTH_REQUIRED="true"
-```
+Enquanto a validacao avancada de cargos nao estiver pronta, `DASHBOARD_VERIFICATION_MODE="temporary"` libera o acesso quando o usuario autenticado clicar em `Verificar`. A estrutura de middleware ja separa os checks de administrador, dono do servidor e cargo configurado no painel.
 
 Redis tambem fica opcional no ambiente local. Para usar Redis como store de sessao, rode o Redis e defina:
 

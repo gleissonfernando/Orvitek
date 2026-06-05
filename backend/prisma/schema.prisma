@@ -3,12 +3,12 @@ generator client {
 }
 
 datasource db {
-  provider = "mongodb"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  id           String   @id @default(cuid())
   discordId    String   @unique
   username     String
   avatar       String?
@@ -17,22 +17,28 @@ model User {
   refreshToken String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  logs         LogEntry[]
 }
 
 model Guild {
-  id          String     @id @default(auto()) @map("_id") @db.ObjectId
-  discordId   String     @unique
+  id          String          @id
   name        String
   icon        String?
   ownerId     String?
   botEnabled  Boolean         @default(false)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+  settings    GuildSettings?
+  liveConfigs LiveConfig[]
+  tickets     Ticket[]
+  logs        LogEntry[]
+  statistics  Statistic[]
 }
 
 model GuildSettings {
-  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  id                  String   @id @default(cuid())
   guildId             String   @unique
+  guild               Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
   welcomeEnabled      Boolean  @default(false)
   welcomeChannelId    String?
   welcomeMessage      String?
@@ -50,35 +56,39 @@ model GuildSettings {
 }
 
 model LiveConfig {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  guildId     String
-  streamerId  String
-  streamer    String
-  platform    String   @default("twitch")
-  channelId   String?
-  roleId      String?
-  enabled     Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  guildId    String
+  guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  streamerId String
+  streamer   String
+  platform   String   @default("twitch")
+  channelId  String?
+  roleId     String?
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@unique([guildId, platform, streamerId])
 }
 
 model Ticket {
-  id          String       @id @default(auto()) @map("_id") @db.ObjectId
-  guildId     String
-  channelId   String?
-  openerId    String
-  subject     String
-  status      TicketStatus @default(OPEN)
-  createdAt   DateTime     @default(now())
-  closedAt    DateTime?
+  id        String       @id @default(cuid())
+  guildId   String
+  guild     Guild        @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  channelId String?
+  openerId  String
+  subject   String
+  status    TicketStatus @default(OPEN)
+  createdAt DateTime     @default(now())
+  closedAt  DateTime?
 }
 
 model LogEntry {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String   @id @default(cuid())
   guildId   String
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
   userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   type      String
   message   String
   metadata  Json?
@@ -88,8 +98,9 @@ model LogEntry {
 }
 
 model Statistic {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  id           String   @id @default(cuid())
   guildId      String
+  guild        Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
   memberCount  Int      @default(0)
   channelCount Int      @default(0)
   liveCount    Int      @default(0)

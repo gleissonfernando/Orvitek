@@ -84,10 +84,10 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
   try {
     await prisma.guild.upsert({
       where: {
-        discordId: guildId
+        id: guildId
       },
       create: {
-        discordId: guildId,
+        id: guildId,
         name: `Guild ${guildId}`
       },
       update: {}

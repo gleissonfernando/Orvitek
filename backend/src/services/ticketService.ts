@@ -31,10 +31,10 @@ export async function createTicket(input: Pick<TicketDto, "guildId" | "channelId
   try {
     await prisma.guild.upsert({
       where: {
-        discordId: input.guildId
+        id: input.guildId
       },
       create: {
-        discordId: input.guildId,
+        id: input.guildId,
         name: `Guild ${input.guildId}`
       },
       update: {}

@@ -5,12 +5,21 @@ import { env } from "../config/env";
 import {
   buildDiscordAuthUrl,
   discordAvatarUrl,
+  discordUserTag,
   exchangeDiscordCode,
   fetchDiscordGuilds,
   fetchDiscordUser
 } from "../services/discordOAuthService";
 import { demoGuilds, toDashboardGuilds } from "../services/guildService";
-import { createAuthResponse, createPublicDashboardUser } from "../services/publicAuthService";
+import { requireAuthenticated } from "../middleware/auth";
+import { requireDashboardAccessValidation } from "../middleware/roleValidation";
+import {
+  clearAuthCookies,
+  createAuthResponse,
+  issueAuthCookies,
+  refreshAuthFromRequest,
+  resolveAuthFromRequest
+} from "../services/tokenService";
 import { saveDiscordUser } from "../services/userService";
 
 export const authRouter = Router();
@@ -42,13 +51,6 @@ function destroySession(req: Request) {
 }
 
 authRouter.get("/discord", async (req, res) => {
-  if (!env.DASHBOARD_AUTH_REQUIRED) {
-    req.session.user = createPublicDashboardUser();
-    await saveSession(req);
-
-    return res.redirect(env.FRONTEND_URL);
-  }
-
   if (!env.DISCORD_CLIENT_ID || !env.DISCORD_CLIENT_SECRET) {
     return res.status(503).json({
       message: "OAuth2 Discord ainda nao esta configurado."
@@ -83,14 +85,16 @@ authRouter.get("/discord/callback", async (req, res, next) => {
       id: user.id,
       discordId: discordUser.id,
       username: discordUser.global_name ?? discordUser.username,
+      tag: discordUserTag(discordUser),
       avatar: discordAvatarUrl(discordUser),
       email: discordUser.email,
       guilds
     };
     req.session.oauthState = undefined;
 
+    issueAuthCookies(res, req.session.user, false);
     await saveSession(req);
-    return res.redirect(env.FRONTEND_URL);
+    return res.redirect(`${env.FRONTEND_URL}/dashboard`);
   } catch (error) {
     return next(error);
   }
@@ -107,35 +111,64 @@ authRouter.post("/dev", async (req, res) => {
     id: "dev-user",
     discordId: "100000000000000000",
     username: "Admin Dev",
+    tag: "admin-dev",
     avatar: null,
     email: "admin@example.local",
     guilds: demoGuilds
   };
 
+  const auth = issueAuthCookies(res, req.session.user, true);
   await saveSession(req);
 
-  return res.json({
-    ...createAuthResponse(req.session.user)
-  });
+  return res.json(createAuthResponse(auth));
 });
 
 authRouter.get("/me", async (req, res) => {
-  if (!env.DASHBOARD_AUTH_REQUIRED && !req.session.user) {
-    req.session.user = createPublicDashboardUser();
-    await saveSession(req);
-  }
+  const auth = resolveAuthFromRequest(req, res);
 
-  if (!req.session.user) {
+  if (!auth) {
     return res.status(401).json({
       message: "Sessao nao autenticada."
     });
   }
 
-  return res.json(createAuthResponse(req.session.user));
+  req.session.user = auth.user;
+  await saveSession(req);
+
+  return res.json(createAuthResponse(auth));
+});
+
+authRouter.post("/refresh", async (req, res) => {
+  const auth = refreshAuthFromRequest(req, res);
+
+  if (!auth) {
+    return res.status(401).json({
+      message: "Sessao expirada."
+    });
+  }
+
+  req.session.user = auth.user;
+  await saveSession(req);
+
+  return res.json(createAuthResponse(auth));
+});
+
+authRouter.post("/verify", requireAuthenticated, requireDashboardAccessValidation, async (req, res) => {
+  const auth = res.locals.dashboardAuth;
+  const verifiedAuth = issueAuthCookies(res, auth.user, true);
+
+  req.session.user = verifiedAuth.user;
+  await saveSession(req);
+
+  return res.json({
+    ...createAuthResponse(verifiedAuth),
+    validation: res.locals.accessValidation
+  });
 });
 
 authRouter.post("/logout", async (req, res, next) => {
   try {
+    clearAuthCookies(res);
     await destroySession(req);
     res.clearCookie("discord_dashboard.sid");
 

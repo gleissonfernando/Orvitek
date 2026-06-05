@@ -1,4 +1,5 @@
 import axios from "axios";
+import type { InternalAxiosRequestConfig } from "axios";
 import type { AuthResponse, GuildSettings, LiveEvent, LogEntry, Ticket } from "../types";
 
 export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
@@ -8,8 +9,43 @@ export const api = axios.create({
   withCredentials: true
 });
 
+let refreshPromise: Promise<AuthResponse> | null = null;
+
+type RetryRequestConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+};
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config as RetryRequestConfig | undefined;
+
+    if (!originalRequest || error.response?.status !== 401 || originalRequest._retry || originalRequest.url?.includes("/auth/refresh")) {
+      throw error;
+    }
+
+    originalRequest._retry = true;
+    refreshPromise ??= refreshSession().finally(() => {
+      refreshPromise = null;
+    });
+
+    await refreshPromise;
+    return api(originalRequest);
+  }
+);
+
 export async function getSession() {
   const { data } = await api.get<AuthResponse>("/auth/me");
+  return data;
+}
+
+export async function refreshSession() {
+  const { data } = await api.post<AuthResponse>("/auth/refresh");
+  return data;
+}
+
+export async function verifyAccess() {
+  const { data } = await api.post<AuthResponse>("/auth/verify");
   return data;
 }
 
