@@ -64,6 +64,14 @@ PostgreSQL roda em `postgresql://discord:discord@localhost:5432/discord_platform
 
 ## OAuth2 Discord
 
+Por padrao, a dashboard abre sem OAuth2 usando o usuario local `Admin Local`. Esse modo tambem emite JWT httpOnly para manter o mesmo fluxo interno do painel.
+
+Para exigir login Discord novamente, defina no `backend/.env`:
+
+```env
+DASHBOARD_AUTH_REQUIRED="true"
+```
+
 Crie uma aplicacao no Discord Developer Portal e configure:
 
 - Redirect URI: `http://localhost:4000/api/auth/discord/callback`
@@ -77,10 +85,11 @@ DISCORD_CLIENT_SECRET=""
 DISCORD_CALLBACK_URL="http://localhost:4000/api/auth/discord/callback"
 FRONTEND_URL="http://localhost:5173"
 JWT_SECRET="change-this-jwt-secret"
+DASHBOARD_AUTH_REQUIRED="true"
 DASHBOARD_VERIFICATION_MODE="temporary"
 ```
 
-O login via Discord OAuth2 e obrigatorio. Depois do callback, o backend salva a sessao em JWT httpOnly e redireciona para `/dashboard`.
+Quando `DASHBOARD_AUTH_REQUIRED="true"`, o backend usa Discord OAuth2, salva a sessao em JWT httpOnly e redireciona para `/dashboard`.
 
 Enquanto a validacao avancada de cargos nao estiver pronta, `DASHBOARD_VERIFICATION_MODE="temporary"` libera o acesso quando o usuario autenticado clicar em `Verificar`. A estrutura de middleware ja separa os checks de administrador, dono do servidor e cargo configurado no painel.
 

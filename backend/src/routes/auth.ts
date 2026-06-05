@@ -20,6 +20,7 @@ import {
   refreshAuthFromRequest,
   resolveAuthFromRequest
 } from "../services/tokenService";
+import { issueLocalAccess } from "../services/localAccessService";
 import { saveDiscordUser } from "../services/userService";
 
 export const authRouter = Router();
@@ -51,6 +52,11 @@ function destroySession(req: Request) {
 }
 
 authRouter.get("/discord", async (req, res) => {
+  if (!env.DASHBOARD_AUTH_REQUIRED) {
+    await issueLocalAccess(req, res);
+    return res.redirect(`${env.FRONTEND_URL}/dashboard`);
+  }
+
   if (!env.DISCORD_CLIENT_ID || !env.DISCORD_CLIENT_SECRET) {
     return res.status(503).json({
       message: "OAuth2 Discord ainda nao esta configurado."
@@ -124,6 +130,11 @@ authRouter.post("/dev", async (req, res) => {
 });
 
 authRouter.get("/me", async (req, res) => {
+  if (!env.DASHBOARD_AUTH_REQUIRED) {
+    const auth = await issueLocalAccess(req, res);
+    return res.json(createAuthResponse(auth));
+  }
+
   const auth = resolveAuthFromRequest(req, res);
 
   if (!auth) {
@@ -139,6 +150,11 @@ authRouter.get("/me", async (req, res) => {
 });
 
 authRouter.post("/refresh", async (req, res) => {
+  if (!env.DASHBOARD_AUTH_REQUIRED) {
+    const auth = await issueLocalAccess(req, res);
+    return res.json(createAuthResponse(auth));
+  }
+
   const auth = refreshAuthFromRequest(req, res);
 
   if (!auth) {

@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { env } from "../config/env";
+import { issueLocalAccess } from "../services/localAccessService";
 import { resolveAuthFromRequest } from "../services/tokenService";
 
 export function isBotRequest(req: Request) {
@@ -7,7 +8,13 @@ export function isBotRequest(req: Request) {
   return Boolean(env.BOT_API_TOKEN && token && token === env.BOT_API_TOKEN);
 }
 
-export function requireAuthenticated(req: Request, res: Response, next: NextFunction) {
+export async function requireAuthenticated(req: Request, res: Response, next: NextFunction) {
+  if (!env.DASHBOARD_AUTH_REQUIRED) {
+    const auth = await issueLocalAccess(req, res);
+    res.locals.dashboardAuth = auth;
+    return next();
+  }
+
   const auth = resolveAuthFromRequest(req, res);
 
   if (!auth) {
@@ -19,7 +26,13 @@ export function requireAuthenticated(req: Request, res: Response, next: NextFunc
   return next();
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (!env.DASHBOARD_AUTH_REQUIRED) {
+    const auth = await issueLocalAccess(req, res);
+    res.locals.dashboardAuth = auth;
+    return next();
+  }
+
   const auth = resolveAuthFromRequest(req, res);
 
   if (!auth) {
