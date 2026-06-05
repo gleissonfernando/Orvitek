@@ -41,6 +41,19 @@ npm run dev:frontend
 npm run dev:bot
 ```
 
+Ou rode backend e frontend juntos:
+
+```bash
+npm start
+```
+
+Se alguma porta ficar presa por um processo antigo do projeto:
+
+```bash
+npm run stop
+npm start
+```
+
 URLs padrao:
 
 - Frontend: `http://localhost:5173`
