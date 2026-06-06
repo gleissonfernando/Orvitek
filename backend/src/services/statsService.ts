@@ -87,6 +87,26 @@ export function filterGuildsForBot(guilds: DashboardGuild[]) {
     });
 }
 
+export function mergeAuthorizedBotGuilds(guilds: DashboardGuild[]) {
+  const filteredGuilds = filterGuildsForBot(guilds);
+  const guildsById = new Map(filteredGuilds.map((guild) => [guild.id, guild]));
+
+  for (const botGuild of botStatus.botGuilds) {
+    guildsById.set(botGuild.id, {
+      id: botGuild.id,
+      name: botGuild.name,
+      iconUrl: botGuild.iconUrl,
+      owner: false,
+      isAdmin: true,
+      botEnabled: true,
+      memberCount: botGuild.memberCount ?? 0,
+      channelCount: botGuild.channelCount ?? 0
+    });
+  }
+
+  return [...guildsById.values()];
+}
+
 export async function refreshBotGuildsFromDiscord() {
   if (!env.DISCORD_BOT_TOKEN) {
     return botStatus.botGuilds;

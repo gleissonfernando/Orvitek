@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import jwt, { TokenExpiredError, type JwtPayload } from "jsonwebtoken";
 import { env } from "../config/env";
 import type { AuthSessionUser } from "../types/session";
-import { filterGuildsForBot } from "./statsService";
+import { filterGuildsForBot, mergeAuthorizedBotGuilds } from "./statsService";
 
 const ACCESS_COOKIE = "dashboard.access_token";
 const REFRESH_COOKIE = "dashboard.refresh_token";
@@ -153,8 +153,8 @@ function applyBrowserVerification(req: Request, res: Response, auth: DashboardAu
 }
 
 function normalizeAuthUser(user: AuthSessionUser): AuthSessionUser {
-  const guilds = filterGuildsForBot(user.guilds);
   const authorized = user.authorized ?? getAuthorizedUserIds().has(user.discordId);
+  const guilds = authorized ? mergeAuthorizedBotGuilds(user.guilds) : filterGuildsForBot(user.guilds);
   const hasAdminGuild = guilds.some((guild) => guild.owner || guild.isAdmin);
   const accessLevel = authorized || hasAdminGuild ? "admin" : "viewer";
 
