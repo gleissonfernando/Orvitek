@@ -3,6 +3,7 @@ import { ensureGuild, getMongoCollections, type MongoTicket } from "../database/
 
 export type TicketDto = {
   id: string;
+  botId: string | null;
   guildId: string;
   channelId?: string | null;
   openerId: string;
@@ -14,9 +15,14 @@ export type TicketDto = {
 
 const memoryTickets: TicketDto[] = [];
 
-export async function createTicket(input: Pick<TicketDto, "guildId" | "channelId" | "openerId" | "subject">) {
+type CreateTicketInput = Pick<TicketDto, "guildId" | "channelId" | "openerId" | "subject"> & {
+  botId?: string | null;
+};
+
+export async function createTicket(input: CreateTicketInput) {
   const ticket: TicketDto = {
     id: randomUUID(),
+    botId: normalizeBotId(input.botId),
     guildId: input.guildId,
     channelId: input.channelId,
     openerId: input.openerId,
@@ -34,6 +40,7 @@ export async function createTicket(input: Pick<TicketDto, "guildId" | "channelId
     const { tickets } = await getMongoCollections();
     const doc: MongoTicket = {
       _id: randomUUID(),
+      botId: normalizeBotId(input.botId),
       guildId: input.guildId,
       channelId: input.channelId ?? null,
       openerId: input.openerId,
@@ -48,6 +55,7 @@ export async function createTicket(input: Pick<TicketDto, "guildId" | "channelId
     return {
       ...ticket,
       id: doc._id,
+      botId: normalizeBotId(doc.botId),
       channelId: doc.channelId,
       status: doc.status,
       createdAt: doc.createdAt.toISOString()
@@ -58,11 +66,13 @@ export async function createTicket(input: Pick<TicketDto, "guildId" | "channelId
   }
 }
 
-export async function listTickets(guildId?: string) {
+export async function listTickets(guildId?: string, botId?: string | null) {
+  const normalizedBotId = normalizeBotId(botId);
+
   try {
     const { tickets } = await getMongoCollections();
     const rows = await tickets
-      .find(guildId ? { guildId } : {})
+      .find(scopedQuery(guildId, normalizedBotId))
       .sort({
         createdAt: -1
       })
@@ -71,6 +81,7 @@ export async function listTickets(guildId?: string) {
 
     return rows.map((ticket) => ({
       id: ticket._id,
+      botId: normalizeBotId(ticket.botId),
       guildId: ticket.guildId,
       channelId: ticket.channelId,
       openerId: ticket.openerId,
@@ -80,6 +91,32 @@ export async function listTickets(guildId?: string) {
       closedAt: ticket.closedAt?.toISOString() ?? null
     }));
   } catch {
-    return guildId ? memoryTickets.filter((ticket) => ticket.guildId === guildId) : memoryTickets.slice(0, 50);
+    return memoryTickets
+      .filter((ticket) => (!guildId || ticket.guildId === guildId) && ticket.botId === normalizedBotId)
+      .slice(0, 50);
   }
+}
+
+function normalizeBotId(botId: string | null | undefined) {
+  const normalized = botId?.trim();
+  return normalized ? normalized : null;
+}
+
+function scopedQuery(guildId: string | undefined, botId: string | null) {
+  const botScope = botId
+    ? { botId }
+    : {
+        $or: [
+          {
+            botId: null
+          },
+          {
+            botId: {
+              $exists: false
+            }
+          }
+        ]
+      };
+
+  return guildId ? { guildId, ...botScope } : botScope;
 }

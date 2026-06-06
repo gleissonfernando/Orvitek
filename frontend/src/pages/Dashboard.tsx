@@ -234,11 +234,13 @@ const categoryMeta = {
 export function Dashboard({ auth, onLogout }: DashboardProps) {
   const [dashboardProfile, setDashboardProfile] = useState<DashboardMeResponse | null>(null);
   const [dashboardProfileLoading, setDashboardProfileLoading] = useState(true);
+  const panelBots = dashboardProfile?.bots ?? [];
   const dashboardGuilds = useMemo(
     () => ensureDashboardGuilds(dashboardProfile ? mergeDashboardGuilds(dashboardProfile.guilds, auth.guilds) : auth.guilds),
     [auth.guilds, dashboardProfile]
   );
   const [activeView, setActiveView] = useState<ViewId>("overview");
+  const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [selectedGuildId, setSelectedGuildId] = useState<string | null>(
     auth.user.selectedGuildId ?? dashboardGuilds[0]?.id ?? CONFIGURED_GUILD_ID
   );
@@ -249,8 +251,13 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [botStatus, setBotStatus] = useState<BotStatus>(initialBotStatus);
   const [savingKey, setSavingKey] = useState<BooleanSettingKey | null>(null);
-  const canManageDashboard = auth.permissions.canManageDashboard;
-  const canViewDev = auth.user.authorized;
+  const selectedPanelBot = useMemo(
+    () => panelBots.find((bot) => bot.id === selectedBotId) ?? panelBots[0] ?? null,
+    [panelBots, selectedBotId]
+  );
+  const activeBotId = selectedPanelBot?.id ?? null;
+  const canManageDashboard = auth.permissions.canManageDashboard || Boolean(selectedPanelBot);
+  const canViewDev = auth.user.authorized || panelBots.length > 0;
   const dashboardHeaderGuilds = useMemo(
     () => (dashboardProfile?.guilds.length ? dashboardProfile.guilds : toDashboardMeGuilds(dashboardGuilds)),
     [dashboardGuilds, dashboardProfile]
@@ -267,7 +274,10 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
         }
 
         setDashboardProfile(profile);
-        const nextGuildId = profile.selectedGuildId ?? profile.guilds[0]?.id ?? null;
+        const firstPanelBot = profile.bots[0] ?? null;
+
+        setSelectedBotId((current) => current ?? firstPanelBot?.id ?? null);
+        const nextGuildId = firstPanelBot?.mainGuildId ?? profile.selectedGuildId ?? profile.guilds[0]?.id ?? null;
 
         if (nextGuildId) {
           setSelectedGuildId((current) => (current && profile.guilds.some((guild) => guild.id === current) ? current : nextGuildId));
@@ -327,7 +337,12 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
     setSettingsLoading(true);
     setSettings(null);
 
-    Promise.allSettled([getGuildSettings(selectedGuildId), getLogs(selectedGuildId), getLives(selectedGuildId), getTickets(selectedGuildId)])
+    Promise.allSettled([
+      getGuildSettings(selectedGuildId, activeBotId),
+      getLogs(selectedGuildId, activeBotId),
+      getLives(selectedGuildId, activeBotId),
+      getTickets(selectedGuildId, activeBotId)
+    ])
       .then(([settingsResult, logsResult, livesResult, ticketsResult]) => {
         if (!mounted) {
           return;
@@ -347,34 +362,34 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
     return () => {
       mounted = false;
     };
-  }, [selectedGuildId]);
+  }, [activeBotId, selectedGuildId]);
 
   useEffect(() => {
     const socket = createDashboardSocket();
 
     socket.on("bot:status", (status: BotStatus) => setBotStatus(status));
     socket.on("logs:new", (log: LogEntry) => {
-      if (log.guildId === selectedGuildId) {
+      if (log.guildId === selectedGuildId && (log.botId ?? null) === activeBotId) {
         setLogs((current) => [log, ...current].slice(0, 50));
       }
     });
     socket.on("live:started", (event: LiveEvent) => {
-      if (event.guildId === selectedGuildId) {
+      if (event.guildId === selectedGuildId && (event.botId ?? null) === activeBotId) {
         setLives((current) => [event, ...current].slice(0, 50));
       }
     });
     socket.on("live:ended", (event: LiveEvent) => {
-      if (event.guildId === selectedGuildId) {
+      if (event.guildId === selectedGuildId && (event.botId ?? null) === activeBotId) {
         setLives((current) => [event, ...current].slice(0, 50));
       }
     });
     socket.on("tickets:new", (ticket: Ticket) => {
-      if (ticket.guildId === selectedGuildId) {
+      if (ticket.guildId === selectedGuildId && (ticket.botId ?? null) === activeBotId) {
         setTickets((current) => [ticket, ...current].slice(0, 50));
       }
     });
     socket.on("settings:updated", (nextSettings: GuildSettings) => {
-      if (nextSettings.guildId === selectedGuildId) {
+      if (nextSettings.guildId === selectedGuildId && (nextSettings.botId ?? null) === activeBotId) {
         setSettings(nextSettings);
       }
     });
@@ -382,7 +397,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
     return () => {
       socket.disconnect();
     };
-  }, [selectedGuildId]);
+  }, [activeBotId, selectedGuildId]);
 
   async function updateSetting(key: BooleanSettingKey, checked: boolean) {
     if (!settings || !selectedGuildId || !canManageDashboard) {
@@ -399,7 +414,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
     setSettings(next);
 
     try {
-      const saved = await patchGuildSettings(selectedGuildId, { [key]: checked });
+      const saved = await patchGuildSettings(selectedGuildId, { [key]: checked }, activeBotId);
       setSettings(saved);
     } catch {
       setSettings(previous);
@@ -415,10 +430,21 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
     setDashboardProfile((current) => (current ? { ...current, selectedGuildId: guildId } : current));
 
     try {
-      await updateSelectedDashboardGuild(guildId);
+      await updateSelectedDashboardGuild(guildId, activeBotId);
     } catch {
       setSelectedGuildId(previousGuildId);
       setDashboardProfile((current) => (current ? { ...current, selectedGuildId: previousGuildId } : current));
+    }
+  }
+
+  async function handleSelectBot(botId: string | null) {
+    setSelectedBotId(botId);
+
+    const bot = panelBots.find((item) => item.id === botId) ?? null;
+
+    if (bot?.mainGuildId) {
+      setSelectedGuildId(bot.mainGuildId);
+      await updateSelectedDashboardGuild(bot.mainGuildId, bot.id).catch(() => undefined);
     }
   }
 
@@ -446,10 +472,18 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
           guildName={selectedGuild?.name ?? "Servidor"}
         />
         <DashboardHeader
-          bot={dashboardProfile?.bot}
+          bot={selectedPanelBot ? {
+            id: selectedPanelBot.clientId,
+            username: selectedPanelBot.name,
+            avatarUrl: selectedPanelBot.avatarUrl,
+            connected: selectedPanelBot.status === "online"
+          } : dashboardProfile?.bot}
+          bots={panelBots}
           guilds={dashboardHeaderGuilds}
           loading={dashboardProfileLoading}
+          onSelectBot={handleSelectBot}
           onSelectGuild={handleSelectGuild}
+          selectedBotId={activeBotId}
           selectedGuildId={selectedGuild?.id ?? null}
           user={dashboardProfile?.user}
         />
@@ -477,10 +511,13 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
           />
         ) : null}
 
-        {activeView === "lives" ? <LiveView canManageDashboard={canManageDashboard} guild={selectedGuild} lives={lives} /> : null}
+        {activeView === "lives" ? (
+          <LiveView botId={activeBotId} canManageDashboard={canManageDashboard} guild={selectedGuild} lives={lives} />
+        ) : null}
         {activeView === "welcome" ? (
           <WelcomePanel
             canManage={canManageDashboard}
+            botId={activeBotId}
             guild={selectedGuild}
             loading={settingsLoading}
             mode="welcome"
@@ -492,6 +529,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
         {activeView === "leave" ? (
           <WelcomePanel
             canManage={canManageDashboard}
+            botId={activeBotId}
             guild={selectedGuild}
             loading={settingsLoading}
             mode="leave"
@@ -880,10 +918,20 @@ function ConfigCard({
   );
 }
 
-function LiveView({ canManageDashboard, guild, lives }: { canManageDashboard: boolean; guild: DashboardGuild | null; lives: LiveEvent[] }) {
+function LiveView({
+  botId,
+  canManageDashboard,
+  guild,
+  lives
+}: {
+  botId?: string | null;
+  canManageDashboard: boolean;
+  guild: DashboardGuild | null;
+  lives: LiveEvent[];
+}) {
   return (
     <div className="space-y-6">
-      <LiveNotificationsPanel canManage={canManageDashboard} guild={guild} />
+      <LiveNotificationsPanel botId={botId} canManage={canManageDashboard} guild={guild} />
 
       <Card>
         <CardHeader>

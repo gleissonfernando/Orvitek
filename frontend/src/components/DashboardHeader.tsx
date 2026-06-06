@@ -2,18 +2,31 @@ import { ShieldCheck } from "lucide-react";
 import { BotProfile } from "./BotProfile";
 import { ServerSelector } from "./ServerSelector";
 import { Badge } from "./ui/badge";
-import type { DashboardMeBot, DashboardMeGuild, DashboardMeUser } from "../types";
+import type { DashboardMeBot, DashboardMeGuild, DashboardMeUser, DevBot } from "../types";
 
 type DashboardHeaderProps = {
   bot?: DashboardMeBot | null;
+  bots?: DevBot[];
   guilds: DashboardMeGuild[];
   loading?: boolean;
+  selectedBotId?: string | null;
   selectedGuildId: string | null;
   user?: DashboardMeUser | null;
+  onSelectBot?: (botId: string | null) => void;
   onSelectGuild: (guildId: string) => void;
 };
 
-export function DashboardHeader({ bot, guilds, loading = false, onSelectGuild, selectedGuildId, user }: DashboardHeaderProps) {
+export function DashboardHeader({
+  bot,
+  bots = [],
+  guilds,
+  loading = false,
+  onSelectBot,
+  onSelectGuild,
+  selectedBotId,
+  selectedGuildId,
+  user
+}: DashboardHeaderProps) {
   const selectedGuild = guilds.find((guild) => guild.id === selectedGuildId) ?? guilds[0] ?? null;
 
   return (
@@ -32,6 +45,23 @@ export function DashboardHeader({ bot, guilds, loading = false, onSelectGuild, s
             </Badge>
           </div>
           <ServerSelector guilds={guilds} loading={loading} onSelectGuild={onSelectGuild} selectedGuildId={selectedGuildId} />
+          {bots.length ? (
+            <label className="block space-y-2">
+              <span className="text-xs font-medium uppercase text-zinc-600">Painel do bot</span>
+              <select
+                className="h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm font-medium text-zinc-100 outline-none transition duration-300 focus:border-purple-400"
+                disabled={loading}
+                onChange={(event) => onSelectBot?.(event.target.value || null)}
+                value={selectedBotId ?? bots[0]?.id ?? ""}
+              >
+                {bots.map((panelBot) => (
+                  <option key={panelBot.id} value={panelBot.id}>
+                    {panelBot.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
         </div>
       </div>
 

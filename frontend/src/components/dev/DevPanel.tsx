@@ -328,6 +328,7 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
                             Servidor {guildNameById.get(bot.mainGuildId) ?? "Servidor configurado"}
                           </p>
                           <p className="truncate text-xs text-zinc-600">Dono {bot.ownerName}</p>
+                          <p className="truncate font-mono text-[11px] text-zinc-700">Painel ID {bot.id}</p>
                         </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">

@@ -1,8 +1,10 @@
 import { Router, raw } from "express";
 import { z } from "zod";
-import { isBotRequest, requireAdminAccess, requireAuth, requireAuthOrBot } from "../middleware/auth";
+import type { Request, Response } from "express";
+import { isBotRequest, requireAuth, requireAuthOrBot } from "../middleware/auth";
 import { emitRealtime } from "../realtime/events";
 import { canManageDashboardGuild, canReadDashboardGuild } from "../services/dashboardGuildAccessService";
+import { canManageDevBotGuild } from "../services/devBotService";
 import { getGuildSettings, updateGuildSettings } from "../services/settingsService";
 import { saveLeaveImage, saveWelcomeImage, sendLeavePanelToDiscord, sendWelcomePanelToDiscord } from "../services/welcomePanelService";
 
@@ -37,6 +39,7 @@ const welcomeImageUpload = raw({
 
 settingsRouter.get("/:guildId", requireAuthOrBot, async (req, res) => {
   const { guildId } = req.params;
+  const botId = readBotId(req);
 
   if (!guildId) {
     return res.status(400).json({
@@ -44,20 +47,21 @@ settingsRouter.get("/:guildId", requireAuthOrBot, async (req, res) => {
     });
   }
 
-  if (!isBotRequest(req) && !canReadDashboardGuild(res.locals.dashboardAuth.user, guildId)) {
+  if (!(await canReadSettings(req, res, guildId, botId))) {
     return res.status(403).json({
       message: "Servidor nao encontrado ou sem o bot."
     });
   }
 
   return res.json({
-    settings: await getGuildSettings(guildId)
+    settings: await getGuildSettings(guildId, botId)
   });
 });
 
-settingsRouter.put("/:guildId/welcome-image", requireAuth, requireAdminAccess, welcomeImageUpload, async (req, res, next) => {
+settingsRouter.put("/:guildId/welcome-image", requireAuth, welcomeImageUpload, async (req, res, next) => {
   try {
     const { guildId } = req.params;
+    const botId = readBotId(req);
 
     if (!guildId) {
       return res.status(400).json({
@@ -65,7 +69,7 @@ settingsRouter.put("/:guildId/welcome-image", requireAuth, requireAdminAccess, w
       });
     }
 
-    if (!canManageDashboardGuild(res.locals.dashboardAuth.user, guildId)) {
+    if (!(await canManageSettings(req, res, guildId, botId))) {
       return res.status(403).json({
         message: "Voce nao tem permissao para configurar este servidor."
       });
@@ -81,7 +85,7 @@ settingsRouter.put("/:guildId/welcome-image", requireAuth, requireAdminAccess, w
     const welcomeImageUrl = await saveWelcomeImage(guildId, req.body, mimeType);
     const settings = await updateGuildSettings(guildId, {
       welcomeImageUrl
-    });
+    }, botId);
 
     emitRealtime("settings:updated", settings);
 
@@ -93,9 +97,10 @@ settingsRouter.put("/:guildId/welcome-image", requireAuth, requireAdminAccess, w
   }
 });
 
-settingsRouter.put("/:guildId/leave-image", requireAuth, requireAdminAccess, welcomeImageUpload, async (req, res, next) => {
+settingsRouter.put("/:guildId/leave-image", requireAuth, welcomeImageUpload, async (req, res, next) => {
   try {
     const { guildId } = req.params;
+    const botId = readBotId(req);
 
     if (!guildId) {
       return res.status(400).json({
@@ -103,7 +108,7 @@ settingsRouter.put("/:guildId/leave-image", requireAuth, requireAdminAccess, wel
       });
     }
 
-    if (!canManageDashboardGuild(res.locals.dashboardAuth.user, guildId)) {
+    if (!(await canManageSettings(req, res, guildId, botId))) {
       return res.status(403).json({
         message: "Voce nao tem permissao para configurar este servidor."
       });
@@ -119,7 +124,7 @@ settingsRouter.put("/:guildId/leave-image", requireAuth, requireAdminAccess, wel
     const leaveImageUrl = await saveLeaveImage(guildId, req.body, mimeType);
     const settings = await updateGuildSettings(guildId, {
       leaveImageUrl
-    });
+    }, botId);
 
     emitRealtime("settings:updated", settings);
 
@@ -131,9 +136,10 @@ settingsRouter.put("/:guildId/leave-image", requireAuth, requireAdminAccess, wel
   }
 });
 
-settingsRouter.post("/:guildId/welcome-test", requireAuth, requireAdminAccess, async (req, res, next) => {
+settingsRouter.post("/:guildId/welcome-test", requireAuth, async (req, res, next) => {
   try {
     const { guildId } = req.params;
+    const botId = readBotId(req);
     const user = res.locals.dashboardAuth.user;
 
     if (!guildId) {
@@ -142,13 +148,13 @@ settingsRouter.post("/:guildId/welcome-test", requireAuth, requireAdminAccess, a
       });
     }
 
-    if (!canManageDashboardGuild(user, guildId)) {
+    if (!(await canManageSettings(req, res, guildId, botId))) {
       return res.status(403).json({
         message: "Voce nao tem permissao para configurar este servidor."
       });
     }
 
-    const settings = await getGuildSettings(guildId);
+    const settings = await getGuildSettings(guildId, botId);
 
     await sendWelcomePanelToDiscord(settings, `<@${user.discordId}>`);
 
@@ -166,9 +172,10 @@ settingsRouter.post("/:guildId/welcome-test", requireAuth, requireAdminAccess, a
   }
 });
 
-settingsRouter.post("/:guildId/leave-test", requireAuth, requireAdminAccess, async (req, res, next) => {
+settingsRouter.post("/:guildId/leave-test", requireAuth, async (req, res, next) => {
   try {
     const { guildId } = req.params;
+    const botId = readBotId(req);
     const user = res.locals.dashboardAuth.user;
 
     if (!guildId) {
@@ -177,13 +184,13 @@ settingsRouter.post("/:guildId/leave-test", requireAuth, requireAdminAccess, asy
       });
     }
 
-    if (!canManageDashboardGuild(user, guildId)) {
+    if (!(await canManageSettings(req, res, guildId, botId))) {
       return res.status(403).json({
         message: "Voce nao tem permissao para configurar este servidor."
       });
     }
 
-    const settings = await getGuildSettings(guildId);
+    const settings = await getGuildSettings(guildId, botId);
 
     await sendLeavePanelToDiscord(settings, `<@${user.discordId}>`);
 
@@ -201,9 +208,10 @@ settingsRouter.post("/:guildId/leave-test", requireAuth, requireAdminAccess, asy
   }
 });
 
-settingsRouter.patch("/:guildId", requireAuth, requireAdminAccess, async (req, res, next) => {
+settingsRouter.patch("/:guildId", requireAuth, async (req, res, next) => {
   try {
     const { guildId } = req.params;
+    const botId = readBotId(req);
 
     if (!guildId) {
       return res.status(400).json({
@@ -211,14 +219,14 @@ settingsRouter.patch("/:guildId", requireAuth, requireAdminAccess, async (req, r
       });
     }
 
-    if (!canManageDashboardGuild(res.locals.dashboardAuth.user, guildId)) {
+    if (!(await canManageSettings(req, res, guildId, botId))) {
       return res.status(403).json({
         message: "Voce nao tem permissao para configurar este servidor."
       });
     }
 
     const input = settingsSchema.parse(req.body);
-    const settings = await updateGuildSettings(guildId, input);
+    const settings = await updateGuildSettings(guildId, input, botId);
 
     emitRealtime("settings:updated", settings);
 
@@ -229,3 +237,40 @@ settingsRouter.patch("/:guildId", requireAuth, requireAdminAccess, async (req, r
     return next(error);
   }
 });
+
+function readBotId(req: Request) {
+  const queryBotId = typeof req.query.botId === "string" ? req.query.botId : null;
+  const headerBotId = req.header("x-dashboard-bot-id");
+  const botId = queryBotId ?? headerBotId ?? null;
+  const normalized = botId?.trim();
+
+  return normalized ? normalized : null;
+}
+
+async function canReadSettings(req: Request, res: Response, guildId: string, botId: string | null) {
+  if (isBotRequest(req)) {
+    return true;
+  }
+
+  const user = res.locals.dashboardAuth.user;
+
+  if (botId) {
+    return canManageDevBotGuild(user, botId, guildId);
+  }
+
+  return canReadDashboardGuild(user, guildId);
+}
+
+async function canManageSettings(req: Request, res: Response, guildId: string, botId: string | null) {
+  if (isBotRequest(req)) {
+    return true;
+  }
+
+  const user = res.locals.dashboardAuth.user;
+
+  if (botId) {
+    return canManageDevBotGuild(user, botId, guildId);
+  }
+
+  return canManageDashboardGuild(user, guildId);
+}

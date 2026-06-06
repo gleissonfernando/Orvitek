@@ -3,6 +3,7 @@ import { env } from "../config/env";
 import type { GuildSettings } from "../types";
 
 export type CreateLogInput = {
+  botId?: string | null;
   guildId: string;
   userId?: string | null;
   type: string;
@@ -11,6 +12,7 @@ export type CreateLogInput = {
 };
 
 export type LiveEventInput = {
+  botId?: string | null;
   guildId: string;
   type: "started" | "ended";
   streamer: string;
@@ -20,6 +22,7 @@ export type LiveEventInput = {
 
 export type SocialNotification = {
   id: string;
+  botId: string | null;
   guildId: string;
   userId: string;
   platform: "twitch";
@@ -47,7 +50,8 @@ export class ApiClient {
     this.http = axios.create({
       baseURL: env.BACKEND_API_URL,
       headers: {
-        "x-bot-token": env.BOT_API_TOKEN
+        "x-bot-token": env.BOT_API_TOKEN,
+        ...(env.DASHBOARD_BOT_ID ? { "x-dashboard-bot-id": env.DASHBOARD_BOT_ID } : {})
       },
       timeout: 8000
     });

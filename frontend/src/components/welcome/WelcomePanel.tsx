@@ -17,6 +17,7 @@ import type { DashboardGuild, GuildChannelOption, GuildSettings } from "../../ty
 type MemberPanelMode = "welcome" | "leave";
 
 type WelcomePanelProps = {
+  botId?: string | null;
   canManage: boolean;
   guild: DashboardGuild | null;
   loading?: boolean;
@@ -78,7 +79,7 @@ const panelConfig = {
   }
 >;
 
-export function WelcomePanel({ canManage, guild, loading = false, mode = "welcome", onSettingsChange, settings, viewerName }: WelcomePanelProps) {
+export function WelcomePanel({ botId, canManage, guild, loading = false, mode = "welcome", onSettingsChange, settings, viewerName }: WelcomePanelProps) {
   const config = panelConfig[mode];
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [channels, setChannels] = useState<GuildChannelOption[]>([]);
@@ -105,11 +106,11 @@ export function WelcomePanel({ canManage, guild, loading = false, mode = "welcom
     }
 
     setLoadingChannels(true);
-    getGuildLiveOptions(guild.id)
+    getGuildLiveOptions(guild.id, botId)
       .then((options) => setChannels(options.channels))
       .catch(() => setChannels([]))
       .finally(() => setLoadingChannels(false));
-  }, [canManage, guild]);
+  }, [botId, canManage, guild]);
 
   useEffect(() => {
     const currentImageUrl = settings?.[config.imageKey] ?? "";
@@ -126,7 +127,7 @@ export function WelcomePanel({ canManage, guild, loading = false, mode = "welcom
     setError(null);
 
     try {
-      const nextSettings = await patchGuildSettings(guild.id, payload);
+      const nextSettings = await patchGuildSettings(guild.id, payload, botId);
       onSettingsChange(nextSettings);
       setStatus(successText);
       return true;
@@ -154,7 +155,7 @@ export function WelcomePanel({ canManage, guild, loading = false, mode = "welcom
 
     try {
       const uploadImage = mode === "welcome" ? uploadWelcomeImage : uploadLeaveImage;
-      const nextSettings = await uploadImage(guild.id, file);
+      const nextSettings = await uploadImage(guild.id, file, botId);
       onSettingsChange(nextSettings);
       setStatus(config.savedImageText);
     } catch (requestError) {
@@ -195,7 +196,7 @@ export function WelcomePanel({ canManage, guild, loading = false, mode = "welcom
     try {
       const testPanel = mode === "welcome" ? testWelcomePanel : testLeavePanel;
 
-      await testPanel(guild.id);
+      await testPanel(guild.id, botId);
       setStatus(config.testSentText);
     } catch (requestError) {
       setError(readErrorMessage(requestError));

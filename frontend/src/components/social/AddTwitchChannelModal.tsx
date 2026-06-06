@@ -6,6 +6,7 @@ import { Button } from "../ui/button";
 import type { CreateTwitchNotificationPayload, GuildLiveOptions, TwitchChannelPreview } from "../../types";
 
 type AddTwitchChannelModalProps = {
+  botId?: string | null;
   open: boolean;
   error: string | null;
   guildId: string | null;
@@ -17,7 +18,7 @@ type AddTwitchChannelModalProps = {
 
 const DEFAULT_EMBED_COLOR = "#9146FF";
 
-export function AddTwitchChannelModal({ error, guildId, onClose, onSubmit, open, options, saving }: AddTwitchChannelModalProps) {
+export function AddTwitchChannelModal({ botId, error, guildId, onClose, onSubmit, open, options, saving }: AddTwitchChannelModalProps) {
   const [twitchChannelInput, setTwitchChannelInput] = useState("");
   const [discordChannelId, setDiscordChannelId] = useState("");
   const [mentionRoleId, setMentionRoleId] = useState("everyone");
@@ -63,7 +64,7 @@ export function AddTwitchChannelModal({ error, guildId, onClose, onSubmit, open,
     setPreviewError(null);
 
     try {
-      const nextPreview = await previewTwitchChannel(guildId, normalizedInput);
+      const nextPreview = await previewTwitchChannel(guildId, normalizedInput, botId);
       setPreview(nextPreview);
     } catch (requestError) {
       setPreview(null);

@@ -22,6 +22,7 @@ export type BotCommand = {
 };
 
 export type GuildSettings = {
+  botId: string | null;
   guildId: string;
   welcomeEnabled: boolean;
   welcomeChannelId: string | null;

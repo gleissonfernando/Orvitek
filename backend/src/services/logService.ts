@@ -3,6 +3,7 @@ import { ensureGuild, getMongoCollections, type MongoLogEntry } from "../databas
 
 export type LogEntryDto = {
   id: string;
+  botId: string | null;
   guildId: string;
   userId?: string | null;
   type: string;
@@ -12,6 +13,7 @@ export type LogEntryDto = {
 };
 
 export type CreateLogInput = {
+  botId?: string | null;
   guildId: string;
   userId?: string | null;
   type: string;
@@ -24,6 +26,7 @@ const memoryLogs: LogEntryDto[] = [];
 export async function createLog(input: CreateLogInput) {
   const log: LogEntryDto = {
     id: randomUUID(),
+    botId: normalizeBotId(input.botId),
     guildId: input.guildId,
     userId: input.userId,
     type: input.type,
@@ -40,6 +43,7 @@ export async function createLog(input: CreateLogInput) {
     const { logEntries } = await getMongoCollections();
     const doc: MongoLogEntry = {
       _id: randomUUID(),
+      botId: normalizeBotId(input.botId),
       guildId: input.guildId,
       userId: input.userId ?? null,
       type: input.type,
@@ -56,6 +60,7 @@ export async function createLog(input: CreateLogInput) {
     return {
       ...log,
       id: doc._id,
+      botId: normalizeBotId(doc.botId),
       userId: doc.userId,
       createdAt: doc.createdAt.toISOString()
     };
@@ -65,11 +70,13 @@ export async function createLog(input: CreateLogInput) {
   }
 }
 
-export async function listLogs(guildId?: string) {
+export async function listLogs(guildId?: string, botId?: string | null) {
+  const normalizedBotId = normalizeBotId(botId);
+
   try {
     const { logEntries } = await getMongoCollections();
     const logs = await logEntries
-      .find(guildId ? { guildId } : {})
+      .find(scopedQuery(guildId, normalizedBotId))
       .sort({
         createdAt: -1
       })
@@ -78,6 +85,7 @@ export async function listLogs(guildId?: string) {
 
     return logs.map((log) => ({
       id: log._id,
+      botId: normalizeBotId(log.botId),
       guildId: log.guildId,
       userId: log.userId,
       type: log.type,
@@ -86,6 +94,32 @@ export async function listLogs(guildId?: string) {
       createdAt: log.createdAt.toISOString()
     }));
   } catch {
-    return guildId ? memoryLogs.filter((log) => log.guildId === guildId) : memoryLogs.slice(0, 50);
+    return memoryLogs
+      .filter((log) => (!guildId || log.guildId === guildId) && log.botId === normalizedBotId)
+      .slice(0, 50);
   }
+}
+
+function normalizeBotId(botId: string | null | undefined) {
+  const normalized = botId?.trim();
+  return normalized ? normalized : null;
+}
+
+function scopedQuery(guildId: string | undefined, botId: string | null) {
+  const botScope = botId
+    ? { botId }
+    : {
+        $or: [
+          {
+            botId: null
+          },
+          {
+            botId: {
+              $exists: false
+            }
+          }
+        ]
+      };
+
+  return guildId ? { guildId, ...botScope } : botScope;
 }

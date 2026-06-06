@@ -38,6 +38,10 @@ export const api = axios.create({
   withCredentials: true
 });
 
+function botParams(botId?: string | null) {
+  return botId ? { botId } : undefined;
+}
+
 let refreshPromise: Promise<AuthResponse> | null = null;
 
 type RetryRequestConfig = InternalAxiosRequestConfig & {
@@ -88,9 +92,10 @@ export async function getDashboardMe() {
   return data;
 }
 
-export async function updateSelectedDashboardGuild(selectedGuildId: string) {
+export async function updateSelectedDashboardGuild(selectedGuildId: string, botId?: string | null) {
   const { data } = await api.patch<{ selectedGuildId: string }>("/dashboard/selected-guild", {
-    selectedGuildId
+    selectedGuildId,
+    botId
   });
   return data.selectedGuildId;
 }
@@ -99,110 +104,134 @@ export async function logout() {
   await api.post("/auth/logout");
 }
 
-export async function getGuildSettings(guildId: string) {
-  const { data } = await api.get<{ settings: GuildSettings }>(`/settings/${guildId}`);
+export async function getGuildSettings(guildId: string, botId?: string | null) {
+  const { data } = await api.get<{ settings: GuildSettings }>(`/settings/${guildId}`, {
+    params: botParams(botId)
+  });
   return data.settings;
 }
 
-export async function getGuildLiveOptions(guildId: string) {
-  const { data } = await api.get<{ options: GuildLiveOptions }>(`/guilds/${guildId}/live-options`);
+export async function getGuildLiveOptions(guildId: string, botId?: string | null) {
+  const { data } = await api.get<{ options: GuildLiveOptions }>(`/guilds/${guildId}/live-options`, {
+    params: botParams(botId)
+  });
   return data.options;
 }
 
-export async function patchGuildSettings(guildId: string, payload: Partial<GuildSettings>) {
-  const { data } = await api.patch<{ settings: GuildSettings }>(`/settings/${guildId}`, payload);
+export async function patchGuildSettings(guildId: string, payload: Partial<GuildSettings>, botId?: string | null) {
+  const { data } = await api.patch<{ settings: GuildSettings }>(`/settings/${guildId}`, payload, {
+    params: botParams(botId)
+  });
   return data.settings;
 }
 
-export async function uploadWelcomeImage(guildId: string, file: File) {
+export async function uploadWelcomeImage(guildId: string, file: File, botId?: string | null) {
   const { data } = await api.put<{ settings: GuildSettings }>(`/settings/${guildId}/welcome-image`, file, {
     headers: {
       "Content-Type": file.type || "application/octet-stream"
     },
+    params: botParams(botId),
     timeout: 30000
   });
   return data.settings;
 }
 
-export async function uploadLeaveImage(guildId: string, file: File) {
+export async function uploadLeaveImage(guildId: string, file: File, botId?: string | null) {
   const { data } = await api.put<{ settings: GuildSettings }>(`/settings/${guildId}/leave-image`, file, {
     headers: {
       "Content-Type": file.type || "application/octet-stream"
     },
+    params: botParams(botId),
     timeout: 30000
   });
   return data.settings;
 }
 
-export async function testWelcomePanel(guildId: string) {
+export async function testWelcomePanel(guildId: string, botId?: string | null) {
   await api.post<{ ok: boolean }>(`/settings/${guildId}/welcome-test`, undefined, {
+    params: botParams(botId),
     timeout: 15000
   });
 }
 
-export async function testLeavePanel(guildId: string) {
+export async function testLeavePanel(guildId: string, botId?: string | null) {
   await api.post<{ ok: boolean }>(`/settings/${guildId}/leave-test`, undefined, {
+    params: botParams(botId),
     timeout: 15000
   });
 }
 
-export async function getLogs(guildId?: string) {
+export async function getLogs(guildId?: string, botId?: string | null) {
   const { data } = await api.get<{ logs: LogEntry[] }>("/logs", {
     params: {
-      guildId
+      guildId,
+      ...botParams(botId)
     }
   });
   return data.logs;
 }
 
-export async function getLives(guildId?: string) {
+export async function getLives(guildId?: string, botId?: string | null) {
   const { data } = await api.get<{ lives: LiveEvent[] }>("/lives", {
     params: {
-      guildId
+      guildId,
+      ...botParams(botId)
     }
   });
   return data.lives;
 }
 
-export async function getTickets(guildId?: string) {
+export async function getTickets(guildId?: string, botId?: string | null) {
   const { data } = await api.get<{ tickets: Ticket[] }>("/tickets", {
     params: {
-      guildId
+      guildId,
+      ...botParams(botId)
     }
   });
   return data.tickets;
 }
 
-export async function getSocialNotifications(guildId: string) {
-  const { data } = await api.get<{ notifications: SocialNotification[] }>(`/social-notifications/${guildId}`);
+export async function getSocialNotifications(guildId: string, botId?: string | null) {
+  const { data } = await api.get<{ notifications: SocialNotification[] }>(`/social-notifications/${guildId}`, {
+    params: botParams(botId)
+  });
   return data.notifications;
 }
 
-export async function createTwitchNotification(guildId: string, payload: CreateTwitchNotificationPayload) {
-  const { data } = await api.post<{ notification: SocialNotification }>(`/social-notifications/${guildId}/twitch`, payload);
+export async function createTwitchNotification(guildId: string, payload: CreateTwitchNotificationPayload, botId?: string | null) {
+  const { data } = await api.post<{ notification: SocialNotification }>(`/social-notifications/${guildId}/twitch`, payload, {
+    params: botParams(botId)
+  });
   return data.notification;
 }
 
-export async function previewTwitchChannel(guildId: string, twitchChannelInput: string) {
+export async function previewTwitchChannel(guildId: string, twitchChannelInput: string, botId?: string | null) {
   const { data } = await api.post<{ preview: TwitchChannelPreview }>(`/social-notifications/${guildId}/twitch/preview`, {
     twitchChannelInput
+  }, {
+    params: botParams(botId)
   });
   return data.preview;
 }
 
-export async function updateTwitchNotification(guildId: string, id: string, payload: UpdateTwitchNotificationPayload) {
-  const { data } = await api.put<{ notification: SocialNotification }>(`/social-notifications/${guildId}/twitch/${id}`, payload);
+export async function updateTwitchNotification(guildId: string, id: string, payload: UpdateTwitchNotificationPayload, botId?: string | null) {
+  const { data } = await api.put<{ notification: SocialNotification }>(`/social-notifications/${guildId}/twitch/${id}`, payload, {
+    params: botParams(botId)
+  });
   return data.notification;
 }
 
-export async function testTwitchNotification(guildId: string, id: string) {
+export async function testTwitchNotification(guildId: string, id: string, botId?: string | null) {
   await api.post<{ ok: boolean }>(`/social-notifications/${guildId}/twitch/${id}/test`, undefined, {
+    params: botParams(botId),
     timeout: 15000
   });
 }
 
-export async function deleteTwitchNotification(guildId: string, id: string) {
-  const { data } = await api.delete<{ notification: SocialNotification }>(`/social-notifications/${guildId}/twitch/${id}`);
+export async function deleteTwitchNotification(guildId: string, id: string, botId?: string | null) {
+  const { data } = await api.delete<{ notification: SocialNotification }>(`/social-notifications/${guildId}/twitch/${id}`, {
+    params: botParams(botId)
+  });
   return data.notification;
 }
 

@@ -30,6 +30,7 @@ export type MongoGuild = {
 
 export type MongoGuildSettings = {
   _id: string;
+  botId?: string | null;
   guildId: string;
   welcomeEnabled: boolean;
   welcomeChannelId: string | null;
@@ -56,6 +57,7 @@ export type MongoGuildSettings = {
 
 export type MongoTicket = {
   _id: string;
+  botId?: string | null;
   guildId: string;
   channelId: string | null;
   openerId: string;
@@ -67,6 +69,7 @@ export type MongoTicket = {
 
 export type MongoLogEntry = {
   _id: string;
+  botId?: string | null;
   guildId: string;
   userId: string | null;
   type: string;
@@ -77,6 +80,7 @@ export type MongoLogEntry = {
 
 export type MongoSocialNotification = {
   _id: string;
+  botId?: string | null;
   guildId: string;
   userId: string;
   platform: "twitch";
@@ -237,19 +241,10 @@ async function ensureMongoIndexes(db: Db) {
 async function createMongoIndexes(db: Db) {
   await Promise.all([
     db.collection<MongoUser>("User").createIndex({ discordId: 1 }, { unique: true }),
-    db.collection<MongoGuildSettings>("GuildSettings").createIndex({ guildId: 1 }, { unique: true }),
+    ensureGuildSettingsIndexes(db),
     db.collection<MongoTicket>("Ticket").createIndex({ guildId: 1, createdAt: -1 }),
     db.collection<MongoLogEntry>("LogEntry").createIndex({ guildId: 1, createdAt: -1 }),
-    db.collection<MongoSocialNotification>("social_notifications").createIndex(
-      {
-        guildId: 1,
-        platform: 1,
-        twitchChannelName: 1
-      },
-      {
-        unique: true
-      }
-    ),
+    ensureSocialNotificationIndexes(db),
     db.collection<MongoSocialNotification>("social_notifications").createIndex({
       guildId: 1,
       platform: 1
@@ -262,4 +257,28 @@ async function createMongoIndexes(db: Db) {
     db.collection<MongoBotGuildConfig>("BotGuildConfig").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
     db.collection<MongoDevPermission>("DevPermission").createIndex({ userId: 1 }, { unique: true })
   ]);
+}
+
+async function ensureGuildSettingsIndexes(db: Db) {
+  const collection = db.collection<MongoGuildSettings>("GuildSettings");
+
+  await collection.dropIndex("guildId_1").catch(() => undefined);
+  await collection.createIndex({ botId: 1, guildId: 1 }, { unique: true });
+}
+
+async function ensureSocialNotificationIndexes(db: Db) {
+  const collection = db.collection<MongoSocialNotification>("social_notifications");
+
+  await collection.dropIndex("guildId_1_platform_1_twitchChannelName_1").catch(() => undefined);
+  await collection.createIndex(
+    {
+      botId: 1,
+      guildId: 1,
+      platform: 1,
+      twitchChannelName: 1
+    },
+    {
+      unique: true
+    }
+  );
 }

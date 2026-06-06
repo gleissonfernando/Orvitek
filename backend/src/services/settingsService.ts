@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { ensureGuild, getMongoCollections, type MongoGuildSettings } from "../database/mongo";
 
 export type GuildSettingsDto = {
+  botId: string | null;
   guildId: string;
   welcomeEnabled: boolean;
   welcomeChannelId: string | null;
@@ -28,8 +29,9 @@ export type GuildSettingsDto = {
 const memorySettings = new Map<string, GuildSettingsDto>();
 const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=3";
 
-export function defaultSettings(guildId: string): GuildSettingsDto {
+export function defaultSettings(guildId: string, botId: string | null = null): GuildSettingsDto {
   return {
+    botId,
     guildId,
     welcomeEnabled: true,
     welcomeChannelId: null,
@@ -54,12 +56,12 @@ export function defaultSettings(guildId: string): GuildSettingsDto {
   };
 }
 
-export async function getGuildSettings(guildId: string) {
+export async function getGuildSettings(guildId: string, botId?: string | null) {
+  const normalizedBotId = normalizeBotId(botId);
+
   try {
     const { guildSettings } = await getMongoCollections();
-    const settings = await guildSettings.findOne({
-      guildId
-    });
+    const settings = await guildSettings.findOne(settingsQuery(guildId, normalizedBotId));
 
     if (settings) {
       return toDto(settings);
@@ -68,29 +70,31 @@ export async function getGuildSettings(guildId: string) {
     console.warn("[mongo] usando settings em memoria:", error instanceof Error ? error.message : error);
   }
 
-  return memorySettings.get(guildId) ?? defaultSettings(guildId);
+  return memorySettings.get(settingsKey(guildId, normalizedBotId)) ?? defaultSettings(guildId, normalizedBotId);
 }
 
-export async function updateGuildSettings(guildId: string, input: Partial<GuildSettingsDto>) {
-  const current = await getGuildSettings(guildId);
+export async function updateGuildSettings(guildId: string, input: Partial<GuildSettingsDto>, botId?: string | null) {
+  const normalizedBotId = normalizeBotId(botId);
+  const current = await getGuildSettings(guildId, normalizedBotId);
   const next: GuildSettingsDto = {
     ...current,
     ...input,
+    botId: normalizedBotId,
     guildId
   };
 
-  memorySettings.set(guildId, next);
+  memorySettings.set(settingsKey(guildId, normalizedBotId), next);
 
   try {
     await ensureGuild(guildId);
 
     const { guildSettings } = await getMongoCollections();
+    const existing = await guildSettings.findOne(settingsQuery(guildId, normalizedBotId));
     await guildSettings.updateOne(
-      {
-        guildId
-      },
+      existing ? { _id: existing._id } : { guildId, botId: normalizedBotId },
       {
         $set: {
+          botId: normalizedBotId,
           welcomeEnabled: next.welcomeEnabled,
           welcomeChannelId: next.welcomeChannelId,
           welcomeDisplayChannelId: next.welcomeDisplayChannelId,
@@ -115,6 +119,7 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
         },
         $setOnInsert: {
           _id: randomUUID(),
+          botId: normalizedBotId,
           guildId
         }
       },
@@ -130,9 +135,11 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
 }
 
 function toDto(settings: MongoGuildSettings): GuildSettingsDto {
-  const defaults = defaultSettings(settings.guildId);
+  const botId = normalizeBotId(settings.botId);
+  const defaults = defaultSettings(settings.guildId, botId);
 
   return {
+    botId,
     guildId: settings.guildId,
     welcomeEnabled: settings.welcomeEnabled,
     welcomeChannelId: settings.welcomeChannelId,
@@ -159,4 +166,36 @@ function toDto(settings: MongoGuildSettings): GuildSettingsDto {
 
 function normalizeWelcomeImageUrl(value: string | null | undefined) {
   return !value || value === "/uploads/welcome/default.gif" ? DEFAULT_WELCOME_IMAGE_URL : value;
+}
+
+function normalizeBotId(botId: string | null | undefined) {
+  const normalized = botId?.trim();
+  return normalized ? normalized : null;
+}
+
+function settingsKey(guildId: string, botId: string | null) {
+  return `${botId ?? "default"}:${guildId}`;
+}
+
+function settingsQuery(guildId: string, botId: string | null) {
+  if (botId) {
+    return {
+      guildId,
+      botId
+    };
+  }
+
+  return {
+    guildId,
+    $or: [
+      {
+        botId: null
+      },
+      {
+        botId: {
+          $exists: false
+        }
+      }
+    ]
+  };
 }

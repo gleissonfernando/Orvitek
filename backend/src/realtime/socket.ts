@@ -18,9 +18,13 @@ export function createSocketServer(httpServer: HttpServer) {
 
   io.on("connection", (socket) => {
     const token = socket.handshake.auth?.token;
+    const botId = typeof socket.handshake.auth?.botId === "string" && socket.handshake.auth.botId.trim()
+      ? socket.handshake.auth.botId.trim()
+      : null;
     const isBot = Boolean(env.BOT_API_TOKEN && token === env.BOT_API_TOKEN);
 
     socket.data.isBot = isBot;
+    socket.data.botId = botId;
     socket.emit("bot:status", getBotStatus());
 
     socket.on("disconnect", () => {
@@ -39,25 +43,31 @@ export function createSocketServer(httpServer: HttpServer) {
       io.emit("bot:status", updateBotStatus(payload));
     });
 
-    socket.on("bot:log", async (payload: { guildId: string; type: string; message: string; userId?: string; metadata?: unknown }) => {
+    socket.on("bot:log", async (payload: { botId?: string | null; guildId: string; type: string; message: string; userId?: string; metadata?: unknown }) => {
       if (!socket.data.isBot) {
         return;
       }
 
-      const log = await createLog(payload);
+      const log = await createLog({
+        ...payload,
+        botId: payload.botId ?? socket.data.botId ?? null
+      });
       io.emit("logs:new", log);
     });
 
-    socket.on("live:started", async (payload: { guildId: string; streamer: string; title?: string; url?: string }) => {
+    socket.on("live:started", async (payload: { botId?: string | null; guildId: string; streamer: string; title?: string; url?: string }) => {
       if (!socket.data.isBot) {
         return;
       }
 
+      const eventBotId = payload.botId ?? socket.data.botId ?? null;
       const event = createLiveEvent({
         ...payload,
+        botId: eventBotId,
         type: "started"
       });
       const log = await createLog({
+        botId: eventBotId,
         guildId: payload.guildId,
         type: "live:started",
         message: `${payload.streamer} iniciou uma live.`,
@@ -71,16 +81,19 @@ export function createSocketServer(httpServer: HttpServer) {
       io.emit("live:started", event);
     });
 
-    socket.on("live:ended", async (payload: { guildId: string; streamer: string; title?: string; url?: string }) => {
+    socket.on("live:ended", async (payload: { botId?: string | null; guildId: string; streamer: string; title?: string; url?: string }) => {
       if (!socket.data.isBot) {
         return;
       }
 
+      const eventBotId = payload.botId ?? socket.data.botId ?? null;
       const event = createLiveEvent({
         ...payload,
+        botId: eventBotId,
         type: "ended"
       });
       const log = await createLog({
+        botId: eventBotId,
         guildId: payload.guildId,
         type: "live:ended",
         message: `${payload.streamer} encerrou uma live.`,

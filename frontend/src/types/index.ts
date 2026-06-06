@@ -67,6 +67,7 @@ export type BotStatus = {
 };
 
 export type GuildSettings = {
+  botId: string | null;
   guildId: string;
   welcomeEnabled: boolean;
   welcomeChannelId: string | null;
@@ -92,6 +93,7 @@ export type GuildSettings = {
 
 export type LogEntry = {
   id: string;
+  botId: string | null;
   guildId: string;
   userId?: string | null;
   type: string;
@@ -102,6 +104,7 @@ export type LogEntry = {
 
 export type LiveEvent = {
   id: string;
+  botId: string | null;
   guildId: string;
   type: "started" | "ended";
   streamer: string;
@@ -112,6 +115,7 @@ export type LiveEvent = {
 
 export type Ticket = {
   id: string;
+  botId: string | null;
   guildId: string;
   channelId?: string | null;
   openerId: string;
@@ -142,6 +146,7 @@ export type GuildLiveOptions = {
 
 export type SocialNotification = {
   id: string;
+  botId: string | null;
   guildId: string;
   userId: string;
   platform: "twitch";
@@ -213,6 +218,7 @@ export type DashboardMeGuild = {
 export type DashboardMeResponse = {
   user: DashboardMeUser;
   bot: DashboardMeBot;
+  bots: DevBot[];
   selectedGuildId: string | null;
   guilds: DashboardMeGuild[];
 };

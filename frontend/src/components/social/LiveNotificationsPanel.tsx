@@ -21,11 +21,12 @@ import type {
 } from "../../types";
 
 type LiveNotificationsPanelProps = {
+  botId?: string | null;
   canManage: boolean;
   guild: DashboardGuild | null;
 };
 
-export function LiveNotificationsPanel({ canManage, guild }: LiveNotificationsPanelProps) {
+export function LiveNotificationsPanel({ botId, canManage, guild }: LiveNotificationsPanelProps) {
   const [notifications, setNotifications] = useState<SocialNotification[]>([]);
   const [liveOptions, setLiveOptions] = useState<GuildLiveOptions>({ channels: [], roles: [] });
   const [loading, setLoading] = useState(true);
@@ -62,8 +63,8 @@ export function LiveNotificationsPanel({ canManage, guild }: LiveNotificationsPa
     setError(null);
 
     Promise.all([
-      getSocialNotifications(guild.id),
-      getGuildLiveOptions(guild.id).catch(() => ({ channels: [], roles: [] }))
+      getSocialNotifications(guild.id, botId),
+      getGuildLiveOptions(guild.id, botId).catch(() => ({ channels: [], roles: [] }))
     ])
       .then(([nextNotifications, nextOptions]) => {
         setNotifications(nextNotifications);
@@ -71,7 +72,7 @@ export function LiveNotificationsPanel({ canManage, guild }: LiveNotificationsPa
       })
       .catch((requestError: unknown) => setError(readErrorMessage(requestError)))
       .finally(() => setLoading(false));
-  }, [canManage, guild]);
+  }, [botId, canManage, guild]);
 
   async function handleCreate(payload: CreateTwitchNotificationPayload) {
     if (!guild) {
@@ -83,7 +84,7 @@ export function LiveNotificationsPanel({ canManage, guild }: LiveNotificationsPa
     setStatus(null);
 
     try {
-      const notification = await createTwitchNotification(guild.id, payload);
+      const notification = await createTwitchNotification(guild.id, payload, botId);
       setNotifications((current) => [notification, ...current]);
       setAddOpen(false);
       setStatus("Canal Twitch cadastrado com sucesso.");
@@ -104,7 +105,7 @@ export function LiveNotificationsPanel({ canManage, guild }: LiveNotificationsPa
     setStatus(null);
 
     try {
-      const notification = await updateTwitchNotification(guild.id, editing.id, payload);
+      const notification = await updateTwitchNotification(guild.id, editing.id, payload, botId);
       setNotifications((current) => current.map((item) => (item.id === notification.id ? notification : item)));
       setEditing(null);
       setStatus("Configuracao salva.");
@@ -124,7 +125,7 @@ export function LiveNotificationsPanel({ canManage, guild }: LiveNotificationsPa
     setStatus(null);
 
     try {
-      await deleteTwitchNotification(guild.id, deletingNotification.id);
+      await deleteTwitchNotification(guild.id, deletingNotification.id, botId);
       setNotifications((current) => current.filter((item) => item.id !== deletingNotification.id));
       setDeletingNotification(null);
       setStatus("Canal Twitch removido.");
@@ -145,7 +146,7 @@ export function LiveNotificationsPanel({ canManage, guild }: LiveNotificationsPa
     setStatus(null);
 
     try {
-      await testTwitchNotification(guild.id, notification.id);
+      await testTwitchNotification(guild.id, notification.id, botId);
       setStatus(`Painel de @${notification.twitchChannelName} enviado para teste.`);
     } catch (requestError) {
       setError(readErrorMessage(requestError));
@@ -203,6 +204,7 @@ export function LiveNotificationsPanel({ canManage, guild }: LiveNotificationsPa
       ) : null}
 
       <AddTwitchChannelModal
+        botId={botId}
         error={error}
         guildId={guild?.id ?? null}
         onClose={() => setAddOpen(false)}

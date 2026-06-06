@@ -7,6 +7,7 @@ import { getTwitchStream, getTwitchUser, normalizeTwitchChannel } from "./twitch
 
 export type SocialNotificationDto = {
   id: string;
+  botId: string | null;
   guildId: string;
   userId: string;
   platform: "twitch";
@@ -35,6 +36,7 @@ export type CreateTwitchNotificationInput = {
   embedColor?: string | null;
   enabled: boolean;
   userId: string;
+  botId?: string | null;
 };
 
 export type UpdateTwitchNotificationInput = {
@@ -80,13 +82,13 @@ export async function previewTwitchChannel(input: string) {
   };
 }
 
-export async function listSocialNotifications(guildId: string) {
+export async function listSocialNotifications(guildId: string, botId?: string | null) {
+  const normalizedBotId = normalizeBotId(botId);
+
   try {
     const { socialNotifications } = await getMongoCollections();
     const notifications = await socialNotifications
-      .find({
-        guildId
-      })
+      .find(notificationScopeQuery(guildId, normalizedBotId))
       .sort({
         createdAt: -1
       })
@@ -94,17 +96,35 @@ export async function listSocialNotifications(guildId: string) {
 
     return notifications.map(toDto);
   } catch {
-    return [...memoryNotifications.values()].filter((notification) => notification.guildId === guildId);
+    return [...memoryNotifications.values()].filter(
+      (notification) => notification.guildId === guildId && normalizeBotId(notification.botId) === normalizedBotId
+    );
   }
 }
 
-export async function listActiveTwitchNotifications() {
+export async function listActiveTwitchNotifications(botId?: string | null) {
+  const normalizedBotId = normalizeBotId(botId);
+
   try {
     const { socialNotifications } = await getMongoCollections();
     const notifications = await socialNotifications
       .find({
         platform: "twitch",
-        enabled: true
+        enabled: true,
+        ...(normalizedBotId
+          ? { botId: normalizedBotId }
+          : {
+              $or: [
+                {
+                  botId: null
+                },
+                {
+                  botId: {
+                    $exists: false
+                  }
+                }
+              ]
+            })
       })
       .sort({
         updatedAt: 1
@@ -113,13 +133,19 @@ export async function listActiveTwitchNotifications() {
 
     return notifications.map(toDto);
   } catch {
-    return [...memoryNotifications.values()].filter((notification) => notification.platform === "twitch" && notification.enabled);
+    return [...memoryNotifications.values()].filter(
+      (notification) =>
+        notification.platform === "twitch" &&
+        notification.enabled &&
+        normalizeBotId(notification.botId) === normalizedBotId
+    );
   }
 }
 
 export async function createTwitchNotification(guildId: string, input: CreateTwitchNotificationInput) {
+  const botId = normalizeBotId(input.botId);
   const twitchChannelName = normalizeAndValidateChannel(input.twitchChannelInput);
-  await assertGuildLimit(guildId);
+  await assertGuildLimit(guildId, botId);
 
   const twitchUser = await getTwitchUser(twitchChannelName).catch((error) => {
     throw createServiceError(error instanceof Error ? error.message : "Erro ao consultar Twitch API.", 503);
@@ -132,6 +158,7 @@ export async function createTwitchNotification(guildId: string, input: CreateTwi
   const now = new Date();
   const doc: MongoSocialNotification = {
     _id: randomUUID(),
+    botId,
     guildId,
     userId: input.userId,
     platform: "twitch",
@@ -158,6 +185,7 @@ export async function createTwitchNotification(guildId: string, input: CreateTwi
     const { socialNotifications } = await getMongoCollections();
     const existing = await socialNotifications.findOne({
       guildId,
+      botId,
       platform: "twitch",
       twitchChannelName
     });
@@ -187,14 +215,16 @@ export async function createTwitchNotification(guildId: string, input: CreateTwi
   }
 }
 
-export async function updateTwitchNotification(guildId: string, id: string, input: UpdateTwitchNotificationInput) {
+export async function updateTwitchNotification(guildId: string, id: string, input: UpdateTwitchNotificationInput, botId?: string | null) {
+  const normalizedBotId = normalizeBotId(botId);
+
   try {
     const { socialNotifications } = await getMongoCollections();
     const current = await socialNotifications.findOne({
       _id: id
     });
 
-    if (!current || current.guildId !== guildId) {
+    if (!current || current.guildId !== guildId || normalizeBotId(current.botId) !== normalizedBotId) {
       throw createServiceError("Notificacao nao encontrada.", 404);
     }
 
@@ -223,7 +253,7 @@ export async function updateTwitchNotification(guildId: string, id: string, inpu
     }
 
     const current = memoryNotifications.get(id);
-    if (!current || current.guildId !== guildId) {
+    if (!current || current.guildId !== guildId || normalizeBotId(current.botId) !== normalizedBotId) {
       throw createServiceError("Notificacao nao encontrada.", 404);
     }
 
@@ -279,8 +309,8 @@ export async function updateTwitchNotificationState(id: string, input: UpdateTwi
   }
 }
 
-export async function sendTwitchNotificationTest(guildId: string, id: string, userId: string) {
-  const notification = await findTwitchNotification(guildId, id);
+export async function sendTwitchNotificationTest(guildId: string, id: string, userId: string, botId?: string | null) {
+  const notification = await findTwitchNotification(guildId, id, botId);
   const stream = await getTwitchStream(notification.twitchChannelName).catch(() => null);
   const title = stream?.title ?? "Live de teste iniciada pelo painel";
   const gameName = stream?.gameName || "Grand Theft Auto V";
@@ -305,14 +335,16 @@ export async function sendTwitchNotificationTest(guildId: string, id: string, us
   await writeActionLog("social.twitch.tested", "Testou painel Twitch", notification, userId);
 }
 
-export async function deleteTwitchNotification(guildId: string, id: string, userId: string) {
+export async function deleteTwitchNotification(guildId: string, id: string, userId: string, botId?: string | null) {
+  const normalizedBotId = normalizeBotId(botId);
+
   try {
     const { socialNotifications } = await getMongoCollections();
     const current = await socialNotifications.findOne({
       _id: id
     });
 
-    if (!current || current.guildId !== guildId) {
+    if (!current || current.guildId !== guildId || normalizeBotId(current.botId) !== normalizedBotId) {
       throw createServiceError("Notificacao nao encontrada.", 404);
     }
 
@@ -329,7 +361,7 @@ export async function deleteTwitchNotification(guildId: string, id: string, user
     }
 
     const current = memoryNotifications.get(id);
-    if (!current || current.guildId !== guildId) {
+    if (!current || current.guildId !== guildId || normalizeBotId(current.botId) !== normalizedBotId) {
       throw createServiceError("Notificacao nao encontrada.", 404);
     }
 
@@ -355,8 +387,8 @@ function normalizeAndValidateChannel(input: string) {
   return channel;
 }
 
-async function assertGuildLimit(guildId: string) {
-  const notifications = await listSocialNotifications(guildId);
+async function assertGuildLimit(guildId: string, botId: string | null) {
+  const notifications = await listSocialNotifications(guildId, botId);
   const count = notifications.filter((notification) => notification.platform === "twitch").length;
 
   if (count >= TWITCH_LIMIT) {
@@ -366,6 +398,7 @@ async function assertGuildLimit(guildId: string) {
 
 async function writeActionLog(type: string, action: string, notification: SocialNotificationDto, userId: string) {
   await createLog({
+    botId: notification.botId,
     guildId: notification.guildId,
     userId,
     type,
@@ -440,6 +473,7 @@ function buildNotificationStatePatch(input: UpdateTwitchNotificationStateInput):
 function toDto(notification: MongoSocialNotification): SocialNotificationDto {
   return {
     id: notification._id,
+    botId: normalizeBotId(notification.botId),
     guildId: notification.guildId,
     userId: notification.userId,
     platform: "twitch",
@@ -465,14 +499,16 @@ function isUniqueConstraint(error: unknown) {
   return error instanceof MongoServerError && error.code === 11000;
 }
 
-async function findTwitchNotification(guildId: string, id: string) {
+async function findTwitchNotification(guildId: string, id: string, botId?: string | null) {
+  const normalizedBotId = normalizeBotId(botId);
+
   try {
     const { socialNotifications } = await getMongoCollections();
     const notification = await socialNotifications.findOne({
       _id: id
     });
 
-    if (!notification || notification.guildId !== guildId) {
+    if (!notification || notification.guildId !== guildId || normalizeBotId(notification.botId) !== normalizedBotId) {
       throw createServiceError("Notificacao nao encontrada.", 404);
     }
 
@@ -484,12 +520,40 @@ async function findTwitchNotification(guildId: string, id: string) {
 
     const notification = memoryNotifications.get(id);
 
-    if (!notification || notification.guildId !== guildId) {
+    if (!notification || notification.guildId !== guildId || normalizeBotId(notification.botId) !== normalizedBotId) {
       throw createServiceError("Notificacao nao encontrada.", 404);
     }
 
     return notification;
   }
+}
+
+function normalizeBotId(botId: string | null | undefined) {
+  const normalized = botId?.trim();
+  return normalized ? normalized : null;
+}
+
+function notificationScopeQuery(guildId: string, botId: string | null) {
+  if (botId) {
+    return {
+      guildId,
+      botId
+    };
+  }
+
+  return {
+    guildId,
+    $or: [
+      {
+        botId: null
+      },
+      {
+        botId: {
+          $exists: false
+        }
+      }
+    ]
+  };
 }
 
 async function sendDiscordLivePanel(input: {

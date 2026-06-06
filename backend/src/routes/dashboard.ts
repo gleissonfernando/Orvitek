@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
 import { canManageDashboardGuild } from "../services/dashboardGuildAccessService";
 import { fetchBotProfile } from "../services/botProfileService";
+import { canManageDevBotGuild, listAccessibleDevBots } from "../services/devBotService";
 import { filterGuildsForBot, mergeAuthorizedBotGuilds } from "../services/statsService";
 import { issueAuthCookies, type DashboardAuth } from "../services/tokenService";
 import { saveSelectedGuild } from "../services/userService";
@@ -15,8 +16,10 @@ dashboardRouter.get("/me", async (_req, res, next) => {
   try {
     const auth = res.locals.dashboardAuth as DashboardAuth;
     const user = auth.user;
+    const panelBots = await listAccessibleDevBots(user).catch(() => []);
     const accessibleGuilds = user.authorized ? mergeAuthorizedBotGuilds(user.guilds) : filterGuildsForBot(user.guilds);
-    const guilds = accessibleGuilds
+    const guildsById = new Map(
+      accessibleGuilds
       .filter((guild) => guild.botEnabled && (user.authorized || guild.owner || guild.isAdmin))
       .map((guild) => ({
         id: guild.id,
@@ -25,7 +28,24 @@ dashboardRouter.get("/me", async (_req, res, next) => {
         owner: guild.owner,
         permissions: guild.isAdmin ? "ADMINISTRATOR" : "0",
         botInGuild: guild.botEnabled
-      }));
+      }))
+      .map((guild) => [guild.id, guild])
+    );
+
+    for (const bot of panelBots) {
+      if (!guildsById.has(bot.mainGuildId)) {
+        guildsById.set(bot.mainGuildId, {
+          id: bot.mainGuildId,
+          name: `${bot.name} - servidor`,
+          iconUrl: null,
+          owner: bot.ownerId === user.discordId,
+          permissions: bot.ownerId === user.discordId ? "BOT_OWNER" : "BOT_ADMIN",
+          botInGuild: true
+        });
+      }
+    }
+
+    const guilds = [...guildsById.values()];
 
     const selectedGuildId = user.selectedGuildId && guilds.some((guild) => guild.id === user.selectedGuildId)
       ? user.selectedGuildId
@@ -39,6 +59,7 @@ dashboardRouter.get("/me", async (_req, res, next) => {
         avatarUrl: user.avatarUrl ?? user.avatar
       },
       bot: await fetchBotProfile(),
+      bots: panelBots,
       selectedGuildId,
       guilds
     });
@@ -56,7 +77,9 @@ dashboardRouter.patch("/selected-guild", async (req, res, next) => {
       .parse(req.body);
     const auth = res.locals.dashboardAuth as DashboardAuth;
 
-    if (!canManageDashboardGuild(auth.user, input.selectedGuildId)) {
+    const botId = typeof req.body?.botId === "string" && req.body.botId.trim() ? req.body.botId.trim() : null;
+
+    if (!canManageDashboardGuild(auth.user, input.selectedGuildId) && !(await canManageDevBotGuild(auth.user, botId, input.selectedGuildId))) {
       return res.status(403).json({
         message: "Voce nao tem permissao para configurar este servidor."
       });

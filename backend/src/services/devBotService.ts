@@ -3,6 +3,7 @@ import axios from "axios";
 import { env } from "../config/env";
 import { getMongoCollections, type MongoBotGuildConfig, type MongoDevBot, type MongoDevBotStatus } from "../database/mongo";
 import { emitRealtime } from "../realtime/events";
+import type { AuthSessionUser } from "../types/session";
 import { getDiscordAvatarUrl } from "./discordAssetService";
 
 const DISCORD_API = "https://discord.com/api/v10";
@@ -73,11 +74,124 @@ export async function listDevBots() {
   return bots.map(toDevBotDto);
 }
 
+export async function listAccessibleDevBots(user: AuthSessionUser) {
+  if (user.authorized) {
+    return listDevBots();
+  }
+
+  const { devBots } = await getMongoCollections();
+  const bots = await devBots
+    .find({
+      $or: [
+        {
+          ownerId: user.discordId
+        },
+        {
+          createdBy: user.discordId
+        }
+      ]
+    })
+    .sort({ createdAt: -1 })
+    .toArray();
+
+  return bots.map(toDevBotDto);
+}
+
+export async function userHasAccessibleDevBot(user: AuthSessionUser) {
+  if (user.authorized) {
+    return true;
+  }
+
+  const { devBots } = await getMongoCollections();
+  const bot = await devBots.findOne(
+    {
+      $or: [
+        {
+          ownerId: user.discordId
+        },
+        {
+          createdBy: user.discordId
+        }
+      ]
+    },
+    {
+      projection: {
+        _id: 1
+      }
+    }
+  );
+
+  return Boolean(bot);
+}
+
 export async function getDevBot(botId: string) {
   const { devBots } = await getMongoCollections();
   const bot = await devBots.findOne({ _id: botId });
 
   return bot ? toDevBotDto(bot) : null;
+}
+
+export async function canManageDevBot(user: AuthSessionUser, botId: string) {
+  if (user.authorized) {
+    return true;
+  }
+
+  const { devBots } = await getMongoCollections();
+  const bot = await devBots.findOne(
+    {
+      _id: botId,
+      $or: [
+        {
+          ownerId: user.discordId
+        },
+        {
+          createdBy: user.discordId
+        }
+      ]
+    },
+    {
+      projection: {
+        _id: 1
+      }
+    }
+  );
+
+  return Boolean(bot);
+}
+
+export async function canManageDevBotGuild(user: AuthSessionUser, botId: string | null, guildId: string) {
+  if (!botId) {
+    return false;
+  }
+
+  const { botGuildConfigs, devBots } = await getMongoCollections();
+  const bot = await devBots.findOne({ _id: botId });
+
+  if (!bot) {
+    return false;
+  }
+
+  if (!user.authorized && bot.ownerId !== user.discordId && bot.createdBy !== user.discordId) {
+    return false;
+  }
+
+  if (bot.mainGuildId === guildId) {
+    return true;
+  }
+
+  const config = await botGuildConfigs.findOne(
+    {
+      botId,
+      guildId
+    },
+    {
+      projection: {
+        _id: 1
+      }
+    }
+  );
+
+  return Boolean(config);
 }
 
 export async function createDevBot(input: CreateDevBotInput) {

@@ -4,12 +4,13 @@ import { emitRealtime } from "../realtime/events";
 import { requireDevAccess } from "../services/devAccessService";
 import {
   createDevBot,
+  canManageDevBot,
   deleteDevBot,
   DEV_MODULES,
   getBotGuildConfig,
   getDevBot,
+  listAccessibleDevBots,
   listBotGuildConfigs,
-  listDevBots,
   restartDevBot,
   testDiscordBotToken,
   updateBotGuildConfig,
@@ -57,8 +58,10 @@ devRouter.get("/modules", (_req, res) => {
 
 devRouter.get("/bots", async (_req, res, next) => {
   try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+
     return res.json({
-      bots: await listDevBots()
+      bots: await listAccessibleDevBots(auth.user)
     });
   } catch (error) {
     return next(error);
@@ -79,6 +82,13 @@ devRouter.post("/bots/create", async (req, res, next) => {
   try {
     const input = createBotSchema.parse(req.body);
     const auth = res.locals.dashboardAuth as DashboardAuth;
+
+    if (!auth.user.authorized && input.ownerId !== auth.user.discordId) {
+      return res.status(403).json({
+        message: "Voce so pode cadastrar bots para o seu proprio usuario."
+      });
+    }
+
     const bot = await createDevBot({
       ...input,
       avatarUrl: input.avatarUrl || null,
@@ -96,6 +106,14 @@ devRouter.post("/bots/create", async (req, res, next) => {
 
 devRouter.get("/bots/:botId", async (req, res, next) => {
   try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+
+    if (!(await canManageDevBot(auth.user, req.params.botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem acesso a este bot."
+      });
+    }
+
     const bot = await getDevBot(req.params.botId);
 
     if (!bot) {
@@ -114,7 +132,22 @@ devRouter.get("/bots/:botId", async (req, res, next) => {
 
 devRouter.patch("/bots/:botId", async (req, res, next) => {
   try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+
+    if (!(await canManageDevBot(auth.user, req.params.botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem acesso a este bot."
+      });
+    }
+
     const input = updateBotSchema.parse(req.body);
+
+    if (!auth.user.authorized && input.ownerId && input.ownerId !== auth.user.discordId) {
+      return res.status(403).json({
+        message: "Voce nao pode transferir este bot para outro usuario."
+      });
+    }
+
     const bot = await updateDevBot(req.params.botId, {
       ...input,
       avatarUrl: input.avatarUrl === "" ? null : input.avatarUrl
@@ -136,6 +169,14 @@ devRouter.patch("/bots/:botId", async (req, res, next) => {
 
 devRouter.delete("/bots/:botId", async (req, res, next) => {
   try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+
+    if (!(await canManageDevBot(auth.user, req.params.botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem acesso a este bot."
+      });
+    }
+
     const bot = await deleteDevBot(req.params.botId);
 
     if (!bot) {
@@ -154,6 +195,14 @@ devRouter.delete("/bots/:botId", async (req, res, next) => {
 
 devRouter.post("/bots/:botId/restart", async (req, res, next) => {
   try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+
+    if (!(await canManageDevBot(auth.user, req.params.botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem acesso a este bot."
+      });
+    }
+
     const bot = await restartDevBot(req.params.botId);
 
     if (!bot) {
@@ -172,6 +221,14 @@ devRouter.post("/bots/:botId/restart", async (req, res, next) => {
 
 devRouter.get("/bots/:botId/modules", async (req, res, next) => {
   try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+
+    if (!(await canManageDevBot(auth.user, req.params.botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem acesso a este bot."
+      });
+    }
+
     const bot = await getDevBot(req.params.botId);
 
     if (!bot) {
@@ -190,6 +247,14 @@ devRouter.get("/bots/:botId/modules", async (req, res, next) => {
 
 devRouter.patch("/bots/:botId/modules", async (req, res, next) => {
   try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+
+    if (!(await canManageDevBot(auth.user, req.params.botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem acesso a este bot."
+      });
+    }
+
     const input = modulesSchema.parse(req.body);
     const bot = await updateDevBotModules(req.params.botId, input.enabledModules);
 
@@ -209,6 +274,14 @@ devRouter.patch("/bots/:botId/modules", async (req, res, next) => {
 
 devRouter.get("/bots/:botId/guilds", async (req, res, next) => {
   try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+
+    if (!(await canManageDevBot(auth.user, req.params.botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem acesso a este bot."
+      });
+    }
+
     if (!(await getDevBot(req.params.botId))) {
       return res.status(404).json({
         message: "Bot nao encontrado."
@@ -225,6 +298,14 @@ devRouter.get("/bots/:botId/guilds", async (req, res, next) => {
 
 devRouter.get("/bots/:botId/guilds/:guildId/config", async (req, res, next) => {
   try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+
+    if (!(await canManageDevBot(auth.user, req.params.botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem acesso a este bot."
+      });
+    }
+
     if (!(await getDevBot(req.params.botId))) {
       return res.status(404).json({
         message: "Bot nao encontrado."
@@ -241,6 +322,14 @@ devRouter.get("/bots/:botId/guilds/:guildId/config", async (req, res, next) => {
 
 devRouter.patch("/bots/:botId/guilds/:guildId/config", async (req, res, next) => {
   try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+
+    if (!(await canManageDevBot(auth.user, req.params.botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem acesso a este bot."
+      });
+    }
+
     if (!(await getDevBot(req.params.botId))) {
       return res.status(404).json({
         message: "Bot nao encontrado."

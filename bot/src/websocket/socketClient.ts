@@ -18,7 +18,8 @@ export class BotSocketClient {
     this.socket?.disconnect();
     this.socket = io(env.BACKEND_SOCKET_URL, {
       auth: {
-        token: env.BOT_API_TOKEN
+        token: env.BOT_API_TOKEN,
+        botId: env.DASHBOARD_BOT_ID || null
       },
       reconnection: true,
       reconnectionDelay: 1000,
@@ -51,6 +52,7 @@ export class BotSocketClient {
     }));
 
     this.socket?.emit("bot:status", {
+      botId: env.DASHBOARD_BOT_ID || null,
       online,
       latency: Math.max(0, Math.round(client.ws.ping)),
       guilds: client.guilds.cache.size,
@@ -60,15 +62,15 @@ export class BotSocketClient {
   }
 
   emitLog(payload: { guildId: string; type: string; message: string; userId?: string | null; metadata?: unknown }) {
-    this.socket?.emit("bot:log", payload);
+    this.socket?.emit("bot:log", { ...payload, botId: env.DASHBOARD_BOT_ID || null });
   }
 
   emitLiveStarted(payload: { guildId: string; streamer: string; title?: string; url?: string }) {
-    this.socket?.emit("live:started", payload);
+    this.socket?.emit("live:started", { ...payload, botId: env.DASHBOARD_BOT_ID || null });
   }
 
   emitLiveEnded(payload: { guildId: string; streamer: string; title?: string; url?: string }) {
-    this.socket?.emit("live:ended", payload);
+    this.socket?.emit("live:ended", { ...payload, botId: env.DASHBOARD_BOT_ID || null });
   }
 
   disconnect(client: Client) {

@@ -1,6 +1,7 @@
 import { Router } from "express";
-import { requireAdminAccess, requireAuth } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import { canManageDashboardGuild } from "../services/dashboardGuildAccessService";
+import { canManageDevBotGuild } from "../services/devBotService";
 import { getGuildLiveOptions } from "../services/discordOptionsService";
 import { getBotStatus } from "../services/statsService";
 
@@ -49,9 +50,10 @@ guildsRouter.get("/:guildId/stats", (req, res) => {
   });
 });
 
-guildsRouter.get("/:guildId/live-options", requireAdminAccess, async (req, res, next) => {
+guildsRouter.get("/:guildId/live-options", async (req, res, next) => {
   try {
     const guildId = req.params.guildId;
+    const botId = typeof req.query.botId === "string" && req.query.botId.trim() ? req.query.botId.trim() : null;
 
     if (!guildId) {
       return res.status(400).json({
@@ -59,7 +61,10 @@ guildsRouter.get("/:guildId/live-options", requireAdminAccess, async (req, res, 
       });
     }
 
-    if (!canManageDashboardGuild(res.locals.dashboardAuth.user, guildId)) {
+    if (
+      !canManageDashboardGuild(res.locals.dashboardAuth.user, guildId) &&
+      !(await canManageDevBotGuild(res.locals.dashboardAuth.user, botId, guildId))
+    ) {
       return res.status(403).json({
         message: "Voce nao tem permissao para configurar lives deste servidor."
       });

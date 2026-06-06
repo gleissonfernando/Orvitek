@@ -78,6 +78,7 @@ MONGODB_URI=
 SESSION_SECRET="troque-por-um-segredo-grande-de-sessao"
 JWT_SECRET="troque-por-um-segredo-grande-de-jwt"
 BOT_API_TOKEN="troque-por-um-token-interno-do-bot"
+DASHBOARD_BOT_ID=""
 DISCORD_BOT_TOKEN="token-do-bot"
 DISCORD_CLIENT_ID="client-id-oauth"
 DISCORD_CLIENT_SECRET="client-secret-oauth"
@@ -92,6 +93,8 @@ DEV_AUTH_ENABLED="false"
 Quando frontend, API e bot rodam no mesmo dominio, `BACKEND_API_URL`, `BACKEND_SOCKET_URL`, `VITE_API_URL` e `VITE_SOCKET_URL` podem ficar vazias. O bot deriva as URLs a partir de `FRONTEND_URL`; o frontend usa `/api` e o dominio atual no build.
 
 Configure `BACKEND_API_URL`, `BACKEND_SOCKET_URL`, `VITE_API_URL` e `VITE_SOCKET_URL` apenas se separar frontend/API em dominios diferentes.
+
+Para multi-bot, cadastre cada bot na aba Dev e configure `DASHBOARD_BOT_ID` no ambiente do processo daquele bot com o ID interno exibido/salvo pelo painel. Sem esse valor, o bot usa o escopo legado sem `botId`.
 
 Preencha tambem as variaveis da Twitch se for usar esses recursos.
 
