@@ -219,6 +219,7 @@ export type DashboardMeResponse = {
   user: DashboardMeUser;
   bot: DashboardMeBot;
   bots: DevBot[];
+  canViewDev: boolean;
   selectedGuildId: string | null;
   guilds: DashboardMeGuild[];
 };

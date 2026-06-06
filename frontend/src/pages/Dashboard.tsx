@@ -257,7 +257,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
   );
   const activeBotId = selectedPanelBot?.id ?? null;
   const canManageDashboard = auth.permissions.canManageDashboard || Boolean(selectedPanelBot);
-  const canViewDev = auth.user.authorized || panelBots.length > 0;
+  const canViewDev = dashboardProfile?.canViewDev ?? (auth.permissions.canManageDashboard || auth.user.authorized || panelBots.length > 0);
   const dashboardHeaderGuilds = useMemo(
     () => (dashboardProfile?.guilds.length ? dashboardProfile.guilds : toDashboardMeGuilds(dashboardGuilds)),
     [dashboardGuilds, dashboardProfile]

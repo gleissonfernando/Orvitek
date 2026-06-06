@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
 import { canManageDashboardGuild } from "../services/dashboardGuildAccessService";
 import { fetchBotProfile } from "../services/botProfileService";
+import { isDevUser } from "../services/devAccessService";
 import { canManageDevBotGuild, listAccessibleDevBots } from "../services/devBotService";
 import { filterGuildsForBot, mergeAuthorizedBotGuilds } from "../services/statsService";
 import { issueAuthCookies, type DashboardAuth } from "../services/tokenService";
@@ -17,6 +18,7 @@ dashboardRouter.get("/me", async (_req, res, next) => {
     const auth = res.locals.dashboardAuth as DashboardAuth;
     const user = auth.user;
     const panelBots = await listAccessibleDevBots(user).catch(() => []);
+    const canViewDev = isDevUser(user) || panelBots.length > 0;
     const accessibleGuilds = user.authorized ? mergeAuthorizedBotGuilds(user.guilds) : filterGuildsForBot(user.guilds);
     const guildsById = new Map(
       accessibleGuilds
@@ -60,6 +62,7 @@ dashboardRouter.get("/me", async (_req, res, next) => {
       },
       bot: await fetchBotProfile(),
       bots: panelBots,
+      canViewDev,
       selectedGuildId,
       guilds
     });
