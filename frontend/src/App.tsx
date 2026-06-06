@@ -18,25 +18,18 @@ export function App() {
   }, [auth, path]);
 
   useEffect(() => {
-    if (loading || path !== "/dashboard" || error) {
+    if (loading || path !== "/dashboard" || error || auth) {
       return;
     }
 
-    if (!auth) {
-      loginDiscord();
-      return;
-    }
-
-    if (!auth.access.verified && !verifying) {
-      void verify();
-    }
-  }, [auth, error, loading, loginDiscord, path, verify, verifying]);
+    loginDiscord();
+  }, [auth, error, loading, loginDiscord, path]);
 
   if (loading) {
     return <LoadingScreen />;
   }
 
-  if (path === "/dashboard" && (!auth || !auth.access.verified) && !error) {
+  if (path === "/dashboard" && !auth && !error) {
     return <LoadingScreen />;
   }
 

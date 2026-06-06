@@ -6,11 +6,17 @@ import { filterGuildsForBot } from "./statsService";
 
 const ACCESS_COOKIE = "dashboard.access_token";
 const REFRESH_COOKIE = "dashboard.refresh_token";
+const VERIFICATION_COOKIE = "dashboard.verification_session";
 
 type DashboardTokenPayload = JwtPayload & {
   type: "access" | "refresh";
   user: AuthSessionUser;
   verified: boolean;
+};
+
+type DashboardVerificationPayload = JwtPayload & {
+  type: "verification";
+  discordId: string;
 };
 
 export type DashboardAuth = {
@@ -25,6 +31,11 @@ export function issueAuthCookies(res: Response, user: AuthSessionUser, verified:
 
   setAuthCookie(res, ACCESS_COOKIE, accessToken, env.JWT_ACCESS_TTL_SECONDS);
   setAuthCookie(res, REFRESH_COOKIE, refreshToken, env.JWT_REFRESH_TTL_SECONDS);
+  if (verified) {
+    setVerificationCookie(res, user);
+  } else {
+    clearVerificationCookie(res);
+  }
 
   return buildAuthFromToken(accessToken);
 }
@@ -32,6 +43,7 @@ export function issueAuthCookies(res: Response, user: AuthSessionUser, verified:
 export function clearAuthCookies(res: Response) {
   res.clearCookie(ACCESS_COOKIE, cookieOptions());
   res.clearCookie(REFRESH_COOKIE, cookieOptions());
+  clearVerificationCookie(res);
 }
 
 export function createAuthResponse(auth: DashboardAuth) {
@@ -61,7 +73,7 @@ export function resolveAuthFromRequest(req: Request, res: Response) {
 
   if (accessToken) {
     try {
-      return buildAuthFromToken(accessToken);
+      return applyBrowserVerification(req, res, buildAuthFromToken(accessToken));
     } catch (error) {
       if (!(error instanceof TokenExpiredError)) {
         clearAuthCookies(res);
@@ -82,7 +94,7 @@ export function refreshAuthFromRequest(req: Request, res: Response) {
 
   try {
     const payload = verifyToken(refreshToken, "refresh");
-    return issueAuthCookies(res, payload.user, payload.verified);
+    return issueAuthCookies(res, payload.user, payload.verified && hasVerificationCookie(req, payload.user));
   } catch {
     clearAuthCookies(res);
     return issueAuthFromSession(req, res);
@@ -94,7 +106,7 @@ function issueAuthFromSession(req: Request, res: Response) {
     return null;
   }
 
-  return issueAuthCookies(res, req.session.user, req.session.verified === true);
+  return issueAuthCookies(res, req.session.user, req.session.verified === true && hasVerificationCookie(req, req.session.user));
 }
 
 function signToken(type: "access" | "refresh", user: AuthSessionUser, verified: boolean, expiresIn: number) {
@@ -131,6 +143,15 @@ function verifyToken(token: string, expectedType: "access" | "refresh") {
   return payload;
 }
 
+function applyBrowserVerification(req: Request, res: Response, auth: DashboardAuth): DashboardAuth {
+  if (!auth.verified || hasVerificationCookie(req, auth.user)) {
+    return auth;
+  }
+
+  req.session.verified = false;
+  return issueAuthCookies(res, auth.user, false);
+}
+
 function normalizeAuthUser(user: AuthSessionUser): AuthSessionUser {
   const guilds = filterGuildsForBot(user.guilds);
   const authorized = user.authorized ?? getAuthorizedUserIds().has(user.discordId);
@@ -159,6 +180,42 @@ function setAuthCookie(res: Response, name: string, value: string, maxAgeSeconds
     ...cookieOptions(),
     maxAge: maxAgeSeconds * 1000
   });
+}
+
+function setVerificationCookie(res: Response, user: AuthSessionUser) {
+  res.cookie(VERIFICATION_COOKIE, signVerificationToken(user), cookieOptions());
+}
+
+function clearVerificationCookie(res: Response) {
+  res.clearCookie(VERIFICATION_COOKIE, cookieOptions());
+}
+
+function signVerificationToken(user: AuthSessionUser) {
+  return jwt.sign(
+    {
+      type: "verification",
+      discordId: user.discordId
+    },
+    env.JWT_SECRET,
+    {
+      expiresIn: env.JWT_REFRESH_TTL_SECONDS
+    }
+  );
+}
+
+function hasVerificationCookie(req: Request, user: AuthSessionUser) {
+  const token = readCookie(req, VERIFICATION_COOKIE);
+
+  if (!token) {
+    return false;
+  }
+
+  try {
+    const payload = jwt.verify(token, env.JWT_SECRET) as DashboardVerificationPayload;
+    return payload.type === "verification" && payload.discordId === user.discordId;
+  } catch {
+    return false;
+  }
 }
 
 function cookieOptions() {
