@@ -14,7 +14,7 @@ type WelcomePanelProps = {
   viewerName: string;
 };
 
-const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=2";
+const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=1";
 
 export function WelcomePanel({ canManage, guild, onSettingsChange, settings, viewerName }: WelcomePanelProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);

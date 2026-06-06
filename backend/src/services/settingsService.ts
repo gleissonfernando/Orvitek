@@ -21,7 +21,7 @@ export type GuildSettingsDto = {
 };
 
 const memorySettings = new Map<string, GuildSettingsDto>();
-const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=2";
+const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=1";
 
 export function defaultSettings(guildId: string): GuildSettingsDto {
   return {
