@@ -21,6 +21,7 @@ export type GuildSettingsDto = {
 };
 
 const memorySettings = new Map<string, GuildSettingsDto>();
+const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=1";
 
 export function defaultSettings(guildId: string): GuildSettingsDto {
   return {
@@ -28,7 +29,7 @@ export function defaultSettings(guildId: string): GuildSettingsDto {
     welcomeEnabled: true,
     welcomeChannelId: null,
     welcomeDisplayChannelId: null,
-    welcomeImageUrl: "/uploads/welcome/default.gif",
+    welcomeImageUrl: DEFAULT_WELCOME_IMAGE_URL,
     welcomeMessage: "Bem-vindo(a), {user}!",
     autoRoleEnabled: false,
     autoRoleIds: [],
@@ -119,7 +120,7 @@ function toDto(settings: MongoGuildSettings): GuildSettingsDto {
     welcomeEnabled: settings.welcomeEnabled,
     welcomeChannelId: settings.welcomeChannelId,
     welcomeDisplayChannelId: settings.welcomeDisplayChannelId ?? null,
-    welcomeImageUrl: settings.welcomeImageUrl ?? "/uploads/welcome/default.gif",
+    welcomeImageUrl: normalizeWelcomeImageUrl(settings.welcomeImageUrl),
     welcomeMessage: settings.welcomeMessage,
     autoRoleEnabled: settings.autoRoleEnabled,
     autoRoleIds: settings.autoRoleIds,
@@ -132,4 +133,8 @@ function toDto(settings: MongoGuildSettings): GuildSettingsDto {
     verificationEnabled: settings.verificationEnabled,
     verificationRoleId: settings.verificationRoleId
   };
+}
+
+function normalizeWelcomeImageUrl(value: string | null | undefined) {
+  return !value || value === "/uploads/welcome/default.gif" ? DEFAULT_WELCOME_IMAGE_URL : value;
 }

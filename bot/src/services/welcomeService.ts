@@ -2,6 +2,8 @@ import { EmbedBuilder, type GuildMember } from "discord.js";
 import { env } from "../config/env";
 import type { BotContext } from "../types";
 
+const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=1";
+
 export async function sendWelcomeMessage(context: BotContext, member: GuildMember) {
   const settings = await context.api.getSettings(member.guild.id).catch(() => null);
 
@@ -16,7 +18,7 @@ export async function sendWelcomeMessage(context: BotContext, member: GuildMembe
   }
 
   const displayChannelId = settings.welcomeDisplayChannelId ?? settings.welcomeChannelId;
-  const imageUrl = resolveImageUrl(settings.welcomeImageUrl ?? "/uploads/welcome/default.gif");
+  const imageUrl = resolveImageUrl(settings.welcomeImageUrl ?? DEFAULT_WELCOME_IMAGE_URL);
   const embed = new EmbedBuilder()
     .setColor(0xef4444)
     .setTitle("\u{1F47E} Ricardinn98")

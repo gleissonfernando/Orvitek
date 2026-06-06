@@ -6,6 +6,7 @@ import type { GuildSettingsDto } from "./settingsService";
 
 const DISCORD_API_URL = "https://discord.com/api/v10";
 const WELCOME_UPLOAD_DIR = path.resolve(__dirname, "../../uploads/welcome");
+const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=1";
 const MIME_EXTENSIONS: Record<string, string> = {
   "image/gif": "gif",
   "image/jpeg": "jpg",
@@ -33,7 +34,7 @@ export function welcomePanelDescription(userMention: string, channelId: string |
 
 export function createWelcomePanelEmbed(settings: GuildSettingsDto, userMention: string) {
   const displayChannelId = settings.welcomeDisplayChannelId ?? settings.welcomeChannelId;
-  const imageUrl = toPublicUrl(settings.welcomeImageUrl ?? "/uploads/welcome/default.gif");
+  const imageUrl = toPublicUrl(settings.welcomeImageUrl ?? DEFAULT_WELCOME_IMAGE_URL);
 
   return {
     color: 0xef4444,

@@ -14,6 +14,8 @@ type WelcomePanelProps = {
   viewerName: string;
 };
 
+const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=1";
+
 export function WelcomePanel({ canManage, guild, onSettingsChange, settings, viewerName }: WelcomePanelProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [channels, setChannels] = useState<GuildChannelOption[]>([]);
@@ -23,7 +25,7 @@ export function WelcomePanel({ canManage, guild, onSettingsChange, settings, vie
   const [error, setError] = useState<string | null>(null);
 
   const imageUrl = useMemo(
-    () => resolveAssetUrl(settings?.welcomeImageUrl ?? "/uploads/welcome/default.gif"),
+    () => resolveAssetUrl(settings?.welcomeImageUrl ?? DEFAULT_WELCOME_IMAGE_URL),
     [settings?.welcomeImageUrl]
   );
   const displayChannelId = settings?.welcomeDisplayChannelId ?? settings?.welcomeChannelId ?? null;
