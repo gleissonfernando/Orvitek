@@ -2,7 +2,7 @@ import { EmbedBuilder, type GuildMember } from "discord.js";
 import { env } from "../config/env";
 import type { BotContext } from "../types";
 
-const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=1";
+const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=2";
 
 export async function sendWelcomeMessage(context: BotContext, member: GuildMember) {
   const settings = await context.api.getSettings(member.guild.id).catch(() => null);
