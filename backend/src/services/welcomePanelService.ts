@@ -6,7 +6,7 @@ import type { GuildSettingsDto } from "./settingsService";
 
 const DISCORD_API_URL = "https://discord.com/api/v10";
 const WELCOME_UPLOAD_DIR = path.resolve(__dirname, "../../uploads/welcome");
-const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=1";
+const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=3";
 const MIME_EXTENSIONS: Record<string, string> = {
   "image/gif": "gif",
   "image/jpeg": "jpg",
