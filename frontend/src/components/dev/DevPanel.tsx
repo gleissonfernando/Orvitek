@@ -14,7 +14,15 @@ import {
   testDevBotConnection,
   updateDevBotModules
 } from "../../lib/api";
-import type { BotConnectionTest, CreateDevBotPayload, DevBot, DevBotStatus, DevModuleDefinition } from "../../types";
+import type {
+  AuthUser,
+  BotConnectionTest,
+  CreateDevBotPayload,
+  DashboardMeGuild,
+  DevBot,
+  DevBotStatus,
+  DevModuleDefinition
+} from "../../types";
 
 const fallbackModules: DevModuleDefinition[] = [
   { id: "live", label: "Sistema de Live" },
@@ -44,7 +52,13 @@ const emptyForm: CreateDevBotPayload = {
   enabledModules: ["live"]
 };
 
-export function DevPanel() {
+type DevPanelProps = {
+  guilds?: DashboardMeGuild[];
+  selectedGuildId?: string | null;
+  user?: AuthUser;
+};
+
+export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) {
   const [bots, setBots] = useState<DevBot[]>([]);
   const [modules, setModules] = useState<DevModuleDefinition[]>(fallbackModules);
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
@@ -56,6 +70,7 @@ export function DevPanel() {
   const [testResult, setTestResult] = useState<BotConnectionTest | null>(null);
 
   const selectedBot = bots.find((bot) => bot.id === selectedBotId) ?? bots[0] ?? null;
+  const guildNameById = useMemo(() => new Map(guilds.map((guild) => [guild.id, guild.name])), [guilds]);
   const stats = useMemo(
     () => ({
       total: bots.length,
@@ -87,6 +102,15 @@ export function DevPanel() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    setForm((current) => ({
+      ...current,
+      ownerName: current.ownerName || user?.globalName || user?.username || "",
+      ownerId: current.ownerId || user?.discordId || "",
+      mainGuildId: current.mainGuildId || selectedGuildId || guilds[0]?.id || ""
+    }));
+  }, [guilds, selectedGuildId, user]);
 
   function updateForm<K extends keyof CreateDevBotPayload>(key: K, value: CreateDevBotPayload[K]) {
     setForm((current) => ({
@@ -221,7 +245,19 @@ export function DevPanel() {
               <DevInput label="Token do bot" type="password" value={form.token} onChange={(value) => updateForm("token", value)} />
               <DevInput label="Secret" type="password" value={form.secret ?? ""} onChange={(value) => updateForm("secret", value)} />
               <DevInput label="Avatar URL" value={form.avatarUrl ?? ""} onChange={(value) => updateForm("avatarUrl", value)} />
-              <DevInput label="Servidor principal" value={form.mainGuildId} onChange={(value) => updateForm("mainGuildId", value)} />
+              {guilds.length ? (
+                <DevSelect
+                  label="Servidor principal"
+                  onChange={(value) => updateForm("mainGuildId", value)}
+                  options={guilds.map((guild) => ({
+                    label: guild.name,
+                    value: guild.id
+                  }))}
+                  value={form.mainGuildId}
+                />
+              ) : (
+                <DevInput label="Servidor principal" value={form.mainGuildId} onChange={(value) => updateForm("mainGuildId", value)} />
+              )}
               <DevInput label="Nome do dono" value={form.ownerName} onChange={(value) => updateForm("ownerName", value)} />
               <DevInput label="ID do dono" value={form.ownerId} onChange={(value) => updateForm("ownerId", value)} />
             </div>
@@ -288,8 +324,10 @@ export function DevPanel() {
                             <p className="truncate text-sm font-semibold text-white">{bot.name}</p>
                             <StatusBadge status={bot.status} />
                           </div>
-                          <p className="truncate text-xs text-zinc-500">Client ID {bot.clientId}</p>
-                          <p className="truncate text-xs text-zinc-600">Dono {bot.ownerName} ({bot.ownerId})</p>
+                          <p className="truncate text-xs text-zinc-500">
+                            Servidor {guildNameById.get(bot.mainGuildId) ?? "Servidor configurado"}
+                          </p>
+                          <p className="truncate text-xs text-zinc-600">Dono {bot.ownerName}</p>
                         </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
@@ -361,6 +399,31 @@ function DevInput({ label, onChange, type = "text", value }: { label: string; on
     <label className="space-y-1.5">
       <span className="text-xs font-medium text-zinc-500">{label}</span>
       <input className="social-input" onChange={(event) => onChange(event.target.value)} type={type} value={value} />
+    </label>
+  );
+}
+
+function DevSelect({
+  label,
+  onChange,
+  options,
+  value
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  options: Array<{ label: string; value: string }>;
+  value: string;
+}) {
+  return (
+    <label className="space-y-1.5">
+      <span className="text-xs font-medium text-zinc-500">{label}</span>
+      <select className="social-input" onChange={(event) => onChange(event.target.value)} value={value}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
     </label>
   );
 }

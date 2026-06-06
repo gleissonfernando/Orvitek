@@ -17,6 +17,8 @@ import {
   X
 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { Avatar } from "../ui/avatar";
+import type { DashboardGuild } from "../../types";
 
 export type ViewId =
   | "overview"
@@ -75,20 +77,21 @@ export const navSections: Array<{ label: string; items: NavItem[] }> = [
 
 const devSection: { label: string; items: NavItem[] } = {
   label: "Dev",
-  items: [{ id: "dev", label: "Dev", icon: Code2 }]
+  items: [{ id: "dev", label: "Bots Dev", icon: Code2 }]
 };
 
 type SidebarProps = {
   activeView: ViewId;
   isOpen: boolean;
-  serverName: string;
+  server: DashboardGuild | null;
   showDev: boolean;
   onChangeView: (view: ViewId) => void;
   onClose: () => void;
 };
 
-export function Sidebar({ activeView, isOpen, onChangeView, onClose, serverName, showDev }: SidebarProps) {
+export function Sidebar({ activeView, isOpen, onChangeView, onClose, server, showDev }: SidebarProps) {
   const sections = showDev ? [...navSections, devSection] : navSections;
+  const serverName = server?.name ?? "Servidor configurado";
 
   function handleChangeView(view: ViewId) {
     onChangeView(view);
@@ -132,9 +135,12 @@ export function Sidebar({ activeView, isOpen, onChangeView, onClose, serverName,
           </button>
         </div>
 
-        <div className="mb-5 rounded-lg border border-zinc-900 bg-zinc-950/70 p-3">
-          <p className="text-xs text-zinc-500">Servidor</p>
-          <p className="mt-1 truncate text-sm font-medium text-zinc-100">{serverName}</p>
+        <div className="mb-5 flex min-w-0 items-center gap-3 rounded-lg border border-zinc-900 bg-zinc-950/70 p-3">
+          <Avatar className="h-10 w-10 rounded-lg border border-zinc-800" fallback={serverName} src={server?.iconUrl} />
+          <div className="min-w-0">
+            <p className="text-xs text-zinc-500">Servidor atual</p>
+            <p className="mt-1 truncate text-sm font-medium text-zinc-100">{serverName}</p>
+          </div>
         </div>
 
         <nav className="discord-scrollbar flex-1 space-y-5 overflow-y-auto pb-4">

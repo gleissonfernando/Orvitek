@@ -38,7 +38,7 @@ export function DashboardLayout({
         isOpen={menuOpen}
         onChangeView={onChangeView}
         onClose={() => setMenuOpen(false)}
-        serverName={guilds.find((guild) => guild.id === selectedGuildId)?.name ?? guilds[0]?.name ?? "Servidor"}
+        server={guilds.find((guild) => guild.id === selectedGuildId) ?? guilds[0] ?? null}
         showDev={showDev}
       />
       <Topbar

@@ -23,6 +23,20 @@ if (env.NODE_ENV === "production") {
 
 app.use(
   helmet({
+    contentSecurityPolicy: {
+      directives: {
+        "img-src": [
+          "'self'",
+          "data:",
+          "blob:",
+          "https://cdn.discordapp.com",
+          "https://media.discordapp.net",
+          "https://images-ext-1.discordapp.net",
+          "https://images-ext-2.discordapp.net",
+          "https://static-cdn.jtvnw.net"
+        ]
+      }
+    },
     crossOriginResourcePolicy: {
       policy: "cross-origin"
     }

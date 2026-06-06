@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Hash, ImageIcon, Send, Upload } from "lucide-react";
+import { CheckCircle2, Hash, ImageIcon, Link2, Loader2, Send, Upload } from "lucide-react";
 import {
   API_URL,
   getGuildLiveOptions,
@@ -19,6 +19,7 @@ type MemberPanelMode = "welcome" | "leave";
 type WelcomePanelProps = {
   canManage: boolean;
   guild: DashboardGuild | null;
+  loading?: boolean;
   mode?: MemberPanelMode;
   onSettingsChange: (settings: GuildSettings) => void;
   settings: GuildSettings | null;
@@ -34,8 +35,10 @@ const panelConfig = {
     displayChannelKey: "welcomeDisplayChannelId",
     enabledKey: "welcomeEnabled",
     imageKey: "welcomeImageUrl",
+    loadingText: "Carregando configuracoes de entrada...",
     missingGuildText: "Selecione um servidor para configurar entrada.",
-    savedImageText: "GIF de entrada atualizado.",
+    missingSettingsText: "Nao foi possivel carregar as configuracoes de entrada.",
+    savedImageText: "Banner de entrada atualizado.",
     testButtonText: "Testar entrada",
     testSentText: "Painel de entrada enviado para teste.",
     title: "Painel de entrada",
@@ -47,8 +50,10 @@ const panelConfig = {
     displayChannelKey: "leaveDisplayChannelId",
     enabledKey: "leaveEnabled",
     imageKey: "leaveImageUrl",
+    loadingText: "Carregando configuracoes de saida...",
     missingGuildText: "Selecione um servidor para configurar saida.",
-    savedImageText: "GIF de saida atualizado.",
+    missingSettingsText: "Nao foi possivel carregar as configuracoes de saida.",
+    savedImageText: "Banner de saida atualizado.",
     testButtonText: "Testar saida",
     testSentText: "Painel de saida enviado para teste.",
     title: "Painel de saida",
@@ -62,7 +67,9 @@ const panelConfig = {
     displayChannelKey: "welcomeDisplayChannelId" | "leaveDisplayChannelId";
     enabledKey: "welcomeEnabled" | "leaveEnabled";
     imageKey: "welcomeImageUrl" | "leaveImageUrl";
+    loadingText: string;
     missingGuildText: string;
+    missingSettingsText: string;
     savedImageText: string;
     testButtonText: string;
     testSentText: string;
@@ -71,10 +78,11 @@ const panelConfig = {
   }
 >;
 
-export function WelcomePanel({ canManage, guild, mode = "welcome", onSettingsChange, settings, viewerName }: WelcomePanelProps) {
+export function WelcomePanel({ canManage, guild, loading = false, mode = "welcome", onSettingsChange, settings, viewerName }: WelcomePanelProps) {
   const config = panelConfig[mode];
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [channels, setChannels] = useState<GuildChannelOption[]>([]);
+  const [imageInput, setImageInput] = useState("");
   const [loadingChannels, setLoadingChannels] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -103,9 +111,14 @@ export function WelcomePanel({ canManage, guild, mode = "welcome", onSettingsCha
       .finally(() => setLoadingChannels(false));
   }, [canManage, guild]);
 
-  async function savePatch(payload: Partial<GuildSettings>, key: string) {
+  useEffect(() => {
+    const currentImageUrl = settings?.[config.imageKey] ?? "";
+    setImageInput(/^https?:\/\//i.test(currentImageUrl) ? currentImageUrl : "");
+  }, [config.imageKey, settings]);
+
+  async function savePatch(payload: Partial<GuildSettings>, key: string, successText = "Alteracao salva.") {
     if (!guild || !settings || !canManage) {
-      return;
+      return false;
     }
 
     setSaving(key);
@@ -115,9 +128,11 @@ export function WelcomePanel({ canManage, guild, mode = "welcome", onSettingsCha
     try {
       const nextSettings = await patchGuildSettings(guild.id, payload);
       onSettingsChange(nextSettings);
-      setStatus("Alteracao salva.");
+      setStatus(successText);
+      return true;
     } catch (requestError) {
       setError(readErrorMessage(requestError));
+      return false;
     } finally {
       setSaving(null);
     }
@@ -152,6 +167,22 @@ export function WelcomePanel({ canManage, guild, mode = "welcome", onSettingsCha
     }
   }
 
+  async function handleImageUrlSubmit() {
+    const nextImageUrl = imageInput.trim();
+
+    if (!nextImageUrl) {
+      setError("Cole um link de imagem ou envie um arquivo.");
+      return;
+    }
+
+    if (!/^https?:\/\//i.test(nextImageUrl)) {
+      setError("Use um link com http:// ou https://.");
+      return;
+    }
+
+    await savePatch({ [config.imageKey]: nextImageUrl } as Partial<GuildSettings>, "imageUrl", config.savedImageText);
+  }
+
   async function handleTest() {
     if (!guild || !channelId || !canManage) {
       return;
@@ -173,10 +204,29 @@ export function WelcomePanel({ canManage, guild, mode = "welcome", onSettingsCha
     }
   }
 
-  if (!guild || !settings) {
+  if (!guild) {
     return (
       <Card>
         <CardContent className="p-5 text-sm text-zinc-500">{config.missingGuildText}</CardContent>
+      </Card>
+    );
+  }
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center gap-3 p-5 text-sm text-zinc-500">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {config.loadingText}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!settings) {
+    return (
+      <Card>
+        <CardContent className="p-5 text-sm text-zinc-500">{config.missingSettingsText}</CardContent>
       </Card>
     );
   }
@@ -204,7 +254,7 @@ export function WelcomePanel({ canManage, guild, mode = "welcome", onSettingsCha
           <ControlSelect
             disabled={!canManage || loadingChannels || saving === "channel"}
             icon={Hash}
-            label="Enviar em"
+            label="Canal que recebe a mensagem"
             onChange={(value) => savePatch({ [config.channelKey]: value || null } as Partial<GuildSettings>, "channel")}
             options={channels}
             placeholder={loadingChannels ? "Carregando canais..." : "Selecione um canal"}
@@ -214,7 +264,7 @@ export function WelcomePanel({ canManage, guild, mode = "welcome", onSettingsCha
           <ControlSelect
             disabled={!canManage || loadingChannels || saving === "displayChannel"}
             icon={Hash}
-            label="Canal destacado"
+            label="Canal citado no banner"
             onChange={(value) => savePatch({ [config.displayChannelKey]: value || null } as Partial<GuildSettings>, "displayChannel")}
             options={channels}
             placeholder={loadingChannels ? "Carregando canais..." : "Usar o mesmo canal"}
@@ -224,8 +274,33 @@ export function WelcomePanel({ canManage, guild, mode = "welcome", onSettingsCha
           <div className="space-y-3 rounded-lg border border-zinc-900 bg-zinc-950/75 p-4">
             <div className="flex items-center gap-2 text-sm font-medium text-zinc-100">
               <ImageIcon className="h-4 w-4 text-zinc-400" />
-              GIF do painel
+              Banner do painel
             </div>
+            <label className="block space-y-2">
+              <span className="flex items-center gap-2 text-xs font-medium text-zinc-500">
+                <Link2 className="h-3.5 w-3.5" />
+                Link de imagem ou GIF
+              </span>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <input
+                  className="h-10 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-zinc-600 disabled:opacity-50"
+                  disabled={!canManage || saving === "imageUrl"}
+                  onChange={(event) => setImageInput(event.target.value)}
+                  placeholder="https://site.com/banner.gif"
+                  value={imageInput}
+                />
+                <Button
+                  className="h-10 shrink-0"
+                  disabled={!canManage || saving === "imageUrl"}
+                  onClick={() => void handleImageUrlSubmit()}
+                  type="button"
+                  variant="outline"
+                >
+                  <Link2 className="h-4 w-4" />
+                  {saving === "imageUrl" ? "Salvando..." : "Usar link"}
+                </Button>
+              </div>
+            </label>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button
                 className="h-10"
@@ -235,7 +310,7 @@ export function WelcomePanel({ canManage, guild, mode = "welcome", onSettingsCha
                 variant="outline"
               >
                 <Upload className="h-4 w-4" />
-                {saving === "image" ? "Enviando..." : "Alterar GIF"}
+                {saving === "image" ? "Enviando..." : "Enviar foto/GIF"}
               </Button>
               <Button
                 className="h-10"
@@ -267,7 +342,7 @@ export function WelcomePanel({ canManage, guild, mode = "welcome", onSettingsCha
       </Card>
 
       <WelcomePreview
-        displayChannelName={displayChannel?.name ?? destinationChannel?.name ?? "coloque_o_id_do_canal_de_lives_aqui"}
+        displayChannelName={displayChannel?.name ?? destinationChannel?.name ?? "selecione_um_canal"}
         imageUrl={imageUrl}
         mode={mode}
         viewerName={viewerName}

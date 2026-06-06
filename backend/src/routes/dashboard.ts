@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
 import { canManageDashboardGuild } from "../services/dashboardGuildAccessService";
 import { fetchBotProfile } from "../services/botProfileService";
+import { filterGuildsForBot, mergeAuthorizedBotGuilds } from "../services/statsService";
 import { issueAuthCookies, type DashboardAuth } from "../services/tokenService";
 import { saveSelectedGuild } from "../services/userService";
 
@@ -14,7 +15,8 @@ dashboardRouter.get("/me", async (_req, res, next) => {
   try {
     const auth = res.locals.dashboardAuth as DashboardAuth;
     const user = auth.user;
-    const guilds = user.guilds
+    const accessibleGuilds = user.authorized ? mergeAuthorizedBotGuilds(user.guilds) : filterGuildsForBot(user.guilds);
+    const guilds = accessibleGuilds
       .filter((guild) => guild.botEnabled && (user.authorized || guild.owner || guild.isAdmin))
       .map((guild) => ({
         id: guild.id,

@@ -1,7 +1,7 @@
 import axios from "axios";
 import { env } from "../config/env";
 import type { DashboardGuild } from "./guildService";
-import { discordGuildIconUrl } from "./guildService";
+import { demoGuilds, discordGuildIconUrl } from "./guildService";
 
 const DISCORD_API = "https://discord.com/api/v10";
 
@@ -92,17 +92,18 @@ export function mergeAuthorizedBotGuilds(guilds: DashboardGuild[]) {
   const guildsById = new Map(filteredGuilds.map((guild) => [guild.id, guild]));
 
   for (const guildId of getConfiguredDashboardGuildIds()) {
+    const fallbackGuild = guildsById.get(guildId) ?? guilds.find((guild) => guild.id === guildId) ?? demoGuilds.find((guild) => guild.id === guildId);
     const botGuild = botStatus.botGuilds.find((guild) => guild.id === guildId);
 
     guildsById.set(guildId, {
       id: guildId,
-      name: botGuild?.name ?? `Servidor ${guildId}`,
-      iconUrl: botGuild?.iconUrl ?? null,
+      name: botGuild?.name ?? fallbackGuild?.name ?? "Servidor configurado",
+      iconUrl: botGuild?.iconUrl ?? fallbackGuild?.iconUrl ?? null,
       owner: false,
       isAdmin: true,
       botEnabled: true,
-      memberCount: botGuild?.memberCount ?? 0,
-      channelCount: botGuild?.channelCount ?? 0
+      memberCount: botGuild?.memberCount ?? fallbackGuild?.memberCount ?? 0,
+      channelCount: botGuild?.channelCount ?? fallbackGuild?.channelCount ?? 0
     });
   }
 

@@ -64,7 +64,6 @@ type DashboardProps = {
 
 const CONFIGURED_GUILD_ID = "1213384118356803594";
 const CONFIGURED_GUILD_NAME = "Servidor configurado";
-const DEV_ALLOWED_USER_ID = "1426287249020158018";
 
 type BooleanSettingKey =
   | "welcomeEnabled"
@@ -244,13 +243,14 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
     auth.user.selectedGuildId ?? dashboardGuilds[0]?.id ?? CONFIGURED_GUILD_ID
   );
   const [settings, setSettings] = useState<GuildSettings | null>(null);
+  const [settingsLoading, setSettingsLoading] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [lives, setLives] = useState<LiveEvent[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [botStatus, setBotStatus] = useState<BotStatus>(initialBotStatus);
   const [savingKey, setSavingKey] = useState<BooleanSettingKey | null>(null);
   const canManageDashboard = auth.permissions.canManageDashboard;
-  const canViewDev = auth.user.discordId === DEV_ALLOWED_USER_ID;
+  const canViewDev = auth.user.authorized;
   const dashboardHeaderGuilds = useMemo(
     () => (dashboardProfile?.guilds.length ? dashboardProfile.guilds : toDashboardMeGuilds(dashboardGuilds)),
     [dashboardGuilds, dashboardProfile]
@@ -318,25 +318,29 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
 
   useEffect(() => {
     if (!selectedGuildId) {
+      setSettings(null);
       return;
     }
 
     let mounted = true;
 
-    Promise.all([getGuildSettings(selectedGuildId), getLogs(selectedGuildId), getLives(selectedGuildId), getTickets(selectedGuildId)])
-      .then(([settingsData, logsData, livesData, ticketsData]) => {
+    setSettingsLoading(true);
+    setSettings(null);
+
+    Promise.allSettled([getGuildSettings(selectedGuildId), getLogs(selectedGuildId), getLives(selectedGuildId), getTickets(selectedGuildId)])
+      .then(([settingsResult, logsResult, livesResult, ticketsResult]) => {
         if (!mounted) {
           return;
         }
 
-        setSettings(settingsData);
-        setLogs(logsData);
-        setLives(livesData);
-        setTickets(ticketsData);
+        setSettings(settingsResult.status === "fulfilled" ? settingsResult.value : null);
+        setLogs(logsResult.status === "fulfilled" ? logsResult.value : []);
+        setLives(livesResult.status === "fulfilled" ? livesResult.value : []);
+        setTickets(ticketsResult.status === "fulfilled" ? ticketsResult.value : []);
       })
-      .catch(() => {
+      .finally(() => {
         if (mounted) {
-          setSettings(null);
+          setSettingsLoading(false);
         }
       });
 
@@ -478,6 +482,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
           <WelcomePanel
             canManage={canManageDashboard}
             guild={selectedGuild}
+            loading={settingsLoading}
             mode="welcome"
             onSettingsChange={setSettings}
             settings={settings}
@@ -488,6 +493,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
           <WelcomePanel
             canManage={canManageDashboard}
             guild={selectedGuild}
+            loading={settingsLoading}
             mode="leave"
             onSettingsChange={setSettings}
             settings={settings}
@@ -496,7 +502,9 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
         ) : null}
         {activeView === "tickets" ? <TicketView tickets={tickets} /> : null}
         {activeView === "logs" ? <LogsView logs={logs} /> : null}
-        {activeView === "dev" && canViewDev ? <DevPanel /> : null}
+        {activeView === "dev" && canViewDev ? (
+          <DevPanel guilds={dashboardHeaderGuilds} selectedGuildId={selectedGuild?.id ?? null} user={auth.user} />
+        ) : null}
 
         {["roles", "moderation"].includes(activeView) ? (
           <FocusedModuleView
@@ -585,7 +593,9 @@ function PageHeader({
                 ? "Entrada"
                 : activeView === "leave"
                   ? "Saida"
-                  : activeView.charAt(0).toUpperCase() + activeView.slice(1);
+                  : activeView === "dev"
+                    ? "Bots Dev"
+                    : activeView.charAt(0).toUpperCase() + activeView.slice(1);
 
   return (
     <section className="rounded-lg border border-zinc-900 bg-[#0b0b0b] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.38)] sm:p-6">

@@ -13,6 +13,7 @@ type UserProfileProps = {
 export function UserProfile({ compact = false, dashboardUser, onLogout, user }: UserProfileProps) {
   const displayName = dashboardUser?.globalName ?? dashboardUser?.username ?? user.globalName ?? user.username;
   const avatarUrl = dashboardUser?.avatarUrl ?? user.avatarUrl ?? user.avatar;
+  const userLabel = user.discriminator && user.discriminator !== "0" ? user.tag : `@${user.username}`;
 
   return (
     <div className="flex min-w-0 items-center gap-2">
@@ -25,7 +26,7 @@ export function UserProfile({ compact = false, dashboardUser, onLogout, user }: 
         {!compact ? (
           <div className="min-w-0 pr-1">
             <p className="max-w-40 truncate text-sm font-medium text-zinc-100">{displayName}</p>
-            <p className="truncate text-xs text-zinc-500">{user.discriminator && user.discriminator !== "0" ? user.tag : user.discordId}</p>
+            <p className="truncate text-xs text-zinc-500">{userLabel}</p>
           </div>
         ) : null}
       </div>
