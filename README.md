@@ -72,8 +72,8 @@ Em producao na Shard, o backend forca `HOST=0.0.0.0` e `PORT=80`, que e a porta 
 Configure as variaveis no painel da Sharclaud usando `.env.example` como checklist. Em producao, nao use `localhost`, `127.0.0.1` ou `0.0.0.0` em URLs publicas: a aplicacao recusa iniciar com URLs locais.
 
 ```env
-SITE_ORIGIN=
-FRONTEND_URL=
+SITE_ORIGIN="https://ricardinho98.shardweb.app"
+FRONTEND_URL="https://ricardinho98.shardweb.app"
 MONGODB_URI=
 SESSION_SECRET="troque-por-um-segredo-grande-de-sessao"
 JWT_SECRET="troque-por-um-segredo-grande-de-jwt"
@@ -81,8 +81,8 @@ BOT_API_TOKEN="troque-por-um-token-interno-do-bot"
 DISCORD_BOT_TOKEN="token-do-bot"
 DISCORD_CLIENT_ID="client-id-oauth"
 DISCORD_CLIENT_SECRET="client-secret-oauth"
-DISCORD_OAUTH_REDIRECT_URI=
-DISCORD_CALLBACK_URL=
+DISCORD_OAUTH_REDIRECT_URI="https://ricardinho98.shardweb.app/auth/discord/callback"
+DISCORD_CALLBACK_URL="https://ricardinho98.shardweb.app/auth/discord/callback"
 DASHBOARD_AUTH_REQUIRED="true"
 DASHBOARD_AUTHORIZED_USER_IDS=
 DEV_AUTH_ENABLED="false"
@@ -132,7 +132,7 @@ DASHBOARD_AUTH_REQUIRED="true"
 
 Crie uma aplicacao no Discord Developer Portal e configure:
 
-- Redirect URI: `https://seu-dominio.shardweb.app/auth/discord/callback`
+- Redirect URI: `https://ricardinho98.shardweb.app/auth/discord/callback`
 - Escopos: `identify`, `email`, `guilds`
 
 Para desenvolvimento local, preencha no `.env`:
@@ -140,10 +140,10 @@ Para desenvolvimento local, preencha no `.env`:
 ```env
 DISCORD_CLIENT_ID=
 DISCORD_CLIENT_SECRET=
-SITE_ORIGIN=
-FRONTEND_URL=
-DISCORD_OAUTH_REDIRECT_URI=
-DISCORD_CALLBACK_URL=
+SITE_ORIGIN="https://ricardinho98.shardweb.app"
+FRONTEND_URL="https://ricardinho98.shardweb.app"
+DISCORD_OAUTH_REDIRECT_URI="https://ricardinho98.shardweb.app/auth/discord/callback"
+DISCORD_CALLBACK_URL="https://ricardinho98.shardweb.app/auth/discord/callback"
 JWT_SECRET="troque-por-um-segredo-grande-de-jwt"
 DASHBOARD_AUTH_REQUIRED="true"
 DASHBOARD_VERIFICATION_MODE="temporary"

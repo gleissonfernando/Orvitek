@@ -1,7 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect } from "react";
-import { AuthSuccess } from "./pages/AuthSuccess";
 import { Dashboard } from "./pages/Dashboard";
 import { Login } from "./pages/Login";
 import { useAuth } from "./hooks/useAuth";
@@ -13,7 +12,7 @@ export function App() {
   const routeError = path === "/auth/error" ? readAuthError() : null;
 
   useEffect(() => {
-    if (auth?.access.verified && window.location.pathname !== "/dashboard" && window.location.pathname !== "/auth/success") {
+    if (auth?.access.verified && window.location.pathname !== "/dashboard") {
       window.location.replace(dashboardUrl());
     }
   }, [auth]);
@@ -24,10 +23,6 @@ export function App() {
 
   if (!auth || !auth.access.verified) {
     return <Login auth={auth} error={routeError ?? error} onLoginDiscord={loginDiscord} onLogout={logout} onVerify={verify} verifying={verifying} />;
-  }
-
-  if (path === "/auth/success") {
-    return <AuthSuccess auth={auth} />;
   }
 
   return <Dashboard auth={auth} onLogout={logout} />;

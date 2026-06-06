@@ -8,6 +8,7 @@ dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 const localMongoUrl = "mongodb://localhost:27017/ricardinho98";
 const localFrontendUrl = "http://localhost:5173";
+const productionPublicUrl = "https://ricardinho98.shardweb.app";
 const isProduction = process.env.NODE_ENV === "production";
 
 function cleanEnvValue(value: unknown) {
@@ -82,8 +83,11 @@ function isLocalUrl(value: string) {
 }
 
 const configuredSiteOrigin = cleanEnvValue(process.env.SITE_ORIGIN) ?? cleanEnvValue(process.env.FRONTEND_URL);
-const productionSiteOrigin =
-  configuredSiteOrigin && !isLocalUrl(configuredSiteOrigin) ? normalizeUrl(configuredSiteOrigin) : "";
+const productionSiteOrigin = isProduction
+  ? productionPublicUrl
+  : configuredSiteOrigin && !isLocalUrl(configuredSiteOrigin)
+    ? normalizeUrl(configuredSiteOrigin)
+    : "";
 const defaultSiteOrigin = isProduction ? productionSiteOrigin : localFrontendUrl;
 const canonicalDiscordRedirectUri = defaultSiteOrigin ? discordRedirectUriFor(defaultSiteOrigin) : "";
 
@@ -139,8 +143,9 @@ const envSchema = z
   .transform((value) => {
     const mongoUrl = productionSafeUrl(cleanEnvValue(value.MONGODB_URI)) ?? (isProduction ? "" : localMongoUrl);
     const configuredOrigin = cleanEnvValue(value.SITE_ORIGIN) ?? cleanEnvValue(value.FRONTEND_URL);
-    const oauthFrontendUrl =
-      configuredOrigin && !(value.DASHBOARD_AUTH_REQUIRED && isLocalUrl(configuredOrigin))
+    const oauthFrontendUrl = isProduction
+      ? productionPublicUrl
+      : configuredOrigin && !(value.DASHBOARD_AUTH_REQUIRED && isLocalUrl(configuredOrigin))
         ? normalizeUrl(configuredOrigin)
         : productionSiteOrigin;
     const oauthCallbackUrl = oauthFrontendUrl ? discordRedirectUriFor(oauthFrontendUrl) : "";

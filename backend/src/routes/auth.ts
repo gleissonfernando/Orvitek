@@ -26,7 +26,6 @@ import type { AuthSessionUser } from "../types/session";
 
 export const authRouter = Router();
 const dashboardPath = "/dashboard";
-const successPath = "/auth/success";
 const errorPath = "/auth/error";
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -40,10 +39,6 @@ function canonicalAuthUrl(path: string, query = "") {
 
 function dashboardRedirectUrl() {
   return env.SITE_ORIGIN ? `${env.SITE_ORIGIN}${dashboardPath}` : dashboardPath;
-}
-
-function successRedirectUrl() {
-  return env.SITE_ORIGIN ? `${env.SITE_ORIGIN}${successPath}` : successPath;
 }
 
 function errorRedirectUrl(reason: string) {
@@ -215,7 +210,7 @@ authRouter.get("/discord/callback", async (req, res, next) => {
 
     issueAuthCookies(res, req.session.user, true);
     await saveSession(req);
-    return res.redirect(successRedirectUrl());
+    return res.redirect(dashboardRedirectUrl());
   } catch (error) {
     clearAuthCookies(res);
     if (req.session) {
