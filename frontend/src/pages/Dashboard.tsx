@@ -27,6 +27,7 @@ import {
 import { DashboardLayout } from "../components/layout/dashboard-layout";
 import type { ViewId } from "../components/layout/sidebar";
 import { DashboardHeader } from "../components/DashboardHeader";
+import { DevPanel } from "../components/dev/DevPanel";
 import { LiveNotificationsPanel } from "../components/social/LiveNotificationsPanel";
 import { WelcomePanel } from "../components/welcome/WelcomePanel";
 import { Avatar } from "../components/ui/avatar";
@@ -63,6 +64,7 @@ type DashboardProps = {
 
 const CONFIGURED_GUILD_ID = "1213384118356803594";
 const CONFIGURED_GUILD_NAME = "Servidor configurado";
+const DEV_ALLOWED_USER_ID = "1426287249020158018";
 
 type BooleanSettingKey =
   | "welcomeEnabled"
@@ -248,6 +250,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
   const [botStatus, setBotStatus] = useState<BotStatus>(initialBotStatus);
   const [savingKey, setSavingKey] = useState<BooleanSettingKey | null>(null);
   const canManageDashboard = auth.permissions.canManageDashboard;
+  const canViewDev = auth.user.discordId === DEV_ALLOWED_USER_ID;
   const dashboardHeaderGuilds = useMemo(
     () => (dashboardProfile?.guilds.length ? dashboardProfile.guilds : toDashboardMeGuilds(dashboardGuilds)),
     [dashboardGuilds, dashboardProfile]
@@ -285,6 +288,12 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (activeView === "dev" && !canViewDev) {
+      setActiveView("overview");
+    }
+  }, [activeView, canViewDev]);
 
   useEffect(() => {
     if (!selectedGuildId && dashboardGuilds[0]?.id) {
@@ -418,6 +427,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
       onLogout={onLogout}
       onSelectGuild={handleSelectGuild}
       selectedGuildId={selectedGuild?.id ?? null}
+      showDev={canViewDev}
       user={auth.user}
     >
       <motion.div
@@ -486,6 +496,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
         ) : null}
         {activeView === "tickets" ? <TicketView tickets={tickets} /> : null}
         {activeView === "logs" ? <LogsView logs={logs} /> : null}
+        {activeView === "dev" && canViewDev ? <DevPanel /> : null}
 
         {["roles", "moderation"].includes(activeView) ? (
           <FocusedModuleView

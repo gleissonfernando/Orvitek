@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { authRouter } from "./auth";
+import { botDevApiRouter } from "./botDevApi";
 import { dashboardRouter } from "./dashboard";
+import { devRouter } from "./dev";
 import { guildsRouter } from "./guilds";
 import { healthRouter } from "./health";
 import { livesRouter } from "./lives";
@@ -14,7 +16,9 @@ export const apiRouter = Router();
 
 apiRouter.use("/health", healthRouter);
 apiRouter.use("/auth", authRouter);
+apiRouter.use("/bot", botDevApiRouter);
 apiRouter.use("/dashboard", dashboardRouter);
+apiRouter.use("/dev", devRouter);
 apiRouter.use("/users", usersRouter);
 apiRouter.use("/guilds", guildsRouter);
 apiRouter.use("/lives", livesRouter);

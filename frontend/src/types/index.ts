@@ -216,3 +216,46 @@ export type DashboardMeResponse = {
   selectedGuildId: string | null;
   guilds: DashboardMeGuild[];
 };
+
+export type DevModuleDefinition = {
+  id: string;
+  label: string;
+};
+
+export type DevBotStatus = "online" | "offline" | "invalid_token" | "error";
+
+export type DevBot = {
+  id: string;
+  name: string;
+  clientId: string;
+  tokenMasked: string;
+  secretConfigured: boolean;
+  avatarUrl: string | null;
+  ownerId: string;
+  ownerName: string;
+  mainGuildId: string;
+  status: DevBotStatus;
+  statusMessage: string | null;
+  enabledModules: string[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateDevBotPayload = {
+  name: string;
+  clientId: string;
+  token: string;
+  secret?: string | null;
+  avatarUrl?: string | null;
+  ownerName: string;
+  ownerId: string;
+  mainGuildId: string;
+  enabledModules: string[];
+};
+
+export type BotConnectionTest = {
+  status: DevBotStatus;
+  message: string;
+  avatarUrl: string | null;
+};

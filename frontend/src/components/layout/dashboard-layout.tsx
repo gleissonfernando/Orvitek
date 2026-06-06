@@ -10,6 +10,7 @@ type DashboardLayoutProps = {
   dashboardUser?: DashboardMeUser | null;
   guilds: DashboardGuild[];
   selectedGuildId: string | null;
+  showDev: boolean;
   user: AuthUser;
   onChangeView: (view: ViewId) => void;
   onLogout: () => void;
@@ -22,6 +23,7 @@ export function DashboardLayout({
   dashboardUser,
   guilds,
   selectedGuildId,
+  showDev,
   user,
   onChangeView,
   onLogout,
@@ -37,6 +39,7 @@ export function DashboardLayout({
         onChangeView={onChangeView}
         onClose={() => setMenuOpen(false)}
         serverName={guilds.find((guild) => guild.id === selectedGuildId)?.name ?? guilds[0]?.name ?? "Servidor"}
+        showDev={showDev}
       />
       <Topbar
         guilds={guilds}

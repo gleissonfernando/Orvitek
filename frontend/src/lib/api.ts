@@ -2,8 +2,12 @@ import axios from "axios";
 import type { InternalAxiosRequestConfig } from "axios";
 import type {
   AuthResponse,
+  BotConnectionTest,
   CreateTwitchNotificationPayload,
+  CreateDevBotPayload,
   DashboardMeResponse,
+  DevBot,
+  DevModuleDefinition,
   GuildLiveOptions,
   GuildSettings,
   LiveEvent,
@@ -200,4 +204,47 @@ export async function testTwitchNotification(guildId: string, id: string) {
 export async function deleteTwitchNotification(guildId: string, id: string) {
   const { data } = await api.delete<{ notification: SocialNotification }>(`/social-notifications/${guildId}/twitch/${id}`);
   return data.notification;
+}
+
+export async function getDevModules() {
+  const { data } = await api.get<{ modules: DevModuleDefinition[] }>("/dev/modules");
+  return data.modules;
+}
+
+export async function getDevBots() {
+  const { data } = await api.get<{ bots: DevBot[] }>("/dev/bots");
+  return data.bots;
+}
+
+export async function createDevBot(payload: CreateDevBotPayload) {
+  const { data } = await api.post<{ bot: DevBot }>("/dev/bots/create", payload, {
+    timeout: 16000
+  });
+  return data.bot;
+}
+
+export async function testDevBotConnection(token: string) {
+  const { data } = await api.post<BotConnectionTest>("/dev/bots/test-connection", { token }, {
+    timeout: 16000
+  });
+  return data;
+}
+
+export async function updateDevBotModules(botId: string, enabledModules: string[]) {
+  const { data } = await api.patch<{ bot: DevBot }>(`/dev/bots/${botId}/modules`, {
+    enabledModules
+  });
+  return data.bot;
+}
+
+export async function restartDevBot(botId: string) {
+  const { data } = await api.post<{ bot: DevBot }>(`/dev/bots/${botId}/restart`, undefined, {
+    timeout: 16000
+  });
+  return data.bot;
+}
+
+export async function deleteDevBot(botId: string) {
+  const { data } = await api.delete<{ bot: DevBot }>(`/dev/bots/${botId}`);
+  return data.bot;
 }

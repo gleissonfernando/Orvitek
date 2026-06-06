@@ -4,6 +4,7 @@ import {
   Bell,
   Bot,
   Brush,
+  Code2,
   LockKeyhole,
   Radio,
   ScrollText,
@@ -29,7 +30,8 @@ export type ViewId =
   | "tickets"
   | "logs"
   | "moderation"
-  | "personalization";
+  | "personalization"
+  | "dev";
 
 export type NavItem = {
   id: ViewId;
@@ -71,15 +73,23 @@ export const navSections: Array<{ label: string; items: NavItem[] }> = [
   }
 ];
 
+const devSection: { label: string; items: NavItem[] } = {
+  label: "Dev",
+  items: [{ id: "dev", label: "Dev", icon: Code2 }]
+};
+
 type SidebarProps = {
   activeView: ViewId;
   isOpen: boolean;
   serverName: string;
+  showDev: boolean;
   onChangeView: (view: ViewId) => void;
   onClose: () => void;
 };
 
-export function Sidebar({ activeView, isOpen, onChangeView, onClose, serverName }: SidebarProps) {
+export function Sidebar({ activeView, isOpen, onChangeView, onClose, serverName, showDev }: SidebarProps) {
+  const sections = showDev ? [...navSections, devSection] : navSections;
+
   function handleChangeView(view: ViewId) {
     onChangeView(view);
     onClose();
@@ -128,7 +138,7 @@ export function Sidebar({ activeView, isOpen, onChangeView, onClose, serverName 
         </div>
 
         <nav className="discord-scrollbar flex-1 space-y-5 overflow-y-auto pb-4">
-          {navSections.map((section) => (
+          {sections.map((section) => (
             <div key={section.label}>
               <p className="mb-2 px-2 text-[11px] font-semibold uppercase text-zinc-600">{section.label}</p>
               <div className="space-y-1">

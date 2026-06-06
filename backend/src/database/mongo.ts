@@ -97,6 +97,56 @@ export type MongoSocialNotification = {
   updatedAt: Date;
 };
 
+export type MongoDevBotStatus = "online" | "offline" | "invalid_token" | "error";
+
+export type MongoDevBot = {
+  _id: string;
+  name: string;
+  clientId: string;
+  tokenEncrypted: string;
+  secretEncrypted: string | null;
+  avatarUrl: string | null;
+  ownerId: string;
+  ownerName: string;
+  mainGuildId: string;
+  status: MongoDevBotStatus;
+  statusMessage?: string | null;
+  enabledModules: string[];
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoBotGuildModuleConfig = {
+  enabled?: boolean;
+  channelId?: string | null;
+  message?: string | null;
+  interval?: number | null;
+  roleId?: string | null;
+  [key: string]: unknown;
+};
+
+export type MongoBotGuildConfig = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  guildName: string;
+  modules: Record<string, MongoBotGuildModuleConfig>;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoDevPermission = {
+  _id: string;
+  userId: string;
+  role: "owner" | "dev" | "admin";
+  canCreateBot: boolean;
+  canEditBot: boolean;
+  canDeleteBot: boolean;
+  canManageModules: boolean;
+  createdAt: Date;
+};
+
 const globalForMongo = globalThis as unknown as {
   mongoClient?: MongoClient;
   mongoIndexes?: Promise<void>;
@@ -140,7 +190,10 @@ export async function getMongoCollections() {
     guildSettings: db.collection<MongoGuildSettings>("GuildSettings"),
     tickets: db.collection<MongoTicket>("Ticket"),
     logEntries: db.collection<MongoLogEntry>("LogEntry"),
-    socialNotifications: db.collection<MongoSocialNotification>("social_notifications")
+    socialNotifications: db.collection<MongoSocialNotification>("social_notifications"),
+    devBots: db.collection<MongoDevBot>("Bot"),
+    botGuildConfigs: db.collection<MongoBotGuildConfig>("BotGuildConfig"),
+    devPermissions: db.collection<MongoDevPermission>("DevPermission")
   };
 }
 
@@ -204,6 +257,9 @@ async function createMongoIndexes(db: Db) {
     db.collection<MongoSocialNotification>("social_notifications").createIndex({
       platform: 1,
       enabled: 1
-    })
+    }),
+    db.collection<MongoDevBot>("Bot").createIndex({ clientId: 1 }, { unique: true }),
+    db.collection<MongoBotGuildConfig>("BotGuildConfig").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    db.collection<MongoDevPermission>("DevPermission").createIndex({ userId: 1 }, { unique: true })
   ]);
 }
