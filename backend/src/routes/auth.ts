@@ -12,7 +12,6 @@ import {
 } from "../services/discordOAuthService";
 import { demoGuilds, toDashboardGuilds } from "../services/guildService";
 import { requireAuthenticated } from "../middleware/auth";
-import { requireDashboardAccessValidation } from "../middleware/roleValidation";
 import { evaluateDashboardAccess, type AccessValidationResult } from "../services/accessControlService";
 import {
   clearAuthCookies,
@@ -209,9 +208,9 @@ authRouter.get("/discord/callback", async (req, res, next) => {
     req.session.user = applyAccessValidation(baseUser, validation);
     req.session.oauthState = undefined;
 
-    issueAuthCookies(res, req.session.user, validation.allowed);
+    issueAuthCookies(res, req.session.user, true);
     await saveSession(req);
-    return res.redirect(validation.allowed ? dashboardRedirectUrl() : errorRedirectUrl("permission"));
+    return res.redirect(dashboardRedirectUrl());
   } catch (error) {
     clearAuthCookies(res);
     if (req.session) {
@@ -293,13 +292,13 @@ authRouter.post("/refresh", async (req, res) => {
   return res.json(createAuthResponse(auth));
 });
 
-authRouter.post("/verify", requireAuthenticated, requireDashboardAccessValidation, async (req, res) => {
+authRouter.post("/verify", requireAuthenticated, async (req, res) => {
   const auth = res.locals.dashboardAuth;
-  const validation = res.locals.accessValidation;
+  const validation = await evaluateDashboardAccess(auth.user);
   const verifiedAuth = issueAuthCookies(
     res,
     applyAccessValidation(auth.user, validation),
-    validation.allowed
+    true
   );
 
   req.session.user = verifiedAuth.user;
