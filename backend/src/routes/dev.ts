@@ -83,12 +83,6 @@ devRouter.post("/bots/create", async (req, res, next) => {
     const input = createBotSchema.parse(req.body);
     const auth = res.locals.dashboardAuth as DashboardAuth;
 
-    if (!auth.user.authorized && input.ownerId !== auth.user.discordId) {
-      return res.status(403).json({
-        message: "Voce so pode cadastrar bots para o seu proprio usuario."
-      });
-    }
-
     const bot = await createDevBot({
       ...input,
       avatarUrl: input.avatarUrl || null,
@@ -141,12 +135,6 @@ devRouter.patch("/bots/:botId", async (req, res, next) => {
     }
 
     const input = updateBotSchema.parse(req.body);
-
-    if (!auth.user.authorized && input.ownerId && input.ownerId !== auth.user.discordId) {
-      return res.status(403).json({
-        message: "Voce nao pode transferir este bot para outro usuario."
-      });
-    }
 
     const bot = await updateDevBot(req.params.botId, {
       ...input,

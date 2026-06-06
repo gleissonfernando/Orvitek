@@ -18,7 +18,7 @@ dashboardRouter.get("/me", async (_req, res, next) => {
     const auth = res.locals.dashboardAuth as DashboardAuth;
     const user = auth.user;
     const panelBots = await listAccessibleDevBots(user).catch(() => []);
-    const canViewDev = isDevUser(user) || panelBots.length > 0;
+    const canViewDev = isDevUser(user);
     const accessibleGuilds = user.authorized ? mergeAuthorizedBotGuilds(user.guilds) : filterGuildsForBot(user.guilds);
     const guildsById = new Map(
       accessibleGuilds

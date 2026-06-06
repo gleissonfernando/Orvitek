@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
 import axios from "axios";
+import { isDevOwnerUserId } from "../config/devOwner";
 import { env } from "../config/env";
 import { getMongoCollections, type MongoBotGuildConfig, type MongoDevBot, type MongoDevBotStatus } from "../database/mongo";
 import { emitRealtime } from "../realtime/events";
@@ -75,7 +76,7 @@ export async function listDevBots() {
 }
 
 export async function listAccessibleDevBots(user: AuthSessionUser) {
-  if (user.authorized) {
+  if (isDevOwnerUserId(user.discordId)) {
     return listDevBots();
   }
 
@@ -98,7 +99,7 @@ export async function listAccessibleDevBots(user: AuthSessionUser) {
 }
 
 export async function userHasAccessibleDevBot(user: AuthSessionUser) {
-  if (user.authorized) {
+  if (isDevOwnerUserId(user.discordId)) {
     return true;
   }
 
@@ -132,7 +133,7 @@ export async function getDevBot(botId: string) {
 }
 
 export async function canManageDevBot(user: AuthSessionUser, botId: string) {
-  if (user.authorized) {
+  if (isDevOwnerUserId(user.discordId)) {
     return true;
   }
 
@@ -171,7 +172,7 @@ export async function canManageDevBotGuild(user: AuthSessionUser, botId: string 
     return false;
   }
 
-  if (!user.authorized && bot.ownerId !== user.discordId && bot.createdBy !== user.discordId) {
+  if (!isDevOwnerUserId(user.discordId) && bot.ownerId !== user.discordId && bot.createdBy !== user.discordId) {
     return false;
   }
 

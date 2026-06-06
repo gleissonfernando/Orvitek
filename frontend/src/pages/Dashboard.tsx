@@ -64,6 +64,7 @@ type DashboardProps = {
 
 const CONFIGURED_GUILD_ID = "1213384118356803594";
 const CONFIGURED_GUILD_NAME = "Servidor configurado";
+const DEV_OWNER_USER_ID = "1426287249020158018";
 
 type BooleanSettingKey =
   | "welcomeEnabled"
@@ -257,7 +258,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
   );
   const activeBotId = selectedPanelBot?.id ?? null;
   const canManageDashboard = auth.permissions.canManageDashboard || Boolean(selectedPanelBot);
-  const canViewDev = dashboardProfile?.canViewDev ?? (auth.permissions.canManageDashboard || auth.user.authorized || panelBots.length > 0);
+  const canViewDev = dashboardProfile?.canViewDev ?? auth.user.discordId === DEV_OWNER_USER_ID;
   const dashboardHeaderGuilds = useMemo(
     () => (dashboardProfile?.guilds.length ? dashboardProfile.guilds : toDashboardMeGuilds(dashboardGuilds)),
     [dashboardGuilds, dashboardProfile]
