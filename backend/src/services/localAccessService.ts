@@ -23,6 +23,7 @@ export async function issueLocalAccess(req: Request, res: Response): Promise<Das
   const auth = issueAuthCookies(res, user, true);
 
   req.session.user = user;
+  req.session.verified = true;
   await new Promise<void>((resolve, reject) => {
     req.session.save((error) => {
       if (error) {

@@ -206,6 +206,7 @@ authRouter.get("/discord/callback", async (req, res, next) => {
     const validation = await evaluateDashboardAccess(baseUser);
 
     req.session.user = applyAccessValidation(baseUser, validation);
+    req.session.verified = true;
     req.session.oauthState = undefined;
 
     issueAuthCookies(res, req.session.user, true);
@@ -245,6 +246,7 @@ authRouter.post("/dev", async (req, res) => {
     authorized: true,
     lastLoginAt: new Date().toISOString()
   };
+  req.session.verified = true;
 
   const auth = issueAuthCookies(res, req.session.user, true);
   await saveSession(req);
@@ -267,6 +269,7 @@ authRouter.get("/me", async (req, res) => {
   }
 
   req.session.user = auth.user;
+  req.session.verified = auth.verified;
   await saveSession(req);
 
   return res.json(createAuthResponse(auth));
@@ -287,6 +290,7 @@ authRouter.post("/refresh", async (req, res) => {
   }
 
   req.session.user = auth.user;
+  req.session.verified = auth.verified;
   await saveSession(req);
 
   return res.json(createAuthResponse(auth));
@@ -302,6 +306,7 @@ authRouter.post("/verify", requireAuthenticated, async (req, res) => {
   );
 
   req.session.user = verifiedAuth.user;
+  req.session.verified = verifiedAuth.verified;
   await saveSession(req);
 
   return res.json({

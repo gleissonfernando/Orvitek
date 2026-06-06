@@ -16,6 +16,7 @@ export type AuthSessionUser = {
 declare module "express-session" {
   interface SessionData {
     user?: AuthSessionUser;
+    verified?: boolean;
     oauthState?: string;
   }
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getSession, loginDev, logout as logoutRequest, verifyAccess } from "../lib/api";
 import { appUrl, dashboardUrl } from "../lib/urls";
 import type { AuthResponse } from "../types";
@@ -8,6 +8,7 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const verifyInFlight = useRef(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -44,16 +45,24 @@ export function useAuth() {
   }, []);
 
   const verify = useCallback(async () => {
+    if (verifyInFlight.current) {
+      return;
+    }
+
+    verifyInFlight.current = true;
     setVerifying(true);
     setError(null);
 
     try {
       const session = await verifyAccess();
       setAuth(session);
-      window.location.replace(dashboardUrl());
+      if (window.location.pathname !== "/dashboard") {
+        window.location.replace(dashboardUrl());
+      }
     } catch {
       setError("Nao foi possivel validar seu acesso temporario.");
     } finally {
+      verifyInFlight.current = false;
       setVerifying(false);
     }
   }, []);

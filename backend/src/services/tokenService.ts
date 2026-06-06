@@ -63,7 +63,8 @@ export function resolveAuthFromRequest(req: Request, res: Response) {
       return buildAuthFromToken(accessToken);
     } catch (error) {
       if (!(error instanceof TokenExpiredError)) {
-        return null;
+        clearAuthCookies(res);
+        return issueAuthFromSession(req, res);
       }
     }
   }
@@ -75,7 +76,7 @@ export function refreshAuthFromRequest(req: Request, res: Response) {
   const refreshToken = readCookie(req, REFRESH_COOKIE);
 
   if (!refreshToken) {
-    return null;
+    return issueAuthFromSession(req, res);
   }
 
   try {
@@ -83,8 +84,16 @@ export function refreshAuthFromRequest(req: Request, res: Response) {
     return issueAuthCookies(res, payload.user, payload.verified);
   } catch {
     clearAuthCookies(res);
+    return issueAuthFromSession(req, res);
+  }
+}
+
+function issueAuthFromSession(req: Request, res: Response) {
+  if (!req.session.user) {
     return null;
   }
+
+  return issueAuthCookies(res, req.session.user, req.session.verified === true);
 }
 
 function signToken(type: "access" | "refresh", user: AuthSessionUser, verified: boolean, expiresIn: number) {

@@ -22,6 +22,7 @@ export async function requireAuthenticated(req: Request, res: Response, next: Ne
   }
 
   req.session.user = auth.user;
+  req.session.verified = auth.verified;
   res.locals.dashboardAuth = auth;
   return next();
 }
@@ -44,6 +45,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
 
   req.session.user = auth.user;
+  req.session.verified = auth.verified;
   res.locals.dashboardAuth = auth;
   return next();
 }
