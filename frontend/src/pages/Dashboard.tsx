@@ -42,6 +42,9 @@ type DashboardProps = {
   onLogout: () => void;
 };
 
+const CONFIGURED_GUILD_ID = "1213384118356803594";
+const CONFIGURED_GUILD_NAME = "Servidor configurado";
+
 type BooleanSettingKey =
   | "welcomeEnabled"
   | "leaveEnabled"
@@ -209,8 +212,9 @@ const categoryMeta = {
 };
 
 export function Dashboard({ auth, onLogout }: DashboardProps) {
+  const dashboardGuilds = useMemo(() => ensureDashboardGuilds(auth.guilds), [auth.guilds]);
   const [activeView, setActiveView] = useState<ViewId>("overview");
-  const [selectedGuildId, setSelectedGuildId] = useState<string | null>(auth.guilds[0]?.id ?? null);
+  const [selectedGuildId, setSelectedGuildId] = useState<string | null>(dashboardGuilds[0]?.id ?? CONFIGURED_GUILD_ID);
   const [settings, setSettings] = useState<GuildSettings | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [lives, setLives] = useState<LiveEvent[]>([]);
@@ -219,19 +223,25 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
   const [savingKey, setSavingKey] = useState<BooleanSettingKey | null>(null);
   const canManageDashboard = auth.permissions.canManageDashboard;
 
+  useEffect(() => {
+    if (!selectedGuildId && dashboardGuilds[0]?.id) {
+      setSelectedGuildId(dashboardGuilds[0].id);
+    }
+  }, [dashboardGuilds, selectedGuildId]);
+
   const selectedGuild = useMemo(
-    () => auth.guilds.find((guild) => guild.id === selectedGuildId) ?? auth.guilds[0] ?? null,
-    [auth.guilds, selectedGuildId]
+    () => dashboardGuilds.find((guild) => guild.id === selectedGuildId) ?? dashboardGuilds[0] ?? null,
+    [dashboardGuilds, selectedGuildId]
   );
 
   const totals = useMemo(
     () => ({
-      members: auth.guilds.reduce((sum, guild) => sum + guild.memberCount, 0),
-      channels: auth.guilds.reduce((sum, guild) => sum + guild.channelCount, 0),
-      guilds: auth.guilds.length,
-      onlineGuilds: auth.guilds.filter((guild) => guild.botEnabled || botStatus.online).length
+      members: dashboardGuilds.reduce((sum, guild) => sum + guild.memberCount, 0),
+      channels: dashboardGuilds.reduce((sum, guild) => sum + guild.channelCount, 0),
+      guilds: dashboardGuilds.length,
+      onlineGuilds: dashboardGuilds.filter((guild) => guild.botEnabled || botStatus.online).length
     }),
-    [auth.guilds, botStatus.online]
+    [dashboardGuilds, botStatus.online]
   );
 
   useEffect(() => {
@@ -325,7 +335,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
   return (
     <DashboardLayout
       activeView={activeView}
-      guilds={auth.guilds}
+      guilds={dashboardGuilds}
       onChangeView={setActiveView}
       onLogout={onLogout}
       onSelectGuild={setSelectedGuildId}
@@ -403,6 +413,25 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
       </motion.div>
     </DashboardLayout>
   );
+}
+
+function ensureDashboardGuilds(guilds: DashboardGuild[]) {
+  if (guilds.length > 0) {
+    return guilds;
+  }
+
+  return [
+    {
+      id: CONFIGURED_GUILD_ID,
+      name: CONFIGURED_GUILD_NAME,
+      iconUrl: null,
+      owner: false,
+      isAdmin: true,
+      botEnabled: true,
+      memberCount: 0,
+      channelCount: 0
+    }
+  ];
 }
 
 function PageHeader({

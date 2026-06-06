@@ -39,17 +39,23 @@ export function Topbar({ user, guilds, selectedGuildId, onOpenMenu, onSelectGuil
         </div>
 
         <div className="flex min-w-0 items-center gap-3">
-          <select
-            className="h-10 max-w-[46vw] rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition duration-300 focus:border-zinc-600 md:max-w-64"
-            onChange={(event) => onSelectGuild(event.target.value)}
-            value={selectedGuildId ?? ""}
-          >
-            {guilds.map((guild) => (
-              <option key={guild.id} value={guild.id}>
-                {guild.name}
-              </option>
-            ))}
-          </select>
+          {guilds.length > 1 ? (
+            <select
+              className="h-10 max-w-[46vw] rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition duration-300 focus:border-zinc-600 md:max-w-64"
+              onChange={(event) => onSelectGuild(event.target.value)}
+              value={selectedGuildId ?? ""}
+            >
+              {guilds.map((guild) => (
+                <option key={guild.id} value={guild.id}>
+                  {guild.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="hidden h-10 max-w-[46vw] items-center rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm font-medium text-zinc-100 md:flex md:max-w-64">
+              <span className="truncate">{guilds[0]?.name ?? "Servidor configurado"}</span>
+            </div>
+          )}
 
           <div className="hidden items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1.5 md:flex">
             <Avatar fallback={user.username} src={user.avatar} />
