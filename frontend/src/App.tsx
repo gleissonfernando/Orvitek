@@ -12,12 +12,31 @@ export function App() {
   const routeError = path === "/auth/error" ? readAuthError() : null;
 
   useEffect(() => {
-    if (auth?.access.verified && window.location.pathname !== "/dashboard") {
+    if (auth?.access.verified && path !== "/dashboard") {
       window.location.replace(dashboardUrl());
     }
-  }, [auth]);
+  }, [auth, path]);
+
+  useEffect(() => {
+    if (loading || path !== "/dashboard" || error) {
+      return;
+    }
+
+    if (!auth) {
+      loginDiscord();
+      return;
+    }
+
+    if (!auth.access.verified && !verifying) {
+      void verify();
+    }
+  }, [auth, error, loading, loginDiscord, path, verify, verifying]);
 
   if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (path === "/dashboard" && (!auth || !auth.access.verified) && !error) {
     return <LoadingScreen />;
   }
 
