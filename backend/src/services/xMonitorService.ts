@@ -51,6 +51,18 @@ export type CreateXAccountInput = {
   username: string;
 };
 
+export type XWebhookPostInput = {
+  avatar?: string | null;
+  createdAt: string;
+  displayName?: string | null;
+  id: string;
+  mediaUrls: string[];
+  text: string;
+  url?: string | null;
+  username?: string | null;
+  xUserId?: string | null;
+};
+
 export type UpdateXAccountInput = Partial<Pick<CreateXAccountInput, "active" | "channelId" | "username">>;
 
 export type RecordXPostSentInput = {
@@ -115,12 +127,19 @@ const X_API_BASE_URL = "https://api.x.com/2";
 const DEFAULT_PAGE_SIZE = 25;
 const memoryAccounts = new Map<string, XAccountDto>();
 const memoryPostsSent = new Map<string, MongoXPostSent>();
+const recentWebhookPostKeys = new Set<string>();
 
 export async function verifyXAccount(usernameInput: string) {
   const username = normalizeUsername(usernameInput);
-  const user = await fetchXUser(username);
+  const user = await fetchXUser(username).catch((error) => {
+    if (canUseManualXPreview(error)) {
+      return null;
+    }
 
-  return toPreviewDto(user);
+    throw error;
+  });
+
+  return user ? toPreviewDto(user) : toManualPreviewDto(username);
 }
 
 export async function getXMonitorDashboard(guildId: string, botId?: string | null) {
@@ -214,6 +233,7 @@ export async function createXAccount(guildId: string, input: CreateXAccountInput
   }
 
   const dto = await toAccountDto(doc);
+  await syncXStreamRuleForAccount(dto);
   await writeXLog("x_monitor.account_added", `Conta @${dto.username} adicionada ao X Monitor.`, dto, input.userId);
   emitXAccountUpdate(dto, "account_saved");
 
@@ -251,6 +271,7 @@ export async function updateXAccount(
     }
 
     const dto = await toAccountDto(updated);
+    await syncXStreamRuleForAccount(dto);
     await writeXLog("x_monitor.account_updated", `Conta @${dto.username} atualizada no X Monitor.`, dto, userId);
     emitXAccountUpdate(dto, "account_saved");
     return dto;
@@ -276,6 +297,7 @@ export async function updateXAccount(
     };
 
     memoryAccounts.set(accountId, updated);
+    await syncXStreamRuleForAccount(updated);
     await writeXLog("x_monitor.account_updated", `Conta @${updated.username} atualizada no X Monitor.`, updated, userId);
     emitXAccountUpdate(updated, "account_saved");
     return updated;
@@ -309,6 +331,7 @@ export async function deleteXAccount(guildId: string, accountId: string, userId?
   }
 
   await writeXLog("x_monitor.account_removed", `Conta @${current.username} removida do X Monitor.`, current, userId);
+  await deleteXStreamRulesForAccount(current.id);
   emitXAccountUpdate(current, "account_removed");
 
   return current;
@@ -447,6 +470,62 @@ export async function markXAccountDiscordFailure(accountId: string, message: str
   return account;
 }
 
+export async function dispatchXWebhookPost(input: XWebhookPostInput) {
+  const username = input.username ? normalizeUsername(input.username) : "";
+  const xUserId = input.xUserId?.trim() ?? "";
+  const clauses: Array<Record<string, string>> = [];
+
+  if (xUserId) {
+    clauses.push({
+      xUserId
+    });
+  }
+
+  if (username) {
+    clauses.push({
+      username
+    });
+  }
+
+  if (!input.id || clauses.length === 0) {
+    return {
+      emitted: 0,
+      matched: 0
+    };
+  }
+
+  const accounts = await findWebhookAccounts(clauses);
+  let emitted = 0;
+
+  for (const account of accounts) {
+    const post = toWebhookPostDto(input, account.username);
+    const key = `${account.botId ?? "default"}:${account.id}:${post.id}`;
+
+    if (recentWebhookPostKeys.has(key) || await isXPostSent(account.id, post.id, account.botId)) {
+      continue;
+    }
+
+    rememberWebhookPost(key);
+    emitRealtime("x-monitor:post", {
+      account,
+      botId: account.botId,
+      guildId: account.guildId,
+      post
+    });
+
+    await writeXLog("x_monitor.webhook_post", `Postagem via webhook detectada para @${account.username}.`, account, null, {
+      postId: post.id,
+      postUrl: post.url
+    });
+    emitted += 1;
+  }
+
+  return {
+    emitted,
+    matched: accounts.length
+  };
+}
+
 export async function listXMonitorLogs(guildId: string, botId?: string | null) {
   const normalizedBotId = normalizeBotId(botId);
 
@@ -505,6 +584,10 @@ async function fetchXUser(username: string) {
 }
 
 async function fetchRecentPosts(account: XAccountDto) {
+  if (!/^\d+$/.test(account.xUserId)) {
+    return [];
+  }
+
   const params = new URLSearchParams({
     exclude: "retweets,replies",
     expansions: "attachments.media_keys",
@@ -575,11 +658,99 @@ function formatXApiError(data: XApiResponse<unknown> | null, fallbackStatus: num
 }
 
 function xApiHttpStatus(status: number) {
-  if (status === 429 || status === 402) {
+  if ([401, 402, 403, 429].includes(status)) {
     return status;
   }
 
   return 502;
+}
+
+async function syncXStreamRuleForAccount(account: Pick<XAccountDto, "active" | "id" | "username">) {
+  await deleteXStreamRulesForAccount(account.id);
+
+  if (!account.active) {
+    return;
+  }
+
+  const token = env.X_BEARER_TOKEN.trim();
+
+  if (!token) {
+    return;
+  }
+
+  const rule = {
+    value: `from:${account.username} -is:retweet -is:reply`,
+    tag: xStreamRuleTag(account.id)
+  };
+
+  await xRulesFetch("", {
+    method: "POST",
+    token,
+    body: {
+      add: [rule]
+    }
+  }).catch((error) => {
+    console.warn(`[x-monitor] nao foi possivel criar regra do X para @${account.username}:`, error instanceof Error ? error.message : error);
+  });
+}
+
+async function deleteXStreamRulesForAccount(accountId: string) {
+  const token = env.X_BEARER_TOKEN.trim();
+
+  if (!token) {
+    return;
+  }
+
+  try {
+    const rules = await xRulesFetch<XApiResponse<Array<{ id: string; tag?: string }>>>("", {
+      method: "GET",
+      token
+    });
+    const ids = (rules.data ?? [])
+      .filter((rule) => rule.tag === xStreamRuleTag(accountId))
+      .map((rule) => rule.id);
+
+    if (ids.length === 0) {
+      return;
+    }
+
+    await xRulesFetch("", {
+      method: "POST",
+      token,
+      body: {
+        delete: {
+          ids
+        }
+      }
+    });
+  } catch (error) {
+    console.warn("[x-monitor] nao foi possivel remover regra antiga do X:", error instanceof Error ? error.message : error);
+  }
+}
+
+async function xRulesFetch<TResponse>(
+  path: string,
+  options: { body?: unknown; method: "GET" | "POST"; token: string }
+) {
+  const response = await fetch(`${X_API_BASE_URL}/tweets/search/stream/rules${path}`, {
+    body: options.body ? JSON.stringify(options.body) : undefined,
+    headers: {
+      Authorization: `Bearer ${options.token}`,
+      ...(options.body ? { "Content-Type": "application/json" } : {})
+    },
+    method: options.method
+  });
+  const data = (await response.json().catch(() => null)) as XApiResponse<unknown> | null;
+
+  if (!response.ok) {
+    throw createServiceError(formatXApiError(data, response.status), xApiHttpStatus(response.status));
+  }
+
+  return data as TResponse;
+}
+
+function xStreamRuleTag(accountId: string) {
+  return `x-monitor:${accountId}`;
 }
 
 async function buildAccountPatch(input: UpdateXAccountInput, userId?: string | null): Promise<Partial<MongoXAccount>> {
@@ -755,6 +926,57 @@ function toPreviewDto(user: XApiUser): XAccountPreviewDto {
   };
 }
 
+function toManualPreviewDto(username: string): XAccountPreviewDto {
+  return {
+    avatar: null,
+    displayName: username,
+    mostRecentPostId: null,
+    username,
+    xUserId: ""
+  };
+}
+
+function toWebhookPostDto(input: XWebhookPostInput, fallbackUsername: string): XPostDto {
+  const username = input.username ? normalizeUsername(input.username) : fallbackUsername;
+
+  return {
+    createdAt: input.createdAt,
+    id: input.id,
+    mediaUrls: input.mediaUrls,
+    text: input.text,
+    url: input.url || `https://x.com/${username}/status/${input.id}`
+  };
+}
+
+async function findWebhookAccounts(clauses: Array<Record<string, string>>) {
+  try {
+    const { xAccounts } = await getMongoCollections();
+    const docs = await xAccounts
+      .find({
+        active: true,
+        $or: clauses
+      })
+      .toArray();
+
+    return Promise.all(docs.map((account) => toAccountDto(account)));
+  } catch {
+    return [...memoryAccounts.values()].filter((account) => (
+      account.active
+      && clauses.some((clause) => (
+        ("xUserId" in clause && account.xUserId === clause.xUserId)
+        || ("username" in clause && account.username === clause.username)
+      ))
+    ));
+  }
+}
+
+function rememberWebhookPost(key: string) {
+  recentWebhookPostKeys.add(key);
+  setTimeout(() => {
+    recentWebhookPostKeys.delete(key);
+  }, 5 * 60_000).unref();
+}
+
 function toPostDto(tweet: XApiTweet, username: string, mediaByKey: Map<string, XApiMedia>) {
   if (!tweet.created_at) {
     return null;
@@ -849,6 +1071,13 @@ function normalizeUsername(value: string) {
   }
 
   return username;
+}
+
+function canUseManualXPreview(error: unknown) {
+  const statusCode = (error as ServiceError | undefined)?.statusCode;
+  const message = error instanceof Error ? error.message : "";
+
+  return statusCode === 402 || message.includes("Creditos da API do X") || message.includes("plano/permissao da API do X");
 }
 
 function normalizeSnowflake(value: string, label: string) {

@@ -18,10 +18,42 @@ export type XMonitorUpdateEvent = {
   };
 };
 
+export type XMonitorPostEvent = {
+  account: {
+    id: string;
+    botId: string | null;
+    guildId: string;
+    channelId: string;
+    xUserId: string;
+    username: string;
+    displayName: string;
+    avatar: string | null;
+    active: boolean;
+    lastSyncAt: string | null;
+    lastPostId: string | null;
+    lastPostAt: string | null;
+    lastApiStatus: "idle" | "ok" | "error";
+    lastApiError: string | null;
+    totalPostsSent: number;
+    createdAt: string;
+    updatedAt: string;
+  };
+  botId?: string | null;
+  guildId: string;
+  post: {
+    id: string;
+    text: string;
+    createdAt: string;
+    url: string;
+    mediaUrls: string[];
+  };
+};
+
 export class BotSocketClient {
   private socket: Socket | null = null;
   private socialPanelUpdateHandler: ((payload: SocialPanelUpdateEvent) => void) | null = null;
   private xMonitorUpdateHandler: ((payload: XMonitorUpdateEvent) => void) | null = null;
+  private xMonitorPostHandler: ((payload: XMonitorPostEvent) => void) | null = null;
 
   connect(client: Client) {
     if (!env.BACKEND_SOCKET_URL) {
@@ -65,6 +97,10 @@ export class BotSocketClient {
 
     if (this.xMonitorUpdateHandler) {
       this.socket.on("x-monitor:update", this.xMonitorUpdateHandler);
+    }
+
+    if (this.xMonitorPostHandler) {
+      this.socket.on("x-monitor:post", this.xMonitorPostHandler);
     }
   }
 
@@ -110,6 +146,12 @@ export class BotSocketClient {
     this.xMonitorUpdateHandler = handler;
     this.socket?.off("x-monitor:update");
     this.socket?.on("x-monitor:update", handler);
+  }
+
+  onXMonitorPost(handler: (payload: XMonitorPostEvent) => void) {
+    this.xMonitorPostHandler = handler;
+    this.socket?.off("x-monitor:post");
+    this.socket?.on("x-monitor:post", handler);
   }
 
   disconnect(client: Client) {

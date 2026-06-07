@@ -7,7 +7,7 @@ import {
   type Client
 } from "discord.js";
 import { env } from "../config/env";
-import type { XMonitorUpdateEvent } from "../websocket/socketClient";
+import type { XMonitorPostEvent, XMonitorUpdateEvent } from "../websocket/socketClient";
 import type { ApiClient, XAccount, XPost } from "./apiClient";
 import type { BotSocketClient } from "../websocket/socketClient";
 
@@ -28,6 +28,15 @@ export function startXMonitor(client: Client, api: ApiClient, socket: BotSocketC
 
     void processAccountById(client, api, event.account.id).catch((error) => {
       console.warn("[x-monitor] sync imediato falhou:", error instanceof Error ? error.message : error);
+    });
+  });
+  socket.onXMonitorPost((event) => {
+    if (!isPostEventForThisBot(event) || !client.guilds.cache.has(event.account.guildId)) {
+      return;
+    }
+
+    void sendAndRecordPost(client, api, event.account, event.post).catch((error) => {
+      console.warn("[x-monitor] envio via webhook falhou:", error instanceof Error ? error.message : error);
     });
   });
 
@@ -191,6 +200,10 @@ async function sendXPostAlert(client: Client, account: XAccount, post: XPost) {
 }
 
 function isEventForThisBot(event: XMonitorUpdateEvent) {
+  return (event.botId ?? null) === (env.DASHBOARD_BOT_ID || null);
+}
+
+function isPostEventForThisBot(event: XMonitorPostEvent) {
   return (event.botId ?? null) === (env.DASHBOARD_BOT_ID || null);
 }
 
