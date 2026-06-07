@@ -1,33 +1,43 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bot, CheckCircle2, KeyRound, LayoutGrid, Loader2, Plus, Power, Server, Trash2, Users, XCircle } from "lucide-react";
+import {
+  Bot,
+  CalendarDays,
+  CheckCircle2,
+  Circle,
+  Hash,
+  LayoutDashboard,
+  Loader2,
+  Power,
+  ScrollText,
+  Server,
+  Settings,
+  ShieldCheck,
+  Trash2,
+  Unplug,
+  Users
+} from "lucide-react";
+import {
+  createDevBot,
+  deleteDevBot,
+  getDevBots,
+  getDevModules,
+  restartDevBot,
+  updateDevBotModules
+} from "../../lib/api";
+import type {
+  AuthUser,
+  CreateDevBotPayload,
+  DashboardBot,
+  DashboardMeGuild,
+  DevBot,
+  DevBotStatus,
+  DevModuleDefinition
+} from "../../types";
 import { Avatar } from "../ui/avatar";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Switch } from "../ui/switch";
-import {
-  createDevBot,
-  deleteDevBot,
-  detectDevBotGuild,
-  getDevBots,
-  getDevModules,
-  registerPrimaryDevBot,
-  restartDevBot,
-  testDevBotConnection,
-  updateDevBotAccess,
-  updateDevBotModules
-} from "../../lib/api";
-import type {
-  AuthUser,
-  BotConnectionTest,
-  CreateDevBotPayload,
-  DashboardBot,
-  DashboardMeGuild,
-  DetectedDiscordGuild,
-  DevBot,
-  DevBotStatus,
-  DevModuleDefinition
-} from "../../types";
 
 const fallbackModules: DevModuleDefinition[] = [
   { id: "live", label: "Sistema de Live" },
@@ -43,12 +53,8 @@ const fallbackModules: DevModuleDefinition[] = [
 ];
 
 const emptyForm: CreateDevBotPayload = {
-  name: "",
-  clientId: "",
   token: "",
-  avatarUrl: "",
-  mainGuildId: "",
-  enabledModules: ["live"]
+  mainGuildId: ""
 };
 
 type DevPanelProps = {
@@ -59,6 +65,7 @@ type DevPanelProps = {
   selectedBotId?: string | null;
   selectedGuildId?: string | null;
   onSelectBot?: (botId: string | null) => void;
+  onOpenView?: (view: "overview" | "settings" | "logs") => void;
   user?: AuthUser;
 };
 
@@ -67,6 +74,7 @@ export function DevPanel({
   onBotCreated,
   onBotDeleted,
   onBotUpdated,
+  onOpenView,
   onSelectBot,
   selectedBotId: controlledSelectedBotId,
   selectedGuildId,
@@ -78,18 +86,9 @@ export function DevPanel({
   const [form, setForm] = useState<CreateDevBotPayload>(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [registeringPrimary, setRegisteringPrimary] = useState(false);
-  const [testing, setTesting] = useState(false);
+  const [restartingBotId, setRestartingBotId] = useState<string | null>(null);
+  const [deletingBotId, setDeletingBotId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [testResult, setTestResult] = useState<BotConnectionTest | null>(null);
-  const [detectedGuild, setDetectedGuild] = useState<DetectedDiscordGuild | null>(null);
-  const [detectingGuild, setDetectingGuild] = useState(false);
-  const [guildDetectionError, setGuildDetectionError] = useState<string | null>(null);
-  const [savingAccess, setSavingAccess] = useState(false);
-  const [accessForm, setAccessForm] = useState({
-    ownerName: "",
-    ownerId: ""
-  });
 
   const selectedBotId = controlledSelectedBotId ?? internalSelectedBotId;
   const selectedBot = bots.find((bot) => bot.id === selectedBotId) ?? null;
@@ -115,7 +114,7 @@ export function DevPanel({
         setInternalSelectedBotId((current) => current ?? controlledSelectedBotId ?? botData[0]?.id ?? null);
       })
       .catch(() => {
-        if (mounted) setMessage("Nao foi possivel carregar a aba Dev.");
+        if (mounted) setMessage("Nao foi possivel carregar a area de bots.");
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -133,58 +132,6 @@ export function DevPanel({
     }));
   }, [guilds, selectedGuildId]);
 
-  useEffect(() => {
-    setAccessForm({
-      ownerName: selectedBot?.ownerName ?? "",
-      ownerId: selectedBot?.ownerId ?? ""
-    });
-  }, [selectedBot]);
-
-  useEffect(() => {
-    const token = form.token.trim();
-    const guildId = form.mainGuildId.trim();
-
-    setDetectedGuild(null);
-    setGuildDetectionError(null);
-
-    if (token.length < 10 || !/^\d{5,32}$/.test(guildId)) {
-      setDetectingGuild(false);
-      return;
-    }
-
-    let cancelled = false;
-    const timeout = window.setTimeout(() => {
-      setDetectingGuild(true);
-      detectDevBotGuild(token, guildId)
-        .then((guild) => {
-          if (!cancelled) {
-            setDetectedGuild(guild);
-            setForm((current) => ({
-              ...current,
-              avatarUrl: current.avatarUrl || guild.botAvatarUrl || "",
-              clientId: current.clientId || guild.botId,
-              name: current.name || guild.botName
-            }));
-          }
-        })
-        .catch((error) => {
-          if (!cancelled) {
-            setGuildDetectionError(readRequestMessage(error) ?? "Nao foi possivel detectar esse servidor.");
-          }
-        })
-        .finally(() => {
-          if (!cancelled) {
-            setDetectingGuild(false);
-          }
-        });
-    }, 550);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeout);
-    };
-  }, [form.mainGuildId, form.token]);
-
   function updateForm<K extends keyof CreateDevBotPayload>(key: K, value: CreateDevBotPayload[K]) {
     setForm((current) => ({
       ...current,
@@ -197,117 +144,40 @@ export function DevPanel({
     onSelectBot?.(botId);
   }
 
-  async function handleTestToken() {
-    if (!form.token.trim()) {
-      setMessage("Informe o token para testar.");
+  async function handleCreateBot() {
+    const token = form.token.trim();
+    const mainGuildId = form.mainGuildId.trim();
+
+    if (token.length < 10) {
+      setMessage("Informe um token de bot valido.");
       return;
     }
 
-    setTesting(true);
-    setMessage(null);
-    setTestResult(null);
-
-    try {
-      const result = await testDevBotConnection(form.token, form.clientId);
-      setTestResult(result);
-      setMessage(result.message);
-      if (result.clientId && !form.clientId) {
-        updateForm("clientId", result.clientId);
-      }
-      if (result.username && !form.name) {
-        updateForm("name", result.username);
-      }
-      if (result.avatarUrl && !form.avatarUrl) {
-        updateForm("avatarUrl", result.avatarUrl);
-      }
-    } catch {
-      setMessage("Nao foi possivel testar o token.");
-    } finally {
-      setTesting(false);
+    if (!/^\d{5,32}$/.test(mainGuildId)) {
+      setMessage("Informe um Guild ID valido.");
+      return;
     }
-  }
 
-  async function handleCreateBot() {
     setSaving(true);
     setMessage(null);
 
     try {
       const bot = await createDevBot({
-        ...form,
-        avatarUrl: form.avatarUrl || null,
-        name: form.name || null,
-        ownerName: form.ownerName || undefined,
-        ownerId: form.ownerId || undefined
+        token,
+        mainGuildId
       });
-      setBots((current) => [bot, ...current]);
+      setBots((current) => [bot, ...current.filter((item) => item.id !== bot.id)]);
       onBotCreated?.(bot);
       handleSelectBotId(bot.id);
-      setForm(emptyForm);
-      setTestResult(null);
-      setDetectedGuild(null);
-      setMessage("Bot cadastrado com sucesso.");
+      setForm({
+        token: "",
+        mainGuildId: selectedGuildId || ""
+      });
+      setMessage(`${bot.name} foi conectado e validado no Discord.`);
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Nao foi possivel salvar o bot. Confira os campos obrigatorios.");
+      setMessage(readRequestMessage(error) ?? "Nao foi possivel conectar o bot. Confira o token e o Guild ID.");
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleRegisterPrimaryBot() {
-    if (!/^\d{5,32}$/.test(form.mainGuildId.trim())) {
-      setMessage("Informe o ID do servidor para cadastrar o bot principal.");
-      return;
-    }
-
-    setRegisteringPrimary(true);
-    setMessage(null);
-
-    try {
-      const result = await registerPrimaryDevBot({
-        name: form.name || null,
-        ownerName: form.ownerName || user?.globalName || user?.username || undefined,
-        ownerId: form.ownerId || user?.discordId || undefined,
-        mainGuildId: form.mainGuildId.trim(),
-        enabledModules: form.enabledModules
-      });
-      setBots((current) => (
-        current.some((item) => item.id === result.bot.id)
-          ? current.map((item) => (item.id === result.bot.id ? result.bot : item))
-          : [result.bot, ...current]
-      ));
-      onBotCreated?.(result.bot);
-      handleSelectBotId(result.bot.id);
-      setTestResult(null);
-      setDetectedGuild(null);
-      setMessage(result.created ? "Bot principal cadastrado no sistema." : "Bot principal atualizado no sistema.");
-    } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Nao foi possivel cadastrar o bot principal do .env.");
-    } finally {
-      setRegisteringPrimary(false);
-    }
-  }
-
-  async function handleSaveAccess() {
-    if (!selectedBot || !/^\d{5,32}$/.test(accessForm.ownerId.trim())) {
-      setMessage("Informe o Discord ID do usuario que vai acessar esse bot.");
-      return;
-    }
-
-    setSavingAccess(true);
-    setMessage(null);
-
-    try {
-      const updated = await updateDevBotAccess(selectedBot.id, {
-        ownerName: accessForm.ownerName.trim() || selectedBot.ownerName,
-        ownerId: accessForm.ownerId.trim()
-      });
-      setBots((current) => current.map((item) => (item.id === updated.id ? updated : item)));
-      onBotUpdated?.(updated);
-      setMessage("Acesso do usuario atualizado. Ele vera somente os modulos liberados para este bot.");
-    } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Nao foi possivel salvar o acesso desse usuario.");
-    } finally {
-      setSavingAccess(false);
     }
   }
 
@@ -330,6 +200,7 @@ export function DevPanel({
   }
 
   async function handleRestart(bot: DevBot) {
+    setRestartingBotId(bot.id);
     setMessage(null);
 
     try {
@@ -337,27 +208,48 @@ export function DevPanel({
       setBots((current) => current.map((item) => (item.id === updated.id ? updated : item)));
       onBotUpdated?.(updated);
       setMessage(updated.statusMessage ?? "Bot sincronizado.");
-    } catch {
-      setMessage("Nao foi possivel reiniciar/testar esse bot.");
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Nao foi possivel reiniciar esse bot.");
+    } finally {
+      setRestartingBotId(null);
     }
   }
 
   async function handleDelete(bot: DevBot) {
-    if (!window.confirm(`Excluir ${bot.name}?`)) {
+    if (!window.confirm(`Desconectar ${bot.name}?`)) {
       return;
     }
 
+    setDeletingBotId(bot.id);
+    setMessage(null);
+
     try {
       await deleteDevBot(bot.id);
-      setBots((current) => current.filter((item) => item.id !== bot.id));
+      const remainingBots = bots.filter((item) => item.id !== bot.id);
+      setBots(remainingBots);
       onBotDeleted?.(bot.id);
       if (selectedBot?.id === bot.id) {
-        handleSelectBotId(bots.find((item) => item.id !== bot.id)?.id ?? null);
+        handleSelectBotId(remainingBots[0]?.id ?? null);
       }
-      setMessage("Bot removido.");
-    } catch {
-      setMessage("Nao foi possivel excluir o bot.");
+      setMessage("Bot desconectado.");
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Nao foi possivel desconectar o bot.");
+    } finally {
+      setDeletingBotId(null);
     }
+  }
+
+  function openSelectedBotView(view: "overview" | "settings" | "logs") {
+    if (!selectedBot) return;
+    handleSelectBotId(selectedBot.id);
+    onOpenView?.(view);
+  }
+
+  function openModuleSettings() {
+    document.getElementById("dev-bot-module-settings")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
   }
 
   if (loading) {
@@ -380,230 +272,179 @@ export function DevPanel({
       </section>
 
       {message ? (
-        <div className="rounded-lg border border-purple-500/25 bg-purple-500/10 px-4 py-3 text-sm text-purple-100">{message}</div>
+        <div className="rounded-lg border border-zinc-700 bg-zinc-950/85 px-4 py-3 text-sm text-zinc-100 shadow-lg">
+          {message}
+        </div>
       ) : null}
 
-      <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Gerenciar Bots</CardTitle>
-            <CardDescription>Bots Devs &gt; Gerenciar Bots. Conecte um bot do Discord ao painel administrativo.</CardDescription>
+      <section className="grid items-stretch gap-6 xl:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
+        <Card className="border-[#5865f2]/30 bg-black/70 backdrop-blur-xl">
+          <CardHeader className="border-b border-zinc-900">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#5865f2] text-white shadow-[0_12px_30px_rgba(88,101,242,0.3)]">
+                <Bot className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle>Conectar Bot</CardTitle>
+                <CardDescription>Token e servidor. O Discord fornece o restante.</CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-2">
-              <DevInput label="Token do bot" type="password" value={form.token} onChange={(value) => updateForm("token", value)} />
-              <DevInput label="Client ID / Application ID" value={form.clientId} onChange={(value) => updateForm("clientId", value.replace(/\D/g, ""))} />
-              <DevInput
-                label="ID do servidor / Guild ID"
-                value={form.mainGuildId}
-                onChange={(value) => updateForm("mainGuildId", value.replace(/\D/g, ""))}
-              />
-              <DevInput label="Nome do bot (opcional)" value={form.name ?? ""} onChange={(value) => updateForm("name", value)} />
-              <DevInput
-                label="Discord ID de quem vai acessar"
-                value={form.ownerId ?? ""}
-                onChange={(value) => updateForm("ownerId", value.replace(/\D/g, ""))}
-              />
-              <DevInput
-                label="Nome do usuario com acesso"
-                value={form.ownerName ?? ""}
-                onChange={(value) => updateForm("ownerName", value)}
-              />
-            </div>
-
-            <BotConnectionPreview
-              avatarUrl={form.avatarUrl ?? testResult?.avatarUrl ?? null}
-              createdAt={testResult?.createdAt ?? null}
-              name={form.name ?? testResult?.username ?? ""}
-              testResult={testResult}
+          <CardContent className="space-y-5 pt-5">
+            <DevInput
+              autoComplete="off"
+              label="Token do Bot"
+              onChange={(value) => updateForm("token", value)}
+              placeholder="••••••••••••••••••••••••"
+              type="password"
+              value={form.token}
+            />
+            <DevInput
+              inputMode="numeric"
+              label="Servidor (Guild ID)"
+              onChange={(value) => updateForm("mainGuildId", value.replace(/\D/g, ""))}
+              placeholder="1213384118356803594"
+              value={form.mainGuildId}
             />
 
-            <GuildDetectionCard
-              detecting={detectingGuild}
-              error={guildDetectionError}
-              guild={detectedGuild}
-            />
-
-            <div className="rounded-lg border border-zinc-900 bg-zinc-950/70 p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-white">Modulos liberados</p>
-                  <p className="text-xs text-zinc-500">Esses modulos aparecem para o bot cadastrado.</p>
-                </div>
-                <Badge variant="muted">{form.enabledModules.length}</Badge>
+            <div className="flex items-center gap-3 border-y border-zinc-900 py-4">
+              <Avatar
+                className="h-10 w-10 rounded-full border border-zinc-800"
+                fallback={user?.globalName || user?.username || "Discord"}
+                src={user?.avatarUrl}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-white">
+                  {user?.globalName || user?.username || "Usuario Discord autenticado"}
+                </p>
+                <p className="truncate text-xs text-zinc-500">Responsavel via Discord OAuth2</p>
               </div>
-              <ModuleSwitchGrid enabledModules={form.enabledModules} modules={modules} onToggle={(moduleId, checked) => {
-                updateForm(
-                  "enabledModules",
-                  checked
-                    ? [...new Set([...form.enabledModules, moduleId])]
-                    : form.enabledModules.filter((item) => item !== moduleId)
-                );
-              }} />
+              <ShieldCheck className="h-5 w-5 text-emerald-400" />
             </div>
 
-            {testResult ? (
-              <div className="rounded-lg border border-zinc-800 bg-black/35 px-4 py-3 text-sm text-zinc-200">
-                Teste: <span className={statusTextClass(testResult.status)}>{statusLabel(testResult.status)}</span>
-              </div>
-            ) : null}
+            <Button
+              className="h-12 w-full bg-[#5865f2] text-white shadow-[0_14px_34px_rgba(88,101,242,0.28)] hover:bg-[#4752c4]"
+              disabled={saving || form.token.trim().length < 10 || !/^\d{5,32}$/.test(form.mainGuildId)}
+              onClick={handleCreateBot}
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
+              {saving ? "Validando no Discord..." : "Conectar Bot"}
+            </Button>
 
-            <div className="flex flex-wrap gap-3">
-              <Button disabled={testing || !form.token.trim()} onClick={handleTestToken} variant="outline">
-                {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-                Testar conexao
-              </Button>
-              <Button
-                disabled={registeringPrimary || detectingGuild || !/^\d{5,32}$/.test(form.mainGuildId)}
-                onClick={handleRegisterPrimaryBot}
-                variant="secondary"
-              >
-                {registeringPrimary ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
-                Sincronizar bot do Ricardinho
-              </Button>
-              <Button
-                disabled={
-                  saving
-                  || detectingGuild
-                  || !form.token.trim()
-                  || !/^\d{5,32}$/.test(form.clientId)
-                  || detectedGuild?.id !== form.mainGuildId.trim()
-                }
-                onClick={handleCreateBot}
-              >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                Conectar Bot
-              </Button>
+            <div className="grid grid-cols-2 gap-2 text-xs text-zinc-500">
+              <AutomaticField label="Nome e avatar" />
+              <AutomaticField label="Application ID" />
+              <AutomaticField label="Data de criacao" />
+              <AutomaticField label="Dados do servidor" />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Bots cadastrados</CardTitle>
-            <CardDescription>Selecione um bot da lista para mudar o que o usuario pode ver na dashboard.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {bots.length ? (
-                <label className="block space-y-2 rounded-lg border border-purple-500/25 bg-purple-500/10 p-4">
-                  <span className="text-xs font-medium uppercase text-purple-200">Bot selecionado</span>
-                  <select
-                    className="h-11 w-full rounded-lg border border-purple-500/30 bg-zinc-950 px-3 text-sm font-medium text-zinc-100 outline-none transition duration-300 focus:border-purple-400"
-                    onChange={(event) => handleSelectBotId(event.target.value || null)}
-                    value={selectedBot?.id ?? ""}
-                  >
-                    <option value="">Selecione o bot</option>
-                    {bots.map((bot) => (
-                      <option key={bot.id} value={bot.id}>
-                        {bot.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs leading-5 text-purple-100/80">
-                    Depois de escolher o bot, marque abaixo quais modulos aparecem para o usuario na dashboard.
-                  </p>
-                </label>
-              ) : null}
-
-              <div className="space-y-3">
-                {bots.length ? (
-                  bots.map((bot) => (
-                    <button
-                      className={`w-full rounded-lg border px-4 py-3 text-left transition duration-300 hover:-translate-y-0.5 hover:bg-zinc-900 ${
-                        selectedBot?.id === bot.id ? "border-purple-500/50 bg-purple-500/10" : "border-zinc-900 bg-zinc-950/60"
-                      }`}
-                      key={bot.id}
-                      onClick={() => handleSelectBotId(bot.id)}
-                      type="button"
-                    >
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <Avatar className="h-11 w-11 rounded-full border border-red-500/50" fallback={bot.name} src={bot.avatarUrl} />
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="truncate text-sm font-semibold text-white">{bot.name}</p>
-                              <StatusBadge status={bot.status} />
-                            </div>
-                            <p className="truncate text-xs text-zinc-500">
-                              Servidor {bot.mainGuildName || guildNameById.get(bot.mainGuildId) || "Servidor configurado"}
-                            </p>
-                            <p className="truncate text-xs text-zinc-600">Dono {bot.ownerName}</p>
-                            <p className="truncate font-mono text-[11px] text-zinc-600">Token {bot.tokenMasked}</p>
-                            <p className="truncate font-mono text-[11px] text-zinc-700">Painel ID {bot.id}</p>
-                          </div>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <Badge variant="muted">{bot.enabledModules.length} modulos</Badge>
-                          <Button onClick={(event) => {
-                            event.stopPropagation();
-                            void handleRestart(bot);
-                          }} size="icon" title="Reiniciar bot" variant="outline">
-                            <Power className="h-4 w-4" />
-                          </Button>
-                          <Button onClick={(event) => {
-                            event.stopPropagation();
-                            void handleDelete(bot);
-                          }} size="icon" title="Excluir bot" variant="destructive">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </button>
-                  ))
-                ) : (
-                  <div className="flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed border-zinc-800 bg-zinc-950/60 p-6 text-center">
-                    <Bot className="mb-3 h-7 w-7 text-zinc-500" />
-                    <p className="text-sm font-medium text-zinc-500">Nenhum bot cadastrado</p>
-                  </div>
-                )}
+        {selectedBot ? (
+          <ConnectedBotPanel
+            bot={selectedBot}
+            deleting={deletingBotId === selectedBot.id}
+            guildName={selectedBot.mainGuildName || guildNameById.get(selectedBot.mainGuildId) || "Servidor Discord"}
+            onDelete={() => void handleDelete(selectedBot)}
+            onOpenDashboard={() => openSelectedBotView("overview")}
+            onOpenLogs={() => openSelectedBotView("logs")}
+            onOpenSettings={openModuleSettings}
+            onRestart={() => void handleRestart(selectedBot)}
+            restarting={restartingBotId === selectedBot.id}
+          />
+        ) : (
+          <Card className="border-dashed border-zinc-800 bg-zinc-950/45">
+            <CardContent className="flex min-h-[360px] flex-col items-center justify-center p-8 text-center">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-lg border border-zinc-800 bg-black">
+                <Bot className="h-7 w-7 text-zinc-500" />
               </div>
-            </div>
-          </CardContent>
-        </Card>
+              <p className="text-sm font-semibold text-zinc-200">Nenhum bot selecionado</p>
+              <p className="mt-1 text-sm text-zinc-500">Conecte um bot ou selecione um da lista.</p>
+            </CardContent>
+          </Card>
+        )}
       </section>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Bots conectados</CardTitle>
+          <CardDescription>{bots.length} bot{bots.length === 1 ? "" : "s"} nesta hospedagem.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {bots.length ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {bots.map((bot) => (
+                <div
+                  className={`flex items-center gap-3 rounded-lg border p-3 transition duration-200 ${
+                    selectedBot?.id === bot.id
+                      ? "border-[#5865f2]/50 bg-[#5865f2]/10"
+                      : "border-zinc-900 bg-black/35 hover:border-zinc-700"
+                  }`}
+                  key={bot.id}
+                >
+                  <button
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    onClick={() => handleSelectBotId(bot.id)}
+                    type="button"
+                  >
+                    <Avatar className="h-11 w-11 rounded-full border border-zinc-800" fallback={bot.name} src={bot.avatarUrl} />
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-2">
+                        <span className="truncate text-sm font-semibold text-white">{bot.name}</span>
+                        <StatusDot status={bot.status} />
+                      </span>
+                      <span className="block truncate text-xs text-zinc-500">
+                        {bot.mainGuildName || guildNameById.get(bot.mainGuildId) || bot.mainGuildId}
+                      </span>
+                      <span className="block truncate font-mono text-[11px] text-zinc-600">{bot.clientId}</span>
+                    </span>
+                  </button>
+                  <Button
+                    disabled={restartingBotId === bot.id}
+                    onClick={() => void handleRestart(bot)}
+                    size="icon"
+                    title="Reiniciar bot"
+                    variant="outline"
+                  >
+                    {restartingBotId === bot.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    disabled={deletingBotId === bot.id}
+                    onClick={() => void handleDelete(bot)}
+                    size="icon"
+                    title="Desconectar bot"
+                    variant="destructive"
+                  >
+                    {deletingBotId === bot.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex min-h-32 items-center justify-center rounded-lg border border-dashed border-zinc-800 bg-black/25 text-sm text-zinc-500">
+              Nenhum bot conectado.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {selectedBot ? (
-        <Card>
+        <Card id="dev-bot-module-settings">
           <CardHeader>
-            <CardTitle>O que o usuario pode ver</CardTitle>
-            <CardDescription>Ative ou desative as abas e sistemas visiveis somente para o bot selecionado.</CardDescription>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Configuracoes de {selectedBot.name}</CardTitle>
+                <CardDescription>Modulos visiveis na dashboard deste bot.</CardDescription>
+              </div>
+              <Badge variant="muted">{selectedBot.enabledModules.length}/{modules.length} ativos</Badge>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-col gap-4 rounded-lg border border-zinc-900 bg-zinc-950/70 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-center gap-3">
-                <Avatar className="h-12 w-12 rounded-full border border-purple-500/40" fallback={selectedBot.name} src={selectedBot.avatarUrl} />
-                <div className="min-w-0">
-                  <p className="text-xs text-zinc-500">Configurando dashboard do bot</p>
-                  <p className="truncate text-sm font-semibold text-white">{selectedBot.name}</p>
-                  <p className="truncate text-xs text-zinc-600">{selectedBot.mainGuildName || guildNameById.get(selectedBot.mainGuildId)}</p>
-                </div>
-              </div>
-              <Badge variant="muted">{selectedBot.enabledModules.length}/{modules.length} visiveis</Badge>
-            </div>
-            <div className="rounded-lg border border-purple-500/20 bg-purple-500/[0.06] p-4">
-              <div className="mb-3">
-                <p className="text-sm font-semibold text-white">Dar acesso para usuario</p>
-                <p className="mt-1 text-xs leading-5 text-zinc-500">
-                  Informe o Discord ID do Ricardinho ou do usuario que podera abrir este bot na dashboard.
-                  Ele vera somente os modulos ativados abaixo.
-                </p>
-              </div>
-              <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
-                <DevInput
-                  label="Nome do usuario"
-                  value={accessForm.ownerName}
-                  onChange={(value) => setAccessForm((current) => ({ ...current, ownerName: value }))}
-                />
-                <DevInput
-                  label="Discord ID do usuario"
-                  value={accessForm.ownerId}
-                  onChange={(value) => setAccessForm((current) => ({ ...current, ownerId: value.replace(/\D/g, "") }))}
-                />
-                <Button disabled={savingAccess || !/^\d{5,32}$/.test(accessForm.ownerId)} onClick={handleSaveAccess}>
-                  {savingAccess ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-                  Salvar acesso
-                </Button>
+            <div className="flex items-center gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] p-4">
+              <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-400" />
+              <div>
+                <p className="text-sm font-medium text-zinc-100">Acesso protegido</p>
+                <p className="text-xs text-zinc-500">Login Discord e cargo autorizado para este bot.</p>
               </div>
             </div>
             <ModuleSwitchGrid
@@ -618,111 +459,107 @@ export function DevPanel({
   );
 }
 
-function GuildDetectionCard({
-  detecting,
-  error,
-  guild
+function ConnectedBotPanel({
+  bot,
+  deleting,
+  guildName,
+  onDelete,
+  onOpenDashboard,
+  onOpenLogs,
+  onOpenSettings,
+  onRestart,
+  restarting
 }: {
-  detecting: boolean;
-  error: string | null;
-  guild: DetectedDiscordGuild | null;
+  bot: DevBot;
+  deleting: boolean;
+  guildName: string;
+  onDelete: () => void;
+  onOpenDashboard: () => void;
+  onOpenLogs: () => void;
+  onOpenSettings: () => void;
+  onRestart: () => void;
+  restarting: boolean;
 }) {
-  if (detecting) {
-    return (
-      <div className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-950/70 p-4 text-sm text-zinc-400">
-        <Loader2 className="h-5 w-5 animate-spin" />
-        Detectando dados do servidor no Discord...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
-        {error}
-      </div>
-    );
-  }
-
-  if (!guild) {
-    return (
-      <div className="rounded-lg border border-dashed border-zinc-800 bg-zinc-950/50 p-4 text-sm text-zinc-500">
-        Informe o token e o ID do servidor. O painel detectara os dados automaticamente.
-      </div>
-    );
-  }
-
   return (
-    <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <Avatar className="h-12 w-12 rounded-lg border border-emerald-500/30" fallback={guild.name} src={guild.iconUrl} />
-          <div className="min-w-0">
-            <p className="flex items-center gap-2 text-sm font-semibold text-white">
-              <Server className="h-4 w-4 text-emerald-300" />
-              <span className="truncate">{guild.name}</span>
-            </p>
-            <p className="truncate font-mono text-xs text-zinc-500">{guild.id}</p>
+    <Card className="overflow-hidden border-zinc-800 bg-zinc-950/75 backdrop-blur-xl">
+      <div className="h-20 border-b border-[#5865f2]/25 bg-[linear-gradient(135deg,rgba(88,101,242,0.32),rgba(16,185,129,0.08),rgba(9,9,11,0.15))]" />
+      <CardContent className="-mt-8 space-y-5 p-5 pt-0">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex min-w-0 items-end gap-3">
+            <Avatar
+              className="h-16 w-16 rounded-full border-4 border-zinc-950 bg-zinc-900"
+              fallback={bot.name}
+              src={bot.avatarUrl}
+            />
+            <div className="min-w-0 pb-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="truncate text-lg font-semibold text-white">{bot.name}</h3>
+                <StatusBadge status={bot.status} />
+              </div>
+              <p className="truncate text-sm text-zinc-500">{guildName}</p>
+            </div>
           </div>
+          <Badge variant="muted">{bot.guildIds.length} servidor{bot.guildIds.length === 1 ? "" : "es"}</Badge>
         </div>
-        <div className="flex flex-wrap gap-2 text-xs text-zinc-300">
-          <span className="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-black/30 px-2.5 py-1.5">
-            <Users className="h-3.5 w-3.5" />
-            {guild.memberCount} membros
-          </span>
-          <span className="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-black/30 px-2.5 py-1.5">
-            <LayoutGrid className="h-3.5 w-3.5" />
-            {guild.channelCount} canais
-          </span>
+
+        <div className="grid gap-px overflow-hidden rounded-lg border border-zinc-800 bg-zinc-800 sm:grid-cols-2">
+          <BotDetail icon={Hash} label="Client / Application ID" value={bot.clientId} />
+          <BotDetail icon={CalendarDays} label="Criado em" value={bot.botCreatedAt ? formatDate(bot.botCreatedAt) : "Nao informado"} />
+          <BotDetail icon={Server} label="Servidor" value={guildName} />
+          <BotDetail icon={Users} label="Membros" value={bot.mainGuildMemberCount.toLocaleString("pt-BR")} />
         </div>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2 text-xs">
-        <span className="rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-emerald-200">
-          Bot confirmado no servidor
-        </span>
-        <span className="rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-emerald-200">
-          Administrador confirmado
-        </span>
-      </div>
+
+        <div className="flex flex-wrap gap-2 border-t border-zinc-900 pt-4">
+          <Button onClick={onOpenDashboard} size="sm">
+            <LayoutDashboard className="h-4 w-4" />
+            Dashboard
+          </Button>
+          <Button onClick={onOpenSettings} size="sm" variant="outline">
+            <Settings className="h-4 w-4" />
+            Configuracoes
+          </Button>
+          <Button onClick={onOpenLogs} size="sm" variant="outline">
+            <ScrollText className="h-4 w-4" />
+            Logs
+          </Button>
+          <Button disabled={restarting} onClick={onRestart} size="icon" title="Reiniciar bot" variant="outline">
+            {restarting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
+          </Button>
+          <Button disabled={deleting} onClick={onDelete} size="icon" title="Desconectar bot" variant="destructive">
+            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unplug className="h-4 w-4" />}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function BotDetail({
+  icon: Icon,
+  label,
+  value
+}: {
+  icon: typeof Hash;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="min-w-0 bg-zinc-950 p-3">
+      <p className="flex items-center gap-2 text-xs text-zinc-500">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </p>
+      <p className="mt-1 truncate text-sm font-medium text-zinc-100" title={value}>{value}</p>
     </div>
   );
 }
 
-function BotConnectionPreview({
-  avatarUrl,
-  createdAt,
-  name,
-  testResult
-}: {
-  avatarUrl: string | null;
-  createdAt: string | null;
-  name: string;
-  testResult: BotConnectionTest | null;
-}) {
-  if (!testResult && !name && !avatarUrl) {
-    return (
-      <div className="rounded-lg border border-dashed border-zinc-800 bg-zinc-950/50 p-4 text-sm text-zinc-500">
-        Teste o token para carregar nome, avatar, ID e data de criacao do bot automaticamente.
-      </div>
-    );
-  }
-
+function AutomaticField({ label }: { label: string }) {
   return (
-    <div className="rounded-lg border border-zinc-900 bg-zinc-950/70 p-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <Avatar className="h-12 w-12 rounded-full border border-purple-500/35" fallback={name || "Bot"} src={avatarUrl} />
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">{name || testResult?.username || "Bot detectado"}</p>
-            <p className="truncate font-mono text-xs text-zinc-500">{testResult?.botId ?? testResult?.clientId ?? "ID ainda nao validado"}</p>
-            <p className="truncate text-xs text-zinc-600">
-              Criado em {createdAt ? formatDate(createdAt) : "data nao detectada"}
-            </p>
-          </div>
-        </div>
-        {testResult ? <StatusBadge status={testResult.status} /> : null}
-      </div>
-    </div>
+    <span className="flex items-center gap-2">
+      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+      {label}
+    </span>
   );
 }
 
@@ -742,11 +579,35 @@ function DevStatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DevInput({ label, onChange, type = "text", value }: { label: string; onChange: (value: string) => void; type?: string; value: string }) {
+function DevInput({
+  autoComplete,
+  inputMode,
+  label,
+  onChange,
+  placeholder,
+  type = "text",
+  value
+}: {
+  autoComplete?: string;
+  inputMode?: "numeric";
+  label: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: string;
+  value: string;
+}) {
   return (
-    <label className="space-y-1.5">
-      <span className="text-xs font-medium text-zinc-500">{label}</span>
-      <input className="social-input" onChange={(event) => onChange(event.target.value)} type={type} value={value} />
+    <label className="block space-y-2">
+      <span className="text-sm font-medium text-zinc-200">{label}</span>
+      <input
+        autoComplete={autoComplete}
+        className="social-input h-12"
+        inputMode={inputMode}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        type={type}
+        value={value}
+      />
     </label>
   );
 }
@@ -784,9 +645,20 @@ function StatusBadge({ status }: { status: DevBotStatus }) {
 
   return (
     <Badge variant={connected ? "success" : status === "invalid_token" || status === "error" ? "danger" : "muted"}>
-      {connected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
+      {connected ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> : <Circle className="h-3.5 w-3.5" />}
       {statusLabel(status)}
     </Badge>
+  );
+}
+
+function StatusDot({ status }: { status: DevBotStatus }) {
+  return (
+    <span
+      className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+        status === "online" ? "bg-emerald-400" : status === "offline" ? "bg-zinc-500" : "bg-red-400"
+      }`}
+      title={statusLabel(status)}
+    />
   );
 }
 
@@ -799,10 +671,6 @@ function statusLabel(status: DevBotStatus) {
   };
 
   return labels[status];
-}
-
-function statusTextClass(status: DevBotStatus) {
-  return status === "online" ? "text-emerald-300" : status === "offline" ? "text-zinc-300" : "text-red-300";
 }
 
 function readRequestMessage(error: unknown) {

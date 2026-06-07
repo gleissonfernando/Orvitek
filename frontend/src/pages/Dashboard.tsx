@@ -727,6 +727,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
             }}
             onBotDeleted={removeDashboardBot}
             onBotUpdated={upsertDashboardBot}
+            onOpenView={setActiveView}
             onSelectBot={handleSelectBot}
             selectedBotId={activeBotId}
             selectedGuildId={selectedGuild?.id ?? null}

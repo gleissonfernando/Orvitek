@@ -31,19 +31,20 @@ import type { DashboardAuth } from "../services/tokenService";
 const moduleIds = DEV_MODULES.map((module) => module.id) as [string, ...string[]];
 
 const createBotSchema = z.object({
-  name: z.string().min(2).max(80).optional().or(z.literal("")),
-  clientId: z.string().regex(/^\d{5,32}$/),
   token: z.string().min(10),
+  mainGuildId: z.string().regex(/^\d{5,32}$/)
+});
+
+const updateBotSchema = z.object({
+  name: z.string().min(2).max(80).optional().or(z.literal("")),
+  clientId: z.string().regex(/^\d{5,32}$/).optional(),
+  token: z.string().min(10).optional(),
   secret: z.string().max(256).nullable().optional(),
   avatarUrl: z.string().url().max(2048).nullable().optional().or(z.literal("")),
   ownerName: z.string().min(2).max(80).optional(),
   ownerId: z.string().regex(/^\d{5,32}$/).optional(),
-  mainGuildId: z.string().regex(/^\d{5,32}$/),
-  enabledModules: z.array(z.enum(moduleIds)).default([])
-});
-
-const updateBotSchema = createBotSchema.partial().extend({
-  token: z.string().min(10).optional()
+  mainGuildId: z.string().regex(/^\d{5,32}$/).optional(),
+  enabledModules: z.array(z.enum(moduleIds)).optional()
 });
 
 const modulesSchema = z.object({
@@ -131,12 +132,10 @@ devRouter.post("/bots/create", async (req, res, next) => {
     const auth = res.locals.dashboardAuth as DashboardAuth;
 
     const createdBot = await createDevBot({
-      ...input,
-      name: input.name || null,
-      avatarUrl: input.avatarUrl || null,
-      secret: input.secret || null,
-      ownerName: input.ownerName || auth.user.globalName || auth.user.username,
-      ownerId: input.ownerId || auth.user.discordId,
+      token: input.token,
+      mainGuildId: input.mainGuildId,
+      ownerName: auth.user.globalName || auth.user.username,
+      ownerId: auth.user.discordId,
       createdBy: auth.user.discordId
     });
     await startDevBotProcess(createdBot.id);

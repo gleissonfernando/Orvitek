@@ -123,20 +123,24 @@ export type DevBotRuntimeConfig = {
 };
 
 type CreateDevBotInput = {
-  name?: string | null;
-  clientId: string;
   token: string;
-  secret?: string | null;
-  avatarUrl?: string | null;
   ownerName: string;
   ownerId: string;
   mainGuildId: string;
-  enabledModules: string[];
+  enabledModules?: string[];
   createdBy: string;
 };
 
-type UpdateDevBotInput = Partial<Omit<CreateDevBotInput, "createdBy" | "token">> & {
+type UpdateDevBotInput = {
+  name?: string | null;
+  clientId?: string;
   token?: string;
+  secret?: string | null;
+  avatarUrl?: string | null;
+  ownerName?: string;
+  ownerId?: string;
+  mainGuildId?: string;
+  enabledModules?: string[];
 };
 
 type RegisterPrimaryDevBotInput = {
@@ -326,18 +330,11 @@ export async function canUseDevBotModule(
 export async function createDevBot(input: CreateDevBotInput) {
   const { botGuildConfigs, devBots, guilds } = await getMongoCollections();
   const now = new Date();
-  const [connection, detectedGuild] = await Promise.all([
-    testDiscordBotToken(input.token, input.clientId),
-    fetchDiscordBotGuild(input.token, input.mainGuildId)
-  ]);
-
-  if (connection.status !== "online") {
-    throw createDevBotError(connection.message, 400);
-  }
-
+  const detectedGuild = await fetchDiscordBotGuild(input.token, input.mainGuildId);
+  const clientId = detectedGuild.botId;
   const existingBot = await devBots.findOne(
     {
-      clientId: input.clientId
+      clientId
     },
     {
       projection: {
@@ -352,13 +349,13 @@ export async function createDevBot(input: CreateDevBotInput) {
 
   const bot: MongoDevBot = {
     _id: randomUUID(),
-    name: input.name?.trim() || connection.username || `Bot ${input.clientId}`,
-    clientId: input.clientId,
+    name: detectedGuild.botName || `Bot ${clientId}`,
+    clientId,
     tokenEncrypted: encryptSecret(input.token),
     tokenLast4: tokenLast4(input.token),
-    secretEncrypted: input.secret ? encryptSecret(input.secret) : null,
-    avatarUrl: input.avatarUrl || connection.avatarUrl,
-    botCreatedAt: connection.createdAt ? new Date(connection.createdAt) : null,
+    secretEncrypted: null,
+    avatarUrl: detectedGuild.botAvatarUrl,
+    botCreatedAt: detectedGuild.botCreatedAt ? new Date(detectedGuild.botCreatedAt) : null,
     ownerId: input.ownerId,
     ownerName: input.ownerName,
     mainGuildId: input.mainGuildId,
@@ -366,9 +363,9 @@ export async function createDevBot(input: CreateDevBotInput) {
     mainGuildIconUrl: detectedGuild.iconUrl,
     mainGuildMemberCount: detectedGuild.memberCount,
     mainGuildChannelCount: detectedGuild.channelCount,
-    status: connection.status === "online" ? "offline" : connection.status,
-    statusMessage: connection.status === "online" ? "Token validado. Aguardando inicializacao." : connection.message,
-    enabledModules: sanitizeModules(input.enabledModules),
+    status: "offline",
+    statusMessage: "Token validado. Aguardando inicializacao.",
+    enabledModules: sanitizeModules(input.enabledModules ?? DEV_MODULES.map((module) => module.id)),
     createdBy: input.createdBy,
     createdAt: now,
     updatedAt: now
@@ -444,10 +441,7 @@ export async function registerPrimaryDevBot(input: RegisterPrimaryDevBotInput): 
 
   if (!existingBotId) {
     const bot = await createDevBot({
-      name: input.name || connection.username || null,
-      clientId: connection.clientId,
       token,
-      avatarUrl: connection.avatarUrl,
       ownerName: input.ownerName,
       ownerId: input.ownerId,
       mainGuildId: input.mainGuildId,

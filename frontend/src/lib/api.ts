@@ -3,20 +3,17 @@ import type { InternalAxiosRequestConfig } from "axios";
 import type {
   AccessValidationResult,
   AuthResponse,
-  BotConnectionTest,
   ClipSent,
   ClipsConfig,
   CreateTwitchNotificationPayload,
   CreateDevBotPayload,
   DashboardMeResponse,
-  DetectedDiscordGuild,
   DevBot,
   DevModuleDefinition,
   GuildLiveOptions,
   GuildSettings,
   LiveEvent,
   LogEntry,
-  RegisterPrimaryDevBotPayload,
   SaveClipsConfigPayload,
   SocialNotification,
   Ticket,
@@ -377,37 +374,6 @@ export async function createDevBot(payload: CreateDevBotPayload) {
     timeout: 16000
   });
   return data.bot;
-}
-
-export async function registerPrimaryDevBot(payload: RegisterPrimaryDevBotPayload) {
-  const { data } = await api.post<{ bot: DevBot; created: boolean }>("/dev/bots/register-primary", payload, {
-    timeout: 16000
-  });
-  return data;
-}
-
-export async function updateDevBotAccess(botId: string, payload: { ownerName?: string; ownerId?: string }) {
-  const { data } = await api.patch<{ bot: DevBot }>(`/dev/bots/${botId}`, payload, {
-    timeout: 16000
-  });
-  return data.bot;
-}
-
-export async function testDevBotConnection(token: string, clientId?: string) {
-  const { data } = await api.post<BotConnectionTest>("/dev/bots/test-connection", { token, clientId: clientId || undefined }, {
-    timeout: 16000
-  });
-  return data;
-}
-
-export async function detectDevBotGuild(token: string, guildId: string) {
-  const { data } = await api.post<{ guild: DetectedDiscordGuild }>("/dev/bots/detect-guild", {
-    token,
-    guildId
-  }, {
-    timeout: 16000
-  });
-  return data.guild;
 }
 
 export async function updateDevBotModules(botId: string, enabledModules: string[]) {

@@ -352,46 +352,6 @@ export type DevBot = {
 };
 
 export type CreateDevBotPayload = {
-  name?: string | null;
-  clientId: string;
   token: string;
-  avatarUrl?: string | null;
-  secret?: string | null;
-  ownerName?: string;
-  ownerId?: string;
   mainGuildId: string;
-  enabledModules: string[];
-};
-
-export type RegisterPrimaryDevBotPayload = {
-  name?: string | null;
-  ownerName?: string;
-  ownerId?: string;
-  mainGuildId: string;
-  enabledModules: string[];
-};
-
-export type BotConnectionTest = {
-  status: DevBotStatus;
-  message: string;
-  avatarUrl: string | null;
-  clientId: string | null;
-  botId: string | null;
-  username: string | null;
-  createdAt: string | null;
-};
-
-export type DetectedDiscordGuild = {
-  id: string;
-  name: string;
-  iconUrl: string | null;
-  ownerId: string;
-  memberCount: number;
-  onlineCount: number;
-  channelCount: number;
-  botId: string;
-  botName: string;
-  botAvatarUrl: string | null;
-  botCreatedAt: string | null;
-  hasAdministrator: boolean;
 };
