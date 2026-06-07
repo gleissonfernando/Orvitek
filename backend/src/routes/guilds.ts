@@ -2,7 +2,7 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { canManageDashboardGuild } from "../services/dashboardGuildAccessService";
 import { canManageDevBotGuild, getDevBotToken } from "../services/devBotService";
-import { getGuildLiveOptions, getGuildRoleOptions } from "../services/discordOptionsService";
+import { getGuildLiveOptions, getGuildMemberOptions, getGuildRoleOptions } from "../services/discordOptionsService";
 import { getBotStatus } from "../services/statsService";
 
 export const guildsRouter = Router();
@@ -100,6 +100,41 @@ guildsRouter.get("/:guildId/role-options", async (req, res, next) => {
 
     return res.json({
       roles: await getGuildRoleOptions(guildId, await getDevBotToken(botId))
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+guildsRouter.get("/:guildId/member-options", async (req, res, next) => {
+  try {
+    const guildId = req.params.guildId;
+    const botId = typeof req.query.botId === "string" && req.query.botId.trim() ? req.query.botId.trim() : null;
+    const query = typeof req.query.query === "string" ? req.query.query.trim() : "";
+
+    if (!guildId) {
+      return res.status(400).json({
+        message: "Servidor obrigatorio."
+      });
+    }
+
+    if (query.length < 2) {
+      return res.json({
+        members: []
+      });
+    }
+
+    if (
+      !canManageDashboardGuild(res.locals.dashboardAuth.user, guildId) &&
+      !(await canManageDevBotGuild(res.locals.dashboardAuth.user, botId, guildId))
+    ) {
+      return res.status(403).json({
+        message: "Voce nao tem permissao para selecionar usuarios deste servidor."
+      });
+    }
+
+    return res.json({
+      members: await getGuildMemberOptions(guildId, query, await getDevBotToken(botId))
     });
   } catch (error) {
     return next(error);

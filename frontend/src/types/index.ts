@@ -190,6 +190,16 @@ export type GuildRoleOption = {
   managed: boolean;
 };
 
+export type GuildMemberOption = {
+  avatarUrl: string | null;
+  bot: boolean;
+  displayName: string;
+  globalName: string | null;
+  id: string;
+  tag: string;
+  username: string;
+};
+
 export type GuildLiveOptions = {
   channels: GuildChannelOption[];
   roles: GuildRoleOption[];

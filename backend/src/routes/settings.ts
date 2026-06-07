@@ -10,6 +10,7 @@ import { resolveRequestBotId } from "../services/requestBotScopeService";
 import { getGuildSettings, MAX_AUTOMATIC_ROLES, updateGuildSettings } from "../services/settingsService";
 import { saveLeaveImage, saveWelcomeImage, sendLeavePanelToDiscord, sendWelcomePanelToDiscord } from "../services/welcomePanelService";
 import {
+  areGuildMembers,
   areGuildAssignableRoles,
   areGuildRoles,
   isGuildCategoryChannel,
@@ -458,6 +459,15 @@ async function validateGuildResources(
     && !(await areGuildAssignableRoles(guildId, [...new Set(input.autoRoleIds)], botToken))
   ) {
     throw createSettingsError("O cargo automatico precisa ficar abaixo do cargo do bot e o bot precisa da permissao Gerenciar Cargos.");
+  }
+
+  const dashboardUserIds = Object.keys(input.dashboardUserPermissions ?? {});
+
+  if (
+    dashboardUserIds.length
+    && !(await areGuildMembers(guildId, dashboardUserIds, botToken))
+  ) {
+    throw createSettingsError("Uma das pessoas selecionadas nao esta mais neste servidor Discord.");
   }
 }
 

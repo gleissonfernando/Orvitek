@@ -1,4 +1,5 @@
 import { env } from "../config/env";
+import { getDiscordAvatarUrl } from "./discordAssetService";
 
 type DiscordChannel = {
   id: string;
@@ -22,8 +23,20 @@ type DiscordBotUser = {
   id: string;
 };
 
+type DiscordUser = {
+  id: string;
+  username: string;
+  global_name?: string | null;
+  discriminator?: string | null;
+  avatar?: string | null;
+  bot?: boolean;
+};
+
 type DiscordGuildMember = {
+  avatar?: string | null;
+  nick?: string | null;
   roles: string[];
+  user?: DiscordUser;
 };
 
 export type GuildChannelOptionDto = {
@@ -44,6 +57,16 @@ export type GuildRoleOptionDto = {
 export type GuildLiveOptionsDto = {
   channels: GuildChannelOptionDto[];
   roles: GuildRoleOptionDto[];
+};
+
+export type GuildMemberOptionDto = {
+  avatarUrl: string | null;
+  bot: boolean;
+  displayName: string;
+  globalName: string | null;
+  id: string;
+  tag: string;
+  username: string;
 };
 
 const DISCORD_API_URL = "https://discord.com/api/v10";
@@ -115,6 +138,64 @@ export async function getGuildRoleOptions(guildId: string, botToken?: string | n
   ];
 }
 
+export async function getGuildMemberOptions(
+  guildId: string,
+  query: string,
+  botToken?: string | null
+): Promise<GuildMemberOptionDto[]> {
+  const token = botToken || env.DISCORD_BOT_TOKEN;
+  const normalizedQuery = query.trim();
+
+  if (!token || normalizedQuery.length < 2) {
+    return [];
+  }
+
+  const membersById = new Map<string, GuildMemberOptionDto>();
+
+  if (/^\d{5,32}$/.test(normalizedQuery)) {
+    try {
+      const member = await discordFetch<DiscordGuildMember>(`/guilds/${guildId}/members/${normalizedQuery}`, token);
+      const option = toGuildMemberOption(member, guildId);
+
+      if (option) {
+        membersById.set(option.id, option);
+      }
+    } catch {
+      // The search below may still find a member by username.
+    }
+  }
+
+  try {
+    const searchParams = new URLSearchParams({
+      limit: "12",
+      query: normalizedQuery
+    });
+    const members = await discordFetch<DiscordGuildMember[]>(
+      `/guilds/${guildId}/members/search?${searchParams.toString()}`,
+      token
+    );
+
+    for (const member of members) {
+      const option = toGuildMemberOption(member, guildId);
+
+      if (option) {
+        membersById.set(option.id, option);
+      }
+    }
+  } catch (error) {
+    if (!membersById.size) {
+      throw Object.assign(new Error("Nao foi possivel buscar membros neste servidor pelo Discord."), {
+        cause: error,
+        statusCode: 502
+      });
+    }
+  }
+
+  return [...membersById.values()]
+    .filter((member) => !member.bot)
+    .slice(0, 12);
+}
+
 export async function isGuildTextChannel(guildId: string, channelId: string, botToken?: string | null) {
   return isGuildChannelType(guildId, channelId, TEXT_CHANNEL_TYPES, botToken);
 }
@@ -156,6 +237,35 @@ export async function areGuildAssignableRoles(guildId: string, roleIds: string[]
     );
 
     return roleIds.every((roleId) => assignableRoleIds.has(roleId));
+  } catch {
+    return false;
+  }
+}
+
+export async function areGuildMembers(guildId: string, userIds: string[], botToken?: string | null) {
+  const normalizedUserIds = [...new Set(userIds.map((userId) => userId.trim()).filter(Boolean))];
+
+  if (!normalizedUserIds.length) {
+    return true;
+  }
+
+  const checks = await Promise.all(
+    normalizedUserIds.map((userId) => isGuildMember(guildId, userId, botToken))
+  );
+
+  return checks.every(Boolean);
+}
+
+export async function isGuildMember(guildId: string, userId: string, botToken?: string | null) {
+  const token = botToken || env.DISCORD_BOT_TOKEN;
+
+  if (!token || !/^\d{5,32}$/.test(userId.trim())) {
+    return false;
+  }
+
+  try {
+    await discordFetch<DiscordGuildMember>(`/guilds/${guildId}/members/${userId.trim()}`, token);
+    return true;
   } catch {
     return false;
   }
@@ -214,6 +324,38 @@ function parsePermissions(value: string) {
   } catch {
     return 0n;
   }
+}
+
+function toGuildMemberOption(member: DiscordGuildMember, guildId: string): GuildMemberOptionDto | null {
+  const user = member.user;
+
+  if (!user) {
+    return null;
+  }
+
+  const displayName = member.nick?.trim() || user.global_name?.trim() || user.username;
+  const tag = user.discriminator && user.discriminator !== "0"
+    ? `${user.username}#${user.discriminator}`
+    : `@${user.username}`;
+
+  return {
+    avatarUrl: getMemberAvatarUrl(guildId, user.id, member.avatar) ?? getDiscordAvatarUrl(user.id, user.avatar),
+    bot: user.bot === true,
+    displayName,
+    globalName: user.global_name ?? null,
+    id: user.id,
+    tag,
+    username: user.username
+  };
+}
+
+function getMemberAvatarUrl(guildId: string, userId: string, avatar: string | null | undefined) {
+  if (!avatar) {
+    return null;
+  }
+
+  const extension = avatar.startsWith("a_") ? "gif" : "png";
+  return `https://cdn.discordapp.com/guilds/${guildId}/users/${userId}/avatars/${avatar}.${extension}?size=128`;
 }
 
 async function discordFetch<TResponse>(path: string, token: string) {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Check, Crown, Loader2, Plus, ShieldCheck, Sparkles, Trash2, UserCheck, UserCog } from "lucide-react";
-import { checkSiteAccess, getGuildRoleOptions, patchGuildSettings } from "../../lib/api";
-import type { AccessValidationResult, DashboardAccessLevel, DashboardGuild, GuildRoleOption, GuildSettings } from "../../types";
+import { Check, Crown, Loader2, Plus, Search, ShieldCheck, Sparkles, Trash2, UserCheck, UserCog } from "lucide-react";
+import { checkSiteAccess, getGuildMemberOptions, getGuildRoleOptions, patchGuildSettings } from "../../lib/api";
+import type { AccessValidationResult, DashboardAccessLevel, DashboardGuild, GuildMemberOption, GuildRoleOption, GuildSettings } from "../../types";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
@@ -32,6 +32,8 @@ export function SiteAccessPanel({
   const [testing, setTesting] = useState(false);
   const [validation, setValidation] = useState<AccessValidationResult | null>(null);
   const [directUserId, setDirectUserId] = useState("");
+  const [memberOptions, setMemberOptions] = useState<GuildMemberOption[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const selectedRoleIds = settings ? selectedVerificationRoleIds(settings) : [];
@@ -42,6 +44,8 @@ export function SiteAccessPanel({
   useEffect(() => {
     if (!guild || !canManage) {
       setRoles([]);
+      setMemberOptions([]);
+      setDirectUserId("");
       setError(null);
       return;
     }
@@ -74,7 +78,7 @@ export function SiteAccessPanel({
       onSettingsChange(nextSettings);
       setStatus(successText);
     } catch (requestError) {
-      setError(readErrorMessage(requestError, "Nao foi possivel salvar o cargo de acesso."));
+      setError(readErrorMessage(requestError, "Nao foi possivel salvar a liberacao de acesso."));
     } finally {
       setSaving(false);
     }
@@ -136,8 +140,8 @@ export function SiteAccessPanel({
     );
   }
 
-  function handleDirectUserAdd() {
-    const userId = directUserId.trim();
+  function handleDirectUserAdd(userIdInput = directUserId) {
+    const userId = userIdInput.trim();
 
     if (!/^\d{5,32}$/.test(userId)) {
       setStatus(null);
@@ -156,6 +160,42 @@ export function SiteAccessPanel({
       "Pessoa liberada para acessar o painel."
     );
     setDirectUserId("");
+    setMemberOptions([]);
+  }
+
+  async function handleMemberSearch() {
+    if (!guild) {
+      return;
+    }
+
+    const query = directUserId.trim();
+
+    if (query.length < 2) {
+      setStatus(null);
+      setError("Digite pelo menos 2 caracteres do nome ou cole o ID Discord.");
+      return;
+    }
+
+    setLoadingMembers(true);
+    setStatus(null);
+    setError(null);
+    setMemberOptions([]);
+
+    try {
+      const members = await getGuildMemberOptions(guild.id, query, botId);
+      const availableMembers = members.filter((member) => !selectedUserIds.includes(member.id));
+      setMemberOptions(availableMembers);
+
+      if (!members.length) {
+        setStatus("Nenhum membro encontrado neste servidor.");
+      } else if (!availableMembers.length) {
+        setStatus("Os membros encontrados ja estao liberados.");
+      }
+    } catch (requestError) {
+      setError(readErrorMessage(requestError, "Nao foi possivel buscar membros no Discord."));
+    } finally {
+      setLoadingMembers(false);
+    }
   }
 
   function handleDirectUserRemove(userId: string) {
@@ -316,17 +356,51 @@ export function SiteAccessPanel({
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
               className="min-h-10 flex-1 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-zinc-600"
-              disabled={disabled}
-              inputMode="numeric"
+              disabled={disabled || loadingMembers}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void handleMemberSearch();
+                }
+              }}
               onChange={(event) => setDirectUserId(event.target.value)}
-              placeholder="ID Discord da pessoa"
+              placeholder="Buscar membro por nome ou ID"
               value={directUserId}
             />
-            <Button disabled={disabled || !directUserId.trim()} onClick={handleDirectUserAdd} type="button" variant="outline">
+            <Button disabled={disabled || loadingMembers || directUserId.trim().length < 2} onClick={() => void handleMemberSearch()} type="button" variant="outline">
+              {loadingMembers ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              Buscar
+            </Button>
+            <Button disabled={disabled || loadingMembers || !/^\d{5,32}$/.test(directUserId.trim())} onClick={() => handleDirectUserAdd()} type="button" variant="outline">
               <Plus className="h-4 w-4" />
-              Adicionar
+              Adicionar ID
             </Button>
           </div>
+
+          {memberOptions.length ? (
+            <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+              {memberOptions.map((member) => (
+                <button
+                  className="flex w-full min-w-0 items-center gap-3 rounded-lg border border-zinc-900 bg-black px-3 py-2 text-left transition hover:border-emerald-400/50 hover:bg-emerald-400/5"
+                  disabled={disabled}
+                  key={member.id}
+                  onClick={() => handleDirectUserAdd(member.id)}
+                  type="button"
+                >
+                  <img
+                    alt=""
+                    className="h-9 w-9 shrink-0 rounded-full border border-zinc-800 bg-zinc-950 object-cover"
+                    src={member.avatarUrl ?? "/uploads/welcome/default.gif?v=3"}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-zinc-100">{member.displayName}</span>
+                    <span className="block truncate text-xs text-zinc-500">{member.tag} - {member.id}</span>
+                  </span>
+                  <Plus className="h-4 w-4 shrink-0 text-emerald-300" />
+                </button>
+              ))}
+            </div>
+          ) : null}
 
           <div className="space-y-2">
             {selectedUserIds.length ? (
