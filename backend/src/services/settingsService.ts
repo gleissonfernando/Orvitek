@@ -27,6 +27,13 @@ export type GuildSettingsDto = {
   verificationRoleIds: string[];
 };
 
+export type PersistedDashboardAccess = {
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  roleIds: string[];
+};
+
 const memorySettings = new Map<string, GuildSettingsDto>();
 const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=3";
 export const DEFAULT_WELCOME_MESSAGE = [
@@ -84,6 +91,53 @@ export async function getGuildSettings(guildId: string, botId?: string | null) {
   }
 
   return memorySettings.get(settingsKey(guildId, normalizedBotId)) ?? defaultSettings(guildId, normalizedBotId);
+}
+
+export async function getPersistedDashboardAccess(
+  guildId: string,
+  botId: string
+): Promise<PersistedDashboardAccess | null> {
+  const normalizedBotId = normalizeBotId(botId);
+
+  if (!normalizedBotId) {
+    return null;
+  }
+
+  const { guildSettings } = await getMongoCollections();
+  const settings = await guildSettings.findOne(
+    {
+      botId: normalizedBotId,
+      guildId
+    },
+    {
+      projection: {
+        botId: 1,
+        guildId: 1,
+        verificationEnabled: 1,
+        verificationRoleId: 1,
+        verificationRoleIds: 1
+      }
+    }
+  );
+
+  if (!settings) {
+    return null;
+  }
+
+  const roleIds = normalizeRoleIds(
+    Array.isArray(settings.verificationRoleIds) && settings.verificationRoleIds.length
+      ? settings.verificationRoleIds
+      : settings.verificationRoleId
+        ? [settings.verificationRoleId]
+        : []
+  );
+
+  return {
+    botId: normalizedBotId,
+    guildId,
+    enabled: settings.verificationEnabled === true,
+    roleIds
+  };
 }
 
 export async function updateGuildSettings(guildId: string, input: Partial<GuildSettingsDto>, botId?: string | null) {
