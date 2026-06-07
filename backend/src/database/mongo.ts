@@ -110,8 +110,10 @@ export type MongoDevBot = {
   name: string;
   clientId: string;
   tokenEncrypted: string;
+  tokenLast4?: string | null;
   secretEncrypted: string | null;
   avatarUrl: string | null;
+  botCreatedAt?: Date | null;
   ownerId: string;
   ownerName: string;
   mainGuildId: string;

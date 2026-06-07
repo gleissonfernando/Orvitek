@@ -23,18 +23,19 @@ import {
   startDevBotProcess,
   stopDevBotProcess
 } from "../services/devBotRuntimeService";
+import { createLog } from "../services/logService";
 import type { DashboardAuth } from "../services/tokenService";
 
 const moduleIds = DEV_MODULES.map((module) => module.id) as [string, ...string[]];
 
 const createBotSchema = z.object({
-  name: z.string().min(2).max(80),
+  name: z.string().min(2).max(80).optional().or(z.literal("")),
   clientId: z.string().regex(/^\d{5,32}$/),
   token: z.string().min(10),
   secret: z.string().max(256).nullable().optional(),
   avatarUrl: z.string().url().max(2048).nullable().optional().or(z.literal("")),
-  ownerName: z.string().min(2).max(80),
-  ownerId: z.string().regex(/^\d{5,32}$/),
+  ownerName: z.string().min(2).max(80).optional(),
+  ownerId: z.string().regex(/^\d{5,32}$/).optional(),
   mainGuildId: z.string().regex(/^\d{5,32}$/),
   enabledModules: z.array(z.enum(moduleIds)).default([])
 });
@@ -109,12 +110,19 @@ devRouter.post("/bots/create", async (req, res, next) => {
 
     const createdBot = await createDevBot({
       ...input,
+      name: input.name || null,
       avatarUrl: input.avatarUrl || null,
       secret: input.secret || null,
+      ownerName: auth.user.globalName ?? auth.user.username,
+      ownerId: auth.user.discordId,
       createdBy: auth.user.discordId
     });
     await startDevBotProcess(createdBot.id);
     const bot = await getDevBot(createdBot.id) ?? createdBot;
+    await writeDevBotAudit(auth, bot.mainGuildId, bot.id, "create", `Bot ${bot.name} conectado ao painel.`, {
+      clientId: bot.clientId,
+      modules: bot.enabledModules
+    });
 
     return res.status(201).json({
       bot
@@ -175,6 +183,9 @@ devRouter.patch("/bots/:botId", async (req, res, next) => {
 
     await restartDevBotProcess(updatedBot.id);
     const bot = await getDevBot(updatedBot.id) ?? updatedBot;
+    await writeDevBotAudit(auth, bot.mainGuildId, bot.id, "update", `Bot ${bot.name} atualizado no painel.`, {
+      clientId: bot.clientId
+    });
 
     return res.json({
       bot
@@ -202,6 +213,9 @@ devRouter.delete("/bots/:botId", async (req, res, next) => {
         message: "Bot nao encontrado."
       });
     }
+    await writeDevBotAudit(auth, bot.mainGuildId, bot.id, "delete", `Bot ${bot.name} removido do painel.`, {
+      clientId: bot.clientId
+    });
 
     return res.json({
       bot
@@ -237,6 +251,9 @@ devRouter.post("/bots/:botId/restart", async (req, res, next) => {
 
     await restartDevBotProcess(req.params.botId);
     const bot = await getDevBot(req.params.botId) ?? validatedBot;
+    await writeDevBotAudit(auth, bot.mainGuildId, bot.id, "restart", `Bot ${bot.name} reiniciado/sincronizado.`, {
+      status: bot.status
+    });
 
     return res.json({
       bot
@@ -293,6 +310,9 @@ devRouter.patch("/bots/:botId/modules", async (req, res, next) => {
 
     await restartDevBotProcess(updatedBot.id);
     const bot = await getDevBot(updatedBot.id) ?? updatedBot;
+    await writeDevBotAudit(auth, bot.mainGuildId, bot.id, "modules", `Modulos do bot ${bot.name} atualizados.`, {
+      enabledModules: bot.enabledModules
+    });
 
     return res.json({
       bot
@@ -375,6 +395,9 @@ devRouter.patch("/bots/:botId/guilds/:guildId/config", async (req, res, next) =>
     });
 
     emitRealtime("dev:config_saved", config);
+    await writeDevBotAudit(auth, req.params.guildId, req.params.botId, "guild_config", "Configuracao do bot salva para o servidor.", {
+      modules: Object.keys(input.modules)
+    });
 
     return res.json({
       config
@@ -383,3 +406,25 @@ devRouter.patch("/bots/:botId/guilds/:guildId/config", async (req, res, next) =>
     return next(error);
   }
 });
+
+async function writeDevBotAudit(
+  auth: DashboardAuth,
+  guildId: string,
+  botId: string,
+  action: string,
+  message: string,
+  metadata: Record<string, unknown> = {}
+) {
+  await createLog({
+    botId,
+    guildId,
+    userId: auth.user.discordId,
+    type: "audit.dev_bot",
+    message,
+    metadata: {
+      module: "dev_bots",
+      action,
+      ...metadata
+    }
+  });
+}

@@ -43,10 +43,7 @@ const emptyForm: CreateDevBotPayload = {
   name: "",
   clientId: "",
   token: "",
-  secret: "",
   avatarUrl: "",
-  ownerName: "",
-  ownerId: "",
   mainGuildId: "",
   enabledModules: ["live"]
 };
@@ -123,11 +120,9 @@ export function DevPanel({
   useEffect(() => {
     setForm((current) => ({
       ...current,
-      ownerName: current.ownerName || user?.globalName || user?.username || "",
-      ownerId: current.ownerId || user?.discordId || "",
       mainGuildId: current.mainGuildId || selectedGuildId || guilds[0]?.id || ""
     }));
-  }, [guilds, selectedGuildId, user]);
+  }, [guilds, selectedGuildId]);
 
   useEffect(() => {
     const token = form.token.trim();
@@ -148,6 +143,12 @@ export function DevPanel({
         .then((guild) => {
           if (!cancelled) {
             setDetectedGuild(guild);
+            setForm((current) => ({
+              ...current,
+              avatarUrl: current.avatarUrl || guild.botAvatarUrl || "",
+              clientId: current.clientId || guild.botId,
+              name: current.name || guild.botName
+            }));
           }
         })
         .catch((error) => {
@@ -197,6 +198,9 @@ export function DevPanel({
       if (result.clientId && !form.clientId) {
         updateForm("clientId", result.clientId);
       }
+      if (result.username && !form.name) {
+        updateForm("name", result.username);
+      }
       if (result.avatarUrl && !form.avatarUrl) {
         updateForm("avatarUrl", result.avatarUrl);
       }
@@ -215,7 +219,7 @@ export function DevPanel({
       const bot = await createDevBot({
         ...form,
         avatarUrl: form.avatarUrl || null,
-        secret: form.secret || null
+        name: form.name || null
       });
       setBots((current) => [bot, ...current]);
       onBotCreated?.(bot);
@@ -307,23 +311,26 @@ export function DevPanel({
         <Card>
           <CardHeader>
             <CardTitle>Gerenciar Bots</CardTitle>
-            <CardDescription>Cadastre o bot, teste o token e defina o dono do painel.</CardDescription>
+            <CardDescription>Bots Devs &gt; Gerenciar Bots. Conecte um bot do Discord ao painel administrativo.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
-              <DevInput label="Nome do bot" value={form.name} onChange={(value) => updateForm("name", value)} />
-              <DevInput label="Client ID" value={form.clientId} onChange={(value) => updateForm("clientId", value)} />
               <DevInput label="Token do bot" type="password" value={form.token} onChange={(value) => updateForm("token", value)} />
-              <DevInput label="Secret" type="password" value={form.secret ?? ""} onChange={(value) => updateForm("secret", value)} />
-              <DevInput label="Avatar URL" value={form.avatarUrl ?? ""} onChange={(value) => updateForm("avatarUrl", value)} />
+              <DevInput label="Client ID / Application ID" value={form.clientId} onChange={(value) => updateForm("clientId", value.replace(/\D/g, ""))} />
               <DevInput
-                label="ID do servidor principal"
+                label="ID do servidor / Guild ID"
                 value={form.mainGuildId}
                 onChange={(value) => updateForm("mainGuildId", value.replace(/\D/g, ""))}
               />
-              <DevInput label="Nome do dono" value={form.ownerName} onChange={(value) => updateForm("ownerName", value)} />
-              <DevInput label="Discord ID do dono" value={form.ownerId} onChange={(value) => updateForm("ownerId", value)} />
+              <DevInput label="Nome do bot (opcional)" value={form.name ?? ""} onChange={(value) => updateForm("name", value)} />
             </div>
+
+            <BotConnectionPreview
+              avatarUrl={form.avatarUrl ?? testResult?.avatarUrl ?? null}
+              createdAt={testResult?.createdAt ?? null}
+              name={form.name ?? testResult?.username ?? ""}
+              testResult={testResult}
+            />
 
             <GuildDetectionCard
               detecting={detectingGuild}
@@ -361,11 +368,17 @@ export function DevPanel({
                 Testar conexao
               </Button>
               <Button
-                disabled={saving || detectingGuild || detectedGuild?.id !== form.mainGuildId.trim()}
+                disabled={
+                  saving
+                  || detectingGuild
+                  || !form.token.trim()
+                  || !/^\d{5,32}$/.test(form.clientId)
+                  || detectedGuild?.id !== form.mainGuildId.trim()
+                }
                 onClick={handleCreateBot}
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                Salvar bot
+                Conectar Bot
               </Button>
             </div>
           </CardContent>
@@ -422,6 +435,7 @@ export function DevPanel({
                               Servidor {bot.mainGuildName || guildNameById.get(bot.mainGuildId) || "Servidor configurado"}
                             </p>
                             <p className="truncate text-xs text-zinc-600">Dono {bot.ownerName}</p>
+                            <p className="truncate font-mono text-[11px] text-zinc-600">Token {bot.tokenMasked}</p>
                             <p className="truncate font-mono text-[11px] text-zinc-700">Painel ID {bot.id}</p>
                           </div>
                         </div>
@@ -543,7 +557,52 @@ function GuildDetectionCard({
           </span>
         </div>
       </div>
-      <p className="mt-3 text-xs text-emerald-200">Servidor detectado e bot confirmado nele.</p>
+      <div className="mt-3 flex flex-wrap gap-2 text-xs">
+        <span className="rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-emerald-200">
+          Bot confirmado no servidor
+        </span>
+        <span className="rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-emerald-200">
+          Administrador confirmado
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function BotConnectionPreview({
+  avatarUrl,
+  createdAt,
+  name,
+  testResult
+}: {
+  avatarUrl: string | null;
+  createdAt: string | null;
+  name: string;
+  testResult: BotConnectionTest | null;
+}) {
+  if (!testResult && !name && !avatarUrl) {
+    return (
+      <div className="rounded-lg border border-dashed border-zinc-800 bg-zinc-950/50 p-4 text-sm text-zinc-500">
+        Teste o token para carregar nome, avatar, ID e data de criacao do bot automaticamente.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-zinc-900 bg-zinc-950/70 p-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <Avatar className="h-12 w-12 rounded-full border border-purple-500/35" fallback={name || "Bot"} src={avatarUrl} />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-white">{name || testResult?.username || "Bot detectado"}</p>
+            <p className="truncate font-mono text-xs text-zinc-500">{testResult?.botId ?? testResult?.clientId ?? "ID ainda nao validado"}</p>
+            <p className="truncate text-xs text-zinc-600">
+              Criado em {createdAt ? formatDate(createdAt) : "data nao detectada"}
+            </p>
+          </div>
+        </div>
+        {testResult ? <StatusBadge status={testResult.status} /> : null}
+      </div>
     </div>
   );
 }
@@ -634,4 +693,11 @@ function readRequestMessage(error: unknown) {
 
   const response = (error as { response?: { data?: { message?: unknown } } }).response;
   return typeof response?.data?.message === "string" ? response.data.message : null;
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short"
+  }).format(new Date(value));
 }

@@ -259,6 +259,7 @@ export type DashboardBot = {
   mainGuildIconUrl: string | null;
   mainGuildMemberCount: number;
   mainGuildChannelCount: number;
+  botCreatedAt: string | null;
   guildIds: string[];
   status: DevBotStatus;
   statusMessage: string | null;
@@ -279,6 +280,7 @@ export type DevBot = {
   mainGuildIconUrl: string | null;
   mainGuildMemberCount: number;
   mainGuildChannelCount: number;
+  botCreatedAt: string | null;
   guildIds: string[];
   status: DevBotStatus;
   statusMessage: string | null;
@@ -289,13 +291,13 @@ export type DevBot = {
 };
 
 export type CreateDevBotPayload = {
-  name: string;
+  name?: string | null;
   clientId: string;
   token: string;
-  secret?: string | null;
   avatarUrl?: string | null;
-  ownerName: string;
-  ownerId: string;
+  secret?: string | null;
+  ownerName?: string;
+  ownerId?: string;
   mainGuildId: string;
   enabledModules: string[];
 };
@@ -305,6 +307,9 @@ export type BotConnectionTest = {
   message: string;
   avatarUrl: string | null;
   clientId: string | null;
+  botId: string | null;
+  username: string | null;
+  createdAt: string | null;
 };
 
 export type DetectedDiscordGuild = {
@@ -315,4 +320,9 @@ export type DetectedDiscordGuild = {
   memberCount: number;
   onlineCount: number;
   channelCount: number;
+  botId: string;
+  botName: string;
+  botAvatarUrl: string | null;
+  botCreatedAt: string | null;
+  hasAdministrator: boolean;
 };

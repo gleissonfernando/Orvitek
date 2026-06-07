@@ -868,7 +868,7 @@ function PageHeader({
                 : activeView === "leave"
                   ? "Saida"
                   : activeView === "dev"
-                    ? "Bots Dev"
+                    ? "Gerenciar Bots"
                     : activeView.charAt(0).toUpperCase() + activeView.slice(1);
 
   return (

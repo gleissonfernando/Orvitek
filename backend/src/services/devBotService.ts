@@ -43,6 +43,11 @@ type DiscordGuildChannel = {
   id: string;
 };
 
+type DiscordRole = {
+  id: string;
+  permissions: string;
+};
+
 type DiscordGuildMember = {
   roles: string[];
 };
@@ -59,6 +64,11 @@ export type DetectedDiscordGuild = {
   memberCount: number;
   onlineCount: number;
   channelCount: number;
+  botId: string;
+  botName: string;
+  botAvatarUrl: string | null;
+  botCreatedAt: string | null;
+  hasAdministrator: boolean;
 };
 
 export type DevBotDto = {
@@ -75,6 +85,7 @@ export type DevBotDto = {
   mainGuildIconUrl: string | null;
   mainGuildMemberCount: number;
   mainGuildChannelCount: number;
+  botCreatedAt: string | null;
   guildIds: string[];
   status: MongoDevBotStatus;
   statusMessage: string | null;
@@ -95,6 +106,7 @@ export type DashboardBotDto = Pick<
   | "mainGuildIconUrl"
   | "mainGuildMemberCount"
   | "mainGuildChannelCount"
+  | "botCreatedAt"
   | "guildIds"
   | "status"
   | "statusMessage"
@@ -110,7 +122,7 @@ export type DevBotRuntimeConfig = {
 };
 
 type CreateDevBotInput = {
-  name: string;
+  name?: string | null;
   clientId: string;
   token: string;
   secret?: string | null;
@@ -302,13 +314,30 @@ export async function createDevBot(input: CreateDevBotInput) {
     throw createDevBotError(connection.message, 400);
   }
 
+  const existingBot = await devBots.findOne(
+    {
+      clientId: input.clientId
+    },
+    {
+      projection: {
+        _id: 1
+      }
+    }
+  );
+
+  if (existingBot) {
+    throw createDevBotError("Este Client ID ja esta cadastrado no sistema.", 409);
+  }
+
   const bot: MongoDevBot = {
     _id: randomUUID(),
-    name: input.name,
+    name: input.name?.trim() || connection.username || `Bot ${input.clientId}`,
     clientId: input.clientId,
     tokenEncrypted: encryptSecret(input.token),
+    tokenLast4: tokenLast4(input.token),
     secretEncrypted: input.secret ? encryptSecret(input.secret) : null,
     avatarUrl: input.avatarUrl || connection.avatarUrl,
+    botCreatedAt: connection.createdAt ? new Date(connection.createdAt) : null,
     ownerId: input.ownerId,
     ownerName: input.ownerName,
     mainGuildId: input.mainGuildId,
@@ -387,7 +416,7 @@ export async function updateDevBot(botId: string, input: UpdateDevBotInput) {
     updatedAt: new Date()
   };
 
-  if (input.name !== undefined) $set.name = input.name;
+  if (input.name !== undefined) $set.name = input.name?.trim() || current.name;
   if (input.clientId !== undefined) $set.clientId = input.clientId;
   if (input.secret !== undefined) $set.secretEncrypted = input.secret ? encryptSecret(input.secret) : null;
   if (input.avatarUrl !== undefined) $set.avatarUrl = input.avatarUrl;
@@ -404,9 +433,11 @@ export async function updateDevBot(botId: string, input: UpdateDevBotInput) {
     }
 
     $set.tokenEncrypted = encryptSecret(input.token);
+    $set.tokenLast4 = tokenLast4(input.token);
     $set.status = connection.status === "online" ? "offline" : connection.status;
     $set.statusMessage = connection.status === "online" ? "Token atualizado. Aguardando reinicializacao." : connection.message;
     $set.avatarUrl = input.avatarUrl || connection.avatarUrl || current.avatarUrl;
+    $set.botCreatedAt = connection.createdAt ? new Date(connection.createdAt) : current.botCreatedAt ?? null;
   }
 
   await devBots.updateOne({ _id: botId }, { $set });
@@ -489,7 +520,10 @@ async function testDiscordBotTokenForClient(token: string, expectedClientId?: st
       status: "invalid_token" as const,
       message: "Token invalido.",
       avatarUrl: null,
-      clientId: null
+      clientId: null,
+      botId: null,
+      username: null,
+      createdAt: null
     };
   }
 
@@ -506,7 +540,10 @@ async function testDiscordBotTokenForClient(token: string, expectedClientId?: st
         status: "invalid_token" as const,
         message: `O token pertence ao Client ID ${data.id}, nao ao Client ID informado.`,
         avatarUrl: getDiscordAvatarUrl(data.id, data.avatar, "bot"),
-        clientId: data.id
+        clientId: data.id,
+        botId: data.id,
+        username: data.username,
+        createdAt: snowflakeDate(data.id)?.toISOString() ?? null
       };
     }
 
@@ -514,7 +551,10 @@ async function testDiscordBotTokenForClient(token: string, expectedClientId?: st
       status: "online" as const,
       message: `Bot conectado como ${data.username}.`,
       avatarUrl: getDiscordAvatarUrl(data.id, data.avatar, "bot"),
-      clientId: data.id
+      clientId: data.id,
+      botId: data.id,
+      username: data.username,
+      createdAt: snowflakeDate(data.id)?.toISOString() ?? null
     };
   } catch (error) {
     const status = axios.isAxiosError(error) && error.response?.status === 401 ? "invalid_token" : "error";
@@ -523,7 +563,10 @@ async function testDiscordBotTokenForClient(token: string, expectedClientId?: st
       status: status as MongoDevBotStatus,
       message: status === "invalid_token" ? "Token invalido. Verifique os dados do bot." : "Erro ao conectar com a API do Discord.",
       avatarUrl: null,
-      clientId: null
+      clientId: null,
+      botId: null,
+      username: null,
+      createdAt: null
     };
   }
 }
@@ -542,7 +585,12 @@ export async function detectDiscordBotGuild(token: string, guildId: string): Pro
     ownerId: guild.ownerId,
     memberCount: guild.memberCount,
     onlineCount: guild.onlineCount,
-    channelCount: guild.channelCount
+    channelCount: guild.channelCount,
+    botId: guild.botId,
+    botName: guild.botName,
+    botAvatarUrl: guild.botAvatarUrl,
+    botCreatedAt: guild.botCreatedAt,
+    hasAdministrator: guild.hasAdministrator
   };
 }
 
@@ -753,7 +801,7 @@ function toDevBotDto(bot: MongoDevBot, guildIds: string[] = [bot.mainGuildId]): 
     id: bot._id,
     name: bot.name,
     clientId: bot.clientId,
-    tokenMasked: bot.tokenEncrypted ? "******** protegido" : "",
+    tokenMasked: bot.tokenEncrypted ? maskedToken(bot) : "",
     secretConfigured: Boolean(bot.secretEncrypted),
     avatarUrl: bot.avatarUrl ?? null,
     ownerId: bot.ownerId,
@@ -763,6 +811,7 @@ function toDevBotDto(bot: MongoDevBot, guildIds: string[] = [bot.mainGuildId]): 
     mainGuildIconUrl: bot.mainGuildIconUrl ?? null,
     mainGuildMemberCount: bot.mainGuildMemberCount ?? 0,
     mainGuildChannelCount: bot.mainGuildChannelCount ?? 0,
+    botCreatedAt: bot.botCreatedAt?.toISOString?.() ?? null,
     guildIds: [...new Set(guildIds)],
     status: bot.status,
     statusMessage: bot.statusMessage ?? null,
@@ -779,7 +828,13 @@ async function fetchDiscordBotGuild(token: string, guildId: string): Promise<Det
   }
 
   try {
-    const [{ data: guild }, { data: channels }] = await Promise.all([
+    const { data: botUser } = await axios.get<DiscordBotUser>(`${DISCORD_API}/users/@me`, {
+      headers: {
+        Authorization: `Bot ${token.trim()}`
+      },
+      timeout: 3500
+    });
+    const [{ data: guild }, { data: channels }, { data: roles }, { data: botMember }] = await Promise.all([
       axios.get<DiscordGuildDetails>(`${DISCORD_API}/guilds/${guildId}`, {
         headers: {
           Authorization: `Bot ${token.trim()}`
@@ -794,8 +849,29 @@ async function fetchDiscordBotGuild(token: string, guildId: string): Promise<Det
           Authorization: `Bot ${token.trim()}`
         },
         timeout: 5000
+      }),
+      axios.get<DiscordRole[]>(`${DISCORD_API}/guilds/${guildId}/roles`, {
+        headers: {
+          Authorization: `Bot ${token.trim()}`
+        },
+        timeout: 5000
+      }),
+      axios.get<DiscordGuildMember>(`${DISCORD_API}/guilds/${guildId}/members/${botUser.id}`, {
+        headers: {
+          Authorization: `Bot ${token.trim()}`
+        },
+        timeout: 5000
       })
     ]);
+    const botRoleIds = new Set([guildId, ...botMember.roles]);
+    const botPermissions = roles
+      .filter((role) => botRoleIds.has(role.id))
+      .reduce((permissions, role) => permissions | parsePermissions(role.permissions), 0n);
+    const hasAdministrator = (botPermissions & 0x8n) === 0x8n;
+
+    if (!hasAdministrator) {
+      throw createDevBotError("O bot precisa estar no servidor com permissao de Administrador para liberar o painel completo.", 400);
+    }
 
     return {
       id: guild.id,
@@ -805,9 +881,18 @@ async function fetchDiscordBotGuild(token: string, guildId: string): Promise<Det
       ownerId: guild.owner_id,
       memberCount: guild.approximate_member_count ?? 0,
       onlineCount: guild.approximate_presence_count ?? 0,
-      channelCount: channels.length
+      channelCount: channels.length,
+      botId: botUser.id,
+      botName: botUser.username,
+      botAvatarUrl: getDiscordAvatarUrl(botUser.id, botUser.avatar, "bot"),
+      botCreatedAt: snowflakeDate(botUser.id)?.toISOString() ?? null,
+      hasAdministrator
     };
   } catch (error) {
+    if (isDevBotError(error)) {
+      throw error;
+    }
+
     if (axios.isAxiosError(error)) {
       if (error.response?.status === 401) {
         throw createDevBotError("Token do bot invalido.", 400);
@@ -843,6 +928,7 @@ function toDashboardBotDto(bot: DevBotDto): DashboardBotDto {
     mainGuildIconUrl: bot.mainGuildIconUrl,
     mainGuildMemberCount: bot.mainGuildMemberCount,
     mainGuildChannelCount: bot.mainGuildChannelCount,
+    botCreatedAt: bot.botCreatedAt,
     guildIds: bot.guildIds,
     status: bot.status,
     statusMessage: bot.statusMessage,
@@ -909,6 +995,44 @@ function createDevBotError(message: string, statusCode: number) {
   return Object.assign(new Error(message), {
     statusCode
   });
+}
+
+function isDevBotError(error: unknown): error is Error & { statusCode: number } {
+  return error instanceof Error && typeof (error as { statusCode?: unknown }).statusCode === "number";
+}
+
+function tokenLast4(token: string) {
+  return token.trim().slice(-4) || null;
+}
+
+function maskedToken(bot: Pick<MongoDevBot, "tokenEncrypted" | "tokenLast4">) {
+  const last4 = bot.tokenLast4 ?? decryptTokenLast4(bot.tokenEncrypted);
+
+  return last4 ? `${"*".repeat(28)}${last4}` : "******** protegido";
+}
+
+function decryptTokenLast4(tokenEncrypted: string) {
+  try {
+    return decryptSecret(tokenEncrypted).slice(-4);
+  } catch {
+    return null;
+  }
+}
+
+function snowflakeDate(id: string) {
+  try {
+    return new Date(Number((BigInt(id) >> 22n) + 1420070400000n));
+  } catch {
+    return null;
+  }
+}
+
+function parsePermissions(value: string) {
+  try {
+    return BigInt(value || "0");
+  } catch {
+    return 0n;
+  }
 }
 
 async function canAccessDevBotGuild(user: AuthSessionUser, bot: MongoDevBot, guildId: string) {

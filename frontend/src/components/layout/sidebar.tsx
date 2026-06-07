@@ -78,8 +78,8 @@ export const navSections: Array<{ label: string; items: NavItem[] }> = [
 ];
 
 const devSection: { label: string; items: NavItem[] } = {
-  label: "Dev",
-  items: [{ id: "dev", label: "Bots Dev", icon: Code2 }]
+  label: "Bots Devs",
+  items: [{ id: "dev", label: "Gerenciar Bots", icon: Code2 }]
 };
 
 type SidebarProps = {
