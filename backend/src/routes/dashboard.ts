@@ -68,7 +68,7 @@ dashboardRouter.get("/me", async (_req, res, next) => {
         avatarUrl: user.avatarUrl ?? user.avatar
       },
       bot: await fetchBotProfile(),
-      bots: panelBots,
+      bots: canViewDev ? panelBots : [],
       canViewDev,
       selectedGuildId,
       guilds
@@ -90,12 +90,28 @@ dashboardRouter.get("/:slug", async (req, res, next) => {
 
     if (!bot) {
       return res.status(404).json({
-        message: "Dashboard do bot nao encontrada."
+        message: "Acesso negado. Voce nao tem permissao para acessar esta dashboard."
       });
     }
 
+    const scopedGuilds = scopedBotDashboardGuilds(auth.user, bot);
+    const selectedGuildId = auth.user.selectedGuildId && scopedGuilds.some((guild) => guild.id === auth.user.selectedGuildId)
+      ? auth.user.selectedGuildId
+      : scopedGuilds[0]?.id ?? null;
+
     return res.json({
-      bot
+      user: {
+        id: auth.user.discordId,
+        username: auth.user.username,
+        globalName: auth.user.globalName,
+        avatarUrl: auth.user.avatarUrl ?? auth.user.avatar
+      },
+      bot: await fetchBotProfile(),
+      bots: [bot],
+      selectedBot: bot,
+      canViewDev: await canAccessDevPanel(auth.user),
+      selectedGuildId,
+      guilds: scopedGuilds
     });
   } catch (error) {
     return next(error);
@@ -131,3 +147,23 @@ dashboardRouter.patch("/selected-guild", async (req, res, next) => {
     return next(error);
   }
 });
+
+function scopedBotDashboardGuilds(user: DashboardAuth["user"], bot: Awaited<ReturnType<typeof getAccessibleDashboardBotBySlug>>) {
+  if (!bot) {
+    return [];
+  }
+
+  return bot.guildIds.map((guildId) => {
+    const userGuild = user.guilds.find((guild) => guild.id === guildId);
+    const isMainGuild = guildId === bot.mainGuildId;
+
+    return {
+      id: guildId,
+      name: userGuild?.name ?? (isMainGuild ? bot.mainGuildName : `Servidor ${guildId}`),
+      iconUrl: userGuild?.iconUrl ?? (isMainGuild ? bot.mainGuildIconUrl : null),
+      owner: userGuild?.owner ?? false,
+      permissions: userGuild?.isAdmin || userGuild?.owner ? "ADMINISTRATOR" : "BOT_ADMIN",
+      botInGuild: true
+    };
+  });
+}

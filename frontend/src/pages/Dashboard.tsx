@@ -27,7 +27,6 @@ import { ClipsPanel } from "../components/clips/ClipsPanel";
 import { SiteAccessPanel } from "../components/moderation/SiteAccessPanel";
 import { LiveNotificationsPanel } from "../components/social/LiveNotificationsPanel";
 import { XMonitorPanel } from "../components/social/XMonitorPanel";
-import { UserProfile } from "../components/UserProfile";
 import { WelcomePanel } from "../components/welcome/WelcomePanel";
 import { Avatar } from "../components/ui/avatar";
 import { Badge } from "../components/ui/badge";
@@ -37,8 +36,7 @@ import { Switch } from "../components/ui/switch";
 import { createDashboardSocket } from "../lib/socket";
 import {
   getClipsConfig,
-  getDashboardBotBySlug,
-  getDashboardMe,
+  getDashboardBySlug,
   getGuildSettings,
   getLives,
   getLogs,
@@ -48,10 +46,8 @@ import {
   patchGuildSettings,
   updateSelectedDashboardGuild
 } from "../lib/api";
-import { dashboardUrl } from "../lib/urls";
 import type {
   AuthResponse,
-  AuthUser,
   BotStatus,
   ClipSent,
   ClipsConfig,
@@ -59,7 +55,6 @@ import type {
   DashboardGuild,
   DashboardMeGuild,
   DashboardMeResponse,
-  DashboardMeUser,
   GuildSettings,
   LiveEvent,
   LogEntry,
@@ -265,35 +260,17 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
     setDashboardRouteError(null);
 
     async function loadDashboardProfile() {
-      const profile = await getDashboardMe();
+      if (!requestedSlug) {
+        setDashboardRouteError("Acesse esta area pela URL personalizada da dashboard do bot.");
+        return;
+      }
+
+      const profile = await getDashboardBySlug(requestedSlug);
 
       if (!mounted) return;
 
       setDashboardProfile(profile);
-
-      const routeBot = requestedSlug ? await getDashboardBotBySlug(requestedSlug).catch(() => null) : null;
-
-      if (!mounted) return;
-
-      if (requestedSlug && !routeBot) {
-        setDashboardRouteError("Dashboard do bot nao encontrada ou sem permissao de acesso.");
-        return;
-      }
-
-      const selectedFromRoute = routeBot
-        ? profile.bots.find((bot) => bot.id === routeBot.id) ?? routeBot
-        : null;
-      const targetBot = selectedFromRoute ?? profile.bots[0] ?? null;
-
-      if (!requestedSlug && profile.bots.length) {
-        setSelectedBotId(null);
-        return;
-      }
-
-      if (requestedSlug && selectedFromRoute?.slug && selectedFromRoute.slug !== requestedSlug) {
-        window.location.replace(dashboardUrl(selectedFromRoute.slug));
-        return;
-      }
+      const targetBot = profile.bots[0] ?? null;
 
       setSelectedBotId(targetBot?.id ?? null);
 
@@ -307,10 +284,15 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
     }
 
     loadDashboardProfile()
-      .catch(() => {
+      .catch((error) => {
         if (!mounted) return;
 
-        window.location.replace("/login");
+        if (readResponseStatus(error) === 401) {
+          window.location.replace("/login");
+          return;
+        }
+
+        setDashboardRouteError(readResponseMessage(error) ?? "Acesso negado. Voce nao tem permissao para acessar esta dashboard.");
       })
       .finally(() => {
         if (mounted) {
@@ -485,41 +467,8 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
     }
   }
 
-  async function handleSelectBot(botId: string | null) {
-    const bot = panelBots.find((item) => item.id === botId) ?? null;
-
-    if (!bot) {
-      setSelectedBotId(null);
-      return;
-    }
-
-    const nextGuildId = bot.guildIds.includes(selectedGuildId ?? "") ? selectedGuildId : bot.guildIds[0];
-
-    setSelectedBotId(bot.id);
-
-    if (nextGuildId) {
-      setSelectedGuildId(nextGuildId);
-      await updateSelectedDashboardGuild(nextGuildId, bot.id).catch(() => undefined);
-    }
-
-    if (bot.slug && bot.slug !== initialBotSlug) {
-      window.location.assign(dashboardUrl(bot.slug));
-    }
-  }
-
   if (dashboardRouteError) {
     return <DashboardRouteError message={dashboardRouteError} />;
-  }
-
-  if (!initialBotSlug && dashboardProfile && panelBots.length) {
-    return (
-      <DashboardBotIndex
-        bots={panelBots}
-        dashboardUser={dashboardProfile.user}
-        onLogout={onLogout}
-        user={auth.user}
-      />
-    );
   }
 
   return (
@@ -542,9 +491,6 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
       >
         <UserDashboardHeader
           bot={selectedBot}
-          bots={panelBots}
-          loading={dashboardProfileLoading}
-          onSelectBot={handleSelectBot}
           selectedGuild={selectedGuild}
           status={displayedBotStatus}
         />
@@ -610,80 +556,6 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
   );
 }
 
-function DashboardBotIndex({
-  bots,
-  dashboardUser,
-  onLogout,
-  user
-}: {
-  bots: DashboardBot[];
-  dashboardUser: DashboardMeUser;
-  onLogout: () => void;
-  user: AuthUser;
-}) {
-  return (
-    <main className="min-h-screen bg-[#050505]">
-      <header className="border-b border-zinc-900/80 bg-[#050505]/95 px-4 py-4 backdrop-blur-xl lg:px-8">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-xs font-medium uppercase text-purple-300">Dashboards dos bots</p>
-            <h1 className="mt-1 truncate text-xl font-semibold text-white">Escolha um painel</h1>
-          </div>
-          <UserProfile dashboardUser={dashboardUser} onLogout={onLogout} user={user} />
-        </div>
-      </header>
-
-      <section className="mx-auto grid w-full max-w-7xl gap-4 px-4 py-6 sm:grid-cols-2 lg:grid-cols-3 lg:px-8">
-        {bots.map((bot) => (
-          <button
-            className="group rounded-lg border border-zinc-900 bg-zinc-950/80 p-4 text-left shadow-[0_18px_50px_rgba(0,0,0,0.35)] transition duration-300 hover:-translate-y-0.5 hover:border-purple-500/40 hover:bg-[#0b0b0b]"
-            key={bot.id}
-            onClick={() => window.location.assign(dashboardUrl(bot.slug))}
-            type="button"
-          >
-            <div className="flex items-start gap-3">
-              <Avatar
-                className="h-12 w-12 rounded-lg border border-purple-500/35"
-                fallback={bot.name}
-                src={bot.avatarUrl}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <h2 className="truncate text-base font-semibold text-white">{bot.name}</h2>
-                  <Badge variant={bot.status === "online" ? "success" : bot.status === "error" || bot.status === "invalid_token" ? "danger" : "muted"}>
-                    {bot.status === "online" ? "Online" : bot.status === "offline" ? "Offline" : "Erro"}
-                  </Badge>
-                </div>
-                <p className="mt-1 truncate font-mono text-xs text-zinc-500">/dashboard/{bot.slug}</p>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-2 text-sm text-zinc-400">
-              <div className="flex items-center justify-between gap-3 rounded-md border border-zinc-900 bg-black/35 px-3 py-2">
-                <span>Servidor principal</span>
-                <span className="min-w-0 truncate text-zinc-100">{bot.mainGuildName}</span>
-              </div>
-              <div className="flex items-center justify-between gap-3 rounded-md border border-zinc-900 bg-black/35 px-3 py-2">
-                <span>Servidores</span>
-                <span className="text-zinc-100">{bot.guildIds.length}</span>
-              </div>
-              <div className="flex items-center justify-between gap-3 rounded-md border border-zinc-900 bg-black/35 px-3 py-2">
-                <span>Modulos liberados</span>
-                <span className="text-zinc-100">{bot.enabledModules.length}</span>
-              </div>
-            </div>
-
-            <div className="mt-4 flex items-center justify-between border-t border-zinc-900 pt-4">
-              <span className="text-xs text-zinc-500">Abrir dashboard propria</span>
-              <ChevronRight className="h-4 w-4 text-zinc-500 transition duration-300 group-hover:translate-x-0.5 group-hover:text-purple-200" />
-            </div>
-          </button>
-        ))}
-      </section>
-    </main>
-  );
-}
-
 function DashboardRouteError({ message }: { message: string }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#050505] px-4">
@@ -696,8 +568,8 @@ function DashboardRouteError({ message }: { message: string }) {
           <CardDescription>{message}</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button className="w-full" onClick={() => window.location.replace(dashboardUrl())}>
-            Ver minhas dashboards
+          <Button className="w-full" onClick={() => window.history.back()}>
+            Voltar
           </Button>
         </CardContent>
       </Card>
@@ -707,16 +579,10 @@ function DashboardRouteError({ message }: { message: string }) {
 
 function UserDashboardHeader({
   bot,
-  bots,
-  loading,
-  onSelectBot,
   selectedGuild,
   status
 }: {
   bot: DashboardBot | null;
-  bots: DashboardBot[];
-  loading: boolean;
-  onSelectBot: (botId: string | null) => void;
   selectedGuild: DashboardGuild | null;
   status: BotStatus;
 }) {
@@ -747,24 +613,7 @@ function UserDashboardHeader({
             </div>
           </div>
 
-          {bots.length > 1 ? (
-            <label className="block w-full space-y-1 sm:max-w-xs">
-              <span className="text-xs text-zinc-500">Trocar bot</span>
-              <select
-                className="h-10 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-400 disabled:opacity-50"
-                disabled={loading}
-                onChange={(event) => onSelectBot(event.target.value || null)}
-                value={bot?.id ?? ""}
-              >
-                <option value="">Selecione um bot</option>
-                {bots.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name} - /dashboard/{item.slug}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
+          <Badge className="shrink-0" variant="muted">Dashboard isolada</Badge>
         </CardContent>
       </Card>
 
@@ -1341,6 +1190,24 @@ function userVisibleLogs(logs: LogEntry[]) {
 
 function isUserVisibleLog(log: LogEntry) {
   return log.type !== "audit.dev_bot";
+}
+
+function readResponseStatus(error: unknown) {
+  if (typeof error !== "object" || error === null || !("response" in error)) {
+    return null;
+  }
+
+  const response = (error as { response?: { status?: unknown } }).response;
+  return typeof response?.status === "number" ? response.status : null;
+}
+
+function readResponseMessage(error: unknown) {
+  if (typeof error !== "object" || error === null || !("response" in error)) {
+    return null;
+  }
+
+  const response = (error as { response?: { data?: { message?: unknown } } }).response;
+  return typeof response?.data?.message === "string" ? response.data.message : null;
 }
 
 function isViewAllowed(view: ViewId, enabledModules: string[]) {

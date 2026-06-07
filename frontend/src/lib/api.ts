@@ -117,9 +117,9 @@ export async function getDashboardMe() {
   return data;
 }
 
-export async function getDashboardBotBySlug(slug: string) {
-  const { data } = await api.get<{ bot: DashboardBot }>(`/dashboard/${encodeURIComponent(slug)}`);
-  return data.bot;
+export async function getDashboardBySlug(slug: string) {
+  const { data } = await api.get<DashboardMeResponse & { selectedBot: DashboardBot }>(`/dashboard/${encodeURIComponent(slug)}`);
+  return data;
 }
 
 export async function updateSelectedDashboardGuild(selectedGuildId: string, botId?: string | null) {
