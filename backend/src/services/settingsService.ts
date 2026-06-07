@@ -100,12 +100,15 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
     await ensureGuild(guildId);
 
     const { guildSettings } = await getMongoCollections();
-    const existing = await guildSettings.findOne(settingsQuery(guildId, normalizedBotId));
     await guildSettings.updateOne(
-      existing ? { _id: existing._id } : { guildId, botId: normalizedBotId },
+      {
+        botId: normalizedBotId,
+        guildId
+      },
       {
         $set: {
           botId: normalizedBotId,
+          guildId,
           welcomeEnabled: next.welcomeEnabled,
           welcomeChannelId: next.welcomeChannelId,
           welcomeDisplayChannelId: next.welcomeDisplayChannelId,
@@ -130,9 +133,7 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
           updatedAt: new Date()
         },
         $setOnInsert: {
-          _id: randomUUID(),
-          botId: normalizedBotId,
-          guildId
+          _id: randomUUID()
         }
       },
       {
