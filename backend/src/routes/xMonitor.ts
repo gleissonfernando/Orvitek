@@ -24,15 +24,15 @@ const guildIdSchema = z.string().regex(/^\d{5,32}$/);
 const accountInputSchema = z.object({
   active: z.boolean().default(true),
   channelId: z.string().regex(/^\d{5,32}$/),
-  username: z.string().min(1).max(32)
+  username: z.string().min(1).max(2048)
 });
 const accountUpdateSchema = z.object({
   active: z.boolean().optional(),
   channelId: z.string().regex(/^\d{5,32}$/).optional(),
-  username: z.string().min(1).max(32).optional()
+  username: z.string().min(1).max(2048).optional()
 });
 const verifySchema = z.object({
-  username: z.string().min(1).max(32)
+  username: z.string().min(1).max(2048)
 });
 const sentSchema = z.object({
   channelId: z.string().regex(/^\d{5,32}$/),

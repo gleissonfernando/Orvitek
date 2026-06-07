@@ -1122,13 +1122,37 @@ function emitXAccountUpdate(account: XAccountDto, action: string) {
 }
 
 function normalizeUsername(value: string) {
-  const username = value.trim().replace(/^@+/, "");
+  const username = extractXUsername(value);
 
   if (!/^[A-Za-z0-9_]{1,15}$/.test(username)) {
-    throw createServiceError("Informe um username do X valido, sem @.", 400);
+    throw createServiceError("Informe um username do X valido ou uma URL de perfil do X.", 400);
   }
 
   return username;
+}
+
+function extractXUsername(value: string) {
+  const input = value.trim();
+
+  if (!input) {
+    return "";
+  }
+
+  const withoutAt = input.replace(/^@+/, "");
+
+  try {
+    const url = new URL(withoutAt.startsWith("http") ? withoutAt : `https://${withoutAt}`);
+    const host = url.hostname.replace(/^www\./i, "").replace(/^mobile\./i, "").toLowerCase();
+
+    if (host === "x.com" || host === "twitter.com") {
+      const [username = ""] = url.pathname.split("/").filter(Boolean);
+      return username.replace(/^@+/, "");
+    }
+  } catch {
+    // Treat plain values as usernames below.
+  }
+
+  return withoutAt.split(/[/?#]/)[0] ?? "";
 }
 
 function canUseManualXPreview(error: unknown) {

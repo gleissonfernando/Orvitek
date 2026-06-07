@@ -522,17 +522,17 @@ function XAccountModal({
           </Field>
         </div>
 
-        <Field label="Username do X (sem @)">
+        <Field label="Username ou URL do X">
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
               className="social-input"
               onChange={(event) => {
-                setUsername(event.target.value.replace(/^@+/, ""));
+                setUsername(event.target.value);
                 if (account && normalizeUsername(event.target.value) !== normalizeUsername(account.username)) {
                   setPreview(null);
                 }
               }}
-              placeholder="xdevelopers"
+              placeholder="GlesisonP ou https://x.com/GlesisonP"
               required
               value={username}
             />
@@ -671,7 +671,24 @@ function formatNullableDate(value: string | null) {
 }
 
 function normalizeUsername(value: string) {
-  return value.trim().replace(/^@+/, "").toLowerCase();
+  const input = value.trim().replace(/^@+/, "");
+
+  if (!input) {
+    return "";
+  }
+
+  try {
+    const url = new URL(input.startsWith("http") ? input : `https://${input}`);
+    const host = url.hostname.replace(/^www\./i, "").replace(/^mobile\./i, "").toLowerCase();
+
+    if (host === "x.com" || host === "twitter.com") {
+      return (url.pathname.split("/").filter(Boolean)[0] ?? "").replace(/^@+/, "").toLowerCase();
+    }
+  } catch {
+    // Plain usernames are handled below.
+  }
+
+  return (input.split(/[/?#]/)[0] ?? "").toLowerCase();
 }
 
 function readErrorMessage(error: unknown) {
