@@ -52,6 +52,7 @@ export type MongoGuildSettings = {
   moderationEnabled: boolean;
   verificationEnabled: boolean;
   verificationRoleId: string | null;
+  verificationRoleIds?: string[];
   updatedAt: Date;
 };
 

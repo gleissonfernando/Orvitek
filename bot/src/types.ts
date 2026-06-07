@@ -44,4 +44,5 @@ export type GuildSettings = {
   moderationEnabled: boolean;
   verificationEnabled: boolean;
   verificationRoleId: string | null;
+  verificationRoleIds: string[];
 };

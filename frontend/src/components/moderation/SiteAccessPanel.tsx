@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, ShieldCheck } from "lucide-react";
+import { Check, Loader2, ShieldCheck } from "lucide-react";
 import { getGuildLiveOptions, patchGuildSettings } from "../../lib/api";
 import type { DashboardGuild, GuildRoleOption, GuildSettings } from "../../types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
@@ -27,6 +27,7 @@ export function SiteAccessPanel({
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const selectedRoleIds = settings ? selectedVerificationRoleIds(settings) : [];
 
   useEffect(() => {
     if (!guild || !canManage) {
@@ -62,8 +63,8 @@ export function SiteAccessPanel({
   }
 
   function handleEnabledChange(checked: boolean) {
-    if (checked && !settings?.verificationRoleId) {
-      setError("Selecione primeiro o cargo que tera acesso ao site.");
+    if (checked && !selectedRoleIds.length) {
+      setError("Selecione primeiro pelo menos um cargo que tera acesso ao site.");
       return;
     }
 
@@ -75,13 +76,18 @@ export function SiteAccessPanel({
     );
   }
 
-  function handleRoleChange(roleId: string) {
+  function handleRoleToggle(roleId: string, checked: boolean) {
+    const nextRoleIds = checked
+      ? [...new Set([...selectedRoleIds, roleId])]
+      : selectedRoleIds.filter((selectedRoleId) => selectedRoleId !== roleId);
+
     void saveAccess(
       {
-        verificationRoleId: roleId || null,
-        verificationEnabled: Boolean(roleId)
+        verificationRoleId: nextRoleIds[0] ?? null,
+        verificationRoleIds: nextRoleIds,
+        verificationEnabled: Boolean(nextRoleIds.length)
       },
-      roleId ? "Cargo de acesso salvo e ativado." : "Cargo de acesso removido."
+      nextRoleIds.length ? "Cargos de acesso salvos e ativados." : "Cargos de acesso removidos."
     );
   }
 
@@ -98,7 +104,7 @@ export function SiteAccessPanel({
             <div>
               <CardTitle>Acesso ao site por cargo</CardTitle>
               <CardDescription>
-                Somente membros com o cargo selecionado podem verificar e abrir este painel.
+                Somente membros com um dos cargos selecionados podem verificar e abrir este painel.
               </CardDescription>
             </div>
           </div>
@@ -110,25 +116,51 @@ export function SiteAccessPanel({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <label className="block space-y-2 rounded-lg border border-zinc-900 bg-zinc-950/75 p-4">
-          <span className="text-sm font-medium text-zinc-100">Cargo liberado</span>
-          <select
-            className="h-11 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition focus:border-zinc-600 disabled:opacity-50"
-            disabled={disabled}
-            onChange={(event) => handleRoleChange(event.target.value)}
-            value={settings?.verificationRoleId ?? ""}
-          >
-            <option value="">{loadingRoles ? "Carregando cargos..." : "Selecione um cargo"}</option>
-            {roles.map((role) => (
-              <option key={role.id} value={role.id}>
-                @{role.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="space-y-3 rounded-lg border border-zinc-900 bg-zinc-950/75 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-medium text-zinc-100">Cargos liberados</span>
+            <span className="text-xs text-zinc-500">{selectedRoleIds.length} selecionado(s)</span>
+          </div>
+
+          <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+            {loadingRoles ? (
+              <p className="flex items-center gap-2 rounded-lg border border-zinc-900 bg-black px-3 py-2 text-sm text-zinc-400">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Carregando cargos...
+              </p>
+            ) : roles.length ? (
+              roles.map((role) => {
+                const checked = selectedRoleIds.includes(role.id);
+
+                return (
+                  <label
+                    className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-zinc-900 bg-black px-3 py-2 text-sm text-zinc-100 transition hover:border-zinc-700 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50"
+                    key={role.id}
+                  >
+                    <input
+                      checked={checked}
+                      className="peer sr-only"
+                      disabled={disabled}
+                      onChange={(event) => handleRoleToggle(role.id, event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-zinc-700 bg-zinc-950 text-black transition peer-checked:border-emerald-400 peer-checked:bg-emerald-400">
+                      {checked ? <Check className="h-3.5 w-3.5" /> : null}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">@{role.name}</span>
+                  </label>
+                );
+              })
+            ) : (
+              <p className="rounded-lg border border-zinc-900 bg-black px-3 py-2 text-sm text-zinc-500">
+                Nenhum cargo disponivel.
+              </p>
+            )}
+          </div>
+        </div>
 
         <p className="text-xs leading-5 text-zinc-500">
-          Todos os usuarios, incluindo dono e administradores do servidor, precisam possuir o cargo escolhido.
+          Todos os usuarios, incluindo dono e administradores do servidor, precisam possuir pelo menos um cargo escolhido.
           Somente o Dev entra sem cargo. A configuracao vale apenas para este bot e este servidor.
         </p>
 
@@ -143,6 +175,16 @@ export function SiteAccessPanel({
       </CardContent>
     </Card>
   );
+}
+
+function selectedVerificationRoleIds(settings: GuildSettings) {
+  const roleIds = settings.verificationRoleIds?.length
+    ? settings.verificationRoleIds
+    : settings.verificationRoleId
+      ? [settings.verificationRoleId]
+      : [];
+
+  return [...new Set(roleIds.filter(Boolean))];
 }
 
 function readErrorMessage(error: unknown) {

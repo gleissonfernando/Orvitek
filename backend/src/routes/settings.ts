@@ -35,7 +35,8 @@ const settingsSchema = z.object({
   logChannelId: z.string().nullable().optional(),
   moderationEnabled: z.boolean().optional(),
   verificationEnabled: z.boolean().optional(),
-  verificationRoleId: z.string().nullable().optional()
+  verificationRoleId: z.string().nullable().optional(),
+  verificationRoleIds: z.array(z.string()).optional()
 });
 
 export const settingsRouter = Router();
@@ -351,7 +352,8 @@ async function canPatchSettings(
     logChannelId: ["logs"],
     moderationEnabled: ["moderation"],
     verificationEnabled: ["moderation"],
-    verificationRoleId: ["moderation"]
+    verificationRoleId: ["moderation"],
+    verificationRoleIds: ["moderation"]
   };
   const access = await Promise.all(
     (Object.keys(input) as Array<keyof typeof input>).map(async (key) => {
@@ -398,6 +400,7 @@ async function validateGuildResources(
 
   const roleIds = [
     ...(input.autoRoleIds ?? []),
+    ...(input.verificationRoleIds ?? []),
     input.twitchRoleId,
     input.boosterRoleId,
     input.verificationRoleId

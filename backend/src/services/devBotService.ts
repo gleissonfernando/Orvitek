@@ -1268,8 +1268,14 @@ async function canAccessDevBotGuild(user: AuthSessionUser, bot: MongoDevBot, gui
 
 async function hasConfiguredPanelRole(userId: string, bot: MongoDevBot, guildId: string) {
   const settings = await getGuildSettings(guildId, bot._id).catch(() => null);
+  const verificationRoleIds = settings
+    ? [...new Set([
+        ...(settings.verificationRoleIds ?? []),
+        settings.verificationRoleId
+      ].filter((roleId): roleId is string => Boolean(roleId)))]
+    : [];
 
-  if (!settings?.verificationEnabled || !settings.verificationRoleId) {
+  if (!settings?.verificationEnabled || !verificationRoleIds.length) {
     return false;
   }
 
@@ -1285,7 +1291,7 @@ async function hasConfiguredPanelRole(userId: string, bot: MongoDevBot, guildId:
     const memberRoleIds = new Set(member.roles);
     memberRoleIds.add(guildId);
 
-    return memberRoleIds.has(settings.verificationRoleId);
+    return verificationRoleIds.some((roleId) => memberRoleIds.has(roleId));
   } catch (error) {
     if (!(axios.isAxiosError(error) && (error.response?.status === 403 || error.response?.status === 404))) {
       console.warn(

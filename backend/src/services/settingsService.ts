@@ -24,6 +24,7 @@ export type GuildSettingsDto = {
   moderationEnabled: boolean;
   verificationEnabled: boolean;
   verificationRoleId: string | null;
+  verificationRoleIds: string[];
 };
 
 const memorySettings = new Map<string, GuildSettingsDto>();
@@ -52,7 +53,8 @@ export function defaultSettings(guildId: string, botId: string | null = null): G
     logChannelId: null,
     moderationEnabled: true,
     verificationEnabled: false,
-    verificationRoleId: null
+    verificationRoleId: null,
+    verificationRoleIds: []
   };
 }
 
@@ -76,12 +78,18 @@ export async function getGuildSettings(guildId: string, botId?: string | null) {
 export async function updateGuildSettings(guildId: string, input: Partial<GuildSettingsDto>, botId?: string | null) {
   const normalizedBotId = normalizeBotId(botId);
   const current = await getGuildSettings(guildId, normalizedBotId);
-  const next: GuildSettingsDto = {
+  const verificationRoleIds = "verificationRoleIds" in input
+    ? normalizeRoleIds(input.verificationRoleIds ?? [])
+    : "verificationRoleId" in input
+      ? normalizeRoleIds(input.verificationRoleId ? [input.verificationRoleId] : [])
+      : current.verificationRoleIds;
+  const next = normalizeVerificationRoles({
     ...current,
     ...input,
+    verificationRoleIds,
     botId: normalizedBotId,
     guildId
-  };
+  });
 
   memorySettings.set(settingsKey(guildId, normalizedBotId), next);
 
@@ -115,6 +123,7 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
           moderationEnabled: next.moderationEnabled,
           verificationEnabled: next.verificationEnabled,
           verificationRoleId: next.verificationRoleId,
+          verificationRoleIds: next.verificationRoleIds,
           updatedAt: new Date()
         },
         $setOnInsert: {
@@ -137,8 +146,15 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
 function toDto(settings: MongoGuildSettings): GuildSettingsDto {
   const botId = normalizeBotId(settings.botId);
   const defaults = defaultSettings(settings.guildId, botId);
+  const verificationRoleIds = normalizeRoleIds(
+    Array.isArray(settings.verificationRoleIds)
+      ? settings.verificationRoleIds
+      : settings.verificationRoleId
+        ? [settings.verificationRoleId]
+        : []
+  );
 
-  return {
+  return normalizeVerificationRoles({
     botId,
     guildId: settings.guildId,
     welcomeEnabled: settings.welcomeEnabled,
@@ -160,8 +176,29 @@ function toDto(settings: MongoGuildSettings): GuildSettingsDto {
     logChannelId: settings.logChannelId,
     moderationEnabled: settings.moderationEnabled,
     verificationEnabled: settings.verificationEnabled,
-    verificationRoleId: settings.verificationRoleId
+    verificationRoleId: verificationRoleIds[0] ?? null,
+    verificationRoleIds
+  });
+}
+
+function normalizeVerificationRoles(settings: GuildSettingsDto): GuildSettingsDto {
+  const verificationRoleIds = normalizeRoleIds(
+    settings.verificationRoleIds.length
+      ? settings.verificationRoleIds
+      : settings.verificationRoleId
+        ? [settings.verificationRoleId]
+        : []
+  );
+
+  return {
+    ...settings,
+    verificationRoleId: verificationRoleIds[0] ?? null,
+    verificationRoleIds
   };
+}
+
+function normalizeRoleIds(roleIds: string[]) {
+  return [...new Set(roleIds.map((roleId) => roleId.trim()).filter(Boolean))];
 }
 
 function normalizeWelcomeImageUrl(value: string | null | undefined) {
