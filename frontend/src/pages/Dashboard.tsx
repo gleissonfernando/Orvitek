@@ -53,6 +53,7 @@ import type {
   DashboardBot,
   DashboardMeGuild,
   DashboardMeResponse,
+  DashboardViewMode,
   GuildSettings,
   LiveEvent,
   LogEntry,
@@ -66,6 +67,7 @@ type DashboardProps = {
 
 const CONFIGURED_GUILD_ID = "1213384118356803594";
 const CONFIGURED_GUILD_NAME = "Servidor configurado";
+const DASHBOARD_VIEW_MODE_KEY = "dashboard.dev_view_mode";
 type BooleanSettingKey =
   | "welcomeEnabled"
   | "leaveEnabled"
@@ -265,6 +267,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
     [auth.guilds, dashboardProfile]
   );
   const [activeView, setActiveView] = useState<ViewId>("overview");
+  const [dashboardViewMode, setDashboardViewMode] = useState<DashboardViewMode>(readDashboardViewMode);
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [selectedGuildId, setSelectedGuildId] = useState<string | null>(
     auth.user.selectedGuildId ?? dashboardGuilds[0]?.id ?? CONFIGURED_GUILD_ID
@@ -283,8 +286,9 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
   const activeBotId = selectedPanelBot?.id ?? null;
   const canManageDashboard = auth.permissions.canManageDashboard || Boolean(selectedPanelBot);
   const canViewDev = dashboardProfile?.canViewDev ?? false;
+  const developerView = canViewDev && dashboardViewMode === "developer";
   const enabledModules = selectedPanelBot?.enabledModules ?? [];
-  const showAllModules = canViewDev;
+  const showAllModules = developerView;
   const displayedBotStatus = selectedPanelBot
     ? {
         ...botStatus,
@@ -346,10 +350,10 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
   }, []);
 
   useEffect(() => {
-    if (activeView === "dev" && !canViewDev) {
+    if (activeView === "dev" && !developerView) {
       setActiveView("overview");
     }
-  }, [activeView, canViewDev]);
+  }, [activeView, developerView]);
 
   useEffect(() => {
     const requiredModule = viewModuleId(activeView);
@@ -520,6 +524,19 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
     }
   }
 
+  function handleDashboardViewMode(mode: DashboardViewMode) {
+    if (!canViewDev) {
+      return;
+    }
+
+    setDashboardViewMode(mode);
+    writeDashboardViewMode(mode);
+
+    if (mode === "user" && activeView === "dev") {
+      setActiveView("overview");
+    }
+  }
+
   return (
     <DashboardLayout
       activeView={activeView}
@@ -530,7 +547,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
       onLogout={onLogout}
       onSelectGuild={handleSelectGuild}
       selectedGuildId={selectedGuild?.id ?? null}
-      showDev={canViewDev}
+      showDev={developerView}
       showAllModules={showAllModules}
       user={auth.user}
     >
@@ -553,8 +570,11 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
             connected: selectedPanelBot.status === "online"
           } : dashboardProfile?.bot}
           bots={panelBots}
+          canSwitchDashboardMode={canViewDev}
+          dashboardMode={developerView ? "developer" : "user"}
           guilds={dashboardHeaderGuilds}
           loading={dashboardProfileLoading}
+          onChangeDashboardMode={handleDashboardViewMode}
           onSelectBot={handleSelectBot}
           onSelectGuild={handleSelectGuild}
           selectedBotId={activeBotId}
@@ -618,7 +638,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
         ) : null}
         {activeView === "tickets" ? <TicketView tickets={tickets} /> : null}
         {activeView === "logs" ? <LogsView logs={logs} /> : null}
-        {activeView === "dev" && canViewDev ? (
+        {activeView === "dev" && developerView ? (
           <DevPanel guilds={allDashboardHeaderGuilds} selectedGuildId={selectedGuild?.id ?? null} user={auth.user} />
         ) : null}
 
@@ -648,6 +668,22 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
       </motion.div>
     </DashboardLayout>
   );
+}
+
+function readDashboardViewMode(): DashboardViewMode {
+  try {
+    return window.sessionStorage.getItem(DASHBOARD_VIEW_MODE_KEY) === "user" ? "user" : "developer";
+  } catch {
+    return "developer";
+  }
+}
+
+function writeDashboardViewMode(mode: DashboardViewMode) {
+  try {
+    window.sessionStorage.setItem(DASHBOARD_VIEW_MODE_KEY, mode);
+  } catch {
+    // The mode falls back to developer when session storage is unavailable.
+  }
 }
 
 function ensureDashboardGuilds(guilds: DashboardGuild[]) {

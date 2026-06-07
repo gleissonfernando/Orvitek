@@ -5,7 +5,7 @@ import { env } from "../config/env";
 import { getMongoCollections, type MongoBotGuildConfig, type MongoDevBot, type MongoDevBotStatus } from "../database/mongo";
 import { emitRealtime } from "../realtime/events";
 import type { AuthSessionUser } from "../types/session";
-import { getDiscordAvatarUrl } from "./discordAssetService";
+import { getDiscordAvatarUrl, getGuildIconUrl } from "./discordAssetService";
 
 const DISCORD_API = "https://discord.com/api/v10";
 
@@ -28,6 +28,33 @@ type DiscordBotUser = {
   avatar: string | null;
 };
 
+type DiscordGuildDetails = {
+  id: string;
+  name: string;
+  icon: string | null;
+  owner_id: string;
+  approximate_member_count?: number;
+  approximate_presence_count?: number;
+};
+
+type DiscordGuildChannel = {
+  id: string;
+};
+
+type DetectedDiscordGuildRecord = DetectedDiscordGuild & {
+  iconHash: string | null;
+};
+
+export type DetectedDiscordGuild = {
+  id: string;
+  name: string;
+  iconUrl: string | null;
+  ownerId: string;
+  memberCount: number;
+  onlineCount: number;
+  channelCount: number;
+};
+
 export type DevBotDto = {
   id: string;
   name: string;
@@ -38,6 +65,10 @@ export type DevBotDto = {
   ownerId: string;
   ownerName: string;
   mainGuildId: string;
+  mainGuildName: string;
+  mainGuildIconUrl: string | null;
+  mainGuildMemberCount: number;
+  mainGuildChannelCount: number;
   guildIds: string[];
   status: MongoDevBotStatus;
   statusMessage: string | null;
@@ -49,7 +80,19 @@ export type DevBotDto = {
 
 export type DashboardBotDto = Pick<
   DevBotDto,
-  "id" | "name" | "clientId" | "avatarUrl" | "mainGuildId" | "guildIds" | "status" | "statusMessage" | "enabledModules"
+  | "id"
+  | "name"
+  | "clientId"
+  | "avatarUrl"
+  | "mainGuildId"
+  | "mainGuildName"
+  | "mainGuildIconUrl"
+  | "mainGuildMemberCount"
+  | "mainGuildChannelCount"
+  | "guildIds"
+  | "status"
+  | "statusMessage"
+  | "enabledModules"
 >;
 
 export type DevBotRuntimeConfig = {
@@ -238,9 +281,12 @@ export async function canUseDevBotModule(
 }
 
 export async function createDevBot(input: CreateDevBotInput) {
-  const { devBots } = await getMongoCollections();
+  const { botGuildConfigs, devBots, guilds } = await getMongoCollections();
   const now = new Date();
-  const connection = await testDiscordBotToken(input.token, input.clientId);
+  const [connection, detectedGuild] = await Promise.all([
+    testDiscordBotToken(input.token, input.clientId),
+    fetchDiscordBotGuild(input.token, input.mainGuildId)
+  ]);
 
   if (connection.status !== "online") {
     throw createDevBotError(connection.message, 400);
@@ -256,6 +302,10 @@ export async function createDevBot(input: CreateDevBotInput) {
     ownerId: input.ownerId,
     ownerName: input.ownerName,
     mainGuildId: input.mainGuildId,
+    mainGuildName: detectedGuild.name,
+    mainGuildIconUrl: detectedGuild.iconUrl,
+    mainGuildMemberCount: detectedGuild.memberCount,
+    mainGuildChannelCount: detectedGuild.channelCount,
     status: connection.status === "online" ? "offline" : connection.status,
     statusMessage: connection.status === "online" ? "Token validado. Aguardando inicializacao." : connection.message,
     enabledModules: sanitizeModules(input.enabledModules),
@@ -265,6 +315,51 @@ export async function createDevBot(input: CreateDevBotInput) {
   };
 
   await devBots.insertOne(bot);
+  await Promise.all([
+    guilds.updateOne(
+      {
+        _id: detectedGuild.id
+      },
+      {
+        $set: {
+          name: detectedGuild.name,
+          icon: detectedGuild.iconHash,
+          ownerId: detectedGuild.ownerId,
+          botEnabled: true,
+          updatedAt: now
+        },
+        $setOnInsert: {
+          _id: detectedGuild.id,
+          createdAt: now
+        }
+      },
+      {
+        upsert: true
+      }
+    ),
+    botGuildConfigs.updateOne(
+      {
+        botId: bot._id,
+        guildId: detectedGuild.id
+      },
+      {
+        $set: {
+          guildName: detectedGuild.name,
+          updatedAt: now
+        },
+        $setOnInsert: {
+          _id: randomUUID(),
+          botId: bot._id,
+          guildId: detectedGuild.id,
+          modules: {},
+          createdAt: now
+        }
+      },
+      {
+        upsert: true
+      }
+    )
+  ]);
   emitRealtime("dev:bot_created", toDashboardBotDto(toDevBotDto(bot)));
 
   return toDevBotDto(bot);
@@ -425,6 +520,20 @@ async function testDiscordBotTokenForClient(token: string, expectedClientId?: st
 
 export async function testDiscordBotToken(token: string, expectedClientId?: string) {
   return testDiscordBotTokenForClient(token, expectedClientId);
+}
+
+export async function detectDiscordBotGuild(token: string, guildId: string): Promise<DetectedDiscordGuild> {
+  const guild = await fetchDiscordBotGuild(token, guildId);
+
+  return {
+    id: guild.id,
+    name: guild.name,
+    iconUrl: guild.iconUrl,
+    ownerId: guild.ownerId,
+    memberCount: guild.memberCount,
+    onlineCount: guild.onlineCount,
+    channelCount: guild.channelCount
+  };
 }
 
 export async function listDevBotRuntimeConfigs() {
@@ -640,6 +749,10 @@ function toDevBotDto(bot: MongoDevBot, guildIds: string[] = [bot.mainGuildId]): 
     ownerId: bot.ownerId,
     ownerName: bot.ownerName,
     mainGuildId: bot.mainGuildId,
+    mainGuildName: bot.mainGuildName ?? `Servidor ${bot.mainGuildId}`,
+    mainGuildIconUrl: bot.mainGuildIconUrl ?? null,
+    mainGuildMemberCount: bot.mainGuildMemberCount ?? 0,
+    mainGuildChannelCount: bot.mainGuildChannelCount ?? 0,
     guildIds: [...new Set(guildIds)],
     status: bot.status,
     statusMessage: bot.statusMessage ?? null,
@@ -648,6 +761,55 @@ function toDevBotDto(bot: MongoDevBot, guildIds: string[] = [bot.mainGuildId]): 
     createdAt: bot.createdAt.toISOString(),
     updatedAt: bot.updatedAt.toISOString()
   };
+}
+
+async function fetchDiscordBotGuild(token: string, guildId: string): Promise<DetectedDiscordGuildRecord> {
+  if (!token.trim()) {
+    throw createDevBotError("Informe o token do bot para detectar o servidor.", 400);
+  }
+
+  try {
+    const [{ data: guild }, { data: channels }] = await Promise.all([
+      axios.get<DiscordGuildDetails>(`${DISCORD_API}/guilds/${guildId}`, {
+        headers: {
+          Authorization: `Bot ${token.trim()}`
+        },
+        params: {
+          with_counts: true
+        },
+        timeout: 5000
+      }),
+      axios.get<DiscordGuildChannel[]>(`${DISCORD_API}/guilds/${guildId}/channels`, {
+        headers: {
+          Authorization: `Bot ${token.trim()}`
+        },
+        timeout: 5000
+      })
+    ]);
+
+    return {
+      id: guild.id,
+      name: guild.name,
+      iconHash: guild.icon,
+      iconUrl: getGuildIconUrl(guild.id, guild.icon),
+      ownerId: guild.owner_id,
+      memberCount: guild.approximate_member_count ?? 0,
+      onlineCount: guild.approximate_presence_count ?? 0,
+      channelCount: channels.length
+    };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 401) {
+        throw createDevBotError("Token do bot invalido.", 400);
+      }
+
+      if (error.response?.status === 403 || error.response?.status === 404) {
+        throw createDevBotError("O bot nao esta no servidor informado ou nao consegue acessar os dados dele.", 400);
+      }
+    }
+
+    throw createDevBotError("Nao foi possivel detectar o servidor no Discord.", 502);
+  }
 }
 
 function toDevBotRuntimeConfig(bot: MongoDevBot): DevBotRuntimeConfig {
@@ -667,6 +829,10 @@ function toDashboardBotDto(bot: DevBotDto): DashboardBotDto {
     clientId: bot.clientId,
     avatarUrl: bot.avatarUrl,
     mainGuildId: bot.mainGuildId,
+    mainGuildName: bot.mainGuildName,
+    mainGuildIconUrl: bot.mainGuildIconUrl,
+    mainGuildMemberCount: bot.mainGuildMemberCount,
+    mainGuildChannelCount: bot.mainGuildChannelCount,
     guildIds: bot.guildIds,
     status: bot.status,
     statusMessage: bot.statusMessage,

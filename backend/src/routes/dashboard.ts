@@ -43,8 +43,8 @@ dashboardRouter.get("/me", async (_req, res, next) => {
         const userGuild = user.guilds.find((guild) => guild.id === guildId);
         guildsById.set(guildId, {
           id: guildId,
-          name: userGuild?.name ?? (guildId === bot.mainGuildId ? `${bot.name} - servidor` : `Servidor ${guildId}`),
-          iconUrl: userGuild?.iconUrl ?? null,
+          name: userGuild?.name ?? (guildId === bot.mainGuildId ? bot.mainGuildName : `Servidor ${guildId}`),
+          iconUrl: userGuild?.iconUrl ?? (guildId === bot.mainGuildId ? bot.mainGuildIconUrl : null),
           owner: userGuild?.owner ?? false,
           permissions: userGuild?.isAdmin || userGuild?.owner
             ? "ADMINISTRATOR"

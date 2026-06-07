@@ -6,6 +6,7 @@ import type {
   CreateTwitchNotificationPayload,
   CreateDevBotPayload,
   DashboardMeResponse,
+  DetectedDiscordGuild,
   DevBot,
   DevModuleDefinition,
   GuildLiveOptions,
@@ -307,6 +308,16 @@ export async function testDevBotConnection(token: string, clientId?: string) {
     timeout: 16000
   });
   return data;
+}
+
+export async function detectDevBotGuild(token: string, guildId: string) {
+  const { data } = await api.post<{ guild: DetectedDiscordGuild }>("/dev/bots/detect-guild", {
+    token,
+    guildId
+  }, {
+    timeout: 16000
+  });
+  return data.guild;
 }
 
 export async function updateDevBotModules(botId: string, enabledModules: string[]) {

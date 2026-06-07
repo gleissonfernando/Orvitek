@@ -2,7 +2,7 @@ import { ShieldCheck } from "lucide-react";
 import { BotProfile } from "./BotProfile";
 import { ServerSelector } from "./ServerSelector";
 import { Badge } from "./ui/badge";
-import type { DashboardBot, DashboardMeBot, DashboardMeGuild, DashboardMeUser } from "../types";
+import type { DashboardBot, DashboardMeBot, DashboardMeGuild, DashboardMeUser, DashboardViewMode } from "../types";
 
 type DashboardHeaderProps = {
   bot?: DashboardMeBot | null;
@@ -11,7 +11,10 @@ type DashboardHeaderProps = {
   loading?: boolean;
   selectedBotId?: string | null;
   selectedGuildId: string | null;
+  canSwitchDashboardMode?: boolean;
+  dashboardMode?: DashboardViewMode;
   user?: DashboardMeUser | null;
+  onChangeDashboardMode?: (mode: DashboardViewMode) => void;
   onSelectBot?: (botId: string | null) => void;
   onSelectGuild: (guildId: string) => void;
 };
@@ -19,9 +22,12 @@ type DashboardHeaderProps = {
 export function DashboardHeader({
   bot,
   bots = [],
+  canSwitchDashboardMode = false,
+  dashboardMode = "user",
   guilds,
   loading = false,
   onSelectBot,
+  onChangeDashboardMode,
   onSelectGuild,
   selectedBotId,
   selectedGuildId,
@@ -44,6 +50,20 @@ export function DashboardHeader({
               Verificado
             </Badge>
           </div>
+          {canSwitchDashboardMode ? (
+            <label className="block space-y-2">
+              <span className="text-xs font-medium uppercase text-zinc-600">Visualizacao exclusiva do Dev</span>
+              <select
+                className="h-11 w-full rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 text-sm font-medium text-purple-100 outline-none transition duration-300 focus:border-purple-400"
+                disabled={loading}
+                onChange={(event) => onChangeDashboardMode?.(event.target.value as DashboardViewMode)}
+                value={dashboardMode}
+              >
+                <option value="developer">Dashboard de desenvolvimento</option>
+                <option value="user">Dashboard do usuario do bot</option>
+              </select>
+            </label>
+          ) : null}
           <ServerSelector guilds={guilds} loading={loading} onSelectGuild={onSelectGuild} selectedGuildId={selectedGuildId} />
           {bots.length ? (
             <label className="block space-y-2">

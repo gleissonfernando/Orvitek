@@ -113,6 +113,10 @@ export type MongoDevBot = {
   ownerId: string;
   ownerName: string;
   mainGuildId: string;
+  mainGuildName?: string;
+  mainGuildIconUrl?: string | null;
+  mainGuildMemberCount?: number;
+  mainGuildChannelCount?: number;
   status: MongoDevBotStatus;
   statusMessage?: string | null;
   enabledModules: string[];

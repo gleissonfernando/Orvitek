@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bot, CheckCircle2, KeyRound, Loader2, Plus, Power, Trash2, XCircle } from "lucide-react";
+import { Bot, CheckCircle2, KeyRound, LayoutGrid, Loader2, Plus, Power, Server, Trash2, Users, XCircle } from "lucide-react";
 import { Avatar } from "../ui/avatar";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -8,6 +8,7 @@ import { Switch } from "../ui/switch";
 import {
   createDevBot,
   deleteDevBot,
+  detectDevBotGuild,
   getDevBots,
   getDevModules,
   restartDevBot,
@@ -19,6 +20,7 @@ import type {
   BotConnectionTest,
   CreateDevBotPayload,
   DashboardMeGuild,
+  DetectedDiscordGuild,
   DevBot,
   DevBotStatus,
   DevModuleDefinition
@@ -63,6 +65,9 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
   const [testing, setTesting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<BotConnectionTest | null>(null);
+  const [detectedGuild, setDetectedGuild] = useState<DetectedDiscordGuild | null>(null);
+  const [detectingGuild, setDetectingGuild] = useState(false);
+  const [guildDetectionError, setGuildDetectionError] = useState<string | null>(null);
 
   const selectedBot = bots.find((bot) => bot.id === selectedBotId) ?? bots[0] ?? null;
   const guildNameById = useMemo(() => new Map(guilds.map((guild) => [guild.id, guild.name])), [guilds]);
@@ -106,6 +111,45 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
       mainGuildId: current.mainGuildId || selectedGuildId || guilds[0]?.id || ""
     }));
   }, [guilds, selectedGuildId, user]);
+
+  useEffect(() => {
+    const token = form.token.trim();
+    const guildId = form.mainGuildId.trim();
+
+    setDetectedGuild(null);
+    setGuildDetectionError(null);
+
+    if (token.length < 10 || !/^\d{5,32}$/.test(guildId)) {
+      setDetectingGuild(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      setDetectingGuild(true);
+      detectDevBotGuild(token, guildId)
+        .then((guild) => {
+          if (!cancelled) {
+            setDetectedGuild(guild);
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            setGuildDetectionError(readRequestMessage(error) ?? "Nao foi possivel detectar esse servidor.");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setDetectingGuild(false);
+          }
+        });
+    }, 550);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [form.mainGuildId, form.token]);
 
   function updateForm<K extends keyof CreateDevBotPayload>(key: K, value: CreateDevBotPayload[K]) {
     setForm((current) => ({
@@ -155,9 +199,10 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
       setSelectedBotId(bot.id);
       setForm(emptyForm);
       setTestResult(null);
+      setDetectedGuild(null);
       setMessage("Bot cadastrado com sucesso.");
-    } catch {
-      setMessage("Nao foi possivel salvar o bot. Confira os campos obrigatorios.");
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Nao foi possivel salvar o bot. Confira os campos obrigatorios.");
     } finally {
       setSaving(false);
     }
@@ -243,22 +288,20 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
               <DevInput label="Token do bot" type="password" value={form.token} onChange={(value) => updateForm("token", value)} />
               <DevInput label="Secret" type="password" value={form.secret ?? ""} onChange={(value) => updateForm("secret", value)} />
               <DevInput label="Avatar URL" value={form.avatarUrl ?? ""} onChange={(value) => updateForm("avatarUrl", value)} />
-              {guilds.length ? (
-                <DevSelect
-                  label="Servidor principal"
-                  onChange={(value) => updateForm("mainGuildId", value)}
-                  options={guilds.map((guild) => ({
-                    label: guild.name,
-                    value: guild.id
-                  }))}
-                  value={form.mainGuildId}
-                />
-              ) : (
-                <DevInput label="Servidor principal" value={form.mainGuildId} onChange={(value) => updateForm("mainGuildId", value)} />
-              )}
+              <DevInput
+                label="ID do servidor principal"
+                value={form.mainGuildId}
+                onChange={(value) => updateForm("mainGuildId", value.replace(/\D/g, ""))}
+              />
               <DevInput label="Nome do dono" value={form.ownerName} onChange={(value) => updateForm("ownerName", value)} />
               <DevInput label="Discord ID do dono" value={form.ownerId} onChange={(value) => updateForm("ownerId", value)} />
             </div>
+
+            <GuildDetectionCard
+              detecting={detectingGuild}
+              error={guildDetectionError}
+              guild={detectedGuild}
+            />
 
             <div className="rounded-lg border border-zinc-900 bg-zinc-950/70 p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
@@ -289,7 +332,10 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
                 {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
                 Testar conexao
               </Button>
-              <Button disabled={saving} onClick={handleCreateBot}>
+              <Button
+                disabled={saving || detectingGuild || detectedGuild?.id !== form.mainGuildId.trim()}
+                onClick={handleCreateBot}
+              >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 Salvar bot
               </Button>
@@ -323,7 +369,7 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
                             <StatusBadge status={bot.status} />
                           </div>
                           <p className="truncate text-xs text-zinc-500">
-                            Servidor {guildNameById.get(bot.mainGuildId) ?? "Servidor configurado"}
+                            Servidor {bot.mainGuildName || guildNameById.get(bot.mainGuildId) || "Servidor configurado"}
                           </p>
                           <p className="truncate text-xs text-zinc-600">Dono {bot.ownerName}</p>
                           <p className="truncate font-mono text-[11px] text-zinc-700">Painel ID {bot.id}</p>
@@ -377,6 +423,69 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
   );
 }
 
+function GuildDetectionCard({
+  detecting,
+  error,
+  guild
+}: {
+  detecting: boolean;
+  error: string | null;
+  guild: DetectedDiscordGuild | null;
+}) {
+  if (detecting) {
+    return (
+      <div className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-950/70 p-4 text-sm text-zinc-400">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        Detectando dados do servidor no Discord...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
+        {error}
+      </div>
+    );
+  }
+
+  if (!guild) {
+    return (
+      <div className="rounded-lg border border-dashed border-zinc-800 bg-zinc-950/50 p-4 text-sm text-zinc-500">
+        Informe o token e o ID do servidor. O painel detectara os dados automaticamente.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <Avatar className="h-12 w-12 rounded-lg border border-emerald-500/30" fallback={guild.name} src={guild.iconUrl} />
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-sm font-semibold text-white">
+              <Server className="h-4 w-4 text-emerald-300" />
+              <span className="truncate">{guild.name}</span>
+            </p>
+            <p className="truncate font-mono text-xs text-zinc-500">{guild.id}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs text-zinc-300">
+          <span className="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-black/30 px-2.5 py-1.5">
+            <Users className="h-3.5 w-3.5" />
+            {guild.memberCount} membros
+          </span>
+          <span className="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-black/30 px-2.5 py-1.5">
+            <LayoutGrid className="h-3.5 w-3.5" />
+            {guild.channelCount} canais
+          </span>
+        </div>
+      </div>
+      <p className="mt-3 text-xs text-emerald-200">Servidor detectado e bot confirmado nele.</p>
+    </div>
+  );
+}
+
 function DevStatCard({ label, value }: { label: string; value: string }) {
   return (
     <Card>
@@ -398,31 +507,6 @@ function DevInput({ label, onChange, type = "text", value }: { label: string; on
     <label className="space-y-1.5">
       <span className="text-xs font-medium text-zinc-500">{label}</span>
       <input className="social-input" onChange={(event) => onChange(event.target.value)} type={type} value={value} />
-    </label>
-  );
-}
-
-function DevSelect({
-  label,
-  onChange,
-  options,
-  value
-}: {
-  label: string;
-  onChange: (value: string) => void;
-  options: Array<{ label: string; value: string }>;
-  value: string;
-}) {
-  return (
-    <label className="space-y-1.5">
-      <span className="text-xs font-medium text-zinc-500">{label}</span>
-      <select className="social-input" onChange={(event) => onChange(event.target.value)} value={value}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
     </label>
   );
 }
@@ -479,4 +563,13 @@ function statusLabel(status: DevBotStatus) {
 
 function statusTextClass(status: DevBotStatus) {
   return status === "online" ? "text-emerald-300" : status === "offline" ? "text-zinc-300" : "text-red-300";
+}
+
+function readRequestMessage(error: unknown) {
+  if (typeof error !== "object" || error === null || !("response" in error)) {
+    return null;
+  }
+
+  const response = (error as { response?: { data?: { message?: unknown } } }).response;
+  return typeof response?.data?.message === "string" ? response.data.message : null;
 }

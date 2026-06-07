@@ -226,6 +226,8 @@ export type DashboardMeResponse = {
   guilds: DashboardMeGuild[];
 };
 
+export type DashboardViewMode = "developer" | "user";
+
 export type DevModuleDefinition = {
   id: string;
   label: string;
@@ -239,6 +241,10 @@ export type DashboardBot = {
   clientId: string;
   avatarUrl: string | null;
   mainGuildId: string;
+  mainGuildName: string;
+  mainGuildIconUrl: string | null;
+  mainGuildMemberCount: number;
+  mainGuildChannelCount: number;
   guildIds: string[];
   status: DevBotStatus;
   statusMessage: string | null;
@@ -255,6 +261,10 @@ export type DevBot = {
   ownerId: string;
   ownerName: string;
   mainGuildId: string;
+  mainGuildName: string;
+  mainGuildIconUrl: string | null;
+  mainGuildMemberCount: number;
+  mainGuildChannelCount: number;
   guildIds: string[];
   status: DevBotStatus;
   statusMessage: string | null;
@@ -281,4 +291,14 @@ export type BotConnectionTest = {
   message: string;
   avatarUrl: string | null;
   clientId: string | null;
+};
+
+export type DetectedDiscordGuild = {
+  id: string;
+  name: string;
+  iconUrl: string | null;
+  ownerId: string;
+  memberCount: number;
+  onlineCount: number;
+  channelCount: number;
 };

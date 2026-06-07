@@ -5,6 +5,7 @@ import { requireDevAccess } from "../services/devAccessService";
 import {
   createDevBot,
   canManageDevBot,
+  detectDiscordBotGuild,
   deleteDevBot,
   DEV_MODULES,
   getBotGuildConfig,
@@ -81,6 +82,21 @@ devRouter.post("/bots/test-connection", async (req, res, next) => {
     }).parse(req.body);
 
     return res.json(await testDiscordBotToken(input.token, input.clientId));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.post("/bots/detect-guild", async (req, res, next) => {
+  try {
+    const input = z.object({
+      token: z.string().min(10),
+      guildId: z.string().regex(/^\d{5,32}$/)
+    }).parse(req.body);
+
+    return res.json({
+      guild: await detectDiscordBotGuild(input.token, input.guildId)
+    });
   } catch (error) {
     return next(error);
   }
