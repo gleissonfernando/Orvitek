@@ -86,11 +86,12 @@ function extractFilteredStreamPosts(body: Record<string, unknown>): XWebhookPost
   const includes = isRecord(body.includes) ? body.includes : {};
   const users = Array.isArray(includes.users) ? includes.users.filter(isRecord) : [];
   const media = Array.isArray(includes.media) ? includes.media.filter(isRecord) : [];
+  const ruleTags = extractXMonitorRuleTags(body);
 
   return data.filter(isRecord).map((tweet) => {
     const authorId = readString(tweet.author_id);
     const user = users.find((item) => readString(item.id) === authorId);
-    const username = user ? readString(user.username) : undefined;
+    const username = (user ? readString(user.username) : undefined) ?? ruleTags.usernames[0];
     const mediaKeys = isRecord(tweet.attachments) && Array.isArray(tweet.attachments.media_keys)
       ? tweet.attachments.media_keys.map((key) => String(key))
       : [];
@@ -100,6 +101,7 @@ function extractFilteredStreamPosts(body: Record<string, unknown>): XWebhookPost
       .filter((url): url is string => Boolean(url));
 
     return {
+      accountIds: ruleTags.accountIds,
       avatar: readString(user?.profile_image_url) ?? null,
       createdAt: normalizeDate(readString(tweet.created_at)),
       displayName: readString(user?.name) ?? username ?? null,
@@ -111,6 +113,19 @@ function extractFilteredStreamPosts(body: Record<string, unknown>): XWebhookPost
       xUserId: authorId
     };
   }).filter((post) => Boolean(post.id));
+}
+
+function extractXMonitorRuleTags(body: Record<string, unknown>) {
+  const tags = (Array.isArray(body.matching_rules) ? body.matching_rules : [])
+    .filter(isRecord)
+    .map((rule) => readString(rule.tag))
+    .filter((tag): tag is string => Boolean(tag?.startsWith("x-monitor:")))
+    .map((tag) => tag.replace(/^x-monitor:/, ""));
+
+  return {
+    accountIds: tags.filter((tag) => /^[0-9a-f-]{24,64}$/i.test(tag)),
+    usernames: tags.filter((tag) => /^[A-Za-z0-9_]{1,15}$/.test(tag))
+  };
 }
 
 function extractAccountActivityPosts(body: Record<string, unknown>): XWebhookPostInput[] {

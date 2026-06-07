@@ -52,6 +52,7 @@ export type CreateXAccountInput = {
 };
 
 export type XWebhookPostInput = {
+  accountIds?: string[];
   avatar?: string | null;
   createdAt: string;
   displayName?: string | null;
@@ -474,6 +475,14 @@ export async function dispatchXWebhookPost(input: XWebhookPostInput) {
   const username = input.username ? normalizeUsername(input.username) : "";
   const xUserId = input.xUserId?.trim() ?? "";
   const clauses: Array<Record<string, string>> = [];
+
+  for (const accountId of input.accountIds ?? []) {
+    if (accountId) {
+      clauses.push({
+        _id: accountId
+      });
+    }
+  }
 
   if (xUserId) {
     clauses.push({
