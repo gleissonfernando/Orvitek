@@ -171,6 +171,10 @@ type EnsurePrimaryDevBotListedInput = {
   createdBy: string;
 };
 
+type AccessibleDevBotsOptions = {
+  botSlug?: string | null;
+};
+
 export async function listDevBots() {
   const { botGuildConfigs, devBots } = await getMongoCollections();
   const [bots, configs] = await Promise.all([
@@ -182,23 +186,38 @@ export async function listDevBots() {
   return bots.map((bot) => toDevBotDto(bot, allBotGuildIds(bot, guildIdsByBot.get(bot._id))));
 }
 
-export async function listAccessibleDevBots(user: AuthSessionUser) {
+export async function listAccessibleDevBots(user: AuthSessionUser, options: AccessibleDevBotsOptions = {}) {
   if (isDashboardDevUserId(user.discordId)) {
+    if (options.botSlug) {
+      const bot = await getDevBotBySlug(options.botSlug);
+      return bot ? [bot] : [];
+    }
+
     return listDevBots();
   }
 
   const { botGuildConfigs, devBots } = await getMongoCollections();
+  const botQuery = options.botSlug ? { slug: slugifyBotName(options.botSlug) } : {};
   const [bots, configs] = await Promise.all([
-    devBots.find().sort({ createdAt: -1 }).toArray(),
+    devBots.find(botQuery).sort({ createdAt: -1 }).toArray(),
     botGuildConfigs.find().toArray()
   ]);
   const guildIdsByBot = groupGuildIdsByBot(configs);
+  const userGuildIds = new Set(user.guilds.map((guild) => guild.id));
 
   const accessibleBots = await Promise.all(bots.map(async (bot) => {
     const allGuildIds = allBotGuildIds(bot, guildIdsByBot.get(bot._id));
+    const candidateGuildIds = userGuildIds.size
+      ? allGuildIds.filter((guildId) => userGuildIds.has(guildId))
+      : allGuildIds;
+
+    if (!candidateGuildIds.length) {
+      return null;
+    }
+
     const authorizedGuildIds = (
       await Promise.all(
-        allGuildIds.map(async (guildId) => (await canAccessDevBotGuild(user, bot, guildId)) ? guildId : null)
+        candidateGuildIds.map(async (guildId) => (await canAccessDevBotGuild(user, bot, guildId)) ? guildId : null)
       )
     ).filter((guildId): guildId is string => Boolean(guildId));
 
@@ -208,8 +227,8 @@ export async function listAccessibleDevBots(user: AuthSessionUser) {
   return accessibleBots.filter((bot): bot is DevBotDto => Boolean(bot));
 }
 
-export async function listAccessibleDashboardBots(user: AuthSessionUser) {
-  return (await listAccessibleDevBots(user)).map(toDashboardBotDto);
+export async function listAccessibleDashboardBots(user: AuthSessionUser, options: AccessibleDevBotsOptions = {}) {
+  return (await listAccessibleDevBots(user, options)).map(toDashboardBotDto);
 }
 
 export async function userHasAccessibleDevBot(user: AuthSessionUser) {
@@ -244,14 +263,7 @@ export async function getDevBotBySlug(slug: string) {
 }
 
 export async function getAccessibleDashboardBotBySlug(user: AuthSessionUser, slug: string) {
-  const bot = await getDevBotBySlug(slug);
-
-  if (!bot) {
-    return null;
-  }
-
-  const accessibleBots = await listAccessibleDevBots(user);
-  return accessibleBots.find((accessibleBot) => accessibleBot.id === bot.id) ?? null;
+  return (await listAccessibleDevBots(user, { botSlug: slug }))[0] ?? null;
 }
 
 export async function findDevBotIdByClientId(clientId: string) {
@@ -1380,13 +1392,13 @@ async function hasConfiguredPanelRole(userId: string, bot: MongoDevBot, guildId:
 }
 
 async function getDashboardMemberRoleIds(userId: string, bot: MongoDevBot, guildId: string) {
-  const botRoleIds = await fetchBotGuildMemberRoleIds(userId, bot, guildId);
+  const oauthRoleIds = await fetchOAuthGuildMemberRoleIds(userId, guildId);
 
-  if (botRoleIds) {
-    return botRoleIds;
+  if (oauthRoleIds) {
+    return oauthRoleIds;
   }
 
-  return fetchOAuthGuildMemberRoleIds(userId, guildId);
+  return fetchBotGuildMemberRoleIds(userId, bot, guildId);
 }
 
 async function fetchBotGuildMemberRoleIds(userId: string, bot: MongoDevBot, guildId: string) {

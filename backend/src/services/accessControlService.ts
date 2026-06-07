@@ -22,9 +22,16 @@ export type AccessValidationResult = {
   checks: GuildAccessCheck[];
 };
 
+export type DashboardAccessOptions = {
+  botSlug?: string | null;
+};
+
 const BOT_ACCESS_TIMEOUT_MS = 12_000;
 
-export async function evaluateDashboardAccess(user: AuthSessionUser): Promise<AccessValidationResult> {
+export async function evaluateDashboardAccess(
+  user: AuthSessionUser,
+  options: DashboardAccessOptions = {}
+): Promise<AccessValidationResult> {
   const baseChecks = user.guilds.map((guild) => ({
     guildId: guild.id,
     guildName: guild.name,
@@ -40,7 +47,9 @@ export async function evaluateDashboardAccess(user: AuthSessionUser): Promise<Ac
   }
 
   const accessibleBots = await withTimeout(
-    listAccessibleDashboardBots(user),
+    listAccessibleDashboardBots(user, {
+      botSlug: options.botSlug
+    }),
     [],
     BOT_ACCESS_TIMEOUT_MS
   );

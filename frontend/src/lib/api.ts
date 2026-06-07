@@ -102,14 +102,19 @@ export async function refreshSession() {
   return data;
 }
 
-export async function verifyAccess() {
-  const { data } = await api.post<AuthResponse & { verificationToken: string }>("/auth/verify");
+export async function verifyAccess(botSlug?: string | null) {
+  const { data } = await api.post<AuthResponse & { verificationToken: string }>(
+    "/auth/verify",
+    botSlug ? { botSlug } : undefined
+  );
   storeTabVerification(data.verificationToken);
   return data;
 }
 
-export async function checkSiteAccess() {
-  const { data } = await api.get<{ validation: AccessValidationResult }>("/auth/access-check");
+export async function checkSiteAccess(botSlug?: string | null) {
+  const { data } = await api.get<{ validation: AccessValidationResult }>("/auth/access-check", {
+    params: botSlug ? { botSlug } : undefined
+  });
   return data.validation;
 }
 

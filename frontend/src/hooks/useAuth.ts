@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { checkSiteAccess, getSession, logout as logoutRequest, verifyAccess } from "../lib/api";
-import { appUrl, dashboardUrl, isDashboardRoutePath } from "../lib/urls";
+import { appUrl, dashboardSlugFromPath, dashboardUrl, isDashboardRoutePath } from "../lib/urls";
 import type { AccessValidationResult, AuthResponse } from "../types";
 
 const ACCESS_DENIED_MESSAGE = "Sem acesso ao painel. Se seu cargo foi liberado agora, saia e entre novamente pelo Discord.";
@@ -31,7 +31,7 @@ export function useAuth() {
 
       if (!session.access.verified) {
         setCheckingAccess(true);
-        void checkSiteAccess()
+        void checkSiteAccess(dashboardSlugFromPath(window.location.pathname))
           .then((validation) => {
             if (refreshId.current === requestId) {
               setAccessValidation(validation);
@@ -88,7 +88,7 @@ export function useAuth() {
     setError(null);
 
     try {
-      const session = await verifyAccess();
+      const session = await verifyAccess(dashboardSlugFromPath(window.location.pathname));
       setAuth(session);
       setAccessValidation(session.validation ?? null);
       if (!isDashboardRoutePath(window.location.pathname)) {

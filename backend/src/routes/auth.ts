@@ -136,6 +136,18 @@ function destroySession(req: Request) {
   });
 }
 
+function readAccessBotSlug(req: Request) {
+  const body = req.body as { botSlug?: unknown } | undefined;
+  const value = typeof req.query.botSlug === "string"
+    ? req.query.botSlug
+    : typeof body?.botSlug === "string"
+      ? body.botSlug
+      : null;
+  const botSlug = value?.trim();
+
+  return botSlug && /^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(botSlug) ? botSlug : null;
+}
+
 async function ensureBotGuildsLoaded() {
   if (getBotStatus().botGuilds.length === 0) {
     await refreshBotGuildsFromDiscord();
@@ -268,7 +280,9 @@ authRouter.get("/access-check", requireAuthenticated, async (req, res) => {
   const auth = res.locals.dashboardAuth;
   const refreshedUser = await refreshAuthUserGuilds(req, auth.user);
   const currentAuth = refreshedUser === auth.user ? auth : issueAuthCookies(res, refreshedUser, auth.verified);
-  const validation = await evaluateDashboardAccess(currentAuth.user);
+  const validation = await evaluateDashboardAccess(currentAuth.user, {
+    botSlug: readAccessBotSlug(req)
+  });
 
   req.session.user = currentAuth.user;
   if (currentAuth.verified) {
@@ -285,7 +299,9 @@ authRouter.post("/verify", requireAuthenticated, async (req, res) => {
   await ensureBotGuildsLoaded();
   const auth = res.locals.dashboardAuth;
   const refreshedUser = await refreshAuthUserGuilds(req, auth.user);
-  const validation = await evaluateDashboardAccess(refreshedUser);
+  const validation = await evaluateDashboardAccess(refreshedUser, {
+    botSlug: readAccessBotSlug(req)
+  });
 
   if (!validation.allowed) {
     const deniedAuth = issueAuthCookies(res, createDeniedAccessUser(refreshedUser), false);
