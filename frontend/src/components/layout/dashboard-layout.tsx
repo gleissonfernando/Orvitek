@@ -11,6 +11,8 @@ type DashboardLayoutProps = {
   guilds: DashboardGuild[];
   selectedGuildId: string | null;
   showDev: boolean;
+  enabledModules: string[];
+  showAllModules: boolean;
   user: AuthUser;
   onChangeView: (view: ViewId) => void;
   onLogout: () => void;
@@ -21,8 +23,10 @@ export function DashboardLayout({
   activeView,
   children,
   dashboardUser,
+  enabledModules,
   guilds,
   selectedGuildId,
+  showAllModules,
   showDev,
   user,
   onChangeView,
@@ -35,11 +39,13 @@ export function DashboardLayout({
     <div className="min-h-screen bg-[#050505] lg:pl-72">
       <Sidebar
         activeView={activeView}
+        enabledModules={enabledModules}
         isOpen={menuOpen}
         onChangeView={onChangeView}
         onClose={() => setMenuOpen(false)}
         server={guilds.find((guild) => guild.id === selectedGuildId) ?? guilds[0] ?? null}
         showDev={showDev}
+        showAllModules={showAllModules}
       />
       <Topbar
         guilds={guilds}

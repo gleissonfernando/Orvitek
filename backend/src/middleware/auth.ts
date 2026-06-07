@@ -24,7 +24,9 @@ export async function requireAuthenticated(req: Request, res: Response, next: Ne
   }
 
   req.session.user = auth.user;
-  req.session.verified = auth.verified;
+  if (auth.verified) {
+    req.session.verified = true;
+  }
   res.locals.dashboardAuth = auth;
   return next();
 }

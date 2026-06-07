@@ -1,19 +1,19 @@
-import { EmbedBuilder, type GuildMember } from "discord.js";
+import { EmbedBuilder, type GuildMember, type PartialGuildMember } from "discord.js";
 import { env } from "../config/env";
 import type { BotContext } from "../types";
 
 const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=3";
 
 export async function sendWelcomeMessage(context: BotContext, member: GuildMember) {
-  const settings = await context.api.getSettings(member.guild.id).catch(() => null);
+  const settings = await context.api.getSettings(member.guild.id, member.client.user.id).catch(() => null);
 
   if (!settings?.welcomeEnabled || !settings.welcomeChannelId) {
     return;
   }
 
-  const channel = member.guild.channels.cache.get(settings.welcomeChannelId);
+  const channel = await resolveTextChannel(member, settings.welcomeChannelId);
 
-  if (!channel?.isTextBased()) {
+  if (!channel) {
     return;
   }
 
@@ -39,16 +39,16 @@ export async function sendWelcomeMessage(context: BotContext, member: GuildMembe
   });
 }
 
-export async function sendLeaveMessage(context: BotContext, member: GuildMember) {
-  const settings = await context.api.getSettings(member.guild.id).catch(() => null);
+export async function sendLeaveMessage(context: BotContext, member: GuildMember | PartialGuildMember) {
+  const settings = await context.api.getSettings(member.guild.id, member.client.user.id).catch(() => null);
 
   if (!settings?.leaveEnabled || !settings.leaveChannelId) {
     return;
   }
 
-  const channel = member.guild.channels.cache.get(settings.leaveChannelId);
+  const channel = await resolveTextChannel(member, settings.leaveChannelId);
 
-  if (!channel?.isTextBased()) {
+  if (!channel) {
     return;
   }
 
@@ -121,4 +121,11 @@ function resolveImageUrl(value: string | null) {
 
   const backendOrigin = env.BACKEND_API_URL ? new URL(env.BACKEND_API_URL).origin : "";
   return backendOrigin ? `${backendOrigin}${value.startsWith("/") ? value : `/${value}`}` : null;
+}
+
+async function resolveTextChannel(member: GuildMember | PartialGuildMember, channelId: string) {
+  const channel = member.guild.channels.cache.get(channelId)
+    ?? await member.guild.channels.fetch(channelId).catch(() => null);
+
+  return channel?.isTextBased() ? channel : null;
 }

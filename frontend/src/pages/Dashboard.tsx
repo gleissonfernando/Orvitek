@@ -28,6 +28,7 @@ import { DashboardLayout } from "../components/layout/dashboard-layout";
 import type { ViewId } from "../components/layout/sidebar";
 import { DashboardHeader } from "../components/DashboardHeader";
 import { DevPanel } from "../components/dev/DevPanel";
+import { SiteAccessPanel } from "../components/moderation/SiteAccessPanel";
 import { LiveNotificationsPanel } from "../components/social/LiveNotificationsPanel";
 import { WelcomePanel } from "../components/welcome/WelcomePanel";
 import { Avatar } from "../components/ui/avatar";
@@ -49,6 +50,7 @@ import type {
   AuthResponse,
   BotStatus,
   DashboardGuild,
+  DashboardBot,
   DashboardMeGuild,
   DashboardMeResponse,
   GuildSettings,
@@ -64,8 +66,6 @@ type DashboardProps = {
 
 const CONFIGURED_GUILD_ID = "1213384118356803594";
 const CONFIGURED_GUILD_NAME = "Servidor configurado";
-const DEV_OWNER_USER_ID = "1426287249020158018";
-
 type BooleanSettingKey =
   | "welcomeEnabled"
   | "leaveEnabled"
@@ -83,6 +83,7 @@ type DashboardCardConfig = {
   key?: BooleanSettingKey;
   badge?: string;
   action?: string;
+  moduleId?: string;
 };
 
 const initialBotStatus: BotStatus = {
@@ -109,6 +110,7 @@ const dashboardCards: DashboardCardConfig[] = [
     title: "Entrada",
     description: "Painel automatico para entrada de novos membros.",
     icon: UserPlus,
+    moduleId: "welcome",
     key: "welcomeEnabled",
     action: "Abrir"
   },
@@ -118,6 +120,7 @@ const dashboardCards: DashboardCardConfig[] = [
     title: "Saida",
     description: "Painel automatico para saida de membros.",
     icon: UserMinus,
+    moduleId: "leave",
     key: "leaveEnabled",
     action: "Abrir"
   },
@@ -136,6 +139,7 @@ const dashboardCards: DashboardCardConfig[] = [
     title: "Cargo configurado no painel",
     description: "Estrutura pronta para liberar acesso por cargo definido futuramente.",
     icon: Shield,
+    moduleId: "verification",
     key: "verificationEnabled",
     action: "Preparar"
   },
@@ -145,6 +149,7 @@ const dashboardCards: DashboardCardConfig[] = [
     title: "Sistema de lives",
     description: "Detecte transmissões, envie alertas e atualize o painel em tempo real.",
     icon: Radio,
+    moduleId: "live",
     action: "Gerenciar"
   },
   {
@@ -153,6 +158,7 @@ const dashboardCards: DashboardCardConfig[] = [
     title: "Cargos automáticos",
     description: "Controle cargos de entrada, booster, subscriber e perfis customizados.",
     icon: Users,
+    moduleId: "roles",
     key: "autoRoleEnabled",
     action: "Configurar"
   },
@@ -162,6 +168,7 @@ const dashboardCards: DashboardCardConfig[] = [
     title: "Tickets",
     description: "Organize atendimentos, canais temporários e histórico de suporte.",
     icon: TicketIcon,
+    moduleId: "tickets",
     key: "ticketEnabled",
     action: "Abrir"
   },
@@ -171,6 +178,7 @@ const dashboardCards: DashboardCardConfig[] = [
     title: "Moderação",
     description: "Ações de ban, kick, timeout e warn com registros centralizados.",
     icon: Ban,
+    moduleId: "moderation",
     key: "moderationEnabled",
     action: "Gerenciar"
   },
@@ -180,6 +188,7 @@ const dashboardCards: DashboardCardConfig[] = [
     title: "Logs do servidor",
     description: "Eventos de mensagens, membros, cargos, tickets e moderação.",
     icon: ScrollText,
+    moduleId: "logs",
     badge: "3",
     action: "Ver logs"
   },
@@ -189,6 +198,7 @@ const dashboardCards: DashboardCardConfig[] = [
     title: "Notificações internas",
     description: "Área reservada para alertas operacionais do painel.",
     icon: Bell,
+    moduleId: "logs",
     action: "Em breve"
   },
   {
@@ -197,6 +207,7 @@ const dashboardCards: DashboardCardConfig[] = [
     title: "Mensagens personalizadas",
     description: "Crie textos reutilizáveis para boas-vindas, tickets e avisos.",
     icon: MessageSquare,
+    moduleId: "avisos",
     action: "Editar"
   },
   {
@@ -205,6 +216,7 @@ const dashboardCards: DashboardCardConfig[] = [
     title: "Aparência do servidor",
     description: "Espaço preparado para identidade visual, embeds e modelos futuros.",
     icon: Brush,
+    moduleId: "avisos",
     action: "Em breve"
   }
 ];
@@ -230,6 +242,18 @@ const categoryMeta = {
     title: "Personalização",
     description: "Mensagens e espaços para futuras customizações."
   }
+};
+
+const viewModuleIds: Partial<Record<ViewId, string>> = {
+  permissions: "verification",
+  lives: "live",
+  roles: "roles",
+  welcome: "welcome",
+  leave: "leave",
+  tickets: "tickets",
+  logs: "logs",
+  moderation: "moderation",
+  personalization: "avisos"
 };
 
 export function Dashboard({ auth, onLogout }: DashboardProps) {
@@ -258,10 +282,31 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
   );
   const activeBotId = selectedPanelBot?.id ?? null;
   const canManageDashboard = auth.permissions.canManageDashboard || Boolean(selectedPanelBot);
-  const canViewDev = dashboardProfile?.canViewDev ?? auth.user.discordId === DEV_OWNER_USER_ID;
-  const dashboardHeaderGuilds = useMemo(
+  const canViewDev = dashboardProfile?.canViewDev ?? false;
+  const enabledModules = selectedPanelBot?.enabledModules ?? [];
+  const showAllModules = canViewDev;
+  const displayedBotStatus = selectedPanelBot
+    ? {
+        ...botStatus,
+        botId: selectedPanelBot.id,
+        online: selectedPanelBot.status === "online"
+      }
+    : botStatus;
+  const scopedDashboardGuilds = useMemo(
+    () => selectedPanelBot
+      ? dashboardGuilds.filter((guild) => selectedPanelBot.guildIds.includes(guild.id))
+      : dashboardGuilds,
+    [dashboardGuilds, selectedPanelBot]
+  );
+  const allDashboardHeaderGuilds = useMemo(
     () => (dashboardProfile?.guilds.length ? dashboardProfile.guilds : toDashboardMeGuilds(dashboardGuilds)),
     [dashboardGuilds, dashboardProfile]
+  );
+  const dashboardHeaderGuilds = useMemo(
+    () => selectedPanelBot
+      ? allDashboardHeaderGuilds.filter((guild) => selectedPanelBot.guildIds.includes(guild.id))
+      : allDashboardHeaderGuilds,
+    [allDashboardHeaderGuilds, selectedPanelBot]
   );
 
   useEffect(() => {
@@ -278,7 +323,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
         const firstPanelBot = profile.bots[0] ?? null;
 
         setSelectedBotId((current) => current ?? firstPanelBot?.id ?? null);
-        const nextGuildId = firstPanelBot?.mainGuildId ?? profile.selectedGuildId ?? profile.guilds[0]?.id ?? null;
+        const nextGuildId = firstPanelBot?.guildIds[0] ?? profile.selectedGuildId ?? profile.guilds[0]?.id ?? null;
 
         if (nextGuildId) {
           setSelectedGuildId((current) => (current && profile.guilds.some((guild) => guild.id === current) ? current : nextGuildId));
@@ -307,24 +352,36 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
   }, [activeView, canViewDev]);
 
   useEffect(() => {
-    if (!selectedGuildId && dashboardGuilds[0]?.id) {
-      setSelectedGuildId(dashboardGuilds[0].id);
+    const requiredModule = viewModuleId(activeView);
+
+    if (!showAllModules && requiredModule && !enabledModules.includes(requiredModule)) {
+      setActiveView("overview");
     }
-  }, [dashboardGuilds, selectedGuildId]);
+  }, [activeView, enabledModules, showAllModules]);
+
+  useEffect(() => {
+    const selectedGuildIsAvailable = selectedGuildId
+      ? scopedDashboardGuilds.some((guild) => guild.id === selectedGuildId)
+      : false;
+
+    if (!selectedGuildIsAvailable && scopedDashboardGuilds[0]?.id) {
+      setSelectedGuildId(scopedDashboardGuilds[0].id);
+    }
+  }, [scopedDashboardGuilds, selectedGuildId]);
 
   const selectedGuild = useMemo(
-    () => dashboardGuilds.find((guild) => guild.id === selectedGuildId) ?? dashboardGuilds[0] ?? null,
-    [dashboardGuilds, selectedGuildId]
+    () => scopedDashboardGuilds.find((guild) => guild.id === selectedGuildId) ?? scopedDashboardGuilds[0] ?? null,
+    [scopedDashboardGuilds, selectedGuildId]
   );
 
   const totals = useMemo(
     () => ({
-      members: dashboardGuilds.reduce((sum, guild) => sum + guild.memberCount, 0),
-      channels: dashboardGuilds.reduce((sum, guild) => sum + guild.channelCount, 0),
-      guilds: dashboardGuilds.length,
-      onlineGuilds: dashboardGuilds.filter((guild) => guild.botEnabled || botStatus.online).length
+      members: scopedDashboardGuilds.reduce((sum, guild) => sum + guild.memberCount, 0),
+      channels: scopedDashboardGuilds.reduce((sum, guild) => sum + guild.channelCount, 0),
+      guilds: scopedDashboardGuilds.length,
+      onlineGuilds: scopedDashboardGuilds.filter((guild) => guild.botEnabled || botStatus.online).length
     }),
-    [dashboardGuilds, botStatus.online]
+    [scopedDashboardGuilds, botStatus.online]
   );
 
   useEffect(() => {
@@ -368,7 +425,17 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
   useEffect(() => {
     const socket = createDashboardSocket();
 
-    socket.on("bot:status", (status: BotStatus) => setBotStatus(status));
+    socket.on("bot:status", (status: BotStatus) => {
+      if ((status.botId ?? null) === activeBotId) {
+        setBotStatus(status);
+      }
+    });
+    socket.on("dev:bot_updated", (updatedBot: DashboardBot) => {
+      setDashboardProfile((current) => current ? {
+        ...current,
+        bots: current.bots.map((bot) => bot.id === updatedBot.id ? updatedBot : bot)
+      } : current);
+    });
     socket.on("logs:new", (log: LogEntry) => {
       if (log.guildId === selectedGuildId && (log.botId ?? null) === activeBotId) {
         setLogs((current) => [log, ...current].slice(0, 50));
@@ -443,9 +510,13 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
 
     const bot = panelBots.find((item) => item.id === botId) ?? null;
 
-    if (bot?.mainGuildId) {
-      setSelectedGuildId(bot.mainGuildId);
-      await updateSelectedDashboardGuild(bot.mainGuildId, bot.id).catch(() => undefined);
+    const nextGuildId = bot
+      ? bot.guildIds.includes(selectedGuildId ?? "") ? selectedGuildId : bot.guildIds[0]
+      : selectedGuildId;
+
+    if (bot && nextGuildId) {
+      setSelectedGuildId(nextGuildId);
+      await updateSelectedDashboardGuild(nextGuildId, bot.id).catch(() => undefined);
     }
   }
 
@@ -453,12 +524,14 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
     <DashboardLayout
       activeView={activeView}
       dashboardUser={dashboardProfile?.user}
-      guilds={dashboardGuilds}
+      enabledModules={enabledModules}
+      guilds={scopedDashboardGuilds}
       onChangeView={setActiveView}
       onLogout={onLogout}
       onSelectGuild={handleSelectGuild}
       selectedGuildId={selectedGuild?.id ?? null}
       showDev={canViewDev}
+      showAllModules={showAllModules}
       user={auth.user}
     >
       <motion.div
@@ -469,7 +542,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
       >
         <PageHeader
           activeView={activeView}
-          botStatus={botStatus}
+          botStatus={displayedBotStatus}
           guildName={selectedGuild?.name ?? "Servidor"}
         />
         <DashboardHeader
@@ -492,12 +565,14 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
         {activeView === "overview" ? (
           <OverviewView
             auth={auth}
-            botStatus={botStatus}
+            botStatus={displayedBotStatus}
             canManageDashboard={canManageDashboard}
+            enabledModules={enabledModules}
             logs={logs}
             onToggle={updateSetting}
             savingKey={savingKey}
             settings={settings}
+            showAllModules={showAllModules}
             totals={totals}
           />
         ) : null}
@@ -506,9 +581,11 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
           <CategoryView
             canManageDashboard={canManageDashboard}
             category={activeView}
+            enabledModules={enabledModules}
             onToggle={updateSetting}
             savingKey={savingKey}
             settings={settings}
+            showAllModules={showAllModules}
           />
         ) : null}
 
@@ -542,17 +619,31 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
         {activeView === "tickets" ? <TicketView tickets={tickets} /> : null}
         {activeView === "logs" ? <LogsView logs={logs} /> : null}
         {activeView === "dev" && canViewDev ? (
-          <DevPanel guilds={dashboardHeaderGuilds} selectedGuildId={selectedGuild?.id ?? null} user={auth.user} />
+          <DevPanel guilds={allDashboardHeaderGuilds} selectedGuildId={selectedGuild?.id ?? null} user={auth.user} />
         ) : null}
 
         {["roles", "moderation"].includes(activeView) ? (
-          <FocusedModuleView
-            activeView={activeView}
-            canManageDashboard={canManageDashboard}
-            onToggle={updateSetting}
-            savingKey={savingKey}
-            settings={settings}
-          />
+          <>
+            <FocusedModuleView
+              activeView={activeView}
+              canManageDashboard={canManageDashboard}
+              enabledModules={enabledModules}
+              onToggle={updateSetting}
+              savingKey={savingKey}
+              settings={settings}
+              showAllModules={showAllModules}
+            />
+            {activeView === "moderation" ? (
+              <SiteAccessPanel
+                botId={activeBotId}
+                canManage={canManageDashboard}
+                guild={selectedGuild}
+                loading={settingsLoading}
+                onSettingsChange={setSettings}
+                settings={settings}
+              />
+            ) : null}
+          </>
         ) : null}
       </motion.div>
     </DashboardLayout>
@@ -576,6 +667,14 @@ function ensureDashboardGuilds(guilds: DashboardGuild[]) {
       channelCount: 0
     }
   ];
+}
+
+function viewModuleId(view: ViewId) {
+  return viewModuleIds[view] ?? null;
+}
+
+function isCardVisible(card: DashboardCardConfig, enabledModules: string[], showAllModules: boolean) {
+  return showAllModules || !card.moduleId || enabledModules.includes(card.moduleId);
 }
 
 function mergeDashboardGuilds(guilds: DashboardMeGuild[], fallbackGuilds: DashboardGuild[]) {
@@ -656,19 +755,23 @@ function OverviewView({
   auth,
   botStatus,
   canManageDashboard,
+  enabledModules,
   logs,
   onToggle,
   savingKey,
   settings,
+  showAllModules,
   totals
 }: {
   auth: AuthResponse;
   botStatus: BotStatus;
   canManageDashboard: boolean;
+  enabledModules: string[];
   logs: LogEntry[];
   onToggle: (key: BooleanSettingKey, checked: boolean) => void;
   savingKey: BooleanSettingKey | null;
   settings: GuildSettings | null;
+  showAllModules: boolean;
   totals: { members: number; channels: number; guilds: number; onlineGuilds: number };
 }) {
   return (
@@ -685,23 +788,29 @@ function OverviewView({
       <CategorySection
         canManageDashboard={canManageDashboard}
         category="settings"
+        enabledModules={enabledModules}
         onToggle={onToggle}
         savingKey={savingKey}
         settings={settings}
+        showAllModules={showAllModules}
       />
       <CategorySection
         canManageDashboard={canManageDashboard}
         category="permissions"
+        enabledModules={enabledModules}
         onToggle={onToggle}
         savingKey={savingKey}
         settings={settings}
+        showAllModules={showAllModules}
       />
       <CategorySection
         canManageDashboard={canManageDashboard}
         category="modules"
+        enabledModules={enabledModules}
         onToggle={onToggle}
         savingKey={savingKey}
         settings={settings}
+        showAllModules={showAllModules}
       />
 
       <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
@@ -774,23 +883,29 @@ function ProfileFact({ icon: Icon, label, value }: { icon: typeof IdCard; label:
 function CategoryView({
   canManageDashboard,
   category,
+  enabledModules,
   onToggle,
   savingKey,
-  settings
+  settings,
+  showAllModules
 }: {
   canManageDashboard: boolean;
   category: DashboardCardConfig["category"];
+  enabledModules: string[];
   onToggle: (key: BooleanSettingKey, checked: boolean) => void;
   savingKey: BooleanSettingKey | null;
   settings: GuildSettings | null;
+  showAllModules: boolean;
 }) {
   return (
     <CategorySection
       canManageDashboard={canManageDashboard}
       category={category}
+      enabledModules={enabledModules}
       onToggle={onToggle}
       savingKey={savingKey}
       settings={settings}
+      showAllModules={showAllModules}
     />
   );
 }
@@ -798,15 +913,19 @@ function CategoryView({
 function FocusedModuleView({
   activeView,
   canManageDashboard,
+  enabledModules,
   onToggle,
   savingKey,
-  settings
+  settings,
+  showAllModules
 }: {
   activeView: ViewId;
   canManageDashboard: boolean;
+  enabledModules: string[];
   onToggle: (key: BooleanSettingKey, checked: boolean) => void;
   savingKey: BooleanSettingKey | null;
   settings: GuildSettings | null;
+  showAllModules: boolean;
 }) {
   const ids =
     activeView === "roles"
@@ -818,7 +937,7 @@ function FocusedModuleView({
   return (
     <div className="space-y-4">
       {dashboardCards
-        .filter((card) => ids.includes(card.id))
+        .filter((card) => ids.includes(card.id) && isCardVisible(card, enabledModules, showAllModules))
         .map((card) => (
           <ConfigCard
             card={card}
@@ -836,18 +955,24 @@ function FocusedModuleView({
 function CategorySection({
   canManageDashboard,
   category,
+  enabledModules,
   onToggle,
   savingKey,
-  settings
+  settings,
+  showAllModules
 }: {
   canManageDashboard: boolean;
   category: DashboardCardConfig["category"];
+  enabledModules: string[];
   onToggle: (key: BooleanSettingKey, checked: boolean) => void;
   savingKey: BooleanSettingKey | null;
   settings: GuildSettings | null;
+  showAllModules: boolean;
 }) {
   const meta = categoryMeta[category];
-  const cards = dashboardCards.filter((card) => card.category === category);
+  const cards = dashboardCards.filter(
+    (card) => card.category === category && isCardVisible(card, enabledModules, showAllModules)
+  );
 
   return (
     <section className="space-y-3">

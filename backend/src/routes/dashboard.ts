@@ -3,9 +3,9 @@ import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
 import { canManageDashboardGuild } from "../services/dashboardGuildAccessService";
 import { fetchBotProfile } from "../services/botProfileService";
-import { isDevUser } from "../services/devAccessService";
-import { canManageDevBotGuild, listAccessibleDevBots } from "../services/devBotService";
-import { filterGuildsForBot, mergeAuthorizedBotGuilds } from "../services/statsService";
+import { canAccessDevPanel } from "../services/devAccessService";
+import { canManageDevBotGuild, listAccessibleDashboardBots } from "../services/devBotService";
+import { mergeAuthorizedBotGuilds } from "../services/statsService";
 import { issueAuthCookies, type DashboardAuth } from "../services/tokenService";
 import { saveSelectedGuild } from "../services/userService";
 
@@ -17,9 +17,9 @@ dashboardRouter.get("/me", async (_req, res, next) => {
   try {
     const auth = res.locals.dashboardAuth as DashboardAuth;
     const user = auth.user;
-    const panelBots = await listAccessibleDevBots(user).catch(() => []);
-    const canViewDev = isDevUser(user);
-    const accessibleGuilds = user.authorized ? mergeAuthorizedBotGuilds(user.guilds) : filterGuildsForBot(user.guilds);
+    const panelBots = await listAccessibleDashboardBots(user).catch(() => []);
+    const canViewDev = await canAccessDevPanel(user);
+    const accessibleGuilds = user.authorized ? mergeAuthorizedBotGuilds(user.guilds) : user.guilds;
     const guildsById = new Map(
       accessibleGuilds
       .filter((guild) => guild.botEnabled && (user.authorized || guild.owner || guild.isAdmin))
@@ -35,13 +35,20 @@ dashboardRouter.get("/me", async (_req, res, next) => {
     );
 
     for (const bot of panelBots) {
-      if (!guildsById.has(bot.mainGuildId)) {
-        guildsById.set(bot.mainGuildId, {
-          id: bot.mainGuildId,
-          name: `${bot.name} - servidor`,
-          iconUrl: null,
-          owner: bot.ownerId === user.discordId,
-          permissions: bot.ownerId === user.discordId ? "BOT_OWNER" : "BOT_ADMIN",
+      for (const guildId of bot.guildIds) {
+        if (guildsById.has(guildId)) {
+          continue;
+        }
+
+        const userGuild = user.guilds.find((guild) => guild.id === guildId);
+        guildsById.set(guildId, {
+          id: guildId,
+          name: userGuild?.name ?? (guildId === bot.mainGuildId ? `${bot.name} - servidor` : `Servidor ${guildId}`),
+          iconUrl: userGuild?.iconUrl ?? null,
+          owner: userGuild?.owner ?? false,
+          permissions: userGuild?.isAdmin || userGuild?.owner
+            ? "ADMINISTRATOR"
+            : "BOT_ADMIN",
           botInGuild: true
         });
       }

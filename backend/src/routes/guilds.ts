@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { canManageDashboardGuild } from "../services/dashboardGuildAccessService";
-import { canManageDevBotGuild } from "../services/devBotService";
+import { canManageDevBotGuild, getDevBotToken } from "../services/devBotService";
 import { getGuildLiveOptions } from "../services/discordOptionsService";
 import { getBotStatus } from "../services/statsService";
 
@@ -71,7 +71,7 @@ guildsRouter.get("/:guildId/live-options", async (req, res, next) => {
     }
 
     return res.json({
-      options: await getGuildLiveOptions(guildId)
+      options: await getGuildLiveOptions(guildId, await getDevBotToken(botId))
     });
   } catch (error) {
     return next(error);

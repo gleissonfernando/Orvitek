@@ -74,7 +74,11 @@ export function useAuth() {
         window.location.replace(dashboardUrl());
       }
     } catch (requestError) {
-      setError(isTimeoutError(requestError) ? "A verificacao demorou para responder. Tente novamente." : "Nao foi possivel validar seu acesso temporario.");
+      setError(
+        isTimeoutError(requestError)
+          ? "A verificacao demorou para responder. Tente novamente."
+          : readRequestMessage(requestError) ?? "Seu usuario nao possui o cargo liberado para acessar este painel."
+      );
     } finally {
       verifyInFlight.current = false;
       setVerifying(false);
@@ -100,4 +104,13 @@ export function useAuth() {
 
 function isTimeoutError(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "ECONNABORTED";
+}
+
+function readRequestMessage(error: unknown) {
+  if (typeof error !== "object" || error === null || !("response" in error)) {
+    return null;
+  }
+
+  const response = (error as { response?: { data?: { message?: unknown } } }).response;
+  return typeof response?.data?.message === "string" ? response.data.message : null;
 }

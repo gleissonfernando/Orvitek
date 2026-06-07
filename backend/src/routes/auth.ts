@@ -17,11 +17,12 @@ import {
   clearAuthCookies,
   createAuthResponse,
   issueAuthCookies,
+  issueVerificationToken,
   refreshAuthFromRequest,
   resolveAuthFromRequest
 } from "../services/tokenService";
 import { issueLocalAccess } from "../services/localAccessService";
-import { filterGuildsForBot, getBotStatus, refreshBotGuildsFromDiscord } from "../services/statsService";
+import { getBotStatus, refreshBotGuildsFromDiscord } from "../services/statsService";
 import { saveDiscordUser } from "../services/userService";
 import type { AuthSessionUser } from "../types/session";
 
@@ -134,7 +135,7 @@ function destroySession(req: Request) {
 function applyAccessValidation(user: AuthSessionUser, validation: AccessValidationResult): AuthSessionUser {
   const manageableGuildIds = new Set(
     validation.checks
-      .filter((check) => check.owner || check.administrator || check.configuredPanelRole)
+      .filter((check) => validation.authorizedUser || check.owner || check.configuredPanelRole)
       .map((check) => check.guildId)
   );
 
@@ -142,10 +143,12 @@ function applyAccessValidation(user: AuthSessionUser, validation: AccessValidati
     ...user,
     accessLevel: validation.accessLevel,
     authorized: validation.authorizedUser,
-    guilds: user.guilds.map((guild) => ({
-      ...guild,
-      isAdmin: guild.isAdmin || manageableGuildIds.has(guild.id)
-    }))
+    guilds: user.guilds
+      .filter((guild) => manageableGuildIds.has(guild.id))
+      .map((guild) => ({
+        ...guild,
+        isAdmin: manageableGuildIds.has(guild.id)
+      }))
   };
 }
 
@@ -198,7 +201,7 @@ authRouter.get("/discord/callback", async (req, res, next) => {
     const discordUser = await fetchDiscordUser(tokens.access_token);
     const discordGuilds = await fetchDiscordGuilds(tokens.access_token);
     const user = await saveDiscordUser(discordUser, tokens);
-    const guilds = filterGuildsForBot(toDashboardGuilds(discordGuilds));
+    const guilds = toDashboardGuilds(discordGuilds);
     const baseUser = {
       id: user.id,
       discordId: discordUser.id,
@@ -217,15 +220,13 @@ authRouter.get("/discord/callback", async (req, res, next) => {
       authorized: false,
       lastLoginAt: user.lastLoginAt?.toISOString?.() ?? new Date().toISOString()
     };
-    const validation = await evaluateDashboardAccess(baseUser);
-
-    req.session.user = applyAccessValidation(baseUser, validation);
-    req.session.verified = true;
+    req.session.user = baseUser;
+    req.session.verified = false;
     req.session.oauthState = undefined;
     req.session.discordAccessToken = tokens.access_token;
     req.session.discordRefreshToken = tokens.refresh_token;
 
-    issueAuthCookies(res, req.session.user, true);
+    issueAuthCookies(res, req.session.user, false);
     await saveSession(req);
     return res.redirect(dashboardRedirectUrl());
   } catch (error) {
@@ -266,9 +267,9 @@ authRouter.post("/dev", async (req, res) => {
     authorized: true,
     lastLoginAt: new Date().toISOString()
   };
-  req.session.verified = true;
+  req.session.verified = false;
 
-  const auth = issueAuthCookies(res, req.session.user, true);
+  const auth = issueAuthCookies(res, req.session.user, false);
   await saveSession(req);
 
   return res.json(createAuthResponse(auth));
@@ -290,7 +291,9 @@ authRouter.get("/me", async (req, res) => {
   }
 
   req.session.user = auth.user;
-  req.session.verified = auth.verified;
+  if (auth.verified) {
+    req.session.verified = true;
+  }
   await saveSession(req);
 
   return res.json(createAuthResponse(auth));
@@ -312,7 +315,9 @@ authRouter.post("/refresh", async (req, res) => {
   }
 
   req.session.user = auth.user;
-  req.session.verified = auth.verified;
+  if (auth.verified) {
+    req.session.verified = true;
+  }
   await saveSession(req);
 
   return res.json(createAuthResponse(auth));
@@ -322,9 +327,23 @@ authRouter.post("/verify", requireAuthenticated, async (req, res) => {
   await ensureBotGuildsLoaded();
   const auth = res.locals.dashboardAuth;
   const validation = await evaluateDashboardAccess(auth.user);
+  const validatedUser = applyAccessValidation(auth.user, validation);
+
+  if (!validation.allowed) {
+    const deniedAuth = issueAuthCookies(res, validatedUser, false);
+    req.session.user = deniedAuth.user;
+    req.session.verified = false;
+    await saveSession(req);
+
+    return res.status(403).json({
+      message: "Seu usuario nao possui o cargo liberado para acessar este painel.",
+      validation
+    });
+  }
+
   const verifiedAuth = issueAuthCookies(
     res,
-    applyAccessValidation(auth.user, validation),
+    validatedUser,
     true
   );
 
@@ -334,7 +353,8 @@ authRouter.post("/verify", requireAuthenticated, async (req, res) => {
 
   return res.json({
     ...createAuthResponse(verifiedAuth),
-    validation
+    validation,
+    verificationToken: issueVerificationToken(verifiedAuth.user)
   });
 });
 

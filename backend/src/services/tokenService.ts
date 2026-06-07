@@ -3,7 +3,7 @@ import jwt, { TokenExpiredError, type JwtPayload } from "jsonwebtoken";
 import { env } from "../config/env";
 import type { AuthSessionUser } from "../types/session";
 import { getDiscordAvatarUrl } from "./discordAssetService";
-import { filterGuildsForBot, mergeAuthorizedBotGuilds } from "./statsService";
+import { mergeAuthorizedBotGuilds } from "./statsService";
 
 const ACCESS_COOKIE = "dashboard.access_token";
 const REFRESH_COOKIE = "dashboard.refresh_token";
@@ -32,13 +32,13 @@ export function issueAuthCookies(res: Response, user: AuthSessionUser, verified:
 
   setAuthCookie(res, ACCESS_COOKIE, accessToken, env.JWT_ACCESS_TTL_SECONDS);
   setAuthCookie(res, REFRESH_COOKIE, refreshToken, env.JWT_REFRESH_TTL_SECONDS);
-  if (verified) {
-    setVerificationCookie(res, user);
-  } else {
-    clearVerificationCookie(res);
-  }
+  clearVerificationCookie(res);
 
   return buildAuthFromToken(accessToken);
+}
+
+export function issueVerificationToken(user: AuthSessionUser) {
+  return signVerificationToken(user);
 }
 
 export function clearAuthCookies(res: Response) {
@@ -74,7 +74,7 @@ export function resolveAuthFromRequest(req: Request, res: Response) {
 
   if (accessToken) {
     try {
-      return applyBrowserVerification(req, res, buildAuthFromToken(accessToken));
+      return applyBrowserVerification(req, buildAuthFromToken(accessToken));
     } catch (error) {
       if (!(error instanceof TokenExpiredError)) {
         clearAuthCookies(res);
@@ -95,7 +95,7 @@ export function refreshAuthFromRequest(req: Request, res: Response) {
 
   try {
     const payload = verifyToken(refreshToken, "refresh");
-    return issueAuthCookies(res, payload.user, payload.verified && hasVerificationCookie(req, payload.user));
+    return applyBrowserVerification(req, issueAuthCookies(res, payload.user, payload.verified));
   } catch {
     clearAuthCookies(res);
     return issueAuthFromSession(req, res);
@@ -107,7 +107,7 @@ function issueAuthFromSession(req: Request, res: Response) {
     return null;
   }
 
-  return issueAuthCookies(res, req.session.user, req.session.verified === true && hasVerificationCookie(req, req.session.user));
+  return applyBrowserVerification(req, issueAuthCookies(res, req.session.user, req.session.verified === true));
 }
 
 function signToken(type: "access" | "refresh", user: AuthSessionUser, verified: boolean, expiresIn: number) {
@@ -144,18 +144,20 @@ function verifyToken(token: string, expectedType: "access" | "refresh") {
   return payload;
 }
 
-function applyBrowserVerification(req: Request, res: Response, auth: DashboardAuth): DashboardAuth {
-  if (!auth.verified || hasVerificationCookie(req, auth.user)) {
+function applyBrowserVerification(req: Request, auth: DashboardAuth): DashboardAuth {
+  if (!auth.verified || hasVerificationHeader(req, auth.user)) {
     return auth;
   }
 
-  req.session.verified = false;
-  return issueAuthCookies(res, auth.user, false);
+  return {
+    ...auth,
+    verified: false
+  };
 }
 
 function normalizeAuthUser(user: AuthSessionUser): AuthSessionUser {
   const authorized = user.authorized ?? getAuthorizedUserIds().has(user.discordId);
-  const guilds = authorized ? mergeAuthorizedBotGuilds(user.guilds) : filterGuildsForBot(user.guilds);
+  const guilds = authorized ? mergeAuthorizedBotGuilds(user.guilds) : user.guilds;
   const hasAdminGuild = guilds.some((guild) => guild.owner || guild.isAdmin);
   const accessLevel = authorized || hasAdminGuild ? "admin" : "viewer";
   const selectedGuildId =
@@ -207,10 +209,6 @@ function setAuthCookie(res: Response, name: string, value: string, maxAgeSeconds
   });
 }
 
-function setVerificationCookie(res: Response, user: AuthSessionUser) {
-  res.cookie(VERIFICATION_COOKIE, signVerificationToken(user), cookieOptions());
-}
-
 function clearVerificationCookie(res: Response) {
   res.clearCookie(VERIFICATION_COOKIE, cookieOptions());
 }
@@ -228,8 +226,8 @@ function signVerificationToken(user: AuthSessionUser) {
   );
 }
 
-function hasVerificationCookie(req: Request, user: AuthSessionUser) {
-  const token = readCookie(req, VERIFICATION_COOKIE);
+function hasVerificationHeader(req: Request, user: AuthSessionUser) {
+  const token = req.header("x-dashboard-verification")?.trim();
 
   if (!token) {
     return false;

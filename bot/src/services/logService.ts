@@ -1,4 +1,4 @@
-import type { GuildMember, Message, PartialMessage, User } from "discord.js";
+import type { GuildMember, Message, PartialGuildMember, PartialMessage, User } from "discord.js";
 import type { BotContext } from "../types";
 
 export async function logMemberJoin(context: BotContext, member: GuildMember) {
@@ -10,7 +10,7 @@ export async function logMemberJoin(context: BotContext, member: GuildMember) {
   });
 }
 
-export async function logMemberLeave(context: BotContext, member: GuildMember) {
+export async function logMemberLeave(context: BotContext, member: GuildMember | PartialGuildMember) {
   await sendLog(context, {
     guildId: member.guild.id,
     userId: member.id,

@@ -1,8 +1,12 @@
-import type { GuildMember } from "discord.js";
+import type { GuildMember, Role } from "discord.js";
 import type { BotContext } from "../types";
 
-export async function applyAutomaticRoles(context: BotContext, member: GuildMember) {
-  const settings = await context.api.getSettings(member.guild.id).catch(() => null);
+export async function applyAutomaticRoles(context: BotContext, member: GuildMember, includeBoosterRole = true) {
+  if (member.user.bot) {
+    return;
+  }
+
+  const settings = await context.api.getSettings(member.guild.id, member.client.user.id).catch(() => null);
 
   if (!settings?.autoRoleEnabled) {
     return;
@@ -10,7 +14,7 @@ export async function applyAutomaticRoles(context: BotContext, member: GuildMemb
 
   const roleIds = new Set(settings.autoRoleIds);
 
-  if (member.premiumSince && settings.boosterRoleId) {
+  if (includeBoosterRole && member.premiumSince && settings.boosterRoleId) {
     roleIds.add(settings.boosterRoleId);
   }
 
@@ -18,5 +22,14 @@ export async function applyAutomaticRoles(context: BotContext, member: GuildMemb
     return;
   }
 
-  await member.roles.add([...roleIds], "Cargos automaticos via dashboard");
+  const roles = [...roleIds]
+    .map((roleId) => member.guild.roles.cache.get(roleId))
+    .filter((role): role is Role => Boolean(role?.editable));
+
+  if (!roles.length) {
+    console.warn(`[roles] nenhum cargo configurado pode ser atribuido em ${member.guild.name}.`);
+    return;
+  }
+
+  await member.roles.add(roles, "Cargos automaticos via dashboard");
 }

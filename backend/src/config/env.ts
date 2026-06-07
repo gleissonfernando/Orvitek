@@ -11,6 +11,7 @@ const localFrontendUrl = "http://localhost:5173";
 const productionPublicUrl = "https://ricardinho98.shardweb.app";
 const defaultDashboardGuildIds = "1213384118356803594";
 const defaultDashboardAuthorizedUserIds = "761011766440230932";
+const defaultDashboardDevUserIds = "761011766440230932,1426287249020158018";
 const isProduction = process.env.NODE_ENV === "production";
 
 function cleanEnvValue(value: unknown) {
@@ -143,8 +144,9 @@ const envSchema = z
     FRONTEND_URL: envUrl("FRONTEND_URL", defaultSiteOrigin, productionSiteOrigin),
     DASHBOARD_AUTH_REQUIRED: envBoolean(isProduction),
     DASHBOARD_AUTHORIZED_USER_IDS: z.string().optional().default(""),
+    DASHBOARD_DEV_USER_IDS: z.string().optional().default(""),
     DASHBOARD_GUILD_IDS: z.string().optional().default(defaultDashboardGuildIds),
-    DASHBOARD_VERIFICATION_MODE: z.enum(["temporary", "roles"]).default("temporary"),
+    DASHBOARD_VERIFICATION_MODE: z.enum(["temporary", "roles"]).default("roles"),
     DEV_AUTH_ENABLED: envBoolean(false)
   })
   .transform((value) => {
@@ -166,6 +168,7 @@ const envSchema = z
       DISCORD_CALLBACK_URL: oauthCallbackUrl,
       REDIS_URL: value.REDIS_SESSION_ENABLED ? productionSafeUrl(cleanEnvValue(value.REDIS_URL)) ?? "" : "",
       DASHBOARD_AUTHORIZED_USER_IDS: mergeCsvValues(value.DASHBOARD_AUTHORIZED_USER_IDS, defaultDashboardAuthorizedUserIds),
+      DASHBOARD_DEV_USER_IDS: mergeCsvValues(value.DASHBOARD_DEV_USER_IDS, defaultDashboardDevUserIds),
       DASHBOARD_GUILD_IDS: mergeCsvValues(value.DASHBOARD_GUILD_IDS, defaultDashboardGuildIds),
       DASHBOARD_AUTH_REQUIRED: isProduction ? true : value.DASHBOARD_AUTH_REQUIRED,
       DEV_AUTH_ENABLED: isProduction ? false : value.DEV_AUTH_ENABLED

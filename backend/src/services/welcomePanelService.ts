@@ -110,8 +110,9 @@ async function saveMemberPanelImage(mode: MemberPanelMode, guildId: string, buff
   return `/uploads/welcome/${fileName}`;
 }
 
-export async function sendWelcomePanelToDiscord(settings: GuildSettingsDto, userMention: string) {
+export async function sendWelcomePanelToDiscord(settings: GuildSettingsDto, userMention: string, botToken?: string | null) {
   await sendMemberPanelToDiscord({
+    botToken,
     channelId: settings.welcomeChannelId,
     embed: createWelcomePanelEmbed(settings, userMention),
     missingChannelMessage: "Selecione o canal onde o painel sera enviado.",
@@ -119,8 +120,9 @@ export async function sendWelcomePanelToDiscord(settings: GuildSettingsDto, user
   });
 }
 
-export async function sendLeavePanelToDiscord(settings: GuildSettingsDto, userMention: string) {
+export async function sendLeavePanelToDiscord(settings: GuildSettingsDto, userMention: string, botToken?: string | null) {
   await sendMemberPanelToDiscord({
+    botToken,
     channelId: settings.leaveChannelId,
     embed: createLeavePanelEmbed(settings, userMention),
     missingChannelMessage: "Selecione o canal onde o painel de saida sera enviado.",
@@ -130,16 +132,20 @@ export async function sendLeavePanelToDiscord(settings: GuildSettingsDto, userMe
 
 async function sendMemberPanelToDiscord({
   channelId,
+  botToken,
   embed,
   missingChannelMessage,
   testErrorLabel
 }: {
   channelId: string | null;
+  botToken?: string | null;
   embed: ReturnType<typeof createWelcomePanelEmbed>;
   missingChannelMessage: string;
   testErrorLabel: string;
 }) {
-  if (!env.DISCORD_BOT_TOKEN) {
+  const token = botToken || env.DISCORD_BOT_TOKEN;
+
+  if (!token) {
     throw new Error("DISCORD_BOT_TOKEN nao configurado.");
   }
 
@@ -150,7 +156,7 @@ async function sendMemberPanelToDiscord({
   const response = await fetch(`${DISCORD_API_URL}/channels/${channelId}/messages`, {
     method: "POST",
     headers: {
-      Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`,
+      Authorization: `Bot ${token}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({

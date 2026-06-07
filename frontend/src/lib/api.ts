@@ -38,6 +38,18 @@ export const api = axios.create({
   withCredentials: true
 });
 
+const VERIFICATION_STORAGE_KEY = "dashboard.tab_verification";
+
+api.interceptors.request.use((config) => {
+  const token = readTabVerification();
+
+  if (token) {
+    config.headers.set("x-dashboard-verification", token);
+  }
+
+  return config;
+});
+
 function botParams(botId?: string | null) {
   return botId ? { botId } : undefined;
 }
@@ -69,21 +81,25 @@ api.interceptors.response.use(
 
 export async function getSession() {
   const { data } = await api.get<AuthResponse>("/auth/me");
+  synchronizeTabVerification(data);
   return data;
 }
 
 export async function refreshSession() {
   const { data } = await api.post<AuthResponse>("/auth/refresh");
+  synchronizeTabVerification(data);
   return data;
 }
 
 export async function verifyAccess() {
-  const { data } = await api.post<AuthResponse>("/auth/verify");
+  const { data } = await api.post<AuthResponse & { verificationToken: string }>("/auth/verify");
+  storeTabVerification(data.verificationToken);
   return data;
 }
 
 export async function loginDev() {
   const { data } = await api.post<AuthResponse>("/auth/dev");
+  synchronizeTabVerification(data);
   return data;
 }
 
@@ -101,7 +117,41 @@ export async function updateSelectedDashboardGuild(selectedGuildId: string, botI
 }
 
 export async function logout() {
-  await api.post("/auth/logout");
+  try {
+    await api.post("/auth/logout");
+  } finally {
+    clearTabVerification();
+  }
+}
+
+function readTabVerification() {
+  try {
+    return window.sessionStorage.getItem(VERIFICATION_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeTabVerification(token: string) {
+  try {
+    window.sessionStorage.setItem(VERIFICATION_STORAGE_KEY, token);
+  } catch {
+    // Browsers with storage disabled will require verification again.
+  }
+}
+
+function clearTabVerification() {
+  try {
+    window.sessionStorage.removeItem(VERIFICATION_STORAGE_KEY);
+  } catch {
+    // Nothing else is needed when storage is unavailable.
+  }
+}
+
+function synchronizeTabVerification(auth: AuthResponse) {
+  if (!auth.access.verified) {
+    clearTabVerification();
+  }
 }
 
 export async function getGuildSettings(guildId: string, botId?: string | null) {
@@ -252,8 +302,8 @@ export async function createDevBot(payload: CreateDevBotPayload) {
   return data.bot;
 }
 
-export async function testDevBotConnection(token: string) {
-  const { data } = await api.post<BotConnectionTest>("/dev/bots/test-connection", { token }, {
+export async function testDevBotConnection(token: string, clientId?: string) {
+  const { data } = await api.post<BotConnectionTest>("/dev/bots/test-connection", { token, clientId: clientId || undefined }, {
     timeout: 16000
   });
   return data;

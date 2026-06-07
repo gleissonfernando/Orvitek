@@ -4,7 +4,7 @@ import {
   Options,
   Partials
 } from "discord.js";
-import { env } from "./config/env";
+import { env, isBotModuleEnabled } from "./config/env";
 import { createCommandCollection } from "./commands";
 import { registerEvents } from "./handlers/eventHandler";
 import { ApiClient } from "./services/apiClient";
@@ -13,21 +13,21 @@ import { BotSocketClient } from "./websocket/socketClient";
 
 const intents = [GatewayIntentBits.Guilds];
 
-if (env.BOT_MEMBER_EVENTS_ENABLED) {
+if (env.BOT_MEMBER_EVENTS_ENABLED && ["welcome", "leave", "roles", "logs"].some(isBotModuleEnabled)) {
   intents.push(GatewayIntentBits.GuildMembers);
 }
 
-if (env.BOT_MESSAGE_LOGS_ENABLED) {
+if (env.BOT_MESSAGE_LOGS_ENABLED && isBotModuleEnabled("logs")) {
   intents.push(GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent);
 }
 
-if (env.BOT_PRESENCE_MONITOR_ENABLED) {
+if (env.BOT_PRESENCE_MONITOR_ENABLED && isBotModuleEnabled("live")) {
   intents.push(GatewayIntentBits.GuildPresences);
 }
 
 const partials = [Partials.Channel, Partials.User];
 
-if (env.BOT_MESSAGE_LOGS_ENABLED) {
+if (env.BOT_MESSAGE_LOGS_ENABLED && isBotModuleEnabled("logs")) {
   partials.push(Partials.Message);
 }
 

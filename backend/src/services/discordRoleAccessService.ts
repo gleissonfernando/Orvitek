@@ -1,4 +1,5 @@
 import { env } from "../config/env";
+import { listGuildBotRuntimeConfigs } from "./devBotService";
 import { getGuildSettings } from "./settingsService";
 
 type DiscordGuildMember = {
@@ -25,36 +26,58 @@ const noRoleAccess: DiscordRoleAccess = {
 };
 
 export async function getDiscordRoleAccess(guildId: string, userId: string): Promise<DiscordRoleAccess> {
-  if (!env.DISCORD_BOT_TOKEN) {
+  const customBots = await listGuildBotRuntimeConfigs(guildId).catch(() => []);
+  const scopes = [
+    ...(env.DISCORD_BOT_TOKEN ? [{ botId: null, token: env.DISCORD_BOT_TOKEN }] : []),
+    ...customBots.map((bot) => ({
+      botId: bot.id,
+      token: bot.token
+    }))
+  ];
+
+  if (!scopes.length) {
     return noRoleAccess;
   }
 
-  try {
-    const [member, roles, settings] = await Promise.all([
-      discordFetch<DiscordGuildMember>(`/guilds/${guildId}/members/${userId}`),
-      discordFetch<DiscordRole[]>(`/guilds/${guildId}/roles`),
-      getGuildSettings(guildId)
-    ]);
-    const memberRoleIds = new Set(member.roles);
-    const configuredPanelRole = Boolean(
-      settings.verificationEnabled &&
-        settings.verificationRoleId &&
-        memberRoleIds.has(settings.verificationRoleId)
-    );
-    const administratorRole = roles.some((role) => memberRoleIds.has(role.id) && hasAdministratorPermission(role.permissions));
+  const results = await Promise.all(
+    scopes.map(async (scope) => {
+      try {
+        const settings = await getGuildSettings(guildId, scope.botId);
 
-    return {
-      administratorRole,
-      configuredPanelRole
-    };
-  } catch (error) {
-    if (error instanceof Error && /Discord API respondeu (403|404)/.test(error.message)) {
-      return noRoleAccess;
+        if (!settings.verificationEnabled || !settings.verificationRoleId) {
+          return noRoleAccess;
+        }
+
+        const [member, roles] = await Promise.all([
+          discordFetch<DiscordGuildMember>(`/guilds/${guildId}/members/${userId}`, scope.token),
+          discordFetch<DiscordRole[]>(`/guilds/${guildId}/roles`, scope.token)
+        ]);
+        const memberRoleIds = new Set(member.roles);
+        memberRoleIds.add(guildId);
+
+        return {
+          configuredPanelRole: memberRoleIds.has(settings.verificationRoleId),
+          administratorRole: roles.some(
+            (role) => memberRoleIds.has(role.id) && hasAdministratorPermission(role.permissions)
+          )
+        };
+      } catch (error) {
+        if (!(error instanceof Error && /Discord API respondeu (403|404)/.test(error.message))) {
+          console.warn(
+            `[discord] nao foi possivel validar cargos em ${guildId}:`,
+            error instanceof Error ? error.message : error
+          );
+        }
+
+        return noRoleAccess;
+      }
     }
+  ));
 
-    console.warn(`[discord] nao foi possivel validar cargos em ${guildId}:`, error instanceof Error ? error.message : error);
-    return noRoleAccess;
-  }
+  return {
+    administratorRole: results.some((result) => result.administratorRole),
+    configuredPanelRole: results.some((result) => result.configuredPanelRole)
+  };
 }
 
 function hasAdministratorPermission(permissionsValue: string) {
@@ -66,10 +89,10 @@ function hasAdministratorPermission(permissionsValue: string) {
   }
 }
 
-async function discordFetch<TResponse>(path: string) {
+async function discordFetch<TResponse>(path: string, token: string) {
   const response = await fetch(`${DISCORD_API_URL}${path}`, {
     headers: {
-      Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`
+      Authorization: `Bot ${token}`
     }
   });
 

@@ -21,7 +21,7 @@ export type AccessValidationResult = {
   checks: GuildAccessCheck[];
 };
 
-const ROLE_ACCESS_TIMEOUT_MS = 2500;
+const ROLE_ACCESS_TIMEOUT_MS = 6000;
 
 function getAuthorizedUserIds() {
   return new Set(
@@ -41,15 +41,17 @@ export async function evaluateDashboardAccess(user: AuthSessionUser): Promise<Ac
     configuredPanelRole: false
   }));
   const authorizedUser = getAuthorizedUserIds().has(user.discordId);
-  const hasOAuthAdminAccess = baseChecks.some((check) => check.administrator || check.owner);
-
-  if (env.DASHBOARD_VERIFICATION_MODE === "temporary" || authorizedUser || hasOAuthAdminAccess) {
-    return createValidationResult(baseChecks, authorizedUser, env.DASHBOARD_VERIFICATION_MODE === "temporary");
+  if (authorizedUser) {
+    return createValidationResult(baseChecks, true);
   }
 
   const checks = await withTimeout(
     Promise.all(
       baseChecks.map(async (check) => {
+        if (check.owner) {
+          return check;
+        }
+
         const roleAccess = await getDiscordRoleAccess(check.guildId, user.discordId);
 
         return {
@@ -64,7 +66,7 @@ export async function evaluateDashboardAccess(user: AuthSessionUser): Promise<Ac
     ROLE_ACCESS_TIMEOUT_MS
   );
 
-  return createValidationResult(checks, authorizedUser, false);
+  return createValidationResult(checks, authorizedUser);
 }
 
 function withTimeout<T>(promise: Promise<T>, fallback: T, timeoutMs: number): Promise<T> {
@@ -78,13 +80,13 @@ function withTimeout<T>(promise: Promise<T>, fallback: T, timeoutMs: number): Pr
   });
 }
 
-function createValidationResult(checks: GuildAccessCheck[], authorizedUser: boolean, temporaryAccess: boolean): AccessValidationResult {
-  const canManageDashboard = authorizedUser || checks.some((check) => check.administrator || check.owner || check.configuredPanelRole);
+function createValidationResult(checks: GuildAccessCheck[], authorizedUser: boolean): AccessValidationResult {
+  const canManageDashboard = authorizedUser || checks.some((check) => check.owner || check.configuredPanelRole);
 
   return {
-    allowed: true,
+    allowed: canManageDashboard,
     mode: env.DASHBOARD_VERIFICATION_MODE,
-    temporaryAccess,
+    temporaryAccess: false,
     accessLevel: canManageDashboard ? "admin" : "viewer",
     authorizedUser,
     canManageDashboard,

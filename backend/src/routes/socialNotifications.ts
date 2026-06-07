@@ -14,9 +14,11 @@ import {
   updateTwitchNotificationState
 } from "../services/socialNotificationService";
 import { canManageDashboardGuild } from "../services/dashboardGuildAccessService";
-import { canManageDevBotGuild } from "../services/devBotService";
+import { canUseDevBotModule, getDevBotToken } from "../services/devBotService";
+import { isGuildTextChannel } from "../services/discordOptionsService";
 import { getBotGuildIds } from "../services/statsService";
 import type { AuthSessionUser } from "../types/session";
+import { resolveRequestBotId } from "../services/requestBotScopeService";
 
 const createTwitchSchema = z.object({
   twitchChannelInput: z.string(),
@@ -51,7 +53,7 @@ export const socialNotificationsRouter = Router();
 
 socialNotificationsRouter.get("/bot/twitch-active", requireBot, async (req, res, next) => {
   try {
-    const botId = readBotId(req);
+    const botId = await resolveRequestBotId(req);
     const botGuildIds = getBotGuildIds();
     const notifications = await listActiveTwitchNotifications(botId);
 
@@ -66,8 +68,9 @@ socialNotificationsRouter.get("/bot/twitch-active", requireBot, async (req, res,
 socialNotificationsRouter.patch("/bot/twitch/:id/state", requireBot, async (req, res, next) => {
   try {
     const id = getRequiredParam(req.params.id, "id");
+    const botId = await resolveRequestBotId(req);
     const input = stateSchema.parse(req.body);
-    const notification = await updateTwitchNotificationState(id, input);
+    const notification = await updateTwitchNotificationState(id, input, botId);
 
     return res.json({
       notification
@@ -80,7 +83,7 @@ socialNotificationsRouter.patch("/bot/twitch/:id/state", requireBot, async (req,
 socialNotificationsRouter.post("/:guildId/twitch/preview", requireAuth, async (req, res, next) => {
   try {
     const guildId = getRequiredParam(req.params.guildId, "guildId");
-    const botId = readBotId(req);
+    const botId = await resolveRequestBotId(req);
     await assertCanManageGuild(req, guildId, botId);
 
     const input = previewTwitchSchema.parse(req.body);
@@ -97,7 +100,7 @@ socialNotificationsRouter.post("/:guildId/twitch/preview", requireAuth, async (r
 socialNotificationsRouter.get("/:guildId", requireAuth, async (req, res, next) => {
   try {
     const guildId = getRequiredParam(req.params.guildId, "guildId");
-    const botId = readBotId(req);
+    const botId = await resolveRequestBotId(req);
     await assertCanManageGuild(req, guildId, botId);
 
     return res.json({
@@ -111,11 +114,12 @@ socialNotificationsRouter.get("/:guildId", requireAuth, async (req, res, next) =
 socialNotificationsRouter.post("/:guildId/twitch", requireAuth, async (req, res, next) => {
   try {
     const guildId = getRequiredParam(req.params.guildId, "guildId");
-    const botId = readBotId(req);
+    const botId = await resolveRequestBotId(req);
     const user = res.locals.dashboardAuth.user as AuthSessionUser;
     await assertCanManageGuild(req, guildId, botId);
 
     const input = createTwitchSchema.parse(req.body);
+    await assertChannelBelongsToGuild(guildId, input.discordChannelId, botId);
     const notification = await createTwitchNotification(guildId, {
       ...input,
       botId,
@@ -133,11 +137,16 @@ socialNotificationsRouter.post("/:guildId/twitch", requireAuth, async (req, res,
 socialNotificationsRouter.put("/:guildId/twitch/:id", requireAuth, async (req, res, next) => {
   try {
     const guildId = getRequiredParam(req.params.guildId, "guildId");
-    const botId = readBotId(req);
+    const botId = await resolveRequestBotId(req);
     const id = getRequiredParam(req.params.id, "id");
     await assertCanManageGuild(req, guildId, botId);
 
     const input = updateTwitchSchema.parse(req.body);
+
+    if (input.discordChannelId) {
+      await assertChannelBelongsToGuild(guildId, input.discordChannelId, botId);
+    }
+
     const notification = await updateTwitchNotification(guildId, id, input, botId);
 
     return res.json({
@@ -151,12 +160,12 @@ socialNotificationsRouter.put("/:guildId/twitch/:id", requireAuth, async (req, r
 socialNotificationsRouter.post("/:guildId/twitch/:id/test", requireAuth, async (req, res, next) => {
   try {
     const guildId = getRequiredParam(req.params.guildId, "guildId");
-    const botId = readBotId(req);
+    const botId = await resolveRequestBotId(req);
     const id = getRequiredParam(req.params.id, "id");
     const user = res.locals.dashboardAuth.user as AuthSessionUser;
     await assertCanManageGuild(req, guildId, botId);
 
-    await sendTwitchNotificationTest(guildId, id, user.discordId, botId);
+    await sendTwitchNotificationTest(guildId, id, user.discordId, botId, await getDevBotToken(botId));
 
     return res.json({
       ok: true
@@ -169,7 +178,7 @@ socialNotificationsRouter.post("/:guildId/twitch/:id/test", requireAuth, async (
 socialNotificationsRouter.delete("/:guildId/twitch/:id", requireAuth, async (req, res, next) => {
   try {
     const guildId = getRequiredParam(req.params.guildId, "guildId");
-    const botId = readBotId(req);
+    const botId = await resolveRequestBotId(req);
     const id = getRequiredParam(req.params.id, "id");
     const user = res.locals.dashboardAuth.user as AuthSessionUser;
     await assertCanManageGuild(req, guildId, botId);
@@ -187,18 +196,17 @@ socialNotificationsRouter.delete("/:guildId/twitch/:id", requireAuth, async (req
 async function assertCanManageGuild(req: Request, guildId: string, botId: string | null) {
   const user = req.res?.locals.dashboardAuth.user as AuthSessionUser;
 
-  if (botId ? !(await canManageDevBotGuild(user, botId, guildId)) : !canManageDashboardGuild(user, guildId)) {
+  if (botId ? !(await canUseDevBotModule(user, botId, guildId, "live")) : !canManageDashboardGuild(user, guildId)) {
     throw createServiceError("Você não tem permissão para configurar as notificações deste servidor.", 403);
   }
 }
 
-function readBotId(req: Request) {
-  const queryBotId = typeof req.query.botId === "string" ? req.query.botId : null;
-  const headerBotId = req.header("x-dashboard-bot-id");
-  const botId = queryBotId ?? headerBotId ?? null;
-  const normalized = botId?.trim();
+async function assertChannelBelongsToGuild(guildId: string, channelId: string, botId: string | null) {
+  const validChannel = await isGuildTextChannel(guildId, channelId, await getDevBotToken(botId));
 
-  return normalized ? normalized : null;
+  if (!validChannel) {
+    throw createServiceError("Selecione um canal de texto que pertence ao servidor configurado.", 400);
+  }
 }
 
 function getRequiredParam(value: string | undefined, name: string) {

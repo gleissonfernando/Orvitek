@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Hash, ImageIcon, Link2, Loader2, Send, Upload } from "lucide-react";
+import { CheckCircle2, Hash, ImageIcon, Link2, Loader2, Send, Upload, UserCheck } from "lucide-react";
 import {
   API_URL,
   getGuildLiveOptions,
@@ -12,7 +12,7 @@ import {
 import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Switch } from "../ui/switch";
-import type { DashboardGuild, GuildChannelOption, GuildSettings } from "../../types";
+import type { DashboardGuild, GuildChannelOption, GuildRoleOption, GuildSettings } from "../../types";
 
 type MemberPanelMode = "welcome" | "leave";
 
@@ -83,6 +83,7 @@ export function WelcomePanel({ botId, canManage, guild, loading = false, mode = 
   const config = panelConfig[mode];
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [channels, setChannels] = useState<GuildChannelOption[]>([]);
+  const [roles, setRoles] = useState<GuildRoleOption[]>([]);
   const [imageInput, setImageInput] = useState("");
   const [loadingChannels, setLoadingChannels] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
@@ -98,17 +99,25 @@ export function WelcomePanel({ botId, canManage, guild, loading = false, mode = 
   const displayChannelId = settings?.[config.displayChannelKey] ?? channelId;
   const destinationChannel = channels.find((channel) => channel.id === channelId) ?? null;
   const displayChannel = channels.find((channel) => channel.id === displayChannelId) ?? null;
+  const autoRoleId = settings?.autoRoleIds[0] ?? "";
 
   useEffect(() => {
     if (!guild || !canManage) {
       setChannels([]);
+      setRoles([]);
       return;
     }
 
     setLoadingChannels(true);
     getGuildLiveOptions(guild.id, botId)
-      .then((options) => setChannels(options.channels))
-      .catch(() => setChannels([]))
+      .then((options) => {
+        setChannels(options.channels);
+        setRoles(options.roles.filter((role) => role.id !== guild.id && !role.managed));
+      })
+      .catch(() => {
+        setChannels([]);
+        setRoles([]);
+      })
       .finally(() => setLoadingChannels(false));
   }, [botId, canManage, guild]);
 
@@ -205,6 +214,33 @@ export function WelcomePanel({ botId, canManage, guild, loading = false, mode = 
     }
   }
 
+  async function handleAutoRoleChange(roleId: string) {
+    await savePatch(
+      {
+        autoRoleEnabled: Boolean(roleId),
+        autoRoleIds: roleId ? [roleId] : []
+      },
+      "autoRole",
+      roleId ? "Cargo automatico salvo e ativado." : "Cargo automatico removido."
+    );
+  }
+
+  function handleAutoRoleEnabled(checked: boolean) {
+    if (checked && !autoRoleId) {
+      setStatus(null);
+      setError("Selecione primeiro o cargo que o usuario vai receber.");
+      return;
+    }
+
+    void savePatch(
+      {
+        autoRoleEnabled: checked
+      },
+      "autoRoleEnabled",
+      checked ? "Cargo automatico ativado." : "Cargo automatico desativado."
+    );
+  }
+
   if (!guild) {
     return (
       <Card>
@@ -271,6 +307,18 @@ export function WelcomePanel({ botId, canManage, guild, loading = false, mode = 
             placeholder={loadingChannels ? "Carregando canais..." : "Usar o mesmo canal"}
             value={displayChannelId && displayChannelId !== channelId ? displayChannelId : ""}
           />
+
+          {mode === "welcome" ? (
+            <AutoRoleControl
+              disabled={!canManage || loadingChannels || saving === "autoRole" || saving === "autoRoleEnabled"}
+              enabled={settings.autoRoleEnabled}
+              loading={loadingChannels}
+              onEnabledChange={handleAutoRoleEnabled}
+              onRoleChange={(roleId) => void handleAutoRoleChange(roleId)}
+              roles={roles}
+              value={autoRoleId}
+            />
+          ) : null}
 
           <div className="space-y-3 rounded-lg border border-zinc-900 bg-zinc-950/75 p-4">
             <div className="flex items-center gap-2 text-sm font-medium text-zinc-100">
@@ -352,6 +400,57 @@ export function WelcomePanel({ botId, canManage, guild, loading = false, mode = 
   );
 }
 
+function AutoRoleControl({
+  disabled,
+  enabled,
+  loading,
+  onEnabledChange,
+  onRoleChange,
+  roles,
+  value
+}: {
+  disabled: boolean;
+  enabled: boolean;
+  loading: boolean;
+  onEnabledChange: (checked: boolean) => void;
+  onRoleChange: (value: string) => void;
+  roles: GuildRoleOption[];
+  value: string;
+}) {
+  return (
+    <div className="space-y-3 rounded-lg border border-zinc-900 bg-zinc-950/75 p-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="flex items-center gap-2 text-sm font-medium text-zinc-100">
+            <UserCheck className="h-4 w-4 text-zinc-400" />
+            Cargo automatico ao entrar
+          </p>
+          <p className="mt-1 text-xs text-zinc-500">O novo membro recebe este cargo assim que entrar no Discord.</p>
+        </div>
+        <Switch checked={enabled} disabled={disabled} onCheckedChange={onEnabledChange} />
+      </div>
+
+      <select
+        className="h-11 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition focus:border-zinc-600 disabled:opacity-50"
+        disabled={disabled}
+        onChange={(event) => onRoleChange(event.target.value)}
+        value={value}
+      >
+        <option value="">{loading ? "Carregando cargos..." : "Selecione um cargo"}</option>
+        {roles.map((role) => (
+          <option disabled={!role.assignable} key={role.id} value={role.id}>
+            @{role.name}{role.assignable ? "" : " - mova o cargo do bot para cima"}
+          </option>
+        ))}
+      </select>
+
+      <p className="text-xs leading-5 text-zinc-500">
+        O bot precisa da permissao Gerenciar Cargos e o cargo do bot deve ficar acima do cargo selecionado.
+      </p>
+    </div>
+  );
+}
+
 function ControlSelect({
   disabled,
   icon: Icon,
@@ -415,7 +514,7 @@ function WelcomePreview({
         <div className="rounded-lg border border-zinc-800 bg-[#31333a] p-3 shadow-[0_24px_70px_rgba(0,0,0,0.45)]">
           <div className="border-l-4 border-red-500 pl-3">
             <div className="overflow-hidden rounded-md border border-black/15 bg-black">
-              <img alt="" className="aspect-video w-full object-cover" src={imageUrl} />
+              <img alt="" className="aspect-video w-full object-cover object-top" src={imageUrl} />
             </div>
 
             <div className="mt-4 space-y-3 text-[13px] leading-5 text-zinc-100">

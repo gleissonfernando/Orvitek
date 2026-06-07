@@ -66,7 +66,7 @@ if (fs.existsSync(frontendDistPath)) {
 } else {
   app.get("/", (_req, res) => {
     res.json({
-      name: "Discord Dashboard API",
+      name: "Painel de Orviteck Bots API",
       status: "online"
     });
   });

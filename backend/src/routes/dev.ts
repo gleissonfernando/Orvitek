@@ -11,12 +11,17 @@ import {
   getDevBot,
   listAccessibleDevBots,
   listBotGuildConfigs,
-  restartDevBot,
   testDiscordBotToken,
   updateBotGuildConfig,
   updateDevBot,
-  updateDevBotModules
+  updateDevBotModules,
+  validateDevBotConnection
 } from "../services/devBotService";
+import {
+  restartDevBotProcess,
+  startDevBotProcess,
+  stopDevBotProcess
+} from "../services/devBotRuntimeService";
 import type { DashboardAuth } from "../services/tokenService";
 
 const moduleIds = DEV_MODULES.map((module) => module.id) as [string, ...string[]];
@@ -70,9 +75,12 @@ devRouter.get("/bots", async (_req, res, next) => {
 
 devRouter.post("/bots/test-connection", async (req, res, next) => {
   try {
-    const input = z.object({ token: z.string().min(10) }).parse(req.body);
+    const input = z.object({
+      token: z.string().min(10),
+      clientId: z.string().regex(/^\d{5,32}$/).optional()
+    }).parse(req.body);
 
-    return res.json(await testDiscordBotToken(input.token));
+    return res.json(await testDiscordBotToken(input.token, input.clientId));
   } catch (error) {
     return next(error);
   }
@@ -83,12 +91,14 @@ devRouter.post("/bots/create", async (req, res, next) => {
     const input = createBotSchema.parse(req.body);
     const auth = res.locals.dashboardAuth as DashboardAuth;
 
-    const bot = await createDevBot({
+    const createdBot = await createDevBot({
       ...input,
       avatarUrl: input.avatarUrl || null,
       secret: input.secret || null,
       createdBy: auth.user.discordId
     });
+    await startDevBotProcess(createdBot.id);
+    const bot = await getDevBot(createdBot.id) ?? createdBot;
 
     return res.status(201).json({
       bot
@@ -136,16 +146,19 @@ devRouter.patch("/bots/:botId", async (req, res, next) => {
 
     const input = updateBotSchema.parse(req.body);
 
-    const bot = await updateDevBot(req.params.botId, {
+    const updatedBot = await updateDevBot(req.params.botId, {
       ...input,
       avatarUrl: input.avatarUrl === "" ? null : input.avatarUrl
     });
 
-    if (!bot) {
+    if (!updatedBot) {
       return res.status(404).json({
         message: "Bot nao encontrado."
       });
     }
+
+    await restartDevBotProcess(updatedBot.id);
+    const bot = await getDevBot(updatedBot.id) ?? updatedBot;
 
     return res.json({
       bot
@@ -165,6 +178,7 @@ devRouter.delete("/bots/:botId", async (req, res, next) => {
       });
     }
 
+    await stopDevBotProcess(req.params.botId);
     const bot = await deleteDevBot(req.params.botId);
 
     if (!bot) {
@@ -191,13 +205,22 @@ devRouter.post("/bots/:botId/restart", async (req, res, next) => {
       });
     }
 
-    const bot = await restartDevBot(req.params.botId);
+    const validatedBot = await validateDevBotConnection(req.params.botId);
 
-    if (!bot) {
+    if (!validatedBot) {
       return res.status(404).json({
         message: "Bot nao encontrado."
       });
     }
+
+    if (validatedBot.status === "invalid_token" || validatedBot.status === "error") {
+      return res.status(400).json({
+        message: validatedBot.statusMessage ?? "Nao foi possivel validar o bot."
+      });
+    }
+
+    await restartDevBotProcess(req.params.botId);
+    const bot = await getDevBot(req.params.botId) ?? validatedBot;
 
     return res.json({
       bot
@@ -244,13 +267,16 @@ devRouter.patch("/bots/:botId/modules", async (req, res, next) => {
     }
 
     const input = modulesSchema.parse(req.body);
-    const bot = await updateDevBotModules(req.params.botId, input.enabledModules);
+    const updatedBot = await updateDevBotModules(req.params.botId, input.enabledModules);
 
-    if (!bot) {
+    if (!updatedBot) {
       return res.status(404).json({
         message: "Bot nao encontrado."
       });
     }
+
+    await restartDevBotProcess(updatedBot.id);
+    const bot = await getDevBot(updatedBot.id) ?? updatedBot;
 
     return res.json({
       bot

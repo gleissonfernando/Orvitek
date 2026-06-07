@@ -65,6 +65,10 @@ export class ApiClient {
     });
   }
 
+  setDiscordClientId(clientId: string) {
+    this.http.defaults.headers.common["x-discord-bot-client-id"] = clientId;
+  }
+
   async postLog(input: CreateLogInput) {
     const { data } = await this.http.post("/logs", input);
     return data;
@@ -80,8 +84,14 @@ export class ApiClient {
     return data;
   }
 
-  async getSettings(guildId: string) {
-    const { data } = await this.http.get<{ settings: GuildSettings }>(`/settings/${guildId}`);
+  async getSettings(guildId: string, discordBotClientId?: string | null) {
+    const { data } = await this.http.get<{ settings: GuildSettings }>(`/settings/${guildId}`, {
+      headers: discordBotClientId
+        ? {
+            "x-discord-bot-client-id": discordBotClientId
+          }
+        : undefined
+    });
     return data.settings;
   }
 

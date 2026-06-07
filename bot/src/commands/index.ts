@@ -3,11 +3,16 @@ import { banCommand } from "./ban";
 import { pingCommand } from "./ping";
 import { ticketCommand } from "./ticket";
 import type { BotCommand } from "../types";
+import { isBotModuleEnabled } from "../config/env";
 
 export function createCommandCollection() {
   const commands = new Collection<string, BotCommand>();
 
-  [pingCommand, banCommand, ticketCommand].forEach((command) => {
+  [
+    pingCommand,
+    ...(isBotModuleEnabled("moderation") ? [banCommand] : []),
+    ...(isBotModuleEnabled("tickets") ? [ticketCommand] : [])
+  ].forEach((command) => {
     commands.set(command.data.name, command);
   });
 

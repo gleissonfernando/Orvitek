@@ -2,11 +2,11 @@ import { ShieldCheck } from "lucide-react";
 import { BotProfile } from "./BotProfile";
 import { ServerSelector } from "./ServerSelector";
 import { Badge } from "./ui/badge";
-import type { DashboardMeBot, DashboardMeGuild, DashboardMeUser, DevBot } from "../types";
+import type { DashboardBot, DashboardMeBot, DashboardMeGuild, DashboardMeUser } from "../types";
 
 type DashboardHeaderProps = {
   bot?: DashboardMeBot | null;
-  bots?: DevBot[];
+  bots?: DashboardBot[];
   guilds: DashboardMeGuild[];
   loading?: boolean;
   selectedBotId?: string | null;

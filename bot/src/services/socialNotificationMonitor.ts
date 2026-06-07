@@ -39,7 +39,15 @@ async function monitorTwitchNotifications(client: Client, api: ApiClient) {
         continue;
       }
 
-      await processNotification(client, api, notification);
+      try {
+        await processNotification(client, api, notification);
+      } catch (error) {
+        console.warn(
+          `[social-notifications] notificacao ${notification.id} ignorada:`,
+          error instanceof Error ? error.message : error
+        );
+      }
+
       await delay(700);
     }
   } finally {
@@ -96,7 +104,12 @@ async function processNotification(client: Client, api: ApiClient, notification:
 async function sendLiveAlert(client: Client, notification: SocialNotification, stream: TwitchStream) {
   const channel = await client.channels.fetch(notification.discordChannelId).catch(() => null);
 
-  if (!channel?.isTextBased() || !("send" in channel)) {
+  if (
+    !channel?.isTextBased()
+    || !("send" in channel)
+    || !("guildId" in channel)
+    || channel.guildId !== notification.guildId
+  ) {
     throw new Error(`Canal Discord ${notification.discordChannelId} nao encontrado.`);
   }
 

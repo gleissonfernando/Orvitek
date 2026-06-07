@@ -52,6 +52,7 @@ export type AuthResponse = {
 };
 
 export type BotStatus = {
+  botId?: string | null;
   online: boolean;
   latency: number;
   guilds: number;
@@ -133,6 +134,7 @@ export type GuildChannelOption = {
 };
 
 export type GuildRoleOption = {
+  assignable: boolean;
   id: string;
   name: string;
   color: number;
@@ -218,7 +220,7 @@ export type DashboardMeGuild = {
 export type DashboardMeResponse = {
   user: DashboardMeUser;
   bot: DashboardMeBot;
-  bots: DevBot[];
+  bots: DashboardBot[];
   canViewDev: boolean;
   selectedGuildId: string | null;
   guilds: DashboardMeGuild[];
@@ -231,6 +233,18 @@ export type DevModuleDefinition = {
 
 export type DevBotStatus = "online" | "offline" | "invalid_token" | "error";
 
+export type DashboardBot = {
+  id: string;
+  name: string;
+  clientId: string;
+  avatarUrl: string | null;
+  mainGuildId: string;
+  guildIds: string[];
+  status: DevBotStatus;
+  statusMessage: string | null;
+  enabledModules: string[];
+};
+
 export type DevBot = {
   id: string;
   name: string;
@@ -241,6 +255,7 @@ export type DevBot = {
   ownerId: string;
   ownerName: string;
   mainGuildId: string;
+  guildIds: string[];
   status: DevBotStatus;
   statusMessage: string | null;
   enabledModules: string[];
@@ -265,4 +280,5 @@ export type BotConnectionTest = {
   status: DevBotStatus;
   message: string;
   avatarUrl: string | null;
+  clientId: string | null;
 };

@@ -83,9 +83,11 @@ const envSchema = z
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     DISCORD_BOT_TOKEN: z.string().default(""),
     DASHBOARD_BOT_ID: z.string().optional().default(""),
+    BOT_MAIN_GUILD_ID: z.string().optional().default(""),
     BACKEND_API_URL: envUrl("BACKEND_API_URL", defaultBackendApiUrl, defaultBackendApiUrl),
     BACKEND_SOCKET_URL: envUrl("BACKEND_SOCKET_URL", defaultBackendUrl, defaultBackendUrl),
     BOT_API_TOKEN: z.string().default(""),
+    BOT_ENABLED_MODULES: z.string().optional().default(""),
     BOT_MEMBER_EVENTS_ENABLED: envBoolean(true),
     BOT_MESSAGE_LOGS_ENABLED: envBoolean(false),
     BOT_PRESENCE_MONITOR_ENABLED: envBoolean(false),
@@ -99,6 +101,15 @@ const envSchema = z
   });
 
 export const env = envSchema.parse(process.env);
+const enabledModules = new Set(
+  env.BOT_ENABLED_MODULES.split(",")
+    .map((moduleId) => moduleId.trim())
+    .filter(Boolean)
+);
+
+export function isBotModuleEnabled(moduleId: string) {
+  return enabledModules.size === 0 || enabledModules.has(moduleId);
+}
 
 if (env.NODE_ENV === "production") {
   const missing = [

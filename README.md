@@ -150,16 +150,17 @@ DISCORD_OAUTH_REDIRECT_URI="https://ricardinho98.shardweb.app/auth/discord/callb
 DISCORD_CALLBACK_URL="https://ricardinho98.shardweb.app/auth/discord/callback"
 JWT_SECRET="troque-por-um-segredo-grande-de-jwt"
 DASHBOARD_AUTH_REQUIRED="true"
-DASHBOARD_VERIFICATION_MODE="temporary"
+DASHBOARD_DEV_USER_IDS="seu-id-discord"
+DASHBOARD_VERIFICATION_MODE="roles"
 ```
 
 Use sempre a URL publica em `SITE_ORIGIN`, `DISCORD_OAUTH_REDIRECT_URI`, `DISCORD_CALLBACK_URL` e `FRONTEND_URL` quando `DASHBOARD_AUTH_REQUIRED="true"`. O OAuth2 do Discord nao deve apontar para `localhost`.
 
-`DASHBOARD_AUTHORIZED_USER_IDS` aceita IDs de usuarios Discord separados por virgula. Esses usuarios recebem acesso administrativo mesmo que nao sejam donos/admin em um servidor retornado pelo OAuth. `DASHBOARD_GUILD_IDS` aceita IDs de servidores Discord separados por virgula e garante que esses servidores aparecam no painel quando o usuario autorizado entrar. Quem autenticar sem permissao especial entra como visualizacao basica.
+`DASHBOARD_AUTHORIZED_USER_IDS` aceita IDs de usuarios Discord separados por virgula. `DASHBOARD_DEV_USER_IDS` define quem enxerga a aba Dev e pode administrar todos os bots e modulos. `DASHBOARD_GUILD_IDS` aceita IDs de servidores Discord separados por virgula e garante que esses servidores aparecam no painel para o Dev.
 
-Quando `DASHBOARD_AUTH_REQUIRED="true"`, o backend usa Discord OAuth2, salva a sessao em JWT httpOnly e redireciona o usuario para `/dashboard`.
+Quando `DASHBOARD_AUTH_REQUIRED="true"`, o backend usa Discord OAuth2, salva a autenticacao em JWT httpOnly e exige uma verificacao por aba antes de abrir o painel. Ao fechar a aba ou sair, a verificacao precisa ser feita novamente.
 
-Enquanto a validacao avancada de cargos nao estiver pronta, `DASHBOARD_VERIFICATION_MODE="temporary"` libera o acesso quando o usuario autenticado clicar em `Verificar`. A estrutura de middleware ja separa os checks de administrador, dono do servidor e cargo configurado no painel.
+Com `DASHBOARD_VERIFICATION_MODE="roles"`, o cargo liberado na area de Moderacao controla o acesso ao site por bot e servidor. O dono do servidor nao precisa do cargo; administradores e demais membros precisam possui-lo.
 
 Redis tambem fica opcional no ambiente local. Para usar Redis como store de sessao, rode o Redis e defina:
 

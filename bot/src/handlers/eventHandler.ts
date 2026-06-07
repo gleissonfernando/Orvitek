@@ -7,14 +7,14 @@ import { handleMessageDelete } from "../events/messageDelete";
 import { handleMessageUpdate } from "../events/messageUpdate";
 import { handlePresenceEvent } from "../events/presenceUpdate";
 import { handleReady } from "../events/ready";
-import { env } from "../config/env";
+import { env, isBotModuleEnabled } from "../config/env";
 import type { BotContext } from "../types";
 
 export function registerEvents(client: Client, context: BotContext) {
-  client.once(Events.ClientReady, (readyClient) => handleReady(readyClient, context));
+  client.once(Events.ClientReady, (readyClient) => void handleReady(readyClient, context));
   client.on(Events.InteractionCreate, (interaction) => void handleInteractionCreate(interaction, context));
 
-  if (env.BOT_MEMBER_EVENTS_ENABLED) {
+  if (env.BOT_MEMBER_EVENTS_ENABLED && ["welcome", "leave", "roles", "logs"].some(isBotModuleEnabled)) {
     client.on(Events.GuildMemberAdd, (member) => {
       void resolveMember(member).then((resolved) => {
         if (resolved) {
@@ -23,11 +23,7 @@ export function registerEvents(client: Client, context: BotContext) {
       });
     });
     client.on(Events.GuildMemberRemove, (member) => {
-      void resolveMember(member).then((resolved) => {
-        if (resolved) {
-          void handleGuildMemberRemove(resolved, context);
-        }
-      });
+      void handleGuildMemberRemove(member, context);
     });
     client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
       void Promise.all([resolveMember(oldMember), resolveMember(newMember)]).then(([oldResolved, newResolved]) => {
@@ -38,12 +34,12 @@ export function registerEvents(client: Client, context: BotContext) {
     });
   }
 
-  if (env.BOT_MESSAGE_LOGS_ENABLED) {
+  if (env.BOT_MESSAGE_LOGS_ENABLED && isBotModuleEnabled("logs")) {
     client.on(Events.MessageDelete, (message) => void handleMessageDelete(message, context));
     client.on(Events.MessageUpdate, (oldMessage, newMessage) => void handleMessageUpdate(oldMessage, newMessage, context));
   }
 
-  if (env.BOT_PRESENCE_MONITOR_ENABLED) {
+  if (env.BOT_PRESENCE_MONITOR_ENABLED && isBotModuleEnabled("live")) {
     client.on(Events.PresenceUpdate, (oldPresence, newPresence) => void handlePresenceEvent(oldPresence, newPresence, context));
   }
 }

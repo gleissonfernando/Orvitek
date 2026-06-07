@@ -30,7 +30,7 @@ export function Topbar({ dashboardUser, user, guilds, selectedGuildId, onOpenMen
             <Bot className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold text-white">Discord Control</h1>
+            <h1 className="truncate text-lg font-semibold text-white">Painel de Orviteck Bots</h1>
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <Badge variant="muted">OAuth2</Badge>
               <Badge variant="muted">{guilds.length} servidores</Badge>

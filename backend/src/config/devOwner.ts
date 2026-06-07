@@ -1,5 +1,12 @@
-export const DEV_OWNER_USER_ID = "1426287249020158018";
+import { env } from "./env";
 
 export function isDevOwnerUserId(discordId: string | null | undefined) {
-  return discordId === DEV_OWNER_USER_ID;
+  if (!discordId) {
+    return false;
+  }
+
+  return env.DASHBOARD_DEV_USER_IDS.split(",")
+    .map((id) => id.trim())
+    .filter(Boolean)
+    .includes(discordId);
 }

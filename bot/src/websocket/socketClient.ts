@@ -19,7 +19,8 @@ export class BotSocketClient {
     this.socket = io(env.BACKEND_SOCKET_URL, {
       auth: {
         token: env.BOT_API_TOKEN,
-        botId: env.DASHBOARD_BOT_ID || null
+        botId: env.DASHBOARD_BOT_ID || null,
+        clientId: client.user?.id ?? null
       },
       reconnection: true,
       reconnectionDelay: 1000,

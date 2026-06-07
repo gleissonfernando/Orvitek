@@ -3,6 +3,7 @@ import { MongoServerError } from "mongodb";
 import { env } from "../config/env";
 import { ensureGuild, getMongoCollections, type MongoSocialNotification } from "../database/mongo";
 import { createLog } from "./logService";
+import { isGuildTextChannel } from "./discordOptionsService";
 import { getTwitchStream, getTwitchUser, normalizeTwitchChannel } from "./twitchService";
 
 export type SocialNotificationDto = {
@@ -272,12 +273,19 @@ export async function updateTwitchNotification(guildId: string, id: string, inpu
   }
 }
 
-export async function updateTwitchNotificationState(id: string, input: UpdateTwitchNotificationStateInput) {
+export async function updateTwitchNotificationState(
+  id: string,
+  input: UpdateTwitchNotificationStateInput,
+  botId?: string | null
+) {
+  const normalizedBotId = normalizeBotId(botId);
+
   try {
     const { socialNotifications } = await getMongoCollections();
     const updated = await socialNotifications.findOneAndUpdate(
       {
-        _id: id
+        _id: id,
+        ...notificationBotScopeQuery(normalizedBotId)
       },
       {
         $set: buildNotificationStatePatch(input)
@@ -294,7 +302,7 @@ export async function updateTwitchNotificationState(id: string, input: UpdateTwi
     return toDto(updated);
   } catch {
     const current = memoryNotifications.get(id);
-    if (!current) {
+    if (!current || normalizeBotId(current.botId) !== normalizedBotId) {
       throw createServiceError("Notificacao nao encontrada.", 404);
     }
 
@@ -309,7 +317,13 @@ export async function updateTwitchNotificationState(id: string, input: UpdateTwi
   }
 }
 
-export async function sendTwitchNotificationTest(guildId: string, id: string, userId: string, botId?: string | null) {
+export async function sendTwitchNotificationTest(
+  guildId: string,
+  id: string,
+  userId: string,
+  botId?: string | null,
+  botToken?: string | null
+) {
   const notification = await findTwitchNotification(guildId, id, botId);
   const stream = await getTwitchStream(notification.twitchChannelName).catch(() => null);
   const title = stream?.title ?? "Live de teste iniciada pelo painel";
@@ -322,7 +336,12 @@ export async function sendTwitchNotificationTest(guildId: string, id: string, us
     ? `https://www.twitch.tv/${stream.userLogin}`
     : notification.twitchChannelUrl;
 
+  if (!(await isGuildTextChannel(guildId, notification.discordChannelId, botToken))) {
+    throw createServiceError("O canal configurado nao pertence a este servidor.", 400);
+  }
+
   await sendDiscordLivePanel({
+    botToken,
     notification,
     title,
     gameName,
@@ -556,7 +575,29 @@ function notificationScopeQuery(guildId: string, botId: string | null) {
   };
 }
 
+function notificationBotScopeQuery(botId: string | null) {
+  if (botId) {
+    return {
+      botId
+    };
+  }
+
+  return {
+    $or: [
+      {
+        botId: null
+      },
+      {
+        botId: {
+          $exists: false
+        }
+      }
+    ]
+  };
+}
+
 async function sendDiscordLivePanel(input: {
+  botToken?: string | null;
   notification: SocialNotificationDto;
   streamerName: string;
   title: string;
@@ -565,7 +606,9 @@ async function sendDiscordLivePanel(input: {
   thumbnailUrl: string;
   channelUrl: string;
 }) {
-  if (!env.DISCORD_BOT_TOKEN) {
+  const token = input.botToken || env.DISCORD_BOT_TOKEN;
+
+  if (!token) {
     throw createServiceError("DISCORD_BOT_TOKEN nao configurado.", 503);
   }
 
@@ -574,7 +617,7 @@ async function sendDiscordLivePanel(input: {
   const response = await fetch(`https://discord.com/api/v10/channels/${input.notification.discordChannelId}/messages`, {
     method: "POST",
     headers: {
-      Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`,
+      Authorization: `Bot ${token}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({

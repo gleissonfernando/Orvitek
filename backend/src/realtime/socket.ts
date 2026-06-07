@@ -4,6 +4,7 @@ import { env } from "../config/env";
 import { createLiveEvent } from "../services/liveService";
 import { createLog } from "../services/logService";
 import { getBotStatus, updateBotStatus } from "../services/statsService";
+import { findDevBotIdByClientId, syncDevBotGuilds, updateDevBotRuntimeStatus } from "../services/devBotService";
 import { setRealtimeServer } from "./events";
 
 export function createSocketServer(httpServer: HttpServer) {
@@ -16,12 +17,17 @@ export function createSocketServer(httpServer: HttpServer) {
 
   setRealtimeServer(io);
 
-  io.on("connection", (socket) => {
+  io.on("connection", async (socket) => {
     const token = socket.handshake.auth?.token;
-    const botId = typeof socket.handshake.auth?.botId === "string" && socket.handshake.auth.botId.trim()
+    const configuredBotId = typeof socket.handshake.auth?.botId === "string" && socket.handshake.auth.botId.trim()
       ? socket.handshake.auth.botId.trim()
       : null;
+    const clientId = typeof socket.handshake.auth?.clientId === "string" && socket.handshake.auth.clientId.trim()
+      ? socket.handshake.auth.clientId.trim()
+      : null;
     const isBot = Boolean(env.BOT_API_TOKEN && token === env.BOT_API_TOKEN);
+    const botId = configuredBotId
+      ?? (isBot && clientId ? await findDevBotIdByClientId(clientId).catch(() => null) : null);
 
     socket.data.isBot = isBot;
     socket.data.botId = botId;
@@ -32,12 +38,37 @@ export function createSocketServer(httpServer: HttpServer) {
         return;
       }
 
+      if (socket.data.botId) {
+        void updateDevBotRuntimeStatus(socket.data.botId, "offline", "Bot desconectado do backend.");
+      }
+
       io.emit("bot:status", updateBotStatus({ online: false }));
     });
 
     socket.on("bot:status", (payload: Parameters<typeof updateBotStatus>[0]) => {
       if (!socket.data.isBot) {
         return;
+      }
+
+      const statusBotId = socket.data.botId
+        ?? (typeof payload.botId === "string" && payload.botId.trim() ? payload.botId.trim() : null);
+
+      if (statusBotId) {
+        if (payload.botGuilds) {
+          void syncDevBotGuilds(
+            statusBotId,
+            payload.botGuilds.map((guild) => ({
+              id: guild.id,
+              name: guild.name
+            }))
+          );
+        }
+
+        void updateDevBotRuntimeStatus(
+          statusBotId,
+          payload.online === false ? "offline" : "online",
+          payload.online === false ? "Bot offline." : "Bot conectado ao Discord."
+        );
       }
 
       io.emit("bot:status", updateBotStatus(payload));
@@ -50,7 +81,7 @@ export function createSocketServer(httpServer: HttpServer) {
 
       const log = await createLog({
         ...payload,
-        botId: payload.botId ?? socket.data.botId ?? null
+        botId: socket.data.botId ?? payload.botId ?? null
       });
       io.emit("logs:new", log);
     });
@@ -60,7 +91,7 @@ export function createSocketServer(httpServer: HttpServer) {
         return;
       }
 
-      const eventBotId = payload.botId ?? socket.data.botId ?? null;
+      const eventBotId = socket.data.botId ?? payload.botId ?? null;
       const event = createLiveEvent({
         ...payload,
         botId: eventBotId,
@@ -86,7 +117,7 @@ export function createSocketServer(httpServer: HttpServer) {
         return;
       }
 
-      const eventBotId = payload.botId ?? socket.data.botId ?? null;
+      const eventBotId = socket.data.botId ?? payload.botId ?? null;
       const event = createLiveEvent({
         ...payload,
         botId: eventBotId,

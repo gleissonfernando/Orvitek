@@ -1,8 +1,13 @@
 import type { GuildMember } from "discord.js";
+import { isBotModuleEnabled } from "../config/env";
 import { logRoleChange } from "../services/logService";
 import type { BotContext } from "../types";
 
 export async function handleGuildMemberUpdate(oldMember: GuildMember, newMember: GuildMember, context: BotContext) {
+  if (!isBotModuleEnabled("logs")) {
+    return;
+  }
+
   const added = newMember.roles.cache
     .filter((role) => !oldMember.roles.cache.has(role.id))
     .map((role) => role.name);

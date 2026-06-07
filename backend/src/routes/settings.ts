@@ -4,9 +4,16 @@ import type { Request, Response } from "express";
 import { isBotRequest, requireAuth, requireAuthOrBot } from "../middleware/auth";
 import { emitRealtime } from "../realtime/events";
 import { canManageDashboardGuild, canReadDashboardGuild } from "../services/dashboardGuildAccessService";
-import { canManageDevBotGuild } from "../services/devBotService";
+import { canManageDevBotGuild, canUseDevBotModule, getDevBotToken } from "../services/devBotService";
+import { resolveRequestBotId } from "../services/requestBotScopeService";
 import { getGuildSettings, updateGuildSettings } from "../services/settingsService";
 import { saveLeaveImage, saveWelcomeImage, sendLeavePanelToDiscord, sendWelcomePanelToDiscord } from "../services/welcomePanelService";
+import {
+  areGuildAssignableRoles,
+  areGuildRoles,
+  isGuildCategoryChannel,
+  isGuildTextChannel
+} from "../services/discordOptionsService";
 
 const settingsSchema = z.object({
   welcomeEnabled: z.boolean().optional(),
@@ -39,7 +46,7 @@ const welcomeImageUpload = raw({
 
 settingsRouter.get("/:guildId", requireAuthOrBot, async (req, res) => {
   const { guildId } = req.params;
-  const botId = readBotId(req);
+  const botId = await resolveRequestBotId(req);
 
   if (!guildId) {
     return res.status(400).json({
@@ -61,7 +68,7 @@ settingsRouter.get("/:guildId", requireAuthOrBot, async (req, res) => {
 settingsRouter.put("/:guildId/welcome-image", requireAuth, welcomeImageUpload, async (req, res, next) => {
   try {
     const { guildId } = req.params;
-    const botId = readBotId(req);
+    const botId = await resolveRequestBotId(req);
 
     if (!guildId) {
       return res.status(400).json({
@@ -72,6 +79,12 @@ settingsRouter.put("/:guildId/welcome-image", requireAuth, welcomeImageUpload, a
     if (!(await canManageSettings(req, res, guildId, botId))) {
       return res.status(403).json({
         message: "Voce nao tem permissao para configurar este servidor."
+      });
+    }
+
+    if (!(await canManageModule(req, res, guildId, botId, "welcome"))) {
+      return res.status(403).json({
+        message: "O modulo de entrada nao foi liberado para este bot."
       });
     }
 
@@ -100,7 +113,7 @@ settingsRouter.put("/:guildId/welcome-image", requireAuth, welcomeImageUpload, a
 settingsRouter.put("/:guildId/leave-image", requireAuth, welcomeImageUpload, async (req, res, next) => {
   try {
     const { guildId } = req.params;
-    const botId = readBotId(req);
+    const botId = await resolveRequestBotId(req);
 
     if (!guildId) {
       return res.status(400).json({
@@ -111,6 +124,12 @@ settingsRouter.put("/:guildId/leave-image", requireAuth, welcomeImageUpload, asy
     if (!(await canManageSettings(req, res, guildId, botId))) {
       return res.status(403).json({
         message: "Voce nao tem permissao para configurar este servidor."
+      });
+    }
+
+    if (!(await canManageModule(req, res, guildId, botId, "leave"))) {
+      return res.status(403).json({
+        message: "O modulo de saida nao foi liberado para este bot."
       });
     }
 
@@ -139,7 +158,7 @@ settingsRouter.put("/:guildId/leave-image", requireAuth, welcomeImageUpload, asy
 settingsRouter.post("/:guildId/welcome-test", requireAuth, async (req, res, next) => {
   try {
     const { guildId } = req.params;
-    const botId = readBotId(req);
+    const botId = await resolveRequestBotId(req);
     const user = res.locals.dashboardAuth.user;
 
     if (!guildId) {
@@ -154,9 +173,15 @@ settingsRouter.post("/:guildId/welcome-test", requireAuth, async (req, res, next
       });
     }
 
+    if (!(await canManageModule(req, res, guildId, botId, "welcome"))) {
+      return res.status(403).json({
+        message: "O modulo de entrada nao foi liberado para este bot."
+      });
+    }
+
     const settings = await getGuildSettings(guildId, botId);
 
-    await sendWelcomePanelToDiscord(settings, `<@${user.discordId}>`);
+    await sendWelcomePanelToDiscord(settings, `<@${user.discordId}>`, await getDevBotToken(botId));
 
     return res.json({
       ok: true
@@ -175,7 +200,7 @@ settingsRouter.post("/:guildId/welcome-test", requireAuth, async (req, res, next
 settingsRouter.post("/:guildId/leave-test", requireAuth, async (req, res, next) => {
   try {
     const { guildId } = req.params;
-    const botId = readBotId(req);
+    const botId = await resolveRequestBotId(req);
     const user = res.locals.dashboardAuth.user;
 
     if (!guildId) {
@@ -190,9 +215,15 @@ settingsRouter.post("/:guildId/leave-test", requireAuth, async (req, res, next) 
       });
     }
 
+    if (!(await canManageModule(req, res, guildId, botId, "leave"))) {
+      return res.status(403).json({
+        message: "O modulo de saida nao foi liberado para este bot."
+      });
+    }
+
     const settings = await getGuildSettings(guildId, botId);
 
-    await sendLeavePanelToDiscord(settings, `<@${user.discordId}>`);
+    await sendLeavePanelToDiscord(settings, `<@${user.discordId}>`, await getDevBotToken(botId));
 
     return res.json({
       ok: true
@@ -211,7 +242,7 @@ settingsRouter.post("/:guildId/leave-test", requireAuth, async (req, res, next) 
 settingsRouter.patch("/:guildId", requireAuth, async (req, res, next) => {
   try {
     const { guildId } = req.params;
-    const botId = readBotId(req);
+    const botId = await resolveRequestBotId(req);
 
     if (!guildId) {
       return res.status(400).json({
@@ -226,6 +257,15 @@ settingsRouter.patch("/:guildId", requireAuth, async (req, res, next) => {
     }
 
     const input = settingsSchema.parse(req.body);
+
+    if (!(await canPatchSettings(req, res, guildId, botId, input))) {
+      return res.status(403).json({
+        message: "Uma ou mais funcoes nao foram liberadas para este bot."
+      });
+    }
+
+    await validateGuildResources(guildId, botId, input);
+
     const settings = await updateGuildSettings(guildId, input, botId);
 
     emitRealtime("settings:updated", settings);
@@ -237,15 +277,6 @@ settingsRouter.patch("/:guildId", requireAuth, async (req, res, next) => {
     return next(error);
   }
 });
-
-function readBotId(req: Request) {
-  const queryBotId = typeof req.query.botId === "string" ? req.query.botId : null;
-  const headerBotId = req.header("x-dashboard-bot-id");
-  const botId = queryBotId ?? headerBotId ?? null;
-  const normalized = botId?.trim();
-
-  return normalized ? normalized : null;
-}
 
 async function canReadSettings(req: Request, res: Response, guildId: string, botId: string | null) {
   if (isBotRequest(req)) {
@@ -273,4 +304,119 @@ async function canManageSettings(req: Request, res: Response, guildId: string, b
   }
 
   return canManageDashboardGuild(user, guildId);
+}
+
+async function canManageModule(
+  req: Request,
+  res: Response,
+  guildId: string,
+  botId: string | null,
+  moduleId: string
+) {
+  if (!botId) {
+    return canManageSettings(req, res, guildId, botId);
+  }
+
+  return canUseDevBotModule(res.locals.dashboardAuth.user, botId, guildId, moduleId);
+}
+
+async function canPatchSettings(
+  req: Request,
+  res: Response,
+  guildId: string,
+  botId: string | null,
+  input: z.infer<typeof settingsSchema>
+) {
+  if (!botId) {
+    return true;
+  }
+
+  const moduleBySetting: Partial<Record<keyof z.infer<typeof settingsSchema>, string[]>> = {
+    welcomeEnabled: ["welcome"],
+    welcomeChannelId: ["welcome"],
+    welcomeDisplayChannelId: ["welcome"],
+    welcomeImageUrl: ["welcome"],
+    welcomeMessage: ["welcome"],
+    leaveEnabled: ["leave"],
+    leaveChannelId: ["leave"],
+    leaveDisplayChannelId: ["leave"],
+    leaveImageUrl: ["leave"],
+    leaveMessage: ["leave"],
+    autoRoleEnabled: ["welcome", "roles"],
+    autoRoleIds: ["welcome", "roles"],
+    twitchRoleId: ["roles"],
+    boosterRoleId: ["roles"],
+    ticketEnabled: ["tickets"],
+    ticketCategoryId: ["tickets"],
+    logChannelId: ["logs"],
+    moderationEnabled: ["moderation"],
+    verificationEnabled: ["moderation"],
+    verificationRoleId: ["moderation"]
+  };
+  const access = await Promise.all(
+    (Object.keys(input) as Array<keyof typeof input>).map(async (key) => {
+      const moduleIds = moduleBySetting[key] ?? [];
+      const moduleAccess = await Promise.all(
+        moduleIds.map((moduleId) => canManageModule(req, res, guildId, botId, moduleId))
+      );
+
+      return moduleAccess.some(Boolean);
+    })
+  );
+
+  return access.every(Boolean);
+}
+
+async function validateGuildResources(
+  guildId: string,
+  botId: string | null,
+  input: z.infer<typeof settingsSchema>
+) {
+  const botToken = await getDevBotToken(botId);
+  const textChannelIds = [
+    input.welcomeChannelId,
+    input.welcomeDisplayChannelId,
+    input.leaveChannelId,
+    input.leaveDisplayChannelId,
+    input.logChannelId
+  ].filter((channelId): channelId is string => Boolean(channelId));
+
+  const textChannelChecks = await Promise.all(
+    [...new Set(textChannelIds)].map((channelId) => isGuildTextChannel(guildId, channelId, botToken))
+  );
+
+  if (!textChannelChecks.every(Boolean)) {
+    throw createSettingsError("Um dos canais selecionados nao pertence a este servidor.");
+  }
+
+  if (
+    input.ticketCategoryId
+    && !(await isGuildCategoryChannel(guildId, input.ticketCategoryId, botToken))
+  ) {
+    throw createSettingsError("A categoria de tickets nao pertence a este servidor.");
+  }
+
+  const roleIds = [
+    ...(input.autoRoleIds ?? []),
+    input.twitchRoleId,
+    input.boosterRoleId,
+    input.verificationRoleId
+  ].filter((roleId): roleId is string => Boolean(roleId));
+
+  if (roleIds.length && !(await areGuildRoles(guildId, [...new Set(roleIds)], botToken))) {
+    throw createSettingsError("Um dos cargos selecionados nao pertence a este servidor.");
+  }
+
+  if (
+    input.autoRoleIds?.length
+    && !(await areGuildAssignableRoles(guildId, [...new Set(input.autoRoleIds)], botToken))
+  ) {
+    throw createSettingsError("O cargo automatico precisa ficar abaixo do cargo do bot e o bot precisa da permissao Gerenciar Cargos.");
+  }
+}
+
+function createSettingsError(message: string) {
+  return Object.assign(new Error(message), {
+    statusCode: 400
+  });
 }

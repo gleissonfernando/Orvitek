@@ -26,18 +26,13 @@ import type {
 
 const fallbackModules: DevModuleDefinition[] = [
   { id: "live", label: "Sistema de Live" },
-  { id: "clips", label: "Sistema de Clipes" },
-  { id: "avisos", label: "Sistema de Avisos" },
   { id: "verification", label: "Sistema de Verificacao" },
   { id: "welcome", label: "Sistema de Boas-vindas" },
   { id: "leave", label: "Sistema de Saida" },
   { id: "logs", label: "Sistema de Logs" },
   { id: "roles", label: "Sistema de Cargos" },
   { id: "tickets", label: "Sistema de Tickets" },
-  { id: "moderation", label: "Sistema de Moderacao" },
-  { id: "noc_magnatas", label: "Sistema de NOC Magnatas" },
-  { id: "maintenance", label: "Sistema de Manutencao" },
-  { id: "bot_api", label: "Sistema de API do Bot" }
+  { id: "moderation", label: "Sistema de Moderacao" }
 ];
 
 const emptyForm: CreateDevBotPayload = {
@@ -130,9 +125,12 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
     setTestResult(null);
 
     try {
-      const result = await testDevBotConnection(form.token);
+      const result = await testDevBotConnection(form.token, form.clientId);
       setTestResult(result);
       setMessage(result.message);
+      if (result.clientId && !form.clientId) {
+        updateForm("clientId", result.clientId);
+      }
       if (result.avatarUrl && !form.avatarUrl) {
         updateForm("avatarUrl", result.avatarUrl);
       }
@@ -259,7 +257,7 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
                 <DevInput label="Servidor principal" value={form.mainGuildId} onChange={(value) => updateForm("mainGuildId", value)} />
               )}
               <DevInput label="Nome do dono" value={form.ownerName} onChange={(value) => updateForm("ownerName", value)} />
-              <DevInput label="ID do dono" value={form.ownerId} onChange={(value) => updateForm("ownerId", value)} />
+              <DevInput label="Discord ID do dono" value={form.ownerId} onChange={(value) => updateForm("ownerId", value)} />
             </div>
 
             <div className="rounded-lg border border-zinc-900 bg-zinc-950/70 p-4">

@@ -4,9 +4,10 @@ import { z } from "zod";
 import { isBotRequest, requireAuthOrBot } from "../middleware/auth";
 import { emitRealtime } from "../realtime/events";
 import { canReadDashboardGuild, getAccessibleGuildIds } from "../services/dashboardGuildAccessService";
-import { canManageDevBotGuild } from "../services/devBotService";
+import { canUseDevBotModule } from "../services/devBotService";
 import { createLiveEvent, listLiveEvents } from "../services/liveService";
 import { createLog } from "../services/logService";
+import { resolveRequestBotId } from "../services/requestBotScopeService";
 
 const liveEventSchema = z.object({
   guildId: z.string().min(1),
@@ -22,7 +23,7 @@ livesRouter.use(requireAuthOrBot);
 
 livesRouter.get("/", async (req, res) => {
   const guildId = typeof req.query.guildId === "string" ? req.query.guildId : undefined;
-  const botId = readBotId(req);
+  const botId = await resolveRequestBotId(req);
   const lives = listLiveEvents(guildId, botId);
 
   if (isBotRequest(req)) {
@@ -49,7 +50,7 @@ livesRouter.get("/", async (req, res) => {
 livesRouter.post("/events", async (req, res, next) => {
   try {
     const input = liveEventSchema.parse(req.body);
-    const botId = readBotId(req);
+    const botId = await resolveRequestBotId(req);
 
     if (!isBotRequest(req) && !(await canReadScopedGuild(req, input.guildId, botId))) {
       return res.status(403).json({
@@ -82,22 +83,13 @@ livesRouter.post("/events", async (req, res, next) => {
   }
 });
 
-function readBotId(req: Request) {
-  const queryBotId = typeof req.query.botId === "string" ? req.query.botId : null;
-  const headerBotId = req.header("x-dashboard-bot-id");
-  const botId = queryBotId ?? headerBotId ?? null;
-  const normalized = botId?.trim();
-
-  return normalized ? normalized : null;
-}
-
 async function canReadScopedGuild(req: Request, guildId: string | undefined, botId: string | null) {
   if (!guildId) {
     return true;
   }
 
   if (botId) {
-    return canManageDevBotGuild(req.res?.locals.dashboardAuth.user, botId, guildId);
+    return canUseDevBotModule(req.res?.locals.dashboardAuth.user, botId, guildId, "live");
   }
 
   return canReadDashboardGuild(req.res?.locals.dashboardAuth.user, guildId);

@@ -40,6 +40,7 @@ export type NavItem = {
   label: string;
   icon: LucideIcon;
   badge?: string;
+  moduleId?: string;
 };
 
 export const navSections: Array<{ label: string; items: NavItem[] }> = [
@@ -51,26 +52,26 @@ export const navSections: Array<{ label: string; items: NavItem[] }> = [
     label: "Configuracoes",
     items: [
       { id: "settings", label: "Configuracoes", icon: Settings },
-      { id: "permissions", label: "Permissoes", icon: LockKeyhole, badge: "2" }
+      { id: "permissions", label: "Permissoes", icon: LockKeyhole, badge: "2", moduleId: "verification" }
     ]
   },
   {
     label: "Modulos",
     items: [
       { id: "modules", label: "Todos os modulos", icon: Bot },
-      { id: "welcome", label: "Entrada", icon: UserPlus },
-      { id: "leave", label: "Saida", icon: UserMinus },
-      { id: "lives", label: "Lives", icon: Radio },
-      { id: "roles", label: "Cargos", icon: Users },
-      { id: "tickets", label: "Tickets", icon: Ticket },
-      { id: "moderation", label: "Moderacao", icon: Shield }
+      { id: "welcome", label: "Entrada", icon: UserPlus, moduleId: "welcome" },
+      { id: "leave", label: "Saida", icon: UserMinus, moduleId: "leave" },
+      { id: "lives", label: "Lives", icon: Radio, moduleId: "live" },
+      { id: "roles", label: "Cargos", icon: Users, moduleId: "roles" },
+      { id: "tickets", label: "Tickets", icon: Ticket, moduleId: "tickets" },
+      { id: "moderation", label: "Moderacao", icon: Shield, moduleId: "moderation" }
     ]
   },
   {
     label: "Sistema",
     items: [
-      { id: "logs", label: "Logs", icon: ScrollText, badge: "!" },
-      { id: "personalization", label: "Personalizacao", icon: Brush }
+      { id: "logs", label: "Logs", icon: ScrollText, badge: "!", moduleId: "logs" },
+      { id: "personalization", label: "Personalizacao", icon: Brush, moduleId: "avisos" }
     ]
   }
 ];
@@ -85,12 +86,30 @@ type SidebarProps = {
   isOpen: boolean;
   server: DashboardGuild | null;
   showDev: boolean;
+  enabledModules: string[];
+  showAllModules: boolean;
   onChangeView: (view: ViewId) => void;
   onClose: () => void;
 };
 
-export function Sidebar({ activeView, isOpen, onChangeView, onClose, server, showDev }: SidebarProps) {
-  const sections = showDev ? [...navSections, devSection] : navSections;
+export function Sidebar({
+  activeView,
+  enabledModules,
+  isOpen,
+  onChangeView,
+  onClose,
+  server,
+  showAllModules,
+  showDev
+}: SidebarProps) {
+  const enabledModuleSet = new Set(enabledModules);
+  const baseSections = showDev ? [...navSections, devSection] : navSections;
+  const sections = baseSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => showAllModules || !item.moduleId || enabledModuleSet.has(item.moduleId))
+    }))
+    .filter((section) => section.items.length > 0);
   const serverName = server?.name ?? "Servidor configurado";
 
   function handleChangeView(view: ViewId) {
@@ -120,7 +139,7 @@ export function Sidebar({ activeView, isOpen, onChangeView, onClose, server, sho
               <Bot className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-white">Discord Control</p>
+              <p className="truncate text-sm font-semibold text-white">Painel de Orviteck Bots</p>
               <p className="truncate text-xs text-zinc-500">Painel administrativo</p>
             </div>
           </div>
