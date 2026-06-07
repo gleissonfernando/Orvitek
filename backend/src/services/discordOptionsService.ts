@@ -147,6 +147,23 @@ export async function areGuildAssignableRoles(guildId: string, roleIds: string[]
   }
 }
 
+export async function userHasAnyGuildRole(guildId: string, userId: string, roleIds: string[], botToken?: string | null) {
+  const token = botToken || env.DISCORD_BOT_TOKEN;
+  const normalizedRoleIds = roleIds.map((roleId) => roleId.trim()).filter(Boolean);
+
+  if (!token || !normalizedRoleIds.length) {
+    return false;
+  }
+
+  try {
+    const member = await discordFetch<DiscordGuildMember>(`/guilds/${guildId}/members/${userId}`, token);
+    const memberRoleIds = new Set([guildId, ...member.roles]);
+    return normalizedRoleIds.some((roleId) => memberRoleIds.has(roleId));
+  } catch {
+    return false;
+  }
+}
+
 async function isGuildChannelType(
   guildId: string,
   channelId: string,

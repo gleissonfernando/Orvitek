@@ -12,6 +12,7 @@ const DISCORD_API = "https://discord.com/api/v10";
 
 export const DEV_MODULES = [
   { id: "live", label: "Sistema de Live" },
+  { id: "clips", label: "Sistema de Clips" },
   { id: "verification", label: "Sistema de Verificacao" },
   { id: "welcome", label: "Sistema de Boas-vindas" },
   { id: "leave", label: "Sistema de Saida" },

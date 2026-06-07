@@ -178,6 +178,8 @@ Configure no `.env`:
 TWITCH_CLIENT_ID=""
 TWITCH_CLIENT_SECRET=""
 TWITCH_MONITOR_INTERVAL_MS="20000"
+CLIPS_MONITOR_INTERVAL_MS="60000"
+CLIPS_MAX_PER_CHECK="3"
 ```
 
 Fluxo:
@@ -186,3 +188,8 @@ Fluxo:
 - A API normaliza o canal, valida pela Twitch API e salva por `guildId`.
 - O bot busca notificacoes ativas na API, consulta a Twitch a cada intervalo e envia uma embed quando detectar uma live nova.
 - `lastStreamId` evita alertas duplicados da mesma live.
+
+## Clips
+
+O modulo `clips` permite configurar, por `botId` + `guildId`, um canal da Twitch e um canal de texto do Discord para publicar novos clipes automaticamente.
+O bot consulta a API oficial da Twitch em intervalo controlado por `CLIPS_MONITOR_INTERVAL_MS` e envia no maximo `CLIPS_MAX_PER_CHECK` clipes novos por verificacao para evitar spam.

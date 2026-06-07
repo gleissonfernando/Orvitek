@@ -183,6 +183,68 @@ export type SocialNotification = {
   updatedAt: string;
 };
 
+export type ClipMentionType = "none" | "everyone" | "role";
+
+export type ClipsConfig = {
+  id: string;
+  guildId: string;
+  botId: string | null;
+  twitchChannelName: string;
+  twitchBroadcasterId: string;
+  twitchDisplayName: string | null;
+  twitchAvatar: string | null;
+  discordChannelId: string | null;
+  enabled: boolean;
+  allowedRoleIds: string[];
+  mentionType: ClipMentionType;
+  mentionRoleId: string | null;
+  embedColor: string;
+  customMessage: string | null;
+  checkInterval: number;
+  lastCheckAt: string | null;
+  totalSent: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ClipSent = {
+  id: string;
+  guildId: string;
+  botId: string | null;
+  twitchChannelName: string;
+  twitchBroadcasterId: string;
+  clipId: string;
+  clipTitle: string;
+  clipUrl: string;
+  clipThumbnail: string | null;
+  clipCreatorName: string | null;
+  createdAtTwitch: string;
+  discordChannelId: string;
+  discordMessageId: string | null;
+  sentAt: string;
+};
+
+export type SaveClipsConfigPayload = {
+  guildId: string;
+  twitchChannelInput: string;
+  discordChannelId: string | null;
+  allowedRoleIds: string[];
+  mentionType: ClipMentionType;
+  mentionRoleId?: string | null;
+  embedColor?: string | null;
+  customMessage?: string | null;
+  checkInterval?: number;
+  enabled?: boolean;
+};
+
+export type TwitchClipChannelPreview = {
+  twitchId: string;
+  twitchUsername: string;
+  twitchDisplayName: string;
+  twitchAvatar: string | null;
+  twitchUrl: string;
+};
+
 export type CreateTwitchNotificationPayload = {
   twitchChannelInput: string;
   discordChannelId: string;

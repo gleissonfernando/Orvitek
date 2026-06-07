@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authRouter } from "./auth";
 import { botDevApiRouter } from "./botDevApi";
+import { clipsRouter } from "./clips";
 import { dashboardRouter } from "./dashboard";
 import { devRouter } from "./dev";
 import { guildsRouter } from "./guilds";
@@ -18,6 +19,7 @@ apiRouter.use("/health", healthRouter);
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/bot", botDevApiRouter);
 apiRouter.use("/bots", botLivesRouter);
+apiRouter.use("/clips", clipsRouter);
 apiRouter.use("/dashboard", dashboardRouter);
 apiRouter.use("/dev", devRouter);
 apiRouter.use("/users", usersRouter);

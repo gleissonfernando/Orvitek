@@ -43,6 +43,30 @@ export type SocialNotification = {
   updatedAt: string;
 };
 
+export type ClipMentionType = "none" | "everyone" | "role";
+
+export type ClipsConfig = {
+  id: string;
+  guildId: string;
+  botId: string | null;
+  twitchChannelName: string;
+  twitchBroadcasterId: string;
+  twitchDisplayName: string | null;
+  twitchAvatar: string | null;
+  discordChannelId: string | null;
+  enabled: boolean;
+  allowedRoleIds: string[];
+  mentionType: ClipMentionType;
+  mentionRoleId: string | null;
+  embedColor: string;
+  customMessage: string | null;
+  checkInterval: number;
+  lastCheckAt: string | null;
+  totalSent: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export class ApiClient {
   private readonly http: AxiosInstance;
 
@@ -103,5 +127,35 @@ export class ApiClient {
   async updateTwitchNotificationState(id: string, input: { isLive?: boolean; lastLiveAt?: string | null; lastStreamId?: string | null; lastMessageId?: string | null; twitchAvatar?: string | null }) {
     const { data } = await this.http.patch<{ notification: SocialNotification }>(`/social-notifications/bot/twitch/${id}/state`, input);
     return data.notification;
+  }
+
+  async getActiveClipConfigs() {
+    const { data } = await this.http.get<{ configs: ClipsConfig[] }>("/clips/bot/configs");
+    return data.configs;
+  }
+
+  async isClipSent(configId: string, clipId: string) {
+    const { data } = await this.http.get<{ sent: boolean }>(`/clips/bot/configs/${configId}/sent/${encodeURIComponent(clipId)}`);
+    return data.sent;
+  }
+
+  async updateClipConfigCheck(configId: string, lastCheckAt = new Date().toISOString()) {
+    await this.http.patch<{ ok: boolean }>(`/clips/bot/configs/${configId}/check`, {
+      lastCheckAt
+    });
+  }
+
+  async recordClipSent(configId: string, input: {
+    clipId: string;
+    clipTitle: string;
+    clipUrl: string;
+    clipThumbnail?: string | null;
+    clipCreatorName?: string | null;
+    createdAtTwitch: string;
+    discordChannelId: string;
+    discordMessageId?: string | null;
+  }) {
+    const { data } = await this.http.post(`/clips/bot/configs/${configId}/sent`, input);
+    return data;
   }
 }

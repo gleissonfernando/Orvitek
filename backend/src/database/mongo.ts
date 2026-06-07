@@ -103,6 +103,56 @@ export type MongoSocialNotification = {
   updatedAt: Date;
 };
 
+export type MongoClipMentionType = "none" | "everyone" | "role";
+
+export type MongoClipsConfig = {
+  _id: string;
+  guildId: string;
+  botId?: string | null;
+  twitchChannelName: string;
+  twitchBroadcasterId: string;
+  twitchDisplayName?: string | null;
+  twitchAvatar?: string | null;
+  discordChannelId: string | null;
+  enabled: boolean;
+  allowedRoleIds: string[];
+  mentionType: MongoClipMentionType;
+  mentionRoleId: string | null;
+  embedColor: string | null;
+  customMessage: string | null;
+  checkInterval: number;
+  lastCheckAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoClipSent = {
+  _id: string;
+  guildId: string;
+  botId?: string | null;
+  twitchChannelName: string;
+  twitchBroadcasterId: string;
+  clipId: string;
+  clipTitle: string;
+  clipUrl: string;
+  clipThumbnail: string | null;
+  clipCreatorName: string | null;
+  createdAtTwitch: Date;
+  discordChannelId: string;
+  discordMessageId: string | null;
+  sentAt: Date;
+};
+
+export type MongoClipLog = {
+  _id: string;
+  guildId: string;
+  botId?: string | null;
+  action: string;
+  userId: string | null;
+  message: string;
+  createdAt: Date;
+};
+
 export type MongoDevBotStatus = "online" | "offline" | "invalid_token" | "error";
 
 export type MongoDevBot = {
@@ -203,6 +253,9 @@ export async function getMongoCollections() {
     tickets: db.collection<MongoTicket>("Ticket"),
     logEntries: db.collection<MongoLogEntry>("LogEntry"),
     socialNotifications: db.collection<MongoSocialNotification>("social_notifications"),
+    clipsConfig: db.collection<MongoClipsConfig>("clips_config"),
+    clipsSent: db.collection<MongoClipSent>("clips_sent"),
+    clipsLogs: db.collection<MongoClipLog>("clips_logs"),
     devBots: db.collection<MongoDevBot>("Bot"),
     botGuildConfigs: db.collection<MongoBotGuildConfig>("BotGuildConfig"),
     devPermissions: db.collection<MongoDevPermission>("DevPermission")
@@ -253,6 +306,7 @@ async function createMongoIndexes(db: Db) {
     db.collection<MongoTicket>("Ticket").createIndex({ guildId: 1, createdAt: -1 }),
     db.collection<MongoLogEntry>("LogEntry").createIndex({ guildId: 1, createdAt: -1 }),
     ensureSocialNotificationIndexes(db),
+    ensureClipsIndexes(db),
     db.collection<MongoSocialNotification>("social_notifications").createIndex({
       guildId: 1,
       platform: 1
@@ -295,4 +349,14 @@ async function ensureSocialNotificationIndexes(db: Db) {
       unique: true
     }
   );
+}
+
+async function ensureClipsIndexes(db: Db) {
+  await Promise.all([
+    db.collection<MongoClipsConfig>("clips_config").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    db.collection<MongoClipsConfig>("clips_config").createIndex({ enabled: 1, botId: 1, lastCheckAt: 1 }),
+    db.collection<MongoClipSent>("clips_sent").createIndex({ botId: 1, guildId: 1, clipId: 1 }, { unique: true }),
+    db.collection<MongoClipSent>("clips_sent").createIndex({ botId: 1, guildId: 1, sentAt: -1 }),
+    db.collection<MongoClipLog>("clips_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 })
+  ]);
 }

@@ -9,6 +9,7 @@ import {
   CalendarClock,
   CheckCircle2,
   ChevronRight,
+  Film,
   FileText,
   Hash,
   IdCard,
@@ -27,6 +28,7 @@ import {
 import { DashboardLayout } from "../components/layout/dashboard-layout";
 import type { ViewId } from "../components/layout/sidebar";
 import { DashboardHeader } from "../components/DashboardHeader";
+import { ClipsPanel } from "../components/clips/ClipsPanel";
 import { DevPanel } from "../components/dev/DevPanel";
 import { SiteAccessPanel } from "../components/moderation/SiteAccessPanel";
 import { LiveNotificationsPanel } from "../components/social/LiveNotificationsPanel";
@@ -159,6 +161,15 @@ const dashboardCards: DashboardCardConfig[] = [
     action: "Gerenciar"
   },
   {
+    id: "clips",
+    category: "modules",
+    title: "Clips",
+    description: "Detecte cortes criados na Twitch e envie no Discord automaticamente.",
+    icon: Film,
+    moduleId: "clips",
+    action: "Configurar"
+  },
+  {
     id: "roles",
     category: "modules",
     title: "Cargos automáticos",
@@ -253,6 +264,7 @@ const categoryMeta = {
 const viewModuleIds: Partial<Record<ViewId, string>> = {
   permissions: "verification",
   lives: "live",
+  clips: "clips",
   roles: "roles",
   welcome: "welcome",
   leave: "leave",
@@ -584,12 +596,15 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
   return (
     <DashboardLayout
       activeView={activeView}
+      bots={panelBots}
       dashboardUser={dashboardProfile?.user}
       enabledModules={enabledModules}
       guilds={scopedDashboardGuilds}
       onChangeView={setActiveView}
       onLogout={onLogout}
+      onSelectBot={handleSelectBot}
       onSelectGuild={handleSelectGuild}
+      selectedBotId={activeBotId}
       selectedGuildId={selectedGuild?.id ?? null}
       showDev={developerView}
       showAllModules={showAllModules}
@@ -667,6 +682,9 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
 
         {activeView === "lives" ? (
           <LiveView botId={activeBotId} canManageDashboard={canManageDashboard} guild={selectedGuild} lives={lives} />
+        ) : null}
+        {activeView === "clips" ? (
+          <ClipsPanel botId={activeBotId} canManage={canManageDashboard} guild={selectedGuild} />
         ) : null}
         {activeView === "welcome" ? (
           <WelcomePanel

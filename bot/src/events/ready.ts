@@ -1,6 +1,7 @@
 import type { Client } from "discord.js";
 import { env, isBotModuleEnabled } from "../config/env";
 import { registerGuildCommands } from "../handlers/commandHandler";
+import { startClipsMonitor } from "../services/clipsMonitor";
 import { startSocialNotificationMonitor } from "../services/socialNotificationMonitor";
 import type { BotContext } from "../types";
 
@@ -21,6 +22,9 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   context.socket.emitStatus(client, true);
   if (isBotModuleEnabled("live")) {
     startSocialNotificationMonitor(client, context.api);
+  }
+  if (isBotModuleEnabled("clips")) {
+    startClipsMonitor(client, context.api);
   }
 
   const interval = setInterval(() => {

@@ -4,6 +4,8 @@ import type {
   AccessValidationResult,
   AuthResponse,
   BotConnectionTest,
+  ClipSent,
+  ClipsConfig,
   CreateTwitchNotificationPayload,
   CreateDevBotPayload,
   DashboardMeResponse,
@@ -15,8 +17,10 @@ import type {
   LiveEvent,
   LogEntry,
   RegisterPrimaryDevBotPayload,
+  SaveClipsConfigPayload,
   SocialNotification,
   Ticket,
+  TwitchClipChannelPreview,
   TwitchChannelPreview,
   UpdateTwitchNotificationPayload
 } from "../types";
@@ -261,6 +265,64 @@ export async function getSocialNotifications(guildId: string, botId?: string | n
     }
   );
   return data.notifications;
+}
+
+export async function getClipsConfig(guildId: string, botId?: string | null) {
+  const { data } = await api.get<{ config: ClipsConfig | null }>("/clips/config", {
+    params: {
+      guildId,
+      ...botParams(botId)
+    }
+  });
+  return data.config;
+}
+
+export async function saveClipsConfig(payload: SaveClipsConfigPayload, botId?: string | null) {
+  const { data } = await api.post<{ config: ClipsConfig }>("/clips/config", payload, {
+    params: botParams(botId)
+  });
+  return data.config;
+}
+
+export async function enableClips(guildId: string, botId?: string | null) {
+  const { data } = await api.post<{ config: ClipsConfig }>("/clips/enable", { guildId }, {
+    params: botParams(botId)
+  });
+  return data.config;
+}
+
+export async function disableClips(guildId: string, botId?: string | null) {
+  const { data } = await api.post<{ config: ClipsConfig }>("/clips/disable", { guildId }, {
+    params: botParams(botId)
+  });
+  return data.config;
+}
+
+export async function getClipsHistory(guildId: string, botId?: string | null) {
+  const { data } = await api.get<{ clips: ClipSent[] }>("/clips/history", {
+    params: {
+      guildId,
+      ...botParams(botId)
+    }
+  });
+  return data.clips;
+}
+
+export async function testClips(guildId: string, botId?: string | null) {
+  await api.post<{ ok: boolean }>("/clips/test", { guildId }, {
+    params: botParams(botId),
+    timeout: 15000
+  });
+}
+
+export async function validateClipTwitchChannel(channel: string) {
+  const { data } = await api.get<{ channel: TwitchClipChannelPreview }>("/clips/validate-twitch", {
+    params: {
+      channel
+    },
+    timeout: 15000
+  });
+  return data.channel;
 }
 
 export async function createTwitchNotification(guildId: string, payload: CreateTwitchNotificationPayload, botId?: string | null) {

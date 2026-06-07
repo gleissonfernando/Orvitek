@@ -25,6 +25,18 @@ export type TwitchStreamDto = {
   startedAt: string;
 };
 
+export type TwitchClipDto = {
+  id: string;
+  url: string;
+  broadcasterId: string;
+  broadcasterName: string;
+  creatorName: string;
+  title: string;
+  thumbnailUrl: string | null;
+  viewCount: number;
+  createdAt: string;
+};
+
 let tokenCache: TwitchToken | null = null;
 
 export function normalizeTwitchChannel(input: string): string {
@@ -49,6 +61,20 @@ type TwitchUserResponse = {
     login: string;
     display_name: string;
     profile_image_url: string;
+  }>;
+};
+
+type TwitchClipsResponse = {
+  data: Array<{
+    id: string;
+    url: string;
+    broadcaster_id: string;
+    broadcaster_name: string;
+    creator_name: string;
+    title: string;
+    thumbnail_url: string;
+    view_count: number;
+    created_at: string;
   }>;
 };
 
@@ -103,6 +129,37 @@ export async function getTwitchStream(channelName: string) {
     thumbnailUrl: String(stream.thumbnail_url || ""),
     startedAt: String(stream.started_at || new Date().toISOString())
   } satisfies TwitchStreamDto;
+}
+
+export async function getTwitchClips(input: {
+  broadcasterId: string;
+  endedAt?: string;
+  first?: number;
+  startedAt?: string;
+}) {
+  const token = await getAppAccessToken();
+  const { data } = await axios.get<TwitchClipsResponse>("https://api.twitch.tv/helix/clips", {
+    headers: twitchHeaders(token),
+    params: {
+      broadcaster_id: input.broadcasterId,
+      first: Math.max(1, Math.min(input.first ?? 20, 100)),
+      ...(input.startedAt ? { started_at: input.startedAt } : {}),
+      ...(input.endedAt ? { ended_at: input.endedAt } : {})
+    },
+    timeout: 10_000
+  });
+
+  return data.data.map((clip) => ({
+    id: clip.id,
+    url: clip.url,
+    broadcasterId: clip.broadcaster_id,
+    broadcasterName: clip.broadcaster_name,
+    creatorName: clip.creator_name,
+    title: clip.title,
+    thumbnailUrl: clip.thumbnail_url || null,
+    viewCount: Number(clip.view_count || 0),
+    createdAt: clip.created_at
+  } satisfies TwitchClipDto));
 }
 
 async function getAppAccessToken() {

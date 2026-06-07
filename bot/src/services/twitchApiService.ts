@@ -17,6 +17,25 @@ export type TwitchStream = {
   startedAt: string;
 };
 
+export type TwitchUser = {
+  id: string;
+  login: string;
+  displayName: string;
+  profileImageUrl: string | null;
+};
+
+export type TwitchClip = {
+  id: string;
+  url: string;
+  broadcasterId: string;
+  broadcasterName: string;
+  creatorName: string;
+  title: string;
+  thumbnailUrl: string | null;
+  viewCount: number;
+  createdAt: string;
+};
+
 let tokenCache: TwitchToken | null = null;
 
 export async function getTwitchStream(channelName: string) {
@@ -48,6 +67,66 @@ export async function getTwitchStream(channelName: string) {
     thumbnailUrl: String(stream.thumbnail_url || ""),
     startedAt: String(stream.started_at || new Date().toISOString())
   } satisfies TwitchStream;
+}
+
+export async function getTwitchUser(channelName: string) {
+  const token = await getAppAccessToken();
+  const { data } = await axios.get<{ data: Array<Record<string, string>> }>("https://api.twitch.tv/helix/users", {
+    headers: {
+      "Client-ID": env.TWITCH_CLIENT_ID,
+      Authorization: `Bearer ${token}`
+    },
+    params: {
+      login: channelName
+    },
+    timeout: 10_000
+  });
+  const user = data.data[0];
+
+  if (!user) {
+    return null;
+  }
+
+  return {
+    id: String(user.id),
+    login: String(user.login),
+    displayName: String(user.display_name || user.login),
+    profileImageUrl: String(user.profile_image_url || "") || null
+  } satisfies TwitchUser;
+}
+
+export async function getTwitchClips(input: {
+  broadcasterId: string;
+  endedAt?: string;
+  first?: number;
+  startedAt?: string;
+}) {
+  const token = await getAppAccessToken();
+  const { data } = await axios.get<{ data: Array<Record<string, string | number>> }>("https://api.twitch.tv/helix/clips", {
+    headers: {
+      "Client-ID": env.TWITCH_CLIENT_ID,
+      Authorization: `Bearer ${token}`
+    },
+    params: {
+      broadcaster_id: input.broadcasterId,
+      first: Math.max(1, Math.min(input.first ?? 20, 100)),
+      ...(input.startedAt ? { started_at: input.startedAt } : {}),
+      ...(input.endedAt ? { ended_at: input.endedAt } : {})
+    },
+    timeout: 10_000
+  });
+
+  return data.data.map((clip) => ({
+    id: String(clip.id),
+    url: String(clip.url),
+    broadcasterId: String(clip.broadcaster_id),
+    broadcasterName: String(clip.broadcaster_name || ""),
+    creatorName: String(clip.creator_name || ""),
+    title: String(clip.title || "Novo clipe"),
+    thumbnailUrl: String(clip.thumbnail_url || "") || null,
+    viewCount: Number(clip.view_count || 0),
+    createdAt: String(clip.created_at || new Date().toISOString())
+  } satisfies TwitchClip));
 }
 
 async function getAppAccessToken() {

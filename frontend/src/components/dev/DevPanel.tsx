@@ -31,6 +31,7 @@ import type {
 
 const fallbackModules: DevModuleDefinition[] = [
   { id: "live", label: "Sistema de Live" },
+  { id: "clips", label: "Sistema de Clips" },
   { id: "verification", label: "Sistema de Verificacao" },
   { id: "welcome", label: "Sistema de Boas-vindas" },
   { id: "leave", label: "Sistema de Saida" },
