@@ -365,7 +365,7 @@ export async function createDevBot(input: CreateDevBotInput) {
     mainGuildChannelCount: detectedGuild.channelCount,
     status: "offline",
     statusMessage: "Token validado. Aguardando inicializacao.",
-    enabledModules: sanitizeModules(input.enabledModules ?? DEV_MODULES.map((module) => module.id)),
+    enabledModules: sanitizeModules(input.enabledModules ?? ["live"]),
     createdBy: input.createdBy,
     createdAt: now,
     updatedAt: now

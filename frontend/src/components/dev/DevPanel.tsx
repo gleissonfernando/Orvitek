@@ -24,6 +24,7 @@ import {
   restartDevBot,
   updateDevBotModules
 } from "../../lib/api";
+import { createDashboardSocket } from "../../lib/socket";
 import type {
   AuthUser,
   CreateDevBotPayload,
@@ -131,6 +132,28 @@ export function DevPanel({
       mainGuildId: current.mainGuildId || selectedGuildId || guilds[0]?.id || ""
     }));
   }, [guilds, selectedGuildId]);
+
+  useEffect(() => {
+    const socket = createDashboardSocket();
+
+    socket.on("dev:bot_updated", (updatedBot: DashboardBot) => {
+      setBots((current) => current.map((bot) => (
+        bot.id === updatedBot.id
+          ? {
+              ...bot,
+              ...updatedBot
+            }
+          : bot
+      )));
+    });
+    socket.on("dev:bot_deleted", (deletedBot: DashboardBot) => {
+      setBots((current) => current.filter((bot) => bot.id !== deletedBot.id));
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
 
   function updateForm<K extends keyof CreateDevBotPayload>(key: K, value: CreateDevBotPayload[K]) {
     setForm((current) => ({
@@ -508,6 +531,18 @@ function ConnectedBotPanel({
           <BotDetail icon={Server} label="Servidor" value={guildName} />
           <BotDetail icon={Users} label="Membros" value={bot.mainGuildMemberCount.toLocaleString("pt-BR")} />
         </div>
+
+        {bot.statusMessage ? (
+          <div className={`rounded-lg border px-3 py-2 text-sm ${
+            bot.status === "online"
+              ? "border-emerald-500/20 bg-emerald-500/[0.06] text-emerald-200"
+              : bot.status === "error" || bot.status === "invalid_token"
+                ? "border-red-500/25 bg-red-500/[0.07] text-red-200"
+                : "border-zinc-800 bg-black/30 text-zinc-400"
+          }`}>
+            {bot.statusMessage}
+          </div>
+        ) : null}
 
         <div className="flex flex-wrap gap-2 border-t border-zinc-900 pt-4">
           <Button onClick={onOpenDashboard} size="sm">

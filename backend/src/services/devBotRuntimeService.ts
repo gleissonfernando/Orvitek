@@ -2,6 +2,7 @@ import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { Readable } from "node:stream";
+import axios from "axios";
 import { env } from "../config/env";
 import {
   getDevBotRuntimeConfig,
@@ -12,9 +13,17 @@ import {
 
 type RunningBot = {
   child: ChildProcessByStdio<null, Readable, Readable>;
+  lastError: string | null;
   stopping: boolean;
 };
 
+type DiscordApplication = {
+  flags?: number;
+};
+
+const DISCORD_API = "https://discord.com/api/v10";
+const GATEWAY_GUILD_MEMBERS = 1 << 14;
+const GATEWAY_GUILD_MEMBERS_LIMITED = 1 << 15;
 const runningBots = new Map<string, RunningBot>();
 const restartTimers = new Map<string, NodeJS.Timeout>();
 
@@ -93,6 +102,7 @@ async function startRuntime(bot: DevBotRuntimeConfig) {
   }
 
   await updateDevBotRuntimeStatus(bot.id, "offline", "Iniciando processo do bot.");
+  const memberEventsEnabled = await canUseGuildMemberIntent(bot);
 
   const child = spawn(process.execPath, [entry], {
     cwd: path.resolve(__dirname, "../../.."),
@@ -103,6 +113,7 @@ async function startRuntime(bot: DevBotRuntimeConfig) {
       DASHBOARD_BOT_ID: bot.id,
       BOT_MAIN_GUILD_ID: bot.mainGuildId,
       BOT_ENABLED_MODULES: bot.enabledModules.join(","),
+      BOT_MEMBER_EVENTS_ENABLED: String(memberEventsEnabled),
       BACKEND_API_URL: process.env.BACKEND_API_URL || `${env.FRONTEND_URL}/api`,
       BACKEND_SOCKET_URL: process.env.BACKEND_SOCKET_URL || env.FRONTEND_URL,
       BOT_API_TOKEN: env.BOT_API_TOKEN
@@ -111,13 +122,29 @@ async function startRuntime(bot: DevBotRuntimeConfig) {
   });
   const runtime: RunningBot = {
     child,
+    lastError: null,
     stopping: false
   };
 
   runningBots.set(bot.id, runtime);
-  child.stdout.on("data", (chunk) => writeBotLog(bot.id, chunk));
-  child.stderr.on("data", (chunk) => writeBotLog(bot.id, chunk, true));
+  child.stdout.on("data", (chunk) => {
+    const message = writeBotLog(bot.id, chunk);
+
+    if (message.includes("[bot] conectado como")) {
+      void updateDevBotRuntimeStatus(bot.id, "online", "Bot conectado ao Discord.");
+    }
+  });
+  child.stderr.on("data", (chunk) => {
+    const message = writeBotLog(bot.id, chunk, true);
+    const runtimeError = botRuntimeError(message);
+
+    if (runtimeError) {
+      runtime.lastError = runtimeError.message;
+      void updateDevBotRuntimeStatus(bot.id, runtimeError.status, runtimeError.message);
+    }
+  });
   child.on("error", (error) => {
+    runtime.lastError = `Falha ao iniciar processo: ${error.message}`;
     void updateDevBotRuntimeStatus(bot.id, "error", `Falha ao iniciar processo: ${error.message}`);
   });
   child.on("exit", (code, signal) => {
@@ -132,7 +159,8 @@ async function startRuntime(bot: DevBotRuntimeConfig) {
     }
 
     const detail = signal ? `sinal ${signal}` : `codigo ${code ?? 0}`;
-    void updateDevBotRuntimeStatus(bot.id, code === 0 ? "offline" : "error", `Processo encerrado com ${detail}.`);
+    const exitMessage = runtime.lastError ?? `Processo encerrado com ${detail}.`;
+    void updateDevBotRuntimeStatus(bot.id, code === 0 ? "offline" : "error", exitMessage);
 
     const timer = setTimeout(() => {
       restartTimers.delete(bot.id);
@@ -144,13 +172,65 @@ async function startRuntime(bot: DevBotRuntimeConfig) {
   });
 }
 
+async function canUseGuildMemberIntent(bot: DevBotRuntimeConfig) {
+  const needsMemberEvents = ["welcome", "leave", "roles", "logs"].some((moduleId) => bot.enabledModules.includes(moduleId));
+
+  if (!needsMemberEvents) {
+    return false;
+  }
+
+  try {
+    const { data } = await axios.get<DiscordApplication>(`${DISCORD_API}/oauth2/applications/@me`, {
+      headers: {
+        Authorization: `Bot ${bot.token}`
+      },
+      timeout: 5_000
+    });
+    const flags = data.flags ?? 0;
+    const enabled = Boolean(flags & (GATEWAY_GUILD_MEMBERS | GATEWAY_GUILD_MEMBERS_LIMITED));
+
+    if (!enabled) {
+      console.warn(
+        `[dev-bot:${bot.id}] Server Members Intent nao esta ativo no Discord; eventos de membros serao ignorados.`
+      );
+    }
+
+    return enabled;
+  } catch (error) {
+    console.warn(
+      `[dev-bot:${bot.id}] nao foi possivel consultar intents do Discord; iniciando sem eventos de membros:`,
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
+function botRuntimeError(message: string) {
+  if (/invalid token|tokeninvalid|token was provided/i.test(message)) {
+    return {
+      status: "invalid_token" as const,
+      message: "O Discord recusou o token durante a inicializacao."
+    };
+  }
+
+  if (/disallowed intents/i.test(message)) {
+    return {
+      status: "error" as const,
+      message: "O bot tentou usar intents nao ativadas no Discord Developer Portal."
+    };
+  }
+
+  return null;
+}
+
 function writeBotLog(botId: string, chunk: Buffer, isError = false) {
   const message = chunk.toString("utf8").trim();
 
   if (!message) {
-    return;
+    return "";
   }
 
   const writer = isError ? console.error : console.log;
   writer(`[dev-bot:${botId}] ${message}`);
+  return message;
 }
