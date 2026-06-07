@@ -515,6 +515,13 @@ export async function restartDevBot(botId: string) {
   return data.bot;
 }
 
+export async function stopDevBot(botId: string) {
+  const { data } = await api.post<{ bot: DevBot }>(`/dev/bots/${botId}/stop`, undefined, {
+    timeout: 16000
+  });
+  return data.bot;
+}
+
 export async function deleteDevBot(botId: string) {
   const { data } = await api.delete<{ bot: DevBot }>(`/dev/bots/${botId}`);
   return data.bot;

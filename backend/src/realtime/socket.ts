@@ -5,7 +5,7 @@ import { createLiveEvent } from "../services/liveService";
 import { createLog } from "../services/logService";
 import { getBotStatus, updateBotStatus } from "../services/statsService";
 import { findDevBotIdByClientId, syncDevBotGuilds, updateDevBotRuntimeStatus } from "../services/devBotService";
-import { setRealtimeServer } from "./events";
+import { devBotRealtimeRoom, setRealtimeServer } from "./events";
 
 export function createSocketServer(httpServer: HttpServer) {
   const io = new Server(httpServer, {
@@ -31,6 +31,9 @@ export function createSocketServer(httpServer: HttpServer) {
 
     socket.data.isBot = isBot;
     socket.data.botId = botId;
+    if (botId) {
+      await socket.join(devBotRealtimeRoom(botId));
+    }
     socket.emit("bot:status", getBotStatus());
 
     socket.on("disconnect", () => {

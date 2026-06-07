@@ -91,6 +91,17 @@ export class BotSocketClient {
       console.warn(`[socket] desconectado do backend: ${reason}`);
     });
 
+    this.socket.on("bot:shutdown", (payload: { botId?: string | null } = {}) => {
+      if (payload.botId && env.DASHBOARD_BOT_ID && payload.botId !== env.DASHBOARD_BOT_ID) {
+        return;
+      }
+
+      console.log("[socket] desligamento solicitado pelo painel DEV.");
+      this.disconnect(client);
+      client.destroy();
+      setTimeout(() => process.exit(0), 100).unref();
+    });
+
     if (this.socialPanelUpdateHandler) {
       this.socket.on("socials:update", this.socialPanelUpdateHandler);
     }

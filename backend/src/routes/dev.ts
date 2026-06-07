@@ -261,7 +261,10 @@ devRouter.delete("/bots/:botId", async (req, res, next) => {
       });
     }
 
-    await stopDevBotProcess(req.params.botId);
+    await stopDevBotProcess(req.params.botId, {
+      message: "Bot desconectado pelo painel DEV.",
+      notifyBot: true
+    });
     const bot = await deleteDevBot(req.params.botId);
 
     if (!bot) {
@@ -271,6 +274,41 @@ devRouter.delete("/bots/:botId", async (req, res, next) => {
     }
     await writeDevBotAudit(auth, bot.mainGuildId, bot.id, "delete", `Bot ${bot.name} removido do painel.`, {
       clientId: bot.clientId
+    });
+
+    return res.json({
+      bot
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.post("/bots/:botId/stop", async (req, res, next) => {
+  try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+
+    if (!(await canManageDevBot(auth.user, req.params.botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem acesso a este bot."
+      });
+    }
+
+    const currentBot = await getDevBot(req.params.botId);
+
+    if (!currentBot) {
+      return res.status(404).json({
+        message: "Bot nao encontrado."
+      });
+    }
+
+    const stoppedBot = await stopDevBotProcess(req.params.botId, {
+      message: "Bot desligado pelo painel DEV.",
+      notifyBot: true
+    });
+    const bot = stoppedBot ?? (await getDevBot(req.params.botId)) ?? currentBot;
+    await writeDevBotAudit(auth, bot.mainGuildId, bot.id, "stop", `Bot ${bot.name} desligado pelo painel.`, {
+      status: bot.status
     });
 
     return res.json({

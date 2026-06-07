@@ -24,6 +24,7 @@ import {
   getDevBots,
   getDevModules,
   restartDevBot,
+  stopDevBot,
   updateDevBotModules
 } from "../../lib/api";
 import { createDashboardSocket } from "../../lib/socket";
@@ -92,7 +93,7 @@ export function DevPanel({
   const [form, setForm] = useState<CreateDevBotPayload>(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [restartingBotId, setRestartingBotId] = useState<string | null>(null);
+  const [poweringBotId, setPoweringBotId] = useState<string | null>(null);
   const [deletingBotId, setDeletingBotId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -227,19 +228,37 @@ export function DevPanel({
     }
   }
 
-  async function handleRestart(bot: DevBot) {
-    setRestartingBotId(bot.id);
+  async function handlePower(bot: DevBot) {
+    const shouldStop = bot.status === "online";
+
+    setPoweringBotId(bot.id);
     setMessage(null);
 
+    if (shouldStop) {
+      setBots((current) => current.map((item) => (
+        item.id === bot.id
+          ? {
+              ...item,
+              status: "offline",
+              statusMessage: "Desligando bot pelo painel DEV."
+            }
+          : item
+      )));
+    }
+
     try {
-      const updated = await restartDevBot(bot.id);
+      const updated = shouldStop ? await stopDevBot(bot.id) : await restartDevBot(bot.id);
       setBots((current) => current.map((item) => (item.id === updated.id ? updated : item)));
       onBotUpdated?.(updated);
-      setMessage(updated.statusMessage ?? "Bot sincronizado.");
+      setMessage(updated.statusMessage ?? (shouldStop ? "Bot desligado." : "Bot sincronizado."));
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Nao foi possivel reiniciar esse bot.");
+      if (shouldStop) {
+        setBots((current) => current.map((item) => (item.id === bot.id ? bot : item)));
+      }
+
+      setMessage(readRequestMessage(error) ?? (shouldStop ? "Nao foi possivel desligar esse bot." : "Nao foi possivel ligar esse bot."));
     } finally {
-      setRestartingBotId(null);
+      setPoweringBotId(null);
     }
   }
 
@@ -397,8 +416,8 @@ export function DevPanel({
             onOpenDashboard={() => openSelectedBotView("overview")}
             onOpenLogs={() => openSelectedBotView("logs")}
             onOpenSettings={openModuleSettings}
-            onRestart={() => void handleRestart(selectedBot)}
-            restarting={restartingBotId === selectedBot.id}
+            onPower={() => void handlePower(selectedBot)}
+            powering={poweringBotId === selectedBot.id}
           />
         ) : (
           <Card className="flex h-full min-h-[420px] border-dashed border-zinc-800 bg-zinc-950/45 hover:translate-y-0">
@@ -449,13 +468,13 @@ export function DevPanel({
                   </button>
                   <div className="flex shrink-0 items-center gap-2 self-end sm:self-center">
                     <Button
-                      disabled={restartingBotId === bot.id}
-                      onClick={() => void handleRestart(bot)}
+                      disabled={poweringBotId === bot.id}
+                      onClick={() => void handlePower(bot)}
                       size="icon"
-                      title="Reiniciar bot"
+                      title={bot.status === "online" ? "Desligar bot" : "Ligar bot"}
                       variant="outline"
                     >
-                      {restartingBotId === bot.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
+                      {poweringBotId === bot.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
                     </Button>
                     <Button
                       disabled={deletingBotId === bot.id}
@@ -517,8 +536,8 @@ function ConnectedBotPanel({
   onOpenDashboard,
   onOpenLogs,
   onOpenSettings,
-  onRestart,
-  restarting
+  onPower,
+  powering
 }: {
   bot: DevBot;
   deleting: boolean;
@@ -527,8 +546,8 @@ function ConnectedBotPanel({
   onOpenDashboard: () => void;
   onOpenLogs: () => void;
   onOpenSettings: () => void;
-  onRestart: () => void;
-  restarting: boolean;
+  onPower: () => void;
+  powering: boolean;
 }) {
   const [copiedDashboardUrl, setCopiedDashboardUrl] = useState(false);
   const botDashboardUrl = bot.dashboardUrl || dashboardUrl(bot.slug);
@@ -623,8 +642,8 @@ function ConnectedBotPanel({
             <ScrollText className="h-4 w-4" />
             Logs
           </Button>
-          <Button disabled={restarting} onClick={onRestart} size="icon" title="Reiniciar bot" variant="outline">
-            {restarting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
+          <Button disabled={powering} onClick={onPower} size="icon" title={bot.status === "online" ? "Desligar bot" : "Ligar bot"} variant="outline">
+            {powering ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
           </Button>
           <Button disabled={deleting} onClick={onDelete} size="icon" title="Desconectar bot" variant="destructive">
             {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unplug className="h-4 w-4" />}

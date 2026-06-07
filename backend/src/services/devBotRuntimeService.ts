@@ -4,6 +4,7 @@ import path from "node:path";
 import type { Readable } from "node:stream";
 import axios from "axios";
 import { env } from "../config/env";
+import { devBotRealtimeRoom, emitRealtimeToRoom } from "../realtime/events";
 import {
   getDevBotRuntimeConfig,
   listDevBotRuntimeConfigs,
@@ -19,6 +20,11 @@ type RunningBot = {
 
 type DiscordApplication = {
   flags?: number;
+};
+
+type StopDevBotOptions = {
+  message?: string;
+  notifyBot?: boolean;
 };
 
 const DISCORD_API = "https://discord.com/api/v10";
@@ -43,7 +49,10 @@ export async function startDevBotProcess(botId: string) {
     return null;
   }
 
-  await stopDevBotProcess(botId);
+  await stopDevBotProcess(botId, {
+    message: "Reiniciando processo do bot.",
+    notifyBot: false
+  });
   await startRuntime(bot);
   return bot;
 }
@@ -52,8 +61,10 @@ export async function restartDevBotProcess(botId: string) {
   return startDevBotProcess(botId);
 }
 
-export async function stopDevBotProcess(botId: string) {
+export async function stopDevBotProcess(botId: string, options: StopDevBotOptions = {}) {
   const timer = restartTimers.get(botId);
+  const statusMessage = options.message ?? "Bot desligado pelo painel DEV.";
+  const notifyBot = options.notifyBot === true;
 
   if (timer) {
     clearTimeout(timer);
@@ -61,9 +72,16 @@ export async function stopDevBotProcess(botId: string) {
   }
 
   const runtime = runningBots.get(botId);
+  const status = await updateDevBotRuntimeStatus(botId, "offline", statusMessage);
+
+  if (notifyBot) {
+    emitRealtimeToRoom(devBotRealtimeRoom(botId), "bot:shutdown", {
+      botId
+    });
+  }
 
   if (!runtime) {
-    return;
+    return status;
   }
 
   runtime.stopping = true;
@@ -82,10 +100,15 @@ export async function stopDevBotProcess(botId: string) {
       finish();
     }
   });
+
+  return status;
 }
 
 export async function stopAllDevBotProcesses() {
-  await Promise.all([...runningBots.keys()].map((botId) => stopDevBotProcess(botId)));
+  await Promise.all([...runningBots.keys()].map((botId) => stopDevBotProcess(botId, {
+    message: "Backend encerrando processo do bot.",
+    notifyBot: false
+  })));
 }
 
 async function startRuntime(bot: DevBotRuntimeConfig) {
