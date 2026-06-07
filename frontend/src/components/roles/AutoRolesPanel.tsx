@@ -84,12 +84,17 @@ export function AutoRolesPanel({
       ? [...new Set([...selectedRoleIds, roleId])].slice(0, MAX_AUTOMATIC_ROLES)
       : selectedRoleIds.filter((selectedRoleId) => selectedRoleId !== roleId);
 
+    if (settings?.autoRoleEnabled && !nextRoleIds.length) {
+      setStatus(null);
+      setError("Desative a entrega automatica antes de remover o ultimo cargo.");
+      return;
+    }
+
     void saveRoles(
       {
-        autoRoleEnabled: Boolean(nextRoleIds.length),
         autoRoleIds: nextRoleIds
       },
-      nextRoleIds.length ? "Cargos automaticos salvos para esta dashboard." : "Cargos automaticos removidos."
+      nextRoleIds.length ? "Cargos automaticos salvos para esta dashboard." : "Cargos automaticos removidos. Ative quando desejar."
     );
   }
 

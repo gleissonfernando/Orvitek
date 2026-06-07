@@ -81,13 +81,18 @@ export function SiteAccessPanel({
       ? [...new Set([...selectedRoleIds, roleId])]
       : selectedRoleIds.filter((selectedRoleId) => selectedRoleId !== roleId);
 
+    if (settings?.verificationEnabled && !nextRoleIds.length) {
+      setStatus(null);
+      setError("Desative o acesso por cargo antes de remover o ultimo cargo.");
+      return;
+    }
+
     void saveAccess(
       {
         verificationRoleId: nextRoleIds[0] ?? null,
-        verificationRoleIds: nextRoleIds,
-        verificationEnabled: Boolean(nextRoleIds.length)
+        verificationRoleIds: nextRoleIds
       },
-      nextRoleIds.length ? "Cargos de acesso salvos e ativados." : "Cargos de acesso removidos."
+      nextRoleIds.length ? "Cargos de acesso salvos." : "Cargos de acesso removidos. Ative quando desejar."
     );
   }
 
