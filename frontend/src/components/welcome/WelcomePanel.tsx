@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Hash, ImageIcon, Link2, Loader2, Send, Upload } from "lucide-react";
+import {
+  CheckCircle2,
+  Hash,
+  ImageIcon,
+  Link2,
+  Loader2,
+  MessageSquareText,
+  RotateCcw,
+  Save,
+  Send,
+  Upload
+} from "lucide-react";
 import {
   API_URL,
   getGuildLiveOptions,
@@ -28,6 +39,14 @@ type WelcomePanelProps = {
 };
 
 const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=3";
+const DEFAULT_WELCOME_MESSAGE = [
+  "Seja bem-vindo(a), {user}, a nossa comunidade de lives.",
+  "Aqui a galera acompanha transmissoes, eventos da comunidade, avisos e momentos ao vivo juntos."
+].join("\n");
+const DEFAULT_LEAVE_MESSAGE = [
+  "Ate mais, {user}. Obrigado por ter feito parte da nossa comunidade de lives.",
+  "As portas continuam abertas para quando quiser voltar e acompanhar as transmissoes com a galera."
+].join("\n");
 
 const panelConfig = {
   welcome: {
@@ -37,9 +56,12 @@ const panelConfig = {
     enabledKey: "welcomeEnabled",
     imageKey: "welcomeImageUrl",
     loadingText: "Carregando configuracoes de entrada...",
+    messageKey: "welcomeMessage",
+    defaultMessage: DEFAULT_WELCOME_MESSAGE,
     missingGuildText: "Selecione um servidor para configurar entrada.",
     missingSettingsText: "Nao foi possivel carregar as configuracoes de entrada.",
     savedImageText: "Banner de entrada atualizado.",
+    savedMessageText: "Texto de entrada atualizado.",
     testButtonText: "Testar entrada",
     testSentText: "Painel de entrada enviado para teste.",
     title: "Painel de entrada",
@@ -52,9 +74,12 @@ const panelConfig = {
     enabledKey: "leaveEnabled",
     imageKey: "leaveImageUrl",
     loadingText: "Carregando configuracoes de saida...",
+    messageKey: "leaveMessage",
+    defaultMessage: DEFAULT_LEAVE_MESSAGE,
     missingGuildText: "Selecione um servidor para configurar saida.",
     missingSettingsText: "Nao foi possivel carregar as configuracoes de saida.",
     savedImageText: "Banner de saida atualizado.",
+    savedMessageText: "Texto de saida atualizado.",
     testButtonText: "Testar saida",
     testSentText: "Painel de saida enviado para teste.",
     title: "Painel de saida",
@@ -69,9 +94,12 @@ const panelConfig = {
     enabledKey: "welcomeEnabled" | "leaveEnabled";
     imageKey: "welcomeImageUrl" | "leaveImageUrl";
     loadingText: string;
+    messageKey: "welcomeMessage" | "leaveMessage";
+    defaultMessage: string;
     missingGuildText: string;
     missingSettingsText: string;
     savedImageText: string;
+    savedMessageText: string;
     testButtonText: string;
     testSentText: string;
     title: string;
@@ -84,6 +112,7 @@ export function WelcomePanel({ botId, canManage, guild, loading = false, mode = 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [channels, setChannels] = useState<GuildChannelOption[]>([]);
   const [imageInput, setImageInput] = useState("");
+  const [messageInput, setMessageInput] = useState("");
   const [loadingChannels, setLoadingChannels] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -116,6 +145,10 @@ export function WelcomePanel({ botId, canManage, guild, loading = false, mode = 
     const currentImageUrl = settings?.[config.imageKey] ?? "";
     setImageInput(/^https?:\/\//i.test(currentImageUrl) ? currentImageUrl : "");
   }, [config.imageKey, settings]);
+
+  useEffect(() => {
+    setMessageInput(settings?.[config.messageKey]?.trim() || config.defaultMessage);
+  }, [config.defaultMessage, config.messageKey, settings]);
 
   async function savePatch(payload: Partial<GuildSettings>, key: string, successText = "Alteracao salva.") {
     if (!guild || !settings || !canManage) {
@@ -182,6 +215,26 @@ export function WelcomePanel({ botId, canManage, guild, loading = false, mode = 
     }
 
     await savePatch({ [config.imageKey]: nextImageUrl } as Partial<GuildSettings>, "imageUrl", config.savedImageText);
+  }
+
+  async function handleMessageSave(message = messageInput) {
+    const nextMessage = message.trim();
+
+    if (!nextMessage) {
+      setError("Digite o texto principal do painel.");
+      return;
+    }
+
+    await savePatch(
+      { [config.messageKey]: nextMessage } as Partial<GuildSettings>,
+      "message",
+      config.savedMessageText
+    );
+  }
+
+  function handleMessageReset() {
+    setMessageInput(config.defaultMessage);
+    void handleMessageSave(config.defaultMessage);
   }
 
   async function handleTest() {
@@ -273,6 +326,43 @@ export function WelcomePanel({ botId, canManage, guild, loading = false, mode = 
           />
 
           <div className="space-y-3 rounded-lg border border-zinc-900 bg-zinc-950/75 p-4">
+            <label className="block space-y-2">
+              <span className="flex items-center gap-2 text-sm font-medium text-zinc-100">
+                <MessageSquareText className="h-4 w-4 text-zinc-400" />
+                Texto principal
+              </span>
+              <textarea
+                className="min-h-32 w-full resize-y rounded-lg border border-zinc-800 bg-black px-3 py-3 text-sm leading-6 text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-zinc-600 disabled:opacity-50"
+                disabled={!canManage || saving === "message"}
+                maxLength={1000}
+                onChange={(event) => setMessageInput(event.target.value)}
+                value={messageInput}
+              />
+            </label>
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <Button
+                className="h-10"
+                disabled={!canManage || saving === "message"}
+                onClick={handleMessageReset}
+                type="button"
+                variant="outline"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Restaurar texto
+              </Button>
+              <Button
+                className="h-10"
+                disabled={!canManage || saving === "message"}
+                onClick={() => void handleMessageSave()}
+                type="button"
+              >
+                {saving === "message" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {saving === "message" ? "Salvando..." : "Salvar texto"}
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-lg border border-zinc-900 bg-zinc-950/75 p-4">
             <div className="flex items-center gap-2 text-sm font-medium text-zinc-100">
               <ImageIcon className="h-4 w-4 text-zinc-400" />
               Banner do painel
@@ -345,6 +435,7 @@ export function WelcomePanel({ botId, canManage, guild, loading = false, mode = 
       <WelcomePreview
         displayChannelName={displayChannel?.name ?? destinationChannel?.name ?? "selecione_um_canal"}
         imageUrl={imageUrl}
+        message={messageInput.trim() || config.defaultMessage}
         mode={mode}
         viewerName={viewerName}
       />
@@ -395,11 +486,13 @@ function ControlSelect({
 function WelcomePreview({
   displayChannelName,
   imageUrl,
+  message,
   mode,
   viewerName
 }: {
   displayChannelName: string;
   imageUrl: string;
+  message: string;
   mode: MemberPanelMode;
   viewerName: string;
 }) {
@@ -425,12 +518,7 @@ function WelcomePreview({
               </h3>
               {isLeave ? (
                 <>
-                  <p>
-                    Ate mais, <span className="rounded bg-white/10 px-1 text-zinc-100">@{viewerName}</span>. Obrigado por ter feito parte da
-                    nossa comunidade de lives.
-                    <br />
-                    As portas continuam abertas para quando quiser voltar e acompanhar as transmissoes com a galera.
-                  </p>
+                  <PanelMessage message={message} viewerName={viewerName} />
                   <div>
                     <p className="font-bold text-white">Registro de saida:</p>
                     <ol className="space-y-0.5 font-semibold">
@@ -444,12 +532,7 @@ function WelcomePreview({
                 </>
               ) : (
                 <>
-                  <p>
-                    Seja bem-vindo(a), <span className="rounded bg-white/10 px-1 text-zinc-100">@{viewerName}</span>, a nossa comunidade de
-                    lives.
-                    <br />
-                    Aqui a galera acompanha transmissoes, eventos da comunidade, avisos e momentos ao vivo juntos.
-                  </p>
+                  <PanelMessage message={message} viewerName={viewerName} />
                   <div>
                     <p className="font-bold text-white">Algumas dicas:</p>
                     <ol className="space-y-0.5 font-semibold">
@@ -472,6 +555,22 @@ function WelcomePreview({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function PanelMessage({ message, viewerName }: { message: string; viewerName: string }) {
+  return (
+    <p className="whitespace-pre-line">
+      {message.split(/(\{user\})/gi).map((part, index) => (
+        part.toLowerCase() === "{user}"
+          ? (
+              <span className="rounded bg-white/10 px-1 text-zinc-100" key={`${part}-${index}`}>
+                @{viewerName}
+              </span>
+            )
+          : part
+      ))}
+    </p>
   );
 }
 

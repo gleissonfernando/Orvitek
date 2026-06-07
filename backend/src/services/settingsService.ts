@@ -29,6 +29,16 @@ export type GuildSettingsDto = {
 
 const memorySettings = new Map<string, GuildSettingsDto>();
 const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=3";
+export const DEFAULT_WELCOME_MESSAGE = [
+  "Seja bem-vindo(a), {user}, a nossa comunidade de lives.",
+  "Aqui a galera acompanha transmissoes, eventos da comunidade, avisos e momentos ao vivo juntos."
+].join("\n");
+export const DEFAULT_LEAVE_MESSAGE = [
+  "Ate mais, {user}. Obrigado por ter feito parte da nossa comunidade de lives.",
+  "As portas continuam abertas para quando quiser voltar e acompanhar as transmissoes com a galera."
+].join("\n");
+const LEGACY_WELCOME_MESSAGE = "Bem-vindo(a), {user}!";
+const LEGACY_LEAVE_MESSAGE = "Ate mais, {user}.";
 export const MAX_AUTOMATIC_ROLES = 2;
 
 export function defaultSettings(guildId: string, botId: string | null = null): GuildSettingsDto {
@@ -39,12 +49,12 @@ export function defaultSettings(guildId: string, botId: string | null = null): G
     welcomeChannelId: null,
     welcomeDisplayChannelId: null,
     welcomeImageUrl: DEFAULT_WELCOME_IMAGE_URL,
-    welcomeMessage: "Bem-vindo(a), {user}!",
+    welcomeMessage: DEFAULT_WELCOME_MESSAGE,
     leaveEnabled: true,
     leaveChannelId: null,
     leaveDisplayChannelId: null,
     leaveImageUrl: DEFAULT_WELCOME_IMAGE_URL,
-    leaveMessage: "Ate mais, {user}.",
+    leaveMessage: DEFAULT_LEAVE_MESSAGE,
     autoRoleEnabled: false,
     autoRoleIds: [],
     twitchRoleId: null,
@@ -91,6 +101,16 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
     ...current,
     ...input,
     autoRoleIds,
+    welcomeMessage: normalizePanelMessage(
+      "welcomeMessage" in input ? input.welcomeMessage : current.welcomeMessage,
+      DEFAULT_WELCOME_MESSAGE,
+      LEGACY_WELCOME_MESSAGE
+    ),
+    leaveMessage: normalizePanelMessage(
+      "leaveMessage" in input ? input.leaveMessage : current.leaveMessage,
+      DEFAULT_LEAVE_MESSAGE,
+      LEGACY_LEAVE_MESSAGE
+    ),
     verificationRoleIds,
     botId: normalizedBotId,
     guildId
@@ -167,12 +187,20 @@ function toDto(settings: MongoGuildSettings): GuildSettingsDto {
     welcomeChannelId: settings.welcomeChannelId,
     welcomeDisplayChannelId: settings.welcomeDisplayChannelId ?? null,
     welcomeImageUrl: normalizeWelcomeImageUrl(settings.welcomeImageUrl),
-    welcomeMessage: settings.welcomeMessage,
+    welcomeMessage: normalizePanelMessage(
+      settings.welcomeMessage,
+      DEFAULT_WELCOME_MESSAGE,
+      LEGACY_WELCOME_MESSAGE
+    ),
     leaveEnabled: settings.leaveEnabled ?? defaults.leaveEnabled,
     leaveChannelId: settings.leaveChannelId ?? defaults.leaveChannelId,
     leaveDisplayChannelId: settings.leaveDisplayChannelId ?? defaults.leaveDisplayChannelId,
     leaveImageUrl: normalizeWelcomeImageUrl(settings.leaveImageUrl ?? defaults.leaveImageUrl),
-    leaveMessage: settings.leaveMessage ?? defaults.leaveMessage,
+    leaveMessage: normalizePanelMessage(
+      settings.leaveMessage,
+      DEFAULT_LEAVE_MESSAGE,
+      LEGACY_LEAVE_MESSAGE
+    ),
     autoRoleEnabled: settings.autoRoleEnabled,
     autoRoleIds: normalizeRoleIds(settings.autoRoleIds ?? []).slice(0, MAX_AUTOMATIC_ROLES),
     twitchRoleId: settings.twitchRoleId,
@@ -216,6 +244,11 @@ function createSettingsPersistenceError(cause: unknown) {
 
 function normalizeWelcomeImageUrl(value: string | null | undefined) {
   return !value || value === "/uploads/welcome/default.gif" ? DEFAULT_WELCOME_IMAGE_URL : value;
+}
+
+function normalizePanelMessage(value: string | null | undefined, fallback: string, legacyValue: string) {
+  const normalized = value?.trim();
+  return !normalized || normalized === legacyValue ? fallback : normalized;
 }
 
 function normalizeBotId(botId: string | null | undefined) {

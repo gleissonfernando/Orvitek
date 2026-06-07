@@ -3,6 +3,14 @@ import { env } from "../config/env";
 import type { BotContext } from "../types";
 
 const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=3";
+const DEFAULT_WELCOME_MESSAGE = [
+  "Seja bem-vindo(a), {user}, a nossa comunidade de lives.",
+  "Aqui a galera acompanha transmissoes, eventos da comunidade, avisos e momentos ao vivo juntos."
+].join("\n");
+const DEFAULT_LEAVE_MESSAGE = [
+  "Ate mais, {user}. Obrigado por ter feito parte da nossa comunidade de lives.",
+  "As portas continuam abertas para quando quiser voltar e acompanhar as transmissoes com a galera."
+].join("\n");
 
 export async function sendWelcomeMessage(context: BotContext, member: GuildMember) {
   const settings = await context.api.getSettings(member.guild.id, member.client.user.id).catch(() => null);
@@ -22,7 +30,7 @@ export async function sendWelcomeMessage(context: BotContext, member: GuildMembe
   const embed = new EmbedBuilder()
     .setColor(0xef4444)
     .setTitle("\u{1F47E} Ricardinn98")
-    .setDescription(welcomePanelDescription(`<@${member.id}>`, displayChannelId))
+    .setDescription(welcomePanelDescription(settings.welcomeMessage, `<@${member.id}>`, displayChannelId))
     .setFooter({
       text: "Ricardinn98 - Comunidade de lives"
     });
@@ -57,7 +65,7 @@ export async function sendLeaveMessage(context: BotContext, member: GuildMember 
   const embed = new EmbedBuilder()
     .setColor(0xef4444)
     .setTitle("\u{1F47E} Ricardinn98")
-    .setDescription(leavePanelDescription(`<@${member.id}>`, displayChannelId))
+    .setDescription(leavePanelDescription(settings.leaveMessage, `<@${member.id}>`, displayChannelId))
     .setFooter({
       text: "Ricardinn98 - Comunidade de lives"
     });
@@ -74,12 +82,11 @@ export async function sendLeaveMessage(context: BotContext, member: GuildMember 
   });
 }
 
-function welcomePanelDescription(userMention: string, channelId: string | null) {
+function welcomePanelDescription(message: string | null, userMention: string, channelId: string | null) {
   const channelMention = channelId ? `<#${channelId}>` : "<#coloque_o_id_do_canal_de_lives_aqui>";
 
   return [
-    `Seja bem-vindo(a), ${userMention}, a nossa comunidade de lives.`,
-    "Aqui a galera acompanha transmissoes, eventos da comunidade, avisos e momentos ao vivo juntos.",
+    formatPanelMessage(message, userMention, DEFAULT_WELCOME_MESSAGE),
     "",
     "**Algumas dicas:**",
     "**1.** Leia as regras antes de participar.",
@@ -92,12 +99,11 @@ function welcomePanelDescription(userMention: string, channelId: string | null) 
   ].join("\n");
 }
 
-function leavePanelDescription(userMention: string, channelId: string | null) {
+function leavePanelDescription(message: string | null, userMention: string, channelId: string | null) {
   const channelMention = channelId ? `<#${channelId}>` : "<#coloque_o_id_do_canal_de_lives_aqui>";
 
   return [
-    `Ate mais, ${userMention}. Obrigado por ter feito parte da nossa comunidade de lives.`,
-    "As portas continuam abertas para quando quiser voltar e acompanhar as transmissoes com a galera.",
+    formatPanelMessage(message, userMention, DEFAULT_LEAVE_MESSAGE),
     "",
     "**Registro de saida:**",
     "**1.** A saida foi registrada automaticamente pelo bot.",
@@ -128,4 +134,8 @@ async function resolveTextChannel(member: GuildMember | PartialGuildMember, chan
     ?? await member.guild.channels.fetch(channelId).catch(() => null);
 
   return channel?.isTextBased() ? channel : null;
+}
+
+function formatPanelMessage(message: string | null, userMention: string, fallback: string) {
+  return (message?.trim() || fallback).replace(/\{user\}/gi, userMention);
 }

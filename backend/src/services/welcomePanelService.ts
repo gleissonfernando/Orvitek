@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { env } from "../config/env";
-import type { GuildSettingsDto } from "./settingsService";
+import {
+  DEFAULT_LEAVE_MESSAGE,
+  DEFAULT_WELCOME_MESSAGE,
+  type GuildSettingsDto
+} from "./settingsService";
 
 const DISCORD_API_URL = "https://discord.com/api/v10";
 const WELCOME_UPLOAD_DIR = path.resolve(__dirname, "../../uploads/welcome");
@@ -16,12 +20,11 @@ const MIME_EXTENSIONS: Record<string, string> = {
   "image/webp": "webp"
 };
 
-export function welcomePanelDescription(userMention: string, channelId: string | null) {
+export function welcomePanelDescription(message: string | null, userMention: string, channelId: string | null) {
   const channelMention = channelId ? `<#${channelId}>` : "<#coloque_o_id_do_canal_de_lives_aqui>";
 
   return [
-    `Seja bem-vindo(a), ${userMention}, a nossa comunidade de lives.`,
-    "Aqui a galera acompanha transmissoes, eventos da comunidade, avisos e momentos ao vivo juntos.",
+    formatPanelMessage(message, userMention, DEFAULT_WELCOME_MESSAGE),
     "",
     "**Algumas dicas:**",
     "**1.** Leia as regras antes de participar.",
@@ -34,12 +37,11 @@ export function welcomePanelDescription(userMention: string, channelId: string |
   ].join("\n");
 }
 
-export function leavePanelDescription(userMention: string, channelId: string | null) {
+export function leavePanelDescription(message: string | null, userMention: string, channelId: string | null) {
   const channelMention = channelId ? `<#${channelId}>` : "<#coloque_o_id_do_canal_de_lives_aqui>";
 
   return [
-    `Ate mais, ${userMention}. Obrigado por ter feito parte da nossa comunidade de lives.`,
-    "As portas continuam abertas para quando quiser voltar e acompanhar as transmissoes com a galera.",
+    formatPanelMessage(message, userMention, DEFAULT_LEAVE_MESSAGE),
     "",
     "**Registro de saida:**",
     "**1.** A saida foi registrada automaticamente pelo bot.",
@@ -57,7 +59,7 @@ export function createWelcomePanelEmbed(settings: GuildSettingsDto, userMention:
   const imageUrl = toPublicUrl(settings.welcomeImageUrl ?? DEFAULT_WELCOME_IMAGE_URL);
 
   return createMemberPanelEmbed({
-    description: welcomePanelDescription(userMention, displayChannelId),
+    description: welcomePanelDescription(settings.welcomeMessage, userMention, displayChannelId),
     imageUrl
   });
 }
@@ -67,7 +69,7 @@ export function createLeavePanelEmbed(settings: GuildSettingsDto, userMention: s
   const imageUrl = toPublicUrl(settings.leaveImageUrl ?? DEFAULT_WELCOME_IMAGE_URL);
 
   return createMemberPanelEmbed({
-    description: leavePanelDescription(userMention, displayChannelId),
+    description: leavePanelDescription(settings.leaveMessage, userMention, displayChannelId),
     imageUrl
   });
 }
@@ -183,4 +185,8 @@ function toPublicUrl(value: string | null) {
 
   const origin = env.SITE_ORIGIN || env.FRONTEND_URL;
   return origin ? `${origin}${value.startsWith("/") ? value : `/${value}`}` : value;
+}
+
+function formatPanelMessage(message: string | null, userMention: string, fallback: string) {
+  return (message?.trim() || fallback).replace(/\{user\}/gi, userMention);
 }
