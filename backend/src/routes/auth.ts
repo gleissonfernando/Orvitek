@@ -14,6 +14,7 @@ import { toDashboardGuilds } from "../services/guildService";
 import { requireAuthenticated } from "../middleware/auth";
 import {
   applyDashboardAccessValidation,
+  createDeniedAccessUser,
   evaluateDashboardAccess
 } from "../services/accessControlService";
 import {
@@ -26,11 +27,13 @@ import {
 } from "../services/tokenService";
 import { getBotStatus, refreshBotGuildsFromDiscord } from "../services/statsService";
 import { saveDiscordUser } from "../services/userService";
+import type { AuthSessionUser } from "../types/session";
 
 export const authRouter = Router();
 const dashboardPath = "/dashboard";
 const errorPath = "/auth/error";
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+const ACCESS_DENIED_MESSAGE = "O usuario nao tem acesso ao painel.";
 
 function isApiAuthMount(req: Request) {
   return req.baseUrl.replace(/\/+$/, "") === "/api/auth";
@@ -230,13 +233,16 @@ authRouter.get("/me", async (req, res) => {
     });
   }
 
-  req.session.user = auth.user;
-  if (auth.verified) {
+  const refreshedUser = await refreshAuthUserGuilds(req, auth.user);
+  const currentAuth = refreshedUser === auth.user ? auth : issueAuthCookies(res, refreshedUser, auth.verified);
+
+  req.session.user = currentAuth.user;
+  if (currentAuth.verified) {
     req.session.verified = true;
   }
   await saveSession(req);
 
-  return res.json(createAuthResponse(auth));
+  return res.json(createAuthResponse(currentAuth));
 });
 
 authRouter.post("/refresh", async (req, res) => {
@@ -258,9 +264,17 @@ authRouter.post("/refresh", async (req, res) => {
   return res.json(createAuthResponse(auth));
 });
 
-authRouter.get("/access-check", requireAuthenticated, async (_req, res) => {
+authRouter.get("/access-check", requireAuthenticated, async (req, res) => {
   const auth = res.locals.dashboardAuth;
-  const validation = await evaluateDashboardAccess(auth.user);
+  const refreshedUser = await refreshAuthUserGuilds(req, auth.user);
+  const currentAuth = refreshedUser === auth.user ? auth : issueAuthCookies(res, refreshedUser, auth.verified);
+  const validation = await evaluateDashboardAccess(currentAuth.user);
+
+  req.session.user = currentAuth.user;
+  if (currentAuth.verified) {
+    req.session.verified = true;
+  }
+  await saveSession(req);
 
   return res.json({
     validation
@@ -270,22 +284,23 @@ authRouter.get("/access-check", requireAuthenticated, async (_req, res) => {
 authRouter.post("/verify", requireAuthenticated, async (req, res) => {
   await ensureBotGuildsLoaded();
   const auth = res.locals.dashboardAuth;
-  const validation = await evaluateDashboardAccess(auth.user);
-  const validatedUser = applyDashboardAccessValidation(auth.user, validation);
+  const refreshedUser = await refreshAuthUserGuilds(req, auth.user);
+  const validation = await evaluateDashboardAccess(refreshedUser);
 
   if (!validation.allowed) {
-    const deniedAuth = issueAuthCookies(res, validatedUser, false);
+    const deniedAuth = issueAuthCookies(res, createDeniedAccessUser(refreshedUser), false);
     req.session.user = deniedAuth.user;
     req.session.verified = false;
     req.session.accessValidatedAt = Date.now();
     await saveSession(req);
 
     return res.status(403).json({
-      message: "Nenhum bot cadastrado liberou o cargo deste usuario para acessar o painel.",
+      message: ACCESS_DENIED_MESSAGE,
       validation
     });
   }
 
+  const validatedUser = applyDashboardAccessValidation(refreshedUser, validation);
   const verifiedAuth = issueAuthCookies(
     res,
     validatedUser,
@@ -303,6 +318,30 @@ authRouter.post("/verify", requireAuthenticated, async (req, res) => {
     verificationToken: issueVerificationToken(verifiedAuth.user)
   });
 });
+
+async function refreshAuthUserGuilds(req: Request, user: AuthSessionUser) {
+  const accessToken = req.session.discordAccessToken;
+
+  if (!accessToken) {
+    return user;
+  }
+
+  try {
+    const guilds = toDashboardGuilds(await fetchDiscordGuilds(accessToken));
+    const selectedGuildId = user.selectedGuildId && guilds.some((guild) => guild.id === user.selectedGuildId)
+      ? user.selectedGuildId
+      : guilds[0]?.id ?? null;
+
+    return {
+      ...user,
+      guilds,
+      selectedGuildId
+    };
+  } catch (error) {
+    console.warn("[auth] nao foi possivel atualizar servidores do usuario:", error instanceof Error ? error.message : error);
+    return user;
+  }
+}
 
 authRouter.post("/logout", async (req, res, next) => {
   try {

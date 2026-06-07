@@ -105,3 +105,16 @@ export function applyDashboardAccessValidation(user: AuthSessionUser, validation
       }))
   };
 }
+
+export function createDeniedAccessUser(user: AuthSessionUser): AuthSessionUser {
+  const selectedGuildId = user.selectedGuildId && user.guilds.some((guild) => guild.id === user.selectedGuildId)
+    ? user.selectedGuildId
+    : user.guilds[0]?.id ?? null;
+
+  return {
+    ...user,
+    accessLevel: "viewer",
+    authorized: false,
+    selectedGuildId
+  };
+}

@@ -3,6 +3,8 @@ import { checkSiteAccess, getSession, logout as logoutRequest, verifyAccess } fr
 import { appUrl, dashboardUrl, isDashboardRoutePath } from "../lib/urls";
 import type { AccessValidationResult, AuthResponse } from "../types";
 
+const ACCESS_DENIED_MESSAGE = "O usuario nao tem acesso ao painel.";
+
 export function useAuth() {
   const [auth, setAuth] = useState<AuthResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -98,7 +100,7 @@ export function useAuth() {
       setError(
         isTimeoutError(requestError)
           ? "A verificacao demorou para responder. Tente novamente."
-          : readRequestMessage(requestError) ?? "Nenhum bot cadastrado liberou seu cargo para acessar o painel."
+          : readRequestMessage(requestError) ?? ACCESS_DENIED_MESSAGE
       );
     } finally {
       verifyInFlight.current = false;

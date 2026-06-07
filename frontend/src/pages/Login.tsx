@@ -4,6 +4,8 @@ import { Avatar } from "../components/ui/avatar";
 import { Button } from "../components/ui/button";
 import type { AccessValidationResult, AuthResponse } from "../types";
 
+const ACCESS_DENIED_MESSAGE = "O usuario nao tem acesso ao painel.";
+
 type LoginProps = {
   accessValidation: AccessValidationResult | null;
   auth: AuthResponse | null;
@@ -67,7 +69,7 @@ export function Login({
                 ) : accessValidation?.allowed ? (
                   "Acesso liberado para o site. Clique em Verificar para entrar."
                 ) : (
-                  "Acesso negado: nenhum bot cadastrado liberou o cargo deste usuario."
+                  ACCESS_DENIED_MESSAGE
                 )}
               </div>
             ) : null}

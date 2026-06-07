@@ -1,10 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
 import { env } from "../config/env";
-import { applyDashboardAccessValidation, evaluateDashboardAccess } from "../services/accessControlService";
+import { applyDashboardAccessValidation, createDeniedAccessUser, evaluateDashboardAccess } from "../services/accessControlService";
 import { getBotStatus, refreshBotGuildsFromDiscord } from "../services/statsService";
 import { clearAuthCookies, issueAuthCookies, resolveAuthFromRequest, type DashboardAuth } from "../services/tokenService";
 
 const VERIFIED_ACCESS_RECHECK_MS = 30 * 1000;
+const ACCESS_DENIED_MESSAGE = "O usuario nao tem acesso ao painel.";
 
 export function isBotRequest(req: Request) {
   const token = req.header("x-bot-token");
@@ -42,11 +43,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   const freshAuth = await ensureVerifiedRoleAccess(req, res, auth);
 
   if (!freshAuth) {
-    return res.status(403).json({ message: "Nenhum bot cadastrado liberou o cargo deste usuario para acessar o painel." });
+    return res.status(403).json({ message: ACCESS_DENIED_MESSAGE });
   }
 
   if (freshAuth.user.accessLevel !== "admin") {
-    return res.status(403).json({ message: "A verificacao de acesso deste usuario expirou. Verifique o cargo novamente." });
+    return res.status(403).json({ message: ACCESS_DENIED_MESSAGE });
   }
 
   req.session.user = freshAuth.user;
@@ -93,16 +94,17 @@ async function ensureVerifiedRoleAccess(req: Request, res: Response, auth: Dashb
   }
 
   const validation = await evaluateDashboardAccess(auth.user);
-  const validatedUser = applyDashboardAccessValidation(auth.user, validation);
 
   if (!validation.allowed) {
+    const deniedUser = createDeniedAccessUser(auth.user);
     clearAuthCookies(res);
-    req.session.user = validatedUser;
+    req.session.user = deniedUser;
     req.session.verified = false;
     req.session.accessValidatedAt = Date.now();
     return null;
   }
 
+  const validatedUser = applyDashboardAccessValidation(auth.user, validation);
   const freshAuth = issueAuthCookies(res, validatedUser, true);
   req.session.user = freshAuth.user;
   req.session.verified = freshAuth.verified;

@@ -2,6 +2,8 @@ import type { NextFunction, Request, Response } from "express";
 import { evaluateDashboardAccess } from "../services/accessControlService";
 import type { DashboardAuth } from "../services/tokenService";
 
+const ACCESS_DENIED_MESSAGE = "O usuario nao tem acesso ao painel.";
+
 export async function requireDashboardAccessValidation(_req: Request, res: Response, next: NextFunction) {
   const auth = res.locals.dashboardAuth as DashboardAuth | undefined;
 
@@ -15,7 +17,7 @@ export async function requireDashboardAccessValidation(_req: Request, res: Respo
 
   if (!validation.allowed) {
     return res.status(403).json({
-      message: "Usuario sem permissao para acessar o painel.",
+      message: ACCESS_DENIED_MESSAGE,
       validation
     });
   }
