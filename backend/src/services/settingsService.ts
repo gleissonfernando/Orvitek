@@ -146,40 +146,34 @@ export async function getPersistedDashboardAccess(
   }
 
   const { guildSettings } = await getMongoCollections();
-  const settings = await guildSettings.findOne(
+  const projection = {
+    botId: 1,
+    guildId: 1,
+    verificationEnabled: 1,
+    verificationRoleId: 1,
+    verificationRoleIds: 1
+  };
+  const specificSettings = await guildSettings.findOne(
     {
       botId: normalizedBotId,
       guildId
     },
     {
-      projection: {
-        botId: 1,
-        guildId: 1,
-        verificationEnabled: 1,
-        verificationRoleId: 1,
-        verificationRoleIds: 1
-      }
+      projection
     }
   );
-
-  if (!settings) {
-    return null;
-  }
-
-  const roleIds = normalizeRoleIds(
-    Array.isArray(settings.verificationRoleIds) && settings.verificationRoleIds.length
-      ? settings.verificationRoleIds
-      : settings.verificationRoleId
-        ? [settings.verificationRoleId]
-        : []
+  const legacySettings = await guildSettings.findOne(
+    settingsQuery(guildId, null),
+    {
+      projection
+    }
   );
+  const specificAccess = specificSettings ? toPersistedDashboardAccess(specificSettings, normalizedBotId) : null;
+  const legacyAccess = legacySettings ? toPersistedDashboardAccess(legacySettings, normalizedBotId) : null;
 
-  return {
-    botId: normalizedBotId,
-    guildId,
-    enabled: settings.verificationEnabled === true,
-    roleIds
-  };
+  if (specificAccess?.enabled && specificAccess.roleIds.length) return specificAccess;
+  if (legacyAccess?.enabled && legacyAccess.roleIds.length) return legacyAccess;
+  return specificAccess ?? legacyAccess;
 }
 
 export async function updateGuildSettings(guildId: string, input: Partial<GuildSettingsDto>, botId?: string | null) {
@@ -384,6 +378,26 @@ function normalizeVerificationRoles(settings: GuildSettingsDto): GuildSettingsDt
     ...settings,
     verificationRoleId: verificationRoleIds[0] ?? null,
     verificationRoleIds
+  };
+}
+
+function toPersistedDashboardAccess(
+  settings: Pick<MongoGuildSettings, "botId" | "guildId" | "verificationEnabled" | "verificationRoleId" | "verificationRoleIds">,
+  fallbackBotId: string
+): PersistedDashboardAccess {
+  const roleIds = normalizeRoleIds(
+    Array.isArray(settings.verificationRoleIds) && settings.verificationRoleIds.length
+      ? settings.verificationRoleIds
+      : settings.verificationRoleId
+        ? [settings.verificationRoleId]
+        : []
+  );
+
+  return {
+    botId: normalizeBotId(settings.botId) ?? fallbackBotId,
+    guildId: settings.guildId,
+    enabled: settings.verificationEnabled === true,
+    roleIds
   };
 }
 
