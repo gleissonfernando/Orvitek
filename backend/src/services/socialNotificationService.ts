@@ -115,6 +115,7 @@ export async function listSocialNotifications(
 
   try {
     const { socialNotifications } = await getMongoCollections();
+    await claimLegacyTwitchNotifications(guildId, normalizedBotId);
     const filteredTotalPromise = socialNotifications.countDocuments(query);
     const [notifications, filteredTotal, total] = await Promise.all([
       socialNotifications
@@ -173,6 +174,7 @@ export async function listActiveTwitchNotifications(botId?: string | null) {
 
   try {
     const { socialNotifications } = await getMongoCollections();
+    await claimLegacyTwitchNotificationsForBot(normalizedBotId);
     const notifications = await socialNotifications
       .find({
         platform: "twitch",
@@ -211,6 +213,7 @@ export async function listActiveTwitchNotifications(botId?: string | null) {
 export async function createTwitchNotification(guildId: string, input: CreateTwitchNotificationInput) {
   const botId = normalizeBotId(input.botId);
   const twitchChannelName = normalizeAndValidateChannel(input.twitchChannelInput);
+  await claimLegacyTwitchNotifications(guildId, botId);
   await assertGuildLimit(guildId, botId);
 
   const twitchUser = await getTwitchUser(twitchChannelName).catch((error) => {
@@ -671,6 +674,143 @@ async function findTwitchNotification(guildId: string, id: string, botId?: strin
 function normalizeBotId(botId: string | null | undefined) {
   const normalized = botId?.trim();
   return normalized ? normalized : null;
+}
+
+async function claimLegacyTwitchNotifications(guildId: string, botId: string | null) {
+  if (!botId) {
+    return;
+  }
+
+  try {
+    const { botGuildConfigs, devBots, socialNotifications } = await getMongoCollections();
+    const bot = await devBots.findOne(
+      {
+        _id: botId
+      },
+      {
+        projection: {
+          _id: 1,
+          mainGuildId: 1
+        }
+      }
+    );
+
+    if (!bot) {
+      return;
+    }
+
+    const botUsesGuild = bot.mainGuildId === guildId || Boolean(await botGuildConfigs.findOne(
+      {
+        botId,
+        guildId
+      },
+      {
+        projection: {
+          _id: 1
+        }
+      }
+    ));
+
+    if (!botUsesGuild) {
+      return;
+    }
+
+    const [mainGuildBots, configuredGuildBots] = await Promise.all([
+      devBots.find(
+        {
+          mainGuildId: guildId
+        },
+        {
+          projection: {
+            _id: 1
+          }
+        }
+      ).toArray(),
+      botGuildConfigs.find(
+        {
+          guildId
+        },
+        {
+          projection: {
+            botId: 1
+          }
+        }
+      ).toArray()
+    ]);
+    const botIdsForGuild = new Set<string>([
+      ...mainGuildBots.map((item) => item._id),
+      ...configuredGuildBots.map((item) => item.botId)
+    ]);
+
+    if (botIdsForGuild.size !== 1 || !botIdsForGuild.has(botId)) {
+      return;
+    }
+
+    await socialNotifications.updateMany(
+      {
+        guildId,
+        platform: "twitch",
+        $or: [
+          {
+            botId: null
+          },
+          {
+            botId: {
+              $exists: false
+            }
+          }
+        ]
+      },
+      {
+        $set: {
+          botId,
+          updatedAt: new Date()
+        }
+      }
+    );
+  } catch (error) {
+    console.warn("[social-notifications] nao foi possivel vincular lives antigas ao bot:", error instanceof Error ? error.message : error);
+  }
+}
+
+async function claimLegacyTwitchNotificationsForBot(botId: string | null) {
+  if (!botId) {
+    return;
+  }
+
+  try {
+    const { botGuildConfigs, devBots } = await getMongoCollections();
+    const bot = await devBots.findOne(
+      {
+        _id: botId
+      },
+      {
+        projection: {
+          mainGuildId: 1
+        }
+      }
+    );
+
+    if (!bot) {
+      return;
+    }
+
+    const configs = await botGuildConfigs.find(
+      {
+        botId
+      },
+      {
+        projection: {
+          guildId: 1
+        }
+      }
+    ).toArray();
+    const guildIds = [...new Set([bot.mainGuildId, ...configs.map((config) => config.guildId)])];
+
+    await Promise.all(guildIds.map((guildId) => claimLegacyTwitchNotifications(guildId, botId)));
+  } catch (error) {
+    console.warn("[social-notifications] nao foi possivel revisar lives antigas do bot:", error instanceof Error ? error.message : error);
+  }
 }
 
 function escapeRegex(value: string) {
