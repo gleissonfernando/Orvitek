@@ -7,7 +7,17 @@ import { useAuth } from "./hooks/useAuth";
 import { dashboardUrl } from "./lib/urls";
 
 export function App() {
-  const { auth, error, loading, loginDiscord, logout, verify, verifying } = useAuth();
+  const {
+    accessValidation,
+    auth,
+    checkingAccess,
+    error,
+    loading,
+    loginDiscord,
+    logout,
+    verify,
+    verifying
+  } = useAuth();
   const path = window.location.pathname;
   const routeError = path === "/auth/error" ? readAuthError() : null;
 
@@ -34,7 +44,18 @@ export function App() {
   }
 
   if (!auth || !auth.access.verified) {
-    return <Login auth={auth} error={routeError ?? error} onLoginDiscord={loginDiscord} onLogout={logout} onVerify={verify} verifying={verifying} />;
+    return (
+      <Login
+        accessValidation={accessValidation}
+        auth={auth}
+        checkingAccess={checkingAccess}
+        error={routeError ?? error}
+        onLoginDiscord={loginDiscord}
+        onLogout={logout}
+        onVerify={verify}
+        verifying={verifying}
+      />
+    );
   }
 
   return <Dashboard auth={auth} onLogout={logout} />;

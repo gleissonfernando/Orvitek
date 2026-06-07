@@ -2,10 +2,12 @@ import { motion } from "framer-motion";
 import { Bot, CheckCircle2, LogIn } from "lucide-react";
 import { Avatar } from "../components/ui/avatar";
 import { Button } from "../components/ui/button";
-import type { AuthResponse } from "../types";
+import type { AccessValidationResult, AuthResponse } from "../types";
 
 type LoginProps = {
+  accessValidation: AccessValidationResult | null;
   auth: AuthResponse | null;
+  checkingAccess: boolean;
   error: string | null;
   onLoginDiscord: () => void;
   onLogout: () => void;
@@ -13,7 +15,16 @@ type LoginProps = {
   verifying: boolean;
 };
 
-export function Login({ auth, error, onLoginDiscord, onLogout, onVerify, verifying }: LoginProps) {
+export function Login({
+  accessValidation,
+  auth,
+  checkingAccess,
+  error,
+  onLoginDiscord,
+  onLogout,
+  onVerify,
+  verifying
+}: LoginProps) {
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050505] px-4 py-10 text-white">
       <div className="absolute inset-0 bg-[#050505]" />
@@ -48,6 +59,18 @@ export function Login({ auth, error, onLoginDiscord, onLogout, onVerify, verifyi
                 </div>
               </div>
             </div>
+
+            {checkingAccess || accessValidation ? (
+              <div className="rounded-lg border border-white/10 bg-[#0b0b0b] p-3 text-sm text-zinc-300">
+                {checkingAccess ? (
+                  "Checando se seu usuario pode acessar o site..."
+                ) : accessValidation?.allowed ? (
+                  "Acesso liberado para o site. Clique em Verificar para entrar."
+                ) : (
+                  "Este usuario ainda nao tem permissao liberada para acessar o site."
+                )}
+              </div>
+            ) : null}
 
             <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
               <Button className="h-11" disabled={verifying} onClick={onVerify}>

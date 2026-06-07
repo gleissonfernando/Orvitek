@@ -150,13 +150,13 @@ DISCORD_OAUTH_REDIRECT_URI="https://ricardinho98.shardweb.app/auth/discord/callb
 DISCORD_CALLBACK_URL="https://ricardinho98.shardweb.app/auth/discord/callback"
 JWT_SECRET="troque-por-um-segredo-grande-de-jwt"
 DASHBOARD_AUTH_REQUIRED="true"
-DASHBOARD_DEV_USER_IDS="seu-id-discord"
+DASHBOARD_DEV_USER_IDS="1426287249020158018"
 DASHBOARD_VERIFICATION_MODE="roles"
 ```
 
 Use sempre a URL publica em `SITE_ORIGIN`, `DISCORD_OAUTH_REDIRECT_URI`, `DISCORD_CALLBACK_URL` e `FRONTEND_URL` quando `DASHBOARD_AUTH_REQUIRED="true"`. O OAuth2 do Discord nao deve apontar para `localhost`.
 
-`DASHBOARD_AUTHORIZED_USER_IDS` aceita IDs de usuarios Discord separados por virgula. `DASHBOARD_DEV_USER_IDS` define quem enxerga a aba Dev e pode administrar todos os bots e modulos. `DASHBOARD_GUILD_IDS` aceita IDs de servidores Discord separados por virgula e garante que esses servidores aparecam no painel para o Dev.
+`DASHBOARD_AUTHORIZED_USER_IDS` aceita IDs de usuarios Discord separados por virgula. A aba Dev e o modo de ver todos os modulos ficam restritos ao dono do sistema `1426287249020158018`; os demais usuarios veem somente os modulos liberados para o bot selecionado. `DASHBOARD_GUILD_IDS` aceita IDs de servidores Discord separados por virgula e garante que esses servidores aparecam no painel para o Dev.
 
 Quando `DASHBOARD_AUTH_REQUIRED="true"`, o backend usa Discord OAuth2, salva a autenticacao em JWT httpOnly e exige uma verificacao por aba antes de abrir o painel. Ao fechar a aba ou sair, a verificacao precisa ser feita novamente.
 

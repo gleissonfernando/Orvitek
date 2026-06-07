@@ -1,6 +1,7 @@
 import axios from "axios";
 import type { InternalAxiosRequestConfig } from "axios";
 import type {
+  AccessValidationResult,
   AuthResponse,
   BotConnectionTest,
   CreateTwitchNotificationPayload,
@@ -55,6 +56,10 @@ function botParams(botId?: string | null) {
   return botId ? { botId } : undefined;
 }
 
+function scopedBotGuildPath(botId: string, guildId: string, suffix: string) {
+  return `/bots/${encodeURIComponent(botId)}/guilds/${encodeURIComponent(guildId)}${suffix}`;
+}
+
 let refreshPromise: Promise<AuthResponse> | null = null;
 
 type RetryRequestConfig = InternalAxiosRequestConfig & {
@@ -96,6 +101,11 @@ export async function verifyAccess() {
   const { data } = await api.post<AuthResponse & { verificationToken: string }>("/auth/verify");
   storeTabVerification(data.verificationToken);
   return data;
+}
+
+export async function checkSiteAccess() {
+  const { data } = await api.get<{ validation: AccessValidationResult }>("/auth/access-check");
+  return data.validation;
 }
 
 export async function loginDev() {
@@ -243,46 +253,66 @@ export async function getTickets(guildId?: string, botId?: string | null) {
 }
 
 export async function getSocialNotifications(guildId: string, botId?: string | null) {
-  const { data } = await api.get<{ notifications: SocialNotification[] }>(`/social-notifications/${guildId}`, {
-    params: botParams(botId)
-  });
+  const { data } = await api.get<{ notifications: SocialNotification[] }>(
+    botId ? scopedBotGuildPath(botId, guildId, "/lives") : `/social-notifications/${guildId}`,
+    {
+      params: botParams(botId)
+    }
+  );
   return data.notifications;
 }
 
 export async function createTwitchNotification(guildId: string, payload: CreateTwitchNotificationPayload, botId?: string | null) {
-  const { data } = await api.post<{ notification: SocialNotification }>(`/social-notifications/${guildId}/twitch`, payload, {
-    params: botParams(botId)
-  });
+  const { data } = await api.post<{ notification: SocialNotification }>(
+    botId ? scopedBotGuildPath(botId, guildId, "/lives") : `/social-notifications/${guildId}/twitch`,
+    payload,
+    {
+      params: botParams(botId)
+    }
+  );
   return data.notification;
 }
 
 export async function previewTwitchChannel(guildId: string, twitchChannelInput: string, botId?: string | null) {
-  const { data } = await api.post<{ preview: TwitchChannelPreview }>(`/social-notifications/${guildId}/twitch/preview`, {
-    twitchChannelInput
-  }, {
-    params: botParams(botId)
-  });
+  const { data } = await api.post<{ preview: TwitchChannelPreview }>(
+    botId ? scopedBotGuildPath(botId, guildId, "/lives/preview") : `/social-notifications/${guildId}/twitch/preview`,
+    {
+      twitchChannelInput
+    },
+    {
+      params: botParams(botId)
+    }
+  );
   return data.preview;
 }
 
 export async function updateTwitchNotification(guildId: string, id: string, payload: UpdateTwitchNotificationPayload, botId?: string | null) {
-  const { data } = await api.put<{ notification: SocialNotification }>(`/social-notifications/${guildId}/twitch/${id}`, payload, {
-    params: botParams(botId)
-  });
+  const { data } = botId
+    ? await api.patch<{ notification: SocialNotification }>(scopedBotGuildPath(botId, guildId, `/lives/${id}`), payload)
+    : await api.put<{ notification: SocialNotification }>(`/social-notifications/${guildId}/twitch/${id}`, payload, {
+        params: botParams(botId)
+      });
   return data.notification;
 }
 
 export async function testTwitchNotification(guildId: string, id: string, botId?: string | null) {
-  await api.post<{ ok: boolean }>(`/social-notifications/${guildId}/twitch/${id}/test`, undefined, {
-    params: botParams(botId),
-    timeout: 15000
-  });
+  await api.post<{ ok: boolean }>(
+    botId ? scopedBotGuildPath(botId, guildId, `/lives/${id}/test`) : `/social-notifications/${guildId}/twitch/${id}/test`,
+    undefined,
+    {
+      params: botParams(botId),
+      timeout: 15000
+    }
+  );
 }
 
 export async function deleteTwitchNotification(guildId: string, id: string, botId?: string | null) {
-  const { data } = await api.delete<{ notification: SocialNotification }>(`/social-notifications/${guildId}/twitch/${id}`, {
-    params: botParams(botId)
-  });
+  const { data } = await api.delete<{ notification: SocialNotification }>(
+    botId ? scopedBotGuildPath(botId, guildId, `/lives/${id}`) : `/social-notifications/${guildId}/twitch/${id}`,
+    {
+      params: botParams(botId)
+    }
+  );
   return data.notification;
 }
 

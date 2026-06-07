@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getSession, loginDev, logout as logoutRequest, verifyAccess } from "../lib/api";
+import { checkSiteAccess, getSession, loginDev, logout as logoutRequest, verifyAccess } from "../lib/api";
 import { appUrl, dashboardUrl } from "../lib/urls";
-import type { AuthResponse } from "../types";
+import type { AccessValidationResult, AuthResponse } from "../types";
 
 export function useAuth() {
   const [auth, setAuth] = useState<AuthResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(false);
+  const [accessValidation, setAccessValidation] = useState<AccessValidationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const refreshId = useRef(0);
   const verifyInFlight = useRef(false);
@@ -23,11 +25,36 @@ export function useAuth() {
         return;
       }
       setAuth(session);
+      setAccessValidation(session.validation ?? null);
+
+      if (!session.access.verified) {
+        setCheckingAccess(true);
+        void checkSiteAccess()
+          .then((validation) => {
+            if (refreshId.current === requestId) {
+              setAccessValidation(validation);
+            }
+          })
+          .catch(() => {
+            if (refreshId.current === requestId) {
+              setAccessValidation(null);
+            }
+          })
+          .finally(() => {
+            if (refreshId.current === requestId) {
+              setCheckingAccess(false);
+            }
+          });
+      } else {
+        setCheckingAccess(false);
+      }
     } catch (requestError) {
       if (refreshId.current !== requestId) {
         return;
       }
       setAuth(null);
+      setAccessValidation(null);
+      setCheckingAccess(false);
       if (isTimeoutError(requestError)) {
         setError("A sessao demorou para responder. Tente entrar novamente.");
       }
@@ -48,6 +75,7 @@ export function useAuth() {
     try {
       const session = await loginDev();
       setAuth(session);
+      setAccessValidation(session.validation ?? null);
     } catch {
       setError("Login de desenvolvimento indisponivel.");
     }
@@ -56,6 +84,8 @@ export function useAuth() {
   const logout = useCallback(async () => {
     await logoutRequest();
     setAuth(null);
+    setAccessValidation(null);
+    setCheckingAccess(false);
   }, []);
 
   const verify = useCallback(async () => {
@@ -70,10 +100,13 @@ export function useAuth() {
     try {
       const session = await verifyAccess();
       setAuth(session);
+      setAccessValidation(session.validation ?? null);
       if (window.location.pathname !== "/dashboard") {
         window.location.replace(dashboardUrl());
       }
     } catch (requestError) {
+      const validation = readRequestValidation(requestError);
+      setAccessValidation(validation);
       setError(
         isTimeoutError(requestError)
           ? "A verificacao demorou para responder. Tente novamente."
@@ -91,6 +124,8 @@ export function useAuth() {
 
   return {
     auth,
+    accessValidation,
+    checkingAccess,
     loading,
     error,
     loginDiscord,
@@ -113,4 +148,24 @@ function readRequestMessage(error: unknown) {
 
   const response = (error as { response?: { data?: { message?: unknown } } }).response;
   return typeof response?.data?.message === "string" ? response.data.message : null;
+}
+
+function readRequestValidation(error: unknown) {
+  if (typeof error !== "object" || error === null || !("response" in error)) {
+    return null;
+  }
+
+  const response = (error as { response?: { data?: { validation?: unknown } } }).response;
+  return isAccessValidationResult(response?.data?.validation) ? response.data.validation : null;
+}
+
+function isAccessValidationResult(value: unknown): value is AccessValidationResult {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "allowed" in value &&
+    "canManageDashboard" in value &&
+    "checks" in value &&
+    Array.isArray((value as { checks?: unknown }).checks)
+  );
 }

@@ -11,7 +11,7 @@ const localFrontendUrl = "http://localhost:5173";
 const productionPublicUrl = "https://ricardinho98.shardweb.app";
 const defaultDashboardGuildIds = "1213384118356803594";
 const defaultDashboardAuthorizedUserIds = "761011766440230932";
-const defaultDashboardDevUserIds = "761011766440230932,1426287249020158018";
+const defaultDashboardDevUserIds = "1426287249020158018";
 const isProduction = process.env.NODE_ENV === "production";
 
 function cleanEnvValue(value: unknown) {

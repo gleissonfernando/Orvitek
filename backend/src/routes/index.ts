@@ -8,7 +8,7 @@ import { healthRouter } from "./health";
 import { livesRouter } from "./lives";
 import { logsRouter } from "./logs";
 import { settingsRouter } from "./settings";
-import { socialNotificationsRouter } from "./socialNotifications";
+import { botLivesRouter, socialNotificationsRouter } from "./socialNotifications";
 import { ticketsRouter } from "./tickets";
 import { usersRouter } from "./users";
 
@@ -17,6 +17,7 @@ export const apiRouter = Router();
 apiRouter.use("/health", healthRouter);
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/bot", botDevApiRouter);
+apiRouter.use("/bots", botLivesRouter);
 apiRouter.use("/dashboard", dashboardRouter);
 apiRouter.use("/dev", devRouter);
 apiRouter.use("/users", usersRouter);

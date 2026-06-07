@@ -68,6 +68,7 @@ type DashboardProps = {
 const CONFIGURED_GUILD_ID = "1213384118356803594";
 const CONFIGURED_GUILD_NAME = "Servidor configurado";
 const DASHBOARD_VIEW_MODE_KEY = "dashboard.dev_view_mode";
+const DASHBOARD_SYSTEM_OWNER_ID = "1426287249020158018";
 type BooleanSettingKey =
   | "welcomeEnabled"
   | "leaveEnabled"
@@ -288,10 +289,12 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
   );
   const activeBotId = selectedPanelBot?.id ?? null;
   const canManageDashboard = auth.permissions.canManageDashboard || Boolean(selectedPanelBot);
-  const canViewDev = dashboardProfile?.canViewDev ?? false;
+  const isSystemOwner = auth.user.discordId === DASHBOARD_SYSTEM_OWNER_ID || dashboardProfile?.user.id === DASHBOARD_SYSTEM_OWNER_ID;
+  const canViewDev = isSystemOwner && (dashboardProfile?.canViewDev ?? false);
   const developerView = canViewDev && dashboardViewMode === "developer";
   const enabledModules = selectedPanelBot?.enabledModules ?? [];
-  const showAllModules = developerView;
+  const showAllModules = developerView && isSystemOwner;
+  const showDevOnlyCards = developerView;
   const displayedBotStatus = selectedPanelBot
     ? {
         ...botStatus,
@@ -359,10 +362,10 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
   }, [activeView, developerView]);
 
   useEffect(() => {
-    if (!isViewAllowed(activeView, enabledModules, developerView)) {
+    if (!isViewAllowed(activeView, enabledModules, developerView, showAllModules)) {
       setActiveView("overview");
     }
-  }, [activeView, developerView, enabledModules]);
+  }, [activeView, developerView, enabledModules, showAllModules]);
 
   useEffect(() => {
     const selectedGuildIsAvailable = selectedGuildId
@@ -440,6 +443,21 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
         ...current,
         bots: current.bots.map((bot) => bot.id === updatedBot.id ? updatedBot : bot)
       } : current);
+    });
+    socket.on("dev:bot_created", (createdBot: DashboardBot) => {
+      setDashboardProfile((current) => current ? {
+        ...current,
+        bots: current.bots.some((bot) => bot.id === createdBot.id)
+          ? current.bots.map((bot) => bot.id === createdBot.id ? createdBot : bot)
+          : [createdBot, ...current.bots]
+      } : current);
+    });
+    socket.on("dev:bot_deleted", (deletedBot: DashboardBot) => {
+      setDashboardProfile((current) => current ? {
+        ...current,
+        bots: current.bots.filter((bot) => bot.id !== deletedBot.id)
+      } : current);
+      setSelectedBotId((current) => current === deletedBot.id ? null : current);
     });
     socket.on("logs:new", (log: LogEntry) => {
       if (log.guildId === selectedGuildId && (log.botId ?? null) === activeBotId) {
@@ -525,6 +543,23 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
     }
   }
 
+  function upsertDashboardBot(bot: DashboardBot) {
+    setDashboardProfile((current) => current ? {
+      ...current,
+      bots: current.bots.some((item) => item.id === bot.id)
+        ? current.bots.map((item) => item.id === bot.id ? bot : item)
+        : [bot, ...current.bots]
+    } : current);
+  }
+
+  function removeDashboardBot(botId: string) {
+    setDashboardProfile((current) => current ? {
+      ...current,
+      bots: current.bots.filter((bot) => bot.id !== botId)
+    } : current);
+    setSelectedBotId((current) => current === botId ? null : current);
+  }
+
   function handleDashboardViewMode(mode: DashboardViewMode) {
     if (!canViewDev) {
       return;
@@ -594,6 +629,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
             savingKey={savingKey}
             settings={settings}
             showAllModules={showAllModules}
+            showDevOnlyCards={showDevOnlyCards}
             totals={totals}
           />
         ) : null}
@@ -607,6 +643,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
             savingKey={savingKey}
             settings={settings}
             showAllModules={showAllModules}
+            showDevOnlyCards={showDevOnlyCards}
           />
         ) : null}
 
@@ -640,7 +677,20 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
         {activeView === "tickets" ? <TicketView tickets={tickets} /> : null}
         {activeView === "logs" ? <LogsView logs={logs} /> : null}
         {activeView === "dev" && developerView ? (
-          <DevPanel guilds={allDashboardHeaderGuilds} selectedGuildId={selectedGuild?.id ?? null} user={auth.user} />
+          <DevPanel
+            guilds={allDashboardHeaderGuilds}
+            onBotCreated={(bot) => {
+              upsertDashboardBot(bot);
+              setSelectedBotId(bot.id);
+              setSelectedGuildId(bot.guildIds[0] ?? bot.mainGuildId);
+            }}
+            onBotDeleted={removeDashboardBot}
+            onBotUpdated={upsertDashboardBot}
+            onSelectBot={handleSelectBot}
+            selectedBotId={activeBotId}
+            selectedGuildId={selectedGuild?.id ?? null}
+            user={auth.user}
+          />
         ) : null}
 
         {["roles", "moderation"].includes(activeView) ? (
@@ -653,6 +703,7 @@ export function Dashboard({ auth, onLogout }: DashboardProps) {
               savingKey={savingKey}
               settings={settings}
               showAllModules={showAllModules}
+              showDevOnlyCards={showDevOnlyCards}
             />
             {activeView === "moderation" ? (
               <SiteAccessPanel
@@ -710,13 +761,13 @@ function viewModuleId(view: ViewId) {
   return viewModuleIds[view] ?? null;
 }
 
-function isViewAllowed(view: ViewId, enabledModules: string[], developerView: boolean) {
-  if (developerView || view === "overview") {
+function isViewAllowed(view: ViewId, enabledModules: string[], developerView: boolean, showAllModules: boolean) {
+  if (view === "overview" || showAllModules) {
     return true;
   }
 
   if (view === "dev") {
-    return false;
+    return developerView;
   }
 
   if (view === "settings") {
@@ -731,9 +782,14 @@ function isViewAllowed(view: ViewId, enabledModules: string[], developerView: bo
   return Boolean(requiredModule && enabledModules.includes(requiredModule));
 }
 
-function isCardVisible(card: DashboardCardConfig, enabledModules: string[], showAllModules: boolean) {
+function isCardVisible(
+  card: DashboardCardConfig,
+  enabledModules: string[],
+  showAllModules: boolean,
+  showDevOnlyCards: boolean
+) {
   if (card.devOnly) {
-    return showAllModules;
+    return showDevOnlyCards;
   }
 
   return showAllModules || !card.moduleId || enabledModules.includes(card.moduleId);
@@ -823,6 +879,7 @@ function OverviewView({
   savingKey,
   settings,
   showAllModules,
+  showDevOnlyCards,
   totals
 }: {
   auth: AuthResponse;
@@ -834,6 +891,7 @@ function OverviewView({
   savingKey: BooleanSettingKey | null;
   settings: GuildSettings | null;
   showAllModules: boolean;
+  showDevOnlyCards: boolean;
   totals: { members: number; channels: number; guilds: number; onlineGuilds: number };
 }) {
   return (
@@ -855,6 +913,7 @@ function OverviewView({
         savingKey={savingKey}
         settings={settings}
         showAllModules={showAllModules}
+        showDevOnlyCards={showDevOnlyCards}
       />
       <CategorySection
         canManageDashboard={canManageDashboard}
@@ -864,6 +923,7 @@ function OverviewView({
         savingKey={savingKey}
         settings={settings}
         showAllModules={showAllModules}
+        showDevOnlyCards={showDevOnlyCards}
       />
       <CategorySection
         canManageDashboard={canManageDashboard}
@@ -873,6 +933,7 @@ function OverviewView({
         savingKey={savingKey}
         settings={settings}
         showAllModules={showAllModules}
+        showDevOnlyCards={showDevOnlyCards}
       />
 
       <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
@@ -949,7 +1010,8 @@ function CategoryView({
   onToggle,
   savingKey,
   settings,
-  showAllModules
+  showAllModules,
+  showDevOnlyCards
 }: {
   canManageDashboard: boolean;
   category: DashboardCardConfig["category"];
@@ -958,6 +1020,7 @@ function CategoryView({
   savingKey: BooleanSettingKey | null;
   settings: GuildSettings | null;
   showAllModules: boolean;
+  showDevOnlyCards: boolean;
 }) {
   return (
     <CategorySection
@@ -968,6 +1031,7 @@ function CategoryView({
       savingKey={savingKey}
       settings={settings}
       showAllModules={showAllModules}
+      showDevOnlyCards={showDevOnlyCards}
     />
   );
 }
@@ -979,7 +1043,8 @@ function FocusedModuleView({
   onToggle,
   savingKey,
   settings,
-  showAllModules
+  showAllModules,
+  showDevOnlyCards
 }: {
   activeView: ViewId;
   canManageDashboard: boolean;
@@ -988,6 +1053,7 @@ function FocusedModuleView({
   savingKey: BooleanSettingKey | null;
   settings: GuildSettings | null;
   showAllModules: boolean;
+  showDevOnlyCards: boolean;
 }) {
   const ids =
     activeView === "roles"
@@ -999,7 +1065,7 @@ function FocusedModuleView({
   return (
     <div className="space-y-4">
       {dashboardCards
-        .filter((card) => ids.includes(card.id) && isCardVisible(card, enabledModules, showAllModules))
+        .filter((card) => ids.includes(card.id) && isCardVisible(card, enabledModules, showAllModules, showDevOnlyCards))
         .map((card) => (
           <ConfigCard
             card={card}
@@ -1021,7 +1087,8 @@ function CategorySection({
   onToggle,
   savingKey,
   settings,
-  showAllModules
+  showAllModules,
+  showDevOnlyCards
 }: {
   canManageDashboard: boolean;
   category: DashboardCardConfig["category"];
@@ -1030,10 +1097,11 @@ function CategorySection({
   savingKey: BooleanSettingKey | null;
   settings: GuildSettings | null;
   showAllModules: boolean;
+  showDevOnlyCards: boolean;
 }) {
   const meta = categoryMeta[category];
   const cards = dashboardCards.filter(
-    (card) => card.category === category && isCardVisible(card, enabledModules, showAllModules)
+    (card) => card.category === category && isCardVisible(card, enabledModules, showAllModules, showDevOnlyCards)
   );
 
   return (

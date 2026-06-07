@@ -26,6 +26,25 @@ export type AuthUser = {
   lastLoginAt: string;
 };
 
+export type GuildAccessCheck = {
+  guildId: string;
+  guildName: string;
+  administrator: boolean;
+  owner: boolean;
+  administratorRole: boolean;
+  configuredPanelRole: boolean;
+};
+
+export type AccessValidationResult = {
+  allowed: boolean;
+  mode: "temporary" | "roles";
+  temporaryAccess: boolean;
+  accessLevel: "admin" | "viewer";
+  authorizedUser: boolean;
+  canManageDashboard: boolean;
+  checks: GuildAccessCheck[];
+};
+
 export type AuthResponse = {
   user: AuthUser;
   guilds: DashboardGuild[];
@@ -41,14 +60,7 @@ export type AuthResponse = {
     verificationMode: "temporary" | "roles";
     tokenExpiresAt: string;
   };
-  validation?: {
-    allowed: boolean;
-    mode: "temporary" | "roles";
-    temporaryAccess: boolean;
-    accessLevel: "admin" | "viewer";
-    authorizedUser: boolean;
-    canManageDashboard: boolean;
-  };
+  validation?: AccessValidationResult;
 };
 
 export type BotStatus = {
@@ -151,6 +163,8 @@ export type SocialNotification = {
   botId: string | null;
   guildId: string;
   userId: string;
+  createdBy: string;
+  updatedBy: string | null;
   platform: "twitch";
   twitchChannelName: string;
   twitchChannelUrl: string;

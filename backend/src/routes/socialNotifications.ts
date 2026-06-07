@@ -19,6 +19,7 @@ import { isGuildTextChannel } from "../services/discordOptionsService";
 import { getBotGuildIds } from "../services/statsService";
 import type { AuthSessionUser } from "../types/session";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
+import { createLog } from "../services/logService";
 
 const createTwitchSchema = z.object({
   twitchChannelInput: z.string(),
@@ -50,6 +51,133 @@ const stateSchema = z.object({
 });
 
 export const socialNotificationsRouter = Router();
+export const botLivesRouter = Router();
+
+botLivesRouter.get("/:botId/guilds/:guildId/lives", requireAuth, async (req, res, next) => {
+  try {
+    const botId = getRequiredParam(req.params.botId, "botId");
+    const guildId = getRequiredParam(req.params.guildId, "guildId");
+    const user = res.locals.dashboardAuth.user as AuthSessionUser;
+    await assertCanManageGuild(req, guildId, botId, "visualizou lives");
+
+    const notifications = await listSocialNotifications(guildId, botId);
+    await writeLiveAudit({
+      action: "visualizou lives",
+      botId,
+      guildId,
+      metadata: {
+        total: notifications.length
+      },
+      userId: user.discordId
+    });
+
+    return res.json({
+      notifications
+    });
+  } catch (error) {
+    return handleRouteError(error, res, next);
+  }
+});
+
+botLivesRouter.post("/:botId/guilds/:guildId/lives/preview", requireAuth, async (req, res, next) => {
+  try {
+    const botId = getRequiredParam(req.params.botId, "botId");
+    const guildId = getRequiredParam(req.params.guildId, "guildId");
+    await assertCanManageGuild(req, guildId, botId, "previsualizou live");
+
+    const input = previewTwitchSchema.parse(req.body);
+    const preview = await previewTwitchChannel(input.twitchChannelInput);
+
+    return res.json({
+      preview
+    });
+  } catch (error) {
+    return handleRouteError(error, res, next);
+  }
+});
+
+botLivesRouter.post("/:botId/guilds/:guildId/lives", requireAuth, async (req, res, next) => {
+  try {
+    const botId = getRequiredParam(req.params.botId, "botId");
+    const guildId = getRequiredParam(req.params.guildId, "guildId");
+    const user = res.locals.dashboardAuth.user as AuthSessionUser;
+    await assertCanManageGuild(req, guildId, botId, "criou live");
+
+    const input = createTwitchSchema.parse(req.body);
+    await assertChannelBelongsToGuild(guildId, input.discordChannelId, botId);
+    const notification = await createTwitchNotification(guildId, {
+      ...input,
+      botId,
+      userId: user.discordId
+    });
+
+    return res.status(201).json({
+      notification
+    });
+  } catch (error) {
+    return handleRouteError(error, res, next);
+  }
+});
+
+botLivesRouter.patch("/:botId/guilds/:guildId/lives/:id", requireAuth, async (req, res, next) => {
+  try {
+    const botId = getRequiredParam(req.params.botId, "botId");
+    const guildId = getRequiredParam(req.params.guildId, "guildId");
+    const id = getRequiredParam(req.params.id, "id");
+    const user = res.locals.dashboardAuth.user as AuthSessionUser;
+    await assertCanManageGuild(req, guildId, botId, "editou live");
+
+    const input = updateTwitchSchema.parse(req.body);
+
+    if (input.discordChannelId) {
+      await assertChannelBelongsToGuild(guildId, input.discordChannelId, botId);
+    }
+
+    const notification = await updateTwitchNotification(guildId, id, input, user.discordId, botId);
+
+    return res.json({
+      notification
+    });
+  } catch (error) {
+    return handleRouteError(error, res, next);
+  }
+});
+
+botLivesRouter.post("/:botId/guilds/:guildId/lives/:id/test", requireAuth, async (req, res, next) => {
+  try {
+    const botId = getRequiredParam(req.params.botId, "botId");
+    const guildId = getRequiredParam(req.params.guildId, "guildId");
+    const id = getRequiredParam(req.params.id, "id");
+    const user = res.locals.dashboardAuth.user as AuthSessionUser;
+    await assertCanManageGuild(req, guildId, botId, "testou live");
+
+    await sendTwitchNotificationTest(guildId, id, user.discordId, botId, await getDevBotToken(botId));
+
+    return res.json({
+      ok: true
+    });
+  } catch (error) {
+    return handleRouteError(error, res, next);
+  }
+});
+
+botLivesRouter.delete("/:botId/guilds/:guildId/lives/:id", requireAuth, async (req, res, next) => {
+  try {
+    const botId = getRequiredParam(req.params.botId, "botId");
+    const guildId = getRequiredParam(req.params.guildId, "guildId");
+    const id = getRequiredParam(req.params.id, "id");
+    const user = res.locals.dashboardAuth.user as AuthSessionUser;
+    await assertCanManageGuild(req, guildId, botId, "removeu live");
+
+    const notification = await deleteTwitchNotification(guildId, id, user.discordId, botId);
+
+    return res.json({
+      notification
+    });
+  } catch (error) {
+    return handleRouteError(error, res, next);
+  }
+});
 
 socialNotificationsRouter.get("/bot/twitch-active", requireBot, async (req, res, next) => {
   try {
@@ -84,7 +212,7 @@ socialNotificationsRouter.post("/:guildId/twitch/preview", requireAuth, async (r
   try {
     const guildId = getRequiredParam(req.params.guildId, "guildId");
     const botId = await resolveRequestBotId(req);
-    await assertCanManageGuild(req, guildId, botId);
+    await assertCanManageGuild(req, guildId, botId, "previsualizou live");
 
     const input = previewTwitchSchema.parse(req.body);
     const preview = await previewTwitchChannel(input.twitchChannelInput);
@@ -102,10 +230,20 @@ socialNotificationsRouter.get("/:guildId", requireAuth, async (req, res, next) =
     const guildId = getRequiredParam(req.params.guildId, "guildId");
     const botId = await resolveRequestBotId(req);
     const user = res.locals.dashboardAuth.user as AuthSessionUser;
-    await assertCanManageGuild(req, guildId, botId);
+    await assertCanManageGuild(req, guildId, botId, "visualizou lives");
+    const notifications = await listSocialNotifications(guildId, botId);
+    await writeLiveAudit({
+      action: "visualizou lives",
+      botId,
+      guildId,
+      metadata: {
+        total: notifications.length
+      },
+      userId: user.discordId
+    });
 
     return res.json({
-      notifications: await listSocialNotifications(guildId, botId, user.discordId)
+      notifications
     });
   } catch (error) {
     return handleRouteError(error, res, next);
@@ -117,7 +255,7 @@ socialNotificationsRouter.post("/:guildId/twitch", requireAuth, async (req, res,
     const guildId = getRequiredParam(req.params.guildId, "guildId");
     const botId = await resolveRequestBotId(req);
     const user = res.locals.dashboardAuth.user as AuthSessionUser;
-    await assertCanManageGuild(req, guildId, botId);
+    await assertCanManageGuild(req, guildId, botId, "criou live");
 
     const input = createTwitchSchema.parse(req.body);
     await assertChannelBelongsToGuild(guildId, input.discordChannelId, botId);
@@ -141,7 +279,7 @@ socialNotificationsRouter.put("/:guildId/twitch/:id", requireAuth, async (req, r
     const botId = await resolveRequestBotId(req);
     const id = getRequiredParam(req.params.id, "id");
     const user = res.locals.dashboardAuth.user as AuthSessionUser;
-    await assertCanManageGuild(req, guildId, botId);
+    await assertCanManageGuild(req, guildId, botId, "editou live");
 
     const input = updateTwitchSchema.parse(req.body);
 
@@ -165,7 +303,7 @@ socialNotificationsRouter.post("/:guildId/twitch/:id/test", requireAuth, async (
     const botId = await resolveRequestBotId(req);
     const id = getRequiredParam(req.params.id, "id");
     const user = res.locals.dashboardAuth.user as AuthSessionUser;
-    await assertCanManageGuild(req, guildId, botId);
+    await assertCanManageGuild(req, guildId, botId, "testou live");
 
     await sendTwitchNotificationTest(guildId, id, user.discordId, botId, await getDevBotToken(botId));
 
@@ -183,7 +321,7 @@ socialNotificationsRouter.delete("/:guildId/twitch/:id", requireAuth, async (req
     const botId = await resolveRequestBotId(req);
     const id = getRequiredParam(req.params.id, "id");
     const user = res.locals.dashboardAuth.user as AuthSessionUser;
-    await assertCanManageGuild(req, guildId, botId);
+    await assertCanManageGuild(req, guildId, botId, "removeu live");
 
     const notification = await deleteTwitchNotification(guildId, id, user.discordId, botId);
 
@@ -195,10 +333,16 @@ socialNotificationsRouter.delete("/:guildId/twitch/:id", requireAuth, async (req
   }
 });
 
-async function assertCanManageGuild(req: Request, guildId: string, botId: string | null) {
+async function assertCanManageGuild(req: Request, guildId: string, botId: string | null, action: string) {
   const user = req.res?.locals.dashboardAuth.user as AuthSessionUser;
 
   if (botId ? !(await canUseDevBotModule(user, botId, guildId, "live")) : !canManageDashboardGuild(user, guildId)) {
+    await writeLiveAudit({
+      action: `sem permissao tentou ${action}`,
+      botId,
+      guildId,
+      userId: user.discordId
+    });
     throw createServiceError("Você não tem permissão para configurar as notificações deste servidor.", 403);
   }
 }
@@ -229,4 +373,28 @@ function handleRouteError(error: unknown, res: { status: (code: number) => { jso
   }
 
   return next(error);
+}
+
+async function writeLiveAudit(input: {
+  action: string;
+  botId: string | null;
+  guildId: string;
+  metadata?: Record<string, unknown>;
+  userId: string;
+}) {
+  await createLog({
+    botId: input.botId,
+    guildId: input.guildId,
+    userId: input.userId,
+    type: "audit.lives",
+    message: `Usuario ${input.action}.`,
+    metadata: {
+      action: input.action,
+      botId: input.botId,
+      guildId: input.guildId,
+      module: "lives",
+      userId: input.userId,
+      ...input.metadata
+    }
+  }).catch(() => undefined);
 }

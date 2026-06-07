@@ -6,6 +6,7 @@ import { getMongoCollections, type MongoBotGuildConfig, type MongoDevBot, type M
 import { emitRealtime } from "../realtime/events";
 import type { AuthSessionUser } from "../types/session";
 import { getDiscordAvatarUrl, getGuildIconUrl } from "./discordAssetService";
+import { getGuildSettings } from "./settingsService";
 
 const DISCORD_API = "https://discord.com/api/v10";
 
@@ -17,7 +18,8 @@ export const DEV_MODULES = [
   { id: "logs", label: "Sistema de Logs" },
   { id: "roles", label: "Sistema de Cargos" },
   { id: "tickets", label: "Sistema de Tickets" },
-  { id: "moderation", label: "Sistema de Moderacao" }
+  { id: "moderation", label: "Sistema de Moderacao" },
+  { id: "avisos", label: "Mensagens e Personalizacao" }
 ] as const;
 
 const DEV_MODULE_IDS = new Set(DEV_MODULES.map((module) => module.id));
@@ -39,6 +41,10 @@ type DiscordGuildDetails = {
 
 type DiscordGuildChannel = {
   id: string;
+};
+
+type DiscordGuildMember = {
+  roles: string[];
 };
 
 type DetectedDiscordGuildRecord = DetectedDiscordGuild & {
@@ -136,7 +142,6 @@ export async function listAccessibleDevBots(user: AuthSessionUser) {
     return listDevBots();
   }
 
-  const accessibleGuildIds = getUserAdminGuildIds(user);
   const { botGuildConfigs, devBots } = await getMongoCollections();
   const [bots, configs] = await Promise.all([
     devBots.find().sort({ createdAt: -1 }).toArray(),
@@ -144,12 +149,18 @@ export async function listAccessibleDevBots(user: AuthSessionUser) {
   ]);
   const guildIdsByBot = groupGuildIdsByBot(configs);
 
-  return bots.flatMap((bot) => {
+  const accessibleBots = await Promise.all(bots.map(async (bot) => {
     const allGuildIds = allBotGuildIds(bot, guildIdsByBot.get(bot._id));
-    const authorizedGuildIds = allGuildIds.filter((guildId) => accessibleGuildIds.has(guildId));
+    const authorizedGuildIds = (
+      await Promise.all(
+        allGuildIds.map(async (guildId) => (await canAccessDevBotGuild(user, bot, guildId)) ? guildId : null)
+      )
+    ).filter((guildId): guildId is string => Boolean(guildId));
 
-    return authorizedGuildIds.length ? [toDevBotDto(bot, authorizedGuildIds)] : [];
-  });
+    return authorizedGuildIds.length ? toDevBotDto(bot, authorizedGuildIds) : null;
+  }));
+
+  return accessibleBots.filter((bot): bot is DevBotDto => Boolean(bot));
 }
 
 export async function listAccessibleDashboardBots(user: AuthSessionUser) {
@@ -246,8 +257,7 @@ export async function canManageDevBotGuild(user: AuthSessionUser, botId: string 
     return false;
   }
 
-  return isDevOwnerUserId(user.discordId)
-    || user.guilds.some((guild) => guild.id === guildId && (guild.owner || guild.isAdmin));
+  return canAccessDevBotGuild(user, bot, guildId);
 }
 
 export async function canUseDevBotModule(
@@ -901,12 +911,66 @@ function createDevBotError(message: string, statusCode: number) {
   });
 }
 
-function getUserAdminGuildIds(user: AuthSessionUser) {
-  return new Set(
-    user.guilds
-      .filter((guild) => guild.owner || guild.isAdmin)
-      .map((guild) => guild.id)
-  );
+async function canAccessDevBotGuild(user: AuthSessionUser, bot: MongoDevBot, guildId: string) {
+  const { botGuildConfigs } = await getMongoCollections();
+  const botUsesGuild = bot.mainGuildId === guildId || Boolean(await botGuildConfigs.findOne(
+    {
+      botId: bot._id,
+      guildId
+    },
+    {
+      projection: {
+        _id: 1
+      }
+    }
+  ));
+
+  if (!botUsesGuild) {
+    return false;
+  }
+
+  if (isDevOwnerUserId(user.discordId)) {
+    return true;
+  }
+
+  if (user.guilds.some((guild) => guild.id === guildId && (guild.owner || guild.isAdmin))) {
+    return true;
+  }
+
+  return user.guilds.some((guild) => guild.id === guildId)
+    && await hasConfiguredPanelRole(user.discordId, bot, guildId);
+}
+
+async function hasConfiguredPanelRole(userId: string, bot: MongoDevBot, guildId: string) {
+  const settings = await getGuildSettings(guildId, bot._id).catch(() => null);
+
+  if (!settings?.verificationEnabled || !settings.verificationRoleId) {
+    return false;
+  }
+
+  const token = decryptSecret(bot.tokenEncrypted);
+
+  try {
+    const { data: member } = await axios.get<DiscordGuildMember>(`${DISCORD_API}/guilds/${guildId}/members/${userId}`, {
+      headers: {
+        Authorization: `Bot ${token}`
+      },
+      timeout: 5000
+    });
+    const memberRoleIds = new Set(member.roles);
+    memberRoleIds.add(guildId);
+
+    return memberRoleIds.has(settings.verificationRoleId);
+  } catch (error) {
+    if (!(axios.isAxiosError(error) && (error.response?.status === 403 || error.response?.status === 404))) {
+      console.warn(
+        `[discord] nao foi possivel validar cargo do painel em ${guildId}:`,
+        error instanceof Error ? error.message : error
+      );
+    }
+
+    return false;
+  }
 }
 
 function groupGuildIdsByBot(configs: MongoBotGuildConfig[]) {

@@ -83,6 +83,8 @@ export type MongoSocialNotification = {
   botId?: string | null;
   guildId: string;
   userId: string;
+  createdBy?: string;
+  updatedBy?: string | null;
   platform: "twitch";
   twitchChannelName: string;
   twitchChannelUrl: string;
@@ -274,12 +276,16 @@ async function ensureSocialNotificationIndexes(db: Db) {
   const collection = db.collection<MongoSocialNotification>("social_notifications");
 
   await collection.dropIndex("guildId_1_platform_1_twitchChannelName_1").catch(() => undefined);
+  await collection.dropIndex("botId_1_guildId_1_userId_1_platform_1_twitchChannelName_1").catch(() => undefined);
   await collection.dropIndex("botId_1_guildId_1_platform_1_twitchChannelName_1").catch(() => undefined);
+  await collection.createIndex({
+    botId: 1,
+    guildId: 1
+  });
   await collection.createIndex(
     {
       botId: 1,
       guildId: 1,
-      userId: 1,
       platform: 1,
       twitchChannelName: 1
     },

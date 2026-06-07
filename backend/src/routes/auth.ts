@@ -12,7 +12,11 @@ import {
 } from "../services/discordOAuthService";
 import { demoGuilds, toDashboardGuilds } from "../services/guildService";
 import { requireAuthenticated } from "../middleware/auth";
-import { evaluateDashboardAccess, type AccessValidationResult } from "../services/accessControlService";
+import {
+  evaluateDashboardAccess,
+  guildCheckGrantsDashboardAccess,
+  type AccessValidationResult
+} from "../services/accessControlService";
 import {
   clearAuthCookies,
   createAuthResponse,
@@ -135,7 +139,7 @@ function destroySession(req: Request) {
 function applyAccessValidation(user: AuthSessionUser, validation: AccessValidationResult): AuthSessionUser {
   const manageableGuildIds = new Set(
     validation.checks
-      .filter((check) => validation.authorizedUser || check.owner || check.configuredPanelRole)
+      .filter((check) => validation.authorizedUser || guildCheckGrantsDashboardAccess(check))
       .map((check) => check.guildId)
   );
 
@@ -321,6 +325,15 @@ authRouter.post("/refresh", async (req, res) => {
   await saveSession(req);
 
   return res.json(createAuthResponse(auth));
+});
+
+authRouter.get("/access-check", requireAuthenticated, async (_req, res) => {
+  const auth = res.locals.dashboardAuth;
+  const validation = await evaluateDashboardAccess(auth.user);
+
+  return res.json({
+    validation
+  });
 });
 
 authRouter.post("/verify", requireAuthenticated, async (req, res) => {

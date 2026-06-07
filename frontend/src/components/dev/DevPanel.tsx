@@ -19,6 +19,7 @@ import type {
   AuthUser,
   BotConnectionTest,
   CreateDevBotPayload,
+  DashboardBot,
   DashboardMeGuild,
   DetectedDiscordGuild,
   DevBot,
@@ -34,7 +35,8 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "logs", label: "Sistema de Logs" },
   { id: "roles", label: "Sistema de Cargos" },
   { id: "tickets", label: "Sistema de Tickets" },
-  { id: "moderation", label: "Sistema de Moderacao" }
+  { id: "moderation", label: "Sistema de Moderacao" },
+  { id: "avisos", label: "Mensagens e Personalizacao" }
 ];
 
 const emptyForm: CreateDevBotPayload = {
@@ -51,14 +53,28 @@ const emptyForm: CreateDevBotPayload = {
 
 type DevPanelProps = {
   guilds?: DashboardMeGuild[];
+  onBotCreated?: (bot: DashboardBot) => void;
+  onBotDeleted?: (botId: string) => void;
+  onBotUpdated?: (bot: DashboardBot) => void;
+  selectedBotId?: string | null;
   selectedGuildId?: string | null;
+  onSelectBot?: (botId: string | null) => void;
   user?: AuthUser;
 };
 
-export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) {
+export function DevPanel({
+  guilds = [],
+  onBotCreated,
+  onBotDeleted,
+  onBotUpdated,
+  onSelectBot,
+  selectedBotId: controlledSelectedBotId,
+  selectedGuildId,
+  user
+}: DevPanelProps) {
   const [bots, setBots] = useState<DevBot[]>([]);
   const [modules, setModules] = useState<DevModuleDefinition[]>(fallbackModules);
-  const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
+  const [internalSelectedBotId, setInternalSelectedBotId] = useState<string | null>(null);
   const [form, setForm] = useState<CreateDevBotPayload>(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -69,6 +85,7 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
   const [detectingGuild, setDetectingGuild] = useState(false);
   const [guildDetectionError, setGuildDetectionError] = useState<string | null>(null);
 
+  const selectedBotId = controlledSelectedBotId ?? internalSelectedBotId;
   const selectedBot = bots.find((bot) => bot.id === selectedBotId) ?? bots[0] ?? null;
   const guildNameById = useMemo(() => new Map(guilds.map((guild) => [guild.id, guild.name])), [guilds]);
   const stats = useMemo(
@@ -89,7 +106,7 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
         if (!mounted) return;
         setModules(moduleData.length ? moduleData : fallbackModules);
         setBots(botData);
-        setSelectedBotId((current) => current ?? botData[0]?.id ?? null);
+        setInternalSelectedBotId((current) => current ?? controlledSelectedBotId ?? botData[0]?.id ?? null);
       })
       .catch(() => {
         if (mounted) setMessage("Nao foi possivel carregar a aba Dev.");
@@ -158,6 +175,11 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
     }));
   }
 
+  function handleSelectBotId(botId: string | null) {
+    setInternalSelectedBotId(botId);
+    onSelectBot?.(botId);
+  }
+
   async function handleTestToken() {
     if (!form.token.trim()) {
       setMessage("Informe o token para testar.");
@@ -196,7 +218,8 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
         secret: form.secret || null
       });
       setBots((current) => [bot, ...current]);
-      setSelectedBotId(bot.id);
+      onBotCreated?.(bot);
+      handleSelectBotId(bot.id);
       setForm(emptyForm);
       setTestResult(null);
       setDetectedGuild(null);
@@ -218,6 +241,7 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
     try {
       const updated = await updateDevBotModules(bot.id, nextModules);
       setBots((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      onBotUpdated?.(updated);
       setMessage("Modulos atualizados.");
     } catch {
       setBots((current) => current.map((item) => (item.id === bot.id ? bot : item)));
@@ -231,6 +255,7 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
     try {
       const updated = await restartDevBot(bot.id);
       setBots((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      onBotUpdated?.(updated);
       setMessage(updated.statusMessage ?? "Bot sincronizado.");
     } catch {
       setMessage("Nao foi possivel reiniciar/testar esse bot.");
@@ -245,7 +270,10 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
     try {
       await deleteDevBot(bot.id);
       setBots((current) => current.filter((item) => item.id !== bot.id));
-      setSelectedBotId((current) => (current === bot.id ? null : current));
+      onBotDeleted?.(bot.id);
+      if (selectedBot?.id === bot.id) {
+        handleSelectBotId(bots.find((item) => item.id !== bot.id)?.id ?? null);
+      }
       setMessage("Bot removido.");
     } catch {
       setMessage("Nao foi possivel excluir o bot.");
@@ -346,59 +374,81 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
         <Card>
           <CardHeader>
             <CardTitle>Bots cadastrados</CardTitle>
-            <CardDescription>Token protegido no backend. O painel nunca mostra o valor completo.</CardDescription>
+            <CardDescription>Selecione o bot cadastrado que voce quer configurar para a dashboard.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {bots.length ? (
-                bots.map((bot) => (
-                  <button
-                    className={`w-full rounded-lg border px-4 py-3 text-left transition duration-300 hover:-translate-y-0.5 hover:bg-zinc-900 ${
-                      selectedBot?.id === bot.id ? "border-purple-500/50 bg-purple-500/10" : "border-zinc-900 bg-zinc-950/60"
-                    }`}
-                    key={bot.id}
-                    onClick={() => setSelectedBotId(bot.id)}
-                    type="button"
+                <label className="block space-y-2 rounded-lg border border-purple-500/25 bg-purple-500/10 p-4">
+                  <span className="text-xs font-medium uppercase text-purple-200">Bot selecionado no sistema Dev</span>
+                  <select
+                    className="h-11 w-full rounded-lg border border-purple-500/30 bg-zinc-950 px-3 text-sm font-medium text-zinc-100 outline-none transition duration-300 focus:border-purple-400"
+                    onChange={(event) => handleSelectBotId(event.target.value || null)}
+                    value={selectedBot?.id ?? ""}
                   >
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <Avatar className="h-11 w-11 rounded-full border border-red-500/50" fallback={bot.name} src={bot.avatarUrl} />
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="truncate text-sm font-semibold text-white">{bot.name}</p>
-                            <StatusBadge status={bot.status} />
+                    {bots.map((bot) => (
+                      <option key={bot.id} value={bot.id}>
+                        {bot.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs leading-5 text-purple-100/80">
+                    Depois de escolher o bot, marque abaixo quais sistemas aparecem para ele na dashboard.
+                  </p>
+                </label>
+              ) : null}
+
+              <div className="space-y-3">
+                {bots.length ? (
+                  bots.map((bot) => (
+                    <button
+                      className={`w-full rounded-lg border px-4 py-3 text-left transition duration-300 hover:-translate-y-0.5 hover:bg-zinc-900 ${
+                        selectedBot?.id === bot.id ? "border-purple-500/50 bg-purple-500/10" : "border-zinc-900 bg-zinc-950/60"
+                      }`}
+                      key={bot.id}
+                      onClick={() => handleSelectBotId(bot.id)}
+                      type="button"
+                    >
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <Avatar className="h-11 w-11 rounded-full border border-red-500/50" fallback={bot.name} src={bot.avatarUrl} />
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-sm font-semibold text-white">{bot.name}</p>
+                              <StatusBadge status={bot.status} />
+                            </div>
+                            <p className="truncate text-xs text-zinc-500">
+                              Servidor {bot.mainGuildName || guildNameById.get(bot.mainGuildId) || "Servidor configurado"}
+                            </p>
+                            <p className="truncate text-xs text-zinc-600">Dono {bot.ownerName}</p>
+                            <p className="truncate font-mono text-[11px] text-zinc-700">Painel ID {bot.id}</p>
                           </div>
-                          <p className="truncate text-xs text-zinc-500">
-                            Servidor {bot.mainGuildName || guildNameById.get(bot.mainGuildId) || "Servidor configurado"}
-                          </p>
-                          <p className="truncate text-xs text-zinc-600">Dono {bot.ownerName}</p>
-                          <p className="truncate font-mono text-[11px] text-zinc-700">Painel ID {bot.id}</p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Badge variant="muted">{bot.enabledModules.length} modulos</Badge>
+                          <Button onClick={(event) => {
+                            event.stopPropagation();
+                            void handleRestart(bot);
+                          }} size="icon" title="Reiniciar bot" variant="outline">
+                            <Power className="h-4 w-4" />
+                          </Button>
+                          <Button onClick={(event) => {
+                            event.stopPropagation();
+                            void handleDelete(bot);
+                          }} size="icon" title="Excluir bot" variant="destructive">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <Badge variant="muted">{bot.enabledModules.length} modulos</Badge>
-                        <Button onClick={(event) => {
-                          event.stopPropagation();
-                          void handleRestart(bot);
-                        }} size="icon" title="Reiniciar bot" variant="outline">
-                          <Power className="h-4 w-4" />
-                        </Button>
-                        <Button onClick={(event) => {
-                          event.stopPropagation();
-                          void handleDelete(bot);
-                        }} size="icon" title="Excluir bot" variant="destructive">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </button>
-                ))
-              ) : (
-                <div className="flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed border-zinc-800 bg-zinc-950/60 p-6 text-center">
-                  <Bot className="mb-3 h-7 w-7 text-zinc-500" />
-                  <p className="text-sm font-medium text-zinc-500">Nenhum bot cadastrado</p>
-                </div>
-              )}
+                    </button>
+                  ))
+                ) : (
+                  <div className="flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed border-zinc-800 bg-zinc-950/60 p-6 text-center">
+                    <Bot className="mb-3 h-7 w-7 text-zinc-500" />
+                    <p className="text-sm font-medium text-zinc-500">Nenhum bot cadastrado</p>
+                  </div>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -407,10 +457,21 @@ export function DevPanel({ guilds = [], selectedGuildId, user }: DevPanelProps) 
       {selectedBot ? (
         <Card>
           <CardHeader>
-            <CardTitle>Modulos do bot {selectedBot.name}</CardTitle>
-            <CardDescription>Ative ou desative o que esse bot pode usar no dashboard e na API interna.</CardDescription>
+            <CardTitle>O que aparece na dashboard</CardTitle>
+            <CardDescription>Ative ou desative os sistemas visiveis para o bot selecionado.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col gap-4 rounded-lg border border-zinc-900 bg-zinc-950/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <Avatar className="h-12 w-12 rounded-full border border-purple-500/40" fallback={selectedBot.name} src={selectedBot.avatarUrl} />
+                <div className="min-w-0">
+                  <p className="text-xs text-zinc-500">Configurando dashboard do bot</p>
+                  <p className="truncate text-sm font-semibold text-white">{selectedBot.name}</p>
+                  <p className="truncate text-xs text-zinc-600">{selectedBot.mainGuildName || guildNameById.get(selectedBot.mainGuildId)}</p>
+                </div>
+              </div>
+              <Badge variant="muted">{selectedBot.enabledModules.length}/{modules.length} visiveis</Badge>
+            </div>
             <ModuleSwitchGrid
               enabledModules={selectedBot.enabledModules}
               modules={modules}

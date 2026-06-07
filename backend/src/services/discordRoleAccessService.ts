@@ -6,99 +6,212 @@ type DiscordGuildMember = {
   roles: string[];
 };
 
-type DiscordRole = {
-  id: string;
-  name: string;
-  permissions: string;
-};
-
 export type DiscordRoleAccess = {
   administratorRole: boolean;
   configuredPanelRole: boolean;
 };
 
+type RoleScope = {
+  botId: string | null;
+  token: string;
+};
+
+type ConfiguredRoleScope = RoleScope & {
+  verificationRoleId: string;
+};
+
+type MemberRoleCacheEntry = {
+  expiresAt: number;
+  roleIds: string[];
+};
+
 const DISCORD_API_URL = "https://discord.com/api/v10";
-const ADMINISTRATOR = 0x8n;
+const DISCORD_MEMBER_TIMEOUT_MS = 2500;
+const MEMBER_ROLE_CACHE_TTL_MS = 60 * 1000;
 
 const noRoleAccess: DiscordRoleAccess = {
   administratorRole: false,
   configuredPanelRole: false
 };
+const memberRoleCache = new Map<string, MemberRoleCacheEntry>();
 
 export async function getDiscordRoleAccess(guildId: string, userId: string): Promise<DiscordRoleAccess> {
-  const customBots = await listGuildBotRuntimeConfigs(guildId).catch(() => []);
-  const scopes = [
-    ...(env.DISCORD_BOT_TOKEN ? [{ botId: null, token: env.DISCORD_BOT_TOKEN }] : []),
-    ...customBots.map((bot) => ({
-      botId: bot.id,
-      token: bot.token
-    }))
-  ];
+  const configuredScopes = await listConfiguredRoleScopes(guildId);
 
-  if (!scopes.length) {
+  if (!configuredScopes.length) {
     return noRoleAccess;
   }
 
-  const results = await Promise.all(
-    scopes.map(async (scope) => {
+  const memberRoleIds = await getCachedMemberRoleIds(guildId, userId, configuredScopes);
+
+  if (!memberRoleIds) {
+    return noRoleAccess;
+  }
+
+  return {
+    administratorRole: false,
+    configuredPanelRole: configuredScopes.some((scope) => memberRoleIds.has(scope.verificationRoleId))
+  };
+}
+
+async function listConfiguredRoleScopes(guildId: string) {
+  const scopes = await listRoleScopes(guildId);
+
+  if (!scopes.length) {
+    return [];
+  }
+
+  const configuredScopes = await Promise.all(
+    scopes.map(async (scope): Promise<ConfiguredRoleScope | null> => {
       try {
         const settings = await getGuildSettings(guildId, scope.botId);
 
         if (!settings.verificationEnabled || !settings.verificationRoleId) {
-          return noRoleAccess;
+          return null;
         }
-
-        const [member, roles] = await Promise.all([
-          discordFetch<DiscordGuildMember>(`/guilds/${guildId}/members/${userId}`, scope.token),
-          discordFetch<DiscordRole[]>(`/guilds/${guildId}/roles`, scope.token)
-        ]);
-        const memberRoleIds = new Set(member.roles);
-        memberRoleIds.add(guildId);
 
         return {
-          configuredPanelRole: memberRoleIds.has(settings.verificationRoleId),
-          administratorRole: roles.some(
-            (role) => memberRoleIds.has(role.id) && hasAdministratorPermission(role.permissions)
-          )
+          ...scope,
+          verificationRoleId: settings.verificationRoleId
         };
       } catch (error) {
-        if (!(error instanceof Error && /Discord API respondeu (403|404)/.test(error.message))) {
-          console.warn(
-            `[discord] nao foi possivel validar cargos em ${guildId}:`,
-            error instanceof Error ? error.message : error
-          );
-        }
+        console.warn(
+          `[discord] nao foi possivel carregar configuracao de acesso em ${guildId}:`,
+          error instanceof Error ? error.message : error
+        );
 
-        return noRoleAccess;
+        return null;
       }
-    }
-  ));
+    })
+  );
 
-  return {
-    administratorRole: results.some((result) => result.administratorRole),
-    configuredPanelRole: results.some((result) => result.configuredPanelRole)
-  };
+  return configuredScopes.filter((scope): scope is ConfiguredRoleScope => Boolean(scope));
 }
 
-function hasAdministratorPermission(permissionsValue: string) {
-  try {
-    const permissions = BigInt(permissionsValue || "0");
-    return (permissions & ADMINISTRATOR) === ADMINISTRATOR;
-  } catch {
-    return false;
+async function listRoleScopes(guildId: string): Promise<RoleScope[]> {
+  const customBots = await listGuildBotRuntimeConfigs(guildId).catch(() => []);
+  const scopes: RoleScope[] = [];
+  const legacyToken = env.DISCORD_BOT_TOKEN.trim();
+
+  if (legacyToken) {
+    scopes.push({
+      botId: null,
+      token: legacyToken
+    });
   }
+
+  for (const bot of customBots) {
+    const token = bot.token.trim();
+
+    if (token) {
+      scopes.push({
+        botId: bot.id,
+        token
+      });
+    }
+  }
+
+  return scopes;
 }
 
-async function discordFetch<TResponse>(path: string, token: string) {
-  const response = await fetch(`${DISCORD_API_URL}${path}`, {
-    headers: {
-      Authorization: `Bot ${token}`
-    }
+async function getCachedMemberRoleIds(guildId: string, userId: string, scopes: ConfiguredRoleScope[]) {
+  const cacheKey = `${guildId}:${userId}`;
+  const cached = memberRoleCache.get(cacheKey);
+
+  if (cached && cached.expiresAt > Date.now()) {
+    return new Set(cached.roleIds);
+  }
+
+  if (cached) {
+    memberRoleCache.delete(cacheKey);
+  }
+
+  const roleIds = await fetchMemberRoleIdsFromAnyToken(guildId, userId, scopes);
+
+  if (!roleIds) {
+    return null;
+  }
+
+  memberRoleCache.set(cacheKey, {
+    expiresAt: Date.now() + MEMBER_ROLE_CACHE_TTL_MS,
+    roleIds: [...roleIds]
   });
 
-  if (!response.ok) {
-    throw new Error(`Discord API respondeu ${response.status} em ${path}.`);
+  return roleIds;
+}
+
+async function fetchMemberRoleIdsFromAnyToken(guildId: string, userId: string, scopes: ConfiguredRoleScope[]) {
+  const tokens = [...new Set(scopes.map((scope) => scope.token).filter(Boolean))];
+
+  if (!tokens.length) {
+    return null;
   }
 
-  return (await response.json()) as TResponse;
+  try {
+    return await Promise.any(tokens.map((token) => fetchMemberRoleIds(guildId, userId, token)));
+  } catch (error) {
+    if (shouldLogDiscordRoleError(error)) {
+      console.warn(
+        `[discord] nao foi possivel validar cargo do painel em ${guildId}:`,
+        formatDiscordRoleError(error)
+      );
+    }
+
+    return null;
+  }
+}
+
+async function fetchMemberRoleIds(guildId: string, userId: string, token: string) {
+  const member = await discordFetch<DiscordGuildMember>(
+    `/guilds/${guildId}/members/${userId}`,
+    token,
+    DISCORD_MEMBER_TIMEOUT_MS
+  );
+  const memberRoleIds = new Set(member.roles);
+  memberRoleIds.add(guildId);
+
+  return memberRoleIds;
+}
+
+function shouldLogDiscordRoleError(error: unknown): boolean {
+  if (error instanceof AggregateError) {
+    return error.errors.some(shouldLogDiscordRoleError);
+  }
+
+  if (error instanceof Error && /Discord API respondeu (403|404)/.test(error.message)) {
+    return false;
+  }
+
+  return true;
+}
+
+function formatDiscordRoleError(error: unknown) {
+  if (error instanceof AggregateError) {
+    const firstError = error.errors.find((entry) => entry instanceof Error) as Error | undefined;
+    return firstError?.message ?? "todas as tentativas falharam.";
+  }
+
+  return error instanceof Error ? error.message : error;
+}
+
+async function discordFetch<TResponse>(path: string, token: string, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(`${DISCORD_API_URL}${path}`, {
+      headers: {
+        Authorization: `Bot ${token}`
+      },
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`Discord API respondeu ${response.status} em ${path}.`);
+    }
+
+    return (await response.json()) as TResponse;
+  } finally {
+    clearTimeout(timeout);
+  }
 }

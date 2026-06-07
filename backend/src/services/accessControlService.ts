@@ -21,7 +21,7 @@ export type AccessValidationResult = {
   checks: GuildAccessCheck[];
 };
 
-const ROLE_ACCESS_TIMEOUT_MS = 6000;
+const ROLE_ACCESS_TIMEOUT_MS = 4500;
 
 function getAuthorizedUserIds() {
   return new Set(
@@ -48,7 +48,7 @@ export async function evaluateDashboardAccess(user: AuthSessionUser): Promise<Ac
   const checks = await withTimeout(
     Promise.all(
       baseChecks.map(async (check) => {
-        if (check.owner) {
+        if (check.owner || check.administrator) {
           return check;
         }
 
@@ -81,7 +81,7 @@ function withTimeout<T>(promise: Promise<T>, fallback: T, timeoutMs: number): Pr
 }
 
 function createValidationResult(checks: GuildAccessCheck[], authorizedUser: boolean): AccessValidationResult {
-  const canManageDashboard = authorizedUser || checks.some((check) => check.owner || check.configuredPanelRole);
+  const canManageDashboard = authorizedUser || checks.some(guildCheckGrantsDashboardAccess);
 
   return {
     allowed: canManageDashboard,
@@ -92,4 +92,8 @@ function createValidationResult(checks: GuildAccessCheck[], authorizedUser: bool
     canManageDashboard,
     checks
   };
+}
+
+export function guildCheckGrantsDashboardAccess(check: GuildAccessCheck) {
+  return check.owner || check.administrator || check.administratorRole || check.configuredPanelRole;
 }
