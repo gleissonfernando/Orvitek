@@ -25,6 +25,7 @@ import { DashboardLayout } from "../components/layout/dashboard-layout";
 import type { ViewId } from "../components/layout/sidebar";
 import { ClipsPanel } from "../components/clips/ClipsPanel";
 import { SiteAccessPanel } from "../components/moderation/SiteAccessPanel";
+import { AutoRolesPanel } from "../components/roles/AutoRolesPanel";
 import { LiveNotificationsPanel } from "../components/social/LiveNotificationsPanel";
 import { XMonitorPanel } from "../components/social/XMonitorPanel";
 import { WelcomePanel } from "../components/welcome/WelcomePanel";
@@ -900,16 +901,16 @@ function SettingsView({
     );
   }
 
-  if (enabledModules.includes("roles") && !enabledModules.includes("welcome")) {
+  if (enabledModules.includes("roles")) {
     blocks.push(
-      <SimpleToggleCard
-        checked={Boolean(settings?.autoRoleEnabled)}
-        description={`${settings?.autoRoleIds.length ?? 0} cargo(s) configurado(s) para entrada.`}
-        disabled={!settings || !canManage || savingKey === "autoRoleEnabled"}
-        icon={Users}
+      <AutoRolesPanel
+        botId={botId}
+        canManage={canManage}
+        guild={guild}
         key="roles"
-        onChange={(checked) => onToggle("autoRoleEnabled", checked)}
-        title="Cargos automaticos"
+        loading={loading}
+        onSettingsChange={onSettingsChange}
+        settings={settings}
       />
     );
   }
