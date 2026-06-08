@@ -13,11 +13,12 @@ export async function handleReady(client: Client<true>, context: BotContext) {
 
   const commandGuildIds = commandRegistrationGuildIds(client);
   const commands = [...context.commands.values()];
+  const commandNames = commands.map((command) => command.data.name).join(", ");
 
   for (const commandGuildId of commandGuildIds) {
     try {
       await registerGuildCommands(commands, client.user.id, commandGuildId);
-      console.log(`[bot] comandos sincronizados no servidor ${commandGuildId}`);
+      console.log(`[bot] comandos sincronizados no servidor ${commandGuildId}: ${commandNames}`);
     } catch (error) {
       console.warn(`[bot] falha ao sincronizar comandos no servidor ${commandGuildId}:`, error instanceof Error ? error.message : error);
     }
@@ -46,13 +47,8 @@ export async function handleReady(client: Client<true>, context: BotContext) {
 }
 
 function commandRegistrationGuildIds(client: Client<true>) {
-  const explicitGuildIds = csv(env.BOT_COMMAND_GUILD_IDS);
-
-  if (explicitGuildIds.length) {
-    return unique(explicitGuildIds);
-  }
-
   return unique([
+    ...csv(env.BOT_COMMAND_GUILD_IDS),
     env.BOT_MAIN_GUILD_ID.trim(),
     ...csv(env.DASHBOARD_GUILD_IDS),
     ...client.guilds.cache.map((guild) => guild.id)
