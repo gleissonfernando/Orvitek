@@ -11,10 +11,12 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   console.log(`[bot] conectado como ${client.user.tag}`);
   context.api.setDiscordClientId(client.user.id);
 
-  if (env.BOT_MAIN_GUILD_ID) {
+  const commandGuildId = primaryCommandGuildId();
+
+  if (commandGuildId) {
     try {
-      await registerGuildCommands([...context.commands.values()], client.user.id, env.BOT_MAIN_GUILD_ID);
-      console.log(`[bot] comandos sincronizados no servidor ${env.BOT_MAIN_GUILD_ID}`);
+      await registerGuildCommands([...context.commands.values()], client.user.id, commandGuildId);
+      console.log(`[bot] comandos sincronizados no servidor ${commandGuildId}`);
     } catch (error) {
       console.warn("[bot] falha ao sincronizar comandos:", error instanceof Error ? error.message : error);
     }
@@ -40,4 +42,8 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   }, 30_000);
 
   interval.unref();
+}
+
+function primaryCommandGuildId() {
+  return env.BOT_MAIN_GUILD_ID.trim() || env.DASHBOARD_GUILD_IDS.split(",").map((guildId) => guildId.trim()).find(Boolean) || "";
 }

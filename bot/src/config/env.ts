@@ -117,6 +117,7 @@ const envSchema = z
     NODE_ENV: z.enum(["development", "test", "production"]).default("production"),
     DISCORD_BOT_TOKEN: z.string().default(""),
     DASHBOARD_BOT_ID: z.string().optional().default(""),
+    DASHBOARD_GUILD_IDS: z.string().optional().default(""),
     BOT_MAIN_GUILD_ID: z.string().optional().default(""),
     BACKEND_API_URL: envUrl("BACKEND_API_URL", defaultBackendApiUrl),
     BACKEND_SOCKET_URL: envUrl("BACKEND_SOCKET_URL", defaultBackendUrl),
