@@ -11,14 +11,15 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   console.log(`[bot] conectado como ${client.user.tag}`);
   context.api.setDiscordClientId(client.user.id);
 
-  const commandGuildId = primaryCommandGuildId();
+  const commandGuildIds = commandRegistrationGuildIds();
+  const enabledCommands = commandsEnabledForBot([...context.commands.values()]);
 
-  if (commandGuildId) {
+  for (const commandGuildId of commandGuildIds) {
     try {
-      await registerGuildCommands(commandsEnabledForBot([...context.commands.values()]), client.user.id, commandGuildId);
+      await registerGuildCommands(enabledCommands, client.user.id, commandGuildId);
       console.log(`[bot] comandos sincronizados no servidor ${commandGuildId}`);
     } catch (error) {
-      console.warn("[bot] falha ao sincronizar comandos:", error instanceof Error ? error.message : error);
+      console.warn(`[bot] falha ao sincronizar comandos no servidor ${commandGuildId}:`, error instanceof Error ? error.message : error);
     }
   }
 
@@ -44,10 +45,27 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   interval.unref();
 }
 
-function primaryCommandGuildId() {
-  return env.BOT_MAIN_GUILD_ID.trim() || env.DASHBOARD_GUILD_IDS.split(",").map((guildId) => guildId.trim()).find(Boolean) || "";
+function commandRegistrationGuildIds() {
+  const explicitGuildIds = csv(env.BOT_COMMAND_GUILD_IDS);
+
+  if (explicitGuildIds.length) {
+    return explicitGuildIds;
+  }
+
+  return unique([
+    env.BOT_MAIN_GUILD_ID.trim(),
+    ...csv(env.DASHBOARD_GUILD_IDS)
+  ]);
 }
 
 function commandsEnabledForBot(commands: BotCommand[]) {
   return commands.filter((command) => !command.moduleId || isBotModuleEnabled(command.moduleId));
+}
+
+function csv(value: string) {
+  return value.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function unique(values: string[]) {
+  return [...new Set(values.filter(Boolean))];
 }

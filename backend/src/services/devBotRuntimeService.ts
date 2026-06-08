@@ -135,6 +135,7 @@ async function startRuntime(bot: DevBotRuntimeConfig) {
       DISCORD_BOT_TOKEN: bot.token,
       DASHBOARD_BOT_ID: bot.id,
       BOT_MAIN_GUILD_ID: bot.mainGuildId,
+      BOT_COMMAND_GUILD_IDS: bot.guildIds.join(","),
       BOT_ENABLED_MODULES: bot.enabledModules.join(","),
       BOT_MEMBER_EVENTS_ENABLED: String(memberEventsEnabled),
       BACKEND_API_URL: process.env.BACKEND_API_URL || `${env.FRONTEND_URL}/api`,

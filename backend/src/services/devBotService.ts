@@ -141,6 +141,7 @@ export type DevBotRuntimeConfig = {
   clientId: string;
   token: string;
   mainGuildId: string;
+  guildIds: string[];
   enabledModules: string[];
 };
 
@@ -1006,10 +1007,14 @@ export async function detectDiscordBotGuild(token: string, guildId: string): Pro
 }
 
 export async function listDevBotRuntimeConfigs() {
-  const { devBots } = await getMongoCollections();
-  const bots = await devBots.find().toArray();
+  const { botGuildConfigs, devBots } = await getMongoCollections();
+  const [bots, configs] = await Promise.all([
+    devBots.find().toArray(),
+    botGuildConfigs.find().toArray()
+  ]);
+  const guildIdsByBot = groupGuildIdsByBot(configs);
 
-  return bots.map(toDevBotRuntimeConfig);
+  return bots.map((bot) => toDevBotRuntimeConfig(bot, guildIdsByBot.get(bot._id)));
 }
 
 export async function listGuildBotRuntimeConfigs(guildId: string) {
@@ -1028,15 +1033,24 @@ export async function listGuildBotRuntimeConfigs(guildId: string) {
       }
     ]
   }).toArray();
+  const allConfigs = await botGuildConfigs.find({
+    botId: {
+      $in: bots.map((bot) => bot._id)
+    }
+  }).toArray();
+  const guildIdsByBot = groupGuildIdsByBot(allConfigs);
 
-  return bots.map(toDevBotRuntimeConfig);
+  return bots.map((bot) => toDevBotRuntimeConfig(bot, guildIdsByBot.get(bot._id)));
 }
 
 export async function getDevBotRuntimeConfig(botId: string) {
-  const { devBots } = await getMongoCollections();
-  const bot = await devBots.findOne({ _id: botId });
+  const { botGuildConfigs, devBots } = await getMongoCollections();
+  const [bot, configs] = await Promise.all([
+    devBots.findOne({ _id: botId }),
+    botGuildConfigs.find({ botId }).toArray()
+  ]);
 
-  return bot ? toDevBotRuntimeConfig(bot) : null;
+  return bot ? toDevBotRuntimeConfig(bot, configs.map((config) => config.guildId)) : null;
 }
 
 export async function getDevBotToken(botId: string | null | undefined) {
@@ -1325,12 +1339,13 @@ async function fetchDiscordBotGuild(token: string, guildId: string): Promise<Det
   }
 }
 
-function toDevBotRuntimeConfig(bot: MongoDevBot): DevBotRuntimeConfig {
+function toDevBotRuntimeConfig(bot: MongoDevBot, guildIds: string[] = [bot.mainGuildId]): DevBotRuntimeConfig {
   return {
     id: bot._id,
     clientId: bot.clientId,
     token: decryptSecret(bot.tokenEncrypted),
     mainGuildId: bot.mainGuildId,
+    guildIds: allBotGuildIds(bot, guildIds),
     enabledModules: sanitizeModules(bot.enabledModules)
   };
 }
