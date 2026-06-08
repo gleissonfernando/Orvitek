@@ -15,6 +15,11 @@ export type BotGuildDto = {
 
 export type BotStatusDto = {
   botId?: string | null;
+  botProfile?: {
+    avatarUrl: string | null;
+    id: string;
+    username: string;
+  } | null;
   online: boolean;
   latency: number;
   guilds: number;

@@ -4,7 +4,7 @@ import { env } from "../config/env";
 import { createLiveEvent } from "../services/liveService";
 import { createLog } from "../services/logService";
 import { getBotStatus, updateBotStatus } from "../services/statsService";
-import { findDevBotIdByClientId, syncDevBotGuilds, updateDevBotRuntimeStatus } from "../services/devBotService";
+import { findDevBotIdByClientId, syncDevBotGuilds, syncDevBotProfile, updateDevBotRuntimeStatus } from "../services/devBotService";
 import { devBotRealtimeRoom, setRealtimeServer } from "./events";
 
 export function createSocketServer(httpServer: HttpServer) {
@@ -57,6 +57,8 @@ export function createSocketServer(httpServer: HttpServer) {
         ?? (typeof payload.botId === "string" && payload.botId.trim() ? payload.botId.trim() : null);
 
       if (statusBotId) {
+        void syncDevBotProfile(statusBotId, payload.botProfile);
+
         if (payload.botGuilds) {
           void syncDevBotGuilds(
             statusBotId,

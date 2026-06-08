@@ -1086,8 +1086,90 @@ export async function updateDevBotRuntimeStatus(botId: string, status: MongoDevB
   return bot;
 }
 
+export async function syncDevBotProfile(
+  botId: string,
+  profile: {
+    avatarUrl?: string | null;
+    id?: string | null;
+    username?: string | null;
+  } | null | undefined
+) {
+  const profileId = profile?.id?.trim();
+  const username = profile?.username?.trim();
+
+  if (!profileId || !username) {
+    return null;
+  }
+
+  const { devBots } = await getMongoCollections();
+  const current = await devBots.findOne({ _id: botId });
+
+  if (!current) {
+    return null;
+  }
+
+  if (current.clientId !== profileId) {
+    console.warn(`[dev-bot] perfil ignorado para ${botId}: clientId recebido ${profileId} difere do cadastro ${current.clientId}.`);
+    return toDevBotDto(current);
+  }
+
+  const avatarUrl = normalizeProfileAvatarUrl(profile?.avatarUrl);
+  const changed = current.name !== username || (current.avatarUrl ?? null) !== avatarUrl;
+
+  if (!changed) {
+    return toDevBotDto(current);
+  }
+
+  const now = new Date();
+
+  await devBots.updateOne(
+    {
+      _id: botId
+    },
+    {
+      $set: {
+        name: username,
+        avatarUrl,
+        updatedAt: now
+      }
+    }
+  );
+
+  const updated = await devBots.findOne({ _id: botId });
+  const dto = updated ? toDevBotDto(updated) : toDevBotDto({
+    ...current,
+    name: username,
+    avatarUrl,
+    updatedAt: now
+  });
+
+  await createLog({
+    botId,
+    guildId: current.mainGuildId,
+    type: "dev.bot.profile_synced",
+    message: `Perfil do bot atualizado automaticamente: ${username}.`,
+    metadata: {
+      avatarChanged: (current.avatarUrl ?? null) !== avatarUrl,
+      botId,
+      clientId: profileId,
+      nameChanged: current.name !== username,
+      newAvatarUrl: avatarUrl,
+      newName: username,
+      oldAvatarUrl: current.avatarUrl ?? null,
+      oldName: current.name
+    }
+  }).catch((error) => {
+    console.warn("[dev-bot] nao foi possivel registrar log de perfil atualizado:", error instanceof Error ? error.message : error);
+  });
+
+  emitRealtime("dev:bot_updated", toDashboardBotDto(dto));
+  console.log(`[dev-bot] perfil sincronizado para ${botId}: ${current.name} -> ${username}`);
+
+  return dto;
+}
+
 export async function syncDevBotGuilds(botId: string, guilds: Array<{ id: string; name: string }>) {
-  const { botGuildConfigs, devBots } = await getMongoCollections();
+  const { botGuildConfigs, devBots, guilds: guildCollection } = await getMongoCollections();
   const bot = await devBots.findOne(
     {
       _id: botId
@@ -1107,30 +1189,55 @@ export async function syncDevBotGuilds(botId: string, guilds: Array<{ id: string
   const uniqueGuilds = [...new Map(guilds.map((guild) => [guild.id, guild])).values()];
 
   if (uniqueGuilds.length) {
-    await botGuildConfigs.bulkWrite(
-      uniqueGuilds.map((guild) => ({
-        updateOne: {
-          filter: {
-            botId,
-            guildId: guild.id
-          },
-          update: {
-            $set: {
-              guildName: guild.name,
-              updatedAt: now
+    await Promise.all([
+      guildCollection.bulkWrite(
+        uniqueGuilds.map((guild) => ({
+          updateOne: {
+            filter: {
+              _id: guild.id
             },
-            $setOnInsert: {
-              _id: randomUUID(),
+            update: {
+              $set: {
+                name: guild.name,
+                botEnabled: true,
+                updatedAt: now
+              },
+              $setOnInsert: {
+                _id: guild.id,
+                icon: null,
+                ownerId: null,
+                createdAt: now
+              }
+            },
+            upsert: true
+          }
+        }))
+      ),
+      botGuildConfigs.bulkWrite(
+        uniqueGuilds.map((guild) => ({
+          updateOne: {
+            filter: {
               botId,
-              guildId: guild.id,
-              modules: {},
-              createdAt: now
-            }
-          },
-          upsert: true
-        }
-      }))
-    );
+              guildId: guild.id
+            },
+            update: {
+              $set: {
+                guildName: guild.name,
+                updatedAt: now
+              },
+              $setOnInsert: {
+                _id: randomUUID(),
+                botId,
+                guildId: guild.id,
+                modules: {},
+                createdAt: now
+              }
+            },
+            upsert: true
+          }
+        }))
+      )
+    ]);
   }
 
   const retainedGuildIds = [...new Set([bot.mainGuildId, ...uniqueGuilds.map((guild) => guild.id)])];
@@ -1496,6 +1603,12 @@ function maskedToken(bot: Pick<MongoDevBot, "tokenEncrypted" | "tokenLast4">) {
   const last4 = bot.tokenLast4 ?? decryptTokenLast4(bot.tokenEncrypted);
 
   return last4 ? `${"*".repeat(28)}${last4}` : "******** protegido";
+}
+
+function normalizeProfileAvatarUrl(value: string | null | undefined) {
+  const normalized = value?.trim();
+
+  return normalized || null;
 }
 
 function decryptTokenLast4(tokenEncrypted: string) {

@@ -1,10 +1,44 @@
 import { Router } from "express";
+import { z } from "zod";
 import { requireBot } from "../middleware/auth";
+import { authorizeBotCommand } from "../services/botCommandAuthorizationService";
 import { getBotGuildConfig, getBotApiPermissions } from "../services/devBotService";
+import { resolveRequestBotId } from "../services/requestBotScopeService";
 
 export const botDevApiRouter = Router();
+const commandAuthorizationSchema = z.object({
+  channelId: z.string().nullable().optional(),
+  userId: z.string().nullable().optional()
+});
 
 botDevApiRouter.use(requireBot);
+
+botDevApiRouter.post("/guilds/:guildId/commands/:commandName/authorize", async (req, res, next) => {
+  try {
+    const { commandName, guildId } = req.params;
+    const input = commandAuthorizationSchema.parse(req.body ?? {});
+
+    if (!commandName || !guildId) {
+      return res.status(400).json({
+        message: "guildId e commandName sao obrigatorios."
+      });
+    }
+
+    const authorization = await authorizeBotCommand({
+      botId: await resolveRequestBotId(req),
+      channelId: input.channelId,
+      commandName,
+      guildId,
+      userId: input.userId
+    });
+
+    return res.json({
+      authorization
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
 
 botDevApiRouter.get("/:botId/permissions", async (req, res, next) => {
   try {

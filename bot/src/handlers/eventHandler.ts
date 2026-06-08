@@ -13,6 +13,11 @@ import type { BotContext } from "../types";
 export function registerEvents(client: Client, context: BotContext) {
   client.once(Events.ClientReady, (readyClient) => void handleReady(readyClient, context));
   client.on(Events.InteractionCreate, (interaction) => void handleInteractionCreate(interaction, context));
+  client.on(Events.UserUpdate, (_oldUser, newUser) => {
+    if (client.user && newUser.id === client.user.id) {
+      context.socket.emitStatus(client, true);
+    }
+  });
 
   if (env.BOT_MEMBER_EVENTS_ENABLED && ["welcome", "leave", "roles", "logs"].some(isBotModuleEnabled)) {
     client.on(Events.GuildMemberAdd, (member) => {

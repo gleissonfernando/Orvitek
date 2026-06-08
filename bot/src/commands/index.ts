@@ -14,6 +14,10 @@ export function createCommandCollection() {
     clearCommand,
     ticketCommand
   ].forEach((command) => {
+    if (commands.has(command.data.name)) {
+      throw new Error(`Comando duplicado registrado: /${command.data.name}`);
+    }
+
     commands.set(command.data.name, command);
   });
 

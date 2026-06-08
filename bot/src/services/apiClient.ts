@@ -20,6 +20,18 @@ export type LiveEventInput = {
   url?: string;
 };
 
+export type BotCommandAuthorization = {
+  allowed: boolean;
+  botId: string | null;
+  checkedAt: string;
+  commandName: string;
+  guildId: string;
+  moduleId: string | null;
+  policy: "fail_closed";
+  reason: string;
+  reasonCode: string;
+};
+
 export type SocialNotification = {
   id: string;
   botId: string | null;
@@ -180,6 +192,33 @@ export class ApiClient {
     return data;
   }
 
+  async authorizeCommand(input: { channelId?: string | null; commandName: string; guildId: string; userId?: string | null }) {
+    try {
+      const { data } = await this.http.post<{ authorization: BotCommandAuthorization }>(
+        `/bot/guilds/${input.guildId}/commands/${encodeURIComponent(input.commandName)}/authorize`,
+        {
+          channelId: input.channelId ?? null,
+          userId: input.userId ?? null
+        },
+        {
+          timeout: 10_000
+        }
+      );
+
+      return data.authorization;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const authorization = readAuthorizationResponse(error.response?.data);
+
+        if (authorization) {
+          return authorization;
+        }
+      }
+
+      throw error;
+    }
+  }
+
   async createTicket(input: { guildId: string; channelId?: string | null; openerId: string; subject: string }) {
     const { data } = await this.http.post("/tickets", input);
     return data;
@@ -281,4 +320,18 @@ export class ApiClient {
       message
     });
   }
+}
+
+function readAuthorizationResponse(value: unknown): BotCommandAuthorization | null {
+  if (!value || typeof value !== "object" || !("authorization" in value)) {
+    return null;
+  }
+
+  const authorization = (value as { authorization?: unknown }).authorization;
+
+  if (!authorization || typeof authorization !== "object" || !("allowed" in authorization)) {
+    return null;
+  }
+
+  return authorization as BotCommandAuthorization;
 }

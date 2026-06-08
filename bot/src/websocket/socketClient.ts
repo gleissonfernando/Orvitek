@@ -127,6 +127,13 @@ export class BotSocketClient {
 
     this.socket?.emit("bot:status", {
       botId: env.DASHBOARD_BOT_ID || null,
+      botProfile: client.user
+        ? {
+            id: client.user.id,
+            username: client.user.username,
+            avatarUrl: client.user.displayAvatarURL({ size: 256 })
+          }
+        : undefined,
       online,
       latency: Math.max(0, Math.round(client.ws.ping)),
       guilds: client.guilds.cache.size,
