@@ -3,6 +3,7 @@ import { env } from "../config/env";
 import type { BotContext } from "../types";
 
 const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=3";
+const DEFAULT_WELCOME_TITLE = "Ricardin98";
 const DEFAULT_WELCOME_MESSAGE = [
   "Seja bem-vindo(a), {user}, \u00e0 nossa comunidade de lives.",
   "Aqui a galera acompanha transmiss\u00f5es, eventos da comunidade, avisos e momentos ao vivo juntos."
@@ -49,13 +50,13 @@ export async function sendWelcomeMessage(context: BotContext, member: GuildMembe
 
   const displayChannelId = settings.welcomeDisplayChannelId ?? settings.welcomeChannelId;
   const imageUrl = resolveImageUrl(settings.welcomeImageUrl ?? DEFAULT_WELCOME_IMAGE_URL);
-  const embeds = createWelcomeMessageEmbeds(settings, `<@${member.id}>`, displayChannelId, imageUrl);
+  const embed = createWelcomeMessageEmbed(settings, `<@${member.id}>`, displayChannelId, imageUrl);
 
   await channel.send({
     allowedMentions: {
       parse: []
     },
-    embeds
+    embeds: [embed]
   });
 }
 
@@ -74,17 +75,7 @@ export async function sendLeaveMessage(context: BotContext, member: GuildMember 
 
   const displayChannelId = settings.leaveDisplayChannelId ?? settings.leaveChannelId;
   const imageUrl = resolveImageUrl(settings.leaveImageUrl ?? DEFAULT_WELCOME_IMAGE_URL);
-  const embed = new EmbedBuilder()
-    .setColor(0xef4444)
-    .setTitle(settings.leaveTitle?.trim() || DEFAULT_LEAVE_TITLE)
-    .setDescription(leavePanelDescription(settings, `<@${member.id}>`, displayChannelId))
-    .setFooter({
-      text: settings.leaveFooterText?.trim() || DEFAULT_LEAVE_FOOTER_TEXT
-    });
-
-  if (imageUrl) {
-    embed.setImage(imageUrl);
-  }
+  const embed = createLeaveMessageEmbed(settings, `<@${member.id}>`, displayChannelId, imageUrl);
 
   await channel.send({
     allowedMentions: {
@@ -113,32 +104,61 @@ function welcomePanelDescription(
   });
 }
 
-function createWelcomeMessageEmbeds(
+function createWelcomeMessageEmbed(
   settings: Awaited<ReturnType<BotContext["api"]["getSettings"]>>,
   userMention: string,
   displayChannelId: string | null,
   imageUrl: string | null
 ) {
-  const embeds: EmbedBuilder[] = [];
+  return createMemberPanelEmbed({
+    description: welcomePanelDescription(settings, userMention, displayChannelId),
+    footerText: welcomeFooterText(settings.welcomeFooterText),
+    imageUrl,
+    title: settings.welcomeTitle?.trim() || DEFAULT_WELCOME_TITLE
+  });
+}
+
+function createLeaveMessageEmbed(
+  settings: Awaited<ReturnType<BotContext["api"]["getSettings"]>>,
+  userMention: string,
+  displayChannelId: string | null,
+  imageUrl: string | null
+) {
+  return createMemberPanelEmbed({
+    description: leavePanelDescription(settings, userMention, displayChannelId),
+    footerText: settings.leaveFooterText?.trim() || DEFAULT_LEAVE_FOOTER_TEXT,
+    imageUrl,
+    title: settings.leaveTitle?.trim() || DEFAULT_LEAVE_TITLE
+  });
+}
+
+function createMemberPanelEmbed({
+  description,
+  footerText,
+  imageUrl,
+  title
+}: {
+  description: string;
+  footerText: string;
+  imageUrl: string | null;
+  title: string;
+}) {
+  const embed = new EmbedBuilder()
+    .setColor(0xef4444)
+    .setTitle(title)
+    .setDescription(description);
 
   if (imageUrl) {
-    embeds.push(
-      new EmbedBuilder()
-        .setColor(0xef4444)
-        .setImage(imageUrl)
-    );
+    embed.setImage(imageUrl);
   }
 
-  embeds.push(
-    new EmbedBuilder()
-      .setColor(0xef4444)
-      .setDescription(welcomePanelDescription(settings, userMention, displayChannelId))
-      .setFooter({
-        text: welcomeFooterText(settings.welcomeFooterText)
-      })
-  );
+  if (footerText.trim()) {
+    embed.setFooter({
+      text: footerText.trim()
+    });
+  }
 
-  return embeds;
+  return embed;
 }
 
 function leavePanelDescription(

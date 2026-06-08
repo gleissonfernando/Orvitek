@@ -14,6 +14,7 @@ import {
   DEFAULT_WELCOME_MESSAGE,
   DEFAULT_WELCOME_RULES,
   DEFAULT_WELCOME_RULES_TITLE,
+  DEFAULT_WELCOME_TITLE,
   type GuildSettingsDto
 } from "./settingsService";
 
@@ -109,17 +110,14 @@ function memberPanelDescription({
 export function createWelcomePanelEmbeds(settings: GuildSettingsDto, userMention: string) {
   const displayChannelId = settings.welcomeDisplayChannelId ?? settings.welcomeChannelId;
   const imageUrl = toPublicUrl(settings.welcomeImageUrl ?? DEFAULT_WELCOME_IMAGE_URL);
-  const textEmbed = createMemberPanelTextEmbed({
-    description: welcomePanelDescription(settings, userMention, displayChannelId),
-    footerText: settings.welcomeFooterText ?? DEFAULT_WELCOME_FOOTER_TEXT
-  });
-
-  return imageUrl
-    ? [
-        createMemberPanelImageEmbed(imageUrl),
-        textEmbed
-      ]
-    : [textEmbed];
+  return [
+    createMemberPanelEmbed({
+      description: welcomePanelDescription(settings, userMention, displayChannelId),
+      footerText: settings.welcomeFooterText ?? DEFAULT_WELCOME_FOOTER_TEXT,
+      imageUrl,
+      title: settings.welcomeTitle ?? DEFAULT_WELCOME_TITLE
+    })
+  ];
 }
 
 export function createLeavePanelEmbed(settings: GuildSettingsDto, userMention: string) {
@@ -132,31 +130,6 @@ export function createLeavePanelEmbed(settings: GuildSettingsDto, userMention: s
     imageUrl,
     title: settings.leaveTitle ?? DEFAULT_LEAVE_TITLE
   });
-}
-
-function createMemberPanelImageEmbed(imageUrl: string): DiscordEmbedPayload {
-  return {
-    color: 0xef4444,
-    image: {
-      url: imageUrl
-    }
-  };
-}
-
-function createMemberPanelTextEmbed({
-  description,
-  footerText
-}: {
-  description: string;
-  footerText: string;
-}): DiscordEmbedPayload {
-  return {
-    color: 0xef4444,
-    description,
-    footer: {
-      text: footerText
-    }
-  };
 }
 
 function createMemberPanelEmbed({
@@ -175,9 +148,11 @@ function createMemberPanelEmbed({
     title,
     description,
     image: imageUrl ? { url: imageUrl } : undefined,
-    footer: {
-      text: footerText
-    }
+    footer: footerText.trim()
+      ? {
+          text: footerText.trim()
+        }
+      : undefined
   };
 }
 

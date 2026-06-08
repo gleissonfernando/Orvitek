@@ -492,6 +492,7 @@ export function WelcomePanel({
           message={messageInput.trim() || config.defaultMessage}
           rules={settings?.[config.rulesKey]?.trim() || config.defaultRules}
           rulesTitle={settings?.[config.rulesTitleKey]?.trim() || config.defaultRulesTitle}
+          title={settings?.[config.embedTitleKey]?.trim() || config.defaultTitle}
           viewerName={viewerName}
         />
       </CardContent>
@@ -507,6 +508,7 @@ function SimplePanelPreview({
   message,
   rules,
   rulesTitle,
+  title,
   viewerName
 }: {
   channelLabel: string;
@@ -516,6 +518,7 @@ function SimplePanelPreview({
   message: string;
   rules: string;
   rulesTitle: string;
+  title: string;
   viewerName: string;
 }) {
   const ruleItems = formatRuleItems(rules);
@@ -523,11 +526,9 @@ function SimplePanelPreview({
   return (
     <aside className="space-y-2 rounded-lg border border-zinc-800 bg-[#313338] p-3">
       <div className="overflow-hidden rounded border-l-4 border-red-500 bg-[#2b2d31]">
-        <img alt="" className="mx-auto aspect-[16/9] w-full object-cover" src={imageUrl} />
-      </div>
-
-      <div className="overflow-hidden rounded border-l-4 border-red-500 bg-[#2b2d31]">
+        <img alt="" className="mx-auto aspect-[16/9] w-full border-b border-zinc-700/60 object-cover" src={imageUrl} />
         <div className="space-y-5 p-4">
+          <p className="break-words text-lg font-semibold leading-7 text-white">{title}</p>
           <PanelMessage className="whitespace-pre-line break-words text-sm leading-6 text-zinc-100" message={message} viewerName={viewerName} />
 
           <div className="space-y-2">
