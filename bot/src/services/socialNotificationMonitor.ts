@@ -4,6 +4,7 @@ import {
   ButtonStyle,
   EmbedBuilder,
   type Client,
+  type Message,
   type MessageMentionOptions
 } from "discord.js";
 import { env } from "../config/env";
@@ -13,6 +14,7 @@ import { getTwitchStreams, type TwitchStream } from "./twitchApiService";
 let running = false;
 const TWITCH_BATCH_SIZE = 100;
 const NOTIFICATION_CONCURRENCY = 25;
+const LIVE_PREVIEW_REFRESH_DELAY_MS = 30_000;
 const LIVE_PANEL_BRAND = "vortex lives";
 
 export function startSocialNotificationMonitor(client: Client, api: ApiClient) {
@@ -132,7 +134,7 @@ async function sendLiveAlert(client: Client, notification: SocialNotification, s
   }
 
   const streamUrl = `https://www.twitch.tv/${stream.userLogin}`;
-  const thumbnailUrl = stream.thumbnailUrl.replace("{width}", "1280").replace("{height}", "720");
+  const previewImageUrl = buildLivePreviewImageUrl(stream.thumbnailUrl, stream.userLogin);
   const streamerName = stream.userName || notification.twitchChannelName;
   const embed = new EmbedBuilder()
     .setColor(normalizeEmbedColor(notification.embedColor))
@@ -156,7 +158,7 @@ async function sendLiveAlert(client: Client, notification: SocialNotification, s
         inline: true
       }
     )
-    .setImage(thumbnailUrl)
+    .setImage(previewImageUrl)
     .setFooter({
       text: livePanelFooter(new Date())
     });
@@ -179,6 +181,8 @@ async function sendLiveAlert(client: Client, notification: SocialNotification, s
     embeds: [embed]
   });
 
+  scheduleLivePreviewRefresh(message, embed, stream);
+
   return message.id;
 }
 
@@ -196,6 +200,35 @@ function renderLiveDescription(notification: SocialNotification, stream: TwitchS
 function formatLiveTitle(title?: string | null) {
   const normalizedTitle = title?.trim();
   return normalizedTitle || "Live ao vivo";
+}
+
+function scheduleLivePreviewRefresh(message: Message, embed: EmbedBuilder, stream: TwitchStream) {
+  const timer = setTimeout(() => {
+    const refreshedEmbed = EmbedBuilder.from(embed)
+      .setImage(buildLivePreviewImageUrl(stream.thumbnailUrl, stream.userLogin));
+
+    void message.edit({
+      embeds: [refreshedEmbed]
+    }).catch((error) => {
+      console.warn("[social-notifications] nao foi possivel atualizar a preview da live:", error instanceof Error ? error.message : error);
+    });
+  }, LIVE_PREVIEW_REFRESH_DELAY_MS);
+
+  timer.unref();
+}
+
+function buildLivePreviewImageUrl(thumbnailUrl: string | null | undefined, channelName: string) {
+  const normalizedChannelName = channelName.trim().toLowerCase();
+  const sizedThumbnailUrl = thumbnailUrl?.trim()
+    .replace("{width}", "1280")
+    .replace("{height}", "720");
+  const previewUrl = sizedThumbnailUrl || `https://static-cdn.jtvnw.net/previews-ttv/live_user_${normalizedChannelName}-1280x720.jpg`;
+
+  return appendCacheBuster(previewUrl);
+}
+
+function appendCacheBuster(url: string) {
+  return `${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}`;
 }
 
 function formatMention(notification: SocialNotification): { content: string | null; allowedMentions: MessageMentionOptions } {

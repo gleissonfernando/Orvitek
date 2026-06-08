@@ -416,9 +416,10 @@ export async function sendTwitchNotificationTest(
   const title = stream?.title ?? "Live de teste iniciada pelo painel";
   const gameName = stream?.gameName || "Grand Theft Auto V";
   const viewerCount = stream?.viewerCount ?? 0;
-  const thumbnailUrl =
-    stream?.thumbnailUrl?.replace("{width}", "1280").replace("{height}", "720") ??
-    "https://static-cdn.jtvnw.net/previews-ttv/live_user_twitch-1280x720.jpg";
+  const thumbnailUrl = buildLivePreviewImageUrl(
+    stream?.thumbnailUrl,
+    stream?.userLogin || notification.twitchChannelName
+  );
   const channelUrl = stream?.userLogin
     ? `https://www.twitch.tv/${stream.userLogin}`
     : notification.twitchChannelUrl;
@@ -968,6 +969,20 @@ function renderLiveDescription(notification: SocialNotificationDto, channelUrl: 
 function formatLiveTitle(title?: string | null) {
   const normalizedTitle = title?.trim();
   return normalizedTitle || "Live ao vivo";
+}
+
+function buildLivePreviewImageUrl(thumbnailUrl: string | null | undefined, channelName: string) {
+  const normalizedChannelName = channelName.trim().toLowerCase();
+  const sizedThumbnailUrl = thumbnailUrl?.trim()
+    .replace("{width}", "1280")
+    .replace("{height}", "720");
+  const previewUrl = sizedThumbnailUrl || `https://static-cdn.jtvnw.net/previews-ttv/live_user_${normalizedChannelName}-1280x720.jpg`;
+
+  return appendCacheBuster(previewUrl);
+}
+
+function appendCacheBuster(url: string) {
+  return `${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}`;
 }
 
 function formatMention(notification: SocialNotificationDto) {
