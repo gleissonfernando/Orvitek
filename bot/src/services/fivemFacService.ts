@@ -3,11 +3,15 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
+  ComponentType,
   EmbedBuilder,
+  MessageFlags,
   ModalBuilder,
   PermissionFlagsBits,
+  SeparatorSpacingSize,
   TextInputBuilder,
   TextInputStyle,
+  type APIMessageTopLevelComponent,
   type ButtonInteraction,
   type Client,
   type Guild,
@@ -29,13 +33,25 @@ const APPROVE_PREFIX = `${FAC_PREFIX}:approve`;
 const REJECT_PREFIX = `${FAC_PREFIX}:reject`;
 const CLOSE_PREFIX = `${FAC_PREFIX}:close`;
 const FAC_CHECK_INTERVAL_MS = 60_000;
+const FAC_PANEL_REQUEST_CHECK_INTERVAL_MS = 15_000;
 
 let dueCheckRunning = false;
+let panelRequestCheckRunning = false;
+let serviceStarted = false;
+const handledPanelRequests = new Map<string, string>();
+const panelPublishPromises = new Map<string, Promise<FivemFacSettings>>();
+const panelRequestErrorLogAt = new Map<string, number>();
 
 export function startFivemFacService(client: Client, context: BotContext) {
   if (!isBotModuleEnabled("fivem-fac")) {
     return;
   }
+
+  if (serviceStarted) {
+    return;
+  }
+
+  serviceStarted = true;
 
   context.socket.onFivemFacSettingsUpdated((payload) => {
     if (!isPayloadForThisBot(payload.botId)) {
@@ -50,7 +66,7 @@ export function startFivemFacService(client: Client, context: BotContext) {
       return;
     }
 
-    void publishFivemFacPanel(client, context, payload.guildId).catch((error) => {
+    void publishRequestedFivemFacPanel(client, context, payload.guildId).catch((error) => {
       console.error(`[fivem-fac] falha ao publicar painel em ${payload.guildId}:`, errorMessage(error));
     });
   });
@@ -60,11 +76,17 @@ export function startFivemFacService(client: Client, context: BotContext) {
     .catch((error) => console.warn("[fivem-fac] nao foi possivel carregar configuracoes:", errorMessage(error)));
 
   void processDueFivemFacAbsences(client, context);
+  void processPendingFivemFacPanelRequests(client, context);
+
   const interval = setInterval(() => {
     void processDueFivemFacAbsences(client, context);
   }, FAC_CHECK_INTERVAL_MS);
+  const panelInterval = setInterval(() => {
+    void processPendingFivemFacPanelRequests(client, context);
+  }, FAC_PANEL_REQUEST_CHECK_INTERVAL_MS);
 
   interval.unref();
+  panelInterval.unref();
 }
 
 export async function handleFivemFacInteraction(interaction: Interaction, context: BotContext) {
@@ -418,6 +440,27 @@ async function closeAbsence(interaction: ButtonInteraction, context: BotContext,
   }
 }
 
+async function publishRequestedFivemFacPanel(client: Client, context: BotContext, guildId: string) {
+  const key = panelRequestKey(guildId);
+  const current = panelPublishPromises.get(key);
+
+  if (current) {
+    return current;
+  }
+
+  const next = publishFivemFacPanel(client, context, guildId)
+    .then((settings) => {
+      rememberHandledPanelRequest(settings);
+      return settings;
+    })
+    .finally(() => {
+      panelPublishPromises.delete(key);
+    });
+
+  panelPublishPromises.set(key, next);
+  return next;
+}
+
 async function publishFivemFacPanel(client: Client, context: BotContext, guildId: string) {
   const guild = await client.guilds.fetch(guildId);
   const settings = await context.api.getFivemFacSettings(guildId);
@@ -439,8 +482,12 @@ async function publishFivemFacPanel(client: Client, context: BotContext, guildId
     const oldMessage = await channel.messages.fetch(settings.panelMessageId).catch(() => null);
 
     if (oldMessage) {
-      const edited = await oldMessage.edit(payload);
-      messageId = edited.id;
+      if (oldMessage.flags.has(MessageFlags.IsComponentsV2)) {
+        const edited = await oldMessage.edit(payload);
+        messageId = edited.id;
+      } else {
+        await oldMessage.delete().catch(() => null);
+      }
     }
   }
 
@@ -449,12 +496,13 @@ async function publishFivemFacPanel(client: Client, context: BotContext, guildId
     messageId = message.id;
   }
 
-  await context.api.updateFivemFacPanelState({
+  const saved = await context.api.updateFivemFacPanelState({
     guildId,
     messageId
   });
   await sendFacLog(guild, settings, "Painel publicado", null, client.user?.id ?? null);
   console.log(`[fivem-fac] painel publicado em ${guild.name}.`);
+  return saved;
 }
 
 async function createAbsenceChannel(guild: Guild, settings: FivemFacSettings, absence: FivemFacAbsence) {
@@ -514,6 +562,38 @@ async function processDueFivemFacAbsences(client: Client, context: BotContext) {
     console.warn("[fivem-fac] falha no monitor de datas:", errorMessage(error));
   } finally {
     dueCheckRunning = false;
+  }
+}
+
+async function processPendingFivemFacPanelRequests(client: Client, context: BotContext) {
+  if (panelRequestCheckRunning || !isBotModuleEnabled("fivem-fac")) {
+    return;
+  }
+
+  panelRequestCheckRunning = true;
+
+  try {
+    const configs = await context.api.getActiveFivemFacConfigs();
+
+    for (const settings of configs) {
+      if (!settings.lastPanelRequestedAt) {
+        continue;
+      }
+
+      const key = panelRequestKey(settings.guildId);
+
+      if (handledPanelRequests.get(key) === settings.lastPanelRequestedAt) {
+        continue;
+      }
+
+      await publishRequestedFivemFacPanel(client, context, settings.guildId).catch((error) => {
+        logPanelRequestError(key, `[fivem-fac] falha ao publicar painel pendente em ${settings.guildId}:`, error);
+      });
+    }
+  } catch (error) {
+    console.warn("[fivem-fac] falha ao verificar pedidos pendentes de painel:", errorMessage(error));
+  } finally {
+    panelRequestCheckRunning = false;
   }
 }
 
@@ -674,30 +754,53 @@ async function notifyAbsenceUser(guild: Guild, absence: FivemFacAbsence, message
 }
 
 function buildPanelPayload(settings: FivemFacSettings) {
+  const components: APIMessageTopLevelComponent[] = [
+    {
+      type: ComponentType.Container,
+      accent_color: 0x5865f2,
+      components: [
+        {
+          type: ComponentType.TextDisplay,
+          content: `# ${truncate(settings.messages.panelTitle, 120)}\n${truncate(settings.messages.panelDescription, 1800)}`
+        },
+        {
+          type: ComponentType.Separator,
+          divider: true,
+          spacing: SeparatorSpacingSize.Small
+        },
+        {
+          type: ComponentType.TextDisplay,
+          content: [
+            "**Informacoes do sistema**",
+            "- Solicite ausencia informando motivo, data de inicio e data de termino.",
+            "- Consulte seus registros em Minhas Ausencias.",
+            "- O controle utiliza apenas datas, sem horario de inicio ou termino."
+          ].join("\n")
+        },
+        {
+          type: ComponentType.ActionRow,
+          components: [
+            {
+              type: ComponentType.Button,
+              custom_id: REQUEST_BUTTON_ID,
+              label: "Solicitar Ausencia",
+              style: ButtonStyle.Primary
+            },
+            {
+              type: ComponentType.Button,
+              custom_id: MINE_BUTTON_ID,
+              label: "Minhas Ausencias",
+              style: ButtonStyle.Secondary
+            }
+          ]
+        }
+      ]
+    }
+  ];
+
   return {
-    embeds: [
-      new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle(settings.messages.panelTitle)
-        .setDescription([
-          settings.messages.panelDescription,
-          "",
-          "Use os botoes abaixo para solicitar ausencia ou consultar seus registros.",
-          "O sistema usa somente datas, sem horario de inicio ou termino."
-        ].join("\n"))
-    ],
-    components: [
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(REQUEST_BUTTON_ID)
-          .setLabel("Solicitar Ausencia")
-          .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-          .setCustomId(MINE_BUTTON_ID)
-          .setLabel("Minhas Ausencias")
-          .setStyle(ButtonStyle.Secondary)
-      )
-    ]
+    components,
+    flags: [MessageFlags.IsComponentsV2] as const
   };
 }
 
@@ -862,6 +965,28 @@ function unique(values: string[]) {
 
 function isPayloadForThisBot(botId: string | null | undefined) {
   return !botId || !env.DASHBOARD_BOT_ID || botId === env.DASHBOARD_BOT_ID;
+}
+
+function panelRequestKey(guildId: string) {
+  return `${env.DASHBOARD_BOT_ID || "bot"}:${guildId}`;
+}
+
+function rememberHandledPanelRequest(settings: FivemFacSettings) {
+  if (settings.lastPanelRequestedAt) {
+    handledPanelRequests.set(panelRequestKey(settings.guildId), settings.lastPanelRequestedAt);
+  }
+}
+
+function logPanelRequestError(key: string, message: string, error: unknown) {
+  const now = Date.now();
+  const lastLogAt = panelRequestErrorLogAt.get(key) ?? 0;
+
+  if (now - lastLogAt < 60_000) {
+    return;
+  }
+
+  panelRequestErrorLogAt.set(key, now);
+  console.warn(message, errorMessage(error));
 }
 
 async function replySafely(interaction: Interaction, content: string) {

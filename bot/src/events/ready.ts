@@ -25,8 +25,6 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     }
   }
 
-  context.socket.connect(client);
-  context.socket.emitStatus(client, true);
   if (isBotModuleEnabled("live")) {
     startSocialNotificationMonitor(client, context.api);
   }
@@ -42,6 +40,8 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   if (isBotModuleEnabled("fivem-fac")) {
     startFivemFacService(client, context);
   }
+  context.socket.connect(client);
+  context.socket.emitStatus(client, true);
 
   const interval = setInterval(() => {
     context.socket.emitStatus(client, true);
