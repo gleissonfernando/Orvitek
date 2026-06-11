@@ -1,19 +1,26 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Building2,
   CalendarClock,
+  Camera,
   Hash,
+  Image as ImageIcon,
   Loader2,
   MessageSquareText,
+  RefreshCw,
   Send,
   ShieldCheck,
+  Trash2,
+  Upload,
   UserCheck
 } from "lucide-react";
 import {
   getFivemFac,
-  getGuildLiveOptions,
+  getFivemFacOptions,
   publishFivemFacPanel,
-  saveFivemFacSettings
+  removeFivemFacAbsencePhoto,
+  saveFivemFacSettings,
+  uploadFivemFacAbsencePhoto
 } from "../../lib/api";
 import type {
   DashboardGuild,
@@ -22,6 +29,7 @@ import type {
   FivemFacMessages,
   FivemFacSettings,
   GuildChannelOption,
+  GuildLiveOptions,
   GuildRoleOption
 } from "../../types";
 import { Badge } from "../ui/badge";
@@ -36,13 +44,13 @@ type FacAbsencePanelProps = {
 };
 
 const defaultMessages: FivemFacMessages = {
-  panelTitle: "FAC - Sistema de Ausencia",
-  panelDescription: "Solicite sua ausencia de faccao ou organizacao informando motivo e datas.",
-  requestCreated: "Sua solicitacao de ausencia foi enviada para analise.",
-  approved: "Sua ausencia foi aprovada.",
-  rejected: "Sua ausencia foi reprovada.",
-  started: "Sua ausencia foi iniciada e o cargo configurado foi aplicado.",
-  finished: "Sua ausencia foi finalizada e o cargo configurado foi removido."
+  panelTitle: "📅 Solicitar Ausência",
+  panelDescription: "Informe a data de retorno e o motivo da sua ausência.",
+  requestCreated: "Sua solicitação de ausência foi enviada para aprovação.",
+  approved: "Sua ausência foi aprovada.",
+  rejected: "Sua ausência foi reprovada.",
+  started: "Sua ausência foi iniciada e o cargo configurado foi aplicado.",
+  finished: "Sua ausência foi finalizada e o cargo configurado foi removido."
 };
 
 const emptySettings: FivemFacSettings = {
@@ -55,12 +63,15 @@ const emptySettings: FivemFacSettings = {
   absenceRoleId: null,
   viewerRoleIds: [],
   approverRoleIds: [],
+  memberRoleIds: [],
   logChannelId: null,
   messages: defaultMessages,
   lastPanelRequestedAt: null,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString()
 };
+const FAC_PHOTO_MAX_SIZE = 10 * 1024 * 1024;
+const FAC_PHOTO_TYPES = new Set(["image/gif", "image/jpeg", "image/png", "image/webp"]);
 
 export function FacAbsencePanel({ botId, canManage, guild }: FacAbsencePanelProps) {
   const [settings, setSettings] = useState<FivemFacSettings>(emptySettings);
@@ -69,6 +80,7 @@ export function FacAbsencePanel({ botId, canManage, guild }: FacAbsencePanelProp
   const [roles, setRoles] = useState<GuildRoleOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -90,7 +102,7 @@ export function FacAbsencePanel({ botId, canManage, guild }: FacAbsencePanelProp
 
       const [fac, options] = await Promise.all([
         getFivemFac(guild.id, botId),
-        getGuildLiveOptions(guild.id, botId)
+        getFivemFacOptions(guild.id, botId)
       ]);
 
       if (!mounted) return;
@@ -135,7 +147,7 @@ export function FacAbsencePanel({ botId, canManage, guild }: FacAbsencePanelProp
     }));
   }
 
-  function toggleRole(key: "viewerRoleIds" | "approverRoleIds", roleId: string) {
+  function toggleRole(key: "viewerRoleIds" | "approverRoleIds" | "memberRoleIds", roleId: string) {
     setSettings((current) => {
       const selected = new Set(current[key]);
 
@@ -152,6 +164,12 @@ export function FacAbsencePanel({ botId, canManage, guild }: FacAbsencePanelProp
     });
   }
 
+  function updateAbsence(updatedAbsence: FivemFacAbsence) {
+    setAbsences((current) => current.map((absence) => (
+      absence.id === updatedAbsence.id ? updatedAbsence : absence
+    )));
+  }
+
   async function handleSave() {
     if (!botId || !guild) return;
 
@@ -164,6 +182,7 @@ export function FacAbsencePanel({ botId, canManage, guild }: FacAbsencePanelProp
         approverRoleIds: settings.approverRoleIds,
         enabled: settings.enabled,
         logChannelId: settings.logChannelId,
+        memberRoleIds: settings.memberRoleIds,
         messages: settings.messages,
         panelChannelId: settings.panelChannelId,
         viewerRoleIds: settings.viewerRoleIds
@@ -191,6 +210,26 @@ export function FacAbsencePanel({ botId, canManage, guild }: FacAbsencePanelProp
       setMessage(readRequestMessage(error) ?? "Nao foi possivel publicar o painel FAC.");
     } finally {
       setPublishing(false);
+    }
+  }
+
+  async function handleSyncOptions() {
+    if (!botId || !guild) return;
+
+    setSyncing(true);
+    setMessage(null);
+
+    try {
+      const options = await getFivemFacOptions(guild.id, botId);
+
+      setChannels(options.channels);
+      setRoles(options.roles);
+      setSettings((current) => pruneSettingsForOptions(current, options));
+      setMessage("Cargos e canais sincronizados com o Discord. Revise e salve para gravar a configuracao.");
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Nao foi possivel sincronizar cargos e canais do Discord.");
+    } finally {
+      setSyncing(false);
     }
   }
 
@@ -270,6 +309,14 @@ export function FacAbsencePanel({ botId, canManage, guild }: FacAbsencePanelProp
 
             <RoleChecklist
               disabled={!canManage}
+              label="Cargos de membros"
+              onToggle={(roleId) => toggleRole("memberRoleIds", roleId)}
+              roles={regularRoles}
+              selectedRoleIds={settings.memberRoleIds}
+            />
+
+            <RoleChecklist
+              disabled={!canManage}
               label="Cargos que visualizam canais"
               onToggle={(roleId) => toggleRole("viewerRoleIds", roleId)}
               roles={regularRoles}
@@ -296,6 +343,10 @@ export function FacAbsencePanel({ botId, canManage, guild }: FacAbsencePanelProp
             </div>
 
             <div className="flex flex-wrap gap-2 border-t border-zinc-900 pt-4">
+              <Button disabled={!canManage || syncing} onClick={() => void handleSyncOptions()} variant="outline">
+                {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Sincronizar Discord
+              </Button>
               <Button disabled={!canManage || saving} onClick={() => void handleSave()}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
                 Salvar FAC
@@ -321,7 +372,14 @@ export function FacAbsencePanel({ botId, canManage, guild }: FacAbsencePanelProp
             {absences.length ? (
               <div className="space-y-3">
                 {absences.map((absence) => (
-                  <AbsenceRow absence={absence} key={absence.id} />
+                  <AbsenceRow
+                    absence={absence}
+                    botId={botId}
+                    canManage={canManage}
+                    guildId={guild?.id ?? ""}
+                    key={absence.id}
+                    onUpdated={updateAbsence}
+                  />
                 ))}
               </div>
             ) : (
@@ -431,7 +489,96 @@ function TextareaField({ disabled, label, onChange, value }: { disabled: boolean
   );
 }
 
-function AbsenceRow({ absence }: { absence: FivemFacAbsence }) {
+function AbsenceRow({
+  absence,
+  botId,
+  canManage,
+  guildId,
+  onUpdated
+}: {
+  absence: FivemFacAbsence;
+  botId?: string | null;
+  canManage: boolean;
+  guildId: string;
+  onUpdated: (absence: FivemFacAbsence) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [photoMessage, setPhotoMessage] = useState<string | null>(null);
+  const [photoSaving, setPhotoSaving] = useState(false);
+  const currentPhotoUrl = previewUrl ?? absence.photoUrl;
+
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreviewUrl(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(selectedFile);
+    setPreviewUrl(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [selectedFile]);
+
+  function handleSelectPhoto(file: File | null) {
+    setPhotoMessage(null);
+
+    if (!file) {
+      return;
+    }
+
+    if (!FAC_PHOTO_TYPES.has(file.type)) {
+      setPhotoMessage("Formato invalido. Envie PNG, JPG, JPEG, WEBP ou GIF.");
+      return;
+    }
+
+    if (file.size > FAC_PHOTO_MAX_SIZE) {
+      setPhotoMessage("A foto deve ter no maximo 10 MB.");
+      return;
+    }
+
+    setSelectedFile(file);
+  }
+
+  async function handleSavePhoto() {
+    if (!botId || !selectedFile) return;
+
+    setPhotoSaving(true);
+    setPhotoMessage(null);
+
+    try {
+      const updated = await uploadFivemFacAbsencePhoto(guildId, botId, absence.id, selectedFile);
+      onUpdated(updated);
+      setSelectedFile(null);
+      setPhotoMessage("Foto salva e enviada para atualizar a embed no Discord.");
+    } catch (error) {
+      setPhotoMessage(readRequestMessage(error) ?? "Nao foi possivel salvar a foto.");
+    } finally {
+      setPhotoSaving(false);
+    }
+  }
+
+  async function handleRemoveSavedPhoto() {
+    if (!botId) return;
+
+    setPhotoSaving(true);
+    setPhotoMessage(null);
+
+    try {
+      const updated = await removeFivemFacAbsencePhoto(guildId, botId, absence.id);
+      onUpdated(updated);
+      setSelectedFile(null);
+      setPhotoMessage("Foto removida da embed no Discord.");
+    } catch (error) {
+      setPhotoMessage(readRequestMessage(error) ?? "Nao foi possivel remover a foto.");
+    } finally {
+      setPhotoSaving(false);
+    }
+  }
+
   return (
     <div className="rounded-lg border border-zinc-900 bg-zinc-950/70 p-3">
       <div className="flex items-start justify-between gap-3">
@@ -444,6 +591,58 @@ function AbsenceRow({ absence }: { absence: FivemFacAbsence }) {
       <div className="mt-3 grid gap-2 text-xs text-zinc-500 sm:grid-cols-2">
         <span>Inicio: {formatDateOnly(absence.startDate)}</span>
         <span>Termino: {formatDateOnly(absence.endDate)}</span>
+      </div>
+      <div className="mt-3 border-t border-zinc-900 pt-3">
+        <div className="flex items-center gap-2 text-xs font-medium text-zinc-300">
+          <Camera className="h-3.5 w-3.5 text-zinc-500" />
+          Foto da Ausencia
+        </div>
+        {currentPhotoUrl ? (
+          <div className="mt-2 overflow-hidden rounded-md border border-zinc-900 bg-zinc-950">
+            <img alt="Foto da ausencia" className="h-32 w-full object-cover" src={currentPhotoUrl} />
+          </div>
+        ) : (
+          <div className="mt-2 flex h-24 items-center justify-center rounded-md border border-dashed border-zinc-800 bg-zinc-950 text-xs text-zinc-600">
+            <ImageIcon className="mr-2 h-4 w-4" />
+            Nenhuma foto enviada.
+          </div>
+        )}
+        {canManage ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <input
+              accept="image/png,image/jpeg,image/webp,image/gif,.png,.jpg,.jpeg,.webp,.gif"
+              className="hidden"
+              onChange={(event) => {
+                handleSelectPhoto(event.target.files?.[0] ?? null);
+                event.currentTarget.value = "";
+              }}
+              ref={inputRef}
+              type="file"
+            />
+            <Button disabled={photoSaving} onClick={() => inputRef.current?.click()} size="sm" variant="outline">
+              <ImageIcon className="h-4 w-4" />
+              Selecionar Foto
+            </Button>
+            {selectedFile ? (
+              <>
+                <Button disabled={photoSaving} onClick={() => void handleSavePhoto()} size="sm">
+                  {photoSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  Salvar Foto
+                </Button>
+                <Button disabled={photoSaving} onClick={() => setSelectedFile(null)} size="sm" variant="outline">
+                  <Trash2 className="h-4 w-4" />
+                  Remover
+                </Button>
+              </>
+            ) : absence.photoUrl ? (
+              <Button disabled={photoSaving} onClick={() => void handleRemoveSavedPhoto()} size="sm" variant="outline">
+                {photoSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Remover Foto
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        {photoMessage ? <p className="mt-2 text-xs text-zinc-400">{photoMessage}</p> : null}
       </div>
     </div>
   );
@@ -471,6 +670,21 @@ function statusLabel(status: FivemFacAbsenceStatus) {
 function formatDateOnly(value: string) {
   const [year, month, day] = value.split("-");
   return year && month && day ? `${day}/${month}/${year}` : value;
+}
+
+function pruneSettingsForOptions(settings: FivemFacSettings, options: GuildLiveOptions): FivemFacSettings {
+  const channelIds = new Set(options.channels.map((channel) => channel.id));
+  const roleIds = new Set(options.roles.map((role) => role.id));
+
+  return {
+    ...settings,
+    absenceRoleId: settings.absenceRoleId && roleIds.has(settings.absenceRoleId) ? settings.absenceRoleId : null,
+    approverRoleIds: settings.approverRoleIds.filter((roleId) => roleIds.has(roleId)),
+    logChannelId: settings.logChannelId && channelIds.has(settings.logChannelId) ? settings.logChannelId : null,
+    memberRoleIds: settings.memberRoleIds.filter((roleId) => roleIds.has(roleId)),
+    panelChannelId: settings.panelChannelId && channelIds.has(settings.panelChannelId) ? settings.panelChannelId : null,
+    viewerRoleIds: settings.viewerRoleIds.filter((roleId) => roleIds.has(roleId))
+  };
 }
 
 function readRequestMessage(error: unknown) {

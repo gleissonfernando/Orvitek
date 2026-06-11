@@ -4,6 +4,7 @@ import { env } from "./config/env";
 import { createSocketServer } from "./realtime/socket";
 import { runAccessControlStartupAudit } from "./services/accessStartupAuditService";
 import { startRegisteredDevBots, stopAllDevBotProcesses } from "./services/devBotRuntimeService";
+import { startGiveawayScheduler } from "./services/giveawayService";
 
 const httpServer = createServer(app);
 
@@ -11,6 +12,7 @@ createSocketServer(httpServer);
 
 httpServer.listen(env.PORT, env.HOST, () => {
   console.log(`[api] rodando em ${env.FRONTEND_URL} (${env.HOST}:${env.PORT})`);
+  startGiveawayScheduler();
   void runAccessControlStartupAudit()
     .catch((error) => {
       console.warn("[access-audit] varredura inicial falhou:", error instanceof Error ? error.message : error);

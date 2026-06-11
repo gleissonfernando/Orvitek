@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import { ensureGuild, getMongoCollections, type MongoFivemFacAbsence, type MongoFivemFacAbsenceStatus, type MongoFivemFacMessages, type MongoFivemFacSettings } from "../database/mongo";
 import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoom } from "../realtime/events";
 import { createLog } from "./logService";
@@ -13,6 +15,7 @@ export type FivemFacSettingsDto = {
   absenceRoleId: string | null;
   viewerRoleIds: string[];
   approverRoleIds: string[];
+  memberRoleIds: string[];
   logChannelId: string | null;
   messages: MongoFivemFacMessages;
   lastPanelRequestedAt: string | null;
@@ -30,6 +33,7 @@ export type FivemFacAbsenceDto = {
   startDate: string;
   endDate: string;
   notes: string | null;
+  photoUrl: string | null;
   status: MongoFivemFacAbsenceStatus;
   privateChannelId: string | null;
   requestMessageId: string | null;
@@ -57,6 +61,7 @@ export type SaveFivemFacSettingsInput = {
   absenceRoleId?: string | null;
   viewerRoleIds?: string[];
   approverRoleIds?: string[];
+  memberRoleIds?: string[];
   logChannelId?: string | null;
   messages?: Partial<MongoFivemFacMessages>;
 };
@@ -82,14 +87,21 @@ export type ModerateFivemFacAbsenceInput = {
 
 const FAC_MODULE_ID = "fivem-fac";
 const ACTIVE_ABSENCE_STATUSES: MongoFivemFacAbsenceStatus[] = ["pending", "approved", "active"];
+const FAC_ABSENCE_UPLOAD_DIR = path.resolve(__dirname, "../../uploads/fivem-fac");
+const FAC_PHOTO_MIME_EXTENSIONS: Record<string, string> = {
+  "image/gif": "gif",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp"
+};
 const DEFAULT_MESSAGES: MongoFivemFacMessages = {
-  panelTitle: "FAC - Sistema de Ausencia",
-  panelDescription: "Solicite sua ausencia de faccao ou organizacao informando motivo e datas.",
-  requestCreated: "Sua solicitacao de ausencia foi enviada para analise.",
-  approved: "Sua ausencia foi aprovada.",
-  rejected: "Sua ausencia foi reprovada.",
-  started: "Sua ausencia foi iniciada e o cargo configurado foi aplicado.",
-  finished: "Sua ausencia foi finalizada e o cargo configurado foi removido."
+  panelTitle: "📅 Solicitar Ausência",
+  panelDescription: "Informe a data de retorno e o motivo da sua ausência.",
+  requestCreated: "Sua solicitação de ausência foi enviada para aprovação.",
+  approved: "Sua ausência foi aprovada.",
+  rejected: "Sua ausência foi reprovada.",
+  started: "Sua ausência foi iniciada e o cargo configurado foi aplicado.",
+  finished: "Sua ausência foi finalizada e o cargo configurado foi removido."
 };
 
 export function defaultFivemFacSettings(botId: string, guildId: string): FivemFacSettingsDto {
@@ -105,6 +117,7 @@ export function defaultFivemFacSettings(botId: string, guildId: string): FivemFa
     absenceRoleId: null,
     viewerRoleIds: [],
     approverRoleIds: [],
+    memberRoleIds: [],
     logChannelId: null,
     messages: DEFAULT_MESSAGES,
     lastPanelRequestedAt: null,
@@ -160,6 +173,7 @@ export async function saveFivemFacSettings(guildId: string, botId: string, input
     absenceRoleId: normalizeNullableSnowflake(input.absenceRoleId, current.absenceRoleId),
     viewerRoleIds: input.viewerRoleIds ? normalizeSnowflakes(input.viewerRoleIds) : current.viewerRoleIds,
     approverRoleIds: input.approverRoleIds ? normalizeSnowflakes(input.approverRoleIds) : current.approverRoleIds,
+    memberRoleIds: input.memberRoleIds ? normalizeSnowflakes(input.memberRoleIds) : current.memberRoleIds,
     logChannelId: normalizeNullableSnowflake(input.logChannelId, current.logChannelId),
     messages: normalizeMessages({
       ...current.messages,
@@ -215,6 +229,13 @@ export async function saveFivemFacSettings(guildId: string, botId: string, input
     guildId,
     settings: saved
   });
+  if (saved.enabled && saved.panelChannelId && saved.panelMessageId) {
+    emitRealtimeToRoom(devBotRealtimeRoom(botId), "fivem:fac:panel_publish", {
+      botId,
+      guildId,
+      settings: saved
+    });
+  }
   if (log) {
     emitRealtime("logs:new", log);
   }
@@ -327,6 +348,7 @@ export async function createFivemFacAbsence(input: CreateFivemFacAbsenceInput) {
     startDate,
     endDate,
     notes: normalizeShortText(input.notes, 1000),
+    photoUrl: null,
     status: "pending",
     privateChannelId: null,
     requestMessageId: null,
@@ -583,6 +605,79 @@ export async function closeFivemFacAbsence(input: ModerateFivemFacAbsenceInput &
   return updated;
 }
 
+export async function saveFivemFacAbsencePhotoFile(
+  guildId: string,
+  absenceId: string,
+  buffer: Buffer,
+  mimeType: string
+) {
+  const extension = FAC_PHOTO_MIME_EXTENSIONS[mimeType];
+
+  if (!extension) {
+    throw createFacError("Formato invalido. Envie PNG, JPG, JPEG, WEBP ou GIF.", 400);
+  }
+
+  if (!buffer.length) {
+    throw createFacError("Arquivo de imagem obrigatorio.", 400);
+  }
+
+  await fs.mkdir(FAC_ABSENCE_UPLOAD_DIR, { recursive: true });
+
+  const safeGuildId = guildId.replace(/[^a-zA-Z0-9_-]/g, "");
+  const safeAbsenceId = absenceId.replace(/[^a-zA-Z0-9_-]/g, "");
+  const fileName = `${safeGuildId}-${safeAbsenceId}-${Date.now()}-${randomUUID()}.${extension}`;
+
+  await fs.writeFile(path.join(FAC_ABSENCE_UPLOAD_DIR, fileName), buffer);
+
+  return `/uploads/fivem-fac/${fileName}`;
+}
+
+export async function updateFivemFacAbsencePhoto(
+  absenceId: string,
+  botId: string,
+  guildId: string,
+  photoUrl: string | null
+) {
+  const { fivemFacAbsences } = await getMongoCollections();
+  const current = await fivemFacAbsences.findOne({
+    _id: absenceId,
+    botId,
+    guildId
+  });
+
+  if (!current) {
+    throw createFacError("Ausencia nao encontrada.", 404);
+  }
+
+  const now = new Date();
+  await fivemFacAbsences.updateOne(
+    {
+      _id: absenceId,
+      botId,
+      guildId
+    },
+    {
+      $set: {
+        photoUrl,
+        updatedAt: now
+      }
+    }
+  );
+
+  if (current.photoUrl && current.photoUrl !== photoUrl) {
+    void removeLocalFacAbsencePhoto(current.photoUrl).catch(() => undefined);
+  }
+
+  const updated = await getFivemFacAbsence(absenceId, botId);
+
+  if (!updated) {
+    throw createFacError("Ausencia nao encontrada.", 404);
+  }
+
+  emitFacAbsenceEvent("photo_updated", updated, null);
+  return updated;
+}
+
 export async function listFivemFacDueAbsences(botId: string, today = currentDateKey()) {
   const { fivemFacAbsences } = await getMongoCollections();
   const absences = await fivemFacAbsences
@@ -763,6 +858,21 @@ function normalizeDateOnly(value: string) {
   return normalized;
 }
 
+async function removeLocalFacAbsencePhoto(photoUrl: string) {
+  if (!photoUrl.startsWith("/uploads/fivem-fac/")) {
+    return;
+  }
+
+  const fileName = path.basename(photoUrl);
+  const filePath = path.resolve(FAC_ABSENCE_UPLOAD_DIR, fileName);
+
+  if (!filePath.startsWith(FAC_ABSENCE_UPLOAD_DIR)) {
+    return;
+  }
+
+  await fs.unlink(filePath);
+}
+
 function normalizeMessages(messages: Partial<MongoFivemFacMessages>): MongoFivemFacMessages {
   return {
     panelTitle: normalizeMessage(messages.panelTitle, DEFAULT_MESSAGES.panelTitle, 120),
@@ -914,6 +1024,7 @@ function toSettingsDto(settings: MongoFivemFacSettings): FivemFacSettingsDto {
     absenceRoleId: settings.absenceRoleId ?? null,
     viewerRoleIds: normalizeSnowflakes(settings.viewerRoleIds ?? []),
     approverRoleIds: normalizeSnowflakes(settings.approverRoleIds ?? []),
+    memberRoleIds: normalizeSnowflakes(settings.memberRoleIds ?? []),
     logChannelId: settings.logChannelId ?? null,
     messages: normalizeMessages(settings.messages ?? DEFAULT_MESSAGES),
     lastPanelRequestedAt: settings.lastPanelRequestedAt?.toISOString?.() ?? null,
@@ -933,6 +1044,7 @@ function toAbsenceDto(absence: MongoFivemFacAbsence): FivemFacAbsenceDto {
     startDate: absence.startDate,
     endDate: absence.endDate,
     notes: absence.notes ?? null,
+    photoUrl: absence.photoUrl ?? null,
     status: absence.status,
     privateChannelId: absence.privateChannelId ?? null,
     requestMessageId: absence.requestMessageId ?? null,

@@ -5,9 +5,17 @@ type DiscordChannel = {
   id: string;
   guild_id?: string;
   name: string;
+  permission_overwrites?: DiscordPermissionOverwrite[];
   type: number;
   parent_id?: string | null;
   position?: number;
+};
+
+type DiscordPermissionOverwrite = {
+  allow: string;
+  deny: string;
+  id: string;
+  type: number;
 };
 
 type DiscordRole = {
@@ -69,10 +77,28 @@ export type GuildMemberOptionDto = {
   username: string;
 };
 
+export type GuildPanelChannelValidationDto = {
+  missingPermissions: string[];
+  ok: boolean;
+  reason: string | null;
+};
+
 const DISCORD_API_URL = "https://discord.com/api/v10";
 const TEXT_CHANNEL_TYPES = new Set([0, 5]);
 const ADMINISTRATOR = 0x8n;
 const MANAGE_ROLES = 0x10000000n;
+const VIEW_CHANNEL = 1n << 10n;
+const SEND_MESSAGES = 1n << 11n;
+const EMBED_LINKS = 1n << 14n;
+const USE_EXTERNAL_EMOJIS = 1n << 18n;
+const PIN_MESSAGES = 1n << 51n;
+const PANEL_CHANNEL_PERMISSIONS = [
+  { bit: VIEW_CHANNEL, label: "View Channel" },
+  { bit: SEND_MESSAGES, label: "Send Messages" },
+  { bit: EMBED_LINKS, label: "Embed Links" },
+  { bit: USE_EXTERNAL_EMOJIS, label: "Use External Emojis" },
+  { bit: PIN_MESSAGES, label: "Pin Messages" }
+] as const;
 
 export async function getGuildLiveOptions(guildId: string, botToken?: string | null): Promise<GuildLiveOptionsDto> {
   const token = botToken || env.DISCORD_BOT_TOKEN;
@@ -200,6 +226,67 @@ export async function isGuildTextChannel(guildId: string, channelId: string, bot
   return isGuildChannelType(guildId, channelId, TEXT_CHANNEL_TYPES, botToken);
 }
 
+export async function validateGuildPanelChannel(
+  guildId: string,
+  channelId: string,
+  botToken?: string | null
+): Promise<GuildPanelChannelValidationDto> {
+  const token = botToken || env.DISCORD_BOT_TOKEN;
+
+  if (!token) {
+    return {
+      missingPermissions: [],
+      ok: false,
+      reason: "Token do bot nao configurado para validar o canal do painel."
+    };
+  }
+
+  try {
+    const [channel, bot, roles] = await Promise.all([
+      discordFetch<DiscordChannel>(`/channels/${channelId}`, token),
+      discordFetch<DiscordBotUser>("/users/@me", token),
+      discordFetch<DiscordRole[]>(`/guilds/${guildId}/roles`, token)
+    ]);
+
+    if (channel.guild_id !== guildId || !TEXT_CHANNEL_TYPES.has(channel.type)) {
+      return {
+        missingPermissions: [],
+        ok: false,
+        reason: "O canal configurado nao existe neste servidor ou nao e um canal de texto."
+      };
+    }
+
+    const botMember = await discordFetch<DiscordGuildMember>(`/guilds/${guildId}/members/${bot.id}`, token);
+    const permissions = resolveChannelPermissions(guildId, bot.id, botMember.roles, roles, channel.permission_overwrites ?? []);
+
+    if ((permissions & ADMINISTRATOR) === ADMINISTRATOR) {
+      return {
+        missingPermissions: [],
+        ok: true,
+        reason: null
+      };
+    }
+
+    const missingPermissions = PANEL_CHANNEL_PERMISSIONS
+      .filter((permission) => (permissions & permission.bit) !== permission.bit)
+      .map((permission) => permission.label);
+
+    return {
+      missingPermissions,
+      ok: missingPermissions.length === 0,
+      reason: missingPermissions.length
+        ? `Bot sem permissao no canal do painel: ${missingPermissions.join(", ")}.`
+        : null
+    };
+  } catch {
+    return {
+      missingPermissions: [],
+      ok: false,
+      reason: "Nao foi possivel validar o canal configurado no Discord."
+    };
+  }
+}
+
 export async function isGuildCategoryChannel(guildId: string, channelId: string, botToken?: string | null) {
   return isGuildChannelType(guildId, channelId, new Set([4]), botToken);
 }
@@ -324,6 +411,56 @@ function parsePermissions(value: string) {
   } catch {
     return 0n;
   }
+}
+
+function resolveChannelPermissions(
+  guildId: string,
+  botId: string,
+  botRoleIds: string[],
+  roles: DiscordRole[],
+  overwrites: DiscordPermissionOverwrite[]
+) {
+  const roleIds = new Set([guildId, ...botRoleIds]);
+  let permissions = roles
+    .filter((role) => roleIds.has(role.id))
+    .reduce((total, role) => total | parsePermissions(role.permissions), 0n);
+
+  if ((permissions & ADMINISTRATOR) === ADMINISTRATOR) {
+    return permissions;
+  }
+
+  permissions = applyPermissionOverwrite(
+    permissions,
+    overwrites.find((overwrite) => overwrite.id === guildId && overwrite.type === 0)
+  );
+
+  let roleAllow = 0n;
+  let roleDeny = 0n;
+
+  for (const overwrite of overwrites) {
+    if (overwrite.type !== 0 || !roleIds.has(overwrite.id) || overwrite.id === guildId) {
+      continue;
+    }
+
+    roleAllow |= parsePermissions(overwrite.allow);
+    roleDeny |= parsePermissions(overwrite.deny);
+  }
+
+  permissions = (permissions & ~roleDeny) | roleAllow;
+  permissions = applyPermissionOverwrite(
+    permissions,
+    overwrites.find((overwrite) => overwrite.id === botId && overwrite.type === 1)
+  );
+
+  return permissions;
+}
+
+function applyPermissionOverwrite(permissions: bigint, overwrite?: DiscordPermissionOverwrite) {
+  if (!overwrite) {
+    return permissions;
+  }
+
+  return (permissions & ~parsePermissions(overwrite.deny)) | parsePermissions(overwrite.allow);
 }
 
 function toGuildMemberOption(member: DiscordGuildMember, guildId: string): GuildMemberOptionDto | null {

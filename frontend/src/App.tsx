@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useEffect } from "react";
 import { Dashboard } from "./pages/Dashboard";
 import { DevDashboard } from "./pages/DevDashboard";
+import { GiveawayRoulettePage } from "./pages/GiveawayRoulette";
 import { Login } from "./pages/Login";
 import { useAuth } from "./hooks/useAuth";
 import { dashboardSlugFromPath, dashboardUrl, isDashboardRoutePath } from "./lib/urls";
@@ -20,23 +21,36 @@ export function App() {
     verifying
   } = useAuth();
   const path = window.location.pathname;
+  const rouletteToken = rouletteTokenFromPath(path);
   const routeError = path === "/auth/error" ? readAuthError() : null;
   const dashboardPath = isDashboardRoutePath(path);
   const protectedPanelPath = dashboardPath || path === "/dev";
 
   useEffect(() => {
+    if (rouletteToken) {
+      return;
+    }
+
     if (auth?.access.verified && !protectedPanelPath) {
       window.location.replace(dashboardUrl());
     }
-  }, [auth, protectedPanelPath]);
+  }, [auth, protectedPanelPath, rouletteToken]);
 
   useEffect(() => {
+    if (rouletteToken) {
+      return;
+    }
+
     if (loading || !protectedPanelPath || error || auth) {
       return;
     }
 
     loginDiscord();
-  }, [auth, protectedPanelPath, error, loading, loginDiscord]);
+  }, [auth, protectedPanelPath, error, loading, loginDiscord, rouletteToken]);
+
+  if (rouletteToken) {
+    return <GiveawayRoulettePage token={rouletteToken} />;
+  }
 
   if (loading) {
     return <LoadingScreen />;
@@ -80,6 +94,24 @@ function readAuthError() {
   }
 
   return "Nao foi possivel concluir a autenticacao Discord. Tente novamente.";
+}
+
+function rouletteTokenFromPath(path: string) {
+  if (!path.startsWith("/roulette/")) {
+    return null;
+  }
+
+  const token = path.slice("/roulette/".length).split("/")[0]?.trim();
+
+  if (!token) {
+    return null;
+  }
+
+  try {
+    return decodeURIComponent(token);
+  } catch {
+    return null;
+  }
 }
 
 function LoadingScreen() {

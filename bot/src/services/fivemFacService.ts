@@ -1,17 +1,15 @@
+import { randomUUID } from "node:crypto";
 import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
-  ComponentType,
   EmbedBuilder,
   MessageFlags,
   ModalBuilder,
   PermissionFlagsBits,
-  SeparatorSpacingSize,
   TextInputBuilder,
   TextInputStyle,
-  type APIMessageTopLevelComponent,
   type ButtonInteraction,
   type Client,
   type Guild,
@@ -23,17 +21,31 @@ import {
 import { env, isBotModuleEnabled } from "../config/env";
 import type { BotContext } from "../types";
 import type { FivemFacAbsence, FivemFacSettings } from "./apiClient";
+import { assertPanelChannelPermissions, pinPanelMessage } from "./panelDeliveryService";
 
 const FAC_PREFIX = "fivem_fac";
 const REQUEST_BUTTON_ID = `${FAC_PREFIX}:request`;
 const MINE_BUTTON_ID = `${FAC_PREFIX}:mine`;
 const REQUEST_MODAL_PREFIX = `${FAC_PREFIX}:request_modal`;
+const CONFIRM_PREFIX = `${FAC_PREFIX}:confirm`;
+const CANCEL_PREFIX = `${FAC_PREFIX}:cancel`;
 const REJECT_MODAL_PREFIX = `${FAC_PREFIX}:reject_modal`;
 const APPROVE_PREFIX = `${FAC_PREFIX}:approve`;
 const REJECT_PREFIX = `${FAC_PREFIX}:reject`;
 const CLOSE_PREFIX = `${FAC_PREFIX}:close`;
 const FAC_CHECK_INTERVAL_MS = 60_000;
 const FAC_PANEL_REQUEST_CHECK_INTERVAL_MS = 15_000;
+const PENDING_REQUEST_TTL_MS = 10 * 60_000;
+
+type PendingAbsenceRequest = {
+  createdAt: number;
+  endDate: string;
+  guildId: string;
+  reason: string;
+  startDate: string;
+  userId: string;
+  username: string | null;
+};
 
 let dueCheckRunning = false;
 let panelRequestCheckRunning = false;
@@ -41,6 +53,7 @@ let serviceStarted = false;
 const handledPanelRequests = new Map<string, string>();
 const panelPublishPromises = new Map<string, Promise<FivemFacSettings>>();
 const panelRequestErrorLogAt = new Map<string, number>();
+const pendingAbsenceRequests = new Map<string, PendingAbsenceRequest>();
 
 export function startFivemFacService(client: Client, context: BotContext) {
   if (!isBotModuleEnabled("fivem-fac")) {
@@ -68,6 +81,18 @@ export function startFivemFacService(client: Client, context: BotContext) {
 
     void publishRequestedFivemFacPanel(client, context, payload.guildId).catch((error) => {
       console.error(`[fivem-fac] falha ao publicar painel em ${payload.guildId}:`, errorMessage(error));
+    });
+  });
+
+  context.socket.onFivemFacAbsenceUpdated((payload) => {
+    const absence = payload.absence;
+
+    if (!isPayloadForThisBot(payload.botId) || !isFivemFacAbsencePayload(absence)) {
+      return;
+    }
+
+    void updateFivemFacAbsenceMessage(client, absence).catch((error) => {
+      console.warn(`[fivem-fac] falha ao atualizar mensagem da ausencia ${absence.id}:`, errorMessage(error));
     });
   });
 
@@ -130,9 +155,9 @@ async function handleFivemFacButton(interaction: ButtonInteraction, context: Bot
     return;
   }
 
-  const [prefix, action, absenceId] = interaction.customId.split(":");
+  const [prefix, action, value] = interaction.customId.split(":");
 
-  if (prefix !== FAC_PREFIX || !absenceId) {
+  if (prefix !== FAC_PREFIX || !value) {
     await interaction.reply({
       content: "Acao do FAC invalida.",
       ephemeral: true
@@ -140,18 +165,28 @@ async function handleFivemFacButton(interaction: ButtonInteraction, context: Bot
     return;
   }
 
+  if (action === "confirm") {
+    await confirmAbsenceRequest(interaction, context, value);
+    return;
+  }
+
+  if (action === "cancel") {
+    await cancelAbsenceRequest(interaction, value);
+    return;
+  }
+
   if (action === "approve") {
-    await approveAbsence(interaction, context, absenceId);
+    await approveAbsence(interaction, context, value);
     return;
   }
 
   if (action === "reject") {
-    await showRejectModal(interaction, absenceId);
+    await showRejectModal(interaction, value);
     return;
   }
 
   if (action === "close") {
-    await closeAbsence(interaction, context, absenceId);
+    await closeAbsence(interaction, context, value);
     return;
   }
 
@@ -182,40 +217,26 @@ async function handleFivemFacModal(interaction: ModalSubmitInteraction, context:
 async function showRequestModal(interaction: ButtonInteraction) {
   const modal = new ModalBuilder()
     .setCustomId(`${REQUEST_MODAL_PREFIX}:${interaction.guildId}`)
-    .setTitle("Solicitar Ausencia");
+    .setTitle("📅 Solicitar Ausência");
 
   modal.addComponents(
     new ActionRowBuilder<TextInputBuilder>().addComponents(
       new TextInputBuilder()
+        .setCustomId("returnDate")
+        .setLabel("📅 Data de Retorno")
+        .setMaxLength(5)
+        .setPlaceholder("Exemplo: 12/06")
+        .setRequired(true)
+        .setStyle(TextInputStyle.Short)
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder()
         .setCustomId("reason")
-        .setLabel("Motivo da ausencia")
-        .setMaxLength(800)
-        .setRequired(true)
-        .setStyle(TextInputStyle.Paragraph)
-    ),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder()
-        .setCustomId("startDate")
-        .setLabel("Data de inicio")
-        .setPlaceholder("AAAA-MM-DD ou DD/MM/AAAA")
+        .setLabel("📝 Motivo da Ausência")
+        .setMaxLength(300)
+        .setPlaceholder("Exemplo: Viagem, trabalho, estudos, problemas pessoais, etc.")
         .setRequired(true)
         .setStyle(TextInputStyle.Short)
-    ),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder()
-        .setCustomId("endDate")
-        .setLabel("Data de termino")
-        .setPlaceholder("AAAA-MM-DD ou DD/MM/AAAA")
-        .setRequired(true)
-        .setStyle(TextInputStyle.Short)
-    ),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder()
-        .setCustomId("notes")
-        .setLabel("Observacoes adicionais")
-        .setMaxLength(1000)
-        .setRequired(false)
-        .setStyle(TextInputStyle.Paragraph)
     )
   );
 
@@ -253,26 +274,98 @@ async function submitAbsenceRequest(interaction: ModalSubmitInteraction, context
     return;
   }
 
-  const startDate = normalizeDateInput(interaction.fields.getTextInputValue("startDate"));
-  const endDate = normalizeDateInput(interaction.fields.getTextInputValue("endDate"));
+  const startDate = currentDateKey();
+  const endDate = normalizeReturnDateInput(interaction.fields.getTextInputValue("returnDate"), startDate);
+  const reason = interaction.fields.getTextInputValue("reason").trim();
 
-  if (!startDate || !endDate) {
-    await interaction.editReply("Use apenas datas no formato AAAA-MM-DD ou DD/MM/AAAA. Horarios nao sao aceitos.");
+  if (!endDate) {
+    await interaction.editReply("Use a data de retorno no formato DD/MM. Exemplo: 12/06.");
+    return;
+  }
+
+  if (!reason) {
+    await interaction.editReply("Informe o motivo da ausencia.");
     return;
   }
 
   try {
     const settings = await context.api.getFivemFacSettings(guild.id);
-    const absence = await context.api.createFivemFacAbsence({
+
+    if (!hasMemberRole(interaction, settings)) {
+      await interaction.editReply("Voce nao possui um cargo de membro autorizado para solicitar ausencia.");
+      return;
+    }
+
+    const token = createPendingAbsenceRequest({
+      createdAt: Date.now(),
+      endDate,
       guildId: guild.id,
+      reason,
+      startDate,
       userId: interaction.user.id,
       username: interaction.member instanceof Object && "displayName" in interaction.member
         ? interaction.member.displayName
-        : interaction.user.username,
-      reason: interaction.fields.getTextInputValue("reason"),
-      startDate,
+        : interaction.user.username
+    });
+
+    await interaction.editReply(buildRequestSummaryPayload(token, {
       endDate,
-      notes: interaction.fields.getTextInputValue("notes") || null
+      reason,
+      startDate
+    }));
+  } catch (error) {
+    await interaction.editReply(readRequestErrorMessage(error) ?? "Nao foi possivel preparar sua solicitacao de ausencia.");
+  }
+}
+
+async function confirmAbsenceRequest(interaction: ButtonInteraction, context: BotContext, token: string) {
+  await interaction.deferUpdate();
+  cleanupPendingAbsenceRequests();
+
+  const pending = pendingAbsenceRequests.get(token);
+
+  if (!pending || pending.userId !== interaction.user.id || pending.guildId !== interaction.guildId) {
+    await interaction.editReply({
+      components: [],
+      content: "Esta solicitacao expirou. Abra o formulario novamente.",
+      embeds: []
+    });
+    return;
+  }
+
+  pendingAbsenceRequests.delete(token);
+
+  const guild = interaction.guild;
+
+  if (!guild) {
+    await interaction.editReply({
+      components: [],
+      content: "Servidor nao encontrado.",
+      embeds: []
+    });
+    return;
+  }
+
+  try {
+    const settings = await context.api.getFivemFacSettings(guild.id);
+
+    if (!hasMemberRole(interaction, settings)) {
+      await interaction.editReply({
+        components: [],
+        content: "Voce nao possui um cargo de membro autorizado para solicitar ausencia.",
+        embeds: []
+      });
+      return;
+    }
+
+    const absence = await context.api.createFivemFacAbsence({
+      guildId: guild.id,
+      notes: null,
+      reason: pending.reason,
+      startDate: pending.startDate,
+      endDate: pending.endDate,
+      userId: pending.userId,
+      username: pending.username
     });
     const channelResult = await createAbsenceChannel(guild, settings, absence);
 
@@ -284,14 +377,30 @@ async function submitAbsenceRequest(interaction: ModalSubmitInteraction, context
     }
 
     await sendFacLog(guild, settings, "Solicitacao criada", absence, interaction.user.id);
-    await interaction.editReply(
-      channelResult.channel
-        ? `${settings.messages.requestCreated}\nCanal privado: <#${channelResult.channel.id}>`
-        : `${settings.messages.requestCreated}\nA solicitacao foi salva, mas nao consegui criar o canal privado. Avise a equipe.`
-    );
+    await interaction.editReply({
+      components: [],
+      content: channelResult.channel
+        ? `${settings.messages.requestCreated}\nCanal de aprovacao: <#${channelResult.channel.id}>`
+        : `${settings.messages.requestCreated}\nA solicitacao foi salva, mas nao consegui criar o canal de aprovacao. Avise a equipe.`,
+      embeds: []
+    });
   } catch (error) {
-    await interaction.editReply(readRequestErrorMessage(error) ?? "Nao foi possivel criar sua solicitacao de ausencia.");
+    await interaction.editReply({
+      components: [],
+      content: readRequestErrorMessage(error) ?? "Nao foi possivel criar sua solicitacao de ausencia.",
+      embeds: []
+    });
   }
+}
+
+async function cancelAbsenceRequest(interaction: ButtonInteraction, token: string) {
+  await interaction.deferUpdate();
+  pendingAbsenceRequests.delete(token);
+  await interaction.editReply({
+    components: [],
+    content: "Solicitacao cancelada.",
+    embeds: []
+  });
 }
 
 async function showMyAbsences(interaction: ButtonInteraction, context: BotContext) {
@@ -352,11 +461,12 @@ async function approveAbsence(interaction: ButtonInteraction, context: BotContex
       moderatorRoleIds: interactionRoleIds(interaction)
     });
 
-    if (absence.startDate <= currentDateKey()) {
-      const roleAdded = await addAbsenceRole(guild, settings, absence);
-      absence = await context.api.markFivemFacAbsenceStarted(absence.id, roleAdded);
-      await sendFacLog(guild, settings, roleAdded ? "Cargo adicionado" : "Ausencia iniciada sem cargo", absence, interaction.user.id);
-    }
+    const roleAdded = await addAbsenceRole(guild, settings, absence).catch(async (error) => {
+      await sendFacLog(guild, settings, "Falha ao adicionar cargo", absence, interaction.user.id, errorMessage(error));
+      return false;
+    });
+    absence = await context.api.markFivemFacAbsenceStarted(absence.id, roleAdded);
+    await sendFacLog(guild, settings, roleAdded ? "Cargo adicionado" : "Ausencia aprovada sem cargo", absence, interaction.user.id);
 
     await updateAbsenceMessage(interaction, settings, absence);
     await sendFacLog(guild, settings, "Solicitacao aprovada", absence, interaction.user.id);
@@ -475,6 +585,8 @@ async function publishFivemFacPanel(client: Client, context: BotContext, guildId
     throw new Error("Canal de painel FAC invalido.");
   }
 
+  assertPanelChannelPermissions(channel, client, "FAC");
+
   const payload = buildPanelPayload(settings);
   let messageId: string | null = null;
 
@@ -483,16 +595,18 @@ async function publishFivemFacPanel(client: Client, context: BotContext, guildId
 
     if (oldMessage) {
       if (oldMessage.flags.has(MessageFlags.IsComponentsV2)) {
-        const edited = await oldMessage.edit(payload);
-        messageId = edited.id;
-      } else {
         await oldMessage.delete().catch(() => null);
+      } else {
+        const edited = await oldMessage.edit(payload);
+        await pinPanelMessage(edited, "FAC");
+        messageId = edited.id;
       }
     }
   }
 
   if (!messageId) {
     const message = await channel.send(payload);
+    await pinPanelMessage(message, "FAC");
     messageId = message.id;
   }
 
@@ -691,6 +805,16 @@ async function updateStoredAbsenceMessage(guild: Guild, absence: FivemFacAbsence
   }).catch(() => null);
 }
 
+async function updateFivemFacAbsenceMessage(client: Client, absence: FivemFacAbsence) {
+  const guild = await client.guilds.fetch(absence.guildId).catch(() => null);
+
+  if (!guild) {
+    return;
+  }
+
+  await updateStoredAbsenceMessage(guild, absence);
+}
+
 async function sendFacLog(
   guild: Guild,
   settings: FivemFacSettings,
@@ -754,53 +878,29 @@ async function notifyAbsenceUser(guild: Guild, absence: FivemFacAbsence, message
 }
 
 function buildPanelPayload(settings: FivemFacSettings) {
-  const components: APIMessageTopLevelComponent[] = [
-    {
-      type: ComponentType.Container,
-      accent_color: 0x5865f2,
-      components: [
-        {
-          type: ComponentType.TextDisplay,
-          content: `# ${truncate(settings.messages.panelTitle, 120)}\n${truncate(settings.messages.panelDescription, 1800)}`
-        },
-        {
-          type: ComponentType.Separator,
-          divider: true,
-          spacing: SeparatorSpacingSize.Small
-        },
-        {
-          type: ComponentType.TextDisplay,
-          content: [
-            "**Informacoes do sistema**",
-            "- Solicite ausencia informando motivo, data de inicio e data de termino.",
-            "- Consulte seus registros em Minhas Ausencias.",
-            "- O controle utiliza apenas datas, sem horario de inicio ou termino."
-          ].join("\n")
-        },
-        {
-          type: ComponentType.ActionRow,
-          components: [
-            {
-              type: ComponentType.Button,
-              custom_id: REQUEST_BUTTON_ID,
-              label: "Solicitar Ausencia",
-              style: ButtonStyle.Primary
-            },
-            {
-              type: ComponentType.Button,
-              custom_id: MINE_BUTTON_ID,
-              label: "Minhas Ausencias",
-              style: ButtonStyle.Secondary
-            }
-          ]
-        }
-      ]
-    }
-  ];
-
   return {
-    components,
-    flags: [MessageFlags.IsComponentsV2] as const
+    allowedMentions: {
+      parse: []
+    },
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x2b2d31)
+        .setTitle("📅 Solicitar Ausência")
+        .setDescription("Informe a data de retorno e o motivo da sua ausência.")
+        .setTimestamp(new Date())
+    ],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(REQUEST_BUTTON_ID)
+          .setLabel("Solicitar Ausência")
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId(MINE_BUTTON_ID)
+          .setLabel("Minhas Ausências")
+          .setStyle(ButtonStyle.Secondary)
+      )
+    ]
   };
 }
 
@@ -813,6 +913,7 @@ function buildAbsenceEmbed(absence: FivemFacAbsence) {
       { name: "Usuario", value: `<@${absence.userId}>`, inline: true },
       { name: "Status", value: statusLabel(absence.status), inline: true },
       { name: "Periodo", value: `${formatDateOnly(absence.startDate)} ate ${formatDateOnly(absence.endDate)}`, inline: true },
+      { name: "Duracao", value: `${absenceDurationDays(absence.startDate, absence.endDate)} dia(s)`, inline: true },
       { name: "Motivo", value: truncate(absence.reason, 1024), inline: false }
     )
     .setFooter({ text: `ID: ${absence.id}` })
@@ -820,6 +921,12 @@ function buildAbsenceEmbed(absence: FivemFacAbsence) {
 
   if (absence.rejectionReason) {
     embed.addFields({ name: "Motivo da reprovacao", value: truncate(absence.rejectionReason, 1024), inline: false });
+  }
+
+  const photoUrl = toPublicImageUrl(absence.photoUrl);
+
+  if (photoUrl) {
+    embed.setImage(photoUrl);
   }
 
   return embed;
@@ -855,6 +962,65 @@ function hasApproverRole(interaction: ButtonInteraction | ModalSubmitInteraction
   return interactionRoleIds(interaction).some((roleId) => allowed.has(roleId));
 }
 
+function hasMemberRole(interaction: ButtonInteraction | ModalSubmitInteraction, settings: FivemFacSettings) {
+  const allowed = new Set(settings.memberRoleIds ?? []);
+
+  if (!allowed.size) {
+    return true;
+  }
+
+  return interactionRoleIds(interaction).some((roleId) => allowed.has(roleId));
+}
+
+function buildRequestSummaryPayload(
+  token: string,
+  request: Pick<PendingAbsenceRequest, "endDate" | "reason" | "startDate">
+) {
+  return {
+    content: "",
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x2b2d31)
+        .setTitle("Resumo da Ausência")
+        .setDescription([
+          `📅 **Início:** ${formatShortDateOnly(request.startDate)} (automático)`,
+          `📅 **Retorno:** ${formatShortDateOnly(request.endDate)}`,
+          `⏳ **Duração:** ${absenceDurationDays(request.startDate, request.endDate)} dia(s)`,
+          `📝 **Motivo:** ${truncate(request.reason, 500)}`
+        ].join("\n"))
+    ],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`${CONFIRM_PREFIX}:${token}`)
+          .setLabel("Enviar Solicitação")
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId(`${CANCEL_PREFIX}:${token}`)
+          .setLabel("Cancelar")
+          .setStyle(ButtonStyle.Secondary)
+      )
+    ]
+  };
+}
+
+function createPendingAbsenceRequest(request: PendingAbsenceRequest) {
+  cleanupPendingAbsenceRequests();
+  const token = randomUUID();
+  pendingAbsenceRequests.set(token, request);
+  return token;
+}
+
+function cleanupPendingAbsenceRequests() {
+  const now = Date.now();
+
+  for (const [token, request] of pendingAbsenceRequests) {
+    if (now - request.createdAt > PENDING_REQUEST_TTL_MS) {
+      pendingAbsenceRequests.delete(token);
+    }
+  }
+}
+
 function interactionRoleIds(interaction: ButtonInteraction | ModalSubmitInteraction) {
   const member = interaction.member;
   const roleIds = new Set<string>();
@@ -880,22 +1046,46 @@ function interactionRoleIds(interaction: ButtonInteraction | ModalSubmitInteract
   return [...roleIds];
 }
 
-function normalizeDateInput(value: string) {
+function normalizeReturnDateInput(value: string, today: string) {
   const trimmed = value.trim();
-  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const match = trimmed.match(/^(\d{1,2})\/(\d{1,2})$/);
 
-  if (isoMatch) {
-    return trimmed;
-  }
-
-  const brMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-
-  if (!brMatch) {
+  if (!match) {
     return null;
   }
 
-  const [, day, month, year] = brMatch;
-  return `${year}-${month}-${day}`;
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const currentYear = Number(today.slice(0, 4));
+  let dateKey = dateKeyFromParts(currentYear, month, day);
+
+  if (!dateKey) {
+    return null;
+  }
+
+  if (dateKey < today) {
+    dateKey = dateKeyFromParts(currentYear + 1, month, day);
+  }
+
+  return dateKey;
+}
+
+function dateKeyFromParts(year: number, month: number, day: number) {
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year
+    || date.getUTCMonth() !== month - 1
+    || date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return [
+    String(year).padStart(4, "0"),
+    String(month).padStart(2, "0"),
+    String(day).padStart(2, "0")
+  ].join("-");
 }
 
 function currentDateKey() {
@@ -917,6 +1107,56 @@ function formatAbsenceLine(absence: FivemFacAbsence) {
 function formatDateOnly(value: string) {
   const [year, month, day] = value.split("-");
   return `${day}/${month}/${year}`;
+}
+
+function formatShortDateOnly(value: string) {
+  const [, month, day] = value.split("-");
+  return `${day}/${month}`;
+}
+
+function absenceDurationDays(startDate: string, endDate: string) {
+  const start = dateKeyToUtcMs(startDate);
+  const end = dateKeyToUtcMs(endDate);
+
+  if (start === null || end === null || end < start) {
+    return 0;
+  }
+
+  return Math.round((end - start) / 86_400_000);
+}
+
+function dateKeyToUtcMs(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  return Date.UTC(year, month - 1, day);
+}
+
+function toPublicImageUrl(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  if (/^https?:\/\//i.test(value)) {
+    return value;
+  }
+
+  const backendOrigin = env.BACKEND_API_URL ? new URL(env.BACKEND_API_URL).origin : "";
+  return backendOrigin ? `${backendOrigin}${value.startsWith("/") ? value : `/${value}`}` : null;
+}
+
+function isFivemFacAbsencePayload(value: unknown): value is FivemFacAbsence {
+  return Boolean(
+    value
+      && typeof value === "object"
+      && "id" in value
+      && "guildId" in value
+      && "botId" in value
+      && "userId" in value
+  );
 }
 
 function statusLabel(status: FivemFacAbsence["status"]) {

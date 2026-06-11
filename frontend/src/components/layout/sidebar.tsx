@@ -5,6 +5,7 @@ import {
   Bot,
   Building2,
   Film,
+  Gift,
   LockKeyhole,
   Radio,
   ScrollText,
@@ -18,6 +19,7 @@ export type ViewId =
   | "overview"
   | "lives"
   | "clips"
+  | "giveaway"
   | "x-monitor"
   | "moderation"
   | "permissions"
@@ -37,6 +39,7 @@ const navItems: NavItem[] = [
   { id: "overview", label: "Visao geral", icon: Activity },
   { id: "lives", label: "Lives", icon: Radio, moduleId: "live" },
   { id: "clips", label: "Clips", icon: Film, moduleId: "clips" },
+  { id: "giveaway", label: "Sorteio", icon: Gift, moduleId: "giveaway" },
   { id: "x-monitor", label: "X Monitor", icon: AtSign, moduleId: "x-monitor" },
   { id: "moderation", label: "Moderacao", icon: Shield, moduleId: "moderation" },
   { id: "permissions", label: "Permissoes", icon: LockKeyhole, moduleId: "verification" },

@@ -47,6 +47,7 @@ import { Switch } from "../ui/switch";
 const fallbackModules: DevModuleDefinition[] = [
   { id: "live", label: "Sistema de Live" },
   { id: "clips", label: "Sistema de Clips" },
+  { id: "giveaway", label: "Sistema de Sorteio" },
   { id: "network", label: "Rede Social dos Membros" },
   { id: "x-monitor", label: "X Monitor" },
   { id: "verification", label: "Sistema de Verificacao" },

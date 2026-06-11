@@ -1,10 +1,15 @@
 import type { Interaction } from "discord.js";
 import { isBotModuleEnabled } from "../config/env";
 import { handleFivemFacInteraction } from "../services/fivemFacService";
+import { handleGiveawayInteraction } from "../services/giveawayService";
 import type { BotContext } from "../types";
 
 export async function handleInteractionCreate(interaction: Interaction, context: BotContext) {
   if (await handleFivemFacInteraction(interaction, context)) {
+    return;
+  }
+
+  if (await handleGiveawayInteraction(interaction, context)) {
     return;
   }
 

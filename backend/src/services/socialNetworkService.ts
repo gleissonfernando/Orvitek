@@ -6,12 +6,11 @@ import { createLog } from "./logService";
 
 const DISCORD_API_URL = "https://discord.com/api/v10";
 const COMPONENT_TYPE = {
-  TextDisplay: 10,
-  Separator: 14,
-  Container: 17
+  ActionRow: 1,
+  Button: 2
 } as const;
-const MESSAGE_FLAGS = {
-  IsComponentsV2: 1 << 15
+const BUTTON_STYLE = {
+  Link: 5
 } as const;
 export const SOCIAL_PLATFORMS = [
   "twitter",
@@ -130,20 +129,17 @@ type ServiceError = Error & {
   statusCode?: number;
 };
 
+type DiscordButtonComponentPayload = {
+  label: string;
+  style: typeof BUTTON_STYLE.Link;
+  type: typeof COMPONENT_TYPE.Button;
+  url: string;
+};
+
 type DiscordComponentPayload =
   | {
-      type: typeof COMPONENT_TYPE.TextDisplay;
-      content: string;
-    }
-  | {
-      type: typeof COMPONENT_TYPE.Separator;
-      divider?: boolean;
-      spacing?: number;
-    }
-  | {
-      type: typeof COMPONENT_TYPE.Container;
-      accent_color: number;
-      components: DiscordComponentPayload[];
+      components: DiscordButtonComponentPayload[];
+      type: typeof COMPONENT_TYPE.ActionRow;
     };
 
 const DEFAULT_EMBED_COLOR = "#00D4FF";
@@ -397,7 +393,14 @@ export async function saveSocialPanelConfig(guildId: string, input: SaveSocialPa
       }
     );
 
-    return getRequiredSocialPanel(guildId, normalizedBotId);
+    const saved = await getRequiredSocialPanel(guildId, normalizedBotId);
+    await writePanelAudit("social.network.panel_configured", "Configurou o painel Network", saved, input.userId);
+
+    if (saved.published && saved.channelId) {
+      emitSocialPanelEvent(saved, "update");
+    }
+
+    return saved;
   } catch {
     const key = panelKey(guildId, normalizedBotId);
     const current = memoryPanels.get(key);
@@ -417,6 +420,12 @@ export async function saveSocialPanelConfig(guildId: string, input: SaveSocialPa
     };
 
     memoryPanels.set(key, next);
+    await writePanelAudit("social.network.panel_configured", "Configurou o painel Network", next, input.userId);
+
+    if (next.published && next.channelId) {
+      emitSocialPanelEvent(next, "update");
+    }
+
     return next;
   }
 }
@@ -480,7 +489,7 @@ export async function sendSocialPanelTest(guildId: string, input: TestSocialPane
     updatedAt: new Date().toISOString()
   };
   const members = await listSocialMembers(guildId, normalizedBotId);
-  const messageId = await sendSocialPanelV2ToDiscord({
+  const messageId = await sendSocialPanelPreviewToDiscord({
     botToken: input.botToken,
     members,
     panel
@@ -764,7 +773,7 @@ function buildPanelStatePatch(input: UpdateSocialPanelStateInput): Partial<Mongo
   return patch;
 }
 
-async function sendSocialPanelV2ToDiscord({
+async function sendSocialPanelPreviewToDiscord({
   botToken,
   members,
   panel
@@ -793,8 +802,8 @@ async function sendSocialPanelV2ToDiscord({
       allowed_mentions: {
         parse: []
       },
-      components: buildSocialPanelV2Components(panel, members),
-      flags: MESSAGE_FLAGS.IsComponentsV2
+      components: buildSocialPanelComponents(members),
+      embeds: [buildSocialPanelEmbed(panel, members)]
     })
   });
 
@@ -806,88 +815,103 @@ async function sendSocialPanelV2ToDiscord({
   return data?.id ?? null;
 }
 
-function buildSocialPanelV2Components(panel: SocialPanelDto, members: SocialMemberDto[]): DiscordComponentPayload[] {
-  const components: DiscordComponentPayload[] = [
-    {
-      type: COMPONENT_TYPE.TextDisplay,
-      content: [
-        "## Network",
-        "Todas as redes sociais dos nossos membros.",
-        "",
-        "-# Mensagem de teste enviada pela dashboard."
-      ].join("\n")
+function buildSocialPanelEmbed(panel: SocialPanelDto, members: SocialMemberDto[]) {
+  return {
+    color: parseEmbedColor(panel.embedColor),
+    description: buildSocialPanelDescription(members),
+    footer: {
+      text: `Network atualizada em ${formatDateTime(new Date())}`
     },
-    {
-      type: COMPONENT_TYPE.Separator,
-      divider: true,
-      spacing: 1
-    }
-  ];
+    timestamp: new Date().toISOString(),
+    title: "Network"
+  };
+}
+
+function buildSocialPanelDescription(members: SocialMemberDto[]) {
+  const separator = "--------------";
+  let description = `Todas as redes sociais dos nossos membros.\n\n${separator}`;
 
   if (!members.length) {
-    components.push({
-      type: COMPONENT_TYPE.TextDisplay,
-      content: "Nenhum membro cadastrado ainda."
-    });
-  } else {
-    for (let index = 0; index < members.length; index += 1) {
-      const member = members[index];
+    return `${description}\n\nNenhum membro cadastrado ainda.\n\n${separator}`;
+  }
 
-      if (!member) {
-        continue;
-      }
+  for (let index = 0; index < members.length; index += 1) {
+    const member = members[index];
 
-      const section = formatMemberV2Section(member);
-      const projectedLength = components.reduce((total, component) => total + ("content" in component ? component.content.length : 0), 0) + section.length;
+    if (!member) {
+      continue;
+    }
 
-      if (projectedLength > 3600 || components.length >= 22) {
-        const remaining = members.length - index;
-        components.push({
-          type: COMPONENT_TYPE.TextDisplay,
-          content: `Mais ${remaining} membro${remaining === 1 ? "" : "s"} cadastrado${remaining === 1 ? "" : "s"} no painel.`
-        });
+    const section = `\n\n${formatMemberSection(member)}\n\n${separator}`;
+
+    if (description.length + section.length > 3900) {
+      const remaining = members.length - index;
+      description += `\n\nMais ${remaining} membro${remaining === 1 ? "" : "s"} cadastrado${remaining === 1 ? "" : "s"} no painel.`;
+      break;
+    }
+
+    description += section;
+  }
+
+  return description;
+}
+
+function buildSocialPanelComponents(members: SocialMemberDto[]): DiscordComponentPayload[] {
+  const buttons: DiscordButtonComponentPayload[] = [];
+
+  for (const member of members) {
+    for (const link of activeMemberLinks(member)) {
+      if (buttons.length >= 25) {
         break;
       }
 
-      components.push({
-        type: COMPONENT_TYPE.TextDisplay,
-        content: section
+      buttons.push({
+        label: truncateButtonLabel(`${member.name} - ${link.label}`),
+        style: BUTTON_STYLE.Link,
+        type: COMPONENT_TYPE.Button,
+        url: link.url
       });
+    }
+
+    if (buttons.length >= 25) {
+      break;
     }
   }
 
-  components.push(
-    {
-      type: COMPONENT_TYPE.Separator,
-      divider: true,
-      spacing: 1
-    },
-    {
-      type: COMPONENT_TYPE.TextDisplay,
-      content: `-# Network atualizada em ${formatDateTime(new Date())}`
-    }
-  );
+  const rows: DiscordComponentPayload[] = [];
 
-  return [
-    {
-      type: COMPONENT_TYPE.Container,
-      accent_color: parseEmbedColor(panel.embedColor),
-      components
-    }
-  ];
+  for (let index = 0; index < buttons.length; index += 5) {
+    rows.push({
+      components: buttons.slice(index, index + 5),
+      type: COMPONENT_TYPE.ActionRow
+    });
+  }
+
+  return rows;
 }
 
-function formatMemberV2Section(member: SocialMemberDto) {
+function formatMemberSection(member: SocialMemberDto) {
   const links = activeMemberLinks(member);
-  const lines = [`**${escapeMarkdownText(member.name)}**${member.role ? ` - ${escapeMarkdownText(member.role)}` : ""}`];
+  const lines = [`**${escapeMarkdownText(member.name)}**`];
+
+  if (member.role) {
+    lines.push(`Cargo: ${escapeMarkdownText(member.role)}`);
+  }
 
   if (!links.length) {
-    lines.push("-# Sem redes cadastradas.");
+    lines.push("Sem redes cadastradas.");
     return lines.join("\n");
   }
 
-  lines.push(links.map((link) => `[${link.label}](${link.url})`).join("  |  "));
+  for (const link of links) {
+    lines.push(`[${link.label}](${link.url})`);
+  }
+
   return lines.join("\n");
+}
+
+function truncateButtonLabel(value: string) {
+  return value.length > 80 ? `${value.slice(0, 77)}...` : value;
 }
 
 function activeMemberLinks(member: SocialMemberDto) {

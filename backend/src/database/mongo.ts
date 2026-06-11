@@ -239,6 +239,56 @@ export type MongoClipLog = {
   createdAt: Date;
 };
 
+export type MongoGiveawayStatus = "waiting" | "running" | "ended";
+
+export type MongoGiveawayParticipant = {
+  id: string;
+  username: string;
+  displayName: string;
+  subscriber: boolean;
+  source: "twitch";
+  validatedAt: Date;
+};
+
+export type MongoGiveawayWinner = {
+  participantId: string;
+  username: string;
+  displayName: string;
+  wonAt: Date;
+};
+
+export type MongoGiveaway = {
+  _id: string;
+  botId?: string | null;
+  guildId: string;
+  ownerId: string;
+  discordChannelId: string | null;
+  title: string;
+  liveName: string;
+  liveUrl: string;
+  livePlatform: "twitch";
+  twitchBroadcasterId: string;
+  prizeName: string;
+  participants: MongoGiveawayParticipant[];
+  winners: MongoGiveawayWinner[];
+  status: MongoGiveawayStatus;
+  rouletteToken: string;
+  rouletteUrl: string;
+  panelMessageId: string | null;
+  winnerCount: number;
+  allowRepeatWinners: boolean;
+  startDelayMinutes: number;
+  endDelayMinutes: number;
+  scheduledStartAt: Date | null;
+  scheduledEndAt: Date | null;
+  customMessage: string | null;
+  schedulerError?: string | null;
+  createdAt: Date;
+  startedAt: Date | null;
+  endedAt: Date | null;
+  updatedAt: Date;
+};
+
 export type MongoFivemFacMessages = {
   panelTitle: string;
   panelDescription: string;
@@ -259,6 +309,7 @@ export type MongoFivemFacSettings = {
   absenceRoleId: string | null;
   viewerRoleIds: string[];
   approverRoleIds: string[];
+  memberRoleIds?: string[];
   logChannelId: string | null;
   messages: MongoFivemFacMessages;
   lastPanelRequestedAt?: Date | null;
@@ -288,6 +339,7 @@ export type MongoFivemFacAbsence = {
   startDate: string;
   endDate: string;
   notes: string | null;
+  photoUrl?: string | null;
   status: MongoFivemFacAbsenceStatus;
   privateChannelId: string | null;
   requestMessageId: string | null;
@@ -413,6 +465,7 @@ export async function getMongoCollections() {
     clipsConfig: db.collection<MongoClipsConfig>("clips_config"),
     clipsSent: db.collection<MongoClipSent>("clips_sent"),
     clipsLogs: db.collection<MongoClipLog>("clips_logs"),
+    giveaways: db.collection<MongoGiveaway>("giveaways"),
     fivemFacSettings: db.collection<MongoFivemFacSettings>("fivem_fac_settings"),
     fivemFacAbsences: db.collection<MongoFivemFacAbsence>("fivem_fac_absences"),
     devBots: db.collection<MongoDevBot>("Bot"),
@@ -474,6 +527,7 @@ async function createMongoIndexes(db: Db) {
     ensureSocialNetworkIndexes(db),
     ensureXMonitorIndexes(db),
     ensureClipsIndexes(db),
+    ensureGiveawayIndexes(db),
     ensureFivemFacIndexes(db),
     db.collection<MongoSocialNotification>("social_notifications").createIndex({
       guildId: 1,
@@ -683,6 +737,15 @@ async function ensureClipsIndexes(db: Db) {
     db.collection<MongoClipSent>("clips_sent").createIndex({ botId: 1, guildId: 1, clipId: 1 }, { unique: true }),
     db.collection<MongoClipSent>("clips_sent").createIndex({ botId: 1, guildId: 1, sentAt: -1 }),
     db.collection<MongoClipLog>("clips_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 })
+  ]);
+}
+
+async function ensureGiveawayIndexes(db: Db) {
+  await Promise.all([
+    db.collection<MongoGiveaway>("giveaways").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoGiveaway>("giveaways").createIndex({ botId: 1, status: 1, scheduledStartAt: 1 }),
+    db.collection<MongoGiveaway>("giveaways").createIndex({ botId: 1, status: 1, scheduledEndAt: 1 }),
+    db.collection<MongoGiveaway>("giveaways").createIndex({ rouletteToken: 1 }, { unique: true })
   ]);
 }
 

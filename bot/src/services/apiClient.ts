@@ -78,6 +78,56 @@ export type ClipsConfig = {
   updatedAt: string;
 };
 
+export type GiveawayParticipant = {
+  id: string;
+  username: string;
+  displayName: string;
+  subscriber: boolean;
+  source: "twitch";
+  validatedAt: string;
+};
+
+export type GiveawayWinner = {
+  participantId: string;
+  username: string;
+  displayName: string;
+  wonAt: string;
+};
+
+export type GiveawayStatus = "waiting" | "running" | "ended";
+
+export type Giveaway = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  ownerId: string;
+  discordChannelId: string | null;
+  title: string;
+  liveName: string;
+  liveUrl: string;
+  livePlatform: "twitch";
+  twitchBroadcasterId: string;
+  prizeName: string;
+  participants: GiveawayParticipant[];
+  winners: GiveawayWinner[];
+  status: GiveawayStatus;
+  rouletteToken: string;
+  rouletteUrl: string;
+  panelMessageId: string | null;
+  winnerCount: number;
+  allowRepeatWinners: boolean;
+  startDelayMinutes: number;
+  endDelayMinutes: number;
+  scheduledStartAt: string | null;
+  scheduledEndAt: string | null;
+  customMessage: string | null;
+  schedulerError: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  updatedAt: string;
+};
+
 export type SocialPlatform =
   | "twitter"
   | "instagram"
@@ -176,6 +226,7 @@ export type FivemFacSettings = {
   absenceRoleId: string | null;
   viewerRoleIds: string[];
   approverRoleIds: string[];
+  memberRoleIds: string[];
   logChannelId: string | null;
   messages: FivemFacMessages;
   lastPanelRequestedAt: string | null;
@@ -195,6 +246,7 @@ export type FivemFacAbsence = {
   startDate: string;
   endDate: string;
   notes: string | null;
+  photoUrl: string | null;
   status: FivemFacAbsenceStatus;
   privateChannelId: string | null;
   requestMessageId: string | null;
@@ -330,6 +382,21 @@ export class ApiClient {
   }) {
     const { data } = await this.http.post(`/clips/bot/configs/${configId}/sent`, input);
     return data;
+  }
+
+  async getActiveGiveaways() {
+    const { data } = await this.http.get<{ giveaways: Giveaway[] }>("/giveaways/bot/active");
+    return data.giveaways;
+  }
+
+  async getGiveaway(giveawayId: string) {
+    const { data } = await this.http.get<{ giveaway: Giveaway }>(`/giveaways/bot/${giveawayId}`);
+    return data.giveaway;
+  }
+
+  async updateGiveawayPanelState(giveawayId: string, input: { panelMessageId?: string | null }) {
+    const { data } = await this.http.patch<{ giveaway: Giveaway }>(`/giveaways/bot/${giveawayId}/panel-state`, input);
+    return data.giveaway;
   }
 
   async getSocialPanels() {

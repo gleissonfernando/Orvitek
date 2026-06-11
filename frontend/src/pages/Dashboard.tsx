@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Film,
+  Gift,
   Globe2,
   Hash,
   Loader2,
@@ -27,6 +28,7 @@ import { DashboardLayout } from "../components/layout/dashboard-layout";
 import type { ViewId } from "../components/layout/sidebar";
 import { ClipsPanel } from "../components/clips/ClipsPanel";
 import { FacAbsencePanel } from "../components/fivem/FacAbsencePanel";
+import { GiveawayPanel } from "../components/giveaway/GiveawayPanel";
 import { SiteAccessPanel } from "../components/moderation/SiteAccessPanel";
 import { AutoRolesPanel } from "../components/roles/AutoRolesPanel";
 import { LiveNotificationsPanel } from "../components/social/LiveNotificationsPanel";
@@ -134,6 +136,13 @@ const moduleCatalog: ModuleDefinition[] = [
     view: "clips"
   },
   {
+    id: "giveaway",
+    title: "Sorteio",
+    description: "Cria roleta web para sortear apenas subs da live cadastrada.",
+    icon: Gift,
+    view: "giveaway"
+  },
+  {
     id: "x-monitor",
     title: "X Monitor",
     description: "Monitora perfis do X e publica novos posts no Discord.",
@@ -216,6 +225,7 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   permissions: "verification",
   lives: "live",
   clips: "clips",
+  giveaway: "giveaway",
   "x-monitor": "x-monitor",
   logs: "logs",
   fivem: "fivem-fac",
@@ -549,6 +559,9 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
         {activeView === "clips" ? (
           <ClipsPanel botId={activeBotId} canManage={canManageModule(selectedBot, "clips", canManageDashboard)} guild={selectedGuild} refreshSignal={clipsRefreshSignal} />
         ) : null}
+        {activeView === "giveaway" ? (
+          <GiveawayPanel botId={activeBotId} canManage={canManageModule(selectedBot, "giveaway", canManageDashboard)} guild={selectedGuild} />
+        ) : null}
         {activeView === "x-monitor" ? (
           <XMonitorPanel botId={activeBotId} canManage={canManageModule(selectedBot, "x-monitor", canManageDashboard)} guild={selectedGuild} />
         ) : null}
@@ -670,7 +683,7 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
   }
 
   if (bot.accessLevel === "premium") {
-    return ["live", "clips", "network", "x-monitor", "fivem", "fivem-fac"].includes(moduleId);
+    return ["live", "clips", "giveaway", "network", "x-monitor", "fivem", "fivem-fac"].includes(moduleId);
   }
 
   return false;
@@ -1328,6 +1341,12 @@ function friendlyLog(log: LogEntry) {
     "clips.config_saved": { badge: "Clips", title: "Sistema de clips atualizado" },
     "clips.enabled": { badge: "Clips", title: "Sistema de clips ativado" },
     "clips.disabled": { badge: "Clips", title: "Sistema de clips desativado" },
+    "giveaway.created": { badge: "Sorteio", title: "Sorteio criado" },
+    "giveaway.updated": { badge: "Sorteio", title: "Sorteio atualizado" },
+    "giveaway.panel_requested": { badge: "Sorteio", title: "Painel do sorteio solicitado" },
+    "giveaway.started": { badge: "Sorteio", title: "Sorteio iniciado" },
+    "giveaway.ended": { badge: "Sorteio", title: "Sorteio encerrado" },
+    "giveaway.winner": { badge: "Sorteio", title: "Ganhador sorteado" },
     "fivem.fac.settings_updated": { badge: "FiveM", title: "FAC atualizado" },
     "fivem.fac.request_created": { badge: "FiveM", title: "Solicitacao de ausencia criada" },
     "fivem.fac.request_approved": { badge: "FiveM", title: "Solicitacao de ausencia aprovada" },
@@ -1346,6 +1365,10 @@ function friendlyLog(log: LogEntry) {
 
   if (log.type.includes("clip") || lowerMessage.includes("clip")) {
     return { badge: "Clips", title: message || "Sistema de clips atualizado", description: message };
+  }
+
+  if (log.type.includes("giveaway") || lowerMessage.includes("sorteio")) {
+    return { badge: "Sorteio", title: message || "Sorteio atualizado", description: message };
   }
 
   if (log.type.includes("live") || lowerMessage.includes("twitch")) {

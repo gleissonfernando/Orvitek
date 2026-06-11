@@ -170,6 +170,7 @@ const envSchema = z
     X_BEARER_TOKEN: z.string().default(""),
     TWITCH_CLIENT_ID: z.string().default(""),
     TWITCH_CLIENT_SECRET: z.string().default(""),
+    TWITCH_BROADCASTER_ACCESS_TOKEN: z.string().default(""),
     FRONTEND_URL: envUrl("FRONTEND_URL", defaultSiteOrigin),
     DASHBOARD_DEV_USER_IDS: z.string().optional().default(""),
     DASHBOARD_GUILD_IDS: z.string().optional().default(defaultDashboardGuildIds),

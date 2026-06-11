@@ -1,8 +1,8 @@
-import { Router } from "express";
+import { Router, raw } from "express";
 import { z } from "zod";
 import { requireAuth, requireBot } from "../middleware/auth";
 import { canReadDevBotModule, canUseDevBotModule, getBotApiPermissions, getDevBotToken } from "../services/devBotService";
-import { areGuildAssignableRoles, areGuildRoles, isGuildTextChannel } from "../services/discordOptionsService";
+import { areGuildAssignableRoles, areGuildRoles, getGuildLiveOptions, isGuildTextChannel, validateGuildPanelChannel } from "../services/discordOptionsService";
 import {
   approveFivemFacAbsence,
   closeFivemFacAbsence,
@@ -17,8 +17,10 @@ import {
   markFivemFacAbsenceStarted,
   rejectFivemFacAbsence,
   requestFivemFacPanelPublish,
+  saveFivemFacAbsencePhotoFile,
   saveFivemFacSettings,
   updateFivemFacAbsenceChannel,
+  updateFivemFacAbsencePhoto,
   updateFivemFacPanelMessageState
 } from "../services/fivemFacService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
@@ -34,6 +36,7 @@ const facSettingsSchema = z.object({
   absenceRoleId: optionalSnowflakeSchema,
   viewerRoleIds: z.array(snowflakeSchema).optional(),
   approverRoleIds: z.array(snowflakeSchema).optional(),
+  memberRoleIds: z.array(snowflakeSchema).optional(),
   logChannelId: optionalSnowflakeSchema,
   messages: z.object({
     panelTitle: z.string().max(120).optional(),
@@ -74,6 +77,11 @@ const lifecycleSchema = z.object({
   roleAdded: z.boolean().optional(),
   roleRemoved: z.boolean().optional()
 });
+const facPhotoUpload = raw({
+  limit: "10mb",
+  type: ["image/gif", "image/jpeg", "image/png", "image/webp"]
+});
+const allowedFacPhotoMimeTypes = new Set(["image/gif", "image/jpeg", "image/png", "image/webp"]);
 
 export const fivemRouter = Router();
 
@@ -86,6 +94,22 @@ fivemRouter.get("/:guildId/fac", requireAuth, async (req, res, next) => {
     await assertCanReadFac(user, guildId, botId);
 
     return res.json(await getFivemFacDashboard(guildId, botId));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.get("/:guildId/fac/options", requireAuth, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const botId = await readRequiredBotId(req);
+    const user = res.locals.dashboardAuth.user as AuthSessionUser;
+
+    await assertCanReadFac(user, guildId, botId);
+
+    return res.json({
+      options: await getGuildLiveOptions(guildId, await getDevBotToken(botId))
+    });
   } catch (error) {
     return next(error);
   }
@@ -116,9 +140,60 @@ fivemRouter.post("/:guildId/fac/panel", requireAuth, async (req, res, next) => {
     const user = res.locals.dashboardAuth.user as AuthSessionUser;
 
     await assertCanManageFac(user, guildId, botId);
+    const settings = await getFivemFacSettings(guildId, botId);
+
+    if (settings.panelChannelId) {
+      await assertPanelChannelReady(guildId, botId, settings.panelChannelId);
+    }
 
     return res.json({
       settings: await requestFivemFacPanelPublish(guildId, botId, user.discordId)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.put("/:guildId/fac/absences/:absenceId/photo", requireAuth, facPhotoUpload, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const absenceId = z.string().min(1).parse(req.params.absenceId);
+    const botId = await readRequiredBotId(req);
+    const user = res.locals.dashboardAuth.user as AuthSessionUser;
+
+    await assertCanManageFac(user, guildId, botId);
+
+    const mimeType = req.header("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
+
+    if (!allowedFacPhotoMimeTypes.has(mimeType)) {
+      throw createRouteError("Formato invalido. Envie PNG, JPG, JPEG, WEBP ou GIF.", 400);
+    }
+
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      throw createRouteError("Arquivo de imagem obrigatorio.", 400);
+    }
+
+    const photoUrl = await saveFivemFacAbsencePhotoFile(guildId, absenceId, req.body, mimeType);
+
+    return res.json({
+      absence: await updateFivemFacAbsencePhoto(absenceId, botId, guildId, photoUrl)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.delete("/:guildId/fac/absences/:absenceId/photo", requireAuth, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const absenceId = z.string().min(1).parse(req.params.absenceId);
+    const botId = await readRequiredBotId(req);
+    const user = res.locals.dashboardAuth.user as AuthSessionUser;
+
+    await assertCanManageFac(user, guildId, botId);
+
+    return res.json({
+      absence: await updateFivemFacAbsencePhoto(absenceId, botId, guildId, null)
     });
   } catch (error) {
     return next(error);
@@ -404,10 +479,15 @@ async function validateFacResources(guildId: string, botId: string, input: z.inf
     throw createRouteError("Um dos canais selecionados nao pertence a este servidor.", 400);
   }
 
+  if (input.panelChannelId) {
+    await assertPanelChannelReady(guildId, botId, input.panelChannelId);
+  }
+
   const roleIds = [
     input.absenceRoleId,
     ...(input.viewerRoleIds ?? []),
-    ...(input.approverRoleIds ?? [])
+    ...(input.approverRoleIds ?? []),
+    ...(input.memberRoleIds ?? [])
   ].filter((roleId): roleId is string => typeof roleId === "string" && Boolean(roleId));
 
   if (roleIds.length && !(await areGuildRoles(guildId, [...new Set(roleIds)], botToken))) {
@@ -419,6 +499,17 @@ async function validateFacResources(guildId: string, botId: string, input: z.inf
     && !(await areGuildAssignableRoles(guildId, [input.absenceRoleId], botToken))
   ) {
     throw createRouteError("O cargo de ausencia precisa ficar abaixo do cargo do bot e o bot precisa gerenciar cargos.", 400);
+  }
+}
+
+async function assertPanelChannelReady(guildId: string, botId: string, channelId: string) {
+  const validation = await validateGuildPanelChannel(guildId, channelId, await getDevBotToken(botId));
+
+  if (!validation.ok) {
+    throw createRouteError(
+      validation.reason ?? "Nao foi possivel validar as permissoes do bot no canal do painel.",
+      400
+    );
   }
 }
 

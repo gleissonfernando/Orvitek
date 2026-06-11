@@ -4,21 +4,16 @@ import {
   ButtonStyle,
   EmbedBuilder,
   type Client,
-  type Message,
+  type GuildTextBasedChannel,
   type MessageCreateOptions,
   type MessageEditOptions
 } from "discord.js";
 import { env } from "../config/env";
 import type { BotSocketClient, SocialPanelUpdateEvent } from "../websocket/socketClient";
 import type { ApiClient, SocialMember, SocialPanelPayload, SocialPlatform } from "./apiClient";
+import { assertPanelChannelPermissions, pinPanelMessage } from "./panelDeliveryService";
 
-type WritableGuildTextChannel = {
-  guildId: string;
-  messages: {
-    fetch: (messageId: string) => Promise<Message>;
-  };
-  send: (options: MessageCreateOptions) => Promise<Message>;
-};
+type WritableGuildTextChannel = GuildTextBasedChannel;
 
 const syncingPanels = new Set<string>();
 const SOCIAL_META: Array<{
@@ -151,11 +146,14 @@ async function syncSocialPanel(client: Client, api: ApiClient, payload: SocialPa
     return;
   }
 
+  assertPanelChannelPermissions(channel, client, "Network");
+
   const messagePayload = buildPanelMessage(payload);
   const existingMessage = panel.messageId ? await fetchMessage(channel, panel.messageId) : null;
 
   if (existingMessage) {
-    await existingMessage.edit(messagePayload as MessageEditOptions);
+    const edited = await existingMessage.edit(messagePayload as MessageEditOptions);
+    await pinPanelMessage(edited, "Network");
     await api.updateSocialPanelState(panel.id, {
       messageId: existingMessage.id,
       published: true
@@ -164,6 +162,7 @@ async function syncSocialPanel(client: Client, api: ApiClient, payload: SocialPa
   }
 
   const message = await channel.send(messagePayload);
+  await pinPanelMessage(message, "Network");
   await api.updateSocialPanelState(panel.id, {
     messageId: message.id,
     published: true

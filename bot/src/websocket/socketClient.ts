@@ -61,6 +61,20 @@ export type FivemFacPanelPublishEvent = {
   settings?: unknown;
 };
 
+export type FivemFacAbsenceUpdateEvent = {
+  absence?: unknown;
+  action: string;
+  botId?: string | null;
+  guildId: string;
+};
+
+export type GiveawayPanelUpdateEvent = {
+  action: "publish" | "update";
+  botId?: string | null;
+  giveawayId: string;
+  guildId: string;
+};
+
 export class BotSocketClient {
   private socket: Socket | null = null;
   private socialPanelUpdateHandler: ((payload: SocialPanelUpdateEvent) => void) | null = null;
@@ -68,6 +82,8 @@ export class BotSocketClient {
   private xMonitorPostHandler: ((payload: XMonitorPostEvent) => void) | null = null;
   private fivemFacSettingsHandler: ((payload: FivemFacSettingsEvent) => void) | null = null;
   private fivemFacPanelPublishHandler: ((payload: FivemFacPanelPublishEvent) => void) | null = null;
+  private fivemFacAbsenceUpdateHandler: ((payload: FivemFacAbsenceUpdateEvent) => void) | null = null;
+  private giveawayPanelUpdateHandler: ((payload: GiveawayPanelUpdateEvent) => void) | null = null;
 
   connect(client: Client) {
     if (!env.BACKEND_SOCKET_URL) {
@@ -134,6 +150,14 @@ export class BotSocketClient {
 
     if (this.fivemFacPanelPublishHandler) {
       this.socket.on("fivem:fac:panel_publish", this.fivemFacPanelPublishHandler);
+    }
+
+    if (this.fivemFacAbsenceUpdateHandler) {
+      this.socket.on("fivem:fac:absence_updated", this.fivemFacAbsenceUpdateHandler);
+    }
+
+    if (this.giveawayPanelUpdateHandler) {
+      this.socket.on("giveaway:panel_update", this.giveawayPanelUpdateHandler);
     }
   }
 
@@ -204,6 +228,18 @@ export class BotSocketClient {
     this.fivemFacPanelPublishHandler = handler;
     this.socket?.off("fivem:fac:panel_publish");
     this.socket?.on("fivem:fac:panel_publish", handler);
+  }
+
+  onFivemFacAbsenceUpdated(handler: (payload: FivemFacAbsenceUpdateEvent) => void) {
+    this.fivemFacAbsenceUpdateHandler = handler;
+    this.socket?.off("fivem:fac:absence_updated");
+    this.socket?.on("fivem:fac:absence_updated", handler);
+  }
+
+  onGiveawayPanelUpdate(handler: (payload: GiveawayPanelUpdateEvent) => void) {
+    this.giveawayPanelUpdateHandler = handler;
+    this.socket?.off("giveaway:panel_update");
+    this.socket?.on("giveaway:panel_update", handler);
   }
 
   disconnect(client: Client) {

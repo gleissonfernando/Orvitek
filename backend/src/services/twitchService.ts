@@ -37,6 +37,12 @@ export type TwitchClipDto = {
   createdAt: string;
 };
 
+export type TwitchSubscriberDto = {
+  id: string;
+  login: string;
+  displayName: string;
+};
+
 let tokenCache: TwitchToken | null = null;
 
 export function normalizeTwitchChannel(input: string): string {
@@ -76,6 +82,17 @@ type TwitchClipsResponse = {
     view_count: number;
     created_at: string;
   }>;
+};
+
+type TwitchSubscriptionsResponse = {
+  data: Array<{
+    user_id: string;
+    user_login: string;
+    user_name: string;
+  }>;
+  pagination?: {
+    cursor?: string;
+  };
 };
 
 export async function getTwitchUser(channelName: string) {
@@ -160,6 +177,57 @@ export async function getTwitchClips(input: {
     viewCount: Number(clip.view_count || 0),
     createdAt: clip.created_at
   } satisfies TwitchClipDto));
+}
+
+export async function getTwitchSubscribers(input: {
+  accessToken?: string | null;
+  broadcasterId: string;
+  max?: number;
+}) {
+  const token = input.accessToken?.trim() || env.TWITCH_BROADCASTER_ACCESS_TOKEN.trim();
+
+  if (!env.TWITCH_CLIENT_ID) {
+    throw new Error("TWITCH_CLIENT_ID nao configurado.");
+  }
+
+  if (!token) {
+    throw new Error("TWITCH_BROADCASTER_ACCESS_TOKEN nao configurado para validar subs da live.");
+  }
+
+  const max = Math.max(1, Math.min(input.max ?? 1000, 5000));
+  const subscribers = new Map<string, TwitchSubscriberDto>();
+  let after: string | undefined;
+
+  do {
+    const { data } = await axios.get<TwitchSubscriptionsResponse>("https://api.twitch.tv/helix/subscriptions", {
+      headers: {
+        "Client-ID": env.TWITCH_CLIENT_ID,
+        Authorization: `Bearer ${token}`
+      },
+      params: {
+        broadcaster_id: input.broadcasterId,
+        first: Math.min(100, max - subscribers.size),
+        ...(after ? { after } : {})
+      },
+      timeout: 10_000
+    });
+
+    for (const subscriber of data.data) {
+      subscribers.set(subscriber.user_id, {
+        id: subscriber.user_id,
+        login: subscriber.user_login,
+        displayName: subscriber.user_name || subscriber.user_login
+      });
+
+      if (subscribers.size >= max) {
+        break;
+      }
+    }
+
+    after = data.pagination?.cursor;
+  } while (after && subscribers.size < max);
+
+  return [...subscribers.values()];
 }
 
 async function getAppAccessToken() {

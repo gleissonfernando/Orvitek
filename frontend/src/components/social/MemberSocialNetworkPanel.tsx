@@ -341,7 +341,7 @@ export function MemberSocialNetworkPanel({ botId, canManage, guild }: MemberSoci
         channelId,
         embedColor
       }, botId);
-      setStatus("Painel Network V2 enviado para teste no Discord.");
+      setStatus("Painel Network enviado para teste no Discord.");
     } catch (requestError) {
       setError(readErrorMessage(requestError));
     } finally {
@@ -480,7 +480,7 @@ export function MemberSocialNetworkPanel({ botId, canManage, guild }: MemberSoci
             </Button>
             <Button disabled={testing || !channelId} onClick={handleTestPanel} type="button" variant="outline">
               {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              Testar Painel V2
+              Testar Painel
             </Button>
             <Button disabled={publishing || !channelId} onClick={handlePublishPanel} type="button">
               {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : panel?.published ? <RefreshCw className="h-4 w-4" /> : <Send className="h-4 w-4" />}

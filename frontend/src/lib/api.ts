@@ -11,8 +11,11 @@ import type {
   DashboardMeResponse,
   DevBot,
   DevModuleDefinition,
+  FivemFacAbsence,
   FivemFacResponse,
   FivemFacSettings,
+  Giveaway,
+  GiveawaySpinResult,
   GuildLiveOptions,
   GuildMemberOption,
   GuildRoleOption,
@@ -21,6 +24,7 @@ import type {
   LogEntry,
   SaveClipsConfigPayload,
   SaveFivemFacSettingsPayload,
+  SaveGiveawayPayload,
   SaveSocialPanelPayload,
   SocialMember,
   SocialMemberPayload,
@@ -363,6 +367,67 @@ export async function validateClipTwitchChannel(channel: string) {
   return data.channel;
 }
 
+export async function getGiveaways(guildId: string, botId?: string | null) {
+  const { data } = await api.get<{ giveaways: Giveaway[] }>(`/giveaways/${guildId}`, {
+    params: botParams(botId)
+  });
+  return data.giveaways;
+}
+
+export async function createGiveaway(guildId: string, payload: SaveGiveawayPayload, botId?: string | null) {
+  const { data } = await api.post<{ giveaway: Giveaway }>(`/giveaways/${guildId}`, payload, {
+    params: botParams(botId),
+    timeout: 20000
+  });
+  return data.giveaway;
+}
+
+export async function updateGiveaway(guildId: string, giveawayId: string, payload: SaveGiveawayPayload, botId?: string | null) {
+  const { data } = await api.patch<{ giveaway: Giveaway }>(`/giveaways/${guildId}/${giveawayId}`, payload, {
+    params: botParams(botId),
+    timeout: 20000
+  });
+  return data.giveaway;
+}
+
+export async function publishGiveawayPanel(guildId: string, giveawayId: string, botId?: string | null) {
+  const { data } = await api.post<{ giveaway: Giveaway }>(`/giveaways/${guildId}/${giveawayId}/panel`, undefined, {
+    params: botParams(botId),
+    timeout: 15000
+  });
+  return data.giveaway;
+}
+
+export async function startGiveaway(guildId: string, giveawayId: string, botId?: string | null) {
+  const { data } = await api.post<{ giveaway: Giveaway }>(`/giveaways/${guildId}/${giveawayId}/start`, undefined, {
+    params: botParams(botId),
+    timeout: 30000
+  });
+  return data.giveaway;
+}
+
+export async function endGiveaway(guildId: string, giveawayId: string, botId?: string | null) {
+  const { data } = await api.post<{ giveaway: Giveaway }>(`/giveaways/${guildId}/${giveawayId}/end`, undefined, {
+    params: botParams(botId),
+    timeout: 15000
+  });
+  return data.giveaway;
+}
+
+export async function getRouletteGiveaway(token: string) {
+  const { data } = await api.get<{ giveaway: Giveaway }>(`/giveaways/roulette/${encodeURIComponent(token)}`, {
+    timeout: 15000
+  });
+  return data.giveaway;
+}
+
+export async function spinRoulette(token: string) {
+  const { data } = await api.post<GiveawaySpinResult>(`/giveaways/roulette/${encodeURIComponent(token)}/spin`, undefined, {
+    timeout: 30000
+  });
+  return data;
+}
+
 export async function createTwitchNotification(guildId: string, payload: CreateTwitchNotificationPayload, botId?: string | null) {
   const { data } = await api.post<{ notification: SocialNotification }>(
     botId ? scopedBotGuildPath(botId, guildId, "/lives") : `/social-notifications/${guildId}/twitch`,
@@ -525,6 +590,13 @@ export async function getFivemFac(guildId: string, botId: string) {
   return data;
 }
 
+export async function getFivemFacOptions(guildId: string, botId: string) {
+  const { data } = await api.get<{ options: GuildLiveOptions }>(`/fivem/${guildId}/fac/options`, {
+    params: botParams(botId)
+  });
+  return data.options;
+}
+
 export async function saveFivemFacSettings(guildId: string, botId: string, payload: SaveFivemFacSettingsPayload) {
   const { data } = await api.patch<{ settings: FivemFacSettings }>(`/fivem/${guildId}/fac`, payload, {
     params: botParams(botId)
@@ -538,6 +610,31 @@ export async function publishFivemFacPanel(guildId: string, botId: string) {
     timeout: 15000
   });
   return data.settings;
+}
+
+export async function uploadFivemFacAbsencePhoto(guildId: string, botId: string, absenceId: string, file: File) {
+  const { data } = await api.put<{ absence: FivemFacAbsence }>(
+    `/fivem/${guildId}/fac/absences/${absenceId}/photo`,
+    file,
+    {
+      headers: {
+        "Content-Type": file.type || "application/octet-stream"
+      },
+      params: botParams(botId),
+      timeout: 30000
+    }
+  );
+  return data.absence;
+}
+
+export async function removeFivemFacAbsencePhoto(guildId: string, botId: string, absenceId: string) {
+  const { data } = await api.delete<{ absence: FivemFacAbsence }>(
+    `/fivem/${guildId}/fac/absences/${absenceId}/photo`,
+    {
+      params: botParams(botId)
+    }
+  );
+  return data.absence;
 }
 
 export async function getDevModules() {

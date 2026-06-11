@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAuth, requireBot } from "../middleware/auth";
 import { canManageDashboardGuild } from "../services/dashboardGuildAccessService";
 import { canReadDevBotModule, canUseDevBotModule, getDevBotToken } from "../services/devBotService";
-import { isGuildTextChannel } from "../services/discordOptionsService";
+import { validateGuildPanelChannel } from "../services/discordOptionsService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
 import {
   createServiceError,
@@ -106,7 +106,7 @@ socialsRouter.post("/update", requireAuth, async (req, res, next) => {
     await assertCanManageGuild(req, input.guildId, botId, "publicou a Network");
 
     if (input.channelId) {
-      await assertChannelBelongsToGuild(input.guildId, input.channelId, botId);
+      await assertPanelChannelReady(input.guildId, input.channelId, botId);
     }
 
     const result = await publishSocialPanel(input.guildId, {
@@ -205,7 +205,7 @@ socialsRouter.put("/:guildId/panel", requireAuth, async (req, res, next) => {
     await assertCanManageGuild(req, guildId, botId, "configurou o canal da Network");
 
     const input = panelSchema.parse(req.body);
-    await assertChannelBelongsToGuild(guildId, input.channelId, botId);
+    await assertPanelChannelReady(guildId, input.channelId, botId);
 
     const panel = await saveSocialPanelConfig(guildId, {
       ...input,
@@ -229,7 +229,7 @@ socialsRouter.post("/:guildId/panel/test", requireAuth, async (req, res, next) =
     await assertCanManageGuild(req, guildId, botId, "testar o painel Network");
 
     const input = panelSchema.parse(req.body);
-    await assertChannelBelongsToGuild(guildId, input.channelId, botId);
+    await assertPanelChannelReady(guildId, input.channelId, botId);
 
     const result = await sendSocialPanelTest(guildId, {
       ...input,
@@ -280,11 +280,14 @@ async function assertCanReadGuild(req: Request, guildId: string, botId: string |
   }
 }
 
-async function assertChannelBelongsToGuild(guildId: string, channelId: string, botId: string | null) {
-  const validChannel = await isGuildTextChannel(guildId, channelId, await getDevBotToken(botId));
+async function assertPanelChannelReady(guildId: string, channelId: string, botId: string | null) {
+  const validation = await validateGuildPanelChannel(guildId, channelId, await getDevBotToken(botId));
 
-  if (!validChannel) {
-    throw createServiceError("Selecione um canal de texto que pertence ao servidor configurado.", 400);
+  if (!validation.ok) {
+    throw createServiceError(
+      validation.reason ?? "Nao foi possivel validar as permissoes do bot no canal do painel.",
+      400
+    );
   }
 }
 

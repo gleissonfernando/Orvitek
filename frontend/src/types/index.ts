@@ -360,6 +360,7 @@ export type FivemFacSettings = {
   absenceRoleId: string | null;
   viewerRoleIds: string[];
   approverRoleIds: string[];
+  memberRoleIds: string[];
   logChannelId: string | null;
   messages: FivemFacMessages;
   lastPanelRequestedAt: string | null;
@@ -379,6 +380,7 @@ export type FivemFacAbsence = {
   startDate: string;
   endDate: string;
   notes: string | null;
+  photoUrl: string | null;
   status: FivemFacAbsenceStatus;
   privateChannelId: string | null;
   requestMessageId: string | null;
@@ -449,6 +451,73 @@ export type ClipSent = {
   discordChannelId: string | null;
   discordMessageId: string | null;
   sentAt: string;
+};
+
+export type GiveawayStatus = "waiting" | "running" | "ended";
+
+export type GiveawayParticipant = {
+  id: string;
+  username: string;
+  displayName: string;
+  subscriber: boolean;
+  source: "twitch";
+  validatedAt: string;
+};
+
+export type GiveawayWinner = {
+  participantId: string;
+  username: string;
+  displayName: string;
+  wonAt: string;
+};
+
+export type Giveaway = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  ownerId: string;
+  discordChannelId: string | null;
+  title: string;
+  liveName: string;
+  liveUrl: string;
+  livePlatform: "twitch";
+  twitchBroadcasterId: string;
+  prizeName: string;
+  participants: GiveawayParticipant[];
+  winners: GiveawayWinner[];
+  status: GiveawayStatus;
+  rouletteToken: string;
+  rouletteUrl: string;
+  panelMessageId: string | null;
+  winnerCount: number;
+  allowRepeatWinners: boolean;
+  startDelayMinutes: number;
+  endDelayMinutes: number;
+  scheduledStartAt: string | null;
+  scheduledEndAt: string | null;
+  customMessage: string | null;
+  schedulerError: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  updatedAt: string;
+};
+
+export type SaveGiveawayPayload = {
+  allowRepeatWinners: boolean;
+  customMessage?: string | null;
+  discordChannelId: string | null;
+  endDelayMinutes: number;
+  liveUrl: string;
+  prizeName: string;
+  startDelayMinutes: number;
+  title: string;
+  winnerCount: number;
+};
+
+export type GiveawaySpinResult = {
+  giveaway: Giveaway;
+  winner: GiveawayWinner;
 };
 
 export type SaveClipsConfigPayload = {
