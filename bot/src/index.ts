@@ -13,7 +13,7 @@ import { BotSocketClient } from "./websocket/socketClient";
 
 const intents = [GatewayIntentBits.Guilds];
 
-if (env.BOT_MEMBER_EVENTS_ENABLED && ["welcome", "leave", "roles", "logs"].some(isBotModuleEnabled)) {
+if (env.BOT_MEMBER_EVENTS_ENABLED && ["welcome", "leave", "roles", "logs", "fivem-fac"].some(isBotModuleEnabled)) {
   intents.push(GatewayIntentBits.GuildMembers);
 }
 

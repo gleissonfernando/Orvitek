@@ -49,11 +49,25 @@ export type XMonitorPostEvent = {
   };
 };
 
+export type FivemFacSettingsEvent = {
+  botId?: string | null;
+  guildId: string;
+  settings?: unknown;
+};
+
+export type FivemFacPanelPublishEvent = {
+  botId?: string | null;
+  guildId: string;
+  settings?: unknown;
+};
+
 export class BotSocketClient {
   private socket: Socket | null = null;
   private socialPanelUpdateHandler: ((payload: SocialPanelUpdateEvent) => void) | null = null;
   private xMonitorUpdateHandler: ((payload: XMonitorUpdateEvent) => void) | null = null;
   private xMonitorPostHandler: ((payload: XMonitorPostEvent) => void) | null = null;
+  private fivemFacSettingsHandler: ((payload: FivemFacSettingsEvent) => void) | null = null;
+  private fivemFacPanelPublishHandler: ((payload: FivemFacPanelPublishEvent) => void) | null = null;
 
   connect(client: Client) {
     if (!env.BACKEND_SOCKET_URL) {
@@ -113,6 +127,14 @@ export class BotSocketClient {
     if (this.xMonitorPostHandler) {
       this.socket.on("x-monitor:post", this.xMonitorPostHandler);
     }
+
+    if (this.fivemFacSettingsHandler) {
+      this.socket.on("fivem:fac:settings_updated", this.fivemFacSettingsHandler);
+    }
+
+    if (this.fivemFacPanelPublishHandler) {
+      this.socket.on("fivem:fac:panel_publish", this.fivemFacPanelPublishHandler);
+    }
   }
 
   emitStatus(client: Client, online = true) {
@@ -170,6 +192,18 @@ export class BotSocketClient {
     this.xMonitorPostHandler = handler;
     this.socket?.off("x-monitor:post");
     this.socket?.on("x-monitor:post", handler);
+  }
+
+  onFivemFacSettingsUpdated(handler: (payload: FivemFacSettingsEvent) => void) {
+    this.fivemFacSettingsHandler = handler;
+    this.socket?.off("fivem:fac:settings_updated");
+    this.socket?.on("fivem:fac:settings_updated", handler);
+  }
+
+  onFivemFacPanelPublish(handler: (payload: FivemFacPanelPublishEvent) => void) {
+    this.fivemFacPanelPublishHandler = handler;
+    this.socket?.off("fivem:fac:panel_publish");
+    this.socket?.on("fivem:fac:panel_publish", handler);
   }
 
   disconnect(client: Client) {

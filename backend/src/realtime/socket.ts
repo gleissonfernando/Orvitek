@@ -7,6 +7,11 @@ import { getBotStatus, updateBotStatus } from "../services/statsService";
 import { findDevBotIdByClientId, syncDevBotGuilds, syncDevBotProfile, updateDevBotRuntimeStatus } from "../services/devBotService";
 import { devBotRealtimeRoom, setRealtimeServer } from "./events";
 
+const BOT_SOCKET_OFFLINE_GRACE_MS = 45_000;
+const RECENT_BOT_OFFLINE_SIGNAL_MS = 60_000;
+const pendingBotDisconnects = new Map<string, NodeJS.Timeout>();
+const recentBotOfflineSignals = new Map<string, number>();
+
 export function createSocketServer(httpServer: HttpServer) {
   const io = new Server(httpServer, {
     cors: {
@@ -32,6 +37,7 @@ export function createSocketServer(httpServer: HttpServer) {
     socket.data.isBot = isBot;
     socket.data.botId = botId;
     if (botId) {
+      clearPendingBotDisconnect(botId);
       await socket.join(devBotRealtimeRoom(botId));
     }
     socket.emit("bot:status", getBotStatus());
@@ -42,10 +48,12 @@ export function createSocketServer(httpServer: HttpServer) {
       }
 
       if (socket.data.botId) {
-        void updateDevBotRuntimeStatus(socket.data.botId, "offline", "Bot desconectado do backend.");
-      }
+        if (hasRecentBotOfflineSignal(socket.data.botId)) {
+          return;
+        }
 
-      io.emit("bot:status", updateBotStatus({ online: false }));
+        scheduleBotDisconnectOffline(io, socket.data.botId);
+      }
     });
 
     socket.on("bot:status", (payload: Parameters<typeof updateBotStatus>[0]) => {
@@ -57,6 +65,13 @@ export function createSocketServer(httpServer: HttpServer) {
         ?? (typeof payload.botId === "string" && payload.botId.trim() ? payload.botId.trim() : null);
 
       if (statusBotId) {
+        if (payload.online === false) {
+          noteBotOfflineSignal(statusBotId);
+        } else {
+          recentBotOfflineSignals.delete(statusBotId);
+          clearPendingBotDisconnect(statusBotId);
+        }
+
         void syncDevBotProfile(statusBotId, payload.botProfile);
 
         if (payload.botGuilds) {
@@ -145,4 +160,54 @@ export function createSocketServer(httpServer: HttpServer) {
   });
 
   return io;
+}
+
+function scheduleBotDisconnectOffline(io: Server, botId: string) {
+  clearPendingBotDisconnect(botId);
+
+  const timer = setTimeout(() => {
+    pendingBotDisconnects.delete(botId);
+    void updateDevBotRuntimeStatus(botId, "offline", "Bot sem conexao realtime com o backend.");
+
+    if ((getBotStatus().botId ?? null) === botId) {
+      io.emit("bot:status", updateBotStatus({
+        botId,
+        online: false
+      }));
+    }
+  }, BOT_SOCKET_OFFLINE_GRACE_MS);
+
+  timer.unref();
+  pendingBotDisconnects.set(botId, timer);
+}
+
+function clearPendingBotDisconnect(botId: string) {
+  const timer = pendingBotDisconnects.get(botId);
+
+  if (!timer) {
+    return;
+  }
+
+  clearTimeout(timer);
+  pendingBotDisconnects.delete(botId);
+}
+
+function noteBotOfflineSignal(botId: string) {
+  recentBotOfflineSignals.set(botId, Date.now());
+  clearPendingBotDisconnect(botId);
+}
+
+function hasRecentBotOfflineSignal(botId: string) {
+  const signaledAt = recentBotOfflineSignals.get(botId);
+
+  if (!signaledAt) {
+    return false;
+  }
+
+  if (Date.now() - signaledAt <= RECENT_BOT_OFFLINE_SIGNAL_MS) {
+    return true;
+  }
+
+  recentBotOfflineSignals.delete(botId);
+  return false;
 }

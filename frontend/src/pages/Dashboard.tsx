@@ -4,6 +4,7 @@ import {
   Activity,
   AtSign,
   Bot,
+  Building2,
   CalendarClock,
   CheckCircle2,
   ChevronRight,
@@ -25,6 +26,7 @@ import {
 import { DashboardLayout } from "../components/layout/dashboard-layout";
 import type { ViewId } from "../components/layout/sidebar";
 import { ClipsPanel } from "../components/clips/ClipsPanel";
+import { FacAbsencePanel } from "../components/fivem/FacAbsencePanel";
 import { SiteAccessPanel } from "../components/moderation/SiteAccessPanel";
 import { AutoRolesPanel } from "../components/roles/AutoRolesPanel";
 import { LiveNotificationsPanel } from "../components/social/LiveNotificationsPanel";
@@ -146,6 +148,13 @@ const moduleCatalog: ModuleDefinition[] = [
     view: "moderation"
   },
   {
+    id: "fivem-fac",
+    title: "FiveM FAC",
+    description: "Gerencia solicitacoes de ausencia para faccoes e organizacoes.",
+    icon: Building2,
+    view: "fivem"
+  },
+  {
     id: "verification",
     title: "Permissoes",
     description: "Define quais usuarios podem entrar e configurar este painel.",
@@ -209,6 +218,7 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   clips: "clips",
   "x-monitor": "x-monitor",
   logs: "logs",
+  fivem: "fivem-fac",
   moderation: "moderation"
 };
 
@@ -562,6 +572,14 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
           />
         ) : null}
         {activeView === "logs" ? <LogsView logs={logs} /> : null}
+        {activeView === "fivem" ? (
+          <FivemView
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "fivem-fac", canManageDashboard)}
+            enabledModules={enabledModules}
+            guild={selectedGuild}
+          />
+        ) : null}
         {activeView === "settings" ? (
           <SettingsView
             botId={activeBotId}
@@ -580,6 +598,40 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
         ) : null}
       </motion.div>
     </DashboardLayout>
+  );
+}
+
+function FivemView({
+  botId,
+  canManage,
+  enabledModules,
+  guild
+}: {
+  botId?: string | null;
+  canManage: boolean;
+  enabledModules: string[];
+  guild: DashboardGuild | null;
+}) {
+  if (!enabledModules.includes("fivem-fac")) {
+    return (
+      <Card>
+        <CardContent className="flex min-h-40 items-center justify-center p-6 text-sm text-zinc-500">
+          O sistema FAC ainda nao foi liberado para este cliente FiveM.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="inline-flex rounded-lg border border-zinc-800 bg-zinc-950 p-1">
+        <button className="flex h-9 items-center gap-2 rounded-md bg-white px-3 text-sm font-medium text-black" type="button">
+          <Building2 className="h-4 w-4" />
+          FAC
+        </button>
+      </div>
+      <FacAbsencePanel botId={botId} canManage={canManage} guild={guild} />
+    </div>
   );
 }
 
@@ -618,7 +670,7 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
   }
 
   if (bot.accessLevel === "premium") {
-    return ["live", "clips", "network", "x-monitor"].includes(moduleId);
+    return ["live", "clips", "network", "x-monitor", "fivem", "fivem-fac"].includes(moduleId);
   }
 
   return false;
@@ -1275,7 +1327,13 @@ function friendlyLog(log: LogEntry) {
     "audit.dev_bot": { badge: "Sistema", title: "Configuracao do bot atualizada" },
     "clips.config_saved": { badge: "Clips", title: "Sistema de clips atualizado" },
     "clips.enabled": { badge: "Clips", title: "Sistema de clips ativado" },
-    "clips.disabled": { badge: "Clips", title: "Sistema de clips desativado" }
+    "clips.disabled": { badge: "Clips", title: "Sistema de clips desativado" },
+    "fivem.fac.settings_updated": { badge: "FiveM", title: "FAC atualizado" },
+    "fivem.fac.request_created": { badge: "FiveM", title: "Solicitacao de ausencia criada" },
+    "fivem.fac.request_approved": { badge: "FiveM", title: "Solicitacao de ausencia aprovada" },
+    "fivem.fac.request_rejected": { badge: "FiveM", title: "Solicitacao de ausencia reprovada" },
+    "fivem.fac.absence_started": { badge: "FiveM", title: "Ausencia iniciada" },
+    "fivem.fac.absence_finished": { badge: "FiveM", title: "Ausencia finalizada" }
   };
   const mapped = byType[log.type];
 
@@ -1296,6 +1354,10 @@ function friendlyLog(log: LogEntry) {
 
   if (log.type.includes("ticket")) {
     return { badge: "Tickets", title: message || "Ticket atualizado", description: message };
+  }
+
+  if (log.type.includes("fivem.fac")) {
+    return { badge: "FiveM", title: message || "FAC atualizado", description: message };
   }
 
   return {
@@ -1338,6 +1400,10 @@ function isViewAllowed(view: ViewId, enabledModules: string[]) {
 
   if (view === "settings") {
     return enabledModules.some((moduleId) => settingsModuleIds.has(moduleId));
+  }
+
+  if (view === "fivem") {
+    return enabledModules.includes("fivem") || enabledModules.includes("fivem-fac");
   }
 
   const requiredModule = viewModuleIds[view];

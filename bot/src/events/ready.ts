@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import { env, isBotModuleEnabled } from "../config/env";
 import { registerGuildCommands } from "../handlers/commandHandler";
 import { startClipsMonitor } from "../services/clipsMonitor";
+import { startFivemFacService } from "../services/fivemFacService";
 import { startSocialNetworkPanelSync } from "../services/socialNetworkPanelService";
 import { startSocialNotificationMonitor } from "../services/socialNotificationMonitor";
 import { startXMonitor } from "../services/xMonitor";
@@ -37,6 +38,9 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   }
   if (isBotModuleEnabled("clips")) {
     startClipsMonitor(client, context.api);
+  }
+  if (isBotModuleEnabled("fivem-fac")) {
+    startFivemFacService(client, context);
   }
 
   const interval = setInterval(() => {

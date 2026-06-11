@@ -11,6 +11,8 @@ import type {
   DashboardMeResponse,
   DevBot,
   DevModuleDefinition,
+  FivemFacResponse,
+  FivemFacSettings,
   GuildLiveOptions,
   GuildMemberOption,
   GuildRoleOption,
@@ -18,6 +20,7 @@ import type {
   LiveEvent,
   LogEntry,
   SaveClipsConfigPayload,
+  SaveFivemFacSettingsPayload,
   SaveSocialPanelPayload,
   SocialMember,
   SocialMemberPayload,
@@ -513,6 +516,28 @@ export async function deleteXAccount(guildId: string, accountId: string, botId?:
     params: botParams(botId)
   });
   return data.account;
+}
+
+export async function getFivemFac(guildId: string, botId: string) {
+  const { data } = await api.get<FivemFacResponse>(`/fivem/${guildId}/fac`, {
+    params: botParams(botId)
+  });
+  return data;
+}
+
+export async function saveFivemFacSettings(guildId: string, botId: string, payload: SaveFivemFacSettingsPayload) {
+  const { data } = await api.patch<{ settings: FivemFacSettings }>(`/fivem/${guildId}/fac`, payload, {
+    params: botParams(botId)
+  });
+  return data.settings;
+}
+
+export async function publishFivemFacPanel(guildId: string, botId: string) {
+  const { data } = await api.post<{ settings: FivemFacSettings }>(`/fivem/${guildId}/fac/panel`, undefined, {
+    params: botParams(botId),
+    timeout: 15000
+  });
+  return data.settings;
 }
 
 export async function getDevModules() {

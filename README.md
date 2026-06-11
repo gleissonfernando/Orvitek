@@ -89,6 +89,7 @@ O painel suporta modulos por bot e servidor:
 - Logs
 - Moderacao
 - Cargos
+- FiveM / FAC Ausencia
 
 Cada bot cadastrado pode ter modulos liberados separadamente na aba de administracao.
 
@@ -115,6 +116,8 @@ Colecoes usadas pelo sistema incluem:
 - `clips_sent`
 - `Bot`
 - `BotGuildConfig`
+- `fivem_fac_settings`
+- `fivem_fac_absences`
 
 ## Git
 

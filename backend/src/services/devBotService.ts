@@ -34,6 +34,8 @@ export const DEV_MODULES = [
   { id: "roles", label: "Sistema de Cargos" },
   { id: "tickets", label: "Sistema de Tickets" },
   { id: "moderation", label: "Sistema de Moderacao" },
+  { id: "fivem", label: "FiveM" },
+  { id: "fivem-fac", label: "FiveM - FAC Ausencia" },
   { id: "avisos", label: "Mensagens e Personalizacao" }
 ] as const;
 

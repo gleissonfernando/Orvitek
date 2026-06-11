@@ -197,7 +197,7 @@ async function startRuntime(bot: DevBotRuntimeConfig) {
 }
 
 async function canUseGuildMemberIntent(bot: DevBotRuntimeConfig) {
-  const needsMemberEvents = ["welcome", "leave", "roles", "logs"].some((moduleId) => bot.enabledModules.includes(moduleId));
+  const needsMemberEvents = ["welcome", "leave", "roles", "logs", "fivem-fac"].some((moduleId) => bot.enabledModules.includes(moduleId));
 
   if (!needsMemberEvents) {
     return false;

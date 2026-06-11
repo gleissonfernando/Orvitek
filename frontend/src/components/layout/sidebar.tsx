@@ -3,6 +3,7 @@ import {
   Activity,
   AtSign,
   Bot,
+  Building2,
   Film,
   LockKeyhole,
   Radio,
@@ -21,6 +22,7 @@ export type ViewId =
   | "moderation"
   | "permissions"
   | "logs"
+  | "fivem"
   | "settings";
 
 export type NavItem = {
@@ -39,6 +41,7 @@ const navItems: NavItem[] = [
   { id: "moderation", label: "Moderacao", icon: Shield, moduleId: "moderation" },
   { id: "permissions", label: "Permissoes", icon: LockKeyhole, moduleId: "verification" },
   { id: "logs", label: "Logs", icon: ScrollText, moduleId: "logs" },
+  { id: "fivem", label: "FiveM", icon: Building2, moduleIds: ["fivem", "fivem-fac"] },
   { id: "settings", label: "Configuracoes", icon: Settings, moduleIds: ["welcome", "leave", "roles", "tickets", "avisos", "network"] }
 ];
 

@@ -340,6 +340,68 @@ export type XMonitorResponse = {
   logs: LogEntry[];
 };
 
+export type FivemFacMessages = {
+  panelTitle: string;
+  panelDescription: string;
+  requestCreated: string;
+  approved: string;
+  rejected: string;
+  started: string;
+  finished: string;
+};
+
+export type FivemFacSettings = {
+  id: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  panelChannelId: string | null;
+  panelMessageId: string | null;
+  absenceRoleId: string | null;
+  viewerRoleIds: string[];
+  approverRoleIds: string[];
+  logChannelId: string | null;
+  messages: FivemFacMessages;
+  lastPanelRequestedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FivemFacAbsenceStatus = "pending" | "approved" | "active" | "rejected" | "finished" | "closed";
+
+export type FivemFacAbsence = {
+  id: string;
+  botId: string;
+  guildId: string;
+  userId: string;
+  username: string | null;
+  reason: string;
+  startDate: string;
+  endDate: string;
+  notes: string | null;
+  status: FivemFacAbsenceStatus;
+  privateChannelId: string | null;
+  requestMessageId: string | null;
+  moderatorId: string | null;
+  rejectionReason: string | null;
+  roleAddedAt: string | null;
+  roleRemovedAt: string | null;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FivemFacResponse = {
+  absences: FivemFacAbsence[];
+  settings: FivemFacSettings;
+};
+
+export type SaveFivemFacSettingsPayload = Partial<Omit<FivemFacSettings, "id" | "botId" | "guildId" | "panelMessageId" | "lastPanelRequestedAt" | "createdAt" | "updatedAt">>;
+
 export type SaveXAccountPayload = {
   active: boolean;
   channelId: string;

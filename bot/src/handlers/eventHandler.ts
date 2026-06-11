@@ -19,7 +19,7 @@ export function registerEvents(client: Client, context: BotContext) {
     }
   });
 
-  if (env.BOT_MEMBER_EVENTS_ENABLED && ["welcome", "leave", "roles", "logs"].some(isBotModuleEnabled)) {
+  if (env.BOT_MEMBER_EVENTS_ENABLED && ["welcome", "leave", "roles", "logs", "fivem-fac"].some(isBotModuleEnabled)) {
     client.on(Events.GuildMemberAdd, (member) => {
       void resolveMember(member).then((resolved) => {
         if (resolved) {

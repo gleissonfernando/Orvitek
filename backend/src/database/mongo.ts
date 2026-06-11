@@ -239,6 +239,72 @@ export type MongoClipLog = {
   createdAt: Date;
 };
 
+export type MongoFivemFacMessages = {
+  panelTitle: string;
+  panelDescription: string;
+  requestCreated: string;
+  approved: string;
+  rejected: string;
+  started: string;
+  finished: string;
+};
+
+export type MongoFivemFacSettings = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  panelChannelId: string | null;
+  panelMessageId: string | null;
+  absenceRoleId: string | null;
+  viewerRoleIds: string[];
+  approverRoleIds: string[];
+  logChannelId: string | null;
+  messages: MongoFivemFacMessages;
+  lastPanelRequestedAt?: Date | null;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoFivemFacAbsenceStatus = "pending" | "approved" | "active" | "rejected" | "finished" | "closed";
+
+export type MongoFivemFacAuditEntry = {
+  action: string;
+  actorId: string | null;
+  reason: string | null;
+  status: MongoFivemFacAbsenceStatus;
+  createdAt: Date;
+};
+
+export type MongoFivemFacAbsence = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  userId: string;
+  username: string | null;
+  reason: string;
+  startDate: string;
+  endDate: string;
+  notes: string | null;
+  status: MongoFivemFacAbsenceStatus;
+  privateChannelId: string | null;
+  requestMessageId: string | null;
+  moderatorId: string | null;
+  rejectionReason: string | null;
+  roleAddedAt: Date | null;
+  roleRemovedAt: Date | null;
+  approvedAt: Date | null;
+  rejectedAt: Date | null;
+  startedAt: Date | null;
+  finishedAt: Date | null;
+  closedAt: Date | null;
+  audit: MongoFivemFacAuditEntry[];
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type MongoDevBotStatus = "online" | "offline" | "invalid_token" | "error";
 
 export type MongoDevBot = {
@@ -347,6 +413,8 @@ export async function getMongoCollections() {
     clipsConfig: db.collection<MongoClipsConfig>("clips_config"),
     clipsSent: db.collection<MongoClipSent>("clips_sent"),
     clipsLogs: db.collection<MongoClipLog>("clips_logs"),
+    fivemFacSettings: db.collection<MongoFivemFacSettings>("fivem_fac_settings"),
+    fivemFacAbsences: db.collection<MongoFivemFacAbsence>("fivem_fac_absences"),
     devBots: db.collection<MongoDevBot>("Bot"),
     botGuildConfigs: db.collection<MongoBotGuildConfig>("BotGuildConfig"),
     devPermissions: db.collection<MongoDevPermission>("DevPermission")
@@ -406,6 +474,7 @@ async function createMongoIndexes(db: Db) {
     ensureSocialNetworkIndexes(db),
     ensureXMonitorIndexes(db),
     ensureClipsIndexes(db),
+    ensureFivemFacIndexes(db),
     db.collection<MongoSocialNotification>("social_notifications").createIndex({
       guildId: 1,
       platform: 1
@@ -614,5 +683,15 @@ async function ensureClipsIndexes(db: Db) {
     db.collection<MongoClipSent>("clips_sent").createIndex({ botId: 1, guildId: 1, clipId: 1 }, { unique: true }),
     db.collection<MongoClipSent>("clips_sent").createIndex({ botId: 1, guildId: 1, sentAt: -1 }),
     db.collection<MongoClipLog>("clips_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 })
+  ]);
+}
+
+async function ensureFivemFacIndexes(db: Db) {
+  await Promise.all([
+    db.collection<MongoFivemFacSettings>("fivem_fac_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    db.collection<MongoFivemFacSettings>("fivem_fac_settings").createIndex({ botId: 1, enabled: 1, updatedAt: -1 }),
+    db.collection<MongoFivemFacAbsence>("fivem_fac_absences").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoFivemFacAbsence>("fivem_fac_absences").createIndex({ botId: 1, guildId: 1, userId: 1, status: 1 }),
+    db.collection<MongoFivemFacAbsence>("fivem_fac_absences").createIndex({ botId: 1, status: 1, startDate: 1, endDate: 1 })
   ]);
 }

@@ -156,6 +156,61 @@ export type XSyncResult = {
   posts: XPost[];
 };
 
+export type FivemFacMessages = {
+  panelTitle: string;
+  panelDescription: string;
+  requestCreated: string;
+  approved: string;
+  rejected: string;
+  started: string;
+  finished: string;
+};
+
+export type FivemFacSettings = {
+  id: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  panelChannelId: string | null;
+  panelMessageId: string | null;
+  absenceRoleId: string | null;
+  viewerRoleIds: string[];
+  approverRoleIds: string[];
+  logChannelId: string | null;
+  messages: FivemFacMessages;
+  lastPanelRequestedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FivemFacAbsenceStatus = "pending" | "approved" | "active" | "rejected" | "finished" | "closed";
+
+export type FivemFacAbsence = {
+  id: string;
+  botId: string;
+  guildId: string;
+  userId: string;
+  username: string | null;
+  reason: string;
+  startDate: string;
+  endDate: string;
+  notes: string | null;
+  status: FivemFacAbsenceStatus;
+  privateChannelId: string | null;
+  requestMessageId: string | null;
+  moderatorId: string | null;
+  rejectionReason: string | null;
+  roleAddedAt: string | null;
+  roleRemovedAt: string | null;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export class ApiClient {
   private readonly http: AxiosInstance;
 
@@ -319,6 +374,90 @@ export class ApiClient {
     await this.http.post(`/x-monitor/bot/accounts/${accountId}/discord-error`, {
       message
     });
+  }
+
+  async getActiveFivemFacConfigs() {
+    const { data } = await this.http.get<{ configs: FivemFacSettings[] }>("/fivem/bot/fac/configs");
+    return data.configs;
+  }
+
+  async getFivemFacSettings(guildId: string) {
+    const { data } = await this.http.get<{ settings: FivemFacSettings }>(`/fivem/bot/fac/${guildId}`);
+    return data.settings;
+  }
+
+  async updateFivemFacPanelState(input: { guildId: string; messageId?: string | null }) {
+    const { data } = await this.http.post<{ settings: FivemFacSettings }>("/fivem/bot/fac/panel-state", input);
+    return data.settings;
+  }
+
+  async createFivemFacAbsence(input: {
+    guildId: string;
+    userId: string;
+    username?: string | null;
+    reason: string;
+    startDate: string;
+    endDate: string;
+    notes?: string | null;
+  }) {
+    const { data } = await this.http.post<{ absence: FivemFacAbsence }>("/fivem/bot/fac/absences", input);
+    return data.absence;
+  }
+
+  async getFivemFacAbsence(absenceId: string) {
+    const { data } = await this.http.get<{ absence: FivemFacAbsence }>(`/fivem/bot/fac/absences/${absenceId}`);
+    return data.absence;
+  }
+
+  async getFivemFacUserAbsences(guildId: string, userId: string) {
+    const { data } = await this.http.get<{ absences: FivemFacAbsence[] }>("/fivem/bot/fac/absences/user", {
+      params: {
+        guildId,
+        userId
+      }
+    });
+    return data.absences;
+  }
+
+  async getFivemFacDueAbsences(today?: string) {
+    const { data } = await this.http.get<{ absences: FivemFacAbsence[] }>("/fivem/bot/fac/absences/due", {
+      params: today ? { today } : undefined
+    });
+    return data.absences;
+  }
+
+  async updateFivemFacAbsenceChannel(absenceId: string, input: { privateChannelId?: string | null; requestMessageId?: string | null }) {
+    const { data } = await this.http.patch<{ absence: FivemFacAbsence }>(`/fivem/bot/fac/absences/${absenceId}/channel`, input);
+    return data.absence;
+  }
+
+  async approveFivemFacAbsence(absenceId: string, input: { moderatorId: string; moderatorRoleIds: string[] }) {
+    const { data } = await this.http.post<{ absence: FivemFacAbsence }>(`/fivem/bot/fac/absences/${absenceId}/approve`, input);
+    return data.absence;
+  }
+
+  async rejectFivemFacAbsence(absenceId: string, input: { moderatorId: string; moderatorRoleIds: string[]; reason: string }) {
+    const { data } = await this.http.post<{ absence: FivemFacAbsence }>(`/fivem/bot/fac/absences/${absenceId}/reject`, input);
+    return data.absence;
+  }
+
+  async closeFivemFacAbsence(absenceId: string, input: { moderatorId: string; moderatorRoleIds: string[]; reason?: string | null; roleRemoved?: boolean }) {
+    const { data } = await this.http.post<{ absence: FivemFacAbsence }>(`/fivem/bot/fac/absences/${absenceId}/close`, input);
+    return data.absence;
+  }
+
+  async markFivemFacAbsenceStarted(absenceId: string, roleAdded = true) {
+    const { data } = await this.http.post<{ absence: FivemFacAbsence }>(`/fivem/bot/fac/absences/${absenceId}/start`, {
+      roleAdded
+    });
+    return data.absence;
+  }
+
+  async markFivemFacAbsenceFinished(absenceId: string, roleRemoved = true) {
+    const { data } = await this.http.post<{ absence: FivemFacAbsence }>(`/fivem/bot/fac/absences/${absenceId}/finish`, {
+      roleRemoved
+    });
+    return data.absence;
   }
 }
 

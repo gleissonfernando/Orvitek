@@ -1,0 +1,453 @@
+import { Router } from "express";
+import { z } from "zod";
+import { requireAuth, requireBot } from "../middleware/auth";
+import { canReadDevBotModule, canUseDevBotModule, getBotApiPermissions, getDevBotToken } from "../services/devBotService";
+import { areGuildAssignableRoles, areGuildRoles, isGuildTextChannel } from "../services/discordOptionsService";
+import {
+  approveFivemFacAbsence,
+  closeFivemFacAbsence,
+  createFivemFacAbsence,
+  getFivemFacDashboard,
+  getFivemFacAbsence,
+  getFivemFacSettings,
+  listActiveFivemFacSettings,
+  listFivemFacDueAbsences,
+  listFivemFacUserAbsences,
+  markFivemFacAbsenceFinished,
+  markFivemFacAbsenceStarted,
+  rejectFivemFacAbsence,
+  requestFivemFacPanelPublish,
+  saveFivemFacSettings,
+  updateFivemFacAbsenceChannel,
+  updateFivemFacPanelMessageState
+} from "../services/fivemFacService";
+import { resolveRequestBotId } from "../services/requestBotScopeService";
+import type { AuthSessionUser } from "../types/session";
+
+const guildIdSchema = z.string().regex(/^\d{5,32}$/);
+const snowflakeSchema = z.string().regex(/^\d{5,32}$/);
+const optionalSnowflakeSchema = z.union([snowflakeSchema, z.literal(""), z.null()]).optional();
+const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const facSettingsSchema = z.object({
+  enabled: z.boolean().optional(),
+  panelChannelId: optionalSnowflakeSchema,
+  absenceRoleId: optionalSnowflakeSchema,
+  viewerRoleIds: z.array(snowflakeSchema).optional(),
+  approverRoleIds: z.array(snowflakeSchema).optional(),
+  logChannelId: optionalSnowflakeSchema,
+  messages: z.object({
+    panelTitle: z.string().max(120).optional(),
+    panelDescription: z.string().max(1000).optional(),
+    requestCreated: z.string().max(500).optional(),
+    approved: z.string().max(500).optional(),
+    rejected: z.string().max(500).optional(),
+    started: z.string().max(500).optional(),
+    finished: z.string().max(500).optional()
+  }).partial().optional()
+});
+const createAbsenceSchema = z.object({
+  guildId: guildIdSchema,
+  userId: snowflakeSchema,
+  username: z.string().max(100).nullable().optional(),
+  reason: z.string().min(1).max(800),
+  startDate: dateOnlySchema,
+  endDate: dateOnlySchema,
+  notes: z.string().max(1000).nullable().optional()
+});
+const userAbsenceSchema = z.object({
+  guildId: guildIdSchema,
+  userId: snowflakeSchema
+});
+const channelStateSchema = z.object({
+  privateChannelId: optionalSnowflakeSchema,
+  requestMessageId: optionalSnowflakeSchema
+});
+const panelStateSchema = z.object({
+  messageId: optionalSnowflakeSchema
+});
+const moderationSchema = z.object({
+  moderatorId: snowflakeSchema,
+  moderatorRoleIds: z.array(snowflakeSchema).default([]),
+  reason: z.string().max(800).nullable().optional()
+});
+const lifecycleSchema = z.object({
+  roleAdded: z.boolean().optional(),
+  roleRemoved: z.boolean().optional()
+});
+
+export const fivemRouter = Router();
+
+fivemRouter.get("/:guildId/fac", requireAuth, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const botId = await readRequiredBotId(req);
+    const user = res.locals.dashboardAuth.user as AuthSessionUser;
+
+    await assertCanReadFac(user, guildId, botId);
+
+    return res.json(await getFivemFacDashboard(guildId, botId));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.patch("/:guildId/fac", requireAuth, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const botId = await readRequiredBotId(req);
+    const user = res.locals.dashboardAuth.user as AuthSessionUser;
+    const input = facSettingsSchema.parse(req.body);
+
+    await assertCanManageFac(user, guildId, botId);
+    await validateFacResources(guildId, botId, input);
+
+    return res.json({
+      settings: await saveFivemFacSettings(guildId, botId, normalizeFacSettingsInput(input), user.discordId)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.post("/:guildId/fac/panel", requireAuth, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const botId = await readRequiredBotId(req);
+    const user = res.locals.dashboardAuth.user as AuthSessionUser;
+
+    await assertCanManageFac(user, guildId, botId);
+
+    return res.json({
+      settings: await requestFivemFacPanelPublish(guildId, botId, user.discordId)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.get("/bot/fac/configs", requireBot, async (req, res, next) => {
+  try {
+    const botId = await readRequiredBotId(req);
+    await assertBotFacLicense(botId);
+
+    return res.json({
+      configs: await listActiveFivemFacSettings(botId)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.post("/bot/fac/panel-state", requireBot, async (req, res, next) => {
+  try {
+    const input = z.object({
+      guildId: guildIdSchema,
+      messageId: optionalSnowflakeSchema
+    }).parse(req.body);
+    const botId = await readRequiredBotId(req);
+    await assertBotFacLicense(botId);
+
+    return res.json({
+      settings: await updateFivemFacPanelMessageState(botId, input.guildId, input.messageId ?? null)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.get("/bot/fac/:guildId", requireBot, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const botId = await readRequiredBotId(req);
+    await assertBotFacLicense(botId);
+
+    return res.json({
+      settings: await getFivemFacSettings(guildId, botId)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.post("/bot/fac/absences", requireBot, async (req, res, next) => {
+  try {
+    const input = createAbsenceSchema.parse(req.body);
+    const botId = await readRequiredBotId(req);
+    await assertBotFacLicense(botId);
+
+    return res.status(201).json({
+      absence: await createFivemFacAbsence({
+        ...input,
+        botId
+      })
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.get("/bot/fac/absences/user", requireBot, async (req, res, next) => {
+  try {
+    const input = userAbsenceSchema.parse(req.query);
+    const botId = await readRequiredBotId(req);
+    await assertBotFacLicense(botId);
+
+    return res.json({
+      absences: await listFivemFacUserAbsences(botId, input.guildId, input.userId)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.get("/bot/fac/absences/due", requireBot, async (req, res, next) => {
+  try {
+    const today = typeof req.query.today === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.query.today)
+      ? req.query.today
+      : undefined;
+    const botId = await readRequiredBotId(req);
+    await assertBotFacLicense(botId);
+
+    return res.json({
+      absences: await listFivemFacDueAbsences(botId, today)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.get("/bot/fac/absences/:absenceId", requireBot, async (req, res, next) => {
+  try {
+    const absenceId = z.string().min(1).parse(req.params.absenceId);
+    const botId = await readRequiredBotId(req);
+    await assertBotFacLicense(botId);
+    const absence = await getFivemFacAbsence(absenceId, botId);
+
+    if (!absence) {
+      return res.status(404).json({
+        message: "Ausencia nao encontrada."
+      });
+    }
+
+    return res.json({
+      absence
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.patch("/bot/fac/absences/:absenceId/channel", requireBot, async (req, res, next) => {
+  try {
+    const absenceId = z.string().min(1).parse(req.params.absenceId);
+    const input = channelStateSchema.parse(req.body);
+    const botId = await readRequiredBotId(req);
+    await assertBotFacLicense(botId);
+
+    return res.json({
+      absence: await updateFivemFacAbsenceChannel(absenceId, botId, input)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.post("/bot/fac/absences/:absenceId/approve", requireBot, async (req, res, next) => {
+  try {
+    const absenceId = z.string().min(1).parse(req.params.absenceId);
+    const input = moderationSchema.parse(req.body);
+    const botId = await readRequiredBotId(req);
+    await assertBotFacLicense(botId);
+
+    return res.json({
+      absence: await approveFivemFacAbsence({
+        absenceId,
+        botId,
+        moderatorId: input.moderatorId,
+        moderatorRoleIds: input.moderatorRoleIds
+      })
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.post("/bot/fac/absences/:absenceId/reject", requireBot, async (req, res, next) => {
+  try {
+    const absenceId = z.string().min(1).parse(req.params.absenceId);
+    const input = moderationSchema.parse(req.body);
+    const botId = await readRequiredBotId(req);
+    await assertBotFacLicense(botId);
+
+    return res.json({
+      absence: await rejectFivemFacAbsence({
+        absenceId,
+        botId,
+        moderatorId: input.moderatorId,
+        moderatorRoleIds: input.moderatorRoleIds,
+        reason: input.reason ?? null
+      })
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.post("/bot/fac/absences/:absenceId/close", requireBot, async (req, res, next) => {
+  try {
+    const absenceId = z.string().min(1).parse(req.params.absenceId);
+    const input = moderationSchema.extend({
+      roleRemoved: z.boolean().optional()
+    }).parse(req.body);
+    const botId = await readRequiredBotId(req);
+    await assertBotFacLicense(botId);
+
+    return res.json({
+      absence: await closeFivemFacAbsence({
+        absenceId,
+        botId,
+        moderatorId: input.moderatorId,
+        moderatorRoleIds: input.moderatorRoleIds,
+        reason: input.reason ?? null,
+        roleRemoved: input.roleRemoved === true
+      })
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.post("/bot/fac/absences/:absenceId/start", requireBot, async (req, res, next) => {
+  try {
+    const absenceId = z.string().min(1).parse(req.params.absenceId);
+    const input = lifecycleSchema.parse(req.body ?? {});
+    const botId = await readRequiredBotId(req);
+    await assertBotFacLicense(botId);
+
+    return res.json({
+      absence: await markFivemFacAbsenceStarted(absenceId, botId, input.roleAdded !== false)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.post("/bot/fac/absences/:absenceId/finish", requireBot, async (req, res, next) => {
+  try {
+    const absenceId = z.string().min(1).parse(req.params.absenceId);
+    const input = lifecycleSchema.parse(req.body ?? {});
+    const botId = await readRequiredBotId(req);
+    await assertBotFacLicense(botId);
+
+    return res.json({
+      absence: await markFivemFacAbsenceFinished(absenceId, botId, input.roleRemoved !== false)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+async function readRequiredBotId(req: Parameters<typeof resolveRequestBotId>[0]) {
+  const botId = await resolveRequestBotId(req);
+
+  if (!botId) {
+    throw createRouteError("Bot vinculado obrigatorio para o modulo FiveM.", 400);
+  }
+
+  return botId;
+}
+
+async function assertCanReadFac(user: AuthSessionUser, guildId: string, botId: string) {
+  await assertBotFacLicense(botId);
+
+  if (await canReadDevBotModule(user, botId, guildId, "fivem-fac")) {
+    return;
+  }
+
+  throw createRouteError("Voce nao tem permissao para acessar o FAC deste bot.", 403);
+}
+
+async function assertCanManageFac(user: AuthSessionUser, guildId: string, botId: string) {
+  await assertBotFacLicense(botId);
+
+  if (await canUseDevBotModule(user, botId, guildId, "fivem-fac")) {
+    return;
+  }
+
+  throw createRouteError("Voce nao tem permissao para configurar o FAC deste bot.", 403);
+}
+
+async function assertBotFacLicense(botId: string) {
+  const permissions = await getBotApiPermissions(botId);
+
+  if (!permissions) {
+    throw createRouteError("Bot nao encontrado.", 404);
+  }
+
+  if (!permissions.enabledModules.includes("fivem-fac")) {
+    throw createRouteError("O sistema FAC nao foi liberado para este cliente FiveM.", 403);
+  }
+}
+
+async function validateFacResources(guildId: string, botId: string, input: z.infer<typeof facSettingsSchema>) {
+  const botToken = await getDevBotToken(botId);
+  const channelIds = [
+    input.panelChannelId,
+    input.logChannelId
+  ].filter((channelId): channelId is string => typeof channelId === "string" && Boolean(channelId));
+
+  const channelChecks = await Promise.all(
+    [...new Set(channelIds)].map((channelId) => isGuildTextChannel(guildId, channelId, botToken))
+  );
+
+  if (!channelChecks.every(Boolean)) {
+    throw createRouteError("Um dos canais selecionados nao pertence a este servidor.", 400);
+  }
+
+  const roleIds = [
+    input.absenceRoleId,
+    ...(input.viewerRoleIds ?? []),
+    ...(input.approverRoleIds ?? [])
+  ].filter((roleId): roleId is string => typeof roleId === "string" && Boolean(roleId));
+
+  if (roleIds.length && !(await areGuildRoles(guildId, [...new Set(roleIds)], botToken))) {
+    throw createRouteError("Um dos cargos selecionados nao pertence a este servidor.", 400);
+  }
+
+  if (
+    input.absenceRoleId
+    && !(await areGuildAssignableRoles(guildId, [input.absenceRoleId], botToken))
+  ) {
+    throw createRouteError("O cargo de ausencia precisa ficar abaixo do cargo do bot e o bot precisa gerenciar cargos.", 400);
+  }
+}
+
+function normalizeFacSettingsInput(input: z.infer<typeof facSettingsSchema>) {
+  const normalized = {
+    ...input
+  };
+
+  if ("absenceRoleId" in input) {
+    normalized.absenceRoleId = normalizeOptionalId(input.absenceRoleId);
+  }
+
+  if ("logChannelId" in input) {
+    normalized.logChannelId = normalizeOptionalId(input.logChannelId);
+  }
+
+  if ("panelChannelId" in input) {
+    normalized.panelChannelId = normalizeOptionalId(input.panelChannelId);
+  }
+
+  return normalized;
+}
+
+function normalizeOptionalId(value: string | null | undefined) {
+  return value?.trim() || null;
+}
+
+function createRouteError(message: string, statusCode: number) {
+  return Object.assign(new Error(message), {
+    statusCode
+  });
+}
