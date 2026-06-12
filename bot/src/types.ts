@@ -53,6 +53,10 @@ export type GuildSettings = {
   ticketCategoryId: string | null;
   logChannelId: string | null;
   moderationEnabled: boolean;
+  accountAgeSecurityEnabled: boolean;
+  accountAgeMinDays: number;
+  accountAgeLogChannelId: string | null;
+  accountAgeAllowedUserIds: string[];
   verificationEnabled: boolean;
   verificationRoleId: string | null;
   verificationRoleIds: string[];

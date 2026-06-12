@@ -133,7 +133,7 @@ async function startRuntime(bot: DevBotRuntimeConfig) {
     await updateDevBotRuntimeStatus(
       bot.id,
       "error",
-      "Ative o Message Content Intent no Discord Developer Portal para usar o Anti-Spam de Imagens."
+      "Ative o Message Content Intent no Discord Developer Portal para usar o Anti-Spam de Imagens ou Anti-Flood de Links."
     );
     return;
   }
@@ -210,7 +210,7 @@ async function startRuntime(bot: DevBotRuntimeConfig) {
 }
 
 async function canUseGuildMemberIntent(bot: DevBotRuntimeConfig) {
-  const needsMemberEvents = ["welcome", "leave", "roles", "logs", "fivem-fac"].some((moduleId) => bot.enabledModules.includes(moduleId));
+  const needsMemberEvents = ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security"].some((moduleId) => bot.enabledModules.includes(moduleId));
 
   if (!needsMemberEvents) {
     return false;
@@ -243,7 +243,11 @@ async function canUseGuildMemberIntent(bot: DevBotRuntimeConfig) {
 }
 
 async function canUseMessageContentIntent(bot: DevBotRuntimeConfig) {
-  if (!bot.enabledModules.includes("image-anti-spam")) {
+  if (
+    !bot.enabledModules.includes("image-anti-spam")
+    && !bot.enabledModules.includes("link-anti-spam")
+    && !bot.enabledModules.includes("moderation")
+  ) {
     return true;
   }
 

@@ -46,6 +46,10 @@ const settingsSchema = z.object({
   ticketCategoryId: z.string().nullable().optional(),
   logChannelId: z.string().nullable().optional(),
   moderationEnabled: z.boolean().optional(),
+  accountAgeSecurityEnabled: z.boolean().optional(),
+  accountAgeMinDays: z.coerce.number().int().min(0).max(3650).optional(),
+  accountAgeLogChannelId: z.string().nullable().optional(),
+  accountAgeAllowedUserIds: z.array(z.string().regex(/^\d{5,32}$/)).max(200).optional(),
   verificationEnabled: z.boolean().optional(),
   verificationRoleId: z.string().nullable().optional(),
   verificationRoleIds: z.array(z.string()).optional(),
@@ -392,6 +396,10 @@ async function canPatchSettings(
     ticketCategoryId: ["tickets"],
     logChannelId: ["logs"],
     moderationEnabled: ["moderation"],
+    accountAgeSecurityEnabled: ["account-age-security"],
+    accountAgeMinDays: ["account-age-security"],
+    accountAgeLogChannelId: ["account-age-security"],
+    accountAgeAllowedUserIds: ["account-age-security"],
     verificationEnabled: ["verification"],
     verificationRoleId: ["verification"],
     verificationRoleIds: ["verification"],
@@ -423,7 +431,8 @@ async function validateGuildResources(
     input.welcomeDisplayChannelId,
     input.leaveChannelId,
     input.leaveDisplayChannelId,
-    input.logChannelId
+    input.logChannelId,
+    input.accountAgeLogChannelId
   ].filter((channelId): channelId is string => Boolean(channelId));
 
   const textChannelChecks = await Promise.all(
@@ -481,6 +490,7 @@ function inferSettingsModuleName(input: z.infer<typeof settingsSchema>) {
   const keys = new Set(Object.keys(input));
 
   if ([...keys].some((key) => key.startsWith("verification") || key === "dashboardRolePermissions" || key === "dashboardUserPermissions")) return "permissions";
+  if ([...keys].some((key) => key.startsWith("accountAge"))) return "account_age_security";
   if ([...keys].some((key) => key.startsWith("welcome") || key.startsWith("autoRole"))) return "welcome";
   if ([...keys].some((key) => key.startsWith("leave"))) return "leave";
   if ([...keys].some((key) => key.startsWith("ticket"))) return "tickets";
@@ -506,6 +516,10 @@ function friendlySettingsMessage(input: z.infer<typeof settingsSchema>) {
 
   if (input.moderationEnabled !== undefined) {
     return input.moderationEnabled ? "Sistema de moderacao ativado." : "Sistema de moderacao desativado.";
+  }
+
+  if (Object.keys(input).some((key) => key.startsWith("accountAge"))) {
+    return "Seguranca de idade da conta atualizada.";
   }
 
   if (input.ticketEnabled !== undefined) {

@@ -1,11 +1,18 @@
 import type { GuildMember } from "discord.js";
 import { isBotModuleEnabled } from "../config/env";
+import { enforceAccountAgeSecurity } from "../services/accountAgeSecurityService";
 import { logMemberJoin } from "../services/logService";
 import { applyAutomaticRoles } from "../services/roleService";
 import { sendWelcomeMessage } from "../services/welcomeService";
 import type { BotContext } from "../types";
 
 export async function handleGuildMemberAdd(member: GuildMember, context: BotContext) {
+  const blocked = await enforceAccountAgeSecurity(context, member);
+
+  if (blocked) {
+    return;
+  }
+
   const tasks: Promise<unknown>[] = [];
   const welcomeEnabled = isBotModuleEnabled("welcome");
   const rolesEnabled = isBotModuleEnabled("roles");

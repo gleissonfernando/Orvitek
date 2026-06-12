@@ -9,6 +9,7 @@ import { handleMessageUpdate } from "../events/messageUpdate";
 import { handlePresenceEvent } from "../events/presenceUpdate";
 import { handleReady } from "../events/ready";
 import { env, isBotModuleEnabled } from "../config/env";
+import { isLinkAntiSpamEnabled } from "../services/linkAntiSpamService";
 import type { BotContext } from "../types";
 
 export function registerEvents(client: Client, context: BotContext) {
@@ -20,7 +21,7 @@ export function registerEvents(client: Client, context: BotContext) {
     }
   });
 
-  if (env.BOT_MEMBER_EVENTS_ENABLED && ["welcome", "leave", "roles", "logs", "fivem-fac"].some(isBotModuleEnabled)) {
+  if (env.BOT_MEMBER_EVENTS_ENABLED && ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security"].some(isBotModuleEnabled)) {
     client.on(Events.GuildMemberAdd, (member) => {
       void resolveMember(member).then((resolved) => {
         if (resolved) {
@@ -45,7 +46,7 @@ export function registerEvents(client: Client, context: BotContext) {
     client.on(Events.MessageUpdate, (oldMessage, newMessage) => void handleMessageUpdate(oldMessage, newMessage, context));
   }
 
-  if (isBotModuleEnabled("image-anti-spam")) {
+  if (isBotModuleEnabled("image-anti-spam") || isLinkAntiSpamEnabled()) {
     client.on(Events.MessageCreate, (message) => void handleMessageCreate(message, context));
   }
 

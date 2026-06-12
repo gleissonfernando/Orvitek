@@ -38,6 +38,8 @@ export const DEV_MODULES = [
   { id: "tickets", label: "Sistema de Tickets" },
   { id: "moderation", label: "Sistema de Moderacao" },
   { id: "image-anti-spam", label: "Anti-Spam de Imagens" },
+  { id: "link-anti-spam", label: "Anti-Flood de Links" },
+  { id: "account-age-security", label: "Seguranca por Idade da Conta" },
   { id: "fivem", label: "FiveM" },
   { id: "fivem-fac", label: "FiveM - FAC Ausencia" },
   { id: "avisos", label: "Mensagens e Personalizacao" }

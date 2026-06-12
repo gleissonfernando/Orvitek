@@ -12,6 +12,7 @@ import {
   ScrollText,
   Settings,
   Shield,
+  ShieldAlert,
   X
 } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -24,6 +25,7 @@ export type ViewId =
   | "giveaway"
   | "x-monitor"
   | "moderation"
+  | "security"
   | "image-anti-spam"
   | "permissions"
   | "logs"
@@ -46,6 +48,7 @@ const navItems: NavItem[] = [
   { id: "giveaway", label: "Sorteio", icon: Gift, moduleId: "giveaway" },
   { id: "x-monitor", label: "X Monitor", icon: AtSign, moduleId: "x-monitor" },
   { id: "moderation", label: "Moderacao", icon: Shield, moduleId: "moderation" },
+  { id: "security", label: "Seguranca", icon: ShieldAlert, moduleId: "account-age-security" },
   { id: "image-anti-spam", label: "Anti-Spam de Imagens", icon: ImageOff, moduleId: "image-anti-spam" },
   { id: "permissions", label: "Permissoes", icon: LockKeyhole, moduleId: "verification" },
   { id: "logs", label: "Logs", icon: ScrollText, moduleId: "logs" },

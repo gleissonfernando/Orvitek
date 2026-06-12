@@ -7,7 +7,6 @@ import {
   Eye,
   FlaskConical,
   Loader2,
-  Plug,
   Radio,
   Search,
   Settings,
@@ -22,10 +21,8 @@ import {
   getKickNotifications,
   previewKickNotificationPanel,
   previewKickChannel,
-  saveKickApiConfig,
   testKickNotification,
-  updateKickNotification,
-  validateKickApi
+  updateKickNotification
 } from "../../lib/api";
 import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
@@ -67,8 +64,6 @@ export function KickIntegrationPanel({ botId, canManage, guild }: KickIntegratio
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [savingApi, setSavingApi] = useState(false);
-  const [validating, setValidating] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
   const [previewingId, setPreviewingId] = useState<string | null>(null);
   const [panelPreview, setPanelPreview] = useState<LivePanelPreview | null>(null);
@@ -172,46 +167,6 @@ export function KickIntegrationPanel({ botId, canManage, guild }: KickIntegratio
       cancelled = true;
     };
   }, [botId, canManage, guild?.id, page, refreshSignal, search]);
-
-  async function handleValidateApi() {
-    if (!guild) {
-      return;
-    }
-
-    setValidating(true);
-    setError(null);
-    setStatus(null);
-
-    try {
-      const message = await validateKickApi(guild.id, botId);
-      setStatus(message);
-      setRefreshSignal((current) => current + 1);
-    } catch (requestError) {
-      setError(readErrorMessage(requestError));
-    } finally {
-      setValidating(false);
-    }
-  }
-
-  async function handleSaveApiConfig(payload: { clientId: string; clientSecret?: string | null; redirectUri?: string | null }) {
-    if (!guild) {
-      return;
-    }
-
-    setSavingApi(true);
-    setError(null);
-    setStatus(null);
-
-    try {
-      const message = await saveKickApiConfig(guild.id, payload, botId);
-      setStatus(message);
-      setRefreshSignal((current) => current + 1);
-    } catch (requestError) {
-      setError(readErrorMessage(requestError));
-    } finally {
-      setSavingApi(false);
-    }
-  }
 
   async function handleCreate(payload: CreateKickNotificationPayload) {
     if (!guild) {
@@ -346,13 +301,6 @@ export function KickIntegrationPanel({ botId, canManage, guild }: KickIntegratio
       {canManage ? (
         <>
           <KickStatusGrid status={integrationStatus} />
-          <KickApiCard
-            loading={validating}
-            onSave={handleSaveApiConfig}
-            onValidate={handleValidateApi}
-            saving={savingApi}
-            status={integrationStatus}
-          />
           <KickNotificationCard
             channels={liveOptions.channels}
             filteredTotal={filteredTotal}
@@ -421,7 +369,7 @@ export function KickIntegrationPanel({ botId, canManage, guild }: KickIntegratio
 function KickStatusGrid({ status }: { status: KickIntegrationStatus | null }) {
   const items = [
     {
-      label: "Status da API",
+      label: "Status da integracao",
       value: status?.apiStatus === "ok" ? "Conectada" : status?.apiStatus === "error" ? "Erro" : "Pendente"
     },
     {
@@ -447,99 +395,6 @@ function KickStatusGrid({ status }: { status: KickIntegrationStatus | null }) {
         </div>
       ))}
     </div>
-  );
-}
-
-function KickApiCard({
-  loading,
-  onSave,
-  onValidate,
-  saving,
-  status
-}: {
-  loading: boolean;
-  onSave: (payload: { clientId: string; clientSecret?: string | null; redirectUri?: string | null }) => void;
-  onValidate: () => void;
-  saving: boolean;
-  status: KickIntegrationStatus | null;
-}) {
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
-  const [webhookUrl, setWebhookUrl] = useState("");
-  const ok = status?.apiStatus === "ok";
-
-  useEffect(() => {
-    setClientId(status?.apiConfig?.clientId ?? "");
-    setClientSecret("");
-    setWebhookUrl(status?.apiConfig?.redirectUri ?? defaultKickWebhookUrl());
-  }, [status?.apiConfig?.clientId, status?.apiConfig?.redirectUri]);
-
-  return (
-    <form
-      className="rounded-lg border border-zinc-900 bg-zinc-950/75 p-4"
-      onSubmit={(event) => {
-        event.preventDefault();
-        onSave({
-          clientId,
-          clientSecret: clientSecret || null,
-          redirectUri: webhookUrl || null
-        });
-      }}
-    >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#53fc18]/25 bg-[#53fc18]/10 text-[#53fc18]">
-            <Plug className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <h4 className="text-base font-semibold text-white">API Kick</h4>
-            <p className="mt-1 text-sm text-zinc-500">{status?.apiMessage ?? "Validacao pendente."}</p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button disabled={saving || !clientId || (!clientSecret && !status?.apiConfig?.secretConfigured)} type="submit">
-            {saving ? "Salvando..." : "Salvar"}
-          </Button>
-          <Button disabled={loading} onClick={onValidate} type="button" variant="outline">
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-            Validar
-          </Button>
-          <Button disabled={loading || !ok} onClick={onValidate} type="button">
-            Testar
-          </Button>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
-        <Field label="Client ID">
-          <input
-            className="social-input"
-            onChange={(event) => setClientId(event.target.value)}
-            placeholder="Client ID da Kick"
-            value={clientId}
-          />
-        </Field>
-        <Field label="API Key">
-          <input
-            className="social-input"
-            onChange={(event) => setClientSecret(event.target.value)}
-            placeholder={status?.apiConfig?.secretConfigured ? "API Key salva" : "API Key ou Client Secret"}
-            type="password"
-            value={clientSecret}
-          />
-        </Field>
-        <Field label="Webhook URL">
-          <input
-            className="social-input"
-            onChange={(event) => setWebhookUrl(event.target.value)}
-            placeholder="https://seu-site.com/api/kick/webhook"
-            type="url"
-            value={webhookUrl}
-          />
-        </Field>
-      </div>
-    </form>
   );
 }
 
@@ -1164,12 +1019,4 @@ function readErrorMessage(error: unknown) {
   }
 
   return "Nao foi possivel concluir a acao.";
-}
-
-function defaultKickWebhookUrl() {
-  try {
-    return `${window.location.origin}/api/kick/webhook`;
-  } catch {
-    return "/api/kick/webhook";
-  }
 }

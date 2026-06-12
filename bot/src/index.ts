@@ -8,12 +8,13 @@ import { env, isBotModuleEnabled } from "./config/env";
 import { createCommandCollection } from "./commands";
 import { registerEvents } from "./handlers/eventHandler";
 import { ApiClient } from "./services/apiClient";
+import { isLinkAntiSpamEnabled } from "./services/linkAntiSpamService";
 import type { BotContext } from "./types";
 import { BotSocketClient } from "./websocket/socketClient";
 
 const intents = [GatewayIntentBits.Guilds];
 
-if (env.BOT_MEMBER_EVENTS_ENABLED && ["welcome", "leave", "roles", "logs", "fivem-fac"].some(isBotModuleEnabled)) {
+if (env.BOT_MEMBER_EVENTS_ENABLED && ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security"].some(isBotModuleEnabled)) {
   intents.push(GatewayIntentBits.GuildMembers);
 }
 
@@ -21,7 +22,7 @@ if (env.BOT_MESSAGE_LOGS_ENABLED && isBotModuleEnabled("logs")) {
   intents.push(GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent);
 }
 
-if (isBotModuleEnabled("image-anti-spam")) {
+if (isBotModuleEnabled("image-anti-spam") || isLinkAntiSpamEnabled()) {
   if (!intents.includes(GatewayIntentBits.GuildMessages)) {
     intents.push(GatewayIntentBits.GuildMessages);
   }

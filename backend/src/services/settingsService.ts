@@ -36,6 +36,10 @@ export type GuildSettingsDto = {
   ticketCategoryId: string | null;
   logChannelId: string | null;
   moderationEnabled: boolean;
+  accountAgeSecurityEnabled: boolean;
+  accountAgeMinDays: number;
+  accountAgeLogChannelId: string | null;
+  accountAgeAllowedUserIds: string[];
   verificationEnabled: boolean;
   verificationRoleId: string | null;
   verificationRoleIds: string[];
@@ -99,6 +103,8 @@ export const DEFAULT_LEAVE_FOOTER_TEXT = "Ricardinn98 - Comunidade de lives";
 const LEGACY_WELCOME_MESSAGE = "Bem-vindo(a), {user}!";
 const LEGACY_LEAVE_MESSAGE = "Ate mais, {user}.";
 export const MAX_AUTOMATIC_ROLES = 2;
+const DEFAULT_ACCOUNT_AGE_MIN_DAYS = 10;
+const MAX_ACCOUNT_AGE_MIN_DAYS = 3_650;
 
 export function defaultSettings(guildId: string, botId: string | null = null): GuildSettingsDto {
   return {
@@ -132,6 +138,10 @@ export function defaultSettings(guildId: string, botId: string | null = null): G
     ticketCategoryId: null,
     logChannelId: null,
     moderationEnabled: true,
+    accountAgeSecurityEnabled: false,
+    accountAgeMinDays: DEFAULT_ACCOUNT_AGE_MIN_DAYS,
+    accountAgeLogChannelId: null,
+    accountAgeAllowedUserIds: [],
     verificationEnabled: false,
     verificationRoleId: null,
     verificationRoleIds: [],
@@ -220,9 +230,22 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
     "dashboardUserPermissions" in input ? input.dashboardUserPermissions ?? {} : current.dashboardUserPermissions,
     current.dashboardUserPermissions
   );
+  const accountAgeAllowedUserIds = "accountAgeAllowedUserIds" in input
+    ? normalizeSnowflakes(input.accountAgeAllowedUserIds ?? [])
+    : current.accountAgeAllowedUserIds;
   const next = normalizeVerificationRoles({
     ...current,
     ...input,
+    accountAgeMinDays: clampInteger(
+      "accountAgeMinDays" in input ? input.accountAgeMinDays : current.accountAgeMinDays,
+      0,
+      MAX_ACCOUNT_AGE_MIN_DAYS,
+      DEFAULT_ACCOUNT_AGE_MIN_DAYS
+    ),
+    accountAgeLogChannelId: normalizeSnowflake(
+      "accountAgeLogChannelId" in input ? input.accountAgeLogChannelId : current.accountAgeLogChannelId
+    ),
+    accountAgeAllowedUserIds,
     autoRoleIds,
     welcomeTitle: normalizePanelText(
       "welcomeTitle" in input ? input.welcomeTitle : current.welcomeTitle,
@@ -324,6 +347,10 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
           ticketCategoryId: next.ticketCategoryId,
           logChannelId: next.logChannelId,
           moderationEnabled: next.moderationEnabled,
+          accountAgeSecurityEnabled: next.accountAgeSecurityEnabled,
+          accountAgeMinDays: next.accountAgeMinDays,
+          accountAgeLogChannelId: next.accountAgeLogChannelId,
+          accountAgeAllowedUserIds: next.accountAgeAllowedUserIds,
           verificationEnabled: next.verificationEnabled,
           verificationRoleId: next.verificationRoleId,
           verificationRoleIds: next.verificationRoleIds,
@@ -404,6 +431,15 @@ function toDto(settings: MongoGuildSettings): GuildSettingsDto {
     ticketCategoryId: settings.ticketCategoryId,
     logChannelId: settings.logChannelId,
     moderationEnabled: settings.moderationEnabled,
+    accountAgeSecurityEnabled: settings.accountAgeSecurityEnabled ?? defaults.accountAgeSecurityEnabled,
+    accountAgeMinDays: clampInteger(
+      settings.accountAgeMinDays,
+      0,
+      MAX_ACCOUNT_AGE_MIN_DAYS,
+      DEFAULT_ACCOUNT_AGE_MIN_DAYS
+    ),
+    accountAgeLogChannelId: normalizeSnowflake(settings.accountAgeLogChannelId),
+    accountAgeAllowedUserIds: normalizeSnowflakes(settings.accountAgeAllowedUserIds ?? []),
     verificationEnabled: settings.verificationEnabled,
     verificationRoleId: verificationRoleIds[0] ?? null,
     verificationRoleIds,
@@ -506,6 +542,23 @@ function normalizeUserPermissionMap(
   }
 
   return permissions;
+}
+
+function normalizeSnowflakes(values: string[]) {
+  return [...new Set(values.map((value) => value.trim()).filter((value) => /^\d{5,32}$/.test(value)))];
+}
+
+function normalizeSnowflake(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized && /^\d{5,32}$/.test(normalized) ? normalized : null;
+}
+
+function clampInteger(value: number | null | undefined, min: number, max: number, fallback: number) {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, Math.trunc(Number(value))));
 }
 
 function createSettingsPersistenceError(cause: unknown) {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   AlertTriangle,
+  CheckCircle2,
   Clock,
   ExternalLink,
   Gift,
@@ -11,6 +12,7 @@ import {
   Radio,
   RefreshCw,
   Save,
+  Search,
   Send,
   Square,
   Trophy,
@@ -136,73 +138,6 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
 
   useEffect(() => {
     if (!guild || !canManage) {
-      setLivePreview(null);
-      setLivePreviewError(null);
-      setLivePreviewInput("");
-      setLivePreviewLoading(false);
-      return;
-    }
-
-    const value = form.liveUrl.trim();
-
-    setLivePreview(null);
-    setLivePreviewError(null);
-    setLivePreviewInput("");
-
-    if (!value) {
-      setLivePreviewLoading(false);
-      return;
-    }
-
-    const platform = detectPlatform(value);
-
-    if (platform === "youtube") {
-      setLivePreviewError("YouTube ainda nao esta disponivel para sorteios. Use uma URL da Twitch ou Kick.");
-      setLivePreviewLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    const timeout = window.setTimeout(() => {
-      setLivePreviewLoading(true);
-
-      previewGiveawayLive(guild.id, value, botId)
-        .then((preview) => {
-          if (cancelled) return;
-
-          setLivePreview(preview);
-          setLivePreviewInput(value);
-          setForm((current) => {
-            if (modeMatchesPlatform(current.participantMode, preview.platform)) {
-              return current;
-            }
-
-            return {
-              ...current,
-              participantMode: defaultParticipantMode(preview.platform)
-            };
-          });
-        })
-        .catch((error) => {
-          if (!cancelled) {
-            setLivePreviewError(readRequestMessage(error) ?? "Nao foi possivel verificar esse canal.");
-          }
-        })
-        .finally(() => {
-          if (!cancelled) {
-            setLivePreviewLoading(false);
-          }
-        });
-    }, 650);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeout);
-    };
-  }, [botId, canManage, form.liveUrl, guild?.id]);
-
-  useEffect(() => {
-    if (!guild || !canManage) {
       return;
     }
 
@@ -218,6 +153,66 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
       ...current,
       [key]: value
     }));
+
+    if (key === "liveUrl") {
+      setLivePreview(null);
+      setLivePreviewError(null);
+      setLivePreviewInput("");
+      setLivePreviewLoading(false);
+    }
+  }
+
+  async function handleVerifyLiveChannel(value = form.liveUrl.trim(), options: { quiet?: boolean } = {}) {
+    if (!guild || !canManage) {
+      return;
+    }
+
+    const normalizedInput = value.trim();
+
+    setMessage(null);
+    setLivePreview(null);
+    setLivePreviewInput("");
+    setLivePreviewError(null);
+
+    if (!normalizedInput) {
+      setLivePreviewError("Informe a URL do canal Twitch ou Kick.");
+      return;
+    }
+
+    const platform = detectPlatform(normalizedInput);
+
+    if (platform === "youtube") {
+      setLivePreviewError("YouTube ainda nao esta disponivel para sorteios. Use uma URL da Twitch ou Kick.");
+      return;
+    }
+
+    setLivePreviewLoading(true);
+
+    try {
+      const preview = await previewGiveawayLive(guild.id, normalizedInput, botId);
+
+      setLivePreview(preview);
+      setLivePreviewInput(normalizedInput);
+      setForm((current) => {
+        if (modeMatchesPlatform(current.participantMode, preview.platform)) {
+          return current;
+        }
+
+        return {
+          ...current,
+          participantMode: defaultParticipantMode(preview.platform)
+        };
+      });
+
+      if (!options.quiet) {
+        setMessage(`Canal ${platformLabel(preview.platform)} verificado.`);
+      }
+    } catch (error) {
+      setLivePreview(null);
+      setLivePreviewError(readRequestMessage(error) ?? "Nao foi possivel verificar esse canal.");
+    } finally {
+      setLivePreviewLoading(false);
+    }
   }
 
   async function handleSyncOptions() {
@@ -319,6 +314,9 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
 
   function handleEdit(giveaway: Giveaway) {
     setEditingId(giveaway.id);
+    setLivePreview(null);
+    setLivePreviewError(null);
+    setLivePreviewInput("");
     setForm({
       allowRepeatWinners: giveaway.allowRepeatWinners,
       customMessage: giveaway.customMessage ?? "",
@@ -330,6 +328,9 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
       startDelayMinutes: giveaway.startDelayMinutes,
       title: giveaway.title,
       winnerCount: giveaway.winnerCount
+    });
+    void handleVerifyLiveChannel(giveaway.liveUrl, {
+      quiet: true
     });
   }
 
@@ -411,13 +412,25 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
           </FormField>
 
           <FormField className="lg:col-span-2" label="URL da live ou canal">
-            <input
-              className="social-input h-11"
-              disabled={!canManage}
-              onChange={(event) => updateForm("liveUrl", event.target.value)}
-              placeholder="https://kick.com/canal ou https://www.twitch.tv/canal"
-              value={form.liveUrl}
-            />
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                className="social-input h-11"
+                disabled={!canManage}
+                onChange={(event) => updateForm("liveUrl", event.target.value)}
+                placeholder="https://kick.com/canal ou https://www.twitch.tv/canal"
+                value={form.liveUrl}
+              />
+              <Button
+                className="h-11 shrink-0"
+                disabled={!canManage || livePreviewLoading || !normalizedLiveUrl}
+                onClick={() => void handleVerifyLiveChannel()}
+                type="button"
+                variant="outline"
+              >
+                {livePreviewLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                Buscar
+              </Button>
+            </div>
           </FormField>
 
           <LivePreviewCard
@@ -648,7 +661,7 @@ function LivePreviewCard({
       <div className={`rounded-lg border border-zinc-900 bg-black/35 p-4 ${className}`}>
         <div className="flex items-center gap-3 text-sm text-zinc-300">
           <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
-          Verificando canal...
+          Buscando canal...
         </div>
       </div>
     );
@@ -670,7 +683,7 @@ function LivePreviewCard({
       <div className={`rounded-lg border border-zinc-900 bg-black/35 p-4 ${className}`}>
         <div className="flex items-center gap-3 text-sm text-zinc-400">
           <Radio className="h-4 w-4 text-zinc-500" />
-          <span>{platform ? `Plataforma detectada: ${platformLabel(platform)}` : "Aguardando verificacao do canal."}</span>
+          <span>{platform ? `Plataforma detectada: ${platformLabel(platform)}. Clique em Buscar para verificar o canal.` : "Clique em Buscar para verificar o canal."}</span>
         </div>
       </div>
     );
@@ -711,6 +724,7 @@ function LivePreviewCard({
           <PreviewFact label="Viewers" value={preview.viewerCount === null ? "Nao informado" : formatNumber(preview.viewerCount)} />
           <PreviewFact label="Seguidores" value={preview.followers === null ? "Nao informado" : formatNumber(preview.followers)} />
         </div>
+        <CheckCircle2 className="hidden h-5 w-5 shrink-0 text-emerald-400 md:block" />
       </div>
 
       {preview.title || preview.category ? (
@@ -802,7 +816,7 @@ function validateFormForSubmit(form: GiveawayForm, liveValidated: boolean, liveP
   }
 
   if (!liveValidated) {
-    return "Verifique uma URL valida da Twitch ou Kick antes de criar o sorteio.";
+    return "Busque e verifique uma URL valida da Twitch ou Kick antes de criar o sorteio.";
   }
 
   return null;

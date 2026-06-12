@@ -21,6 +21,7 @@ import {
   Server,
   Settings,
   Shield,
+  ShieldAlert,
   TicketIcon,
   UserMinus,
   UserPlus,
@@ -33,6 +34,7 @@ import { FacAbsencePanel } from "../components/fivem/FacAbsencePanel";
 import { GiveawayPanel } from "../components/giveaway/GiveawayPanel";
 import { SiteAccessPanel } from "../components/moderation/SiteAccessPanel";
 import { ImageAntiSpamPanel } from "../components/moderation/ImageAntiSpamPanel";
+import { AccountAgeSecurityPanel } from "../components/security/AccountAgeSecurityPanel";
 import { AutoRolesPanel } from "../components/roles/AutoRolesPanel";
 import { KickIntegrationPanel } from "../components/social/KickIntegrationPanel";
 import { LiveNotificationsPanel } from "../components/social/LiveNotificationsPanel";
@@ -185,6 +187,13 @@ const moduleCatalog: ModuleDefinition[] = [
     view: "moderation"
   },
   {
+    id: "account-age-security",
+    title: "Seguranca de Entrada",
+    description: "Remove contas Discord mais novas que o minimo permitido.",
+    icon: ShieldAlert,
+    view: "security"
+  },
+  {
     id: "image-anti-spam",
     title: "Anti-Spam de Imagens",
     description: "Remove imagens excedentes e aplica advertencias progressivas.",
@@ -265,6 +274,7 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   logs: "logs",
   fivem: "fivem-fac",
   "image-anti-spam": "image-anti-spam",
+  security: "account-age-security",
   moderation: "moderation"
 };
 
@@ -641,6 +651,16 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             settings={settings}
           />
         ) : null}
+        {activeView === "security" ? (
+          <AccountAgeSecurityPanel
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "account-age-security", canManageDashboard)}
+            guild={selectedGuild}
+            loading={settingsLoading}
+            onSettingsChange={setSettings}
+            settings={settings}
+          />
+        ) : null}
         {activeView === "image-anti-spam" ? (
           <ImageAntiSpamPanel
             bot={selectedBot}
@@ -763,7 +783,7 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
   }
 
   if (bot.accessLevel === "premium") {
-    return ["live", "kick-integration", "clips", "giveaway", "network", "x-monitor", "image-anti-spam", "fivem", "fivem-fac"].includes(moduleId);
+    return ["live", "kick-integration", "clips", "giveaway", "network", "x-monitor", "image-anti-spam", "link-anti-spam", "account-age-security", "fivem", "fivem-fac"].includes(moduleId);
   }
 
   return false;
@@ -1372,6 +1392,16 @@ function moduleState(moduleId: string, settings: GuildSettings | null, details: 
     };
   }
 
+  if (moduleId === "account-age-security") {
+    return {
+      active: Boolean(settings?.accountAgeSecurityEnabled),
+      configured: Boolean(settings?.accountAgeLogChannelId || settings?.logChannelId),
+      configuredText: settings?.accountAgeSecurityEnabled
+        ? `${settings.accountAgeMinDays} dia(s)`
+        : "Falta ativar"
+    };
+  }
+
   if (moduleId === "verification") {
     const userCount = Object.keys(settings?.dashboardUserPermissions ?? {}).length;
     return {
@@ -1463,6 +1493,8 @@ function friendlyLog(log: LogEntry) {
     "image_anti_spam.settings_updated": { badge: "Anti-Spam", title: "Anti-Spam de Imagens atualizado" },
     "image_anti_spam.incident": { badge: "Anti-Spam", title: "Spam de imagens bloqueado" },
     "image_anti_spam.member_kicked": { badge: "Anti-Spam", title: "Membro expulso por spam de imagens" },
+    "moderation.link_anti_spam": { badge: "Moderacao", title: "Link bloqueado por anti-flood" },
+    "security.account_age.blocked": { badge: "Seguranca", title: "Entrada bloqueada por idade da conta" },
     "fivem.fac.settings_updated": { badge: "FiveM", title: "FAC atualizado" },
     "fivem.fac.request_created": { badge: "FiveM", title: "Solicitacao de ausencia criada" },
     "fivem.fac.request_approved": { badge: "FiveM", title: "Solicitacao de ausencia aprovada" },
