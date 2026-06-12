@@ -292,11 +292,23 @@ export type KickIntegrationStatus = {
   apiConfigured: boolean;
   apiStatus: "not_configured" | "ok" | "error";
   apiMessage: string;
+  apiConfig: KickApiConfig | null;
   connectedAccount: KickNotification | null;
   totalChannels: number;
   activeChannels: number;
   totalLivesMonitored: number;
   lastLiveAt: string | null;
+};
+
+export type KickApiConfig = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  clientId: string;
+  redirectUri: string | null;
+  secretConfigured: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type SocialPlatform =

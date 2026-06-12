@@ -503,6 +503,22 @@ export async function validateKickApi(guildId: string, botId?: string | null) {
   return data.message;
 }
 
+export async function saveKickApiConfig(
+  guildId: string,
+  payload: {
+    clientId: string;
+    clientSecret?: string | null;
+    redirectUri?: string | null;
+  },
+  botId?: string | null
+) {
+  const { data } = await api.put<{ message: string }>(`/kick-integration/${guildId}/api/config`, payload, {
+    params: botParams(botId),
+    timeout: 15000
+  });
+  return data.message;
+}
+
 export async function getKickNotifications(
   guildId: string,
   botId?: string | null,

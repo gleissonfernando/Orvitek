@@ -86,6 +86,21 @@ export type KickNotification = {
   updatedAt: string;
 };
 
+export type KickStream = {
+  id: string;
+  broadcasterUserId: string;
+  channelId: string | null;
+  slug: string;
+  displayName: string;
+  categoryName: string;
+  title: string;
+  viewerCount: number;
+  thumbnailUrl: string | null;
+  startedAt: string;
+  avatar: string | null;
+  url: string;
+};
+
 export type ClipMentionType = "none" | "everyone" | "role";
 
 export type ClipsConfig = {
@@ -390,6 +405,13 @@ export class ApiClient {
       timeout: 30_000
     });
     return data.notifications;
+  }
+
+  async getActiveKickStreams() {
+    const { data } = await this.http.get<{ streams: KickStream[] }>("/kick-integration/bot/streams", {
+      timeout: 30_000
+    });
+    return new Map(data.streams.map((stream) => [stream.broadcasterUserId, stream]));
   }
 
   async updateKickNotificationState(id: string, input: {

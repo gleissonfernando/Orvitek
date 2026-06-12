@@ -10,6 +10,11 @@ type KickToken = {
   expiresAt: number;
 };
 
+export type KickApiCredentials = {
+  clientId: string;
+  clientSecret: string;
+};
+
 export type KickChannelDto = {
   broadcasterUserId: string;
   channelId: string | null;
@@ -93,7 +98,7 @@ type KickTokenResponse = {
   token_type?: string;
 };
 
-let tokenCache: KickToken | null = null;
+const tokenCache = new Map<string, KickToken>();
 
 export function normalizeKickChannel(input: string) {
   let value = input.trim();
@@ -127,8 +132,8 @@ export function kickApiConfigured() {
   return Boolean(env.KICK_CLIENT_ID && env.KICK_CLIENT_SECRET);
 }
 
-export async function getKickChannel(channelName: string) {
-  const token = await getKickAppAccessToken();
+export async function getKickChannel(channelName: string, credentials?: KickApiCredentials | null) {
+  const token = await getKickAppAccessToken(credentials);
   const { data } = await axios.get<KickChannelResponse>(`${KICK_API_URL}/channels`, {
     headers: kickHeaders(token),
     params: {
@@ -146,7 +151,7 @@ export async function getKickChannel(channelName: string) {
   return normalizeKickChannelResponse(channel);
 }
 
-export async function getKickLivestreamsByUserIds(userIds: string[]) {
+export async function getKickLivestreamsByUserIds(userIds: string[], credentials?: KickApiCredentials | null) {
   const uniqueUserIds = [...new Set(userIds.map((userId) => userId.trim()).filter(Boolean))];
   const streams = new Map<string, KickStreamDto>();
 
@@ -154,7 +159,7 @@ export async function getKickLivestreamsByUserIds(userIds: string[]) {
     return streams;
   }
 
-  const token = await getKickAppAccessToken();
+  const token = await getKickAppAccessToken(credentials);
 
   for (let index = 0; index < uniqueUserIds.length; index += KICK_BATCH_SIZE) {
     const params = new URLSearchParams();
@@ -182,31 +187,37 @@ export async function getKickLivestreamsByUserIds(userIds: string[]) {
   return streams;
 }
 
-export async function getKickLivestreamByUserId(userId: string) {
-  const streams = await getKickLivestreamsByUserIds([userId]);
+export async function getKickLivestreamByUserId(userId: string, credentials?: KickApiCredentials | null) {
+  const streams = await getKickLivestreamsByUserIds([userId], credentials);
   return streams.get(userId) ?? null;
 }
 
-async function getKickAppAccessToken() {
-  if (!env.KICK_CLIENT_ID || !env.KICK_CLIENT_SECRET) {
+async function getKickAppAccessToken(credentials?: KickApiCredentials | null) {
+  const clientId = credentials?.clientId?.trim() || env.KICK_CLIENT_ID;
+  const clientSecret = credentials?.clientSecret?.trim() || env.KICK_CLIENT_SECRET;
+  const cacheKey = clientId;
+
+  if (!clientId || !clientSecret) {
     throw new Error("Credenciais da Kick API nao configuradas.");
   }
 
-  if (tokenCache && tokenCache.expiresAt > Date.now() + 60_000) {
-    return tokenCache.accessToken;
+  const cachedToken = tokenCache.get(cacheKey);
+
+  if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) {
+    return cachedToken.accessToken;
   }
 
   const token = await requestKickAppAccessToken({
-    clientId: env.KICK_CLIENT_ID,
-    clientSecret: env.KICK_CLIENT_SECRET
+    clientId,
+    clientSecret
   });
 
-  tokenCache = {
+  tokenCache.set(cacheKey, {
     accessToken: token.accessToken,
     expiresAt: Date.now() + token.expiresIn * 1000
-  };
+  });
 
-  return tokenCache.accessToken;
+  return token.accessToken;
 }
 
 async function requestKickAppAccessToken(input: {

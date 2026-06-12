@@ -1,15 +1,17 @@
-import { createVerify, randomUUID } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createVerify, randomBytes, randomUUID } from "node:crypto";
 import { MongoServerError } from "mongodb";
 import { env } from "../config/env";
-import { ensureGuild, getMongoCollections, type MongoSocialNotification } from "../database/mongo";
+import { ensureGuild, getMongoCollections, type MongoKickApiConfig, type MongoSocialNotification } from "../database/mongo";
 import { createLog } from "./logService";
 import { isGuildTextChannel } from "./discordOptionsService";
 import {
   getKickChannel,
   getKickLivestreamByUserId,
+  getKickLivestreamsByUserIds,
   kickApiConfigured,
   normalizeKickChannel,
   validateKickApiCredentials,
+  type KickApiCredentials,
   type KickChannelDto,
   type KickStreamDto
 } from "./kickService";
@@ -81,11 +83,29 @@ export type KickStatusPayload = {
   apiConfigured: boolean;
   apiStatus: "not_configured" | "ok" | "error";
   apiMessage: string;
+  apiConfig: KickApiConfigDto | null;
   connectedAccount: KickNotificationDto | null;
   totalChannels: number;
   activeChannels: number;
   totalLivesMonitored: number;
   lastLiveAt: string | null;
+};
+
+export type KickApiConfigDto = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  clientId: string;
+  redirectUri: string | null;
+  secretConfigured: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SaveKickApiConfigInput = {
+  clientId: string;
+  clientSecret?: string | null;
+  redirectUri?: string | null;
 };
 
 type ServiceError = Error & {
@@ -126,6 +146,8 @@ const KICK_WEBHOOK_PUBLIC_KEY = [
 const memoryNotifications = new Map<string, KickNotificationDto>();
 
 export async function getKickIntegrationStatus(guildId: string, botId?: string | null): Promise<KickStatusPayload> {
+  const apiConfig = await getKickApiConfig(guildId, botId);
+  const credentials = await resolveKickApiCredentials(guildId, botId);
   const list = await listKickNotifications(guildId, botId, {
     page: 1,
     pageSize: 1
@@ -141,12 +163,12 @@ export async function getKickIntegrationStatus(guildId: string, botId?: string |
     .sort()
     .at(-1) ?? null;
 
-  let apiStatus: KickStatusPayload["apiStatus"] = kickApiConfigured() ? "ok" : "not_configured";
-  let apiMessage = kickApiConfigured() ? "API Kick configurada." : "KICK_CLIENT_ID e KICK_CLIENT_SECRET nao configurados.";
+  let apiStatus: KickStatusPayload["apiStatus"] = credentials ? "ok" : "not_configured";
+  let apiMessage = credentials ? "API Kick configurada." : "KICK_CLIENT_ID e KICK_CLIENT_SECRET nao configurados.";
 
-  if (kickApiConfigured()) {
+  if (credentials) {
     try {
-      await validateKickApiCredentials();
+      await validateKickApiCredentials(credentials);
       apiMessage = "API conectada com sucesso.";
     } catch (error) {
       apiStatus = "error";
@@ -155,9 +177,10 @@ export async function getKickIntegrationStatus(guildId: string, botId?: string |
   }
 
   return {
-    apiConfigured: kickApiConfigured(),
+    apiConfigured: Boolean(credentials),
     apiStatus,
     apiMessage,
+    apiConfig,
     connectedAccount,
     totalChannels: list.total,
     activeChannels: all.notifications.filter((notification) => notification.enabled).length,
@@ -166,9 +189,95 @@ export async function getKickIntegrationStatus(guildId: string, botId?: string |
   };
 }
 
-export async function previewKickChannel(input: string) {
+export async function saveKickApiConfig(
+  guildId: string,
+  input: SaveKickApiConfigInput,
+  userId: string,
+  botId?: string | null
+) {
+  const normalizedBotId = normalizeBotId(botId);
+  const current = await findRawKickApiConfig(guildId, normalizedBotId);
+  const clientId = input.clientId.trim();
+  const clientSecret = input.clientSecret?.trim() || (current ? decryptSecret(current.clientSecretEncrypted) : "");
+  const redirectUri = input.redirectUri?.trim() || null;
+
+  if (!clientId || !clientSecret) {
+    throw createServiceError("Client ID e Client Secret da Kick sao obrigatorios.", 400);
+  }
+
+  await validateKickApiCredentials({
+    clientId,
+    clientSecret
+  }).catch((error) => {
+    throw createServiceError(error instanceof Error ? error.message : "Credenciais invalidas.", 400);
+  });
+
+  const now = new Date();
+  const doc: MongoKickApiConfig = {
+    _id: current?._id ?? randomUUID(),
+    botId: normalizedBotId,
+    guildId,
+    clientId,
+    clientSecretEncrypted: encryptSecret(clientSecret),
+    redirectUri,
+    createdBy: current?.createdBy ?? userId,
+    updatedBy: userId,
+    createdAt: current?.createdAt ?? now,
+    updatedAt: now
+  };
+
+  const { kickApiConfigs } = await getMongoCollections();
+  await kickApiConfigs.updateOne(
+    {
+      botId: normalizedBotId,
+      guildId
+    },
+    {
+      $set: {
+        clientId: doc.clientId,
+        clientSecretEncrypted: doc.clientSecretEncrypted,
+        redirectUri: doc.redirectUri,
+        updatedBy: doc.updatedBy,
+        updatedAt: doc.updatedAt
+      },
+      $setOnInsert: {
+        _id: doc._id,
+        botId: doc.botId,
+        guildId: doc.guildId,
+        createdBy: doc.createdBy,
+        createdAt: doc.createdAt
+      }
+    },
+    {
+      upsert: true
+    }
+  );
+
+  const saved = await getKickApiConfig(guildId, normalizedBotId);
+  await createLog({
+    botId: normalizedBotId,
+    guildId,
+    userId,
+    type: "social.kick.api_saved",
+    message: "Configuracao da API Kick salva.",
+    metadata: {
+      module: KICK_MODULE_ID,
+      clientId
+    }
+  }).catch(() => undefined);
+
+  return saved;
+}
+
+export async function getKickApiConfig(guildId: string, botId?: string | null) {
+  const config = await findRawKickApiConfig(guildId, normalizeBotId(botId));
+  return config ? toKickApiConfigDto(config) : null;
+}
+
+export async function previewKickChannel(input: string, guildId?: string, botId?: string | null) {
+  const credentials = guildId ? await resolveKickApiCredentials(guildId, botId) : null;
   const kickChannelName = normalizeAndValidateKickChannel(input);
-  const channel = await getKickChannel(kickChannelName).catch((error) => {
+  const channel = await getKickChannel(kickChannelName, credentials).catch((error) => {
     throw createServiceError(error instanceof Error ? error.message : "Erro ao consultar Kick API.", 503);
   });
 
@@ -300,10 +409,11 @@ export async function listActiveKickNotifications(botId?: string | null) {
 
 export async function createKickNotification(guildId: string, input: CreateKickNotificationInput) {
   const botId = normalizeBotId(input.botId);
+  const credentials = await resolveKickApiCredentials(guildId, botId);
   const kickChannelName = normalizeAndValidateKickChannel(input.kickChannelInput);
   await assertGuildLimit(guildId, botId);
 
-  const channel = await getKickChannel(kickChannelName).catch((error) => {
+  const channel = await getKickChannel(kickChannelName, credentials).catch((error) => {
     throw createServiceError(error instanceof Error ? error.message : "Erro ao consultar Kick API.", 503);
   });
 
@@ -502,7 +612,8 @@ export async function sendKickNotificationTest(
   botToken?: string | null
 ) {
   const notification = await findKickNotification(guildId, id, botId);
-  const stream = notification.kickUserId ? await getKickLivestreamByUserId(notification.kickUserId).catch(() => null) : null;
+  const credentials = await resolveKickApiCredentials(guildId, botId);
+  const stream = notification.kickUserId ? await getKickLivestreamByUserId(notification.kickUserId, credentials).catch(() => null) : null;
   const simulatedStream = stream ?? simulatedKickStream(notification);
 
   if (!(await isGuildTextChannel(guildId, notification.discordChannelId, botToken))) {
@@ -587,7 +698,8 @@ export async function processKickWebhookStatus(
         continue;
       }
 
-      const stream = await getKickLivestreamByUserId(notification.kickUserId ?? userId ?? "").catch(() => null);
+      const credentials = await resolveKickApiCredentials(notification.guildId, notification.botId);
+      const stream = await getKickLivestreamByUserId(notification.kickUserId ?? userId ?? "", credentials).catch(() => null);
       const fallbackStream = stream ?? simulatedKickStream(notification, {
         startedAt,
         title: payload.title ?? null,
@@ -662,10 +774,123 @@ export async function findKickNotification(guildId: string, id: string, botId?: 
   }
 }
 
+export async function getKickStreamsForBot(botId?: string | null) {
+  const notifications = await listActiveKickNotifications(botId);
+  const streamsByUserId = new Map<string, KickStreamDto>();
+  const notificationsByScope = new Map<string, KickNotificationDto[]>();
+
+  for (const notification of notifications) {
+    if (!notification.kickUserId) {
+      continue;
+    }
+
+    const key = `${notification.botId ?? ""}:${notification.guildId}`;
+    const scopedNotifications = notificationsByScope.get(key) ?? [];
+    scopedNotifications.push(notification);
+    notificationsByScope.set(key, scopedNotifications);
+  }
+
+  for (const scopedNotifications of notificationsByScope.values()) {
+    const firstNotification = scopedNotifications[0];
+
+    if (!firstNotification) {
+      continue;
+    }
+
+    const credentials = await resolveKickApiCredentials(firstNotification.guildId, firstNotification.botId);
+    const userIds = scopedNotifications
+      .map((notification) => notification.kickUserId)
+      .filter((userId): userId is string => Boolean(userId));
+
+    if (!credentials || !userIds.length) {
+      continue;
+    }
+
+    const streams = await getKickLivestreamsByUserIds(userIds, credentials).catch(() => new Map<string, KickStreamDto>());
+
+    for (const [userId, stream] of streams) {
+      streamsByUserId.set(userId, stream);
+    }
+  }
+
+  return [...streamsByUserId.values()];
+}
+
 export function createServiceError(message: string, statusCode: number) {
   const error = new Error(message) as ServiceError;
   error.statusCode = statusCode;
   return error;
+}
+
+async function resolveKickApiCredentials(guildId: string, botId?: string | null): Promise<KickApiCredentials | null> {
+  const config = await findRawKickApiConfig(guildId, normalizeBotId(botId));
+
+  if (config) {
+    return {
+      clientId: config.clientId,
+      clientSecret: decryptSecret(config.clientSecretEncrypted)
+    };
+  }
+
+  if (kickApiConfigured()) {
+    return {
+      clientId: env.KICK_CLIENT_ID,
+      clientSecret: env.KICK_CLIENT_SECRET
+    };
+  }
+
+  return null;
+}
+
+async function findRawKickApiConfig(guildId: string, botId: string | null) {
+  try {
+    const { kickApiConfigs } = await getMongoCollections();
+    return kickApiConfigs.findOne(notificationScopeQuery(guildId, botId));
+  } catch {
+    return null;
+  }
+}
+
+function toKickApiConfigDto(config: MongoKickApiConfig): KickApiConfigDto {
+  return {
+    id: config._id,
+    botId: normalizeBotId(config.botId),
+    guildId: config.guildId,
+    clientId: config.clientId,
+    redirectUri: config.redirectUri ?? null,
+    secretConfigured: Boolean(config.clientSecretEncrypted),
+    createdAt: config.createdAt.toISOString(),
+    updatedAt: config.updatedAt.toISOString()
+  };
+}
+
+function encryptSecret(value: string) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", encryptionKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  return [iv.toString("base64url"), tag.toString("base64url"), encrypted.toString("base64url")].join(".");
+}
+
+function decryptSecret(value: string) {
+  const [ivValue, tagValue, encryptedValue] = value.split(".");
+
+  if (!ivValue || !tagValue || !encryptedValue) {
+    throw new Error("Segredo Kick protegido invalido.");
+  }
+
+  const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), Buffer.from(ivValue, "base64url"));
+  decipher.setAuthTag(Buffer.from(tagValue, "base64url"));
+
+  return Buffer.concat([
+    decipher.update(Buffer.from(encryptedValue, "base64url")),
+    decipher.final()
+  ]).toString("utf8");
+}
+
+function encryptionKey() {
+  return createHash("sha256").update(env.JWT_SECRET || env.SESSION_SECRET).digest();
 }
 
 export function verifyKickWebhookSignature(input: {

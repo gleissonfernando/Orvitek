@@ -8,8 +8,7 @@ import {
   type MessageMentionOptions
 } from "discord.js";
 import { env } from "../config/env";
-import type { ApiClient, KickNotification } from "./apiClient";
-import { getKickLivestreamsByUserIds, type KickStream } from "./kickApiService";
+import type { ApiClient, KickNotification, KickStream } from "./apiClient";
 
 let running = false;
 const NOTIFICATION_CONCURRENCY = 25;
@@ -38,11 +37,7 @@ async function monitorKickNotifications(client: Client, api: ApiClient) {
   try {
     const notifications = await api.getActiveKickNotifications();
     const eligibleNotifications = notifications.filter((notification) => client.guilds.cache.has(notification.guildId));
-    const streamsByUserId = await getKickLivestreamsByUserIds(
-      eligibleNotifications
-        .map((notification) => notification.kickUserId ?? "")
-        .filter(Boolean)
-    );
+    const streamsByUserId = await api.getActiveKickStreams();
 
     await mapWithConcurrency(eligibleNotifications, NOTIFICATION_CONCURRENCY, async (notification) => {
       try {

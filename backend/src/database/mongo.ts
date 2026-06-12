@@ -132,6 +132,19 @@ export type MongoSocialNotification = {
   updatedAt: Date;
 };
 
+export type MongoKickApiConfig = {
+  _id: string;
+  botId?: string | null;
+  guildId: string;
+  clientId: string;
+  clientSecretEncrypted: string;
+  redirectUri: string | null;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type MongoSocialMember = {
   _id: string;
   botId?: string | null;
@@ -470,6 +483,7 @@ export async function getMongoCollections() {
     tickets: db.collection<MongoTicket>("Ticket"),
     logEntries: db.collection<MongoLogEntry>("LogEntry"),
     socialNotifications: db.collection<MongoSocialNotification>("social_notifications"),
+    kickApiConfigs: db.collection<MongoKickApiConfig>("kick_api_configs"),
     socialMembers: db.collection<MongoSocialMember>("social_members"),
     socialPanels: db.collection<MongoSocialPanel>("social_panels"),
     xAccounts: db.collection<MongoXAccount>("x_accounts"),
@@ -536,6 +550,7 @@ async function createMongoIndexes(db: Db) {
     db.collection<MongoTicket>("Ticket").createIndex({ guildId: 1, createdAt: -1 }),
     db.collection<MongoLogEntry>("LogEntry").createIndex({ guildId: 1, createdAt: -1 }),
     ensureSocialNotificationIndexes(db),
+    ensureKickApiIndexes(db),
     ensureSocialNetworkIndexes(db),
     ensureXMonitorIndexes(db),
     ensureClipsIndexes(db),
@@ -668,6 +683,18 @@ async function ensureGuildSettingsIndexes(db: Db) {
     collection.dropIndex("GuildSettings_guildId_key").catch(() => undefined)
   ]);
   await collection.createIndex({ botId: 1, guildId: 1 }, { unique: true });
+}
+
+async function ensureKickApiIndexes(db: Db) {
+  await db.collection<MongoKickApiConfig>("kick_api_configs").createIndex(
+    {
+      botId: 1,
+      guildId: 1
+    },
+    {
+      unique: true
+    }
+  );
 }
 
 async function ensureSocialNotificationIndexes(db: Db) {

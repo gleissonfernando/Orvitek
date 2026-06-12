@@ -12,10 +12,12 @@ import {
   getKickIntegrationStatus,
   KICK_MODULE_ID,
   KICK_NOTIFICATION_LIMIT,
+  getKickStreamsForBot,
   listActiveKickNotifications,
   listKickNotifications,
   previewKickChannel,
   processKickWebhookStatus,
+  saveKickApiConfig,
   sendDiscordKickLiveEnd,
   sendDiscordKickLiveStart,
   sendKickNotificationTest,
@@ -92,6 +94,19 @@ kickNotificationsRouter.get("/bot/active", requireBot, async (req, res, next) =>
   }
 });
 
+kickNotificationsRouter.get("/bot/streams", requireBot, async (req, res, next) => {
+  try {
+    const botId = await resolveRequestBotId(req);
+    const streams = await getKickStreamsForBot(botId);
+
+    return res.json({
+      streams
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 kickNotificationsRouter.patch("/bot/:id/state", requireBot, async (req, res, next) => {
   try {
     const id = getRequiredParam(req.params.id, "id");
@@ -128,10 +143,18 @@ kickNotificationsRouter.post("/:guildId/api/validate", requireAuth, async (req, 
     await assertCanManageGuild(req, guildId, botId, "validou API Kick");
 
     const input = validateApiSchema.parse(req.body);
-    await validateKickApiCredentials({
-      clientId: input?.clientId ?? undefined,
-      clientSecret: input?.clientSecret ?? undefined
-    });
+    if (!input?.clientId && !input?.clientSecret) {
+      const status = await getKickIntegrationStatus(guildId, botId);
+
+      if (status.apiStatus !== "ok") {
+        throw createServiceError(status.apiMessage, 400);
+      }
+    } else {
+      await validateKickApiCredentials({
+        clientId: input?.clientId ?? undefined,
+        clientSecret: input?.clientSecret ?? undefined
+      });
+    }
     await writeKickAudit({
       action: "validou API Kick",
       botId,
@@ -140,6 +163,34 @@ kickNotificationsRouter.post("/:guildId/api/validate", requireAuth, async (req, 
     });
 
     return res.json({
+      message: "API conectada com sucesso."
+    });
+  } catch (error) {
+    return handleRouteError(error, res, next);
+  }
+});
+
+kickNotificationsRouter.put("/:guildId/api/config", requireAuth, async (req, res, next) => {
+  try {
+    const guildId = getRequiredParam(req.params.guildId, "guildId");
+    const botId = await resolveRequestBotId(req);
+    const user = res.locals.dashboardAuth.user as AuthSessionUser;
+    await assertCanManageGuild(req, guildId, botId, "salvou API Kick");
+
+    const input = validateApiSchema.parse(req.body);
+
+    if (!input) {
+      throw createServiceError("Credenciais da Kick API obrigatorias.", 400);
+    }
+
+    const config = await saveKickApiConfig(guildId, {
+      clientId: input.clientId ?? "",
+      clientSecret: input.clientSecret ?? "",
+      redirectUri: input.redirectUri ?? null
+    }, user.discordId, botId);
+
+    return res.json({
+      config,
       message: "API conectada com sucesso."
     });
   } catch (error) {
@@ -182,7 +233,7 @@ kickNotificationsRouter.post("/:guildId/preview", requireAuth, async (req, res, 
     await assertCanManageGuild(req, guildId, botId, "previsualizou Kick");
 
     const input = previewKickSchema.parse(req.body);
-    const preview = await previewKickChannel(input.kickChannelInput);
+    const preview = await previewKickChannel(input.kickChannelInput, guildId, botId);
 
     return res.json({
       preview

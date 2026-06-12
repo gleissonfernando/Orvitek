@@ -20,6 +20,7 @@ import {
   getKickIntegrationStatus,
   getKickNotifications,
   previewKickChannel,
+  saveKickApiConfig,
   testKickNotification,
   updateKickNotification,
   validateKickApi
@@ -62,6 +63,7 @@ export function KickIntegrationPanel({ botId, canManage, guild }: KickIntegratio
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [savingApi, setSavingApi] = useState(false);
   const [validating, setValidating] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -185,6 +187,26 @@ export function KickIntegrationPanel({ botId, canManage, guild }: KickIntegratio
     }
   }
 
+  async function handleSaveApiConfig(payload: { clientId: string; clientSecret?: string | null; redirectUri?: string | null }) {
+    if (!guild) {
+      return;
+    }
+
+    setSavingApi(true);
+    setError(null);
+    setStatus(null);
+
+    try {
+      const message = await saveKickApiConfig(guild.id, payload, botId);
+      setStatus(message);
+      setRefreshSignal((current) => current + 1);
+    } catch (requestError) {
+      setError(readErrorMessage(requestError));
+    } finally {
+      setSavingApi(false);
+    }
+  }
+
   async function handleCreate(payload: CreateKickNotificationPayload) {
     if (!guild) {
       return;
@@ -301,7 +323,13 @@ export function KickIntegrationPanel({ botId, canManage, guild }: KickIntegratio
       {canManage ? (
         <>
           <KickStatusGrid status={integrationStatus} />
-          <KickApiCard loading={validating} onValidate={handleValidateApi} status={integrationStatus} />
+          <KickApiCard
+            loading={validating}
+            onSave={handleSaveApiConfig}
+            onValidate={handleValidateApi}
+            saving={savingApi}
+            status={integrationStatus}
+          />
           <KickNotificationCard
             channels={liveOptions.channels}
             filteredTotal={filteredTotal}
@@ -391,17 +419,40 @@ function KickStatusGrid({ status }: { status: KickIntegrationStatus | null }) {
 
 function KickApiCard({
   loading,
+  onSave,
   onValidate,
+  saving,
   status
 }: {
   loading: boolean;
+  onSave: (payload: { clientId: string; clientSecret?: string | null; redirectUri?: string | null }) => void;
   onValidate: () => void;
+  saving: boolean;
   status: KickIntegrationStatus | null;
 }) {
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [redirectUri, setRedirectUri] = useState("");
   const ok = status?.apiStatus === "ok";
 
+  useEffect(() => {
+    setClientId(status?.apiConfig?.clientId ?? "");
+    setClientSecret("");
+    setRedirectUri(status?.apiConfig?.redirectUri ?? defaultKickRedirectUri());
+  }, [status?.apiConfig?.clientId, status?.apiConfig?.redirectUri]);
+
   return (
-    <div className="rounded-lg border border-zinc-900 bg-zinc-950/75 p-4">
+    <form
+      className="rounded-lg border border-zinc-900 bg-zinc-950/75 p-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSave({
+          clientId,
+          clientSecret: clientSecret || null,
+          redirectUri: redirectUri || null
+        });
+      }}
+    >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#53fc18]/25 bg-[#53fc18]/10 text-[#53fc18]">
@@ -414,6 +465,9 @@ function KickApiCard({
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <Button disabled={saving || !clientId || (!clientSecret && !status?.apiConfig?.secretConfigured)} type="submit">
+            {saving ? "Salvando..." : "Salvar"}
+          </Button>
           <Button disabled={loading} onClick={onValidate} type="button" variant="outline">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
             Validar API
@@ -423,7 +477,36 @@ function KickApiCard({
           </Button>
         </div>
       </div>
-    </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+        <Field label="Client ID">
+          <input
+            className="social-input"
+            onChange={(event) => setClientId(event.target.value)}
+            placeholder="ID do cliente da Kick"
+            value={clientId}
+          />
+        </Field>
+        <Field label="Client Secret">
+          <input
+            className="social-input"
+            onChange={(event) => setClientSecret(event.target.value)}
+            placeholder={status?.apiConfig?.secretConfigured ? "Secret salvo" : "Segredo do cliente da Kick"}
+            type="password"
+            value={clientSecret}
+          />
+        </Field>
+        <Field label="Redirect URI">
+          <input
+            className="social-input"
+            onChange={(event) => setRedirectUri(event.target.value)}
+            placeholder="https://seu-site.com"
+            type="url"
+            value={redirectUri}
+          />
+        </Field>
+      </div>
+    </form>
   );
 }
 
@@ -1034,4 +1117,12 @@ function readErrorMessage(error: unknown) {
   }
 
   return "Nao foi possivel concluir a acao.";
+}
+
+function defaultKickRedirectUri() {
+  try {
+    return window.location.origin;
+  } catch {
+    return "";
+  }
 }
