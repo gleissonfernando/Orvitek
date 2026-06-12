@@ -298,9 +298,10 @@ export async function createGiveaway(
   const { giveaways } = await getMongoCollections();
   await giveaways.insertOne(doc);
   await writeGiveawayLog(doc, "giveaway.created", ownerId, `Sorteio criado: ${doc.title}.`);
-  emitGiveawayUpdated(doc);
+  const synced = await syncGiveawayForPanel(doc, ownerId, normalizedBotId);
+  emitGiveawayUpdated(synced);
 
-  return toGiveawayDto(doc);
+  return toGiveawayDto(synced);
 }
 
 export async function updateGiveaway(
@@ -382,10 +383,11 @@ export async function updateGiveaway(
   }
 
   await writeGiveawayLog(updated, "giveaway.updated", actorId, `Sorteio atualizado: ${updated.title}.`);
-  emitGiveawayUpdated(updated);
-  requestGiveawayPanelUpdate(updated, "update");
+  const synced = await syncGiveawayForPanel(updated, actorId, normalizedBotId);
+  emitGiveawayUpdated(synced);
+  requestGiveawayPanelUpdate(synced, "update");
 
-  return toGiveawayDto(updated);
+  return toGiveawayDto(synced);
 }
 
 export async function publishGiveawayPanel(giveawayId: string, actorId: string, botId?: string | null) {
@@ -654,8 +656,7 @@ export async function spinGiveawayRoulette(token: string): Promise<GiveawaySpinR
       throw createGiveawayError(`Limite de ${ended.winnerCount} ganhador(es) ja foi atingido.`, 400);
     }
 
-    const sync = await syncGiveawayParticipantsForDocument(giveaway, null, "spin");
-    const freshParticipants = sync.participants;
+    const freshParticipants = (giveaway.participants ?? []).filter((participant) => participant.eligible !== false);
     const previousWinnerIds = new Set(giveaway.winners.map((winner) => winner.participantId));
     const eligibleParticipants = freshParticipants.filter((participant) => (
       giveaway.allowRepeatWinners || !previousWinnerIds.has(participant.id)
@@ -962,7 +963,7 @@ async function resolveKickGiveawayChannel(value: string, guildId: string, botId:
       url: `https://kick.com/${kick.slug}`,
       verified: kick.verified,
       viewerCount: kick.viewerCount,
-      warning: "A Kick pode limitar a verificacao automatica de subs nesta conta/API. Se nao encontrar participantes, use seguidores, entrada pela roleta ou eventos do webhook."
+      warning: "A Kick pode limitar a verificacao automatica de subs nesta conta/API. Se nao encontrar participantes, confira os eventos/webhook da Kick ou atualize pelo painel."
     },
     url: `https://kick.com/${kick.slug}`
   };
@@ -971,7 +972,7 @@ async function resolveKickGiveawayChannel(value: string, guildId: string, botId:
 async function syncGiveawayParticipantsForDocument(
   giveaway: MongoGiveaway,
   actorId: string | null,
-  reason: "manual" | "spin" | "start"
+  reason: "manual" | "panel" | "start"
 ) {
   try {
     const sync = await buildSyncedGiveawayParticipants(giveaway);
@@ -994,7 +995,7 @@ async function syncGiveawayParticipantsForDocument(
 
     await writeGiveawayLog(
       giveaway,
-      reason === "manual" ? "giveaway.sync.manual" : reason === "start" ? "giveaway.sync.start" : "giveaway.sync.spin",
+      reason === "manual" ? "giveaway.sync.manual" : reason === "start" ? "giveaway.sync.start" : "giveaway.sync.panel",
       actorId,
       `Sincronizacao Twitch/Kick concluida: ${sync.participants.length} participante(s).`
     );
@@ -1028,6 +1029,11 @@ async function syncGiveawayParticipantsForDocument(
     await writeGiveawayLog(giveaway, "giveaway.sync.failed", actorId, `Falha ao sincronizar participantes: ${message}.`);
     throw createGiveawayError(message, 503);
   }
+}
+
+async function syncGiveawayForPanel(giveaway: MongoGiveaway, actorId: string | null, botId: string | null) {
+  await syncGiveawayParticipantsForDocument(giveaway, actorId, "panel");
+  return (await findGiveawayById(giveaway._id, botId)) ?? giveaway;
 }
 
 function emitGiveawayUpdated(giveaway: MongoGiveaway) {
@@ -1230,30 +1236,8 @@ function normalizeDelay(value?: number | null) {
   return Math.max(0, Math.min(Number.isFinite(minutes) ? minutes : 0, MAX_DELAY_MINUTES));
 }
 
-function normalizeParticipantMode(value?: MongoGiveawayParticipantMode | null, platform: "twitch" | "kick" | "multi" = "twitch"): MongoGiveawayParticipantMode {
-  const modes = new Set<MongoGiveawayParticipantMode>([
-    "all",
-    "kick_followers",
-    "kick_subs",
-    "twitch_followers",
-    "twitch_kick",
-    "twitch_subs",
-    "twitch_subs_followers"
-  ]);
-
-  const normalized = value && modes.has(value) ? value : null;
-
-  if (platform === "kick") {
-    return normalized && ["all", "kick_followers", "kick_subs"].includes(normalized) ? normalized : "kick_followers";
-  }
-
-  if (platform === "twitch") {
-    return normalized && ["all", "twitch_followers", "twitch_subs", "twitch_subs_followers"].includes(normalized)
-      ? normalized
-      : "twitch_subs";
-  }
-
-  return normalized ?? "twitch_kick";
+function normalizeParticipantMode(_value?: MongoGiveawayParticipantMode | null, _platform: "twitch" | "kick" | "multi" = "twitch"): MongoGiveawayParticipantMode {
+  return "all";
 }
 
 function detectGiveawayPlatform(value: string) {

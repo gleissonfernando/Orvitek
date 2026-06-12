@@ -6,6 +6,8 @@ import { startFivemFacService } from "../services/fivemFacService";
 import { startGiveawayService } from "../services/giveawayService";
 import { startImageAntiSpamService } from "../services/imageAntiSpamService";
 import { startKickNotificationMonitor } from "../services/kickNotificationMonitor";
+import { ensureSelfBotRoles } from "../services/safeBotService";
+import { startSelfBotProtectionService } from "../services/selfBotProtectionService";
 import { startSocialNetworkPanelSync } from "../services/socialNetworkPanelService";
 import { startSocialNotificationMonitor } from "../services/socialNotificationMonitor";
 import { startXMonitor } from "../services/xMonitor";
@@ -52,6 +54,8 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   if (isBotModuleEnabled("image-anti-spam")) {
     startImageAntiSpamService(context);
   }
+  startSelfBotProtectionService(context);
+  await ensureSelfBotRoles(client, context);
   context.socket.connect(client);
   context.socket.emitStatus(client, true);
 

@@ -37,6 +37,7 @@ export const DEV_MODULES = [
   { id: "roles", label: "Sistema de Cargos" },
   { id: "tickets", label: "Sistema de Tickets" },
   { id: "moderation", label: "Sistema de Moderacao" },
+  { id: "safe-bot", label: "SelfBot Protection" },
   { id: "image-anti-spam", label: "Anti-Spam de Imagens" },
   { id: "link-anti-spam", label: "Anti-Flood de Links" },
   { id: "account-age-security", label: "Seguranca por Idade da Conta" },
@@ -130,6 +131,7 @@ export type DashboardBotDto = Pick<
   | "dashboardUrl"
   | "clientId"
   | "avatarUrl"
+  | "ownerId"
   | "mainGuildId"
   | "mainGuildName"
   | "mainGuildIconUrl"
@@ -142,6 +144,7 @@ export type DashboardBotDto = Pick<
   | "enabledModules"
   | "accessLevel"
   | "permissions"
+  | "createdBy"
 >;
 
 export type DevBotRuntimeConfig = {
@@ -1473,6 +1476,7 @@ function toDashboardBotDto(bot: DevBotDto): DashboardBotDto {
     dashboardUrl: bot.dashboardUrl,
     clientId: bot.clientId,
     avatarUrl: bot.avatarUrl,
+    ownerId: bot.ownerId,
     mainGuildId: bot.mainGuildId,
     mainGuildName: bot.mainGuildName,
     mainGuildIconUrl: bot.mainGuildIconUrl,
@@ -1484,7 +1488,8 @@ function toDashboardBotDto(bot: DevBotDto): DashboardBotDto {
     statusMessage: bot.statusMessage,
     enabledModules: bot.enabledModules,
     accessLevel: bot.accessLevel,
-    permissions: bot.permissions
+    permissions: bot.permissions,
+    createdBy: bot.createdBy
   };
 }
 

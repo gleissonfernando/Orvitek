@@ -41,7 +41,10 @@ import type {
   SaveFivemFacSettingsPayload,
   SaveGiveawayPayload,
   SaveImageAntiSpamSettingsPayload,
+  SaveSelfBotProtectionSettingsPayload,
   SaveSocialPanelPayload,
+  SelfBotProtectionResponse,
+  SelfBotProtectionSettings,
   SocialMember,
   SocialMemberPayload,
   SocialNetworkResponse,
@@ -255,6 +258,31 @@ export async function saveImageAntiSpamSettings(
 ) {
   const { data } = await api.patch<{ settings: ImageAntiSpamSettings }>(
     `/image-anti-spam/${guildId}`,
+    payload,
+    {
+      params: botParams(botId)
+    }
+  );
+  return data.settings;
+}
+
+export async function getSelfBotProtection(guildId: string, botId: string) {
+  const { data } = await api.get<SelfBotProtectionResponse>(
+    `/self-bot-protection/${guildId}`,
+    {
+      params: botParams(botId)
+    }
+  );
+  return data;
+}
+
+export async function saveSelfBotProtectionSettings(
+  guildId: string,
+  botId: string,
+  payload: SaveSelfBotProtectionSettingsPayload
+) {
+  const { data } = await api.patch<{ settings: SelfBotProtectionSettings }>(
+    `/self-bot-protection/${guildId}`,
     payload,
     {
       params: botParams(botId)

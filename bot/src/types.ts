@@ -57,6 +57,10 @@ export type GuildSettings = {
   accountAgeMinDays: number;
   accountAgeLogChannelId: string | null;
   accountAgeAllowedUserIds: string[];
+  safeBotEnabled: boolean;
+  safeBotChannelId: string | null;
+  safeBotRoleId: string | null;
+  safeBotLogChannelId: string | null;
   verificationEnabled: boolean;
   verificationRoleId: string | null;
   verificationRoleIds: string[];

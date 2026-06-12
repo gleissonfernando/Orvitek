@@ -10,6 +10,8 @@ import { handlePresenceEvent } from "../events/presenceUpdate";
 import { handleReady } from "../events/ready";
 import { env, isBotModuleEnabled } from "../config/env";
 import { isLinkAntiSpamEnabled } from "../services/linkAntiSpamService";
+import { ensureSelfBotRole, isSelfBotModuleEnabled } from "../services/safeBotService";
+import { handleSelfBotProtectionGuildMutation } from "../services/selfBotProtectionService";
 import type { BotContext } from "../types";
 
 export function registerEvents(client: Client, context: BotContext) {
@@ -20,8 +22,11 @@ export function registerEvents(client: Client, context: BotContext) {
       context.socket.emitStatus(client, true);
     }
   });
+  client.on(Events.GuildCreate, (guild) => {
+    void ensureSelfBotRole(guild, context);
+  });
 
-  if (env.BOT_MEMBER_EVENTS_ENABLED && ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security"].some(isBotModuleEnabled)) {
+  if (env.BOT_MEMBER_EVENTS_ENABLED && ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security", "safe-bot"].some(isBotModuleEnabled)) {
     client.on(Events.GuildMemberAdd, (member) => {
       void resolveMember(member).then((resolved) => {
         if (resolved) {
@@ -46,8 +51,24 @@ export function registerEvents(client: Client, context: BotContext) {
     client.on(Events.MessageUpdate, (oldMessage, newMessage) => void handleMessageUpdate(oldMessage, newMessage, context));
   }
 
-  if (isBotModuleEnabled("image-anti-spam") || isLinkAntiSpamEnabled()) {
+  if (isBotModuleEnabled("image-anti-spam") || isLinkAntiSpamEnabled() || isSelfBotModuleEnabled()) {
     client.on(Events.MessageCreate, (message) => void handleMessageCreate(message, context));
+  }
+
+  if (isSelfBotModuleEnabled()) {
+    client.on(Events.ChannelCreate, (channel) => {
+      if ("guild" in channel) {
+        void handleSelfBotProtectionGuildMutation(channel.guild, context, "channel_create", channel.id);
+      }
+    });
+    client.on(Events.GuildRoleCreate, (role) => {
+      void handleSelfBotProtectionGuildMutation(role.guild, context, "role_create", null);
+    });
+    client.on(Events.WebhooksUpdate, (channel) => {
+      if ("guild" in channel) {
+        void handleSelfBotProtectionGuildMutation(channel.guild, context, "webhook_create", channel.id);
+      }
+    });
   }
 
   if (env.BOT_PRESENCE_MONITOR_ENABLED && isBotModuleEnabled("live")) {

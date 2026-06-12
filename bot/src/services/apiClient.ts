@@ -93,6 +93,99 @@ export type ImageAntiSpamIncidentResult = {
   user: ImageAntiSpamUser;
 };
 
+export type SelfBotProtectionModuleId =
+  | "anti-spam"
+  | "anti-flood"
+  | "anti-imagens"
+  | "anti-gif"
+  | "anti-mencoes"
+  | "anti-emojis"
+  | "anti-convites"
+  | "anti-links"
+  | "anti-scam"
+  | "anti-raid"
+  | "anti-caps-lock"
+  | "anti-texto-repetido"
+  | "anti-copypasta"
+  | "anti-flood-multi-canais"
+  | "anti-anexos"
+  | "anti-webhook"
+  | "anti-bots"
+  | "anti-contas-novas"
+  | "anti-token-grabber"
+  | "anti-phishing"
+  | "anti-nitro-scam"
+  | "anti-mass-ping"
+  | "anti-divulgacao"
+  | "anti-auto-spam"
+  | "anti-comandos-em-massa";
+
+export type SelfBotPunishmentAction =
+  | "delete_message"
+  | "warn"
+  | "log"
+  | "timeout"
+  | "remove_role"
+  | "add_role"
+  | "kick"
+  | "ban";
+
+export type SelfBotProtectionSettings = {
+  id: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  moduleToggles: Record<SelfBotProtectionModuleId, boolean>;
+  ignoredChannelIds: string[];
+  protectedChannelIds: string[];
+  mediaChannelIds: string[];
+  linkChannelIds: string[];
+  logChannelId: string | null;
+  logWebhookUrl: string | null;
+  embedColor: string;
+  punishmentSequence: SelfBotPunishmentAction[];
+  addRoleId: string | null;
+  removeRoleId: string | null;
+  timeoutSeconds: number;
+  floodLimit: number;
+  floodWindowSeconds: number;
+  imageLimit: number;
+  imageWindowSeconds: number;
+  mentionLimit: number;
+  emojiLimit: number;
+  capsMinLength: number;
+  capsPercentage: number;
+  repeatedTextLimit: number;
+  repeatedTextWindowSeconds: number;
+  multiChannelLimit: number;
+  multiChannelWindowSeconds: number;
+  raidJoinLimit: number;
+  raidWindowSeconds: number;
+  newAccountMaxAgeHours: number;
+  suspiciousDomains: string[];
+  blockedTerms: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SelfBotProtectionIncident = {
+  id: string;
+  botId: string;
+  guildId: string;
+  userId: string;
+  username: string | null;
+  channelId: string | null;
+  messageId: string | null;
+  messageContent: string | null;
+  moduleId: SelfBotProtectionModuleId;
+  infractionType: string;
+  punishmentActions: SelfBotPunishmentAction[];
+  punishmentSucceeded: boolean;
+  punishmentError: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
 export type SocialNotification = {
   id: string;
   botId: string | null;
@@ -501,6 +594,17 @@ export class ApiClient {
     return data.settings;
   }
 
+  async syncSelfBotRole(input: { guildId: string; roleId: string; roleName?: string | null }) {
+    const { data } = await this.http.post<{ settings: GuildSettings }>(
+      `/settings/bot/${input.guildId}/self-bot-role`,
+      {
+        roleId: input.roleId,
+        roleName: input.roleName ?? undefined
+      }
+    );
+    return data.settings;
+  }
+
   async getImageAntiSpamSettings(guildId: string) {
     const { data } = await this.http.get<{ settings: ImageAntiSpamSettings }>(
       `/image-anti-spam/bot/${guildId}`
@@ -532,6 +636,34 @@ export class ApiClient {
   ) {
     const { data } = await this.http.patch<{ incident: ImageAntiSpamIncident }>(
       `/image-anti-spam/bot/incidents/${incidentId}`,
+      input
+    );
+    return data.incident;
+  }
+
+  async getSelfBotProtectionSettings(guildId: string) {
+    const { data } = await this.http.get<{ settings: SelfBotProtectionSettings }>(
+      `/self-bot-protection/bot/${guildId}`
+    );
+    return data.settings;
+  }
+
+  async recordSelfBotProtectionIncident(input: {
+    guildId: string;
+    userId: string;
+    username?: string | null;
+    channelId?: string | null;
+    messageId?: string | null;
+    messageContent?: string | null;
+    moduleId: SelfBotProtectionModuleId;
+    infractionType: string;
+    punishmentActions: SelfBotPunishmentAction[];
+    punishmentSucceeded: boolean;
+    punishmentError?: string | null;
+    metadata?: Record<string, unknown>;
+  }) {
+    const { data } = await this.http.post<{ incident: SelfBotProtectionIncident }>(
+      "/self-bot-protection/bot/incidents",
       input
     );
     return data.incident;

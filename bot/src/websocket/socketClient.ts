@@ -80,6 +80,11 @@ export type ImageAntiSpamSettingsEvent = {
   guildId: string;
 };
 
+export type SelfBotProtectionSettingsEvent = {
+  botId?: string | null;
+  guildId: string;
+};
+
 export class BotSocketClient {
   private socket: Socket | null = null;
   private socialPanelUpdateHandler: ((payload: SocialPanelUpdateEvent) => void) | null = null;
@@ -90,6 +95,7 @@ export class BotSocketClient {
   private fivemFacAbsenceUpdateHandler: ((payload: FivemFacAbsenceUpdateEvent) => void) | null = null;
   private giveawayPanelUpdateHandler: ((payload: GiveawayPanelUpdateEvent) => void) | null = null;
   private imageAntiSpamSettingsHandler: ((payload: ImageAntiSpamSettingsEvent) => void) | null = null;
+  private selfBotProtectionSettingsHandler: ((payload: SelfBotProtectionSettingsEvent) => void) | null = null;
 
   connect(client: Client) {
     if (!env.BACKEND_SOCKET_URL) {
@@ -168,6 +174,10 @@ export class BotSocketClient {
 
     if (this.imageAntiSpamSettingsHandler) {
       this.socket.on("image-anti-spam:settings_updated", this.imageAntiSpamSettingsHandler);
+    }
+
+    if (this.selfBotProtectionSettingsHandler) {
+      this.socket.on("self-bot-protection:settings_updated", this.selfBotProtectionSettingsHandler);
     }
   }
 
@@ -256,6 +266,12 @@ export class BotSocketClient {
     this.imageAntiSpamSettingsHandler = handler;
     this.socket?.off("image-anti-spam:settings_updated");
     this.socket?.on("image-anti-spam:settings_updated", handler);
+  }
+
+  onSelfBotProtectionSettingsUpdated(handler: (payload: SelfBotProtectionSettingsEvent) => void) {
+    this.selfBotProtectionSettingsHandler = handler;
+    this.socket?.off("self-bot-protection:settings_updated");
+    this.socket?.on("self-bot-protection:settings_updated", handler);
   }
 
   disconnect(client: Client) {

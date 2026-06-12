@@ -60,7 +60,7 @@ const emptyForm: GiveawayForm = {
   discordChannelId: "",
   endDelayMinutes: 0,
   liveUrl: "",
-  participantMode: "twitch_subs",
+  participantMode: "all",
   prizeName: "",
   startDelayMinutes: 0,
   title: "",
@@ -87,7 +87,6 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
   );
   const normalizedLiveUrl = form.liveUrl.trim();
   const livePlatform = livePreviewInput === normalizedLiveUrl ? livePreview?.platform ?? null : detectPlatform(normalizedLiveUrl);
-  const participantOptions = useMemo(() => participantModeOptions(livePlatform), [livePlatform]);
   const liveValidated = Boolean(livePreview && livePreviewInput === normalizedLiveUrl && !livePreviewError);
   const canSubmit = Boolean(
     canManage &&
@@ -194,13 +193,9 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
       setLivePreview(preview);
       setLivePreviewInput(normalizedInput);
       setForm((current) => {
-        if (modeMatchesPlatform(current.participantMode, preview.platform)) {
-          return current;
-        }
-
         return {
           ...current,
-          participantMode: defaultParticipantMode(preview.platform)
+          participantMode: defaultParticipantMode()
         };
       });
 
@@ -278,7 +273,7 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
 
       setGiveaways((current) => upsertGiveaway(current, saved));
       setEditingId(saved.id);
-      setMessage(editingId ? "Sorteio atualizado." : "Sorteio criado.");
+      setMessage(`${editingId ? "Sorteio atualizado" : "Sorteio criado"} com ${saved.participants.length} participante(s) sincronizado(s).`);
     } catch (error) {
       setMessage(readRequestMessage(error) ?? "Nao foi possivel salvar o sorteio.");
     } finally {
@@ -442,20 +437,7 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
             value={normalizedLiveUrl}
           />
 
-          <FormField label="Participantes">
-            <select
-              className="social-input h-11"
-              disabled={!canManage}
-              onChange={(event) => updateForm("participantMode", event.target.value as GiveawayParticipantMode)}
-              value={form.participantMode}
-            >
-              {participantOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </FormField>
+          <ParticipantModeCard platform={livePreview?.platform ?? (livePlatform === "youtube" ? null : livePlatform)} />
 
           <FormField label="Canal do Discord">
             <select
@@ -744,6 +726,20 @@ function LivePreviewCard({
   );
 }
 
+function ParticipantModeCard({ platform }: { platform: "twitch" | "kick" | null }) {
+  return (
+    <div className="rounded-lg border border-zinc-900 bg-black/35 p-4">
+      <div className="flex items-center gap-3">
+        <Users className="h-4 w-4 text-emerald-300" />
+        <div>
+          <p className="text-sm font-medium text-white">Participantes automaticos</p>
+          <p className="mt-1 text-xs text-zinc-500">{platform ? `${platformLabel(platform)} detectado` : "Aguardando canal verificado"}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PreviewFact({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 rounded-lg border border-zinc-900 bg-zinc-950/70 p-3">
@@ -844,42 +840,8 @@ function detectPlatform(value: string): "twitch" | "kick" | "youtube" | null {
   return "twitch";
 }
 
-function participantModeOptions(platform: "twitch" | "kick" | "youtube" | null) {
-  const all = [
-    { label: "Todos", value: "all" as const },
-    { label: "Apenas Subs Twitch", value: "twitch_subs" as const },
-    { label: "Apenas Followers Twitch", value: "twitch_followers" as const },
-    { label: "Subs + Followers Twitch", value: "twitch_subs_followers" as const },
-    { label: "Apenas Subs Kick", value: "kick_subs" as const },
-    { label: "Apenas Followers Kick", value: "kick_followers" as const },
-    { label: "Twitch + Kick", value: "twitch_kick" as const }
-  ];
-
-  if (platform === "kick") {
-    return all.filter((option) => ["all", "kick_subs", "kick_followers"].includes(option.value));
-  }
-
-  if (platform === "twitch") {
-    return all.filter((option) => ["all", "twitch_subs", "twitch_followers", "twitch_subs_followers"].includes(option.value));
-  }
-
-  return all;
-}
-
-function modeMatchesPlatform(mode: GiveawayParticipantMode, platform: "twitch" | "kick") {
-  if (mode === "all") {
-    return true;
-  }
-
-  if (platform === "kick") {
-    return mode === "kick_subs" || mode === "kick_followers";
-  }
-
-  return mode === "twitch_subs" || mode === "twitch_followers" || mode === "twitch_subs_followers";
-}
-
-function defaultParticipantMode(platform: "twitch" | "kick"): GiveawayParticipantMode {
-  return platform === "kick" ? "kick_followers" : "twitch_subs";
+function defaultParticipantMode(): GiveawayParticipantMode {
+  return "all";
 }
 
 function platformLabel(platform: "twitch" | "kick" | "youtube") {

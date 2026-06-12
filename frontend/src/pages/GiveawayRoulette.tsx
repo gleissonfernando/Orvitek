@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Loader2, LogIn, RefreshCw, Ticket, Trophy, Users } from "lucide-react";
-import { enterRouletteGiveaway, getGiveawayIdentity, getRouletteGiveaway, giveawayConnectUrl, spinRoulette } from "../lib/api";
-import type { Giveaway, GiveawayIdentity, GiveawayWinner } from "../types";
+import { ExternalLink, Loader2, RefreshCw, Ticket, Trophy, Users } from "lucide-react";
+import { getRouletteGiveaway, spinRoulette } from "../lib/api";
+import type { Giveaway, GiveawayWinner } from "../types";
 import { Button } from "../components/ui/button";
 
 type GiveawayRoulettePageProps = {
@@ -14,8 +14,6 @@ export function GiveawayRoulettePage({ token }: GiveawayRoulettePageProps) {
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [lastWinner, setLastWinner] = useState<GiveawayWinner | null>(null);
-  const [identity, setIdentity] = useState<GiveawayIdentity | null>(null);
-  const [entering, setEntering] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const participants = giveaway?.participants ?? [];
@@ -31,13 +29,9 @@ export function GiveawayRoulettePage({ token }: GiveawayRoulettePageProps) {
 
     async function load() {
       try {
-        const [next, nextIdentity] = await Promise.all([
-          getRouletteGiveaway(token),
-          getGiveawayIdentity(token)
-        ]);
+        const next = await getRouletteGiveaway(token);
         if (!mounted) return;
         setGiveaway(next);
-        setIdentity(nextIdentity);
       } catch (error) {
         if (mounted) setMessage(readRequestMessage(error) ?? "Roleta nao encontrada.");
       } finally {
@@ -77,23 +71,6 @@ export function GiveawayRoulettePage({ token }: GiveawayRoulettePageProps) {
     } catch (error) {
       setMessage(readRequestMessage(error) ?? "Nao foi possivel girar a roleta.");
       setSpinning(false);
-    }
-  }
-
-  async function handleEnter() {
-    setEntering(true);
-    setMessage(null);
-
-    try {
-      const result = await enterRouletteGiveaway(token);
-      setGiveaway(result.giveaway);
-      setIdentity(result.identity);
-      const approved = result.verifications.filter((verification) => verification.eligible).length;
-      setMessage(approved ? "Entrada confirmada no sorteio." : result.verifications[0]?.reason ?? "Conta conectada nao esta elegivel.");
-    } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Nao foi possivel entrar no sorteio.");
-    } finally {
-      setEntering(false);
     }
   }
 
@@ -184,38 +161,25 @@ export function GiveawayRoulettePage({ token }: GiveawayRoulettePageProps) {
           <aside className="rounded-lg border border-zinc-900 bg-zinc-950/80 p-4">
             <div className="border-b border-zinc-900 pb-4">
               <div className="flex items-center gap-2">
-                <LogIn className="h-5 w-5 text-emerald-300" />
-                <h2 className="text-base font-semibold text-white">Minha entrada</h2>
+                <Users className="h-5 w-5 text-emerald-300" />
+                <h2 className="text-base font-semibold text-white">Participantes</h2>
               </div>
-              <div className="mt-3 grid gap-2">
-                <Button onClick={() => window.location.assign(giveawayConnectUrl(token, "twitch"))} variant="outline">
-                  <ExternalLink className="h-4 w-4" />
-                  Conectar Twitch
-                </Button>
-                <Button onClick={() => window.location.assign(giveawayConnectUrl(token, "kick"))} variant="outline">
-                  <ExternalLink className="h-4 w-4" />
-                  Conectar Kick
-                </Button>
-                <Button disabled={entering || giveaway.status === "ended"} onClick={() => void handleEnter()}>
-                  {entering ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ticket className="h-4 w-4" />}
-                  Entrar no Sorteio
-                </Button>
-              </div>
-              <div className="mt-3 space-y-2">
-                {(identity?.accounts ?? []).length ? identity?.accounts.map((account) => (
-                  <div className="rounded-lg border border-zinc-900 bg-black/35 px-3 py-2" key={account.id}>
-                    <p className="text-sm font-medium text-white">{account.platform === "twitch" ? "Twitch" : "Kick"}: {account.displayName}</p>
-                    <p className="mt-0.5 text-xs text-zinc-500">@{account.username}</p>
+              <div className="mt-4 max-h-[360px] space-y-2 overflow-y-auto pr-1">
+                {participants.length ? participants.map((participant, index) => (
+                  <div className="rounded-lg border border-zinc-900 bg-black/35 px-3 py-2" key={participant.id}>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="min-w-0 truncate text-sm font-medium text-white">{index + 1}. {participant.displayName}</p>
+                      <span className="shrink-0 rounded-full border border-zinc-800 bg-zinc-950 px-2 py-0.5 text-[11px] text-zinc-300">
+                        {participant.tickets} ticket(s)
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-zinc-500">@{participant.username} / {participantLabel(participant)}</p>
                   </div>
                 )) : (
-                  <p className="rounded-lg border border-dashed border-zinc-800 px-3 py-3 text-sm text-zinc-500">Nenhuma conta conectada.</p>
-                )}
-                {(identity?.entries ?? []).map((entry) => (
-                  <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2" key={entry.id}>
-                    <p className="text-sm font-medium text-emerald-100">{entry.displayName}</p>
-                    <p className="mt-0.5 text-xs text-emerald-200/70">{entry.tickets} ticket(s) · {entry.subscriber ? entry.subTierLabel ?? "Sub" : entry.follower ? "Follower" : "Normal"}</p>
+                  <div className="flex min-h-32 items-center justify-center rounded-lg border border-dashed border-zinc-800 text-sm text-zinc-500">
+                    Sem participantes carregados.
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
@@ -325,6 +289,18 @@ function Metric({ icon: Icon, label, value }: { icon: typeof Users; label: strin
       </div>
     </div>
   );
+}
+
+function participantLabel(participant: Giveaway["participants"][number]) {
+  if (participant.subscriber) {
+    return participant.subTierLabel ?? "Sub";
+  }
+
+  if (participant.follower) {
+    return "Follower";
+  }
+
+  return "Normal";
 }
 
 function statusMeta(status: Giveaway["status"]) {

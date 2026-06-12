@@ -40,6 +40,10 @@ export type GuildSettingsDto = {
   accountAgeMinDays: number;
   accountAgeLogChannelId: string | null;
   accountAgeAllowedUserIds: string[];
+  safeBotEnabled: boolean;
+  safeBotChannelId: string | null;
+  safeBotRoleId: string | null;
+  safeBotLogChannelId: string | null;
   verificationEnabled: boolean;
   verificationRoleId: string | null;
   verificationRoleIds: string[];
@@ -142,6 +146,10 @@ export function defaultSettings(guildId: string, botId: string | null = null): G
     accountAgeMinDays: DEFAULT_ACCOUNT_AGE_MIN_DAYS,
     accountAgeLogChannelId: null,
     accountAgeAllowedUserIds: [],
+    safeBotEnabled: false,
+    safeBotChannelId: null,
+    safeBotRoleId: null,
+    safeBotLogChannelId: null,
     verificationEnabled: false,
     verificationRoleId: null,
     verificationRoleIds: [],
@@ -246,6 +254,15 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
       "accountAgeLogChannelId" in input ? input.accountAgeLogChannelId : current.accountAgeLogChannelId
     ),
     accountAgeAllowedUserIds,
+    safeBotChannelId: normalizeSnowflake(
+      "safeBotChannelId" in input ? input.safeBotChannelId : current.safeBotChannelId
+    ),
+    safeBotRoleId: normalizeSnowflake(
+      "safeBotRoleId" in input ? input.safeBotRoleId : current.safeBotRoleId
+    ),
+    safeBotLogChannelId: normalizeSnowflake(
+      "safeBotLogChannelId" in input ? input.safeBotLogChannelId : current.safeBotLogChannelId
+    ),
     autoRoleIds,
     welcomeTitle: normalizePanelText(
       "welcomeTitle" in input ? input.welcomeTitle : current.welcomeTitle,
@@ -351,6 +368,10 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
           accountAgeMinDays: next.accountAgeMinDays,
           accountAgeLogChannelId: next.accountAgeLogChannelId,
           accountAgeAllowedUserIds: next.accountAgeAllowedUserIds,
+          safeBotEnabled: next.safeBotEnabled,
+          safeBotChannelId: next.safeBotChannelId,
+          safeBotRoleId: next.safeBotRoleId,
+          safeBotLogChannelId: next.safeBotLogChannelId,
           verificationEnabled: next.verificationEnabled,
           verificationRoleId: next.verificationRoleId,
           verificationRoleIds: next.verificationRoleIds,
@@ -440,6 +461,10 @@ function toDto(settings: MongoGuildSettings): GuildSettingsDto {
     ),
     accountAgeLogChannelId: normalizeSnowflake(settings.accountAgeLogChannelId),
     accountAgeAllowedUserIds: normalizeSnowflakes(settings.accountAgeAllowedUserIds ?? []),
+    safeBotEnabled: settings.safeBotEnabled ?? defaults.safeBotEnabled,
+    safeBotChannelId: normalizeSnowflake(settings.safeBotChannelId),
+    safeBotRoleId: normalizeSnowflake(settings.safeBotRoleId),
+    safeBotLogChannelId: normalizeSnowflake(settings.safeBotLogChannelId),
     verificationEnabled: settings.verificationEnabled,
     verificationRoleId: verificationRoleIds[0] ?? null,
     verificationRoleIds,

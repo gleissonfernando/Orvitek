@@ -32,6 +32,8 @@ const GATEWAY_GUILD_MEMBERS = 1 << 14;
 const GATEWAY_GUILD_MEMBERS_LIMITED = 1 << 15;
 const GATEWAY_MESSAGE_CONTENT = 1 << 18;
 const GATEWAY_MESSAGE_CONTENT_LIMITED = 1 << 19;
+const MODULES_REQUIRING_MEMBER_EVENTS = ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security", "safe-bot", "moderation"];
+const MODULES_REQUIRING_MESSAGE_CONTENT = ["image-anti-spam", "link-anti-spam", "moderation", "safe-bot"];
 const runningBots = new Map<string, RunningBot>();
 const restartTimers = new Map<string, NodeJS.Timeout>();
 
@@ -133,7 +135,7 @@ async function startRuntime(bot: DevBotRuntimeConfig) {
     await updateDevBotRuntimeStatus(
       bot.id,
       "error",
-      "Ative o Message Content Intent no Discord Developer Portal para usar o Anti-Spam de Imagens ou Anti-Flood de Links."
+      "Ative o Message Content Intent no Discord Developer Portal para usar SelfBot Protection, Anti-Spam de Imagens ou Anti-Flood de Links."
     );
     return;
   }
@@ -210,7 +212,7 @@ async function startRuntime(bot: DevBotRuntimeConfig) {
 }
 
 async function canUseGuildMemberIntent(bot: DevBotRuntimeConfig) {
-  const needsMemberEvents = ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security"].some((moduleId) => bot.enabledModules.includes(moduleId));
+  const needsMemberEvents = hasEnabledModule(bot, MODULES_REQUIRING_MEMBER_EVENTS);
 
   if (!needsMemberEvents) {
     return false;
@@ -243,11 +245,7 @@ async function canUseGuildMemberIntent(bot: DevBotRuntimeConfig) {
 }
 
 async function canUseMessageContentIntent(bot: DevBotRuntimeConfig) {
-  if (
-    !bot.enabledModules.includes("image-anti-spam")
-    && !bot.enabledModules.includes("link-anti-spam")
-    && !bot.enabledModules.includes("moderation")
-  ) {
+  if (!hasEnabledModule(bot, MODULES_REQUIRING_MESSAGE_CONTENT)) {
     return true;
   }
 
@@ -267,6 +265,10 @@ async function canUseMessageContentIntent(bot: DevBotRuntimeConfig) {
     );
     return false;
   }
+}
+
+function hasEnabledModule(bot: DevBotRuntimeConfig, moduleIds: string[]) {
+  return bot.enabledModules.length === 0 || moduleIds.some((moduleId) => bot.enabledModules.includes(moduleId));
 }
 
 function botRuntimeError(message: string) {

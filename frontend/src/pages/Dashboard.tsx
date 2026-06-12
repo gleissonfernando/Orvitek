@@ -22,6 +22,7 @@ import {
   Settings,
   Shield,
   ShieldAlert,
+  ShieldCheck,
   TicketIcon,
   UserMinus,
   UserPlus,
@@ -35,6 +36,7 @@ import { GiveawayPanel } from "../components/giveaway/GiveawayPanel";
 import { SiteAccessPanel } from "../components/moderation/SiteAccessPanel";
 import { ImageAntiSpamPanel } from "../components/moderation/ImageAntiSpamPanel";
 import { AccountAgeSecurityPanel } from "../components/security/AccountAgeSecurityPanel";
+import { SelfBotProtectionPanel } from "../components/security/SelfBotProtectionPanel";
 import { AutoRolesPanel } from "../components/roles/AutoRolesPanel";
 import { KickIntegrationPanel } from "../components/social/KickIntegrationPanel";
 import { LiveNotificationsPanel } from "../components/social/LiveNotificationsPanel";
@@ -56,6 +58,7 @@ import {
   getKickNotifications,
   getLives,
   getLogs,
+  getSelfBotProtection,
   getSocialNotifications,
   getTickets,
   getXMonitor,
@@ -76,6 +79,7 @@ import type {
   KickNotification,
   LiveEvent,
   LogEntry,
+  SelfBotProtectionSettings,
   SocialNotification,
   Ticket,
   XAccount
@@ -96,6 +100,7 @@ type BooleanSettingKey =
 
 type OverviewDetails = {
   imageAntiSpamSettings: ImageAntiSpamSettings | null;
+  selfBotProtectionSettings: SelfBotProtectionSettings | null;
   clipsConfig: ClipsConfig | null;
   kickClipsConfig: ClipsConfig | null;
   kickNotifications: KickNotification[];
@@ -127,6 +132,7 @@ const initialBotStatus: BotStatus = {
 
 const emptyOverviewDetails: OverviewDetails = {
   imageAntiSpamSettings: null,
+  selfBotProtectionSettings: null,
   clipsConfig: null,
   kickClipsConfig: null,
   kickNotifications: [],
@@ -185,6 +191,13 @@ const moduleCatalog: ModuleDefinition[] = [
     description: "Centraliza ajustes basicos de seguranca e moderacao do servidor.",
     icon: Shield,
     view: "moderation"
+  },
+  {
+    id: "safe-bot",
+    title: "SelfBot Protection",
+    description: "Centraliza protecao anti-spam, punicoes e logs do SelfBot.",
+    icon: ShieldCheck,
+    view: "self-bot-protection"
   },
   {
     id: "account-age-security",
@@ -274,6 +287,7 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   logs: "logs",
   fivem: "fivem-fac",
   "image-anti-spam": "image-anti-spam",
+  "self-bot-protection": "safe-bot",
   security: "account-age-security",
   moderation: "moderation"
 };
@@ -332,6 +346,12 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
   const canManageDashboard = panelBots.length
     ? Boolean(selectedBot && (selectedBot.permissions.canManageDashboard || selectedBot.permissions.canManageOwnServices))
     : auth.permissions.canManageDashboard;
+  const canManageOwnerDevSettings = selectedBot
+    ? auth.permissions.canManageBots || selectedBot.ownerId === auth.user.discordId || selectedBot.createdBy === auth.user.discordId
+    : auth.permissions.canManageBots || auth.permissions.canManageDashboard;
+  const canManageOwnerDevModule = (moduleId: string) => canManageOwnerDevSettings && (
+    selectedBot ? selectedBot.enabledModules.includes(moduleId) : canManageDashboard
+  );
   const availableModules = useMemo(
     () => moduleCatalog.filter((module) => enabledModules.includes(module.id)),
     [enabledModulesKey]
@@ -448,9 +468,12 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
       enabledModules.includes("x-monitor") ? getXMonitor(selectedGuildId, activeBotId) : Promise.resolve(null),
       enabledModules.includes("image-anti-spam") && activeBotId
         ? getImageAntiSpam(selectedGuildId, activeBotId)
+        : Promise.resolve(null),
+      enabledModules.includes("safe-bot") && activeBotId
+        ? getSelfBotProtection(selectedGuildId, activeBotId)
         : Promise.resolve(null)
     ])
-      .then(([settingsResult, logsResult, livesResult, ticketsResult, liveResult, kickResult, clipsResult, xResult, antiSpamResult]) => {
+      .then(([settingsResult, logsResult, livesResult, ticketsResult, liveResult, kickResult, clipsResult, xResult, antiSpamResult, selfBotResult]) => {
         if (!mounted) return;
 
         setSettings(settingsResult.status === "fulfilled" ? settingsResult.value : null);
@@ -460,6 +483,9 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
         setOverviewDetails({
           imageAntiSpamSettings: antiSpamResult.status === "fulfilled" && antiSpamResult.value
             ? antiSpamResult.value.settings
+            : null,
+          selfBotProtectionSettings: selfBotResult.status === "fulfilled" && selfBotResult.value
+            ? selfBotResult.value.settings
             : null,
           kickClipsConfig: null,
           liveNotifications: liveResult.status === "fulfilled" && liveResult.value ? liveResult.value.notifications : [],
@@ -651,6 +677,19 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             settings={settings}
           />
         ) : null}
+        {activeView === "self-bot-protection" ? (
+          <SelfBotProtectionPanel
+            bot={selectedBot}
+            botId={activeBotId}
+            bots={panelBots}
+            canManage={canManageModule(selectedBot, "safe-bot", canManageDashboard)}
+            guild={selectedGuild}
+            guilds={scopedDashboardGuilds}
+            guildSettings={settings}
+            onSelectBot={handleSelectBot}
+            onSelectGuild={(guildId) => void handleSelectGuild(guildId)}
+          />
+        ) : null}
         {activeView === "security" ? (
           <AccountAgeSecurityPanel
             botId={activeBotId}
@@ -677,7 +716,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
           <SiteAccessPanel
             botId={activeBotId}
             botSlug={selectedBot?.slug ?? initialBotSlug}
-            canManage={canManageModule(selectedBot, "verification", canManageDashboard)}
+            canManage={canManageOwnerDevModule("verification")}
             guild={selectedGuild}
             loading={settingsLoading}
             onSettingsChange={setSettings}
@@ -697,6 +736,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
           <SettingsView
             botId={activeBotId}
             canManage={canManageDashboard}
+            canManageOwnerDevModule={canManageOwnerDevModule}
             canManageModule={(moduleId) => canManageModule(selectedBot, moduleId, canManageDashboard)}
             enabledModules={enabledModules}
             guild={selectedGuild}
@@ -783,7 +823,7 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
   }
 
   if (bot.accessLevel === "premium") {
-    return ["live", "kick-integration", "clips", "giveaway", "network", "x-monitor", "image-anti-spam", "link-anti-spam", "account-age-security", "fivem", "fivem-fac"].includes(moduleId);
+    return ["live", "kick-integration", "clips", "giveaway", "network", "x-monitor", "image-anti-spam", "link-anti-spam", "account-age-security", "safe-bot", "fivem", "fivem-fac"].includes(moduleId);
   }
 
   return false;
@@ -1046,6 +1086,7 @@ function ModerationView({
 function SettingsView({
   botId,
   canManage,
+  canManageOwnerDevModule,
   canManageModule,
   enabledModules,
   guild,
@@ -1059,6 +1100,7 @@ function SettingsView({
 }: {
   botId?: string | null;
   canManage: boolean;
+  canManageOwnerDevModule: (moduleId: string) => boolean;
   canManageModule: (moduleId: string) => boolean;
   enabledModules: string[];
   guild: DashboardGuild | null;
@@ -1107,7 +1149,7 @@ function SettingsView({
     blocks.push(
       <AutoRolesPanel
         botId={botId}
-        canManage={canManageModule("roles")}
+        canManage={canManageOwnerDevModule("roles")}
         guild={guild}
         key="roles"
         loading={loading}
@@ -1384,6 +1426,18 @@ function moduleState(moduleId: string, settings: GuildSettings | null, details: 
     };
   }
 
+  if (moduleId === "safe-bot") {
+    const activeModules = details.selfBotProtectionSettings
+      ? Object.values(details.selfBotProtectionSettings.moduleToggles).filter(Boolean).length
+      : 0;
+
+    return {
+      active: Boolean(details.selfBotProtectionSettings?.enabled),
+      configured: Boolean(details.selfBotProtectionSettings?.logChannelId),
+      configuredText: activeModules ? `${activeModules} modulo(s)` : "Falta modulo"
+    };
+  }
+
   if (moduleId === "image-anti-spam") {
     return {
       active: Boolean(details.imageAntiSpamSettings?.enabled),
@@ -1495,6 +1549,9 @@ function friendlyLog(log: LogEntry) {
     "image_anti_spam.member_kicked": { badge: "Anti-Spam", title: "Membro expulso por spam de imagens" },
     "moderation.link_anti_spam": { badge: "Moderacao", title: "Link bloqueado por anti-flood" },
     "security.account_age.blocked": { badge: "Seguranca", title: "Entrada bloqueada por idade da conta" },
+    "security.self_bot.role_synced": { badge: "Self Bot", title: "Cargo Self Bot sincronizado" },
+    "security.self_bot.role_assigned": { badge: "Self Bot", title: "Cargo Self Bot aplicado" },
+    "security.self_bot.assignment_failed": { badge: "Self Bot", title: "Self Bot nao conseguiu aplicar cargo" },
     "fivem.fac.settings_updated": { badge: "FiveM", title: "FAC atualizado" },
     "fivem.fac.request_created": { badge: "FiveM", title: "Solicitacao de ausencia criada" },
     "fivem.fac.request_approved": { badge: "FiveM", title: "Solicitacao de ausencia aprovada" },
@@ -1583,6 +1640,10 @@ function isViewAllowed(view: ViewId, enabledModules: string[]) {
 
   if (view === "lives") {
     return liveModulesEnabled(enabledModules);
+  }
+
+  if (view === "moderation") {
+    return enabledModules.includes("moderation");
   }
 
   if (view === "fivem") {

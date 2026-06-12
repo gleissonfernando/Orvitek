@@ -143,6 +143,10 @@ export type GuildSettings = {
   accountAgeMinDays: number;
   accountAgeLogChannelId: string | null;
   accountAgeAllowedUserIds: string[];
+  safeBotEnabled: boolean;
+  safeBotChannelId: string | null;
+  safeBotRoleId: string | null;
+  safeBotLogChannelId: string | null;
   verificationEnabled: boolean;
   verificationRoleId: string | null;
   verificationRoleIds: string[];
@@ -224,6 +228,128 @@ export type SaveImageAntiSpamSettingsPayload = Partial<Pick<
   | "maxWarnings"
   | "ignoreAdministrators"
   | "warningResetDays"
+>>;
+
+export type SelfBotProtectionModuleId =
+  | "anti-spam"
+  | "anti-flood"
+  | "anti-imagens"
+  | "anti-gif"
+  | "anti-mencoes"
+  | "anti-emojis"
+  | "anti-convites"
+  | "anti-links"
+  | "anti-scam"
+  | "anti-raid"
+  | "anti-caps-lock"
+  | "anti-texto-repetido"
+  | "anti-copypasta"
+  | "anti-flood-multi-canais"
+  | "anti-anexos"
+  | "anti-webhook"
+  | "anti-bots"
+  | "anti-contas-novas"
+  | "anti-token-grabber"
+  | "anti-phishing"
+  | "anti-nitro-scam"
+  | "anti-mass-ping"
+  | "anti-divulgacao"
+  | "anti-auto-spam"
+  | "anti-comandos-em-massa";
+
+export type SelfBotPunishmentAction =
+  | "delete_message"
+  | "warn"
+  | "log"
+  | "timeout"
+  | "remove_role"
+  | "add_role"
+  | "kick"
+  | "ban";
+
+export type SelfBotProtectionSettings = {
+  id: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  moduleToggles: Record<SelfBotProtectionModuleId, boolean>;
+  ignoredChannelIds: string[];
+  protectedChannelIds: string[];
+  mediaChannelIds: string[];
+  linkChannelIds: string[];
+  logChannelId: string | null;
+  logWebhookUrl: string | null;
+  embedColor: string;
+  punishmentSequence: SelfBotPunishmentAction[];
+  addRoleId: string | null;
+  removeRoleId: string | null;
+  timeoutSeconds: number;
+  floodLimit: number;
+  floodWindowSeconds: number;
+  imageLimit: number;
+  imageWindowSeconds: number;
+  mentionLimit: number;
+  emojiLimit: number;
+  capsMinLength: number;
+  capsPercentage: number;
+  repeatedTextLimit: number;
+  repeatedTextWindowSeconds: number;
+  multiChannelLimit: number;
+  multiChannelWindowSeconds: number;
+  raidJoinLimit: number;
+  raidWindowSeconds: number;
+  newAccountMaxAgeHours: number;
+  suspiciousDomains: string[];
+  blockedTerms: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SelfBotProtectionIncident = {
+  id: string;
+  botId: string;
+  guildId: string;
+  userId: string;
+  username: string | null;
+  channelId: string | null;
+  messageId: string | null;
+  messageContent: string | null;
+  moduleId: SelfBotProtectionModuleId;
+  infractionType: string;
+  punishmentActions: SelfBotPunishmentAction[];
+  punishmentSucceeded: boolean;
+  punishmentError: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
+export type SelfBotProtectionStats = {
+  blockedSpam: number;
+  removedImages: number;
+  blockedLinks: number;
+  punishedUsers: number;
+  infractionsToday: number;
+  infractionsWeek: number;
+  infractionsMonth: number;
+  byModule: Array<{
+    moduleId: SelfBotProtectionModuleId;
+    total: number;
+  }>;
+  daily: Array<{
+    label: string;
+    value: number;
+  }>;
+};
+
+export type SelfBotProtectionResponse = {
+  incidents: SelfBotProtectionIncident[];
+  settings: SelfBotProtectionSettings;
+  stats: SelfBotProtectionStats;
+};
+
+export type SaveSelfBotProtectionSettingsPayload = Partial<Omit<
+  SelfBotProtectionSettings,
+  "id" | "botId" | "guildId" | "createdAt" | "updatedAt"
 >>;
 
 export type LogEntry = {
@@ -966,6 +1092,7 @@ export type DashboardBot = {
   dashboardUrl: string;
   clientId: string;
   avatarUrl: string | null;
+  ownerId: string;
   mainGuildId: string;
   mainGuildName: string;
   mainGuildIconUrl: string | null;
@@ -978,6 +1105,7 @@ export type DashboardBot = {
   enabledModules: string[];
   accessLevel: DashboardAccessLevel;
   permissions: DashboardPermissionFlags;
+  createdBy: string;
 };
 
 export type DevBot = {

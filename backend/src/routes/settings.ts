@@ -1,10 +1,11 @@
 import { Router, raw } from "express";
 import { z } from "zod";
 import type { Request, Response } from "express";
-import { isBotRequest, requireAuth, requireAuthOrBot } from "../middleware/auth";
+import { isBotRequest, requireAuth, requireAuthOrBot, requireBot } from "../middleware/auth";
 import { emitRealtime } from "../realtime/events";
+import { isDashboardDevUserId } from "../config/devOwner";
 import { canManageDashboardGuild, canReadDashboardGuild } from "../services/dashboardGuildAccessService";
-import { canAccessDevBotGuild, canUseDevBotModule, getDevBotToken } from "../services/devBotService";
+import { canAccessDevBotGuild, canManageDevBot, canUseDevBotModule, getDevBot, getDevBotToken } from "../services/devBotService";
 import { createLog } from "../services/logService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
 import { getGuildSettings, MAX_AUTOMATIC_ROLES, updateGuildSettings } from "../services/settingsService";
@@ -50,12 +51,38 @@ const settingsSchema = z.object({
   accountAgeMinDays: z.coerce.number().int().min(0).max(3650).optional(),
   accountAgeLogChannelId: z.string().nullable().optional(),
   accountAgeAllowedUserIds: z.array(z.string().regex(/^\d{5,32}$/)).max(200).optional(),
+  safeBotEnabled: z.boolean().optional(),
+  safeBotChannelId: z.string().nullable().optional(),
+  safeBotRoleId: z.string().nullable().optional(),
+  safeBotLogChannelId: z.string().nullable().optional(),
   verificationEnabled: z.boolean().optional(),
   verificationRoleId: z.string().nullable().optional(),
   verificationRoleIds: z.array(z.string()).optional(),
   dashboardRolePermissions: z.record(z.enum(["admin", "moderator", "premium", "basic"])).optional(),
   dashboardUserPermissions: z.record(z.enum(["admin", "moderator", "premium", "basic"])).optional()
 });
+const botSelfBotRoleSchema = z.object({
+  roleId: z.string().regex(/^\d{5,32}$/),
+  roleName: z.string().max(100).optional()
+});
+
+type SettingsInput = z.infer<typeof settingsSchema>;
+
+const ownerDevOnlySettingKeys = new Set<keyof SettingsInput>([
+  "autoRoleEnabled",
+  "autoRoleIds",
+  "twitchRoleId",
+  "boosterRoleId",
+  "safeBotEnabled",
+  "safeBotChannelId",
+  "safeBotRoleId",
+  "safeBotLogChannelId",
+  "verificationEnabled",
+  "verificationRoleId",
+  "verificationRoleIds",
+  "dashboardRolePermissions",
+  "dashboardUserPermissions"
+]);
 
 export const settingsRouter = Router();
 const welcomeImageUpload = raw({
@@ -82,6 +109,56 @@ settingsRouter.get("/:guildId", requireAuthOrBot, async (req, res) => {
   return res.json({
     settings: await getGuildSettings(guildId, botId)
   });
+});
+
+settingsRouter.post("/bot/:guildId/self-bot-role", requireBot, async (req, res, next) => {
+  try {
+    const { guildId } = req.params;
+    const botId = await resolveRequestBotId(req);
+    const input = botSelfBotRoleSchema.parse(req.body);
+
+    if (!guildId) {
+      return res.status(400).json({
+        message: "guildId obrigatorio."
+      });
+    }
+
+    const botToken = await getDevBotToken(botId);
+
+    if (!(await areGuildAssignableRoles(guildId, [input.roleId], botToken))) {
+      return res.status(400).json({
+        message: "O cargo Self Bot precisa ficar abaixo do cargo do bot e o bot precisa da permissao Gerenciar Cargos."
+      });
+    }
+
+    const settings = await updateGuildSettings(guildId, {
+      safeBotRoleId: input.roleId
+    }, botId);
+    const settingsLog = await createLog({
+      botId,
+      guildId,
+      userId: null,
+      type: "security.self_bot.role_synced",
+      message: `Cargo Self Bot sincronizado${input.roleName ? `: ${input.roleName}` : "."}`,
+      metadata: {
+        botId,
+        guildId,
+        roleId: input.roleId,
+        roleName: input.roleName ?? null
+      }
+    }).catch(() => null);
+
+    emitRealtime("settings:updated", settings);
+    if (settingsLog) {
+      emitRealtime("logs:new", settingsLog);
+    }
+
+    return res.json({
+      settings
+    });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 settingsRouter.put("/:guildId/welcome-image", requireAuth, welcomeImageUpload, async (req, res, next) => {
@@ -277,12 +354,24 @@ settingsRouter.patch("/:guildId", requireAuth, async (req, res, next) => {
 
     const input = settingsSchema.parse(req.body);
 
-    if (!(await canPatchSettings(req, res, guildId, botId, input))) {
+    const ownerDevOnlyPatch = touchesOwnerDevOnlySettings(input);
+    const canManageOwnerDevPatch = ownerDevOnlyPatch
+      ? await canManageOwnerDevOnlySettings(req, res, guildId, botId)
+      : false;
+
+    if (ownerDevOnlyPatch && !canManageOwnerDevPatch) {
+      return res.status(403).json({
+        message: "Apenas o dono do bot ou um DEV pode alterar cargos e permissoes administrativas."
+      });
+    }
+
+    if (!(await canPatchSettings(req, res, guildId, botId, input, canManageOwnerDevPatch))) {
       return res.status(403).json({
         message: "Uma ou mais funcoes nao foram liberadas para este bot."
       });
     }
 
+    await validateSafeBotActivation(guildId, botId, input);
     await validateGuildResources(guildId, botId, input);
 
     const settings = await updateGuildSettings(guildId, input, botId);
@@ -342,6 +431,25 @@ async function canManageSettings(req: Request, res: Response, guildId: string, b
   return canManageDashboardGuild(user, guildId);
 }
 
+async function canManageOwnerDevOnlySettings(
+  req: Request,
+  res: Response,
+  guildId: string,
+  botId: string | null
+) {
+  if (isBotRequest(req)) {
+    return true;
+  }
+
+  const user = res.locals.dashboardAuth.user;
+
+  if (botId) {
+    return canManageDevBot(user, botId);
+  }
+
+  return isDashboardDevUserId(user.discordId) || user.guilds.some((guild: { id: string; owner?: boolean }) => guild.id === guildId && guild.owner);
+}
+
 async function canManageModule(
   req: Request,
   res: Response,
@@ -361,7 +469,8 @@ async function canPatchSettings(
   res: Response,
   guildId: string,
   botId: string | null,
-  input: z.infer<typeof settingsSchema>
+  input: SettingsInput,
+  ownerDevOverride = false
 ) {
   if (!botId) {
     return true;
@@ -400,15 +509,27 @@ async function canPatchSettings(
     accountAgeMinDays: ["account-age-security"],
     accountAgeLogChannelId: ["account-age-security"],
     accountAgeAllowedUserIds: ["account-age-security"],
+    safeBotEnabled: ["moderation", "safe-bot"],
+    safeBotChannelId: ["moderation", "safe-bot"],
+    safeBotRoleId: ["moderation", "safe-bot"],
+    safeBotLogChannelId: ["moderation", "safe-bot"],
     verificationEnabled: ["verification"],
     verificationRoleId: ["verification"],
     verificationRoleIds: ["verification"],
     dashboardRolePermissions: ["verification"],
     dashboardUserPermissions: ["verification"]
   };
+  const ownerDevEnabledModules = ownerDevOverride
+    ? new Set((await getDevBot(botId))?.enabledModules ?? [])
+    : null;
   const access = await Promise.all(
     (Object.keys(input) as Array<keyof typeof input>).map(async (key) => {
       const moduleIds = moduleBySetting[key] ?? [];
+
+      if (ownerDevOverride && ownerDevOnlySettingKeys.has(key)) {
+        return moduleIds.some((moduleId) => ownerDevEnabledModules?.has(moduleId));
+      }
+
       const moduleAccess = await Promise.all(
         moduleIds.map((moduleId) => canManageModule(req, res, guildId, botId, moduleId))
       );
@@ -420,10 +541,38 @@ async function canPatchSettings(
   return access.every(Boolean);
 }
 
+function touchesOwnerDevOnlySettings(input: SettingsInput) {
+  return (Object.keys(input) as Array<keyof SettingsInput>).some((key) => ownerDevOnlySettingKeys.has(key));
+}
+
+async function validateSafeBotActivation(guildId: string, botId: string | null, input: SettingsInput) {
+  if (input.safeBotEnabled !== true) {
+    return;
+  }
+
+  const current = await getGuildSettings(guildId, botId);
+  const safeBotChannelId = "safeBotChannelId" in input ? input.safeBotChannelId : current.safeBotChannelId;
+  const safeBotRoleId = "safeBotRoleId" in input ? input.safeBotRoleId : current.safeBotRoleId;
+  const safeBotLogChannelId = "safeBotLogChannelId" in input ? input.safeBotLogChannelId : current.safeBotLogChannelId;
+  const logChannelId = "logChannelId" in input ? input.logChannelId : current.logChannelId;
+
+  if (!safeBotChannelId) {
+    throw createSettingsError("Selecione o canal Self Bot antes de ativar.");
+  }
+
+  if (!safeBotRoleId) {
+    throw createSettingsError("O cargo Self Bot ainda nao foi criado automaticamente pelo bot.");
+  }
+
+  if (!safeBotLogChannelId && !logChannelId) {
+    throw createSettingsError("Selecione um canal de logs antes de ativar o Self Bot.");
+  }
+}
+
 async function validateGuildResources(
   guildId: string,
   botId: string | null,
-  input: z.infer<typeof settingsSchema>
+  input: SettingsInput
 ) {
   const botToken = await getDevBotToken(botId);
   const textChannelIds = [
@@ -432,7 +581,9 @@ async function validateGuildResources(
     input.leaveChannelId,
     input.leaveDisplayChannelId,
     input.logChannelId,
-    input.accountAgeLogChannelId
+    input.accountAgeLogChannelId,
+    input.safeBotChannelId,
+    input.safeBotLogChannelId
   ].filter((channelId): channelId is string => Boolean(channelId));
 
   const textChannelChecks = await Promise.all(
@@ -456,6 +607,7 @@ async function validateGuildResources(
     ...Object.keys(input.dashboardRolePermissions ?? {}),
     input.twitchRoleId,
     input.boosterRoleId,
+    input.safeBotRoleId,
     input.verificationRoleId
   ].filter((roleId): roleId is string => Boolean(roleId));
 
@@ -468,6 +620,13 @@ async function validateGuildResources(
     && !(await areGuildAssignableRoles(guildId, [...new Set(input.autoRoleIds)], botToken))
   ) {
     throw createSettingsError("O cargo automatico precisa ficar abaixo do cargo do bot e o bot precisa da permissao Gerenciar Cargos.");
+  }
+
+  if (
+    input.safeBotRoleId
+    && !(await areGuildAssignableRoles(guildId, [input.safeBotRoleId], botToken))
+  ) {
+    throw createSettingsError("O cargo Self Bot precisa ficar abaixo do cargo do bot e o bot precisa da permissao Gerenciar Cargos.");
   }
 
   const dashboardUserIds = Object.keys(input.dashboardUserPermissions ?? {});
@@ -491,6 +650,7 @@ function inferSettingsModuleName(input: z.infer<typeof settingsSchema>) {
 
   if ([...keys].some((key) => key.startsWith("verification") || key === "dashboardRolePermissions" || key === "dashboardUserPermissions")) return "permissions";
   if ([...keys].some((key) => key.startsWith("accountAge"))) return "account_age_security";
+  if ([...keys].some((key) => key.startsWith("safeBot"))) return "self_bot";
   if ([...keys].some((key) => key.startsWith("welcome") || key.startsWith("autoRole"))) return "welcome";
   if ([...keys].some((key) => key.startsWith("leave"))) return "leave";
   if ([...keys].some((key) => key.startsWith("ticket"))) return "tickets";
@@ -520,6 +680,10 @@ function friendlySettingsMessage(input: z.infer<typeof settingsSchema>) {
 
   if (Object.keys(input).some((key) => key.startsWith("accountAge"))) {
     return "Seguranca de idade da conta atualizada.";
+  }
+
+  if (Object.keys(input).some((key) => key.startsWith("safeBot"))) {
+    return "Self Bot atualizado.";
   }
 
   if (input.ticketEnabled !== undefined) {

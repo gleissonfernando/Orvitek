@@ -68,6 +68,10 @@ export type MongoGuildSettings = {
   accountAgeMinDays?: number;
   accountAgeLogChannelId?: string | null;
   accountAgeAllowedUserIds?: string[];
+  safeBotEnabled?: boolean;
+  safeBotChannelId?: string | null;
+  safeBotRoleId?: string | null;
+  safeBotLogChannelId?: string | null;
   verificationEnabled: boolean;
   verificationRoleId: string | null;
   verificationRoleIds?: string[];
@@ -550,6 +554,101 @@ export type MongoImageAntiSpamIncident = {
   updatedAt: Date;
 };
 
+export type MongoSelfBotProtectionModuleId =
+  | "anti-spam"
+  | "anti-flood"
+  | "anti-imagens"
+  | "anti-gif"
+  | "anti-mencoes"
+  | "anti-emojis"
+  | "anti-convites"
+  | "anti-links"
+  | "anti-scam"
+  | "anti-raid"
+  | "anti-caps-lock"
+  | "anti-texto-repetido"
+  | "anti-copypasta"
+  | "anti-flood-multi-canais"
+  | "anti-anexos"
+  | "anti-webhook"
+  | "anti-bots"
+  | "anti-contas-novas"
+  | "anti-token-grabber"
+  | "anti-phishing"
+  | "anti-nitro-scam"
+  | "anti-mass-ping"
+  | "anti-divulgacao"
+  | "anti-auto-spam"
+  | "anti-comandos-em-massa";
+
+export type MongoSelfBotPunishmentAction =
+  | "delete_message"
+  | "warn"
+  | "log"
+  | "timeout"
+  | "remove_role"
+  | "add_role"
+  | "kick"
+  | "ban";
+
+export type MongoSelfBotProtectionSettings = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  moduleToggles: Partial<Record<MongoSelfBotProtectionModuleId, boolean>>;
+  ignoredChannelIds: string[];
+  protectedChannelIds: string[];
+  mediaChannelIds: string[];
+  linkChannelIds: string[];
+  logChannelId: string | null;
+  logWebhookUrl: string | null;
+  embedColor: string;
+  punishmentSequence: MongoSelfBotPunishmentAction[];
+  addRoleId: string | null;
+  removeRoleId: string | null;
+  timeoutSeconds: number;
+  floodLimit: number;
+  floodWindowSeconds: number;
+  imageLimit: number;
+  imageWindowSeconds: number;
+  mentionLimit: number;
+  emojiLimit: number;
+  capsMinLength: number;
+  capsPercentage: number;
+  repeatedTextLimit: number;
+  repeatedTextWindowSeconds: number;
+  multiChannelLimit: number;
+  multiChannelWindowSeconds: number;
+  raidJoinLimit: number;
+  raidWindowSeconds: number;
+  newAccountMaxAgeHours: number;
+  suspiciousDomains: string[];
+  blockedTerms: string[];
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoSelfBotProtectionIncident = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  userId: string;
+  username: string | null;
+  channelId: string | null;
+  messageId: string | null;
+  messageContent: string | null;
+  moduleId: MongoSelfBotProtectionModuleId;
+  infractionType: string;
+  punishmentActions: MongoSelfBotPunishmentAction[];
+  punishmentSucceeded: boolean;
+  punishmentError: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: Date;
+};
+
 export type MongoDevBotStatus = "online" | "offline" | "invalid_token" | "error";
 
 export type MongoDevBot = {
@@ -668,6 +767,8 @@ export async function getMongoCollections() {
     imageAntiSpamSettings: db.collection<MongoImageAntiSpamSettings>("image_anti_spam_settings"),
     imageAntiSpamUsers: db.collection<MongoImageAntiSpamUser>("image_anti_spam_users"),
     imageAntiSpamIncidents: db.collection<MongoImageAntiSpamIncident>("image_anti_spam_incidents"),
+    selfBotProtectionSettings: db.collection<MongoSelfBotProtectionSettings>("self_bot_protection_settings"),
+    selfBotProtectionIncidents: db.collection<MongoSelfBotProtectionIncident>("self_bot_protection_incidents"),
     devBots: db.collection<MongoDevBot>("Bot"),
     botGuildConfigs: db.collection<MongoBotGuildConfig>("BotGuildConfig"),
     devPermissions: db.collection<MongoDevPermission>("DevPermission")
@@ -731,6 +832,7 @@ async function createMongoIndexes(db: Db) {
     ensureGiveawayIndexes(db),
     ensureFivemFacIndexes(db),
     ensureImageAntiSpamIndexes(db),
+    ensureSelfBotProtectionIndexes(db),
     db.collection<MongoSocialNotification>("social_notifications").createIndex(
       {
         guildId: 1,
@@ -1084,6 +1186,37 @@ async function ensureImageAntiSpamIndexes(db: Db) {
     db.collection<MongoImageAntiSpamIncident>("image_anti_spam_incidents").createIndex({
       botId: 1,
       guildId: 1,
+      createdAt: -1
+    })
+  ]);
+}
+
+async function ensureSelfBotProtectionIndexes(db: Db) {
+  await Promise.all([
+    db.collection<MongoSelfBotProtectionSettings>("self_bot_protection_settings").createIndex(
+      { botId: 1, guildId: 1 },
+      { unique: true }
+    ),
+    db.collection<MongoSelfBotProtectionSettings>("self_bot_protection_settings").createIndex({
+      botId: 1,
+      enabled: 1,
+      updatedAt: -1
+    }),
+    db.collection<MongoSelfBotProtectionIncident>("self_bot_protection_incidents").createIndex({
+      botId: 1,
+      guildId: 1,
+      createdAt: -1
+    }),
+    db.collection<MongoSelfBotProtectionIncident>("self_bot_protection_incidents").createIndex({
+      botId: 1,
+      guildId: 1,
+      moduleId: 1,
+      createdAt: -1
+    }),
+    db.collection<MongoSelfBotProtectionIncident>("self_bot_protection_incidents").createIndex({
+      botId: 1,
+      guildId: 1,
+      userId: 1,
       createdAt: -1
     })
   ]);

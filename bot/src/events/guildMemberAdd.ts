@@ -3,10 +3,17 @@ import { isBotModuleEnabled } from "../config/env";
 import { enforceAccountAgeSecurity } from "../services/accountAgeSecurityService";
 import { logMemberJoin } from "../services/logService";
 import { applyAutomaticRoles } from "../services/roleService";
+import { handleSelfBotProtectionMemberAdd } from "../services/selfBotProtectionService";
 import { sendWelcomeMessage } from "../services/welcomeService";
 import type { BotContext } from "../types";
 
 export async function handleGuildMemberAdd(member: GuildMember, context: BotContext) {
+  const selfBotBlocked = await handleSelfBotProtectionMemberAdd(member, context);
+
+  if (selfBotBlocked) {
+    return;
+  }
+
   const blocked = await enforceAccountAgeSecurity(context, member);
 
   if (blocked) {

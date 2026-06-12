@@ -8,6 +8,16 @@ Este repositorio nao deve conter tokens, secrets, IDs reais de servidor, IDs rea
 
 Use o projeto pela raiz.
 
+Na ShardCloud/Sharclaude, configure:
+
+```text
+Build command: npm install && npm run build
+Start command: npm start
+Node entry: index.js
+```
+
+O arquivo `.shardcloud` ja aponta o comando de producao para `npm start` e memoria base de 1024 MB. O script de start define `NODE_ENV=production`, `HOST=0.0.0.0` e `PORT=80` quando a hospedagem nao informar esses valores. Nao use URL local na hospedagem.
+
 Build:
 
 ```bash
