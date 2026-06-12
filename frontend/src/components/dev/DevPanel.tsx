@@ -57,6 +57,7 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "roles", label: "Sistema de Cargos" },
   { id: "tickets", label: "Sistema de Tickets" },
   { id: "moderation", label: "Sistema de Moderacao" },
+  { id: "image-anti-spam", label: "Anti-Spam de Imagens" },
   { id: "fivem", label: "FiveM" },
   { id: "fivem-fac", label: "FiveM - FAC Ausencia" },
   { id: "avisos", label: "Mensagens e Personalizacao" }

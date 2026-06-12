@@ -146,6 +146,82 @@ export type GuildSettings = {
   dashboardUserPermissions: Record<string, DashboardAccessLevel>;
 };
 
+export type ImageAntiSpamSettings = {
+  id: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  logChannelId: string | null;
+  immuneRoleIds: string[];
+  ignoredChannelIds: string[];
+  maxImages: number;
+  windowSeconds: number;
+  warningsEnabled: boolean;
+  progressiveTimeoutEnabled: boolean;
+  autoKickEnabled: boolean;
+  maxWarnings: number;
+  ignoreAdministrators: boolean;
+  warningResetDays: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ImageAntiSpamUser = {
+  id: string;
+  botId: string;
+  guildId: string;
+  userId: string;
+  username: string | null;
+  warningCount: number;
+  totalImagesRemoved: number;
+  lastInfractionAt: string | null;
+  lastPunishment: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ImageAntiSpamIncident = {
+  id: string;
+  botId: string;
+  guildId: string;
+  incidentKey: string;
+  userId: string;
+  username: string | null;
+  channelId: string;
+  removedImages: number;
+  warningCount: number;
+  timeoutMs: number;
+  action: "none" | "warning" | "timeout" | "kick";
+  actionSucceeded: boolean | null;
+  actionError: string | null;
+  reason: string;
+  status: "pending" | "completed" | "failed";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ImageAntiSpamResponse = {
+  settings: ImageAntiSpamSettings;
+  users: ImageAntiSpamUser[];
+  incidents: ImageAntiSpamIncident[];
+};
+
+export type SaveImageAntiSpamSettingsPayload = Partial<Pick<
+  ImageAntiSpamSettings,
+  | "enabled"
+  | "logChannelId"
+  | "immuneRoleIds"
+  | "ignoredChannelIds"
+  | "maxImages"
+  | "windowSeconds"
+  | "warningsEnabled"
+  | "progressiveTimeoutEnabled"
+  | "autoKickEnabled"
+  | "maxWarnings"
+  | "ignoreAdministrators"
+  | "warningResetDays"
+>>;
+
 export type LogEntry = {
   id: string;
   botId: string | null;

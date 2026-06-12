@@ -25,11 +25,14 @@ import type {
   GuildMemberOption,
   GuildRoleOption,
   GuildSettings,
+  ImageAntiSpamResponse,
+  ImageAntiSpamSettings,
   LiveEvent,
   LogEntry,
   SaveClipsConfigPayload,
   SaveFivemFacSettingsPayload,
   SaveGiveawayPayload,
+  SaveImageAntiSpamSettingsPayload,
   SaveSocialPanelPayload,
   SocialMember,
   SocialMemberPayload,
@@ -223,6 +226,31 @@ export async function patchGuildSettings(guildId: string, payload: Partial<Guild
   const { data } = await api.patch<{ settings: GuildSettings }>(`/settings/${guildId}`, payload, {
     params: botParams(botId)
   });
+  return data.settings;
+}
+
+export async function getImageAntiSpam(guildId: string, botId: string) {
+  const { data } = await api.get<ImageAntiSpamResponse>(
+    `/image-anti-spam/${guildId}`,
+    {
+      params: botParams(botId)
+    }
+  );
+  return data;
+}
+
+export async function saveImageAntiSpamSettings(
+  guildId: string,
+  botId: string,
+  payload: SaveImageAntiSpamSettingsPayload
+) {
+  const { data } = await api.patch<{ settings: ImageAntiSpamSettings }>(
+    `/image-anti-spam/${guildId}`,
+    payload,
+    {
+      params: botParams(botId)
+    }
+  );
   return data.settings;
 }
 

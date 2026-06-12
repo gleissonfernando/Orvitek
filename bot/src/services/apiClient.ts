@@ -32,6 +32,67 @@ export type BotCommandAuthorization = {
   reasonCode: string;
 };
 
+export type ImageAntiSpamSettings = {
+  id: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  logChannelId: string | null;
+  immuneRoleIds: string[];
+  ignoredChannelIds: string[];
+  maxImages: number;
+  windowSeconds: number;
+  warningsEnabled: boolean;
+  progressiveTimeoutEnabled: boolean;
+  autoKickEnabled: boolean;
+  maxWarnings: number;
+  ignoreAdministrators: boolean;
+  warningResetDays: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ImageAntiSpamIncident = {
+  id: string;
+  botId: string;
+  guildId: string;
+  incidentKey: string;
+  userId: string;
+  username: string | null;
+  channelId: string;
+  removedImages: number;
+  warningCount: number;
+  timeoutMs: number;
+  action: "none" | "warning" | "timeout" | "kick";
+  actionSucceeded: boolean | null;
+  actionError: string | null;
+  reason: string;
+  status: "pending" | "completed" | "failed";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ImageAntiSpamUser = {
+  id: string;
+  botId: string;
+  guildId: string;
+  userId: string;
+  username: string | null;
+  warningCount: number;
+  totalImagesRemoved: number;
+  lastInfractionAt: string | null;
+  lastPunishment: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ImageAntiSpamIncidentResult = {
+  duplicate: boolean;
+  incident: ImageAntiSpamIncident;
+  settings: ImageAntiSpamSettings;
+  user: ImageAntiSpamUser;
+};
+
 export type SocialNotification = {
   id: string;
   botId: string | null;
@@ -386,6 +447,42 @@ export class ApiClient {
         : undefined
     });
     return data.settings;
+  }
+
+  async getImageAntiSpamSettings(guildId: string) {
+    const { data } = await this.http.get<{ settings: ImageAntiSpamSettings }>(
+      `/image-anti-spam/bot/${guildId}`
+    );
+    return data.settings;
+  }
+
+  async recordImageAntiSpamIncident(input: {
+    guildId: string;
+    incidentKey: string;
+    userId: string;
+    username?: string | null;
+    channelId: string;
+    removedImages: number;
+  }) {
+    const { data } = await this.http.post<ImageAntiSpamIncidentResult>(
+      "/image-anti-spam/bot/incidents",
+      input
+    );
+    return data;
+  }
+
+  async completeImageAntiSpamIncident(
+    incidentId: string,
+    input: {
+      actionSucceeded: boolean;
+      actionError?: string | null;
+    }
+  ) {
+    const { data } = await this.http.patch<{ incident: ImageAntiSpamIncident }>(
+      `/image-anti-spam/bot/incidents/${incidentId}`,
+      input
+    );
+    return data.incident;
   }
 
   async getActiveTwitchNotifications() {

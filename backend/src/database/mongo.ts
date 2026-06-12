@@ -382,6 +382,62 @@ export type MongoFivemFacAbsence = {
   updatedAt: Date;
 };
 
+export type MongoImageAntiSpamSettings = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  logChannelId: string | null;
+  immuneRoleIds: string[];
+  ignoredChannelIds: string[];
+  maxImages: number;
+  windowSeconds: number;
+  warningsEnabled: boolean;
+  progressiveTimeoutEnabled: boolean;
+  autoKickEnabled: boolean;
+  maxWarnings: number;
+  ignoreAdministrators: boolean;
+  warningResetDays: number;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoImageAntiSpamUser = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  userId: string;
+  username: string | null;
+  warningCount: number;
+  totalImagesRemoved: number;
+  lastInfractionAt: Date | null;
+  lastPunishment: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoImageAntiSpamIncident = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  incidentKey: string;
+  userId: string;
+  username: string | null;
+  channelId: string;
+  removedImages: number;
+  warningCount: number;
+  timeoutMs: number;
+  action: "none" | "warning" | "timeout" | "kick";
+  actionSucceeded: boolean | null;
+  actionError: string | null;
+  reason: string;
+  status: "pending" | "completed" | "failed";
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type MongoDevBotStatus = "online" | "offline" | "invalid_token" | "error";
 
 export type MongoDevBot = {
@@ -494,6 +550,9 @@ export async function getMongoCollections() {
     giveaways: db.collection<MongoGiveaway>("giveaways"),
     fivemFacSettings: db.collection<MongoFivemFacSettings>("fivem_fac_settings"),
     fivemFacAbsences: db.collection<MongoFivemFacAbsence>("fivem_fac_absences"),
+    imageAntiSpamSettings: db.collection<MongoImageAntiSpamSettings>("image_anti_spam_settings"),
+    imageAntiSpamUsers: db.collection<MongoImageAntiSpamUser>("image_anti_spam_users"),
+    imageAntiSpamIncidents: db.collection<MongoImageAntiSpamIncident>("image_anti_spam_incidents"),
     devBots: db.collection<MongoDevBot>("Bot"),
     botGuildConfigs: db.collection<MongoBotGuildConfig>("BotGuildConfig"),
     devPermissions: db.collection<MongoDevPermission>("DevPermission")
@@ -556,6 +615,7 @@ async function createMongoIndexes(db: Db) {
     ensureClipsIndexes(db),
     ensureGiveawayIndexes(db),
     ensureFivemFacIndexes(db),
+    ensureImageAntiSpamIndexes(db),
     db.collection<MongoSocialNotification>("social_notifications").createIndex(
       {
         guildId: 1,
@@ -841,5 +901,38 @@ async function ensureFivemFacIndexes(db: Db) {
     db.collection<MongoFivemFacAbsence>("fivem_fac_absences").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
     db.collection<MongoFivemFacAbsence>("fivem_fac_absences").createIndex({ botId: 1, guildId: 1, userId: 1, status: 1 }),
     db.collection<MongoFivemFacAbsence>("fivem_fac_absences").createIndex({ botId: 1, status: 1, startDate: 1, endDate: 1 })
+  ]);
+}
+
+async function ensureImageAntiSpamIndexes(db: Db) {
+  await Promise.all([
+    db.collection<MongoImageAntiSpamSettings>("image_anti_spam_settings").createIndex(
+      { botId: 1, guildId: 1 },
+      { unique: true }
+    ),
+    db.collection<MongoImageAntiSpamSettings>("image_anti_spam_settings").createIndex({
+      botId: 1,
+      enabled: 1,
+      updatedAt: -1
+    }),
+    db.collection<MongoImageAntiSpamUser>("image_anti_spam_users").createIndex(
+      { botId: 1, guildId: 1, userId: 1 },
+      { unique: true }
+    ),
+    db.collection<MongoImageAntiSpamUser>("image_anti_spam_users").createIndex({
+      botId: 1,
+      guildId: 1,
+      warningCount: -1,
+      lastInfractionAt: -1
+    }),
+    db.collection<MongoImageAntiSpamIncident>("image_anti_spam_incidents").createIndex(
+      { botId: 1, guildId: 1, incidentKey: 1 },
+      { unique: true }
+    ),
+    db.collection<MongoImageAntiSpamIncident>("image_anti_spam_incidents").createIndex({
+      botId: 1,
+      guildId: 1,
+      createdAt: -1
+    })
   ]);
 }
