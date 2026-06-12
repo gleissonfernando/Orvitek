@@ -16,6 +16,7 @@ import {
   getRouletteGiveaway,
   listBotGiveaways,
   listGiveaways,
+  previewGiveawayLive,
   publishGiveawayPanel,
   spinGiveawayRoulette,
   startGiveaway,
@@ -43,15 +44,18 @@ const participantModeSchema = z.enum([
 const saveGiveawaySchema = z.object({
   allowRepeatWinners: z.boolean().optional(),
   customMessage: z.string().max(1200).nullable().optional(),
-  discordChannelId: z.string().regex(/^\d{5,32}$/).nullable().optional(),
+  discordChannelId: z.string().max(32).nullable().optional(),
   endDelayMinutes: z.coerce.number().int().min(0).max(60 * 24 * 30).nullable().optional(),
   kickChannelInput: z.string().max(300).nullable().optional(),
-  liveUrl: z.string().min(1).max(300),
+  liveUrl: z.string().max(300).optional().default(""),
   participantMode: participantModeSchema.nullable().optional(),
-  prizeName: z.string().min(1).max(160),
+  prizeName: z.string().max(160).optional().default(""),
   startDelayMinutes: z.coerce.number().int().min(0).max(60 * 24 * 30).nullable().optional(),
-  title: z.string().min(1).max(120),
+  title: z.string().max(120).optional().default(""),
   winnerCount: z.coerce.number().int().min(1).max(50).nullable().optional()
+});
+const previewGiveawayLiveSchema = z.object({
+  liveUrl: z.string().max(300).optional().default("")
 });
 const panelStateSchema = z.object({
   panelMessageId: z.string().regex(/^\d{5,32}$/).nullable().optional()
@@ -249,6 +253,23 @@ giveawaysRouter.get("/:guildId", async (req, res, next) => {
 
     return res.json({
       giveaways: await listGiveaways(guildId, botId)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+giveawaysRouter.post("/:guildId/live-preview", async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const input = previewGiveawayLiveSchema.parse(req.body ?? {});
+    const botId = await resolveRequestBotId(req);
+    const user = res.locals.dashboardAuth.user as AuthSessionUser;
+
+    await assertCanManageGiveaway(user, guildId, botId);
+
+    return res.json({
+      preview: await previewGiveawayLive(guildId, input.liveUrl, botId)
     });
   } catch (error) {
     return next(error);

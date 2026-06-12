@@ -21,6 +21,7 @@ import type {
   Giveaway,
   GiveawayEntryResult,
   GiveawayIdentity,
+  GiveawayLivePreview,
   GiveawaySpinResult,
   GuildLiveOptions,
   KickChannelPreview,
@@ -459,6 +460,16 @@ export async function getGiveaways(guildId: string, botId?: string | null) {
     params: botParams(botId)
   });
   return data.giveaways;
+}
+
+export async function previewGiveawayLive(guildId: string, liveUrl: string, botId?: string | null) {
+  const { data } = await api.post<{ preview: GiveawayLivePreview }>(`/giveaways/${guildId}/live-preview`, {
+    liveUrl
+  }, {
+    params: botParams(botId),
+    timeout: 15000
+  });
+  return data.preview;
 }
 
 export function giveawayConnectUrl(token: string, platform: "twitch" | "kick") {

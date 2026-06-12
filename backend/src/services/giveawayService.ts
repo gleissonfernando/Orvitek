@@ -20,9 +20,10 @@ import {
   type GiveawayEntryVerification
 } from "./giveawayIdentityService";
 import { getKickChannel, normalizeKickChannel } from "./kickService";
+import { resolveKickApiCredentials } from "./kickNotificationService";
 import { createLog } from "./logService";
 import { getGuildSettings } from "./settingsService";
-import { getTwitchUser, normalizeTwitchChannel } from "./twitchService";
+import { getTwitchStream, getTwitchUser, normalizeTwitchChannel } from "./twitchService";
 
 export type GiveawayParticipantDto = {
   id: string;
@@ -91,6 +92,26 @@ export type GiveawayDto = {
   startedAt: string | null;
   endedAt: string | null;
   updatedAt: string;
+};
+
+export type GiveawayLivePreviewDto = {
+  avatar: string | null;
+  category: string | null;
+  channelId: string | null;
+  channelName: string;
+  displayName: string;
+  followers: number | null;
+  isLive: boolean;
+  platform: "twitch" | "kick";
+  platformUserId: string;
+  startedAt: string | null;
+  status: "online" | "offline";
+  thumbnailUrl: string | null;
+  title: string | null;
+  url: string;
+  verified: boolean | null;
+  viewerCount: number | null;
+  warning: string | null;
 };
 
 export type SaveGiveawayInput = {
@@ -202,6 +223,11 @@ export async function getRouletteGiveaway(token: string) {
   return toGiveawayDto(giveaway);
 }
 
+export async function previewGiveawayLive(guildId: string, liveUrl: string, botId?: string | null): Promise<GiveawayLivePreviewDto> {
+  const live = await resolveGiveawayLive(liveUrl, guildId, normalizeBotId(botId));
+  return live.preview;
+}
+
 export async function createGiveaway(
   guildId: string,
   input: SaveGiveawayInput,
@@ -213,16 +239,22 @@ export async function createGiveaway(
   const now = new Date();
   const discordChannelId = normalizeDiscordChannelId(input.discordChannelId);
 
+  if (!discordChannelId) {
+    throw createGiveawayError("Selecione um canal do Discord antes de criar o sorteio.", 400);
+  }
+
   if (discordChannelId && !(await isGuildTextChannel(guildId, discordChannelId, botToken))) {
     throw createGiveawayError("O canal selecionado nao pertence a este servidor.", 400);
   }
 
-  const live = await resolveTwitchLive(input.liveUrl);
-  const kick = input.kickChannelInput ? await resolveKickGiveawayChannel(input.kickChannelInput) : null;
+  const live = await resolveGiveawayLive(input.liveUrl, guildId, normalizedBotId);
+  const extraKick = live.platform === "twitch" && input.kickChannelInput
+    ? await resolveKickGiveawayChannel(input.kickChannelInput, guildId, normalizedBotId)
+    : null;
   const rouletteToken = randomBytes(24).toString("base64url");
   const startDelayMinutes = normalizeDelay(input.startDelayMinutes);
   const endDelayMinutes = normalizeDelay(input.endDelayMinutes);
-  const participantMode = normalizeParticipantMode(input.participantMode);
+  const participantMode = normalizeParticipantMode(input.participantMode, extraKick ? "multi" : live.platform);
   const doc: MongoGiveaway = {
     _id: randomUUID(),
     botId: normalizedBotId,
@@ -232,12 +264,12 @@ export async function createGiveaway(
     title: normalizeTitle(input.title),
     liveName: live.displayName,
     liveUrl: live.url,
-    livePlatform: kick ? "multi" : "twitch",
-    twitchBroadcasterId: live.id,
-    twitchChannelName: live.login,
-    kickChannelName: kick?.slug ?? null,
-    kickUserId: kick?.broadcasterUserId ?? null,
-    kickChannelId: kick?.channelId ?? null,
+    livePlatform: extraKick ? "multi" : live.platform,
+    twitchBroadcasterId: live.platform === "twitch" ? live.platformUserId : "",
+    twitchChannelName: live.platform === "twitch" ? live.channelName : null,
+    kickChannelName: extraKick?.slug ?? (live.platform === "kick" ? live.channelName : null),
+    kickUserId: extraKick?.broadcasterUserId ?? (live.platform === "kick" ? live.platformUserId : null),
+    kickChannelId: extraKick?.channelId ?? (live.platform === "kick" ? live.channelId : null),
     participantMode,
     lastSyncedAt: null,
     lastSyncError: null,
@@ -291,27 +323,33 @@ export async function updateGiveaway(
 
   const discordChannelId = normalizeDiscordChannelId(input.discordChannelId);
 
+  if (!discordChannelId) {
+    throw createGiveawayError("Selecione um canal do Discord antes de criar o sorteio.", 400);
+  }
+
   if (discordChannelId && !(await isGuildTextChannel(current.guildId, discordChannelId, botToken))) {
     throw createGiveawayError("O canal selecionado nao pertence a este servidor.", 400);
   }
 
-  const live = await resolveTwitchLive(input.liveUrl);
-  const kick = input.kickChannelInput ? await resolveKickGiveawayChannel(input.kickChannelInput) : null;
+  const live = await resolveGiveawayLive(input.liveUrl, current.guildId, normalizedBotId);
+  const extraKick = live.platform === "twitch" && input.kickChannelInput
+    ? await resolveKickGiveawayChannel(input.kickChannelInput, current.guildId, normalizedBotId)
+    : null;
   const now = new Date();
   const startDelayMinutes = normalizeDelay(input.startDelayMinutes);
   const endDelayMinutes = normalizeDelay(input.endDelayMinutes);
-  const participantMode = normalizeParticipantMode(input.participantMode);
+  const participantMode = normalizeParticipantMode(input.participantMode, extraKick ? "multi" : live.platform);
   const patch: Partial<MongoGiveaway> = {
     discordChannelId,
     title: normalizeTitle(input.title),
     liveName: live.displayName,
     liveUrl: live.url,
-    livePlatform: kick ? "multi" : "twitch",
-    twitchBroadcasterId: live.id,
-    twitchChannelName: live.login,
-    kickChannelName: kick?.slug ?? null,
-    kickUserId: kick?.broadcasterUserId ?? null,
-    kickChannelId: kick?.channelId ?? null,
+    livePlatform: extraKick ? "multi" : live.platform,
+    twitchBroadcasterId: live.platform === "twitch" ? live.platformUserId : "",
+    twitchChannelName: live.platform === "twitch" ? live.channelName : null,
+    kickChannelName: extraKick?.slug ?? (live.platform === "kick" ? live.channelName : null),
+    kickUserId: extraKick?.broadcasterUserId ?? (live.platform === "kick" ? live.platformUserId : null),
+    kickChannelId: extraKick?.channelId ?? (live.platform === "kick" ? live.channelId : null),
     participantMode,
     prizeName: normalizePrize(input.prizeName),
     winnerCount: normalizeWinnerCount(input.winnerCount),
@@ -379,7 +417,7 @@ export async function startGiveaway(giveawayId: string, actorId: string | null, 
     throw createGiveawayError("Sorteio encerrado nao pode ser iniciado.", 400);
   }
 
-  if (!giveaway.liveUrl || !giveaway.twitchBroadcasterId) {
+  if (!giveaway.liveUrl || !giveawayHasResolvedChannel(giveaway)) {
     throw createGiveawayError("Cadastre a live antes de iniciar o sorteio.", 400);
   }
 
@@ -825,11 +863,25 @@ async function findGiveawayByToken(token: string) {
   });
 }
 
+async function resolveGiveawayLive(value: string, guildId: string, botId: string | null) {
+  const platform = detectGiveawayPlatform(value);
+
+  if (platform === "youtube") {
+    throw createGiveawayError("YouTube ainda nao esta disponivel para sorteios. Informe uma URL valida da Twitch ou Kick.", 400);
+  }
+
+  if (platform === "kick") {
+    return resolveKickGiveawayChannel(value, guildId, botId);
+  }
+
+  return resolveTwitchLive(value);
+}
+
 async function resolveTwitchLive(value: string) {
   const channel = normalizeTwitchChannel(value);
 
   if (!channel || !/^[a-z0-9_]{3,25}$/i.test(channel)) {
-    throw createGiveawayError("Informe uma URL ou canal valido da Twitch.", 400);
+    throw createGiveawayError("Informe uma URL valida da Twitch ou Kick.", 400);
   }
 
   const user = await getTwitchUser(channel).catch((error) => {
@@ -840,22 +892,46 @@ async function resolveTwitchLive(value: string) {
     throw createGiveawayError("Canal da Twitch nao encontrado.", 404);
   }
 
+  const stream = await getTwitchStream(user.login).catch(() => null);
+
   return {
-    id: user.id,
+    channelId: null,
+    channelName: user.login,
     displayName: user.displayName || user.login,
-    login: user.login,
+    platform: "twitch" as const,
+    platformUserId: user.id,
+    preview: {
+      avatar: user.profileImageUrl,
+      category: stream?.gameName || null,
+      channelId: null,
+      channelName: user.login,
+      displayName: user.displayName || user.login,
+      followers: null,
+      isLive: Boolean(stream),
+      platform: "twitch" as const,
+      platformUserId: user.id,
+      startedAt: stream?.startedAt ?? null,
+      status: stream ? "online" as const : "offline" as const,
+      thumbnailUrl: stream?.thumbnailUrl ?? null,
+      title: stream?.title || null,
+      url: `https://www.twitch.tv/${user.login}`,
+      verified: null,
+      viewerCount: stream?.viewerCount ?? null,
+      warning: null
+    },
     url: `https://www.twitch.tv/${user.login}`
   };
 }
 
-async function resolveKickGiveawayChannel(value: string) {
+async function resolveKickGiveawayChannel(value: string, guildId: string, botId: string | null) {
   const channel = normalizeKickChannel(value);
 
   if (!channel || !/^[a-z0-9_-]{3,25}$/i.test(channel)) {
-    throw createGiveawayError("Informe uma URL ou canal valido da Kick.", 400);
+    throw createGiveawayError("Informe uma URL valida da Twitch ou Kick.", 400);
   }
 
-  const kick = await getKickChannel(channel).catch((error) => {
+  const credentials = await resolveKickApiCredentials(guildId, botId);
+  const kick = await getKickChannel(channel, credentials).catch((error) => {
     throw createGiveawayError(error instanceof Error ? error.message : "Nao foi possivel consultar a Kick.", 503);
   });
 
@@ -863,7 +939,33 @@ async function resolveKickGiveawayChannel(value: string) {
     throw createGiveawayError("Canal da Kick nao encontrado.", 404);
   }
 
-  return kick;
+  return {
+    ...kick,
+    channelName: kick.slug,
+    displayName: kick.displayName || kick.slug,
+    platform: "kick" as const,
+    platformUserId: kick.broadcasterUserId,
+    preview: {
+      avatar: kick.avatar,
+      category: kick.categoryName,
+      channelId: kick.channelId,
+      channelName: kick.slug,
+      displayName: kick.displayName || kick.slug,
+      followers: kick.followers,
+      isLive: kick.isLive,
+      platform: "kick" as const,
+      platformUserId: kick.broadcasterUserId,
+      startedAt: kick.startedAt,
+      status: kick.isLive ? "online" as const : "offline" as const,
+      thumbnailUrl: kick.thumbnailUrl,
+      title: kick.title,
+      url: `https://kick.com/${kick.slug}`,
+      verified: kick.verified,
+      viewerCount: kick.viewerCount,
+      warning: "A Kick pode limitar a verificacao automatica de subs nesta conta/API. Se nao encontrar participantes, use seguidores, entrada pela roleta ou eventos do webhook."
+    },
+    url: `https://kick.com/${kick.slug}`
+  };
 }
 
 async function syncGiveawayParticipantsForDocument(
@@ -1128,7 +1230,7 @@ function normalizeDelay(value?: number | null) {
   return Math.max(0, Math.min(Number.isFinite(minutes) ? minutes : 0, MAX_DELAY_MINUTES));
 }
 
-function normalizeParticipantMode(value?: MongoGiveawayParticipantMode | null): MongoGiveawayParticipantMode {
+function normalizeParticipantMode(value?: MongoGiveawayParticipantMode | null, platform: "twitch" | "kick" | "multi" = "twitch"): MongoGiveawayParticipantMode {
   const modes = new Set<MongoGiveawayParticipantMode>([
     "all",
     "kick_followers",
@@ -1139,7 +1241,53 @@ function normalizeParticipantMode(value?: MongoGiveawayParticipantMode | null): 
     "twitch_subs_followers"
   ]);
 
-  return value && modes.has(value) ? value : "twitch_subs";
+  const normalized = value && modes.has(value) ? value : null;
+
+  if (platform === "kick") {
+    return normalized && ["all", "kick_followers", "kick_subs"].includes(normalized) ? normalized : "kick_followers";
+  }
+
+  if (platform === "twitch") {
+    return normalized && ["all", "twitch_followers", "twitch_subs", "twitch_subs_followers"].includes(normalized)
+      ? normalized
+      : "twitch_subs";
+  }
+
+  return normalized ?? "twitch_kick";
+}
+
+function detectGiveawayPlatform(value: string) {
+  const normalized = value.trim().toLowerCase();
+
+  if (!normalized) {
+    throw createGiveawayError("Informe uma URL valida da Twitch ou Kick.", 400);
+  }
+
+  if (/(^|\/\/|www\.)kick\.com\//i.test(normalized) || /^kick\.com\//i.test(normalized)) {
+    return "kick" as const;
+  }
+
+  if (/(^|\/\/|www\.)twitch\.tv\//i.test(normalized) || /^twitch\.tv\//i.test(normalized)) {
+    return "twitch" as const;
+  }
+
+  if (/(^|\/\/|www\.)(youtube\.com|youtu\.be)\//i.test(normalized) || /^(youtube\.com|youtu\.be)\//i.test(normalized)) {
+    return "youtube" as const;
+  }
+
+  return "twitch" as const;
+}
+
+function giveawayHasResolvedChannel(giveaway: MongoGiveaway) {
+  if (giveaway.livePlatform === "kick") {
+    return Boolean(giveaway.kickChannelName || giveaway.kickUserId);
+  }
+
+  if (giveaway.livePlatform === "multi") {
+    return Boolean(giveaway.twitchBroadcasterId || giveaway.kickChannelName || giveaway.kickUserId);
+  }
+
+  return Boolean(giveaway.twitchBroadcasterId);
 }
 
 function pickWeightedParticipant(participants: MongoGiveawayParticipant[]) {

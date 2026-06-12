@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
+  AlertTriangle,
   Clock,
   ExternalLink,
   Gift,
   Loader2,
   Pencil,
   Play,
+  Radio,
   RefreshCw,
   Save,
   Send,
@@ -19,12 +21,13 @@ import {
   endGiveaway,
   getGiveaways,
   getGuildLiveOptions,
+  previewGiveawayLive,
   publishGiveawayPanel,
   startGiveaway,
   syncGiveawayParticipants,
   updateGiveaway
 } from "../../lib/api";
-import type { DashboardGuild, Giveaway, GiveawayParticipantMode, GuildLiveOptions, SaveGiveawayPayload } from "../../types";
+import type { DashboardGuild, Giveaway, GiveawayLivePreview, GiveawayParticipantMode, GuildLiveOptions, SaveGiveawayPayload } from "../../types";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
@@ -41,7 +44,6 @@ type GiveawayForm = {
   customMessage: string;
   discordChannelId: string;
   endDelayMinutes: number;
-  kickChannelInput: string;
   liveUrl: string;
   participantMode: GiveawayParticipantMode;
   prizeName: string;
@@ -55,7 +57,6 @@ const emptyForm: GiveawayForm = {
   customMessage: "",
   discordChannelId: "",
   endDelayMinutes: 0,
-  kickChannelInput: "",
   liveUrl: "",
   participantMode: "twitch_subs",
   prizeName: "",
@@ -73,10 +74,27 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
   const [saving, setSaving] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [livePreview, setLivePreview] = useState<GiveawayLivePreview | null>(null);
+  const [livePreviewError, setLivePreviewError] = useState<string | null>(null);
+  const [livePreviewInput, setLivePreviewInput] = useState("");
+  const [livePreviewLoading, setLivePreviewLoading] = useState(false);
 
   const editingGiveaway = useMemo(
     () => giveaways.find((giveaway) => giveaway.id === editingId) ?? null,
     [editingId, giveaways]
+  );
+  const normalizedLiveUrl = form.liveUrl.trim();
+  const livePlatform = livePreviewInput === normalizedLiveUrl ? livePreview?.platform ?? null : detectPlatform(normalizedLiveUrl);
+  const participantOptions = useMemo(() => participantModeOptions(livePlatform), [livePlatform]);
+  const liveValidated = Boolean(livePreview && livePreviewInput === normalizedLiveUrl && !livePreviewError);
+  const canSubmit = Boolean(
+    canManage &&
+    form.title.trim() &&
+    form.prizeName.trim() &&
+    form.discordChannelId &&
+    normalizedLiveUrl &&
+    liveValidated &&
+    !saving
   );
 
   useEffect(() => {
@@ -115,6 +133,73 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
       mounted = false;
     };
   }, [botId, canManage, guild?.id]);
+
+  useEffect(() => {
+    if (!guild || !canManage) {
+      setLivePreview(null);
+      setLivePreviewError(null);
+      setLivePreviewInput("");
+      setLivePreviewLoading(false);
+      return;
+    }
+
+    const value = form.liveUrl.trim();
+
+    setLivePreview(null);
+    setLivePreviewError(null);
+    setLivePreviewInput("");
+
+    if (!value) {
+      setLivePreviewLoading(false);
+      return;
+    }
+
+    const platform = detectPlatform(value);
+
+    if (platform === "youtube") {
+      setLivePreviewError("YouTube ainda nao esta disponivel para sorteios. Use uma URL da Twitch ou Kick.");
+      setLivePreviewLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      setLivePreviewLoading(true);
+
+      previewGiveawayLive(guild.id, value, botId)
+        .then((preview) => {
+          if (cancelled) return;
+
+          setLivePreview(preview);
+          setLivePreviewInput(value);
+          setForm((current) => {
+            if (modeMatchesPlatform(current.participantMode, preview.platform)) {
+              return current;
+            }
+
+            return {
+              ...current,
+              participantMode: defaultParticipantMode(preview.platform)
+            };
+          });
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            setLivePreviewError(readRequestMessage(error) ?? "Nao foi possivel verificar esse canal.");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLivePreviewLoading(false);
+          }
+        });
+    }, 650);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [botId, canManage, form.liveUrl, guild?.id]);
 
   useEffect(() => {
     if (!guild || !canManage) {
@@ -179,6 +264,13 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
       return;
     }
 
+    const missingMessage = validateFormForSubmit(form, liveValidated, livePreviewLoading);
+
+    if (missingMessage) {
+      setMessage(missingMessage);
+      return;
+    }
+
     const payload = toPayload(form);
 
     setSaving(true);
@@ -232,7 +324,6 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
       customMessage: giveaway.customMessage ?? "",
       discordChannelId: giveaway.discordChannelId ?? "",
       endDelayMinutes: giveaway.endDelayMinutes,
-      kickChannelInput: giveaway.kickChannelName ? `https://kick.com/${giveaway.kickChannelName}` : "",
       liveUrl: giveaway.liveUrl,
       participantMode: giveaway.participantMode,
       prizeName: giveaway.prizeName,
@@ -245,6 +336,9 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
   function handleNew() {
     setEditingId(null);
     setForm(emptyForm);
+    setLivePreview(null);
+    setLivePreviewError(null);
+    setLivePreviewInput("");
     setMessage(null);
   }
 
@@ -281,7 +375,7 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Sorteio</CardTitle>
-              <CardDescription>{editingGiveaway ? "Editando painel e roleta." : "Crie um painel com roleta para subs."}</CardDescription>
+              <CardDescription>{editingGiveaway ? "Editando painel e roleta." : "Crie um painel com roleta para Twitch ou Kick."}</CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button disabled={actionId === "sync-options"} onClick={() => void handleSyncOptions()} size="sm" variant="outline">
@@ -316,25 +410,24 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
             />
           </FormField>
 
-          <FormField label="URL da live ou canal">
+          <FormField className="lg:col-span-2" label="URL da live ou canal">
             <input
               className="social-input h-11"
               disabled={!canManage}
               onChange={(event) => updateForm("liveUrl", event.target.value)}
-              placeholder="https://www.twitch.tv/canal"
+              placeholder="https://kick.com/canal ou https://www.twitch.tv/canal"
               value={form.liveUrl}
             />
           </FormField>
 
-          <FormField label="Canal Kick">
-            <input
-              className="social-input h-11"
-              disabled={!canManage}
-              onChange={(event) => updateForm("kickChannelInput", event.target.value)}
-              placeholder="https://kick.com/canal"
-              value={form.kickChannelInput}
-            />
-          </FormField>
+          <LivePreviewCard
+            className="lg:col-span-2"
+            error={livePreviewError}
+            loading={livePreviewLoading}
+            platform={livePlatform}
+            preview={livePreviewInput === normalizedLiveUrl ? livePreview : null}
+            value={normalizedLiveUrl}
+          />
 
           <FormField label="Participantes">
             <select
@@ -343,13 +436,11 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
               onChange={(event) => updateForm("participantMode", event.target.value as GiveawayParticipantMode)}
               value={form.participantMode}
             >
-              <option value="twitch_subs">Apenas Subs Twitch</option>
-              <option value="twitch_followers">Apenas Followers Twitch</option>
-              <option value="twitch_subs_followers">Subs + Followers Twitch</option>
-              <option value="kick_subs">Apenas Subs Kick</option>
-              <option value="kick_followers">Apenas Followers Kick</option>
-              <option value="twitch_kick">Twitch + Kick</option>
-              <option value="all">Todos</option>
+              {participantOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </FormField>
 
@@ -428,7 +519,7 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
           </div>
 
           <div className="flex flex-wrap gap-2 lg:col-span-2">
-            <Button disabled={!canManage || saving} onClick={() => void handleSubmit()}>
+            <Button disabled={!canSubmit} onClick={() => void handleSubmit()}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {editingId ? "Salvar alteracoes" : "Criar sorteio"}
             </Button>
@@ -533,6 +624,121 @@ function GiveawayRow({
   );
 }
 
+function LivePreviewCard({
+  className = "",
+  error,
+  loading,
+  platform,
+  preview,
+  value
+}: {
+  className?: string;
+  error: string | null;
+  loading: boolean;
+  platform: "twitch" | "kick" | "youtube" | null;
+  preview: GiveawayLivePreview | null;
+  value: string;
+}) {
+  if (!value) {
+    return null;
+  }
+
+  if (loading) {
+    return (
+      <div className={`rounded-lg border border-zinc-900 bg-black/35 p-4 ${className}`}>
+        <div className="flex items-center gap-3 text-sm text-zinc-300">
+          <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
+          Verificando canal...
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className={`rounded-lg border border-red-500/25 bg-red-500/10 p-4 ${className}`}>
+        <div className="flex items-start gap-3 text-sm text-red-100">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-300" />
+          <span>{error}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!preview) {
+    return (
+      <div className={`rounded-lg border border-zinc-900 bg-black/35 p-4 ${className}`}>
+        <div className="flex items-center gap-3 text-sm text-zinc-400">
+          <Radio className="h-4 w-4 text-zinc-500" />
+          <span>{platform ? `Plataforma detectada: ${platformLabel(platform)}` : "Aguardando verificacao do canal."}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`rounded-lg border border-zinc-800 bg-black/35 p-4 ${className}`}>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950">
+            {preview.avatar ? (
+              <img alt="" className="h-full w-full object-cover" src={preview.avatar} />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-lg font-semibold text-zinc-500">
+                {preview.displayName.slice(0, 1).toUpperCase()}
+              </div>
+            )}
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="truncate text-base font-semibold text-white">@{preview.channelName}</p>
+              <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${platformClass(preview.platform)}`}>
+                {platformLabel(preview.platform)}
+              </span>
+              <span className={preview.isLive ? "rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-300" : "rounded-full border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-xs font-medium text-zinc-400"}>
+                {preview.isLive ? "Online" : "Offline"}
+              </span>
+            </div>
+            <a className="mt-1 block truncate text-xs text-zinc-500 hover:text-white" href={preview.url} rel="noreferrer" target="_blank">
+              {preview.url}
+            </a>
+            <p className="mt-1 truncate font-mono text-[11px] text-zinc-600">ID: {preview.platformUserId}</p>
+          </div>
+        </div>
+
+        <div className="grid gap-2 text-xs text-zinc-500 sm:grid-cols-3 md:min-w-[420px]">
+          <PreviewFact label="Status" value={preview.isLive ? "Online" : "Offline"} />
+          <PreviewFact label="Viewers" value={preview.viewerCount === null ? "Nao informado" : formatNumber(preview.viewerCount)} />
+          <PreviewFact label="Seguidores" value={preview.followers === null ? "Nao informado" : formatNumber(preview.followers)} />
+        </div>
+      </div>
+
+      {preview.title || preview.category ? (
+        <div className="mt-3 grid gap-2 text-xs text-zinc-500 md:grid-cols-2">
+          <PreviewFact label="Titulo" value={preview.title ?? "Sem titulo detectado"} />
+          <PreviewFact label="Categoria" value={preview.category ?? "Sem categoria"} />
+        </div>
+      ) : null}
+
+      {preview.warning ? (
+        <div className="mt-3 flex items-start gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3 text-xs leading-5 text-yellow-100">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{preview.warning}</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PreviewFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-zinc-900 bg-zinc-950/70 p-3">
+      <p>{label}</p>
+      <p className="mt-1 truncate font-medium text-zinc-200">{value}</p>
+    </div>
+  );
+}
+
 function InfoPill({ icon: Icon, label }: { icon: typeof Gift; label: string }) {
   return (
     <span className="flex min-h-8 items-center gap-2 rounded-md border border-zinc-900 bg-black/30 px-2.5 py-1.5">
@@ -565,7 +771,6 @@ function toPayload(form: GiveawayForm): SaveGiveawayPayload {
     customMessage: form.customMessage.trim() || null,
     discordChannelId: form.discordChannelId || null,
     endDelayMinutes: Math.max(0, Number(form.endDelayMinutes) || 0),
-    kickChannelInput: form.kickChannelInput.trim() || null,
     liveUrl: form.liveUrl.trim(),
     participantMode: form.participantMode,
     prizeName: form.prizeName.trim(),
@@ -573,6 +778,110 @@ function toPayload(form: GiveawayForm): SaveGiveawayPayload {
     title: form.title.trim(),
     winnerCount: Math.max(1, Math.min(50, Number(form.winnerCount) || 1))
   };
+}
+
+function validateFormForSubmit(form: GiveawayForm, liveValidated: boolean, livePreviewLoading: boolean) {
+  if (!form.title.trim()) {
+    return "Informe o nome do sorteio.";
+  }
+
+  if (!form.prizeName.trim()) {
+    return "Informe o premio do sorteio.";
+  }
+
+  if (!form.liveUrl.trim()) {
+    return "Informe uma URL valida da Twitch ou Kick.";
+  }
+
+  if (!form.discordChannelId) {
+    return "Selecione um canal do Discord antes de criar o sorteio.";
+  }
+
+  if (livePreviewLoading) {
+    return "Aguarde a verificacao do canal antes de criar o sorteio.";
+  }
+
+  if (!liveValidated) {
+    return "Verifique uma URL valida da Twitch ou Kick antes de criar o sorteio.";
+  }
+
+  return null;
+}
+
+function detectPlatform(value: string): "twitch" | "kick" | "youtube" | null {
+  const normalized = value.trim().toLowerCase();
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (/(^|\/\/|www\.)kick\.com\//i.test(normalized) || /^kick\.com\//i.test(normalized)) {
+    return "kick";
+  }
+
+  if (/(^|\/\/|www\.)twitch\.tv\//i.test(normalized) || /^twitch\.tv\//i.test(normalized)) {
+    return "twitch";
+  }
+
+  if (/(^|\/\/|www\.)(youtube\.com|youtu\.be)\//i.test(normalized) || /^(youtube\.com|youtu\.be)\//i.test(normalized)) {
+    return "youtube";
+  }
+
+  return "twitch";
+}
+
+function participantModeOptions(platform: "twitch" | "kick" | "youtube" | null) {
+  const all = [
+    { label: "Todos", value: "all" as const },
+    { label: "Apenas Subs Twitch", value: "twitch_subs" as const },
+    { label: "Apenas Followers Twitch", value: "twitch_followers" as const },
+    { label: "Subs + Followers Twitch", value: "twitch_subs_followers" as const },
+    { label: "Apenas Subs Kick", value: "kick_subs" as const },
+    { label: "Apenas Followers Kick", value: "kick_followers" as const },
+    { label: "Twitch + Kick", value: "twitch_kick" as const }
+  ];
+
+  if (platform === "kick") {
+    return all.filter((option) => ["all", "kick_subs", "kick_followers"].includes(option.value));
+  }
+
+  if (platform === "twitch") {
+    return all.filter((option) => ["all", "twitch_subs", "twitch_followers", "twitch_subs_followers"].includes(option.value));
+  }
+
+  return all;
+}
+
+function modeMatchesPlatform(mode: GiveawayParticipantMode, platform: "twitch" | "kick") {
+  if (mode === "all") {
+    return true;
+  }
+
+  if (platform === "kick") {
+    return mode === "kick_subs" || mode === "kick_followers";
+  }
+
+  return mode === "twitch_subs" || mode === "twitch_followers" || mode === "twitch_subs_followers";
+}
+
+function defaultParticipantMode(platform: "twitch" | "kick"): GiveawayParticipantMode {
+  return platform === "kick" ? "kick_followers" : "twitch_subs";
+}
+
+function platformLabel(platform: "twitch" | "kick" | "youtube") {
+  if (platform === "kick") return "Kick";
+  if (platform === "youtube") return "YouTube";
+  return "Twitch";
+}
+
+function platformClass(platform: "twitch" | "kick") {
+  return platform === "kick"
+    ? "border-[#53fc18]/30 bg-[#53fc18]/10 text-[#53fc18]"
+    : "border-[#9146ff]/30 bg-[#9146ff]/10 text-[#c4a0ff]";
+}
+
+function formatNumber(value: number) {
+  return value.toLocaleString("pt-BR");
 }
 
 function upsertGiveaway(giveaways: Giveaway[], giveaway: Giveaway) {
@@ -607,7 +916,27 @@ function readRequestMessage(error: unknown) {
   }
 
   const response = (error as { response?: { data?: { message?: unknown } } }).response;
-  return typeof response?.data?.message === "string" ? response.data.message : null;
+  return typeof response?.data?.message === "string" ? friendlyErrorMessage(response.data.message) : null;
+}
+
+function friendlyErrorMessage(message: string) {
+  if (message.includes("liveUrl") || message.includes("String must contain")) {
+    return "Informe uma URL valida da Twitch ou Kick.";
+  }
+
+  if (message.includes("prizeName")) {
+    return "Informe o premio do sorteio.";
+  }
+
+  if (message.includes("title")) {
+    return "Informe o nome do sorteio.";
+  }
+
+  if (message.includes("discordChannelId")) {
+    return "Selecione um canal do Discord antes de criar o sorteio.";
+  }
+
+  return message;
 }
 
 function formatDate(value: string) {

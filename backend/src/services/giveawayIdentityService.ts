@@ -113,12 +113,16 @@ export async function verifyConnectedAccountForGiveaway(giveaway: MongoGiveaway,
   }
 
   const participant = account.platform === "twitch"
-    ? await verifyTwitchAccountParticipant(giveaway, account)
-    : await verifyKickAccountParticipant(giveaway, account);
-  const eligible = participantIsEligible(participant, giveaway.participantMode ?? "twitch_subs");
+    ? giveaway.twitchBroadcasterId
+      ? await verifyTwitchAccountParticipant(giveaway, account)
+      : unavailableAccountParticipant(account, "Este sorteio nao usa verificacao Twitch.")
+    : giveaway.kickChannelName || giveaway.kickUserId
+      ? await verifyKickAccountParticipant(giveaway, account)
+      : unavailableAccountParticipant(account, "Este sorteio nao usa verificacao Kick.");
+  const eligible = participant.eligible === false ? false : participantIsEligible(participant, giveaway.participantMode ?? "twitch_subs");
 
   participant.eligible = eligible;
-  participant.invalidReason = eligible ? null : ineligibleReason(participant, giveaway.participantMode ?? "twitch_subs");
+  participant.invalidReason = eligible ? null : participant.invalidReason ?? ineligibleReason(participant, giveaway.participantMode ?? "twitch_subs");
 
   await giveawayPlatformAccounts.updateOne(
     {
@@ -504,6 +508,31 @@ function fromTwitchVerification(verification: TwitchUserVerification, mode: Mong
     subscriber: verification.isSubscriber,
     username: verification.username
   }, mode);
+}
+
+function unavailableAccountParticipant(account: MongoGiveawayPlatformAccount, reason: string): MongoGiveawayParticipant {
+  return {
+    accountId: account._id,
+    displayName: account.displayName,
+    eligible: false,
+    follower: false,
+    id: platformParticipantId(account.platform, account.platformUserId),
+    invalidReason: reason,
+    isEditor: false,
+    isModerator: false,
+    isPrime: false,
+    isVip: false,
+    platform: account.platform,
+    platformUserId: account.platformUserId,
+    source: account.platform,
+    subMonths: null,
+    subTier: null,
+    subTierLabel: null,
+    subscriber: false,
+    tickets: 1,
+    username: account.username,
+    validatedAt: new Date()
+  };
 }
 
 function normalizeParticipant(input: Partial<MongoGiveawayParticipant> & {

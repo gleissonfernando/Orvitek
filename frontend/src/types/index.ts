@@ -755,6 +755,26 @@ export type Giveaway = {
   updatedAt: string;
 };
 
+export type GiveawayLivePreview = {
+  avatar: string | null;
+  category: string | null;
+  channelId: string | null;
+  channelName: string;
+  displayName: string;
+  followers: number | null;
+  isLive: boolean;
+  platform: "twitch" | "kick";
+  platformUserId: string;
+  startedAt: string | null;
+  status: "online" | "offline";
+  thumbnailUrl: string | null;
+  title: string | null;
+  url: string;
+  verified: boolean | null;
+  viewerCount: number | null;
+  warning: string | null;
+};
+
 export type SaveGiveawayPayload = {
   allowRepeatWinners: boolean;
   customMessage?: string | null;
