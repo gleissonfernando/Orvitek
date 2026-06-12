@@ -15,6 +15,7 @@ import {
   getKickStreamsForBot,
   listActiveKickNotifications,
   listKickNotifications,
+  previewKickNotificationPanel,
   previewKickChannel,
   processKickWebhookStatus,
   saveKickApiConfig,
@@ -302,6 +303,21 @@ kickNotificationsRouter.post("/:guildId/channels/:id/test", requireAuth, async (
 
     return res.json({
       ok: true
+    });
+  } catch (error) {
+    return handleRouteError(error, res, next);
+  }
+});
+
+kickNotificationsRouter.get("/:guildId/channels/:id/panel-preview", requireAuth, async (req, res, next) => {
+  try {
+    const guildId = getRequiredParam(req.params.guildId, "guildId");
+    const botId = await resolveRequestBotId(req);
+    const id = getRequiredParam(req.params.id, "id");
+    await assertCanManageGuild(req, guildId, botId, "visualizou previa Kick");
+
+    return res.json({
+      preview: await previewKickNotificationPanel(guildId, id, botId)
     });
   } catch (error) {
     return handleRouteError(error, res, next);

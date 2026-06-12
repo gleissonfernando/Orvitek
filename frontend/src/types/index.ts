@@ -364,6 +364,26 @@ export type KickNotificationsPage = {
   limit: number;
 };
 
+export type LivePanelPreview = {
+  platform: "twitch" | "kick";
+  dataSource: "live" | "simulated";
+  mention: string | null;
+  color: string;
+  authorName: string;
+  authorIconUrl: string | null;
+  title: string;
+  url: string;
+  description: string;
+  fields: Array<{
+    name: string;
+    value: string;
+    inline: boolean;
+  }>;
+  imageUrl: string | null;
+  footer: string;
+  buttonLabel: string;
+};
+
 export type KickIntegrationStatus = {
   apiConfigured: boolean;
   apiStatus: "not_configured" | "ok" | "error";

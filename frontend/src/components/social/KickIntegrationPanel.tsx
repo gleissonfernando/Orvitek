@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  Eye,
   FlaskConical,
   Loader2,
   Plug,
@@ -19,6 +20,7 @@ import {
   getGuildLiveOptions,
   getKickIntegrationStatus,
   getKickNotifications,
+  previewKickNotificationPanel,
   previewKickChannel,
   saveKickApiConfig,
   testKickNotification,
@@ -27,6 +29,7 @@ import {
 } from "../../lib/api";
 import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
+import { LivePanelPreviewModal } from "./LivePanelPreviewModal";
 import { SocialCard } from "./SocialCard";
 import type {
   CreateKickNotificationPayload,
@@ -37,6 +40,7 @@ import type {
   KickChannelPreview,
   KickIntegrationStatus,
   KickNotification,
+  LivePanelPreview,
   UpdateKickNotificationPayload
 } from "../../types";
 
@@ -66,6 +70,8 @@ export function KickIntegrationPanel({ botId, canManage, guild }: KickIntegratio
   const [savingApi, setSavingApi] = useState(false);
   const [validating, setValidating] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [previewingId, setPreviewingId] = useState<string | null>(null);
+  const [panelPreview, setPanelPreview] = useState<LivePanelPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -291,6 +297,23 @@ export function KickIntegrationPanel({ botId, canManage, guild }: KickIntegratio
     }
   }
 
+  async function handlePreview(notification: KickNotification) {
+    if (!guild) {
+      return;
+    }
+
+    setPreviewingId(notification.id);
+    setPanelPreview(null);
+    setError(null);
+
+    try {
+      setPanelPreview(await previewKickNotificationPanel(guild.id, notification.id, botId));
+    } catch (requestError) {
+      setError(readErrorMessage(requestError));
+      setPreviewingId(null);
+    }
+  }
+
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -345,9 +368,11 @@ export function KickIntegrationPanel({ botId, canManage, guild }: KickIntegratio
               setEditing(notification);
             }}
             onPageChange={setPage}
+            onPreview={handlePreview}
             onSearchChange={setSearchInput}
             onTest={handleTest}
             page={page}
+            previewingId={previewingId}
             roles={liveOptions.roles}
             search={searchInput}
             testingId={testingId}
@@ -380,6 +405,14 @@ export function KickIntegrationPanel({ botId, canManage, guild }: KickIntegratio
         notification={deletingNotification}
         onClose={() => setDeletingNotification(null)}
         onConfirm={handleDelete}
+      />
+      <LivePanelPreviewModal
+        loading={Boolean(previewingId && !panelPreview)}
+        onClose={() => {
+          setPanelPreview(null);
+          setPreviewingId(null);
+        }}
+        preview={panelPreview}
       />
     </section>
   );
@@ -519,9 +552,11 @@ function KickNotificationCard({
   onDelete,
   onEdit,
   onPageChange,
+  onPreview,
   onSearchChange,
   onTest,
   page,
+  previewingId,
   roles,
   search,
   testingId,
@@ -540,10 +575,12 @@ function KickNotificationCard({
   onAdd: () => void;
   onEdit: (notification: KickNotification) => void;
   onDelete: (notification: KickNotification) => void;
+  onPreview: (notification: KickNotification) => void;
   onTest: (notification: KickNotification) => void;
   onPageChange: (page: number) => void;
   onSearchChange: (value: string) => void;
   testingId: string | null;
+  previewingId: string | null;
 }) {
   return (
     <SocialCard
@@ -582,7 +619,9 @@ function KickNotificationCard({
               notification={notification}
               onDelete={onDelete}
               onEdit={onEdit}
+              onPreview={onPreview}
               onTest={onTest}
+              previewing={previewingId === notification.id}
               roleName={formatRoleName(roles, notification.mentionRoleId)}
               testing={testingId === notification.id}
             />
@@ -618,7 +657,9 @@ function KickChannelItem({
   notification,
   onDelete,
   onEdit,
+  onPreview,
   onTest,
+  previewing,
   roleName,
   testing
 }: {
@@ -626,8 +667,10 @@ function KickChannelItem({
   channelName: string;
   roleName: string;
   testing: boolean;
+  previewing: boolean;
   onEdit: (notification: KickNotification) => void;
   onDelete: (notification: KickNotification) => void;
+  onPreview: (notification: KickNotification) => void;
   onTest: (notification: KickNotification) => void;
 }) {
   const embedColor = notification.embedColor ?? DEFAULT_EMBED_COLOR;
@@ -670,6 +713,10 @@ function KickChannelItem({
         ) : null}
 
         <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <Button className="h-9 px-3 text-xs" disabled={previewing} onClick={() => onPreview(notification)} type="button" variant="outline">
+            <Eye className="h-3.5 w-3.5" />
+            {previewing ? "Carregando..." : "Visualizar painel"}
+          </Button>
           <Button className="h-9 px-3 text-xs" disabled={testing} onClick={() => onTest(notification)} type="button" variant="outline">
             <FlaskConical className="h-3.5 w-3.5" />
             {testing ? "Testando..." : "Testar"}

@@ -22,6 +22,7 @@ import type {
   KickIntegrationStatus,
   KickNotification,
   KickNotificationsPage,
+  LivePanelPreview,
   GuildMemberOption,
   GuildRoleOption,
   GuildSettings,
@@ -506,6 +507,19 @@ export async function testTwitchNotification(guildId: string, id: string, botId?
   );
 }
 
+export async function previewTwitchNotificationPanel(guildId: string, id: string, botId?: string | null) {
+  const { data } = await api.get<{ preview: LivePanelPreview }>(
+    botId
+      ? scopedBotGuildPath(botId, guildId, `/lives/${id}/panel-preview`)
+      : `/social-notifications/${guildId}/twitch/${id}/panel-preview`,
+    {
+      params: botParams(botId),
+      timeout: 15000
+    }
+  );
+  return data.preview;
+}
+
 export async function deleteTwitchNotification(guildId: string, id: string, botId?: string | null) {
   const { data } = await api.delete<{ notification: SocialNotification }>(
     botId ? scopedBotGuildPath(botId, guildId, `/lives/${id}`) : `/social-notifications/${guildId}/twitch/${id}`,
@@ -599,6 +613,17 @@ export async function testKickNotification(guildId: string, id: string, botId?: 
     params: botParams(botId),
     timeout: 15000
   });
+}
+
+export async function previewKickNotificationPanel(guildId: string, id: string, botId?: string | null) {
+  const { data } = await api.get<{ preview: LivePanelPreview }>(
+    `/kick-integration/${guildId}/channels/${id}/panel-preview`,
+    {
+      params: botParams(botId),
+      timeout: 15000
+    }
+  );
+  return data.preview;
 }
 
 export async function deleteKickNotification(guildId: string, id: string, botId?: string | null) {

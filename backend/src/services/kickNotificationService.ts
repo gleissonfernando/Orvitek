@@ -4,6 +4,7 @@ import { env } from "../config/env";
 import { ensureGuild, getMongoCollections, type MongoKickApiConfig, type MongoSocialNotification } from "../database/mongo";
 import { createLog } from "./logService";
 import { isGuildTextChannel } from "./discordOptionsService";
+import type { LivePanelPreviewDto } from "./livePanelPreviewService";
 import {
   getKickChannel,
   getKickLivestreamByUserId,
@@ -627,6 +628,57 @@ export async function sendKickNotificationTest(
   });
 
   await writeActionLog("social.kick.tested", "Testou painel Kick", notification, userId);
+}
+
+export async function previewKickNotificationPanel(
+  guildId: string,
+  id: string,
+  botId?: string | null
+): Promise<LivePanelPreviewDto> {
+  const notification = await findKickNotification(guildId, id, botId);
+  const credentials = await resolveKickApiCredentials(guildId, botId);
+  const stream = notification.kickUserId
+    ? await getKickLivestreamByUserId(notification.kickUserId, credentials).catch(() => null)
+    : null;
+  const resolvedStream = stream ?? simulatedKickStream(notification);
+  const variables = kickVariables(notification, resolvedStream);
+
+  return {
+    platform: "kick",
+    dataSource: stream ? "live" : "simulated",
+    mention: formatMention(notification).content,
+    color: normalizeEmbedColor(notification.embedColor),
+    authorName: `${variables.streamer} iniciou uma transmissao na Kick`,
+    authorIconUrl: resolvedStream.avatar ?? notification.kickAvatar ?? null,
+    title: "AO VIVO AGORA",
+    url: resolvedStream.url,
+    description: renderKickDescription(notification, variables),
+    fields: [
+      {
+        name: "Streamer",
+        value: variables.streamer,
+        inline: true
+      },
+      {
+        name: "Categoria",
+        value: variables.category,
+        inline: true
+      },
+      {
+        name: "Viewers",
+        value: variables.viewers,
+        inline: true
+      },
+      {
+        name: "Titulo",
+        value: variables.title,
+        inline: false
+      }
+    ],
+    imageUrl: resolvedStream.thumbnailUrl ? appendCacheBuster(resolvedStream.thumbnailUrl) : null,
+    footer: "Sistema Kick Integration",
+    buttonLabel: "Assistir Agora"
+  };
 }
 
 export async function deleteKickNotification(guildId: string, id: string, userId: string, botId?: string | null) {
