@@ -55,6 +55,37 @@ export type SocialNotification = {
   updatedAt: string;
 };
 
+export type KickNotification = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  userId: string;
+  platform: "kick";
+  kickChannelName: string;
+  kickChannelUrl: string;
+  kickChannelId?: string | null;
+  kickUserId?: string | null;
+  kickDisplayName?: string | null;
+  kickAvatar?: string | null;
+  kickBanner?: string | null;
+  kickFollowers?: number | null;
+  kickVerified?: boolean | null;
+  kickCategory?: string | null;
+  discordChannelId: string;
+  mentionRoleId?: string | null;
+  customMessage?: string | null;
+  embedColor?: string | null;
+  enabled: boolean;
+  isLive: boolean;
+  lastLiveAt?: string | null;
+  lastEndedAt?: string | null;
+  lastStreamId?: string | null;
+  lastMessageId?: string | null;
+  peakViewers?: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ClipMentionType = "none" | "everyone" | "role";
 
 export type ClipsConfig = {
@@ -351,6 +382,27 @@ export class ApiClient {
 
   async updateTwitchNotificationState(id: string, input: { isLive?: boolean; lastLiveAt?: string | null; lastStreamId?: string | null; lastMessageId?: string | null; twitchAvatar?: string | null }) {
     const { data } = await this.http.patch<{ notification: SocialNotification }>(`/social-notifications/bot/twitch/${id}/state`, input);
+    return data.notification;
+  }
+
+  async getActiveKickNotifications() {
+    const { data } = await this.http.get<{ notifications: KickNotification[] }>("/kick-integration/bot/active", {
+      timeout: 30_000
+    });
+    return data.notifications;
+  }
+
+  async updateKickNotificationState(id: string, input: {
+    isLive?: boolean;
+    kickAvatar?: string | null;
+    kickCategory?: string | null;
+    lastEndedAt?: string | null;
+    lastLiveAt?: string | null;
+    lastMessageId?: string | null;
+    lastStreamId?: string | null;
+    peakViewers?: number | null;
+  }) {
+    const { data } = await this.http.patch<{ notification: KickNotification }>(`/kick-integration/bot/${id}/state`, input);
     return data.notification;
   }
 

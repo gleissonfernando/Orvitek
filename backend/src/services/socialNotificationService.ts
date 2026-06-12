@@ -607,6 +607,8 @@ function buildNotificationStatePatch(input: UpdateTwitchNotificationStateInput):
 }
 
 function toDto(notification: MongoSocialNotification): SocialNotificationDto {
+  const twitchChannelName = notification.twitchChannelName ?? "";
+
   return {
     id: notification._id,
     botId: normalizeBotId(notification.botId),
@@ -615,8 +617,8 @@ function toDto(notification: MongoSocialNotification): SocialNotificationDto {
     createdBy: notification.createdBy ?? notification.userId,
     updatedBy: notification.updatedBy ?? null,
     platform: "twitch",
-    twitchChannelName: notification.twitchChannelName,
-    twitchChannelUrl: notification.twitchChannelUrl,
+    twitchChannelName,
+    twitchChannelUrl: notification.twitchChannelUrl ?? `https://www.twitch.tv/${twitchChannelName}`,
     twitchUserId: notification.twitchUserId,
     twitchAvatar: notification.twitchAvatar,
     discordChannelId: notification.discordChannelId,

@@ -6,6 +6,7 @@ import type {
   ClipSent,
   ClipsConfig,
   CreateTwitchNotificationPayload,
+  CreateKickNotificationPayload,
   CreateDevBotPayload,
   DashboardBot,
   DashboardMeResponse,
@@ -17,6 +18,10 @@ import type {
   Giveaway,
   GiveawaySpinResult,
   GuildLiveOptions,
+  KickChannelPreview,
+  KickIntegrationStatus,
+  KickNotification,
+  KickNotificationsPage,
   GuildMemberOption,
   GuildRoleOption,
   GuildSettings,
@@ -37,6 +42,7 @@ import type {
   TwitchChannelPreview,
   UpdateSocialMemberPayload,
   UpdateTwitchNotificationPayload,
+  UpdateKickNotificationPayload,
   SaveXAccountPayload,
   UpdateXAccountPayload,
   XAccount,
@@ -479,6 +485,82 @@ export async function deleteTwitchNotification(guildId: string, id: string, botI
       params: botParams(botId)
     }
   );
+  return data.notification;
+}
+
+export async function getKickIntegrationStatus(guildId: string, botId?: string | null) {
+  const { data } = await api.get<{ status: KickIntegrationStatus }>(`/kick-integration/${guildId}/status`, {
+    params: botParams(botId)
+  });
+  return data.status;
+}
+
+export async function validateKickApi(guildId: string, botId?: string | null) {
+  const { data } = await api.post<{ message: string }>(`/kick-integration/${guildId}/api/validate`, undefined, {
+    params: botParams(botId),
+    timeout: 15000
+  });
+  return data.message;
+}
+
+export async function getKickNotifications(
+  guildId: string,
+  botId?: string | null,
+  options: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+  } = {}
+) {
+  const { data } = await api.get<KickNotificationsPage>(`/kick-integration/${guildId}`, {
+    params: {
+      ...botParams(botId),
+      page: options.page ?? 1,
+      pageSize: options.pageSize ?? 25,
+      search: options.search || undefined
+    }
+  });
+  return data;
+}
+
+export async function createKickNotification(guildId: string, payload: CreateKickNotificationPayload, botId?: string | null) {
+  const { data } = await api.post<{ notification: KickNotification }>(`/kick-integration/${guildId}/channels`, payload, {
+    params: botParams(botId)
+  });
+  return data.notification;
+}
+
+export async function previewKickChannel(guildId: string, kickChannelInput: string, botId?: string | null) {
+  const { data } = await api.post<{ preview: KickChannelPreview }>(
+    `/kick-integration/${guildId}/preview`,
+    {
+      kickChannelInput
+    },
+    {
+      params: botParams(botId)
+    }
+  );
+  return data.preview;
+}
+
+export async function updateKickNotification(guildId: string, id: string, payload: UpdateKickNotificationPayload, botId?: string | null) {
+  const { data } = await api.patch<{ notification: KickNotification }>(`/kick-integration/${guildId}/channels/${id}`, payload, {
+    params: botParams(botId)
+  });
+  return data.notification;
+}
+
+export async function testKickNotification(guildId: string, id: string, botId?: string | null) {
+  await api.post<{ ok: boolean }>(`/kick-integration/${guildId}/channels/${id}/test`, undefined, {
+    params: botParams(botId),
+    timeout: 15000
+  });
+}
+
+export async function deleteKickNotification(guildId: string, id: string, botId?: string | null) {
+  const { data } = await api.delete<{ notification: KickNotification }>(`/kick-integration/${guildId}/channels/${id}`, {
+    params: botParams(botId)
+  });
   return data.notification;
 }
 

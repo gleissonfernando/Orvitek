@@ -14,6 +14,7 @@ import {
   Hash,
   Loader2,
   LockKeyhole,
+  Plug,
   Radio,
   ScrollText,
   Server,
@@ -31,6 +32,7 @@ import { FacAbsencePanel } from "../components/fivem/FacAbsencePanel";
 import { GiveawayPanel } from "../components/giveaway/GiveawayPanel";
 import { SiteAccessPanel } from "../components/moderation/SiteAccessPanel";
 import { AutoRolesPanel } from "../components/roles/AutoRolesPanel";
+import { KickIntegrationPanel } from "../components/social/KickIntegrationPanel";
 import { LiveNotificationsPanel } from "../components/social/LiveNotificationsPanel";
 import { MemberSocialNetworkPanel } from "../components/social/MemberSocialNetworkPanel";
 import { XMonitorPanel } from "../components/social/XMonitorPanel";
@@ -46,6 +48,7 @@ import {
   getDashboardBySlug,
   getDashboardMe,
   getGuildSettings,
+  getKickNotifications,
   getLives,
   getLogs,
   getSocialNotifications,
@@ -64,6 +67,7 @@ import type {
   DashboardMeGuild,
   DashboardMeResponse,
   GuildSettings,
+  KickNotification,
   LiveEvent,
   LogEntry,
   SocialNotification,
@@ -86,6 +90,7 @@ type BooleanSettingKey =
 
 type OverviewDetails = {
   clipsConfig: ClipsConfig | null;
+  kickNotifications: KickNotification[];
   liveNotifications: SocialNotification[];
   xAccounts: XAccount[];
 };
@@ -114,6 +119,7 @@ const initialBotStatus: BotStatus = {
 
 const emptyOverviewDetails: OverviewDetails = {
   clipsConfig: null,
+  kickNotifications: [],
   liveNotifications: [],
   xAccounts: []
 };
@@ -126,6 +132,13 @@ const moduleCatalog: ModuleDefinition[] = [
     title: "Sistema de Lives",
     description: "Detecta transmissoes na Twitch e envia alertas no Discord.",
     icon: Radio,
+    view: "lives"
+  },
+  {
+    id: "kick-integration",
+    title: "Kick Integration",
+    description: "Detecta transmissoes na Kick e envia alertas no Discord.",
+    icon: Plug,
     view: "lives"
   },
   {
@@ -223,7 +236,6 @@ const moduleCatalog: ModuleDefinition[] = [
 
 const viewModuleIds: Partial<Record<ViewId, string>> = {
   permissions: "verification",
-  lives: "live",
   clips: "clips",
   giveaway: "giveaway",
   "x-monitor": "x-monitor",
@@ -397,10 +409,11 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
       getLives(selectedGuildId, activeBotId),
       getTickets(selectedGuildId, activeBotId),
       enabledModules.includes("live") ? getSocialNotifications(selectedGuildId, activeBotId) : Promise.resolve(null),
+      enabledModules.includes("kick-integration") ? getKickNotifications(selectedGuildId, activeBotId) : Promise.resolve(null),
       enabledModules.includes("clips") ? getClipsConfig(selectedGuildId, activeBotId) : Promise.resolve(null),
       enabledModules.includes("x-monitor") ? getXMonitor(selectedGuildId, activeBotId) : Promise.resolve(null)
     ])
-      .then(([settingsResult, logsResult, livesResult, ticketsResult, liveResult, clipsResult, xResult]) => {
+      .then(([settingsResult, logsResult, livesResult, ticketsResult, liveResult, kickResult, clipsResult, xResult]) => {
         if (!mounted) return;
 
         setSettings(settingsResult.status === "fulfilled" ? settingsResult.value : null);
@@ -409,6 +422,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
         setTickets(ticketsResult.status === "fulfilled" ? ticketsResult.value : []);
         setOverviewDetails({
           liveNotifications: liveResult.status === "fulfilled" && liveResult.value ? liveResult.value.notifications : [],
+          kickNotifications: kickResult.status === "fulfilled" && kickResult.value ? kickResult.value.notifications : [],
           clipsConfig: clipsResult.status === "fulfilled" ? clipsResult.value : null,
           xAccounts: xResult.status === "fulfilled" && xResult.value ? xResult.value.accounts : []
         });
@@ -554,7 +568,15 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
         ) : null}
 
         {activeView === "lives" ? (
-          <LiveView botId={activeBotId} canManage={canManageModule(selectedBot, "live", canManageDashboard)} guild={selectedGuild} lives={lives} />
+          <LiveView
+            botId={activeBotId}
+            canManageKick={canManageModule(selectedBot, "kick-integration", canManageDashboard)}
+            canManageTwitch={canManageModule(selectedBot, "live", canManageDashboard)}
+            guild={selectedGuild}
+            lives={lives}
+            showKick={enabledModules.includes("kick-integration")}
+            showTwitch={enabledModules.includes("live")}
+          />
         ) : null}
         {activeView === "clips" ? (
           <ClipsPanel botId={activeBotId} canManage={canManageModule(selectedBot, "clips", canManageDashboard)} guild={selectedGuild} refreshSignal={clipsRefreshSignal} />
@@ -683,7 +705,7 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
   }
 
   if (bot.accessLevel === "premium") {
-    return ["live", "clips", "giveaway", "network", "x-monitor", "fivem", "fivem-fac"].includes(moduleId);
+    return ["live", "kick-integration", "clips", "giveaway", "network", "x-monitor", "fivem", "fivem-fac"].includes(moduleId);
   }
 
   return false;
@@ -860,18 +882,29 @@ function ModuleCard({
 
 function LiveView({
   botId,
-  canManage,
+  canManageKick,
+  canManageTwitch,
   guild,
-  lives
+  lives,
+  showKick,
+  showTwitch
 }: {
   botId?: string | null;
-  canManage: boolean;
+  canManageKick: boolean;
+  canManageTwitch: boolean;
   guild: DashboardGuild | null;
   lives: LiveEvent[];
+  showKick: boolean;
+  showTwitch: boolean;
 }) {
   return (
     <div className="space-y-5">
-      <LiveNotificationsPanel botId={botId} canManage={canManage} guild={guild} />
+      {showTwitch ? (
+        <LiveNotificationsPanel botId={botId} canManage={canManageTwitch} guild={guild} />
+      ) : null}
+      {showKick ? (
+        <KickIntegrationPanel botId={botId} canManage={canManageKick} guild={guild} />
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -1239,6 +1272,15 @@ function moduleState(moduleId: string, settings: GuildSettings | null, details: 
     };
   }
 
+  if (moduleId === "kick-integration") {
+    const active = details.kickNotifications.some((notification) => notification.enabled);
+    return {
+      active,
+      configured: details.kickNotifications.length > 0,
+      configuredText: details.kickNotifications.length ? `${details.kickNotifications.length} canal(is)` : "Falta configurar"
+    };
+  }
+
   if (moduleId === "clips") {
     return {
       active: Boolean(details.clipsConfig?.enabled),
@@ -1337,6 +1379,11 @@ function friendlyLog(log: LogEntry) {
     "live:ended": { badge: "Lives", title: "Live encerrada" },
     "ticket.created": { badge: "Tickets", title: "Ticket criado" },
     "audit.lives": { badge: "Lives", title: "Canal de lives atualizado" },
+    "audit.kick": { badge: "Kick", title: "Kick Integration atualizado" },
+    "social.kick.created": { badge: "Kick", title: "Canal Kick adicionado" },
+    "social.kick.updated": { badge: "Kick", title: "Canal Kick atualizado" },
+    "social.kick.deleted": { badge: "Kick", title: "Canal Kick removido" },
+    "social.kick.tested": { badge: "Kick", title: "Teste Kick enviado" },
     "audit.dev_bot": { badge: "Sistema", title: "Configuracao do bot atualizada" },
     "clips.config_saved": { badge: "Clips", title: "Sistema de clips atualizado" },
     "clips.enabled": { badge: "Clips", title: "Sistema de clips ativado" },
@@ -1373,6 +1420,10 @@ function friendlyLog(log: LogEntry) {
 
   if (log.type.includes("live") || lowerMessage.includes("twitch")) {
     return { badge: "Lives", title: message || "Sistema de lives atualizado", description: message };
+  }
+
+  if (log.type.includes("kick") || lowerMessage.includes("kick")) {
+    return { badge: "Kick", title: message || "Kick Integration atualizado", description: message };
   }
 
   if (log.type.includes("ticket")) {
@@ -1423,6 +1474,10 @@ function isViewAllowed(view: ViewId, enabledModules: string[]) {
 
   if (view === "settings") {
     return enabledModules.some((moduleId) => settingsModuleIds.has(moduleId));
+  }
+
+  if (view === "lives") {
+    return enabledModules.includes("live") || enabledModules.includes("kick-integration");
   }
 
   if (view === "fivem") {

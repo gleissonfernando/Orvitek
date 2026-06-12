@@ -37,7 +37,7 @@ export type NavItem = {
 
 const navItems: NavItem[] = [
   { id: "overview", label: "Visao geral", icon: Activity },
-  { id: "lives", label: "Lives", icon: Radio, moduleId: "live" },
+  { id: "lives", label: "Lives", icon: Radio, moduleIds: ["live", "kick-integration"] },
   { id: "clips", label: "Clips", icon: Film, moduleId: "clips" },
   { id: "giveaway", label: "Sorteio", icon: Gift, moduleId: "giveaway" },
   { id: "x-monitor", label: "X Monitor", icon: AtSign, moduleId: "x-monitor" },

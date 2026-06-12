@@ -4,6 +4,7 @@ import { registerGuildCommands } from "../handlers/commandHandler";
 import { startClipsMonitor } from "../services/clipsMonitor";
 import { startFivemFacService } from "../services/fivemFacService";
 import { startGiveawayService } from "../services/giveawayService";
+import { startKickNotificationMonitor } from "../services/kickNotificationMonitor";
 import { startSocialNetworkPanelSync } from "../services/socialNetworkPanelService";
 import { startSocialNotificationMonitor } from "../services/socialNotificationMonitor";
 import { startXMonitor } from "../services/xMonitor";
@@ -28,6 +29,9 @@ export async function handleReady(client: Client<true>, context: BotContext) {
 
   if (isBotModuleEnabled("live")) {
     startSocialNotificationMonitor(client, context.api);
+  }
+  if (isBotModuleEnabled("kick-integration")) {
+    startKickNotificationMonitor(client, context.api);
   }
   if (isBotModuleEnabled("network")) {
     startSocialNetworkPanelSync(client, context.api, context.socket);

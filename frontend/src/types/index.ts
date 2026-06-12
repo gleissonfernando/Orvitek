@@ -235,6 +235,39 @@ export type SocialNotification = {
   updatedAt: string;
 };
 
+export type KickNotification = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  userId: string;
+  createdBy: string;
+  updatedBy: string | null;
+  platform: "kick";
+  kickChannelName: string;
+  kickChannelUrl: string;
+  kickChannelId?: string | null;
+  kickUserId?: string | null;
+  kickDisplayName?: string | null;
+  kickAvatar?: string | null;
+  kickBanner?: string | null;
+  kickFollowers?: number | null;
+  kickVerified?: boolean | null;
+  kickCategory?: string | null;
+  discordChannelId: string;
+  mentionRoleId?: string | null;
+  customMessage?: string | null;
+  embedColor?: string | null;
+  enabled: boolean;
+  isLive: boolean;
+  lastLiveAt?: string | null;
+  lastEndedAt?: string | null;
+  lastStreamId?: string | null;
+  lastMessageId?: string | null;
+  peakViewers?: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type SocialNotificationsPage = {
   notifications: SocialNotification[];
   page: number;
@@ -243,6 +276,27 @@ export type SocialNotificationsPage = {
   filteredTotal: number;
   totalPages: number;
   limit: number;
+};
+
+export type KickNotificationsPage = {
+  notifications: KickNotification[];
+  page: number;
+  pageSize: number;
+  total: number;
+  filteredTotal: number;
+  totalPages: number;
+  limit: number;
+};
+
+export type KickIntegrationStatus = {
+  apiConfigured: boolean;
+  apiStatus: "not_configured" | "ok" | "error";
+  apiMessage: string;
+  connectedAccount: KickNotification | null;
+  totalChannels: number;
+  activeChannels: number;
+  totalLivesMonitored: number;
+  lastLiveAt: string | null;
 };
 
 export type SocialPlatform =
@@ -563,6 +617,35 @@ export type TwitchChannelPreview = {
   twitchDisplayName: string;
   twitchAvatar: string | null;
   twitchUrl: string;
+};
+
+export type CreateKickNotificationPayload = {
+  kickChannelInput: string;
+  discordChannelId: string;
+  mentionRoleId?: string | null;
+  customMessage?: string | null;
+  embedColor?: string | null;
+  enabled: boolean;
+};
+
+export type UpdateKickNotificationPayload = {
+  discordChannelId?: string;
+  mentionRoleId?: string | null;
+  customMessage?: string | null;
+  embedColor?: string | null;
+  enabled?: boolean;
+};
+
+export type KickChannelPreview = {
+  kickChannelId: string | null;
+  kickUserId: string;
+  kickUsername: string;
+  kickDisplayName: string;
+  kickAvatar: string | null;
+  kickBanner: string | null;
+  kickFollowers: number;
+  kickVerified: boolean;
+  kickUrl: string;
 };
 
 export type DashboardMeUser = {

@@ -24,6 +24,7 @@ const DISCORD_API = "https://discord.com/api/v10";
 
 export const DEV_MODULES = [
   { id: "live", label: "Sistema de Live" },
+  { id: "kick-integration", label: "Kick Integration" },
   { id: "clips", label: "Sistema de Clips" },
   { id: "giveaway", label: "Sistema de Sorteio" },
   { id: "network", label: "Rede Social dos Membros" },

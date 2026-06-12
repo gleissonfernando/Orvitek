@@ -102,11 +102,21 @@ export type MongoSocialNotification = {
   userId: string;
   createdBy?: string;
   updatedBy?: string | null;
-  platform: "twitch";
-  twitchChannelName: string;
-  twitchChannelUrl: string;
-  twitchUserId: string | null;
-  twitchAvatar: string | null;
+  platform: "twitch" | "kick";
+  twitchChannelName?: string | null;
+  twitchChannelUrl?: string | null;
+  twitchUserId?: string | null;
+  twitchAvatar?: string | null;
+  kickChannelName?: string | null;
+  kickChannelUrl?: string | null;
+  kickChannelId?: string | null;
+  kickUserId?: string | null;
+  kickDisplayName?: string | null;
+  kickAvatar?: string | null;
+  kickBanner?: string | null;
+  kickFollowers?: number | null;
+  kickVerified?: boolean | null;
+  kickCategory?: string | null;
   discordChannelId: string;
   mentionRoleId: string | null;
   customMessage: string | null;
@@ -114,8 +124,10 @@ export type MongoSocialNotification = {
   enabled: boolean;
   isLive: boolean;
   lastLiveAt?: Date | null;
+  lastEndedAt?: Date | null;
   lastStreamId: string | null;
   lastMessageId: string | null;
+  peakViewers?: number | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -529,26 +541,46 @@ async function createMongoIndexes(db: Db) {
     ensureClipsIndexes(db),
     ensureGiveawayIndexes(db),
     ensureFivemFacIndexes(db),
-    db.collection<MongoSocialNotification>("social_notifications").createIndex({
-      guildId: 1,
-      platform: 1
-    }),
-    db.collection<MongoSocialNotification>("social_notifications").createIndex({
-      platform: 1,
-      enabled: 1
-    }),
-    db.collection<MongoSocialNotification>("social_notifications").createIndex({
-      botId: 1,
-      platform: 1,
-      enabled: 1,
-      updatedAt: 1
-    }),
-    db.collection<MongoSocialNotification>("social_notifications").createIndex({
-      botId: 1,
-      guildId: 1,
-      platform: 1,
-      createdAt: -1
-    }),
+    db.collection<MongoSocialNotification>("social_notifications").createIndex(
+      {
+        guildId: 1,
+        platform: 1
+      },
+      {
+        name: "social_notifications_guildId_platform_idx"
+      }
+    ),
+    db.collection<MongoSocialNotification>("social_notifications").createIndex(
+      {
+        platform: 1,
+        enabled: 1
+      },
+      {
+        name: "social_notifications_platform_enabled_idx"
+      }
+    ),
+    db.collection<MongoSocialNotification>("social_notifications").createIndex(
+      {
+        botId: 1,
+        platform: 1,
+        enabled: 1,
+        updatedAt: 1
+      },
+      {
+        name: "social_notifications_bot_platform_enabled_updated_idx"
+      }
+    ),
+    db.collection<MongoSocialNotification>("social_notifications").createIndex(
+      {
+        botId: 1,
+        guildId: 1,
+        platform: 1,
+        createdAt: -1
+      },
+      {
+        name: "social_notifications_bot_guild_platform_created_idx"
+      }
+    ),
     ensureDevBotIndexes(db),
     db.collection<MongoBotGuildConfig>("BotGuildConfig").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
     db.collection<MongoDevPermission>("DevPermission").createIndex({ userId: 1 }, { unique: true })
@@ -644,6 +676,7 @@ async function ensureSocialNotificationIndexes(db: Db) {
   await collection.dropIndex("guildId_1_platform_1_twitchChannelName_1").catch(() => undefined);
   await collection.dropIndex("botId_1_guildId_1_userId_1_platform_1_twitchChannelName_1").catch(() => undefined);
   await collection.dropIndex("botId_1_guildId_1_platform_1_twitchChannelName_1").catch(() => undefined);
+  await collection.dropIndex("botId_1_guildId_1_platform_1_kickChannelName_1").catch(() => undefined);
   await collection.createIndex({
     botId: 1,
     guildId: 1
@@ -656,6 +689,31 @@ async function ensureSocialNotificationIndexes(db: Db) {
       twitchChannelName: 1
     },
     {
+      name: "social_notifications_twitch_channel_unique",
+      partialFilterExpression: {
+        platform: "twitch",
+        twitchChannelName: {
+          $type: "string"
+        }
+      },
+      unique: true
+    }
+  );
+  await collection.createIndex(
+    {
+      botId: 1,
+      guildId: 1,
+      platform: 1,
+      kickChannelName: 1
+    },
+    {
+      name: "social_notifications_kick_channel_unique",
+      partialFilterExpression: {
+        platform: "kick",
+        kickChannelName: {
+          $type: "string"
+        }
+      },
       unique: true
     }
   );

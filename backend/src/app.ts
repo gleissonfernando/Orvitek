@@ -33,7 +33,11 @@ app.use(
           "https://media.discordapp.net",
           "https://images-ext-1.discordapp.net",
           "https://images-ext-2.discordapp.net",
-          "https://static-cdn.jtvnw.net"
+          "https://static-cdn.jtvnw.net",
+          "https://kick.com",
+          "https://files.kick.com",
+          "https://img.kick.com",
+          "https://cdn.kick.com"
         ]
       }
     },
