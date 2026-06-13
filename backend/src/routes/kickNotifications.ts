@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import type { Request } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { requireAuth, requireBot } from "../middleware/auth";
 import { canManageDashboardGuild } from "../services/dashboardGuildAccessService";
 import { canReadDevBotModule, canUseDevBotModule, getDevBotToken } from "../services/devBotService";
@@ -31,6 +31,7 @@ import { createLiveEvent } from "../services/liveService";
 import { emitRealtime } from "../realtime/events";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
 import { recordKickGiveawayWebhookEvent } from "../services/giveawayIdentityService";
+import { syncGiveawaysFromKickWebhook } from "../services/giveawayService";
 import type { AuthSessionUser } from "../types/session";
 import { validateKickApiCredentials } from "../services/kickService";
 
@@ -82,6 +83,7 @@ const validateApiSchema = z.object({
 
 export const kickNotificationsRouter = Router();
 export const kickWebhookRouter = Router();
+export const kickWebhookPublicRouter = Router();
 
 kickNotificationsRouter.get("/bot/active", requireBot, async (req, res, next) => {
   try {
@@ -343,31 +345,87 @@ kickNotificationsRouter.delete("/:guildId/channels/:id", requireAuth, async (req
   }
 });
 
-kickWebhookRouter.post("/webhook", async (req, res, next) => {
+kickWebhookRouter.post("/webhook", handleKickWebhook);
+kickWebhookPublicRouter.post("/kick", handleKickWebhook);
+kickWebhookPublicRouter.post("/kick/webhook", handleKickWebhook);
+
+async function handleKickWebhook(req: Request, res: Response, next: NextFunction) {
   try {
     const rawBody = (req as typeof req & { rawBody?: Buffer }).rawBody ?? Buffer.from(JSON.stringify(req.body ?? {}));
+    const eventType = req.header("Kick-Event-Type") ?? "";
+    const messageId = req.header("Kick-Event-Message-Id") ?? null;
+
+    console.info("[kick:webhook] recebido.", {
+      eventType,
+      messageId,
+      path: req.originalUrl
+    });
+
     const valid = verifyKickWebhookSignature({
-      messageId: req.header("Kick-Event-Message-Id"),
+      messageId,
       rawBody,
       signature: req.header("Kick-Event-Signature"),
       timestamp: req.header("Kick-Event-Message-Timestamp")
     });
 
     if (!valid) {
+      console.warn("[kick:webhook] assinatura invalida.", {
+        eventType,
+        messageId
+      });
+
       return res.status(401).json({
         message: "Assinatura Kick invalida."
       });
     }
 
-    const eventType = req.header("Kick-Event-Type") ?? "";
+    const giveawayEvents = await recordKickGiveawayWebhookEvent(eventType, req.body).catch((error) => {
+      console.warn("[kick:webhook] erro ao gravar evento de sorteio.", {
+        error: error instanceof Error ? error.message : String(error),
+        eventType,
+        messageId
+      });
 
-    const giveawayEvents = await recordKickGiveawayWebhookEvent(eventType, req.body).catch(() => ({
-      recorded: 0
-    }));
+      return {
+        events: [],
+        recorded: 0
+      };
+    });
+    const giveawaySync = giveawayEvents.recorded
+      ? await syncGiveawaysFromKickWebhook({
+          eventType,
+          events: giveawayEvents.events
+        }).catch((error) => {
+          console.warn("[kick:webhook] erro ao sincronizar sorteios.", {
+            error: error instanceof Error ? error.message : String(error),
+            eventType,
+            messageId
+          });
+
+          return {
+            error: error instanceof Error ? error.message : "Falha interna ao sincronizar sorteios.",
+            failed: 1,
+            matched: 0,
+            synced: 0
+          };
+        })
+      : {
+          failed: 0,
+          matched: 0,
+          synced: 0
+        };
+
+    console.info("[kick:webhook] evento processado.", {
+      eventType,
+      giveawayEvents: giveawayEvents.recorded,
+      giveawaySync,
+      messageId
+    });
 
     if (eventType !== "livestream.status.updated") {
       return res.json({
         giveawayEvents,
+        giveawaySync,
         ok: true,
         ignored: giveawayEvents.recorded === 0
       });
@@ -397,12 +455,14 @@ kickWebhookRouter.post("/webhook", async (req, res, next) => {
 
     return res.json({
       ok: true,
+      giveawayEvents,
+      giveawaySync,
       result
     });
   } catch (error) {
     return next(error);
   }
-});
+}
 
 async function assertCanManageGuild(req: Request, guildId: string, botId: string | null, action: string) {
   const user = req.res?.locals.dashboardAuth.user as AuthSessionUser;

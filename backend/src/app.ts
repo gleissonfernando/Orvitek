@@ -11,6 +11,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import { sessionMiddleware } from "./middleware/session";
 import { apiRouter } from "./routes";
 import { authRouter } from "./routes/auth";
+import { kickWebhookPublicRouter } from "./routes/kickNotifications";
 
 export const app = express();
 const frontendDistPath = path.resolve(__dirname, "../../frontend/dist");
@@ -65,6 +66,7 @@ app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
 app.use("/uploads", express.static(uploadsPath));
 
 app.use("/auth", authRouter);
+app.use("/webhooks", kickWebhookPublicRouter);
 app.use("/api", apiRouter);
 
 if (fs.existsSync(frontendDistPath)) {

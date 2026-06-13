@@ -16,6 +16,7 @@ import {
   buildSyncedGiveawayParticipants,
   getConnectedGiveawayAccounts,
   verifyConnectedAccountForGiveaway,
+  type RecordedKickGiveawayWebhookEvent,
   type GiveawayConnectedAccountDto,
   type GiveawayEntryVerification
 } from "./giveawayIdentityService";
@@ -526,6 +527,77 @@ export async function syncGiveawayParticipants(giveawayId: string, actorId: stri
   return toGiveawayDto(updated);
 }
 
+export async function syncGiveawaysFromKickWebhook(input: {
+  eventType: string;
+  events: RecordedKickGiveawayWebhookEvent[];
+}) {
+  const userIds = [...new Set(input.events.map((event) => event.broadcasterUserId).filter((value): value is string => Boolean(value)))];
+  const channelSlugs = [...new Set(input.events.map((event) => event.channelSlug).filter((value): value is string => Boolean(value)))];
+
+  if (!userIds.length && !channelSlugs.length) {
+    return {
+      failed: 0,
+      matched: 0,
+      synced: 0
+    };
+  }
+
+  const { giveaways } = await getMongoCollections();
+  const docs = await giveaways
+    .find({
+      status: {
+        $ne: "ended"
+      },
+      $or: [
+        ...(userIds.length
+          ? [{
+              kickUserId: {
+                $in: userIds
+              }
+            }]
+          : []),
+        ...(channelSlugs.length
+          ? [{
+              kickChannelName: {
+                $in: channelSlugs
+              }
+            }]
+          : [])
+      ]
+    })
+    .limit(100)
+    .toArray();
+  let synced = 0;
+  let failed = 0;
+
+  for (const giveaway of docs) {
+    try {
+      await syncGiveawayParticipantsForDocument(giveaway, null, "webhook");
+      const updated = await findGiveawayById(giveaway._id, normalizeBotId(giveaway.botId));
+
+      if (updated) {
+        emitGiveawayUpdated(updated);
+        requestGiveawayPanelUpdate(updated, "update");
+      }
+
+      synced += 1;
+    } catch (error) {
+      failed += 1;
+      console.warn("[giveaway:kick] falha ao sincronizar sorteio por webhook:", {
+        error: error instanceof Error ? error.message : String(error),
+        eventType: input.eventType,
+        giveawayId: giveaway._id
+      });
+    }
+  }
+
+  return {
+    failed,
+    matched: docs.length,
+    synced
+  };
+}
+
 export async function getGiveawayIdentity(token: string, accountIds?: { kick?: string; twitch?: string }): Promise<GiveawayIdentityDto> {
   const giveaway = await findGiveawayByToken(token);
 
@@ -972,12 +1044,14 @@ async function resolveKickGiveawayChannel(value: string, guildId: string, botId:
 async function syncGiveawayParticipantsForDocument(
   giveaway: MongoGiveaway,
   actorId: string | null,
-  reason: "manual" | "panel" | "start"
+  reason: "manual" | "panel" | "start" | "webhook"
 ) {
   try {
     const sync = await buildSyncedGiveawayParticipants(giveaway);
     const now = new Date();
     const { giveaways } = await getMongoCollections();
+    const previousIds = new Set((giveaway.participants ?? []).map((participant) => participant.id));
+    const added = sync.participants.filter((participant) => !previousIds.has(participant.id));
 
     await giveaways.updateOne(
       {
@@ -995,10 +1069,19 @@ async function syncGiveawayParticipantsForDocument(
 
     await writeGiveawayLog(
       giveaway,
-      reason === "manual" ? "giveaway.sync.manual" : reason === "start" ? "giveaway.sync.start" : "giveaway.sync.panel",
+      syncLogType(reason),
       actorId,
       `Sincronizacao Twitch/Kick concluida: ${sync.participants.length} participante(s).`
     );
+
+    if (added.length) {
+      await writeGiveawayLog(
+        giveaway,
+        "giveaway.participant.added",
+        actorId,
+        `${added.length} participante(s) adicionado(s): ${summarizeParticipantNames(added)}.`
+      );
+    }
 
     for (const removed of sync.removed) {
       await writeGiveawayLog(
@@ -1029,6 +1112,20 @@ async function syncGiveawayParticipantsForDocument(
     await writeGiveawayLog(giveaway, "giveaway.sync.failed", actorId, `Falha ao sincronizar participantes: ${message}.`);
     throw createGiveawayError(message, 503);
   }
+}
+
+function syncLogType(reason: "manual" | "panel" | "start" | "webhook") {
+  if (reason === "manual") return "giveaway.sync.manual";
+  if (reason === "start") return "giveaway.sync.start";
+  if (reason === "webhook") return "giveaway.sync.webhook";
+  return "giveaway.sync.panel";
+}
+
+function summarizeParticipantNames(participants: MongoGiveawayParticipant[]) {
+  const names = participants.slice(0, 8).map((participant) => participant.displayName || participant.username);
+  const suffix = participants.length > names.length ? ` e mais ${participants.length - names.length}` : "";
+
+  return `${names.join(", ")}${suffix}`;
 }
 
 async function syncGiveawayForPanel(giveaway: MongoGiveaway, actorId: string | null, botId: string | null) {

@@ -524,6 +524,19 @@ export type KickIntegrationStatus = {
   activeChannels: number;
   totalLivesMonitored: number;
   lastLiveAt: string | null;
+  webhook: {
+    activeGiveaways: number;
+    kickFollowers: number;
+    kickParticipants: number;
+    kickSubscribers: number;
+    lastEventAt: string | null;
+    lastSyncAt: string | null;
+    lastSyncError: string | null;
+    recordedEvents: number;
+    status: "active" | "inactive";
+    totalParticipants: number;
+    url: string | null;
+  };
 };
 
 export type KickApiConfig = {

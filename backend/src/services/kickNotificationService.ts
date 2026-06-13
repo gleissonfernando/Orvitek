@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, createVerify, randomBytes, randomUUID } from "node:crypto";
 import { MongoServerError } from "mongodb";
 import { env } from "../config/env";
-import { ensureGuild, getMongoCollections, type MongoKickApiConfig, type MongoSocialNotification } from "../database/mongo";
+import { ensureGuild, getMongoCollections, type MongoGiveaway, type MongoKickApiConfig, type MongoSocialNotification } from "../database/mongo";
 import { createLog } from "./logService";
 import { isGuildTextChannel } from "./discordOptionsService";
 import type { LivePanelPreviewDto } from "./livePanelPreviewService";
@@ -90,6 +90,7 @@ export type KickStatusPayload = {
   activeChannels: number;
   totalLivesMonitored: number;
   lastLiveAt: string | null;
+  webhook: KickWebhookDiagnosticsDto;
 };
 
 export type KickApiConfigDto = {
@@ -101,6 +102,20 @@ export type KickApiConfigDto = {
   secretConfigured: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+export type KickWebhookDiagnosticsDto = {
+  activeGiveaways: number;
+  kickFollowers: number;
+  kickParticipants: number;
+  kickSubscribers: number;
+  lastEventAt: string | null;
+  lastSyncAt: string | null;
+  lastSyncError: string | null;
+  recordedEvents: number;
+  status: "active" | "inactive";
+  totalParticipants: number;
+  url: string | null;
 };
 
 export type SaveKickApiConfigInput = {
@@ -147,8 +162,13 @@ const KICK_WEBHOOK_PUBLIC_KEY = [
 const memoryNotifications = new Map<string, KickNotificationDto>();
 
 export async function getKickIntegrationStatus(guildId: string, botId?: string | null): Promise<KickStatusPayload> {
+  const normalizedBotId = normalizeBotId(botId);
   const apiConfig = await getKickApiConfig(guildId, botId);
   const credentials = await resolveKickApiCredentials(guildId, botId);
+  const webhook = await getKickWebhookDiagnostics(guildId, normalizedBotId).catch((error) => {
+    console.warn("[kick:diagnostics] falha ao montar diagnostico:", error instanceof Error ? error.message : error);
+    return emptyKickWebhookDiagnostics();
+  });
   const list = await listKickNotifications(guildId, botId, {
     page: 1,
     pageSize: 1
@@ -186,7 +206,8 @@ export async function getKickIntegrationStatus(guildId: string, botId?: string |
     totalChannels: list.total,
     activeChannels: all.notifications.filter((notification) => notification.enabled).length,
     totalLivesMonitored: all.notifications.filter((notification) => notification.lastLiveAt).length,
-    lastLiveAt
+    lastLiveAt,
+    webhook
   };
 }
 
@@ -901,6 +922,139 @@ async function findRawKickApiConfig(guildId: string, botId: string | null) {
   } catch {
     return null;
   }
+}
+
+async function getKickWebhookDiagnostics(guildId: string, botId: string | null): Promise<KickWebhookDiagnosticsDto> {
+  const { giveawayKickEvents, giveaways } = await getMongoCollections();
+  const scopedGiveaways = await giveaways
+    .find({
+      guildId,
+      $and: [
+        notificationBotScopeQuery(botId),
+        {
+          $or: [
+            {
+              kickUserId: {
+                $nin: [null, ""]
+              }
+            },
+            {
+              kickChannelName: {
+                $nin: [null, ""]
+              }
+            }
+          ]
+        }
+      ]
+    })
+    .limit(200)
+    .toArray();
+  const userIds = [...new Set(scopedGiveaways.map((giveaway) => giveaway.kickUserId).filter((value): value is string => Boolean(value)))];
+  const channelSlugs = [...new Set(scopedGiveaways.map((giveaway) => giveaway.kickChannelName).filter((value): value is string => Boolean(value)))];
+  const eventQuery = buildKickEventQuery(userIds, channelSlugs);
+  const [
+    lastEvent,
+    recordedEvents,
+    kickFollowers,
+    kickSubscribers
+  ] = eventQuery
+    ? await Promise.all([
+        giveawayKickEvents.find(eventQuery).sort({ updatedAt: -1 }).limit(1).next(),
+        giveawayKickEvents.countDocuments(eventQuery),
+        giveawayKickEvents.countDocuments({
+          ...eventQuery,
+          isFollower: true
+        }),
+        giveawayKickEvents.countDocuments({
+          ...eventQuery,
+          isSubscriber: true
+        })
+      ])
+    : [null, 0, 0, 0] as const;
+  const lastSyncAt = latestDate(scopedGiveaways.map((giveaway) => giveaway.lastSyncedAt ?? null));
+  const lastSyncError = scopedGiveaways
+    .filter((giveaway) => giveaway.lastSyncError)
+    .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())[0]?.lastSyncError ?? null;
+
+  return {
+    activeGiveaways: scopedGiveaways.filter((giveaway) => giveaway.status !== "ended").length,
+    kickFollowers,
+    kickParticipants: countKickParticipants(scopedGiveaways),
+    kickSubscribers,
+    lastEventAt: lastEvent?.updatedAt?.toISOString?.() ?? null,
+    lastSyncAt: lastSyncAt?.toISOString() ?? null,
+    lastSyncError,
+    recordedEvents,
+    status: lastEvent ? "active" : "inactive",
+    totalParticipants: scopedGiveaways.reduce((total, giveaway) => total + (giveaway.participants?.length ?? 0), 0),
+    url: kickWebhookUrl()
+  };
+}
+
+function emptyKickWebhookDiagnostics(): KickWebhookDiagnosticsDto {
+  return {
+    activeGiveaways: 0,
+    kickFollowers: 0,
+    kickParticipants: 0,
+    kickSubscribers: 0,
+    lastEventAt: null,
+    lastSyncAt: null,
+    lastSyncError: null,
+    recordedEvents: 0,
+    status: "inactive",
+    totalParticipants: 0,
+    url: kickWebhookUrl()
+  };
+}
+
+function buildKickEventQuery(userIds: string[], channelSlugs: string[]) {
+  const conditions = [
+    ...(userIds.length
+      ? [{
+          broadcasterUserId: {
+            $in: userIds
+          }
+        }]
+      : []),
+    ...(channelSlugs.length
+      ? [{
+          channelSlug: {
+            $in: channelSlugs
+          }
+        }]
+      : [])
+  ];
+
+  return conditions.length
+    ? {
+        $or: conditions
+      }
+    : null;
+}
+
+function countKickParticipants(giveaways: MongoGiveaway[]) {
+  return giveaways.reduce((total, giveaway) => {
+    return total + (giveaway.participants ?? []).filter((participant) => participant.source === "kick").length;
+  }, 0);
+}
+
+function latestDate(values: Array<Date | null>) {
+  return values.reduce<Date | null>((latest, value) => {
+    if (!value) {
+      return latest;
+    }
+
+    if (!latest || value.getTime() > latest.getTime()) {
+      return value;
+    }
+
+    return latest;
+  }, null);
+}
+
+function kickWebhookUrl() {
+  const origin = env.SITE_ORIGIN || env.FRONTEND_URL;
+  return origin ? `${origin}/webhooks/kick` : null;
 }
 
 function toKickApiConfigDto(config: MongoKickApiConfig): KickApiConfigDto {

@@ -1,9 +1,10 @@
-import axios from "axios";
+import axios, { type AxiosRequestConfig } from "axios";
 import { env } from "../config/env";
 
 const KICK_API_URL = "https://api.kick.com/public/v1";
 const KICK_OAUTH_TOKEN_URL = "https://id.kick.com/oauth/token";
 const KICK_BATCH_SIZE = 50;
+const KICK_API_MAX_ATTEMPTS = 3;
 
 type KickToken = {
   accessToken: string;
@@ -164,13 +165,12 @@ export function kickApiConfigured() {
 }
 
 export async function getKickChannel(channelName: string, credentials?: KickApiCredentials | null) {
-  const token = await getKickAppAccessToken(credentials);
-  const { data } = await axios.get<KickChannelResponse>(`${KICK_API_URL}/channels`, {
-    headers: kickHeaders(token),
+  const data = await kickApiGet<KickChannelResponse>("/channels", {
+    credentials,
+    operation: "channels",
     params: {
       slug: channelName
-    },
-    timeout: 10_000
+    }
   });
 
   const channel = data.data?.[0];
@@ -190,8 +190,6 @@ export async function getKickLivestreamsByUserIds(userIds: string[], credentials
     return streams;
   }
 
-  const token = await getKickAppAccessToken(credentials);
-
   for (let index = 0; index < uniqueUserIds.length; index += KICK_BATCH_SIZE) {
     const params = new URLSearchParams();
     params.set("limit", String(KICK_BATCH_SIZE));
@@ -200,10 +198,10 @@ export async function getKickLivestreamsByUserIds(userIds: string[], credentials
       params.append("broadcaster_user_id", userId);
     }
 
-    const { data } = await axios.get<KickLivestreamsResponse>(`${KICK_API_URL}/livestreams`, {
-      headers: kickHeaders(token),
-      params,
-      timeout: 10_000
+    const data = await kickApiGet<KickLivestreamsResponse>("/livestreams", {
+      credentials,
+      operation: "livestreams",
+      params
     });
 
     for (const stream of data.data ?? []) {
@@ -272,23 +270,29 @@ export async function exchangeKickOAuthCode(code: string, redirectUri: string, c
 }
 
 export async function refreshKickOAuthToken(refreshToken: string): Promise<KickOAuthToken> {
-  const { data } = await axios.post<KickTokenResponse>(
-    KICK_OAUTH_TOKEN_URL,
-    new URLSearchParams({
-      client_id: env.KICK_CLIENT_ID,
-      client_secret: kickClientSecret(),
-      grant_type: "refresh_token",
-      refresh_token: refreshToken
-    }),
-    {
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      timeout: 10_000
-    }
-  );
+  try {
+    console.info("[kick:oauth] renovando token de usuario.");
+    const { data } = await axios.post<KickTokenResponse>(
+      KICK_OAUTH_TOKEN_URL,
+      new URLSearchParams({
+        client_id: env.KICK_CLIENT_ID,
+        client_secret: kickClientSecret(),
+        grant_type: "refresh_token",
+        refresh_token: refreshToken
+      }),
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        timeout: 10_000
+      }
+    );
 
-  return normalizeKickOAuthToken(data);
+    console.info("[kick:oauth] token de usuario renovado.");
+    return normalizeKickOAuthToken(data);
+  } catch (error) {
+    throw normalizeKickApiError(error, "refresh_token");
+  }
 }
 
 export async function getKickAuthenticatedUser(token: KickOAuthToken): Promise<KickConnectedUser> {
@@ -318,8 +322,7 @@ export async function getKickAuthenticatedUser(token: KickOAuthToken): Promise<K
 }
 
 async function getKickAppAccessToken(credentials?: KickApiCredentials | null) {
-  const clientId = credentials?.clientId?.trim() || env.KICK_CLIENT_ID;
-  const clientSecret = credentials?.clientSecret?.trim() || env.KICK_CLIENT_SECRET || env.KICK_API_KEY;
+  const { clientId, clientSecret } = resolveKickAppCredentialValues(credentials);
   const cacheKey = clientId;
 
   if (!clientId || !clientSecret) {
@@ -345,6 +348,53 @@ async function getKickAppAccessToken(credentials?: KickApiCredentials | null) {
   return token.accessToken;
 }
 
+async function kickApiGet<T>(path: string, input: {
+  credentials?: KickApiCredentials | null;
+  operation: string;
+  params?: AxiosRequestConfig["params"];
+}) {
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= KICK_API_MAX_ATTEMPTS; attempt += 1) {
+    const token = await getKickAppAccessToken(input.credentials);
+
+    try {
+      const { data } = await axios.get<T>(`${KICK_API_URL}${path}`, {
+        headers: kickHeaders(token),
+        params: input.params,
+        timeout: 10_000
+      });
+
+      if (attempt > 1) {
+        console.info(`[kick:api] ${input.operation} recuperou apos retry ${attempt}.`);
+      }
+
+      return data;
+    } catch (error) {
+      lastError = error;
+      const status = axios.isAxiosError(error) ? error.response?.status ?? null : null;
+      const retryAfter = axios.isAxiosError(error) ? Number(error.response?.headers?.["retry-after"] ?? 0) : 0;
+
+      console.warn(`[kick:api] falha em ${input.operation} tentativa ${attempt}/${KICK_API_MAX_ATTEMPTS}:`, {
+        status,
+        message: error instanceof Error ? error.message : String(error)
+      });
+
+      if (status === 401) {
+        clearKickAppToken(input.credentials);
+      }
+
+      if (attempt >= KICK_API_MAX_ATTEMPTS || !shouldRetryKickStatus(status)) {
+        break;
+      }
+
+      await sleep(retryAfter > 0 ? retryAfter * 1000 : 500 * attempt);
+    }
+  }
+
+  throw normalizeKickApiError(lastError, input.operation);
+}
+
 async function requestKickAppAccessToken(input: {
   clientId: string;
   clientSecret: string;
@@ -353,25 +403,82 @@ async function requestKickAppAccessToken(input: {
     throw new Error("Credenciais da Kick API nao configuradas.");
   }
 
-  const { data } = await axios.post<KickTokenResponse>(
-    KICK_OAUTH_TOKEN_URL,
-    new URLSearchParams({
-      client_id: input.clientId,
-      client_secret: input.clientSecret,
-      grant_type: "client_credentials"
-    }),
-    {
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      timeout: 10_000
-    }
-  );
+  try {
+    console.info("[kick:oauth] solicitando app access token.");
+    const { data } = await axios.post<KickTokenResponse>(
+      KICK_OAUTH_TOKEN_URL,
+      new URLSearchParams({
+        client_id: input.clientId,
+        client_secret: input.clientSecret,
+        grant_type: "client_credentials"
+      }),
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        timeout: 10_000
+      }
+    );
 
+    console.info("[kick:oauth] app access token recebido.");
+    return {
+      accessToken: data.access_token,
+      expiresIn: Number(data.expires_in || 3600)
+    };
+  } catch (error) {
+    throw normalizeKickApiError(error, "client_credentials");
+  }
+}
+
+function resolveKickAppCredentialValues(credentials?: KickApiCredentials | null) {
   return {
-    accessToken: data.access_token,
-    expiresIn: Number(data.expires_in || 3600)
+    clientId: credentials?.clientId?.trim() || env.KICK_CLIENT_ID,
+    clientSecret: credentials?.clientSecret?.trim() || env.KICK_CLIENT_SECRET || env.KICK_API_KEY
   };
+}
+
+function clearKickAppToken(credentials?: KickApiCredentials | null) {
+  const { clientId } = resolveKickAppCredentialValues(credentials);
+
+  if (clientId) {
+    tokenCache.delete(clientId);
+  }
+}
+
+function shouldRetryKickStatus(status: number | null) {
+  return status === 401 || status === 429 || status === null || status >= 500;
+}
+
+function normalizeKickApiError(error: unknown, operation: string) {
+  if (!axios.isAxiosError(error)) {
+    return error instanceof Error ? error : new Error(`Kick API falhou em ${operation}.`);
+  }
+
+  const status = error.response?.status ?? null;
+
+  if (status === 401) {
+    return new Error("Kick API retornou 401: token invalido ou expirado. Reconecte a conta Kick se o erro continuar.");
+  }
+
+  if (status === 403) {
+    return new Error("Kick API retornou 403: permissao ou escopo insuficiente para esta operacao.");
+  }
+
+  if (status === 429) {
+    return new Error("Kick API retornou 429: rate limit detectado. Tente novamente em instantes.");
+  }
+
+  const responseMessage = typeof error.response?.data === "object" && error.response?.data && "message" in error.response.data
+    ? String((error.response.data as { message?: unknown }).message)
+    : null;
+
+  return new Error(responseMessage || `Kick API falhou em ${operation}${status ? ` (HTTP ${status})` : ""}.`);
+}
+
+function sleep(milliseconds: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
 }
 
 function normalizeKickChannelResponse(channel: NonNullable<KickChannelResponse["data"]>[number]): KickChannelDto {

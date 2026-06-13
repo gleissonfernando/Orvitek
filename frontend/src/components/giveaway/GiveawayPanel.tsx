@@ -22,6 +22,7 @@ import {
   createGiveaway,
   endGiveaway,
   getGiveaways,
+  getKickIntegrationStatus,
   getGuildLiveOptions,
   previewGiveawayLive,
   publishGiveawayPanel,
@@ -29,7 +30,7 @@ import {
   syncGiveawayParticipants,
   updateGiveaway
 } from "../../lib/api";
-import type { DashboardGuild, Giveaway, GiveawayLivePreview, GiveawayParticipantMode, GuildLiveOptions, SaveGiveawayPayload } from "../../types";
+import type { DashboardGuild, Giveaway, GiveawayLivePreview, GiveawayParticipantMode, GuildLiveOptions, KickIntegrationStatus, SaveGiveawayPayload } from "../../types";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
@@ -70,6 +71,7 @@ const emptyForm: GiveawayForm = {
 export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
   const [giveaways, setGiveaways] = useState<Giveaway[]>([]);
   const [options, setOptions] = useState<GuildLiveOptions | null>(null);
+  const [kickStatus, setKickStatus] = useState<KickIntegrationStatus | null>(null);
   const [form, setForm] = useState<GiveawayForm>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,6 +104,7 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
     if (!guild) {
       setGiveaways([]);
       setOptions(null);
+      setKickStatus(null);
       setLoading(false);
       return;
     }
@@ -113,12 +116,14 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
 
     Promise.all([
       getGiveaways(guild.id, botId),
-      getGuildLiveOptions(guild.id, botId)
+      getGuildLiveOptions(guild.id, botId),
+      getKickIntegrationStatus(guild.id, botId).catch(() => null)
     ])
-      .then(([nextGiveaways, nextOptions]) => {
+      .then(([nextGiveaways, nextOptions, nextKickStatus]) => {
         if (!mounted) return;
         setGiveaways(nextGiveaways);
         setOptions(nextOptions);
+        setKickStatus(nextKickStatus);
         if (canManage) {
           void syncGiveawayList(nextGiveaways);
         }
@@ -134,6 +139,15 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
       mounted = false;
     };
   }, [botId, canManage, guild?.id]);
+
+  async function refreshKickStatus() {
+    if (!guild) {
+      setKickStatus(null);
+      return;
+    }
+
+    setKickStatus(await getKickIntegrationStatus(guild.id, botId).catch(() => null));
+  }
 
   useEffect(() => {
     if (!guild || !canManage) {
@@ -232,6 +246,7 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
     }
 
     const activeGiveaways = items.filter((giveaway) => giveaway.status !== "ended");
+    let syncedAny = false;
 
     for (const giveaway of activeGiveaways) {
       const syncedRecently = giveaway.lastSyncedAt && Date.now() - new Date(giveaway.lastSyncedAt).getTime() < 29 * 60 * 1000;
@@ -243,9 +258,14 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
       try {
         const updated = await syncGiveawayParticipants(guild.id, giveaway.id, botId);
         setGiveaways((current) => upsertGiveaway(current, updated));
+        syncedAny = true;
       } catch {
         // A sincronizacao manual mostra o erro; a automatica nao deve interromper o painel.
       }
+    }
+
+    if (syncedAny) {
+      void refreshKickStatus();
     }
   }
 
@@ -273,6 +293,7 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
 
       setGiveaways((current) => upsertGiveaway(current, saved));
       setEditingId(saved.id);
+      void refreshKickStatus();
       setMessage(`${editingId ? "Sorteio atualizado" : "Sorteio criado"} com ${saved.participants.length} participante(s) sincronizado(s).`);
     } catch (error) {
       setMessage(readRequestMessage(error) ?? "Nao foi possivel salvar o sorteio.");
@@ -299,6 +320,7 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
             : await endGiveaway(guild.id, giveaway.id, botId);
 
       setGiveaways((current) => upsertGiveaway(current, updated));
+      void refreshKickStatus();
       setMessage(action === "panel" ? "Painel enviado para o Discord." : action === "start" ? "Sorteio iniciado." : action === "sync" ? "Participantes atualizados." : "Sorteio encerrado.");
     } catch (error) {
       setMessage(readRequestMessage(error) ?? "Nao foi possivel executar essa acao.");
@@ -365,6 +387,8 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
           {message}
         </div>
       ) : null}
+
+      <KickDiagnosticsPanel giveaways={giveaways} status={kickStatus} />
 
       <Card className="border-zinc-800 bg-zinc-950/80">
         <CardHeader className="border-b border-zinc-900 p-5 sm:p-6">
@@ -619,6 +643,107 @@ function GiveawayRow({
   );
 }
 
+function KickDiagnosticsPanel({
+  giveaways,
+  status
+}: {
+  giveaways: Giveaway[];
+  status: KickIntegrationStatus | null;
+}) {
+  const kickGiveaways = giveaways.filter((giveaway) => giveaway.livePlatform === "kick" || giveaway.livePlatform === "multi" || giveaway.kickChannelName || giveaway.kickUserId);
+  const fallbackKickParticipants = kickGiveaways.reduce((total, giveaway) => {
+    return total + giveaway.participants.filter((participant) => participant.source === "kick").length;
+  }, 0);
+  const webhook = status?.webhook ?? null;
+  const apiOnline = status?.apiStatus === "ok";
+  const webhookActive = webhook?.status === "active";
+  const tokenValid = status?.apiStatus === "ok";
+  const totalParticipants = webhook?.totalParticipants ?? kickGiveaways.reduce((total, giveaway) => total + giveaway.participants.length, 0);
+  const kickParticipants = webhook?.kickParticipants ?? fallbackKickParticipants;
+  const kickSubscribers = webhook?.kickSubscribers ?? countKickParticipantsByFlag(kickGiveaways, "subscriber");
+  const kickFollowers = webhook?.kickFollowers ?? countKickParticipantsByFlag(kickGiveaways, "follower");
+
+  return (
+    <Card className="border-zinc-800 bg-zinc-950/80">
+      <CardHeader className="border-b border-zinc-900 p-5 sm:p-6">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle>Diagnostico Kick</CardTitle>
+            <CardDescription>Sorteios, API e webhook</CardDescription>
+          </div>
+          <Badge className={apiOnline ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-300" : "border-red-500/25 bg-red-500/10 text-red-300"} variant="muted">
+            {apiOnline ? "API Conectada" : "API Offline"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-3 p-5 sm:grid-cols-2 sm:p-6 xl:grid-cols-4">
+        <DiagnosticMetric
+          icon={apiOnline ? CheckCircle2 : AlertTriangle}
+          label="Token"
+          tone={tokenValid ? "success" : "danger"}
+          value={tokenValid ? "Valido" : "Expirado"}
+        />
+        <DiagnosticMetric
+          icon={webhookActive ? Radio : AlertTriangle}
+          label="Webhook"
+          tone={webhookActive ? "success" : "warning"}
+          value={webhookActive ? "Ativo" : "Inativo"}
+        />
+        <DiagnosticMetric icon={Users} label="Participantes" value={`${totalParticipants} total / ${kickParticipants} Kick`} />
+        <DiagnosticMetric icon={Trophy} label="Kick encontrados" value={`${kickSubscribers} subs / ${kickFollowers} seguidores`} />
+
+        <div className="min-w-0 rounded-lg border border-zinc-900 bg-black/35 p-3 xl:col-span-2">
+          <p className="text-xs text-zinc-500">URL do webhook</p>
+          <p className="mt-1 truncate font-mono text-xs text-zinc-200">{webhook?.url ?? "Nao configurada"}</p>
+        </div>
+        <div className="min-w-0 rounded-lg border border-zinc-900 bg-black/35 p-3">
+          <p className="text-xs text-zinc-500">Ultima sincronizacao</p>
+          <p className="mt-1 truncate text-sm font-medium text-zinc-200">{formatDateTime(webhook?.lastSyncAt)}</p>
+        </div>
+        <div className="min-w-0 rounded-lg border border-zinc-900 bg-black/35 p-3">
+          <p className="text-xs text-zinc-500">Ultimo evento</p>
+          <p className="mt-1 truncate text-sm font-medium text-zinc-200">{formatDateTime(webhook?.lastEventAt)}</p>
+        </div>
+        {status?.apiMessage || webhook?.lastSyncError ? (
+          <div className="rounded-lg border border-zinc-900 bg-black/35 p-3 text-xs leading-5 text-zinc-300 sm:col-span-2 xl:col-span-4">
+            {webhook?.lastSyncError ?? status?.apiMessage}
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function DiagnosticMetric({
+  icon: Icon,
+  label,
+  tone = "neutral",
+  value
+}: {
+  icon: typeof Gift;
+  label: string;
+  tone?: "danger" | "neutral" | "success" | "warning";
+  value: string;
+}) {
+  const toneClass = tone === "success"
+    ? "text-emerald-300"
+    : tone === "danger"
+      ? "text-red-300"
+      : tone === "warning"
+        ? "text-yellow-200"
+        : "text-zinc-200";
+
+  return (
+    <div className="min-w-0 rounded-lg border border-zinc-900 bg-black/35 p-3">
+      <div className="flex items-center gap-2 text-xs text-zinc-500">
+        <Icon className={`h-4 w-4 shrink-0 ${toneClass}`} />
+        <span>{label}</span>
+      </div>
+      <p className={`mt-2 truncate text-sm font-semibold ${toneClass}`}>{value}</p>
+    </div>
+  );
+}
+
 function LivePreviewCard({
   className = "",
   error,
@@ -858,6 +983,26 @@ function platformClass(platform: "twitch" | "kick") {
 
 function formatNumber(value: number) {
   return value.toLocaleString("pt-BR");
+}
+
+function countKickParticipantsByFlag(giveaways: Giveaway[], flag: "follower" | "subscriber") {
+  return giveaways.reduce((total, giveaway) => {
+    return total + giveaway.participants.filter((participant) => participant.source === "kick" && participant[flag]).length;
+  }, 0);
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) {
+    return "Nao registrado";
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+    year: "2-digit"
+  }).format(new Date(value));
 }
 
 function upsertGiveaway(giveaways: Giveaway[], giveaway: Giveaway) {

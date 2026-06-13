@@ -19,7 +19,7 @@ import {
   type TwitchConnectedUser,
   type TwitchUserVerification
 } from "./twitchService";
-import { getKickChannel, refreshKickOAuthToken, type KickConnectedUser } from "./kickService";
+import { getKickChannel, normalizeKickChannel, refreshKickOAuthToken, type KickConnectedUser } from "./kickService";
 
 export type GiveawayConnectedAccountDto = {
   id: string;
@@ -48,6 +48,17 @@ export type GiveawayParticipantSyncResult = {
     twitchFollowers: number;
     twitchSubscribers: number;
   };
+};
+
+export type RecordedKickGiveawayWebhookEvent = {
+  broadcasterUserId: string | null;
+  channelSlug: string | null;
+  displayName: string;
+  isFollower: boolean;
+  isSubscriber: boolean;
+  isViewer: boolean;
+  userId: string;
+  username: string;
 };
 
 const MAX_PLATFORM_PARTICIPANTS_PER_SYNC = 5000;
@@ -247,11 +258,13 @@ export async function recordKickGiveawayWebhookEvent(eventType: string, payload:
 
   if (!events.length) {
     return {
+      events: [] as RecordedKickGiveawayWebhookEvent[],
       recorded: 0
     };
   }
 
   const { giveawayKickEvents } = await getMongoCollections();
+  const recorded: RecordedKickGiveawayWebhookEvent[] = [];
 
   for (const event of events) {
     const now = new Date();
@@ -300,9 +313,21 @@ export async function recordKickGiveawayWebhookEvent(eventType: string, payload:
         upsert: true
       }
     );
+
+    recorded.push({
+      broadcasterUserId: event.broadcasterUserId,
+      channelSlug: event.channelSlug,
+      displayName: event.displayName,
+      isFollower: event.isFollower,
+      isSubscriber: event.isSubscriber,
+      isViewer: Boolean(event.lastChatAt),
+      userId: event.userId,
+      username: event.username
+    });
   }
 
   return {
+    events: recorded,
     recorded: events.length
   };
 }
@@ -632,6 +657,7 @@ async function resolvePlatformAccessToken(account: MongoGiveawayPlatformAccount)
     }
   );
 
+  console.info(`[giveaway:${account.platform}] token renovado para conta ${account._id}.`);
   return refreshed.accessToken;
 }
 
@@ -675,7 +701,7 @@ async function findKickEventForUser(giveaway: MongoGiveaway, userId: string) {
 }
 
 function parseKickWebhookParticipants(eventType: string, payload: unknown) {
-  const body = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+  const body = unwrapKickWebhookPayload(payload);
   const broadcaster = readKickUser(body.broadcaster);
   const timestamp = readDate(body.created_at) ?? new Date();
   const expiresAt = readDate(body.expires_at);
@@ -731,6 +757,29 @@ function parseKickWebhookParticipants(eventType: string, payload: unknown) {
   return participants;
 }
 
+function unwrapKickWebhookPayload(payload: unknown) {
+  const body = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+
+  for (const key of ["event", "data", "payload"]) {
+    const nested = body[key];
+
+    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+      const nestedBody = nested as Record<string, unknown>;
+
+      if (
+        "broadcaster" in nestedBody
+        || "follower" in nestedBody
+        || "subscriber" in nestedBody
+        || "sender" in nestedBody
+      ) {
+        return nestedBody;
+      }
+    }
+  }
+
+  return body;
+}
+
 function kickEventFromUser(
   broadcaster: ReturnType<typeof readKickUser>,
   user: ReturnType<typeof readKickUser>,
@@ -763,7 +812,7 @@ function readKickUser(value: unknown) {
   const user = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const rawUserId = user.user_id ?? user.id;
   const username = String(user.username ?? user.name ?? rawUserId ?? "").trim();
-  const channelSlug = String(user.channel_slug ?? username).trim().toLowerCase() || null;
+  const channelSlug = normalizeKickChannel(String(user.channel_slug ?? username)) || null;
 
   return {
     avatar: typeof user.profile_picture === "string" ? user.profile_picture : null,
