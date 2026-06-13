@@ -80,6 +80,15 @@ function envSecret() {
   );
 }
 
+function internalBotToken() {
+  const fallback = randomBytes(32).toString("hex");
+
+  return z.preprocess(
+    (value) => cleanEnvValue(value) ?? fallback,
+    z.string()
+  );
+}
+
 function envUrl(name: string, fallback: string) {
   return z.preprocess(
     (value) => {
@@ -159,7 +168,7 @@ const envSchema = z
     JWT_SECRET: envSecret(),
     JWT_ACCESS_TTL_SECONDS: z.coerce.number().default(60 * 15),
     JWT_REFRESH_TTL_SECONDS: z.coerce.number().default(60 * 60 * 24 * 7),
-    BOT_API_TOKEN: z.string().default(""),
+    BOT_API_TOKEN: internalBotToken(),
     DISCORD_BOT_TOKEN: z.string().default(""),
     DISCORD_CLIENT_ID: z.string().default(""),
     DISCORD_CLIENT_SECRET: z.string().default(""),
@@ -215,6 +224,7 @@ process.env.SITE_ORIGIN = env.SITE_ORIGIN;
 process.env.FRONTEND_URL = env.FRONTEND_URL;
 process.env.DISCORD_OAUTH_REDIRECT_URI = env.DISCORD_OAUTH_REDIRECT_URI;
 process.env.DISCORD_CALLBACK_URL = env.DISCORD_CALLBACK_URL;
+process.env.BOT_API_TOKEN = env.BOT_API_TOKEN;
 
 if (env.NODE_ENV === "production") {
   const missing = [

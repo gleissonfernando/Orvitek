@@ -141,6 +141,7 @@ async function startRuntime(bot: DevBotRuntimeConfig) {
   }
 
   const memberEventsEnabled = await canUseGuildMemberIntent(bot);
+  const backendRuntimeUrl = `http://127.0.0.1:${env.PORT}`;
 
   const child = spawn(process.execPath, [entry], {
     cwd: path.resolve(__dirname, "../../.."),
@@ -153,8 +154,8 @@ async function startRuntime(bot: DevBotRuntimeConfig) {
       BOT_COMMAND_GUILD_IDS: bot.guildIds.join(","),
       BOT_ENABLED_MODULES: bot.enabledModules.join(","),
       BOT_MEMBER_EVENTS_ENABLED: String(memberEventsEnabled),
-      BACKEND_API_URL: process.env.BACKEND_API_URL || `${env.FRONTEND_URL}/api`,
-      BACKEND_SOCKET_URL: process.env.BACKEND_SOCKET_URL || env.FRONTEND_URL,
+      BACKEND_API_URL: `${backendRuntimeUrl}/api`,
+      BACKEND_SOCKET_URL: backendRuntimeUrl,
       BOT_API_TOKEN: env.BOT_API_TOKEN
     },
     stdio: ["ignore", "pipe", "pipe"]

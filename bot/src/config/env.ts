@@ -67,11 +67,6 @@ function envUrl(name: string, fallback: string) {
   return z.preprocess(
     (value) => {
       const cleaned = cleanEnvValue(value);
-
-      if (cleaned && isLocalUrl(cleaned)) {
-        return fallback;
-      }
-
       return cleaned ?? fallback;
     },
     z

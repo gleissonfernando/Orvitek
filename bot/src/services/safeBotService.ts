@@ -2,6 +2,7 @@ import {
   ChannelType,
   ContainerBuilder,
   EmbedBuilder,
+  MessageFlags,
   PermissionFlagsBits,
   TextDisplayBuilder,
   type Client,
@@ -60,10 +61,8 @@ type PunishmentOutcome = {
   succeeded: boolean;
 };
 
-const FILTER_WARNING_MESSAGE = [
-  "⚠️ Qualquer mensagem enviada nesta sala resultará automaticamente em punição.",
-  "Sistema criado para identificar contas invadidas que realizam flood de links maliciosos, imagens e conteúdos automáticos, ajudando a impedir a divulgação de spam no servidor."
-].join("\n");
+const FILTER_WARNING_TITLE = "⚠️ Qualquer mensagem enviada nesta sala resultará automaticamente em punição.";
+const FILTER_WARNING_DESCRIPTION = "Sistema criado para identificar contas invadidas que realizam flood de links maliciosos, imagens e conteúdos automáticos, ajudando a impedir a divulgação de spam no servidor.";
 
 export async function ensureSafeBotSetup(guild: Guild, context: BotContext, knownSettings?: GuildSettings | null) {
   if (!isSelfBotModuleEnabled()) {
@@ -847,50 +846,62 @@ async function ensureFilterWarning(channel: Awaited<ReturnType<typeof findTextCh
     return;
   }
 
-  const messages = await channel.messages.fetch({ limit: 20 }).catch(() => null);
-  const warning = messages?.find((message) => {
-    if (message.author.id !== channel.client.user?.id) {
-      return false;
-    }
-
-    const serializedComponents = JSON.stringify(message.components.map((component) => component.toJSON()));
-    return message.content.includes("Qualquer mensagem enviada nesta sala")
-      || serializedComponents.includes("Qualquer mensagem enviada nesta sala");
-  });
+  const messages = await channel.messages.fetch({ limit: 100 });
+  const warnings = messages.filter((message) => isFilterWarningMessage(message));
+  const currentWarning = warnings.find((message) => isCurrentFilterWarning(message));
+  const created = !currentWarning;
   const container = new ContainerBuilder()
     .setAccentColor(0xed4245)
     .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(FILTER_WARNING_MESSAGE)
+      new TextDisplayBuilder().setContent(FILTER_WARNING_TITLE),
+      new TextDisplayBuilder().setContent(FILTER_WARNING_DESCRIPTION)
     );
-
-  if (warning) {
-    try {
-      await warning.edit({
-        allowedMentions: {
-          parse: []
-        },
-        components: [container],
-        content: null,
-        embeds: [],
-        flags: "IsComponentsV2"
-      });
-      return;
-    } catch (editError) {
-      const deleted = await warning.delete().then(() => true).catch(() => false);
-
-      if (!deleted) {
-        throw editError;
-      }
-    }
-  }
-
-  await channel.send({
+  const warning = currentWarning ?? await channel.send({
     allowedMentions: {
       parse: []
     },
     components: [container],
-    flags: "IsComponentsV2"
+    flags: MessageFlags.IsComponentsV2
   });
+
+  const removals = await Promise.allSettled(
+    warnings
+      .filter((message) => message.id !== warning.id)
+      .map((message) => message.delete())
+  );
+  const removed = removals.filter((result) => result.status === "fulfilled").length;
+
+  console.log(
+    `[safe-bot] aviso Components V2 ${created ? "publicado" : "confirmado"} no canal ${channel.id}; avisos antigos removidos: ${removed}.`
+  );
+}
+
+function isFilterWarningMessage(message: Message) {
+  if (message.author.id !== message.client.user?.id) {
+    return false;
+  }
+
+  const components = serializedMessageComponents(message);
+  return message.content.includes("Qualquer mensagem enviada nesta sala")
+    || components.includes("Qualquer mensagem enviada nesta sala");
+}
+
+function isCurrentFilterWarning(message: Message) {
+  if (!message.flags.has(MessageFlags.IsComponentsV2)) {
+    return false;
+  }
+
+  const components = serializedMessageComponents(message);
+  return components.includes(FILTER_WARNING_TITLE)
+    && components.includes(FILTER_WARNING_DESCRIPTION);
+}
+
+function serializedMessageComponents(message: Message) {
+  try {
+    return JSON.stringify(message.components.map((component) => component.toJSON()));
+  } catch {
+    return "";
+  }
 }
 
 function punishmentLabel(action: SelfBotPunishmentAction | "none") {
