@@ -177,10 +177,16 @@ selfBotProtectionRouter.patch("/:guildId", requireAuth, async (req, res, next) =
       },
       user.discordId
     );
-    const guildSettings = await updateGuildSettings(guildId, {
+    const guildSettingsPatch: Parameters<typeof updateGuildSettings>[1] = {
       safeBotEnabled: settings.enabled,
       safeBotLogChannelId: settings.logChannelId
-    }, botId);
+    };
+
+    if (settings.addRoleId) {
+      guildSettingsPatch.safeBotRoleId = settings.addRoleId;
+    }
+
+    const guildSettings = await updateGuildSettings(guildId, guildSettingsPatch, botId);
     const log = await createLog({
       botId,
       guildId,
@@ -258,10 +264,9 @@ async function validateActivation(
 ) {
   const current = await getSelfBotProtectionSettings(guildId, botId);
   const enabled = "enabled" in input ? input.enabled : current.enabled;
-  const logChannelId = "logChannelId" in input ? input.logChannelId || null : current.logChannelId;
 
-  if (enabled && !logChannelId) {
-    throw createRouteError("Selecione um canal de logs antes de ativar o SelfBot Protection.", 400);
+  if (!enabled) {
+    return;
   }
 }
 

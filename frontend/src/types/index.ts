@@ -196,7 +196,11 @@ export type ImageAntiSpamIncident = {
   userId: string;
   username: string | null;
   channelId: string;
+  channelIds: string[];
+  mediaTypes: string[];
+  messageIds: string[];
   removedImages: number;
+  removedMessages: number;
   warningCount: number;
   timeoutMs: number;
   action: "none" | "warning" | "timeout" | "kick";
@@ -393,6 +397,13 @@ export type GuildChannelOption = {
   type: "text" | "announcement";
 };
 
+export type GuildVoiceChannelOption = {
+  id: string;
+  name: string;
+  parentId: string | null;
+  type: "voice" | "stage";
+};
+
 export type GuildRoleOption = {
   assignable: boolean;
   id: string;
@@ -414,7 +425,86 @@ export type GuildMemberOption = {
 export type GuildLiveOptions = {
   channels: GuildChannelOption[];
   roles: GuildRoleOption[];
+  voiceChannels?: GuildVoiceChannelOption[];
 };
+
+export type VoiceRecorderSettings = {
+  id: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  logChannelId: string | null;
+  allowedRoleIds: string[];
+  maxDurationMinutes: number;
+  retentionDays: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type VoiceRecordingStatus = "starting" | "recording" | "processing" | "completed" | "failed" | "deleted";
+
+export type VoiceRecording = {
+  id: string;
+  botId: string;
+  guildId: string;
+  guildName: string | null;
+  channelId: string;
+  channelName: string | null;
+  startedById: string;
+  startedByTag: string | null;
+  stoppedById: string | null;
+  stoppedByTag: string | null;
+  source: "discord" | "dashboard";
+  participants: Array<{
+    userId: string;
+    username: string | null;
+    joinedAt: string;
+    leftAt: string | null;
+    speakingMs: number;
+  }>;
+  events: Array<{
+    type: string;
+    userId: string | null;
+    username: string | null;
+    message: string;
+    createdAt: string;
+    metadata?: Record<string, unknown>;
+  }>;
+  startedAt: string;
+  endedAt: string | null;
+  durationMs: number;
+  fileName: string | null;
+  fileSize: number;
+  fileUrl: string | null;
+  downloadUrl: string | null;
+  mimeType: string | null;
+  status: VoiceRecordingStatus;
+  error: string | null;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type VoiceRecorderStats = {
+  totalRecordings: number;
+  totalDurationMs: number;
+  totalStorageBytes: number;
+  recordingsThisMonth: number;
+  recordingsToday: number;
+  activeRecording: boolean;
+};
+
+export type VoiceRecorderResponse = {
+  activeRecording: VoiceRecording | null;
+  recordings: VoiceRecording[];
+  settings: VoiceRecorderSettings;
+  stats: VoiceRecorderStats;
+};
+
+export type SaveVoiceRecorderSettingsPayload = Partial<Pick<
+  VoiceRecorderSettings,
+  "enabled" | "logChannelId" | "allowedRoleIds" | "maxDurationMinutes" | "retentionDays"
+>>;
 
 export type SocialNotification = {
   id: string;

@@ -54,6 +54,13 @@ export type GuildChannelOptionDto = {
   type: "text" | "announcement";
 };
 
+export type GuildVoiceChannelOptionDto = {
+  id: string;
+  name: string;
+  parentId: string | null;
+  type: "voice" | "stage";
+};
+
 export type GuildRoleOptionDto = {
   assignable: boolean;
   id: string;
@@ -65,6 +72,7 @@ export type GuildRoleOptionDto = {
 export type GuildLiveOptionsDto = {
   channels: GuildChannelOptionDto[];
   roles: GuildRoleOptionDto[];
+  voiceChannels: GuildVoiceChannelOptionDto[];
 };
 
 export type GuildMemberOptionDto = {
@@ -85,6 +93,7 @@ export type GuildPanelChannelValidationDto = {
 
 const DISCORD_API_URL = "https://discord.com/api/v10";
 const TEXT_CHANNEL_TYPES = new Set([0, 5]);
+const VOICE_CHANNEL_TYPES = new Set([2, 13]);
 const ADMINISTRATOR = 0x8n;
 const MANAGE_ROLES = 0x10000000n;
 const VIEW_CHANNEL = 1n << 10n;
@@ -106,7 +115,8 @@ export async function getGuildLiveOptions(guildId: string, botToken?: string | n
   if (!token) {
     return {
       channels: [],
-      roles: [createEveryoneRole(guildId)]
+      roles: [createEveryoneRole(guildId)],
+      voiceChannels: []
     };
   }
 
@@ -124,6 +134,15 @@ export async function getGuildLiveOptions(guildId: string, botToken?: string | n
         name: channel.name,
         parentId: channel.parent_id ?? null,
         type: channel.type === 5 ? "announcement" : "text"
+      })),
+    voiceChannels: channels
+      .filter((channel) => VOICE_CHANNEL_TYPES.has(channel.type))
+      .sort((left, right) => (left.position ?? 0) - (right.position ?? 0))
+      .map((channel) => ({
+        id: channel.id,
+        name: channel.name,
+        parentId: channel.parent_id ?? null,
+        type: channel.type === 13 ? "stage" : "voice"
       })),
     roles
   };
@@ -224,6 +243,10 @@ export async function getGuildMemberOptions(
 
 export async function isGuildTextChannel(guildId: string, channelId: string, botToken?: string | null) {
   return isGuildChannelType(guildId, channelId, TEXT_CHANNEL_TYPES, botToken);
+}
+
+export async function isGuildVoiceChannel(guildId: string, channelId: string, botToken?: string | null) {
+  return isGuildChannelType(guildId, channelId, VOICE_CHANNEL_TYPES, botToken);
 }
 
 export async function validateGuildPanelChannel(

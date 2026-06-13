@@ -3,7 +3,8 @@ import type {
   Client,
   Collection,
   SlashCommandBuilder,
-  SlashCommandOptionsOnlyBuilder
+  SlashCommandOptionsOnlyBuilder,
+  SlashCommandSubcommandsOnlyBuilder
 } from "discord.js";
 import type { ApiClient } from "./services/apiClient";
 import type { BotSocketClient } from "./websocket/socketClient";
@@ -17,7 +18,7 @@ export type BotContext = {
 };
 
 export type BotCommand = {
-  data: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder;
+  data: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder | SlashCommandSubcommandsOnlyBuilder;
   execute: (interaction: ChatInputCommandInteraction, context: BotContext) => Promise<void>;
   moduleId?: string;
 };

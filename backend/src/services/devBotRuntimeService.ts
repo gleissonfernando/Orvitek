@@ -33,7 +33,7 @@ const GATEWAY_GUILD_MEMBERS_LIMITED = 1 << 15;
 const GATEWAY_MESSAGE_CONTENT = 1 << 18;
 const GATEWAY_MESSAGE_CONTENT_LIMITED = 1 << 19;
 const MODULES_REQUIRING_MEMBER_EVENTS = ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security", "safe-bot", "moderation"];
-const MODULES_REQUIRING_MESSAGE_CONTENT = ["image-anti-spam", "link-anti-spam", "moderation", "safe-bot"];
+const MODULES_REQUIRING_MESSAGE_CONTENT = ["moderation", "safe-bot"];
 const runningBots = new Map<string, RunningBot>();
 const restartTimers = new Map<string, NodeJS.Timeout>();
 
@@ -135,7 +135,7 @@ async function startRuntime(bot: DevBotRuntimeConfig) {
     await updateDevBotRuntimeStatus(
       bot.id,
       "error",
-      "Ative o Message Content Intent no Discord Developer Portal para usar SelfBot Protection, Anti-Spam de Imagens ou Anti-Flood de Links."
+      "Ative o Message Content Intent no Discord Developer Portal para usar SelfBot Protection."
     );
     return;
   }

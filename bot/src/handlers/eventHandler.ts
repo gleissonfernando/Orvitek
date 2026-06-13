@@ -10,8 +10,9 @@ import { handlePresenceEvent } from "../events/presenceUpdate";
 import { handleReady } from "../events/ready";
 import { env, isBotModuleEnabled } from "../config/env";
 import { isLinkAntiSpamEnabled } from "../services/linkAntiSpamService";
-import { ensureSelfBotRole, isSelfBotModuleEnabled } from "../services/safeBotService";
+import { clearSafeBotSetupCache, ensureSafeBotSetup, isSelfBotModuleEnabled } from "../services/safeBotService";
 import { handleSelfBotProtectionGuildMutation } from "../services/selfBotProtectionService";
+import { handleVoiceRecorderVoiceStateUpdate } from "../services/voiceRecorderService";
 import type { BotContext } from "../types";
 
 export function registerEvents(client: Client, context: BotContext) {
@@ -23,7 +24,7 @@ export function registerEvents(client: Client, context: BotContext) {
     }
   });
   client.on(Events.GuildCreate, (guild) => {
-    void ensureSelfBotRole(guild, context);
+    void ensureSafeBotSetup(guild, context);
   });
 
   if (env.BOT_MEMBER_EVENTS_ENABLED && ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security", "safe-bot"].some(isBotModuleEnabled)) {
@@ -48,6 +49,9 @@ export function registerEvents(client: Client, context: BotContext) {
 
   if (env.BOT_MESSAGE_LOGS_ENABLED && isBotModuleEnabled("logs")) {
     client.on(Events.MessageDelete, (message) => void handleMessageDelete(message, context));
+  }
+
+  if ((env.BOT_MESSAGE_LOGS_ENABLED && isBotModuleEnabled("logs")) || (isBotModuleEnabled("image-anti-spam") && !isSelfBotModuleEnabled())) {
     client.on(Events.MessageUpdate, (oldMessage, newMessage) => void handleMessageUpdate(oldMessage, newMessage, context));
   }
 
@@ -56,6 +60,12 @@ export function registerEvents(client: Client, context: BotContext) {
   }
 
   if (isSelfBotModuleEnabled()) {
+    client.on(Events.ChannelDelete, (channel) => {
+      if ("guild" in channel) {
+        clearSafeBotSetupCache(channel.guild.id);
+        void ensureSafeBotSetup(channel.guild, context);
+      }
+    });
     client.on(Events.ChannelCreate, (channel) => {
       if ("guild" in channel) {
         void handleSelfBotProtectionGuildMutation(channel.guild, context, "channel_create", channel.id);
@@ -63,6 +73,10 @@ export function registerEvents(client: Client, context: BotContext) {
     });
     client.on(Events.GuildRoleCreate, (role) => {
       void handleSelfBotProtectionGuildMutation(role.guild, context, "role_create", null);
+    });
+    client.on(Events.GuildRoleDelete, (role) => {
+      clearSafeBotSetupCache(role.guild.id);
+      void ensureSafeBotSetup(role.guild, context);
     });
     client.on(Events.WebhooksUpdate, (channel) => {
       if ("guild" in channel) {
@@ -73,6 +87,10 @@ export function registerEvents(client: Client, context: BotContext) {
 
   if (env.BOT_PRESENCE_MONITOR_ENABLED && isBotModuleEnabled("live")) {
     client.on(Events.PresenceUpdate, (oldPresence, newPresence) => void handlePresenceEvent(oldPresence, newPresence, context));
+  }
+
+  if (isBotModuleEnabled("voice-recorder")) {
+    client.on(Events.VoiceStateUpdate, (oldState, newState) => void handleVoiceRecorderVoiceStateUpdate(oldState, newState, context));
   }
 }
 

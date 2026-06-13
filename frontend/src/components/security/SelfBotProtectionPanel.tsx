@@ -23,6 +23,7 @@ import { createDashboardSocket } from "../../lib/socket";
 import {
   getGuildLiveOptions,
   getGuildRoleOptions,
+  patchGuildSettings,
   getSelfBotProtection,
   saveSelfBotProtectionSettings
 } from "../../lib/api";
@@ -51,6 +52,7 @@ type SelfBotProtectionPanelProps = {
   guild: DashboardGuild | null;
   guilds: DashboardGuild[];
   guildSettings: GuildSettings | null;
+  onGuildSettingsChange: (settings: GuildSettings) => void;
   onSelectBot: (botId: string) => void;
   onSelectGuild: (guildId: string) => void;
 };
@@ -63,12 +65,12 @@ type ModuleDefinition = {
 const modules: ModuleDefinition[] = [
   { id: "anti-spam", label: "Anti Spam" },
   { id: "anti-flood", label: "Anti Flood" },
-  { id: "anti-imagens", label: "Anti Imagens" },
+  { id: "anti-imagens", label: "Anti-Spam de Imagens" },
   { id: "anti-gif", label: "Anti GIF" },
   { id: "anti-mencoes", label: "Anti Mencoes" },
   { id: "anti-emojis", label: "Anti Emojis" },
   { id: "anti-convites", label: "Anti Convites" },
-  { id: "anti-links", label: "Anti Links" },
+  { id: "anti-links", label: "Anti-Flood de Links" },
   { id: "anti-scam", label: "Anti Scam" },
   { id: "anti-raid", label: "Anti Raid" },
   { id: "anti-caps-lock", label: "Anti Caps Lock" },
@@ -104,7 +106,20 @@ const emptySettings: SelfBotProtectionSettings = {
   botId: "",
   guildId: "",
   enabled: false,
-  moduleToggles: Object.fromEntries(modules.map((module) => [module.id, false])) as Record<SelfBotProtectionModuleId, boolean>,
+  moduleToggles: {
+    ...Object.fromEntries(modules.map((module) => [module.id, false])) as Record<SelfBotProtectionModuleId, boolean>,
+    "anti-anexos": true,
+    "anti-auto-spam": true,
+    "anti-convites": true,
+    "anti-flood": true,
+    "anti-flood-multi-canais": true,
+    "anti-gif": true,
+    "anti-imagens": true,
+    "anti-links": true,
+    "anti-mencoes": true,
+    "anti-spam": true,
+    "anti-texto-repetido": true
+  },
   ignoredChannelIds: [],
   protectedChannelIds: [],
   mediaChannelIds: [],
@@ -112,14 +127,14 @@ const emptySettings: SelfBotProtectionSettings = {
   logChannelId: null,
   logWebhookUrl: null,
   embedColor: "#7c3aed",
-  punishmentSequence: ["delete_message", "warn", "log", "add_role", "timeout"],
+  punishmentSequence: ["delete_message", "log", "ban"],
   addRoleId: null,
   removeRoleId: null,
   timeoutSeconds: 300,
   floodLimit: 5,
-  floodWindowSeconds: 7,
-  imageLimit: 2,
-  imageWindowSeconds: 30,
+  floodWindowSeconds: 10,
+  imageLimit: 3,
+  imageWindowSeconds: 15,
   mentionLimit: 5,
   emojiLimit: 12,
   capsMinLength: 12,
@@ -157,6 +172,7 @@ export function SelfBotProtectionPanel({
   guild,
   guilds,
   guildSettings,
+  onGuildSettingsChange,
   onSelectBot,
   onSelectGuild
 }: SelfBotProtectionPanelProps) {
@@ -231,6 +247,18 @@ export function SelfBotProtectionPanel({
 
     const socket = createDashboardSocket();
 
+    socket.on("self-bot-protection:settings_updated", (nextSettings: SelfBotProtectionSettings) => {
+      if (nextSettings.botId === botId && nextSettings.guildId === guild.id) {
+        setSettings(nextSettings);
+      }
+    });
+
+    socket.on("settings:updated", (nextSettings: GuildSettings) => {
+      if (nextSettings.guildId === guild.id && (nextSettings.botId ?? null) === botId) {
+        onGuildSettingsChange(nextSettings);
+      }
+    });
+
     socket.on("self-bot-protection:incident", (incident: SelfBotProtectionIncident) => {
       if (incident.botId !== botId || incident.guildId !== guild.id) {
         return;
@@ -250,7 +278,7 @@ export function SelfBotProtectionPanel({
     return () => {
       socket.disconnect();
     };
-  }, [botId, guild]);
+  }, [botId, guild, onGuildSettingsChange]);
 
   function updateSetting<K extends keyof SelfBotProtectionSettings>(
     key: K,
@@ -327,11 +355,6 @@ export function SelfBotProtectionPanel({
 
   async function handleSave() {
     if (!botId || !guild) return;
-
-    if (settings.enabled && !settings.logChannelId) {
-      setMessage("Selecione um canal de logs antes de ativar.");
-      return;
-    }
 
     setSaving(true);
     setMessage(null);
@@ -460,7 +483,7 @@ export function SelfBotProtectionPanel({
               label="Canal de logs"
               onChange={(value) => updateSetting("logChannelId", value || null)}
               options={channels.map((channel) => ({ label: `#${channel.name}`, value: channel.id }))}
-              placeholder="Selecione um canal"
+              placeholder="Criar canal padrao"
               value={settings.logChannelId ?? ""}
             />
             <div className="grid gap-2 text-sm">

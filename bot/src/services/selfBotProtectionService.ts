@@ -13,7 +13,7 @@ import type {
   SelfBotProtectionSettings,
   SelfBotPunishmentAction
 } from "./apiClient";
-import { ensureSelfBotRole, isSelfBotModuleEnabled } from "./safeBotService";
+import { clearSafeBotSetupCache, ensureSafeBotSetup, ensureSelfBotRole, isSelfBotModuleEnabled } from "./safeBotService";
 
 type CachedSettings = {
   expiresAt: number;
@@ -73,11 +73,12 @@ export function startSelfBotProtectionService(context: BotContext) {
     }
 
     settingsCache.delete(payload.guildId);
+    clearSafeBotSetupCache(payload.guildId);
     clearGuildWindows(payload.guildId);
 
     const guild = context.client.guilds.cache.get(payload.guildId);
     if (guild) {
-      void ensureRoleForEnabledGuild(guild, context);
+      void ensureSafeBotSetup(guild, context);
     }
   });
 }
@@ -773,8 +774,12 @@ function buildViolation(
 }
 
 function countAttachments(message: Message) {
+  const embedUrls = message.embeds.map((embed) => `${embed.url ?? ""} ${embed.image?.url ?? ""} ${embed.thumbnail?.url ?? ""} ${embed.video?.url ?? ""}`.toLowerCase());
+  const gifEmbeds = embedUrls.filter((url) => /\.gif(?:$|[?#])/.test(url)).length;
+  const embeds = message.embeds.filter((embed) => embed.image || embed.thumbnail || embed.video || embed.url).length;
+  const stickers = message.stickers.size;
   let images = 0;
-  let gifs = 0;
+  let gifs = gifEmbeds;
   let videos = 0;
 
   for (const attachment of message.attachments.values()) {
@@ -792,10 +797,12 @@ function countAttachments(message: Message) {
   }
 
   return {
+    embeds,
     gifs,
     images,
-    mediaTotal: images + videos,
-    total: message.attachments.size,
+    mediaTotal: images + videos + embeds + stickers,
+    stickers,
+    total: message.attachments.size + embeds + stickers,
     videos
   };
 }

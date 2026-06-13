@@ -20,19 +20,47 @@ type CachedSettings = {
 
 type UserWindow = {
   expiresAt: number;
-  imageCount: number;
   incidentKey: string | null;
   logChannelId: string | null;
   logMessageId: string | null;
+  mediaCount: number;
+  messages: MediaMessageRef[];
   startedAt: number;
 };
 
 type DeletionResult = {
   error: string | null;
+  messageIds: string[];
+  removedMediaCount: number;
+  removedMessageCount: number;
   succeeded: boolean;
 };
 
+type MediaKind = "attachment" | "embed" | "gif" | "image" | "sticker";
+
+type MediaSummary = {
+  attachmentCount: number;
+  embedCount: number;
+  gifCount: number;
+  imageCount: number;
+  kinds: MediaKind[];
+  mediaCount: number;
+  stickerCount: number;
+};
+
+type MediaMessageRef = {
+  channelId: string;
+  createdAt: number;
+  deleted: boolean;
+  mediaCount: number;
+  message: Message;
+  messageId: string;
+  summary: MediaSummary;
+  error: string | null;
+};
+
 const SETTINGS_CACHE_MS = 30_000;
+const MAX_TRACKED_MESSAGES_PER_WINDOW = 100;
 const settingsCache = new Map<string, CachedSettings>();
 const userWindows = new Map<string, UserWindow>();
 const processingQueues = new Map<string, Promise<boolean>>();
@@ -59,9 +87,9 @@ export async function handleImageAntiSpamMessage(message: Message, context: BotC
     return false;
   }
 
-  const imageCount = countImages(message);
+  const media = inspectMediaMessage(message);
 
-  if (imageCount === 0) {
+  if (media.mediaCount === 0) {
     return false;
   }
 
@@ -69,7 +97,7 @@ export async function handleImageAntiSpamMessage(message: Message, context: BotC
   const previous = processingQueues.get(key) ?? Promise.resolve(false);
   const next = previous
     .catch(() => false)
-    .then(() => processImageMessage(message, imageCount, context))
+    .then(() => processImageMessage(message, media, context))
     .catch((error) => {
       console.warn("[image-anti-spam] falha ao processar mensagem:", errorMessage(error));
       return false;
@@ -84,7 +112,7 @@ export async function handleImageAntiSpamMessage(message: Message, context: BotC
   return next;
 }
 
-async function processImageMessage(message: Message, imageCount: number, context: BotContext) {
+async function processImageMessage(message: Message, media: MediaSummary, context: BotContext) {
   const guild = message.guild;
 
   if (!guild) {
@@ -110,24 +138,24 @@ async function processImageMessage(message: Message, imageCount: number, context
   if (!window || now >= window.expiresAt) {
     window = {
       expiresAt: now + settings.windowSeconds * 1_000,
-      imageCount: 0,
       incidentKey: null,
       logChannelId: null,
       logMessageId: null,
+      mediaCount: 0,
+      messages: [],
       startedAt: now
     };
     userWindows.set(key, window);
     scheduleWindowCleanup(key, window);
   }
 
-  const nextImageCount = window.imageCount + imageCount;
-  window.imageCount = nextImageCount;
+  rememberMediaMessage(window, message, media);
 
-  if (nextImageCount <= settings.maxImages) {
+  if (window.mediaCount <= settings.maxImages) {
     return false;
   }
 
-  const deletion = await deleteImageSpamMessage(message);
+  const deletion = await deleteMediaSpamMessages(window.messages);
   window.incidentKey ??= `${guild.id}:${message.author.id}:${window.startedAt}`;
 
   const result = await context.api.recordImageAntiSpamIncident({
@@ -136,7 +164,11 @@ async function processImageMessage(message: Message, imageCount: number, context
     userId: message.author.id,
     username: message.author.tag,
     channelId: message.channelId,
-    removedImages: deletion.succeeded ? imageCount : 0
+    channelIds: collectChannelIds(window.messages),
+    mediaTypes: collectMediaTypes(window.messages),
+    messageIds: deletion.messageIds,
+    removedImages: deletion.removedMediaCount,
+    removedMessages: deletion.removedMessageCount
   });
 
   let incident = result.incident;
@@ -150,24 +182,75 @@ async function processImageMessage(message: Message, imageCount: number, context
   return deletion.succeeded;
 }
 
-async function deleteImageSpamMessage(message: Message): Promise<DeletionResult> {
-  try {
-    await message.delete();
-    return {
-      error: null,
-      succeeded: true
-    };
-  } catch (error) {
-    const messageError = errorMessage(error);
-    console.warn(
-      `[image-anti-spam] nao foi possivel apagar a mensagem ${message.id}:`,
-      messageError
-    );
-    return {
-      error: `delete_message: ${messageError}`,
-      succeeded: false
-    };
+function rememberMediaMessage(window: UserWindow, message: Message, media: MediaSummary) {
+  const existing = window.messages.find((entry) => entry.messageId === message.id);
+
+  if (existing) {
+    window.mediaCount = Math.max(0, window.mediaCount - existing.mediaCount + media.mediaCount);
+    existing.channelId = message.channelId;
+    existing.mediaCount = media.mediaCount;
+    existing.message = message;
+    existing.summary = media;
+    return;
   }
+
+  window.messages.push({
+    channelId: message.channelId,
+    createdAt: Date.now(),
+    deleted: false,
+    error: null,
+    mediaCount: media.mediaCount,
+    message,
+    messageId: message.id,
+    summary: media
+  });
+  window.mediaCount += media.mediaCount;
+
+  if (window.messages.length > MAX_TRACKED_MESSAGES_PER_WINDOW) {
+    const removed = window.messages.splice(0, window.messages.length - MAX_TRACKED_MESSAGES_PER_WINDOW);
+    window.mediaCount = Math.max(
+      0,
+      window.mediaCount - removed.reduce((total, entry) => total + entry.mediaCount, 0)
+    );
+  }
+}
+
+async function deleteMediaSpamMessages(messages: MediaMessageRef[]): Promise<DeletionResult> {
+  const errors: string[] = [];
+  const messageIds: string[] = [];
+  let removedMediaCount = 0;
+  let removedMessageCount = 0;
+
+  for (const entry of messages) {
+    if (entry.deleted) {
+      continue;
+    }
+
+    try {
+      await entry.message.delete();
+      entry.deleted = true;
+      entry.error = null;
+      messageIds.push(entry.messageId);
+      removedMediaCount += entry.mediaCount;
+      removedMessageCount += 1;
+    } catch (error) {
+      const messageError = errorMessage(error);
+      entry.error = messageError;
+      errors.push(`${entry.messageId}: ${messageError}`);
+      console.warn(
+        `[image-anti-spam] nao foi possivel apagar a mensagem ${entry.messageId}:`,
+        messageError
+      );
+    }
+  }
+
+  return {
+    error: errors.length ? `delete_messages: ${errors.join(" | ")}` : null,
+    messageIds,
+    removedMediaCount,
+    removedMessageCount,
+    succeeded: errors.length === 0
+  };
 }
 
 function mergeActionOutcome(
@@ -256,7 +339,7 @@ async function notifyMember(
     ? ` Timeout aplicado: ${formatDuration(incident.timeoutMs)}.`
     : "";
   const content = [
-    `Anti-Spam de Imagens: ${incident.removedImages} imagem(ns) excedente(s) foram removidas.`,
+    `Anti-Spam de Imagens: ${incident.removedImages} midia(s) excedente(s) foram removidas.`,
     `Advertencia ${incident.warningCount}/${settings.maxWarnings}.${timeoutText}`,
     incident.action === "kick" ? incident.reason : ""
   ].filter(Boolean).join("\n");
@@ -333,8 +416,11 @@ function buildLogPayload(incident: ImageAntiSpamIncident) {
     : [
         `**Usuario:** <@${incident.userId}>`,
         `**ID:** \`${incident.userId}\``,
-        `**Canal:** <#${incident.channelId}>`,
-        `**Quantidade de imagens removidas:** ${incident.removedImages}`,
+        `**Canal principal:** <#${incident.channelId}>`,
+        `**Canais envolvidos:** ${formatChannels(incident.channelIds)}`,
+        `**Mensagens removidas:** ${incident.removedMessages}`,
+        `**Midias removidas:** ${incident.removedImages}`,
+        `**Tipos detectados:** ${formatMediaTypes(incident.mediaTypes)}`,
         `**Advertencia atual:** ${incident.warningCount}`,
         `**Timeout aplicado:** ${timeout}`,
         `**Data e horario:** <t:${Math.floor(new Date(incident.updatedAt).getTime() / 1_000)}:F>`,
@@ -374,15 +460,84 @@ function isIgnoredChannel(message: Message, settings: ImageAntiSpamSettings) {
   return Boolean(parentId && settings.ignoredChannelIds.includes(parentId));
 }
 
-function countImages(message: Message) {
-  return message.attachments.filter((attachment) => {
-    if (attachment.contentType?.toLowerCase().startsWith("image/")) {
-      return true;
+function inspectMediaMessage(message: Message): MediaSummary {
+  let attachmentCount = 0;
+  let embedCount = 0;
+  let gifCount = 0;
+  let imageCount = 0;
+  let stickerCount = message.stickers.size;
+  const kinds = new Set<MediaKind>();
+
+  for (const attachment of message.attachments.values()) {
+    const contentType = attachment.contentType?.toLowerCase() ?? "";
+    const name = `${attachment.name ?? ""} ${attachment.url}`.toLowerCase();
+
+    attachmentCount += 1;
+
+    if (contentType.startsWith("image/gif") || /\.gif(?:$|[?#])/i.test(name)) {
+      gifCount += 1;
+      imageCount += 1;
+      kinds.add("gif");
+      continue;
     }
 
-    const name = `${attachment.name ?? ""} ${attachment.url}`;
-    return /\.(?:avif|gif|jpe?g|png|webp)(?:$|[?#])/i.test(name);
-  }).size;
+    if (contentType.startsWith("image/") || /\.(?:avif|jpe?g|png|webp)(?:$|[?#])/i.test(name)) {
+      imageCount += 1;
+      kinds.add("image");
+      continue;
+    }
+
+    kinds.add("attachment");
+  }
+
+  for (const embed of message.embeds) {
+    if (embed.image || embed.thumbnail || embed.video || embed.url) {
+      const embedUrl = `${embed.url ?? ""} ${embed.image?.url ?? ""} ${embed.thumbnail?.url ?? ""} ${embed.video?.url ?? ""}`.toLowerCase();
+      embedCount += 1;
+      kinds.add(/\.gif(?:$|[?#])/.test(embedUrl) ? "gif" : "embed");
+    }
+  }
+
+  if (stickerCount > 0) {
+    kinds.add("sticker");
+  }
+
+  const mediaCount = attachmentCount + embedCount + stickerCount;
+
+  return {
+    attachmentCount,
+    embedCount,
+    gifCount,
+    imageCount,
+    kinds: [...kinds],
+    mediaCount,
+    stickerCount
+  };
+}
+
+function collectChannelIds(messages: MediaMessageRef[]) {
+  return [...new Set(messages.map((entry) => entry.channelId))];
+}
+
+function collectMediaTypes(messages: MediaMessageRef[]) {
+  return [...new Set(messages.flatMap((entry) => entry.summary.kinds))];
+}
+
+function formatChannels(channelIds: string[] | undefined) {
+  const ids = channelIds?.length ? channelIds : [];
+  return ids.length ? ids.map((channelId) => `<#${channelId}>`).join(", ") : "Nao informado";
+}
+
+function formatMediaTypes(mediaTypes: string[] | undefined) {
+  const labels: Record<string, string> = {
+    attachment: "Anexos",
+    embed: "Embeds",
+    gif: "GIFs",
+    image: "Imagens",
+    sticker: "Stickers"
+  };
+  const types = mediaTypes?.length ? mediaTypes : [];
+  return types.length ? types.map((type) => labels[type] ?? type).join(", ") : "Midia";
 }
 
 function punishmentLabel(incident: ImageAntiSpamIncident) {

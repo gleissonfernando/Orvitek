@@ -14,11 +14,13 @@ import type { BotContext } from "./types";
 import { BotSocketClient } from "./websocket/socketClient";
 
 const intents = [GatewayIntentBits.Guilds];
+const needsVoiceRecorder = isBotModuleEnabled("voice-recorder");
 const needsMemberEvents = ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security"].some(isBotModuleEnabled)
   || isSelfBotModuleEnabled();
-const needsMessageEvents = isBotModuleEnabled("image-anti-spam")
-  || isLinkAntiSpamEnabled()
-  || isSelfBotModuleEnabled();
+const selfBotModuleEnabled = isSelfBotModuleEnabled();
+const needsLegacyMessageModeration = !selfBotModuleEnabled && (isBotModuleEnabled("image-anti-spam") || isLinkAntiSpamEnabled());
+const needsMessageEvents = needsLegacyMessageModeration
+  || selfBotModuleEnabled;
 
 if (env.BOT_MEMBER_EVENTS_ENABLED && needsMemberEvents) {
   intents.push(GatewayIntentBits.GuildMembers);
@@ -41,9 +43,13 @@ if (env.BOT_PRESENCE_MONITOR_ENABLED && isBotModuleEnabled("live")) {
   intents.push(GatewayIntentBits.GuildPresences);
 }
 
+if (needsVoiceRecorder) {
+  intents.push(GatewayIntentBits.GuildVoiceStates);
+}
+
 const partials = [Partials.Channel, Partials.User];
 
-if (env.BOT_MESSAGE_LOGS_ENABLED && isBotModuleEnabled("logs")) {
+if ((env.BOT_MESSAGE_LOGS_ENABLED && isBotModuleEnabled("logs")) || (!selfBotModuleEnabled && isBotModuleEnabled("image-anti-spam"))) {
   partials.push(Partials.Message);
 }
 
@@ -69,7 +75,7 @@ const client = new Client({
     StageInstanceManager: 0,
     ThreadMemberManager: 0,
     UserManager: env.BOT_CACHE_USERS_MAX,
-    VoiceStateManager: 0
+    VoiceStateManager: needsVoiceRecorder ? 500 : 0
   }),
   partials,
   sweepers: {

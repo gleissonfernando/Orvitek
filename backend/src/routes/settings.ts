@@ -9,6 +9,7 @@ import { canAccessDevBotGuild, canManageDevBot, canUseDevBotModule, getDevBot, g
 import { createLog } from "../services/logService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
 import { getGuildSettings, MAX_AUTOMATIC_ROLES, updateGuildSettings } from "../services/settingsService";
+import { getSelfBotProtectionSettings, saveSelfBotProtectionSettings } from "../services/selfBotProtectionService";
 import { saveLeaveImage, saveWelcomeImage, sendLeavePanelToDiscord, sendWelcomePanelToDiscord } from "../services/welcomePanelService";
 import {
   areGuildMembers,
@@ -62,6 +63,14 @@ const settingsSchema = z.object({
   dashboardUserPermissions: z.record(z.enum(["admin", "moderator", "premium", "basic"])).optional()
 });
 const botSelfBotRoleSchema = z.object({
+  roleId: z.string().regex(/^\d{5,32}$/),
+  roleName: z.string().max(100).optional()
+});
+const botSafeBotSetupSchema = z.object({
+  filterChannelId: z.string().regex(/^\d{5,32}$/),
+  filterChannelName: z.string().max(100).optional(),
+  logChannelId: z.string().regex(/^\d{5,32}$/),
+  logChannelName: z.string().max(100).optional(),
   roleId: z.string().regex(/^\d{5,32}$/),
   roleName: z.string().max(100).optional()
 });
@@ -149,6 +158,89 @@ settingsRouter.post("/bot/:guildId/self-bot-role", requireBot, async (req, res, 
     }).catch(() => null);
 
     emitRealtime("settings:updated", settings);
+    if (settingsLog) {
+      emitRealtime("logs:new", settingsLog);
+    }
+
+    return res.json({
+      settings
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+settingsRouter.post("/bot/:guildId/safe-bot-setup", requireBot, async (req, res, next) => {
+  try {
+    const { guildId } = req.params;
+    const botId = await resolveRequestBotId(req);
+    const input = botSafeBotSetupSchema.parse(req.body);
+
+    if (!guildId) {
+      return res.status(400).json({
+        message: "guildId obrigatorio."
+      });
+    }
+
+    const botToken = await getDevBotToken(botId);
+    const [roleOk, filterOk, logOk] = await Promise.all([
+      areGuildAssignableRoles(guildId, [input.roleId], botToken),
+      isGuildTextChannel(guildId, input.filterChannelId, botToken),
+      isGuildTextChannel(guildId, input.logChannelId, botToken)
+    ]);
+
+    if (!roleOk) {
+      return res.status(400).json({
+        message: "O cargo Self Bot precisa ficar abaixo do cargo do bot e o bot precisa da permissao Gerenciar Cargos."
+      });
+    }
+
+    if (!filterOk || !logOk) {
+      return res.status(400).json({
+        message: "Os canais do SafeBot precisam pertencer a este servidor."
+      });
+    }
+
+    const settings = await updateGuildSettings(guildId, {
+      safeBotEnabled: true,
+      safeBotChannelId: input.filterChannelId,
+      safeBotLogChannelId: input.logChannelId,
+      safeBotRoleId: input.roleId
+    }, botId);
+
+    const protectionSettings = botId ? await getSelfBotProtectionSettings(guildId, botId) : null;
+    const syncedProtectionSettings = botId && protectionSettings
+      ? await saveSelfBotProtectionSettings(
+        guildId,
+        botId,
+        {
+          addRoleId: protectionSettings.addRoleId ?? input.roleId,
+          logChannelId: protectionSettings.logChannelId ?? input.logChannelId
+        },
+        null
+      )
+      : null;
+
+    const settingsLog = await createLog({
+      botId,
+      guildId,
+      userId: null,
+      type: "security.safe_bot.setup_synced",
+      message: "SafeBot sincronizou cargo, canal filter e canal de logs.",
+      metadata: {
+        filterChannelId: input.filterChannelId,
+        filterChannelName: input.filterChannelName ?? null,
+        logChannelId: input.logChannelId,
+        logChannelName: input.logChannelName ?? null,
+        roleId: input.roleId,
+        roleName: input.roleName ?? null
+      }
+    }).catch(() => null);
+
+    emitRealtime("settings:updated", settings);
+    if (syncedProtectionSettings) {
+      emitRealtime("self-bot-protection:settings_updated", syncedProtectionSettings);
+    }
     if (settingsLog) {
       emitRealtime("logs:new", settingsLog);
     }
@@ -551,21 +643,12 @@ async function validateSafeBotActivation(guildId: string, botId: string | null, 
   }
 
   const current = await getGuildSettings(guildId, botId);
-  const safeBotChannelId = "safeBotChannelId" in input ? input.safeBotChannelId : current.safeBotChannelId;
-  const safeBotRoleId = "safeBotRoleId" in input ? input.safeBotRoleId : current.safeBotRoleId;
-  const safeBotLogChannelId = "safeBotLogChannelId" in input ? input.safeBotLogChannelId : current.safeBotLogChannelId;
-  const logChannelId = "logChannelId" in input ? input.logChannelId : current.logChannelId;
+  const safeBotLogChannelId = "safeBotLogChannelId" in input
+    ? input.safeBotLogChannelId
+    : current.safeBotLogChannelId;
 
-  if (!safeBotChannelId) {
-    throw createSettingsError("Selecione o canal Self Bot antes de ativar.");
-  }
-
-  if (!safeBotRoleId) {
-    throw createSettingsError("O cargo Self Bot ainda nao foi criado automaticamente pelo bot.");
-  }
-
-  if (!safeBotLogChannelId && !logChannelId) {
-    throw createSettingsError("Selecione um canal de logs antes de ativar o Self Bot.");
+  if ("safeBotLogChannelId" in input && input.safeBotLogChannelId === "" && !safeBotLogChannelId) {
+    throw createSettingsError("Selecione um canal de logs valido para o SafeBot ou deixe o bot criar o padrao automaticamente.");
   }
 }
 

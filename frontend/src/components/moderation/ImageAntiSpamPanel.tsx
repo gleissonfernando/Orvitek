@@ -15,6 +15,7 @@ import {
   getImageAntiSpam,
   saveImageAntiSpamSettings
 } from "../../lib/api";
+import { createDashboardSocket } from "../../lib/socket";
 import type {
   DashboardBot,
   DashboardGuild,
@@ -129,6 +130,41 @@ export function ImageAntiSpamPanel({
     };
   }, [botId, guild?.id]);
 
+  useEffect(() => {
+    if (!botId || !guild) {
+      return;
+    }
+
+    const socket = createDashboardSocket();
+
+    socket.on("image-anti-spam:settings_updated", (nextSettings: ImageAntiSpamSettings) => {
+      if (nextSettings.botId !== botId || nextSettings.guildId !== guild.id) {
+        return;
+      }
+
+      setSettings(nextSettings);
+      setMessage("Configuracao sincronizada em tempo real.");
+    });
+
+    socket.on("image-anti-spam:incident", (incident: ImageAntiSpamIncident) => {
+      if (incident.botId !== botId || incident.guildId !== guild.id) {
+        return;
+      }
+
+      setIncidents((current) => {
+        const exists = current.some((item) => item.id === incident.id);
+        return exists
+          ? current.map((item) => item.id === incident.id ? incident : item)
+          : [incident, ...current].slice(0, 25);
+      });
+      setUsers((current) => upsertIncidentUser(current, incident));
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [botId, guild?.id]);
+
   function updateSetting<K extends keyof ImageAntiSpamSettings>(
     key: K,
     value: ImageAntiSpamSettings[K]
@@ -224,7 +260,7 @@ export function ImageAntiSpamPanel({
                 Anti-Spam de Imagens
               </CardTitle>
               <CardDescription>
-                Mantem as primeiras imagens permitidas e remove automaticamente todas as excedentes.
+                Mantem as primeiras midias permitidas e remove automaticamente todo flood excedente.
               </CardDescription>
             </div>
             <div className="flex items-center gap-3">
@@ -260,7 +296,7 @@ export function ImageAntiSpamPanel({
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <NumberField
               disabled={!canManage}
-              label="Quantidade maxima de imagens"
+              label="Quantidade maxima de midias"
               max={20}
               min={1}
               onChange={(value) => updateSetting("maxImages", value)}
@@ -293,7 +329,7 @@ export function ImageAntiSpamPanel({
           </div>
 
           <label className="grid gap-2 text-sm">
-            <span className="font-medium text-zinc-200">Canal de logs</span>
+            <span className="font-medium text-zinc-200">Canal de logs e punicoes</span>
             <select
               className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-500/60"
               disabled={!canManage}
@@ -361,7 +397,7 @@ export function ImageAntiSpamPanel({
               Salvar configuracao
             </Button>
             <p className="text-xs text-zinc-500">
-              A configuracao e aplicada ao bot selecionado em ate 30 segundos.
+              A configuracao e aplicada ao bot selecionado em tempo real.
             </p>
           </div>
         </CardContent>
@@ -539,7 +575,7 @@ function UserHistory({ users }: { users: ImageAntiSpamUser[] }) {
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-zinc-100">{user.username ?? user.userId}</p>
             <p className="text-xs text-zinc-500">
-              {user.totalImagesRemoved} imagem(ns) removida(s)
+              {user.totalImagesRemoved} midia(s) removida(s)
               {user.lastInfractionAt ? ` - ${formatDate(user.lastInfractionAt)}` : ""}
             </p>
           </div>
@@ -570,7 +606,11 @@ function IncidentHistory({ incidents }: { incidents: ImageAntiSpamIncident[] }) 
             </Badge>
           </div>
           <p className="mt-1 text-xs text-zinc-500">
-            {incident.removedImages} removida(s) - advertencia {incident.warningCount} - {formatDate(incident.createdAt)}
+            {incident.removedMessages} mensagem(ns), {incident.removedImages} midia(s) - advertencia {incident.warningCount} - {formatDate(incident.createdAt)}
+          </p>
+          <p className="mt-1 truncate text-xs text-zinc-600">
+            {formatMediaTypes(incident.mediaTypes)}
+            {incident.channelIds.length ? ` - ${incident.channelIds.map((channelId) => `#${channelId}`).join(", ")}` : ""}
           </p>
           {incident.actionError ? <p className="mt-1 text-xs text-red-300">{incident.actionError}</p> : null}
         </div>
@@ -584,6 +624,58 @@ function actionLabel(incident: ImageAntiSpamIncident) {
   if (incident.action === "timeout") return `${Math.round(incident.timeoutMs / 60_000)} min`;
   if (incident.action === "warning") return "Advertencia";
   return "Remocao";
+}
+
+function upsertIncidentUser(users: ImageAntiSpamUser[], incident: ImageAntiSpamIncident) {
+  const now = incident.updatedAt;
+  const current = users.find((user) => user.userId === incident.userId);
+
+  if (!current) {
+    return [
+      {
+        id: `${incident.guildId}:${incident.userId}`,
+        botId: incident.botId,
+        guildId: incident.guildId,
+        userId: incident.userId,
+        username: incident.username,
+        warningCount: incident.warningCount,
+        totalImagesRemoved: incident.removedImages,
+        lastInfractionAt: now,
+        lastPunishment: incident.action,
+        createdAt: incident.createdAt,
+        updatedAt: now
+      },
+      ...users
+    ].slice(0, 25);
+  }
+
+  return users.map((user) => user.userId === incident.userId
+    ? {
+        ...user,
+        username: incident.username ?? user.username,
+        warningCount: incident.warningCount,
+        totalImagesRemoved: Math.max(user.totalImagesRemoved, incident.removedImages),
+        lastInfractionAt: now,
+        lastPunishment: incident.action,
+        updatedAt: now
+      }
+    : user);
+}
+
+function formatMediaTypes(mediaTypes: string[]) {
+  if (!mediaTypes.length) {
+    return "Midia";
+  }
+
+  const labels: Record<string, string> = {
+    attachment: "Anexos",
+    embed: "Embeds",
+    gif: "GIFs",
+    image: "Imagens",
+    sticker: "Stickers"
+  };
+
+  return mediaTypes.map((type) => labels[type] ?? type).join(", ");
 }
 
 function formatDate(value: string) {

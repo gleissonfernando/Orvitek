@@ -43,6 +43,7 @@ import type {
   SaveImageAntiSpamSettingsPayload,
   SaveSelfBotProtectionSettingsPayload,
   SaveSocialPanelPayload,
+  SaveVoiceRecorderSettingsPayload,
   SelfBotProtectionResponse,
   SelfBotProtectionSettings,
   SocialMember,
@@ -60,6 +61,8 @@ import type {
   UpdateKickNotificationPayload,
   SaveXAccountPayload,
   UpdateXAccountPayload,
+  VoiceRecorderResponse,
+  VoiceRecording,
   XAccount,
   XAccountPreview,
   XMonitorResponse
@@ -264,6 +267,96 @@ export async function saveImageAntiSpamSettings(
     }
   );
   return data.settings;
+}
+
+export async function getVoiceRecorder(
+  guildId: string,
+  botId: string,
+  filters: {
+    channelId?: string | null;
+    dateFrom?: string | null;
+    dateTo?: string | null;
+    maxDurationSeconds?: number | null;
+    minDurationSeconds?: number | null;
+    search?: string | null;
+    userId?: string | null;
+  } = {}
+) {
+  const { data } = await api.get<VoiceRecorderResponse>(
+    `/voice-recorder/${guildId}`,
+    {
+      params: {
+        ...botParams(botId),
+        channelId: filters.channelId || undefined,
+        dateFrom: filters.dateFrom || undefined,
+        dateTo: filters.dateTo || undefined,
+        maxDurationSeconds: filters.maxDurationSeconds ?? undefined,
+        minDurationSeconds: filters.minDurationSeconds ?? undefined,
+        search: filters.search || undefined,
+        userId: filters.userId || undefined
+      }
+    }
+  );
+  return data;
+}
+
+export async function saveVoiceRecorderSettings(
+  guildId: string,
+  botId: string,
+  payload: SaveVoiceRecorderSettingsPayload
+) {
+  const { data } = await api.patch<{ settings: VoiceRecorderResponse["settings"] }>(
+    `/voice-recorder/${guildId}`,
+    payload,
+    {
+      params: botParams(botId)
+    }
+  );
+  return data.settings;
+}
+
+export async function startVoiceRecorder(guildId: string, botId: string, channelId: string) {
+  const { data } = await api.post<{ recording: VoiceRecording }>(
+    `/voice-recorder/${guildId}/start`,
+    { channelId },
+    {
+      params: botParams(botId),
+      timeout: 15000
+    }
+  );
+  return data.recording;
+}
+
+export async function stopVoiceRecorder(guildId: string, botId: string, recordingId?: string | null) {
+  const { data } = await api.post<{ recording: VoiceRecording }>(
+    `/voice-recorder/${guildId}/stop`,
+    { recordingId: recordingId ?? null },
+    {
+      params: botParams(botId),
+      timeout: 15000
+    }
+  );
+  return data.recording;
+}
+
+export async function deleteVoiceRecording(guildId: string, botId: string, recordingId: string) {
+  const { data } = await api.delete<{ recording: VoiceRecording }>(
+    `/voice-recorder/${guildId}/recordings/${recordingId}`,
+    {
+      params: botParams(botId)
+    }
+  );
+  return data.recording;
+}
+
+export function voiceRecordingAudioUrl(guildId: string, botId: string, recordingId: string) {
+  const params = new URLSearchParams(botParams(botId));
+  return `${API_URL}/voice-recorder/${encodeURIComponent(guildId)}/recordings/${encodeURIComponent(recordingId)}/audio?${params.toString()}`;
+}
+
+export function voiceRecordingDownloadUrl(guildId: string, botId: string, recordingId: string) {
+  const params = new URLSearchParams(botParams(botId));
+  return `${API_URL}/voice-recorder/${encodeURIComponent(guildId)}/recordings/${encodeURIComponent(recordingId)}/download?${params.toString()}`;
 }
 
 export async function getSelfBotProtection(guildId: string, botId: string) {

@@ -120,12 +120,12 @@ export const SELF_BOT_PROTECTION_MODULES: Array<{
 }> = [
   { id: "anti-spam", label: "Anti Spam" },
   { id: "anti-flood", label: "Anti Flood" },
-  { id: "anti-imagens", label: "Anti Imagens" },
+  { id: "anti-imagens", label: "Anti-Spam de Imagens" },
   { id: "anti-gif", label: "Anti GIF" },
   { id: "anti-mencoes", label: "Anti Mencoes" },
   { id: "anti-emojis", label: "Anti Emojis" },
   { id: "anti-convites", label: "Anti Convites" },
-  { id: "anti-links", label: "Anti Links" },
+  { id: "anti-links", label: "Anti-Flood de Links" },
   { id: "anti-scam", label: "Anti Scam" },
   { id: "anti-raid", label: "Anti Raid" },
   { id: "anti-caps-lock", label: "Anti Caps Lock" },
@@ -191,7 +191,7 @@ export function defaultSelfBotProtectionSettings(guildId: string, botId: string)
     botId,
     guildId,
     enabled: false,
-    moduleToggles: emptyModuleToggles(),
+    moduleToggles: defaultSafeBotModuleToggles(),
     ignoredChannelIds: [],
     protectedChannelIds: [],
     mediaChannelIds: [],
@@ -199,14 +199,14 @@ export function defaultSelfBotProtectionSettings(guildId: string, botId: string)
     logChannelId: null,
     logWebhookUrl: null,
     embedColor: DEFAULT_EMBED_COLOR,
-    punishmentSequence: ["delete_message", "warn", "log", "add_role", "timeout"] as SelfBotPunishmentAction[],
+    punishmentSequence: ["delete_message", "log", "ban"] as SelfBotPunishmentAction[],
     addRoleId: null,
     removeRoleId: null,
     timeoutSeconds: 300,
     floodLimit: 5,
-    floodWindowSeconds: 7,
-    imageLimit: 2,
-    imageWindowSeconds: 30,
+    floodWindowSeconds: 10,
+    imageLimit: 3,
+    imageWindowSeconds: 15,
     mentionLimit: 5,
     emojiLimit: 12,
     capsMinLength: 12,
@@ -531,6 +531,23 @@ function emptyModuleToggles(): Record<SelfBotProtectionModuleId, boolean> {
   return Object.fromEntries(moduleIds.map((moduleId) => [moduleId, false])) as Record<SelfBotProtectionModuleId, boolean>;
 }
 
+function defaultSafeBotModuleToggles(): Record<SelfBotProtectionModuleId, boolean> {
+  return {
+    ...emptyModuleToggles(),
+    "anti-anexos": true,
+    "anti-auto-spam": true,
+    "anti-convites": true,
+    "anti-flood": true,
+    "anti-flood-multi-canais": true,
+    "anti-gif": true,
+    "anti-imagens": true,
+    "anti-links": true,
+    "anti-mencoes": true,
+    "anti-spam": true,
+    "anti-texto-repetido": true
+  };
+}
+
 function normalizeModuleToggles(value: Partial<Record<SelfBotProtectionModuleId, boolean>> | undefined) {
   const normalized = emptyModuleToggles();
 
@@ -545,7 +562,7 @@ function normalizeModuleToggles(value: Partial<Record<SelfBotProtectionModuleId,
 
 function normalizePunishmentSequence(value: readonly string[]) {
   const normalized = value.filter((action): action is SelfBotPunishmentAction => punishmentActionSet.has(action as SelfBotPunishmentAction));
-  return normalized.length ? [...new Set(normalized)] : ["delete_message", "warn", "log"] as SelfBotPunishmentAction[];
+  return normalized.length ? [...new Set(normalized)] : ["delete_message", "log", "ban"] as SelfBotPunishmentAction[];
 }
 
 function normalizeSnowflakes(values: string[]) {

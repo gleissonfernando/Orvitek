@@ -12,9 +12,9 @@ import {
   Gift,
   Globe2,
   Hash,
-  ImageOff,
   Loader2,
   LockKeyhole,
+  Mic2,
   Plug,
   Radio,
   ScrollText,
@@ -34,7 +34,7 @@ import { ClipsPanel } from "../components/clips/ClipsPanel";
 import { FacAbsencePanel } from "../components/fivem/FacAbsencePanel";
 import { GiveawayPanel } from "../components/giveaway/GiveawayPanel";
 import { SiteAccessPanel } from "../components/moderation/SiteAccessPanel";
-import { ImageAntiSpamPanel } from "../components/moderation/ImageAntiSpamPanel";
+import { VoiceRecorderPanel } from "../components/moderation/VoiceRecorderPanel";
 import { AccountAgeSecurityPanel } from "../components/security/AccountAgeSecurityPanel";
 import { SelfBotProtectionPanel } from "../components/security/SelfBotProtectionPanel";
 import { AutoRolesPanel } from "../components/roles/AutoRolesPanel";
@@ -54,7 +54,6 @@ import {
   getDashboardBySlug,
   getDashboardMe,
   getGuildSettings,
-  getImageAntiSpam,
   getKickNotifications,
   getLives,
   getLogs,
@@ -75,7 +74,6 @@ import type {
   DashboardMeGuild,
   DashboardMeResponse,
   GuildSettings,
-  ImageAntiSpamSettings,
   KickNotification,
   LiveEvent,
   LogEntry,
@@ -99,7 +97,6 @@ type BooleanSettingKey =
   | "moderationEnabled";
 
 type OverviewDetails = {
-  imageAntiSpamSettings: ImageAntiSpamSettings | null;
   selfBotProtectionSettings: SelfBotProtectionSettings | null;
   clipsConfig: ClipsConfig | null;
   kickClipsConfig: ClipsConfig | null;
@@ -131,7 +128,6 @@ const initialBotStatus: BotStatus = {
 };
 
 const emptyOverviewDetails: OverviewDetails = {
-  imageAntiSpamSettings: null,
   selfBotProtectionSettings: null,
   clipsConfig: null,
   kickClipsConfig: null,
@@ -193,6 +189,13 @@ const moduleCatalog: ModuleDefinition[] = [
     view: "moderation"
   },
   {
+    id: "voice-recorder",
+    title: "Voice Recorder",
+    description: "Grava canais de voz, salva arquivos MP3 e organiza historico na dashboard.",
+    icon: Mic2,
+    view: "voice-recorder"
+  },
+  {
     id: "safe-bot",
     title: "SelfBot Protection",
     description: "Centraliza protecao anti-spam, punicoes e logs do SelfBot.",
@@ -205,13 +208,6 @@ const moduleCatalog: ModuleDefinition[] = [
     description: "Remove contas Discord mais novas que o minimo permitido.",
     icon: ShieldAlert,
     view: "security"
-  },
-  {
-    id: "image-anti-spam",
-    title: "Anti-Spam de Imagens",
-    description: "Remove imagens excedentes e aplica advertencias progressivas.",
-    icon: ImageOff,
-    view: "image-anti-spam"
   },
   {
     id: "fivem-fac",
@@ -286,7 +282,7 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   "x-monitor": "x-monitor",
   logs: "logs",
   fivem: "fivem-fac",
-  "image-anti-spam": "image-anti-spam",
+  "voice-recorder": "voice-recorder",
   "self-bot-protection": "safe-bot",
   security: "account-age-security",
   moderation: "moderation"
@@ -466,14 +462,11 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
       liveModulesEnabled(enabledModules) ? getKickNotifications(selectedGuildId, activeBotId) : Promise.resolve(null),
       enabledModules.includes("clips") ? getClipsConfig(selectedGuildId, activeBotId) : Promise.resolve(null),
       enabledModules.includes("x-monitor") ? getXMonitor(selectedGuildId, activeBotId) : Promise.resolve(null),
-      enabledModules.includes("image-anti-spam") && activeBotId
-        ? getImageAntiSpam(selectedGuildId, activeBotId)
-        : Promise.resolve(null),
       enabledModules.includes("safe-bot") && activeBotId
         ? getSelfBotProtection(selectedGuildId, activeBotId)
         : Promise.resolve(null)
     ])
-      .then(([settingsResult, logsResult, livesResult, ticketsResult, liveResult, kickResult, clipsResult, xResult, antiSpamResult, selfBotResult]) => {
+      .then(([settingsResult, logsResult, livesResult, ticketsResult, liveResult, kickResult, clipsResult, xResult, selfBotResult]) => {
         if (!mounted) return;
 
         setSettings(settingsResult.status === "fulfilled" ? settingsResult.value : null);
@@ -481,9 +474,6 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
         setLives(livesResult.status === "fulfilled" ? livesResult.value : []);
         setTickets(ticketsResult.status === "fulfilled" ? ticketsResult.value : []);
         setOverviewDetails({
-          imageAntiSpamSettings: antiSpamResult.status === "fulfilled" && antiSpamResult.value
-            ? antiSpamResult.value.settings
-            : null,
           selfBotProtectionSettings: selfBotResult.status === "fulfilled" && selfBotResult.value
             ? selfBotResult.value.settings
             : null,
@@ -677,6 +667,13 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             settings={settings}
           />
         ) : null}
+        {activeView === "voice-recorder" ? (
+          <VoiceRecorderPanel
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "voice-recorder", canManageDashboard)}
+            guild={selectedGuild}
+          />
+        ) : null}
         {activeView === "self-bot-protection" ? (
           <SelfBotProtectionPanel
             bot={selectedBot}
@@ -686,6 +683,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             guild={selectedGuild}
             guilds={scopedDashboardGuilds}
             guildSettings={settings}
+            onGuildSettingsChange={setSettings}
             onSelectBot={handleSelectBot}
             onSelectGuild={(guildId) => void handleSelectGuild(guildId)}
           />
@@ -698,18 +696,6 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             loading={settingsLoading}
             onSettingsChange={setSettings}
             settings={settings}
-          />
-        ) : null}
-        {activeView === "image-anti-spam" ? (
-          <ImageAntiSpamPanel
-            bot={selectedBot}
-            botId={activeBotId}
-            bots={panelBots}
-            canManage={canManageModule(selectedBot, "image-anti-spam", canManageDashboard)}
-            guild={selectedGuild}
-            guilds={scopedDashboardGuilds}
-            onSelectBot={handleSelectBot}
-            onSelectGuild={(guildId) => void handleSelectGuild(guildId)}
           />
         ) : null}
         {activeView === "permissions" ? (
@@ -823,7 +809,7 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
   }
 
   if (bot.accessLevel === "premium") {
-    return ["live", "kick-integration", "clips", "giveaway", "network", "x-monitor", "image-anti-spam", "link-anti-spam", "account-age-security", "safe-bot", "fivem", "fivem-fac"].includes(moduleId);
+    return ["live", "kick-integration", "clips", "giveaway", "network", "x-monitor", "account-age-security", "safe-bot", "fivem", "fivem-fac"].includes(moduleId);
   }
 
   return false;
@@ -1426,6 +1412,14 @@ function moduleState(moduleId: string, settings: GuildSettings | null, details: 
     };
   }
 
+  if (moduleId === "voice-recorder") {
+    return {
+      active: true,
+      configured: true,
+      configuredText: "Disponivel"
+    };
+  }
+
   if (moduleId === "safe-bot") {
     const activeModules = details.selfBotProtectionSettings
       ? Object.values(details.selfBotProtectionSettings.moduleToggles).filter(Boolean).length
@@ -1435,14 +1429,6 @@ function moduleState(moduleId: string, settings: GuildSettings | null, details: 
       active: Boolean(details.selfBotProtectionSettings?.enabled),
       configured: Boolean(details.selfBotProtectionSettings?.logChannelId),
       configuredText: activeModules ? `${activeModules} modulo(s)` : "Falta modulo"
-    };
-  }
-
-  if (moduleId === "image-anti-spam") {
-    return {
-      active: Boolean(details.imageAntiSpamSettings?.enabled),
-      configured: Boolean(details.imageAntiSpamSettings?.logChannelId),
-      configuredText: details.imageAntiSpamSettings?.logChannelId ? "Canal configurado" : "Falta canal"
     };
   }
 
@@ -1545,7 +1531,7 @@ function friendlyLog(log: LogEntry) {
     "giveaway.ended": { badge: "Sorteio", title: "Sorteio encerrado" },
     "giveaway.winner": { badge: "Sorteio", title: "Ganhador sorteado" },
     "image_anti_spam.settings_updated": { badge: "Anti-Spam", title: "Anti-Spam de Imagens atualizado" },
-    "image_anti_spam.incident": { badge: "Anti-Spam", title: "Spam de imagens bloqueado" },
+    "image_anti_spam.incident": { badge: "Anti-Spam", title: "Spam de midias bloqueado" },
     "image_anti_spam.member_kicked": { badge: "Anti-Spam", title: "Membro expulso por spam de imagens" },
     "moderation.link_anti_spam": { badge: "Moderacao", title: "Link bloqueado por anti-flood" },
     "security.account_age.blocked": { badge: "Seguranca", title: "Entrada bloqueada por idade da conta" },

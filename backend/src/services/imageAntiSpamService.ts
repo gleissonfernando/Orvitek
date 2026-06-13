@@ -50,7 +50,11 @@ export type ImageAntiSpamIncidentDto = {
   userId: string;
   username: string | null;
   channelId: string;
+  channelIds: string[];
+  mediaTypes: string[];
+  messageIds: string[];
   removedImages: number;
+  removedMessages: number;
   warningCount: number;
   timeoutMs: number;
   action: MongoImageAntiSpamIncident["action"];
@@ -85,7 +89,11 @@ export type RecordImageAntiSpamIncidentInput = {
   userId: string;
   username?: string | null;
   channelId: string;
+  channelIds?: string[];
+  mediaTypes?: string[];
+  messageIds?: string[];
   removedImages: number;
+  removedMessages?: number;
 };
 
 export type RecordImageAntiSpamIncidentResult = {
@@ -214,6 +222,10 @@ export async function recordImageAntiSpamIncident(
   const { imageAntiSpamIncidents, imageAntiSpamUsers } = await getMongoCollections();
   const now = new Date();
   const incidentId = randomUUID();
+  const channelIds = normalizeSnowflakes(input.channelIds?.length ? input.channelIds : [input.channelId]);
+  const mediaTypes = normalizeMediaTypes(input.mediaTypes ?? []);
+  const messageIds = normalizeSnowflakes(input.messageIds ?? []);
+  const removedMessages = clampInteger(input.removedMessages ?? messageIds.length, 0, 100, 0);
   const baseIncident: MongoImageAntiSpamIncident = {
     _id: incidentId,
     botId: input.botId,
@@ -222,7 +234,11 @@ export async function recordImageAntiSpamIncident(
     userId: input.userId,
     username: normalizeText(input.username),
     channelId: input.channelId,
+    channelIds,
+    mediaTypes,
+    messageIds,
     removedImages: input.removedImages,
+    removedMessages,
     warningCount: 0,
     timeoutMs: 0,
     action: "none",
@@ -249,7 +265,19 @@ export async function recordImageAntiSpamIncident(
       },
       {
         $inc: {
-          removedImages: input.removedImages
+          removedImages: input.removedImages,
+          removedMessages
+        },
+        $addToSet: {
+          channelIds: {
+            $each: channelIds
+          },
+          mediaTypes: {
+            $each: mediaTypes
+          },
+          messageIds: {
+            $each: messageIds
+          }
         },
         $set: {
           channelId: input.channelId,
@@ -543,7 +571,11 @@ function toIncidentDto(incident: MongoImageAntiSpamIncident): ImageAntiSpamIncid
     userId: incident.userId,
     username: incident.username,
     channelId: incident.channelId,
+    channelIds: incident.channelIds?.length ? incident.channelIds : [incident.channelId],
+    mediaTypes: incident.mediaTypes ?? [],
+    messageIds: incident.messageIds ?? [],
     removedImages: incident.removedImages,
+    removedMessages: incident.removedMessages ?? (incident.removedImages > 0 ? 1 : 0),
     warningCount: incident.warningCount,
     timeoutMs: incident.timeoutMs,
     action: incident.action,
@@ -558,6 +590,11 @@ function toIncidentDto(incident: MongoImageAntiSpamIncident): ImageAntiSpamIncid
 
 function normalizeSnowflakes(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter((value) => /^\d{5,32}$/.test(value)))];
+}
+
+function normalizeMediaTypes(values: string[]) {
+  const allowed = new Set(["attachment", "embed", "gif", "image", "sticker"]);
+  return [...new Set(values.map((value) => value.trim().toLowerCase()).filter((value) => allowed.has(value)))];
 }
 
 function normalizeSnowflake(value: string | null | undefined) {

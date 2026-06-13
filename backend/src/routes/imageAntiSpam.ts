@@ -47,7 +47,11 @@ const incidentSchema = z.object({
   userId: snowflakeSchema,
   username: z.string().max(100).nullable().optional(),
   channelId: snowflakeSchema,
-  removedImages: z.number().int().min(0).max(100)
+  channelIds: z.array(snowflakeSchema).max(100).optional(),
+  mediaTypes: z.array(z.enum(["attachment", "embed", "gif", "image", "sticker"])).max(10).optional(),
+  messageIds: z.array(snowflakeSchema).max(100).optional(),
+  removedImages: z.number().int().min(0).max(1_000),
+  removedMessages: z.number().int().min(0).max(100).optional()
 });
 const completionSchema = z.object({
   actionSucceeded: z.boolean(),
@@ -78,10 +82,16 @@ imageAntiSpamRouter.post("/bot/incidents", requireBot, async (req, res, next) =>
 
     await assertBotModuleLicense(botId);
 
-    return res.status(201).json(await recordImageAntiSpamIncident({
+    const result = await recordImageAntiSpamIncident({
       ...input,
       botId
-    }));
+    });
+
+    if (result.duplicate) {
+      emitRealtime("image-anti-spam:incident", result.incident);
+    }
+
+    return res.status(201).json(result);
   } catch (error) {
     return next(error);
   }
@@ -104,19 +114,24 @@ imageAntiSpamRouter.patch("/bot/incidents/:incidentId", requireBot, async (req, 
         : "image_anti_spam.incident",
       message: incident.action === "kick"
         ? `Usuario ${incident.username ?? incident.userId} expulso por spam recorrente de imagens.`
-        : `${incident.removedImages} imagem(ns) removida(s) de ${incident.username ?? incident.userId}.`,
+        : `${incident.removedImages} midia(s) removida(s) de ${incident.username ?? incident.userId}.`,
       metadata: {
         action: incident.action,
         actionError: incident.actionError,
         actionSucceeded: incident.actionSucceeded,
         channelId: incident.channelId,
+        channelIds: incident.channelIds,
+        mediaTypes: incident.mediaTypes,
+        messageIds: incident.messageIds,
         reason: incident.reason,
         removedImages: incident.removedImages,
+        removedMessages: incident.removedMessages,
         timeoutMs: incident.timeoutMs,
         warningCount: incident.warningCount
       }
     });
 
+    emitRealtime("image-anti-spam:incident", incident);
     emitRealtime("logs:new", log);
 
     return res.json({
@@ -221,7 +236,7 @@ async function assertBotModuleLicense(botId: string) {
     throw createRouteError("Bot nao encontrado.", 404);
   }
 
-  if (!permissions.enabledModules.includes(MODULE_ID)) {
+  if (!(permissions.enabledModules as readonly string[]).includes(MODULE_ID)) {
     throw createRouteError("O Anti-Spam de Imagens nao foi liberado para este bot.", 403);
   }
 }

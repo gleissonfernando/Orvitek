@@ -542,7 +542,11 @@ export type MongoImageAntiSpamIncident = {
   userId: string;
   username: string | null;
   channelId: string;
+  channelIds?: string[];
+  mediaTypes?: string[];
+  messageIds?: string[];
   removedImages: number;
+  removedMessages?: number;
   warningCount: number;
   timeoutMs: number;
   action: "none" | "warning" | "timeout" | "kick";
@@ -550,6 +554,69 @@ export type MongoImageAntiSpamIncident = {
   actionError: string | null;
   reason: string;
   status: "pending" | "completed" | "failed";
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoVoiceRecorderStatus = "starting" | "recording" | "processing" | "completed" | "failed" | "deleted";
+
+export type MongoVoiceRecorderSettings = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  logChannelId: string | null;
+  allowedRoleIds: string[];
+  maxDurationMinutes: number;
+  retentionDays: number;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoVoiceRecordingParticipant = {
+  userId: string;
+  username: string | null;
+  joinedAt: Date;
+  leftAt: Date | null;
+  speakingMs: number;
+};
+
+export type MongoVoiceRecordingEvent = {
+  type: string;
+  userId: string | null;
+  username: string | null;
+  message: string;
+  createdAt: Date;
+  metadata?: Record<string, unknown>;
+};
+
+export type MongoVoiceRecording = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  guildName: string | null;
+  channelId: string;
+  channelName: string | null;
+  startedById: string;
+  startedByTag: string | null;
+  stoppedById: string | null;
+  stoppedByTag: string | null;
+  source: "discord" | "dashboard";
+  participants: MongoVoiceRecordingParticipant[];
+  events: MongoVoiceRecordingEvent[];
+  startedAt: Date;
+  endedAt: Date | null;
+  durationMs: number;
+  filePath: string | null;
+  fileName: string | null;
+  fileSize: number;
+  mimeType: string | null;
+  accessToken: string | null;
+  status: MongoVoiceRecorderStatus;
+  error: string | null;
+  deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -767,6 +834,8 @@ export async function getMongoCollections() {
     imageAntiSpamSettings: db.collection<MongoImageAntiSpamSettings>("image_anti_spam_settings"),
     imageAntiSpamUsers: db.collection<MongoImageAntiSpamUser>("image_anti_spam_users"),
     imageAntiSpamIncidents: db.collection<MongoImageAntiSpamIncident>("image_anti_spam_incidents"),
+    voiceRecorderSettings: db.collection<MongoVoiceRecorderSettings>("voice_recorder_settings"),
+    voiceRecordings: db.collection<MongoVoiceRecording>("voice_recordings"),
     selfBotProtectionSettings: db.collection<MongoSelfBotProtectionSettings>("self_bot_protection_settings"),
     selfBotProtectionIncidents: db.collection<MongoSelfBotProtectionIncident>("self_bot_protection_incidents"),
     devBots: db.collection<MongoDevBot>("Bot"),
@@ -832,6 +901,7 @@ async function createMongoIndexes(db: Db) {
     ensureGiveawayIndexes(db),
     ensureFivemFacIndexes(db),
     ensureImageAntiSpamIndexes(db),
+    ensureVoiceRecorderIndexes(db),
     ensureSelfBotProtectionIndexes(db),
     db.collection<MongoSocialNotification>("social_notifications").createIndex(
       {
@@ -1188,6 +1258,31 @@ async function ensureImageAntiSpamIndexes(db: Db) {
       guildId: 1,
       createdAt: -1
     })
+  ]);
+}
+
+async function ensureVoiceRecorderIndexes(db: Db) {
+  const settings = db.collection<MongoVoiceRecorderSettings>("voice_recorder_settings");
+  const recordings = db.collection<MongoVoiceRecording>("voice_recordings");
+
+  await Promise.all([
+    settings.createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    recordings.createIndex({ botId: 1, guildId: 1, startedAt: -1 }),
+    recordings.createIndex({ botId: 1, guildId: 1, status: 1, startedAt: -1 }),
+    recordings.createIndex({ botId: 1, guildId: 1, channelId: 1, startedAt: -1 }),
+    recordings.createIndex({ botId: 1, guildId: 1, startedById: 1, startedAt: -1 }),
+    recordings.createIndex(
+      { botId: 1, guildId: 1, status: 1 },
+      {
+        name: "voice_recordings_active_unique",
+        partialFilterExpression: {
+          status: {
+            $in: ["starting", "recording", "processing"]
+          }
+        },
+        unique: true
+      }
+    )
   ]);
 }
 

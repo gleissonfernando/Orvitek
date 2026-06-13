@@ -85,6 +85,25 @@ export type SelfBotProtectionSettingsEvent = {
   guildId: string;
 };
 
+export type VoiceRecorderStartEvent = {
+  actorId: string;
+  actorTag?: string | null;
+  botId?: string | null;
+  channelId: string;
+  guildId: string;
+  recordingId: string;
+  source: "dashboard";
+};
+
+export type VoiceRecorderStopEvent = {
+  actorId: string;
+  actorTag?: string | null;
+  botId?: string | null;
+  guildId: string;
+  recordingId: string;
+  source: "dashboard";
+};
+
 export class BotSocketClient {
   private socket: Socket | null = null;
   private socialPanelUpdateHandler: ((payload: SocialPanelUpdateEvent) => void) | null = null;
@@ -96,6 +115,8 @@ export class BotSocketClient {
   private giveawayPanelUpdateHandler: ((payload: GiveawayPanelUpdateEvent) => void) | null = null;
   private imageAntiSpamSettingsHandler: ((payload: ImageAntiSpamSettingsEvent) => void) | null = null;
   private selfBotProtectionSettingsHandler: ((payload: SelfBotProtectionSettingsEvent) => void) | null = null;
+  private voiceRecorderStartHandler: ((payload: VoiceRecorderStartEvent) => void) | null = null;
+  private voiceRecorderStopHandler: ((payload: VoiceRecorderStopEvent) => void) | null = null;
 
   connect(client: Client) {
     if (!env.BACKEND_SOCKET_URL) {
@@ -178,6 +199,14 @@ export class BotSocketClient {
 
     if (this.selfBotProtectionSettingsHandler) {
       this.socket.on("self-bot-protection:settings_updated", this.selfBotProtectionSettingsHandler);
+    }
+
+    if (this.voiceRecorderStartHandler) {
+      this.socket.on("voice-recorder:start", this.voiceRecorderStartHandler);
+    }
+
+    if (this.voiceRecorderStopHandler) {
+      this.socket.on("voice-recorder:stop", this.voiceRecorderStopHandler);
     }
   }
 
@@ -272,6 +301,18 @@ export class BotSocketClient {
     this.selfBotProtectionSettingsHandler = handler;
     this.socket?.off("self-bot-protection:settings_updated");
     this.socket?.on("self-bot-protection:settings_updated", handler);
+  }
+
+  onVoiceRecorderStart(handler: (payload: VoiceRecorderStartEvent) => void) {
+    this.voiceRecorderStartHandler = handler;
+    this.socket?.off("voice-recorder:start");
+    this.socket?.on("voice-recorder:start", handler);
+  }
+
+  onVoiceRecorderStop(handler: (payload: VoiceRecorderStopEvent) => void) {
+    this.voiceRecorderStopHandler = handler;
+    this.socket?.off("voice-recorder:stop");
+    this.socket?.on("voice-recorder:stop", handler);
   }
 
   disconnect(client: Client) {

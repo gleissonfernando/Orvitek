@@ -16,7 +16,8 @@ import {
 } from "./dashboardPermissionService";
 import { getDiscordAvatarUrl, getGuildIconUrl } from "./discordAssetService";
 import { fetchDiscordCurrentUserGuildMember, refreshDiscordTokens } from "./discordOAuthService";
-import { getPersistedDashboardAccess } from "./settingsService";
+import { getPersistedDashboardAccess, updateGuildSettings } from "./settingsService";
+import { saveSelfBotProtectionSettings } from "./selfBotProtectionService";
 import { createLog } from "./logService";
 import { getStoredDiscordTokens, updateStoredDiscordTokens } from "./userService";
 
@@ -37,9 +38,8 @@ export const DEV_MODULES = [
   { id: "roles", label: "Sistema de Cargos" },
   { id: "tickets", label: "Sistema de Tickets" },
   { id: "moderation", label: "Sistema de Moderacao" },
+  { id: "voice-recorder", label: "Voice Recorder" },
   { id: "safe-bot", label: "SelfBot Protection" },
-  { id: "image-anti-spam", label: "Anti-Spam de Imagens" },
-  { id: "link-anti-spam", label: "Anti-Flood de Links" },
   { id: "account-age-security", label: "Seguranca por Idade da Conta" },
   { id: "fivem", label: "FiveM" },
   { id: "fivem-fac", label: "FiveM - FAC Ausencia" },
@@ -47,6 +47,10 @@ export const DEV_MODULES = [
 ] as const;
 
 const DEV_MODULE_IDS = new Set(DEV_MODULES.map((module) => module.id));
+const LEGACY_MODULE_ALIASES: Record<string, (typeof DEV_MODULES)[number]["id"]> = {
+  "image-anti-spam": "safe-bot",
+  "link-anti-spam": "safe-bot"
+};
 
 type DiscordBotUser = {
   id: string;
@@ -844,11 +848,25 @@ export async function deleteDevBot(botId: string) {
 }
 
 export async function updateDevBotModules(botId: string, enabledModules: string[]) {
+  const { devBots } = await getMongoCollections();
+  const current = await devBots.findOne(
+    { _id: botId },
+    {
+      projection: {
+        enabledModules: 1
+      }
+    }
+  );
+  const hadSelfBot = sanitizeModules(current?.enabledModules ?? []).includes("safe-bot");
   const bot = await updateDevBot(botId, {
     enabledModules
   });
 
   if (bot) {
+    if (!hadSelfBot && bot.enabledModules.includes("safe-bot")) {
+      await enableSelfBotDefaults(bot);
+    }
+
     emitRealtime("dev:module_updated", {
       type: "MODULE_UPDATED",
       botId,
@@ -1336,7 +1354,25 @@ export async function getBotApiPermissions(botId: string) {
 }
 
 function sanitizeModules(modules: string[]) {
-  return [...new Set(modules.filter((module) => DEV_MODULE_IDS.has(module as (typeof DEV_MODULES)[number]["id"])))];
+  return [...new Set(
+    modules
+      .map((module) => LEGACY_MODULE_ALIASES[module] ?? module)
+      .filter((module): module is (typeof DEV_MODULES)[number]["id"] => DEV_MODULE_IDS.has(module as (typeof DEV_MODULES)[number]["id"]))
+  )];
+}
+
+async function enableSelfBotDefaults(bot: DevBotDto) {
+  const [settings, protection] = await Promise.all([
+    updateGuildSettings(bot.mainGuildId, {
+      safeBotEnabled: true
+    }, bot.id),
+    saveSelfBotProtectionSettings(bot.mainGuildId, bot.id, {
+      enabled: true
+    }, null)
+  ]);
+
+  emitRealtime("settings:updated", settings);
+  emitRealtime("self-bot-protection:settings_updated", protection);
 }
 
 function toDevBotDto(bot: MongoDevBot, guildIds: string[] = [bot.mainGuildId], accessLevel: DashboardAccessLevel = "admin"): DevBotDto {

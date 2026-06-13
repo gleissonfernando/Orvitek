@@ -6,8 +6,8 @@ import {
   Building2,
   Film,
   Gift,
-  ImageOff,
   LockKeyhole,
+  Mic2,
   Radio,
   ScrollText,
   Settings,
@@ -26,9 +26,9 @@ export type ViewId =
   | "giveaway"
   | "x-monitor"
   | "moderation"
+  | "voice-recorder"
   | "self-bot-protection"
   | "security"
-  | "image-anti-spam"
   | "permissions"
   | "logs"
   | "fivem"
@@ -50,9 +50,9 @@ const navItems: NavItem[] = [
   { id: "giveaway", label: "Sorteio", icon: Gift, moduleId: "giveaway" },
   { id: "x-monitor", label: "X Monitor", icon: AtSign, moduleId: "x-monitor" },
   { id: "moderation", label: "Moderacao", icon: Shield, moduleId: "moderation" },
+  { id: "voice-recorder", label: "Voice Recorder", icon: Mic2, moduleId: "voice-recorder" },
   { id: "self-bot-protection", label: "SelfBot Protection", icon: ShieldCheck, moduleId: "safe-bot" },
   { id: "security", label: "Seguranca", icon: ShieldAlert, moduleId: "account-age-security" },
-  { id: "image-anti-spam", label: "Anti-Spam de Imagens", icon: ImageOff, moduleId: "image-anti-spam" },
   { id: "permissions", label: "Permissoes", icon: LockKeyhole, moduleId: "verification" },
   { id: "logs", label: "Logs", icon: ScrollText, moduleId: "logs" },
   { id: "fivem", label: "FiveM", icon: Building2, moduleIds: ["fivem", "fivem-fac"] },

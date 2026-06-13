@@ -20,7 +20,8 @@
     "start:backend": "npm run dev:backend",
     "start:bot": "npm run dev:bot",
     "build": "npm run build --workspaces",
-    "typecheck": "npm run typecheck --workspaces"
+    "typecheck": "npm run typecheck --workspaces",
+    "validate:anti-spam": "node scripts/validate-anti-spam.cjs"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

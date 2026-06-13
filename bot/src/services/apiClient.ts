@@ -60,7 +60,11 @@ export type ImageAntiSpamIncident = {
   userId: string;
   username: string | null;
   channelId: string;
+  channelIds: string[];
+  mediaTypes: string[];
+  messageIds: string[];
   removedImages: number;
+  removedMessages: number;
   warningCount: number;
   timeoutMs: number;
   action: "none" | "warning" | "timeout" | "kick";
@@ -91,6 +95,68 @@ export type ImageAntiSpamIncidentResult = {
   incident: ImageAntiSpamIncident;
   settings: ImageAntiSpamSettings;
   user: ImageAntiSpamUser;
+};
+
+export type VoiceRecorderSettings = {
+  id: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  logChannelId: string | null;
+  allowedRoleIds: string[];
+  maxDurationMinutes: number;
+  retentionDays: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type VoiceRecordingStatus = "starting" | "recording" | "processing" | "completed" | "failed" | "deleted";
+
+export type VoiceRecording = {
+  id: string;
+  botId: string;
+  guildId: string;
+  guildName: string | null;
+  channelId: string;
+  channelName: string | null;
+  startedById: string;
+  startedByTag: string | null;
+  stoppedById: string | null;
+  stoppedByTag: string | null;
+  source: "discord" | "dashboard";
+  participants: Array<{
+    userId: string;
+    username: string | null;
+    joinedAt: string;
+    leftAt: string | null;
+    speakingMs: number;
+  }>;
+  events: Array<{
+    type: string;
+    userId: string | null;
+    username: string | null;
+    message: string;
+    createdAt: string;
+    metadata?: Record<string, unknown>;
+  }>;
+  startedAt: string;
+  endedAt: string | null;
+  durationMs: number;
+  fileName: string | null;
+  fileSize: number;
+  fileUrl: string | null;
+  downloadUrl: string | null;
+  mimeType: string | null;
+  status: VoiceRecordingStatus;
+  error: string | null;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type VoiceRecordingStartResult = {
+  recording: VoiceRecording;
+  settings: VoiceRecorderSettings;
 };
 
 export type SelfBotProtectionModuleId =
@@ -605,6 +671,29 @@ export class ApiClient {
     return data.settings;
   }
 
+  async syncSafeBotSetup(input: {
+    filterChannelId: string;
+    filterChannelName?: string | null;
+    guildId: string;
+    logChannelId: string;
+    logChannelName?: string | null;
+    roleId: string;
+    roleName?: string | null;
+  }) {
+    const { data } = await this.http.post<{ settings: GuildSettings }>(
+      `/settings/bot/${input.guildId}/safe-bot-setup`,
+      {
+        filterChannelId: input.filterChannelId,
+        filterChannelName: input.filterChannelName ?? undefined,
+        logChannelId: input.logChannelId,
+        logChannelName: input.logChannelName ?? undefined,
+        roleId: input.roleId,
+        roleName: input.roleName ?? undefined
+      }
+    );
+    return data.settings;
+  }
+
   async getImageAntiSpamSettings(guildId: string) {
     const { data } = await this.http.get<{ settings: ImageAntiSpamSettings }>(
       `/image-anti-spam/bot/${guildId}`
@@ -618,7 +707,11 @@ export class ApiClient {
     userId: string;
     username?: string | null;
     channelId: string;
+    channelIds?: string[];
+    mediaTypes?: string[];
+    messageIds?: string[];
     removedImages: number;
+    removedMessages?: number;
   }) {
     const { data } = await this.http.post<ImageAntiSpamIncidentResult>(
       "/image-anti-spam/bot/incidents",
@@ -639,6 +732,117 @@ export class ApiClient {
       input
     );
     return data.incident;
+  }
+
+  async getVoiceRecorderSettings(guildId: string) {
+    const { data } = await this.http.get<{ settings: VoiceRecorderSettings }>(
+      `/voice-recorder/bot/${guildId}/settings`
+    );
+    return data.settings;
+  }
+
+  async startVoiceRecording(input: {
+    actorId: string;
+    actorRoleIds: string[];
+    actorTag?: string | null;
+    channelId: string;
+    channelName?: string | null;
+    guildId: string;
+    guildName?: string | null;
+    source: "discord" | "dashboard";
+  }) {
+    const { data } = await this.http.post<VoiceRecordingStartResult>("/voice-recorder/bot/start", input, {
+      timeout: 12_000
+    });
+    return data;
+  }
+
+  async markVoiceRecordingStarted(recordingId: string, input: {
+    channelName?: string | null;
+    guildName?: string | null;
+  }) {
+    const { data } = await this.http.post<{ recording: VoiceRecording }>(
+      `/voice-recorder/bot/recordings/${recordingId}/started`,
+      input
+    );
+    return data.recording;
+  }
+
+  async stopVoiceRecording(input: {
+    actorId: string;
+    actorRoleIds: string[];
+    actorTag?: string | null;
+    guildId: string;
+    recordingId?: string | null;
+  }) {
+    const { data } = await this.http.post<{ recording: VoiceRecording }>("/voice-recorder/bot/stop", input, {
+      timeout: 12_000
+    });
+    return data.recording;
+  }
+
+  async markDashboardVoiceRecordingProcessing(recordingId: string, input: {
+    actorId: string;
+    actorTag?: string | null;
+    guildId: string;
+  }) {
+    const { data } = await this.http.post<{ recording: VoiceRecording }>(
+      `/voice-recorder/bot/recordings/${recordingId}/processing`,
+      input,
+      {
+        timeout: 12_000
+      }
+    );
+    return data.recording;
+  }
+
+  async completeVoiceRecording(recordingId: string, input: {
+    durationMs: number;
+    endedAt?: string | null;
+    filePath: string;
+    fileSize: number;
+    participants: Array<{
+      userId: string;
+      username?: string | null;
+      joinedAt: string;
+      leftAt?: string | null;
+      speakingMs?: number;
+    }>;
+  }) {
+    const { data } = await this.http.post<{ recording: VoiceRecording }>(
+      `/voice-recorder/bot/recordings/${recordingId}/complete`,
+      input,
+      {
+        timeout: 20_000
+      }
+    );
+    return data.recording;
+  }
+
+  async failVoiceRecording(recordingId: string, input: {
+    error: string;
+    guildId?: string | null;
+  }) {
+    const { data } = await this.http.post<{ recording: VoiceRecording | null }>(
+      `/voice-recorder/bot/recordings/${recordingId}/fail`,
+      input
+    );
+    return data.recording;
+  }
+
+  async recordVoiceRecordingEvent(recordingId: string, input: {
+    guildId: string;
+    message: string;
+    metadata?: Record<string, unknown>;
+    type: string;
+    userId?: string | null;
+    username?: string | null;
+  }) {
+    const { data } = await this.http.post<{ recording: VoiceRecording }>(
+      `/voice-recorder/bot/recordings/${recordingId}/events`,
+      input
+    );
+    return data.recording;
   }
 
   async getSelfBotProtectionSettings(guildId: string) {

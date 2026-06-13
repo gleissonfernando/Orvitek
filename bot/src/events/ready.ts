@@ -6,10 +6,11 @@ import { startFivemFacService } from "../services/fivemFacService";
 import { startGiveawayService } from "../services/giveawayService";
 import { startImageAntiSpamService } from "../services/imageAntiSpamService";
 import { startKickNotificationMonitor } from "../services/kickNotificationMonitor";
-import { ensureSelfBotRoles } from "../services/safeBotService";
+import { ensureSelfBotRoles, isSelfBotModuleEnabled } from "../services/safeBotService";
 import { startSelfBotProtectionService } from "../services/selfBotProtectionService";
 import { startSocialNetworkPanelSync } from "../services/socialNetworkPanelService";
 import { startSocialNotificationMonitor } from "../services/socialNotificationMonitor";
+import { startVoiceRecorderService } from "../services/voiceRecorderService";
 import { startXMonitor } from "../services/xMonitor";
 import type { BotContext } from "../types";
 
@@ -51,8 +52,11 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   if (isBotModuleEnabled("fivem-fac")) {
     startFivemFacService(client, context);
   }
-  if (isBotModuleEnabled("image-anti-spam")) {
+  if (isBotModuleEnabled("image-anti-spam") && !isSelfBotModuleEnabled()) {
     startImageAntiSpamService(context);
+  }
+  if (isBotModuleEnabled("voice-recorder")) {
+    startVoiceRecorderService(context);
   }
   startSelfBotProtectionService(context);
   await ensureSelfBotRoles(client, context);

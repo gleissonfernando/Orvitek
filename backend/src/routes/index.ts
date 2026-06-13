@@ -18,6 +18,7 @@ import { botLivesRouter, socialNotificationsRouter } from "./socialNotifications
 import { socialsRouter } from "./socials";
 import { ticketsRouter } from "./tickets";
 import { usersRouter } from "./users";
+import { voiceRecorderRouter } from "./voiceRecorder";
 import { xMonitorRouter } from "./xMonitor";
 import { xWebhookRouter } from "./xWebhook";
 
@@ -39,6 +40,7 @@ apiRouter.use("/users", usersRouter);
 apiRouter.use("/guilds", guildsRouter);
 apiRouter.use("/lives", livesRouter);
 apiRouter.use("/tickets", ticketsRouter);
+apiRouter.use("/voice-recorder", voiceRecorderRouter);
 apiRouter.use("/logs", logsRouter);
 apiRouter.use("/self-bot-protection", selfBotProtectionRouter);
 apiRouter.use("/settings", settingsRouter);

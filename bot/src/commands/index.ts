@@ -1,6 +1,7 @@
 import { Collection } from "discord.js";
 import { banCommand } from "./ban";
 import { clearCommand } from "./clear";
+import { gravarCommand } from "./gravar";
 import { pingCommand } from "./ping";
 import { ticketCommand } from "./ticket";
 import type { BotCommand } from "../types";
@@ -12,6 +13,7 @@ export function createCommandCollection() {
     pingCommand,
     banCommand,
     clearCommand,
+    gravarCommand,
     ticketCommand
   ].forEach((command) => {
     if (commands.has(command.data.name)) {
