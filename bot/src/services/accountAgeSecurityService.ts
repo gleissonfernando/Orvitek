@@ -1,6 +1,7 @@
 import { EmbedBuilder, type GuildMember } from "discord.js";
 import { isBotModuleEnabled } from "../config/env";
 import type { BotContext, GuildSettings } from "../types";
+import { getCachedGuildSettings } from "./guildSettingsCache";
 
 const MODULE_ID = "account-age-security";
 const DAY_MS = 86_400_000;
@@ -17,7 +18,7 @@ export async function enforceAccountAgeSecurity(context: BotContext, member: Gui
     return false;
   }
 
-  const settings = await context.api.getSettings(member.guild.id, member.client.user.id).catch((error) => {
+  const settings = await getCachedGuildSettings(context, member.guild.id, member.client.user.id).catch((error) => {
     console.warn("[account-age-security] nao foi possivel carregar configuracoes:", errorMessage(error));
     return null;
   });

@@ -544,6 +544,7 @@ export async function saveMissionToolsToken(guildId: string, botId: string, user
   }
 
   const now = new Date();
+  const validatedOwner = options.validateOwner === true;
   await missionToolsTokens.updateOne(
     {
       botId,
@@ -561,7 +562,7 @@ export async function saveMissionToolsToken(guildId: string, botId: string, user
         tokenUserId: tokenUser?.id ?? userId,
         tokenUsername: tokenUser?.username ?? options.username ?? null,
         invalidReason: null,
-        lastValidatedAt: now,
+        lastValidatedAt: validatedOwner ? now : null,
         lastAuthFailureAt: null,
         authFailureCount: 0,
         statusUpdatedAt: now,
@@ -588,13 +589,14 @@ export async function saveMissionToolsToken(guildId: string, botId: string, user
     guildId,
     type: "mission_tools.token_saved",
     userId,
-    message: "Token Mission Tools validado e salvo.",
+    message: validatedOwner ? "Token Mission Tools validado e salvo." : "Token Mission Tools salvo pelo painel.",
     metadata: {
       action: "token_saved",
       module: MODULE_ID,
       tokenLast4: tokenLast4(normalized),
       tokenStatus: "connected",
-      tokenUserId: tokenUser?.id ?? userId
+      tokenUserId: tokenUser?.id ?? userId,
+      validatedOwner
     }
   });
 
@@ -680,7 +682,7 @@ export async function markMissionToolsTokenAuthFailure(
   );
   const user = await saveMissionToolsUserPanel(guildId, botId, userId, {
     currentMission: tokenStatus === "expired" ? "Token expirado" : "Token invalido",
-    missionDetail: "Reconecte o token pela dashboard para continuar.",
+    missionDetail: "Use Configurar Token no painel Mission Tools para continuar.",
     missionStatus: "error",
     richPresenceStatus: "inactive",
     voiceStatus: "disconnected"
@@ -1069,11 +1071,11 @@ function tokenStatusFromAuthFailure(statusCode: number | null, reason: string | 
 
 function tokenStatusReason(status: MongoMissionToolsTokenStatus) {
   if (status === "expired") {
-    return "Token expirado ou revogado. Reconecte pela dashboard.";
+    return "Token expirado ou revogado. Use Configurar Token no painel Mission Tools.";
   }
 
   if (status === "invalid") {
-    return "Token rejeitado pelo Discord. Substitua pela dashboard.";
+    return "Token rejeitado pelo Discord. Use Configurar Token no painel Mission Tools.";
   }
 
   return "Token desconectado.";

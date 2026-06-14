@@ -62,6 +62,12 @@ type PunishmentOutcome = {
   succeeded: boolean;
 };
 
+type SequencePunishmentOutcome = {
+  actions: SelfBotPunishmentAction[];
+  error: string | null;
+  succeeded: boolean;
+};
+
 const FILTER_WARNING_TITLE = "⚠️ Qualquer mensagem enviada nesta sala resultará automaticamente em punição.";
 const FILTER_WARNING_DESCRIPTION = "Sistema criado para identificar contas invadidas que realizam flood de links maliciosos, imagens e conteúdos automáticos, ajudando a impedir a divulgação de spam no servidor.";
 
@@ -266,13 +272,17 @@ async function processSafeBotMessage(message: Message, context: BotContext) {
       return false;
     }
 
-    await deleteMessages([message]);
-    const punishment = await punishMarkedUser(member, message, runtime, detected);
+    const punishment = await applyConfiguredPunishment(
+      member,
+      message,
+      runtime,
+      `SafeBot: ${detected.label} enviado por usuario marcado como Self Bot.`
+    );
     await Promise.allSettled([
       sendSelfBotDetectedLog(message, runtime, detected, punishment),
       recordSafeBotIncident(context, message, runtime, {
         actionError: punishment.error,
-        actions: ["delete_message", "log", punishment.action].filter((action) => action !== "none") as SelfBotPunishmentAction[],
+        actions: punishment.actions,
         details: "Usuario marcado com cargo Self Bot enviou conteudo bloqueado.",
         moduleId: detected.moduleId,
         punishmentSucceeded: punishment.succeeded,
@@ -287,16 +297,15 @@ async function processSafeBotMessage(message: Message, context: BotContext) {
       return false;
     }
 
-    await deleteMessages([message]);
-    const assigned = await applySelfBotRole(member, runtime.roleId);
+    const punishment = await applyFilterChannelPunishment(member, message, runtime);
     await Promise.allSettled([
-      sendFilterLog(message, runtime, assigned.error),
+      sendFilterLog(message, runtime, punishment),
       recordSafeBotIncident(context, message, runtime, {
-        actionError: assigned.error,
-        actions: ["delete_message", "add_role", "log"],
+        actionError: punishment.error,
+        actions: punishment.actions,
         details: "Mensagem enviada no canal de filtro. Cargo Self Bot aplicado.",
         moduleId: "anti-auto-spam",
-        punishmentSucceeded: assigned.succeeded,
+        punishmentSucceeded: punishment.succeeded,
         type: "Canal de filtro acionado"
       })
     ]);
@@ -310,16 +319,15 @@ async function processSafeBotMessage(message: Message, context: BotContext) {
       return false;
     }
 
-    await deleteMessages(flood.messages);
-    const assigned = await applySelfBotRole(member, runtime.roleId);
+    const punishment = await applyConfiguredPunishment(member, message, runtime, `SafeBot: ${flood.reason}`, flood.messages);
     await Promise.allSettled([
-      sendFloodLog(message, runtime, flood.reason, assigned.error),
+      sendFloodLog(message, runtime, flood.reason, punishment),
       recordSafeBotIncident(context, message, runtime, {
-        actionError: assigned.error,
-        actions: ["delete_message", "add_role", "log"],
+        actionError: punishment.error,
+        actions: punishment.actions,
         details: flood.reason,
         moduleId: flood.moduleId,
-        punishmentSucceeded: assigned.succeeded,
+        punishmentSucceeded: punishment.succeeded,
         type: flood.type
       })
     ]);
@@ -327,6 +335,171 @@ async function processSafeBotMessage(message: Message, context: BotContext) {
   }
 
   return false;
+}
+
+async function applyFilterChannelPunishment(
+  member: GuildMember,
+  message: Message,
+  runtime: SafeBotRuntime
+): Promise<SequencePunishmentOutcome> {
+  const actions: SelfBotPunishmentAction[] = [];
+  const errors: string[] = [];
+  const reason = "SafeBot: mensagem enviada no canal de filtro.";
+
+  try {
+    await deleteMessagesOrThrow([message]);
+    actions.push("delete_message");
+  } catch (error) {
+    errors.push(`delete_message: ${errorMessage(error)}`);
+  }
+
+  try {
+    const assigned = await applySelfBotRole(member, runtime.roleId);
+    if (!assigned.succeeded) {
+      throw new Error(assigned.error ?? "Nao foi possivel aplicar o cargo Self Bot.");
+    }
+    actions.push("add_role");
+  } catch (error) {
+    errors.push(`add_role: ${errorMessage(error)}`);
+  }
+
+  const configuredActions = runtime.protectionSettings?.punishmentSequence ?? [];
+
+  for (const action of configuredActions) {
+    if (action === "delete_message" || action === "add_role" || action === "log") {
+      continue;
+    }
+
+    try {
+      if (action === "warn") {
+        await member.send(reason).catch(() => undefined);
+        actions.push(action);
+      } else if (action === "remove_role") {
+        const roleId = runtime.protectionSettings?.removeRoleId;
+        if (!roleId) {
+          throw new Error("Nenhum cargo configurado para remover.");
+        }
+        await member.roles.remove(roleId, reason);
+        actions.push(action);
+      } else if (action === "timeout") {
+        if (!member.moderatable) {
+          throw new Error("O bot nao pode aplicar mute neste membro por falta de permissao ou hierarquia.");
+        }
+        await member.timeout((runtime.protectionSettings?.timeoutSeconds ?? 300) * 1_000, reason);
+        actions.push(action);
+      } else if (action === "kick") {
+        if (!member.kickable) {
+          throw new Error("O bot nao pode expulsar este membro por falta de permissao ou hierarquia.");
+        }
+        await member.kick(reason);
+        actions.push(action);
+        break;
+      } else if (action === "ban") {
+        if (!member.bannable) {
+          throw new Error("O bot nao pode banir este membro por falta de permissao ou hierarquia.");
+        }
+        await member.ban({
+          deleteMessageSeconds: 60 * 60,
+          reason
+        });
+        actions.push(action);
+        break;
+      }
+    } catch (error) {
+      errors.push(`${action}: ${errorMessage(error)}`);
+    }
+  }
+
+  actions.push("log");
+
+  return {
+    actions,
+    error: errors.length ? errors.join(" | ") : null,
+    succeeded: errors.length === 0
+  };
+}
+
+async function applyConfiguredPunishment(
+  member: GuildMember,
+  message: Message,
+  runtime: SafeBotRuntime,
+  reason: string,
+  messagesToDelete: Message[] = [message]
+): Promise<SequencePunishmentOutcome> {
+  const sequence = runtime.protectionSettings?.punishmentSequence?.length
+    ? runtime.protectionSettings.punishmentSequence
+    : ["delete_message", "add_role", "log"] as SelfBotPunishmentAction[];
+  const actions: SelfBotPunishmentAction[] = [];
+  const errors: string[] = [];
+
+  for (const action of sequence) {
+    try {
+      if (action === "delete_message") {
+        await deleteMessagesOrThrow(messagesToDelete);
+        actions.push(action);
+      } else if (action === "warn") {
+        await member.send(reason).catch(() => undefined);
+        actions.push(action);
+      } else if (action === "log") {
+        actions.push(action);
+      } else if (action === "add_role") {
+        const assigned = await applySelfBotRole(member, runtime.roleId);
+        if (!assigned.succeeded) {
+          throw new Error(assigned.error ?? "Nao foi possivel aplicar o cargo Self Bot.");
+        }
+        actions.push(action);
+      } else if (action === "remove_role") {
+        const roleId = runtime.protectionSettings?.removeRoleId;
+        if (!roleId) {
+          throw new Error("Nenhum cargo configurado para remover.");
+        }
+        await member.roles.remove(roleId, reason);
+        actions.push(action);
+      } else if (action === "timeout") {
+        if (!member.moderatable) {
+          throw new Error("O bot nao pode aplicar mute neste membro por falta de permissao ou hierarquia.");
+        }
+        await member.timeout((runtime.protectionSettings?.timeoutSeconds ?? 300) * 1_000, reason);
+        actions.push(action);
+      } else if (action === "kick") {
+        if (!member.kickable) {
+          throw new Error("O bot nao pode expulsar este membro por falta de permissao ou hierarquia.");
+        }
+        await member.kick(reason);
+        actions.push(action);
+        break;
+      } else if (action === "ban") {
+        if (!member.bannable) {
+          throw new Error("O bot nao pode banir este membro por falta de permissao ou hierarquia.");
+        }
+        await member.ban({
+          deleteMessageSeconds: 60 * 60,
+          reason
+        });
+        actions.push(action);
+        break;
+      }
+    } catch (error) {
+      errors.push(`${action}: ${errorMessage(error)}`);
+    }
+  }
+
+  return {
+    actions,
+    error: errors.length ? errors.join(" | ") : null,
+    succeeded: errors.length === 0
+  };
+}
+
+function primaryPunishmentAction(actions: SelfBotPunishmentAction[]): SelfBotPunishmentAction | "none" {
+  if (actions.includes("ban")) return "ban";
+  if (actions.includes("kick")) return "kick";
+  if (actions.includes("timeout")) return "timeout";
+  if (actions.includes("add_role")) return "add_role";
+  if (actions.includes("warn")) return "warn";
+  if (actions.includes("delete_message")) return "delete_message";
+  if (actions.includes("log")) return "log";
+  return "none";
 }
 
 async function getSafeBotRuntime(guild: Guild, context: BotContext) {
@@ -577,31 +750,55 @@ async function deleteMessages(messages: Message[]) {
   );
 }
 
-async function sendFilterLog(message: Message, runtime: SafeBotRuntime, error: string | null) {
+async function deleteMessagesOrThrow(messages: Message[]) {
+  const uniqueMessages = [...new Map(messages.map((message) => [message.id, message])).values()];
+  const results = await Promise.allSettled(uniqueMessages.map((message) => deleteMessageOrThrow(message)));
+  const errors = results
+    .map((result, index) => result.status === "rejected"
+      ? `${uniqueMessages[index]?.id ?? "mensagem"}: ${errorMessage(result.reason)}`
+      : null)
+    .filter((error): error is string => Boolean(error));
+
+  if (errors.length) {
+    throw new Error(errors.join(" | "));
+  }
+}
+
+async function deleteMessageOrThrow(message: Message) {
+  if (!message.deletable) {
+    throw new Error("O bot nao tem permissao para apagar esta mensagem.");
+  }
+
+  await message.delete();
+}
+
+async function sendFilterLog(message: Message, runtime: SafeBotRuntime, punishment: SequencePunishmentOutcome) {
   const embed = new EmbedBuilder()
-    .setColor(error ? 0xf59e0b : SELF_BOT_COLOR)
+    .setColor(punishment.error ? 0xf59e0b : SELF_BOT_COLOR)
     .setTitle("[SAFEBOT]")
     .setDescription([
       `**Usuario:** ${message.author.tag}`,
       `**ID:** \`${message.author.id}\``,
       `**Acao:** Mensagem enviada no canal de filtro.`,
-      error ? `**Erro:** ${error}` : "**Cargo Self Bot aplicado.**"
+      `**Punicao:** ${formatPunishmentActions(punishment.actions)}`,
+      punishment.error ? `**Erro:** ${punishment.error}` : "**Punicao executada.**"
     ].join("\n"))
     .setTimestamp(new Date());
 
   await sendLogEmbed(message.guild, runtime.logChannelId, embed);
 }
 
-async function sendFloodLog(message: Message, runtime: SafeBotRuntime, reason: string, error: string | null) {
+async function sendFloodLog(message: Message, runtime: SafeBotRuntime, reason: string, punishment: SequencePunishmentOutcome) {
   const embed = new EmbedBuilder()
-    .setColor(error ? 0xf59e0b : SELF_BOT_COLOR)
+    .setColor(punishment.error ? 0xf59e0b : SELF_BOT_COLOR)
     .setTitle("[SAFEBOT] Flood detectado")
     .setDescription([
       `**Usuario:** ${message.author.tag}`,
       `**ID:** \`${message.author.id}\``,
       `**Canal:** <#${message.channelId}>`,
       `**Motivo:** ${reason}`,
-      error ? `**Erro:** ${error}` : "**Cargo Self Bot aplicado.**"
+      `**Punicao:** ${formatPunishmentActions(punishment.actions)}`,
+      punishment.error ? `**Erro:** ${punishment.error}` : "**Punicao executada.**"
     ].join("\n"))
     .setTimestamp(new Date());
 
@@ -612,7 +809,7 @@ async function sendSelfBotDetectedLog(
   message: Message,
   runtime: SafeBotRuntime,
   detected: DetectedPayload,
-  punishment: PunishmentOutcome
+  punishment: SequencePunishmentOutcome
 ) {
   const embed = new EmbedBuilder()
     .setColor(punishment.succeeded ? 0xed4245 : 0xf59e0b)
@@ -623,7 +820,8 @@ async function sendSelfBotDetectedLog(
       `**Canal:** <#${message.channelId}>`,
       `**Tipo detectado:** ${detected.label}`,
       "**Conteudo removido.**",
-      `**Acao executada:** ${punishmentLabel(punishment.action)}`,
+      `**Acao executada:** ${punishmentLabel(primaryPunishmentAction(punishment.actions))}`,
+      `**Sequencia:** ${formatPunishmentActions(punishment.actions)}`,
       punishment.error ? `**Erro:** ${punishment.error}` : ""
     ].filter(Boolean).join("\n"))
     .setTimestamp(new Date());
@@ -933,7 +1131,17 @@ function punishmentLabel(action: SelfBotPunishmentAction | "none") {
   if (action === "kick") return "EXPULSAO AUTOMATICA";
   if (action === "timeout") return "MUTE AUTOMATICO";
   if (action === "warn") return "ADVERTENCIA";
+  if (action === "add_role") return "CARGO SELF BOT";
+  if (action === "delete_message") return "MENSAGEM REMOVIDA";
+  if (action === "remove_role") return "CARGO REMOVIDO";
+  if (action === "log") return "LOG";
   return "REGISTRO";
+}
+
+function formatPunishmentActions(actions: SelfBotPunishmentAction[]) {
+  return actions.length
+    ? actions.map((action) => punishmentLabel(action)).join(", ")
+    : "Nenhuma";
 }
 
 export function isSelfBotModuleEnabled() {

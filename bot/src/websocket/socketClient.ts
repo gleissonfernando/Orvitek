@@ -1,6 +1,7 @@
 import type { Client } from "discord.js";
 import { io, type Socket } from "socket.io-client";
 import { currentRuntimeBotId, env } from "../config/env";
+import type { GuildSettings } from "../types";
 
 export type SocialPanelUpdateEvent = {
   action: "publish" | "remove" | "update";
@@ -103,6 +104,8 @@ export type SelfBotProtectionSettingsEvent = {
   guildId: string;
 };
 
+export type SettingsUpdatedEvent = GuildSettings;
+
 export type DevModuleUpdatedEvent = {
   botId: string;
   enabledModules: string[];
@@ -141,6 +144,7 @@ export class BotSocketClient {
   private giveawayPanelUpdateHandler: ((payload: GiveawayPanelUpdateEvent) => void) | null = null;
   private imageAntiSpamSettingsHandler: ((payload: ImageAntiSpamSettingsEvent) => void) | null = null;
   private selfBotProtectionSettingsHandler: ((payload: SelfBotProtectionSettingsEvent) => void) | null = null;
+  private settingsUpdatedHandler: ((payload: SettingsUpdatedEvent) => void) | null = null;
   private devModuleUpdatedHandler: ((payload: DevModuleUpdatedEvent) => void) | null = null;
   private voiceRecorderStartHandler: ((payload: VoiceRecorderStartEvent) => void) | null = null;
   private voiceRecorderStopHandler: ((payload: VoiceRecorderStopEvent) => void) | null = null;
@@ -240,6 +244,10 @@ export class BotSocketClient {
 
     if (this.selfBotProtectionSettingsHandler) {
       this.socket.on("self-bot-protection:settings_updated", this.selfBotProtectionSettingsHandler);
+    }
+
+    if (this.settingsUpdatedHandler) {
+      this.socket.on("settings:updated", this.settingsUpdatedHandler);
     }
 
     if (this.devModuleUpdatedHandler) {
@@ -364,6 +372,12 @@ export class BotSocketClient {
     this.selfBotProtectionSettingsHandler = handler;
     this.socket?.off("self-bot-protection:settings_updated");
     this.socket?.on("self-bot-protection:settings_updated", handler);
+  }
+
+  onSettingsUpdated(handler: (payload: SettingsUpdatedEvent) => void) {
+    this.settingsUpdatedHandler = handler;
+    this.socket?.off("settings:updated");
+    this.socket?.on("settings:updated", handler);
   }
 
   onDevModuleUpdated(handler: (payload: DevModuleUpdatedEvent) => void) {

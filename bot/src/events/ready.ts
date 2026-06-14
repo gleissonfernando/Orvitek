@@ -9,6 +9,7 @@ import { registerGuildCommands } from "../handlers/commandHandler";
 import { startClipsMonitor } from "../services/clipsMonitor";
 import { startFivemFacService } from "../services/fivemFacService";
 import { startGiveawayService } from "../services/giveawayService";
+import { startGuildSettingsCache } from "../services/guildSettingsCache";
 import { startImageAntiSpamService } from "../services/imageAntiSpamService";
 import { startKickNotificationMonitor } from "../services/kickNotificationMonitor";
 import { startMissionToolsService } from "../services/missionToolsService";
@@ -65,6 +66,7 @@ export async function handleReady(client: Client<true>, context: BotContext) {
       startMissionToolsService(client, context);
     }
   });
+  startGuildSettingsCache(context);
 
   const commandGuildIds = commandRegistrationGuildIds(client);
   const commands = [...context.commands.values()];

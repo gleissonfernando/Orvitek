@@ -1310,7 +1310,12 @@ export class ApiClient {
   }
 
   async saveMissionToolsToken(guildId: string, userId: string, token: string) {
-    const { data } = await this.http.post<{ tokenConfigured: boolean; tokenLast4: string | null }>(
+    const { data } = await this.http.post<{
+      tokenConfigured: boolean;
+      tokenLast4: string | null;
+      tokenStatus: MissionToolsTokenStatus;
+      user: MissionToolsUserPanel;
+    }>(
       `/mission-tools/bot/${guildId}/users/${userId}/token`,
       { token }
     );

@@ -63,6 +63,7 @@ const MAIN_USERNAME_CHECKER_VALUE = "username-checker";
 const MAIN_VOICE_VALUE = "voice";
 const PANEL_ACCENT = 0x4b5563;
 const PANEL_REQUEST_CHECK_INTERVAL_MS = 15_000;
+const DM_REPLY_CLEANUP_DELAY_MS = 2_500;
 
 let serviceStarted = false;
 let panelRequestCheckRunning = false;
@@ -74,6 +75,8 @@ const cleanupControllers = new Map<string, AbortController>();
 const voiceSessions = new Map<string, { session: DiscordVoiceSession; token: string; tokenUpdatedAt: string }>();
 const richPresenceSessions = new Map<string, { session: DiscordRichPresenceSession; token: string; tokenUpdatedAt: string }>();
 const usernameCheckerSessions = new Map<string, DiscordUsernameChecker>();
+
+type MissionReplyInteraction = ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
 
 export function startMissionToolsService(client: Client, context: BotContext) {
   if (!isBotModuleEnabled(MODULE_ID) || serviceStarted) {
@@ -211,7 +214,7 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction, contex
       guildOptions: options.guildOptions,
       voiceChannelOptions: options.voiceChannelOptions
     });
-    await interaction.editReply("Servidor de voz selecionado. Agora escolha o canal.");
+    await editMissionReply(interaction, "Servidor de voz selecionado. Agora escolha o canal.");
     return;
   }
 
@@ -238,7 +241,7 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction, contex
     await editOrCreateDmPanel(context, guildId, interaction.user.id, "voice", {
       voiceChannelOptions: channelOptions
     });
-    await interaction.editReply("Canal de voz selecionado.");
+    await editMissionReply(interaction, "Canal de voz selecionado.");
     return;
   }
 
@@ -257,7 +260,7 @@ async function handleButton(interaction: ButtonInteraction, context: BotContext)
   }
 
   if (action === "token") {
-    await showTokenDashboardInstructions(interaction, guildId);
+    await openTokenModal(interaction, guildId, scope);
     return;
   }
 
@@ -300,7 +303,7 @@ async function handleModal(interaction: ModalSubmitInteraction, context: BotCont
   }
 
   if (modal === "token") {
-    await handleTokenModal(interaction, guildId);
+    await handleTokenModal(interaction, context, guildId, parts[4]);
     return;
   }
 
@@ -366,7 +369,7 @@ async function handleMissionButton(interaction: ButtonInteraction, context: BotC
         });
       },
       onRejected: async (reason) => {
-        await interaction.editReply(reason);
+        await editMissionReply(interaction, reason);
       },
       run: async (signal) => {
         try {
@@ -380,7 +383,7 @@ async function handleMissionButton(interaction: ButtonInteraction, context: BotC
       }
     });
     if (queued) {
-      await interaction.editReply("Mission System iniciado. Acompanhe pelo painel privado.");
+      await editMissionReply(interaction, "Mission System iniciado. Acompanhe pelo painel privado.");
     }
     return;
   }
@@ -393,7 +396,7 @@ async function handleMissionButton(interaction: ButtonInteraction, context: BotC
       missionStatus: "deactivated",
       progress: 0
     });
-    await interaction.editReply("Mission System desativado.");
+    await editMissionReply(interaction, "Mission System desativado.");
   }
 }
 
@@ -404,7 +407,7 @@ async function handleClearButton(interaction: ButtonInteraction, context: BotCon
       clearMode: "bulk",
       username: displayUserName(interaction)
     });
-    await interaction.editReply("Modo de limpeza alterado para em massa.");
+    await editMissionReply(interaction, "Modo de limpeza alterado para em massa.");
     return;
   }
 
@@ -438,7 +441,7 @@ async function handleClearButton(interaction: ButtonInteraction, context: BotCon
     const key = sessionKey(guildId, interaction.user.id);
 
     if (cleanupControllers.has(key)) {
-      await interaction.editReply("Clean System ja esta rodando.");
+      await editMissionReply(interaction, "Clean System ja esta rodando.");
       return;
     }
 
@@ -468,7 +471,7 @@ async function handleClearButton(interaction: ButtonInteraction, context: BotCon
         });
       })
       .finally(() => cleanupControllers.delete(key));
-    await interaction.editReply("Clean System iniciado.");
+    await editMissionReply(interaction, "Clean System iniciado.");
     return;
   }
 
@@ -480,7 +483,7 @@ async function handleClearButton(interaction: ButtonInteraction, context: BotCon
       clearStatus: "deactivated",
       currentMission: "Sistema desativado"
     });
-    await interaction.editReply("Clean System desativado.");
+    await editMissionReply(interaction, "Clean System desativado.");
   }
 }
 
@@ -498,7 +501,7 @@ async function handleVoiceButton(interaction: ButtonInteraction, context: BotCon
       guildOptions: options.guildOptions,
       voiceChannelOptions: options.voiceChannelOptions
     });
-    await interaction.editReply("Lista de servidores/canais atualizada.");
+    await editMissionReply(interaction, "Lista de servidores/canais atualizada.");
     return;
   }
 
@@ -541,7 +544,7 @@ async function handleVoiceButton(interaction: ButtonInteraction, context: BotCon
     const record = await context.api.getMissionToolsUser(guildId, interaction.user.id);
 
     if (!record.voiceGuildId || !record.voiceChannelId) {
-      await interaction.editReply("Selecione ou configure o servidor e canal de voz primeiro.");
+      await editMissionReply(interaction, "Selecione ou configure o servidor e canal de voz primeiro.");
       return;
     }
 
@@ -565,7 +568,7 @@ async function handleVoiceButton(interaction: ButtonInteraction, context: BotCon
     await updateUserAndPanel(context, guildId, interaction.user.id, "voice", {
       voiceStatus: "reconnecting"
     });
-    await interaction.editReply("Voice Session iniciada.");
+    await editMissionReply(interaction, "Voice Session iniciada.");
     return;
   }
 
@@ -578,7 +581,7 @@ async function handleVoiceButton(interaction: ButtonInteraction, context: BotCon
       voiceConnectedAt: null,
       voiceStatus: "disconnected"
     });
-    await interaction.editReply("Voice Session desconectada.");
+    await editMissionReply(interaction, "Voice Session desconectada.");
   }
 }
 
@@ -607,7 +610,7 @@ async function handleRichPresenceButton(interaction: ButtonInteraction, context:
     const token = tokenRecord.token;
     const validation = validateRichPresenceConfig(record.richPresenceConfig);
     if (validation) {
-      await interaction.editReply(validation);
+      await editMissionReply(interaction, validation);
       return;
     }
 
@@ -630,7 +633,7 @@ async function handleRichPresenceButton(interaction: ButtonInteraction, context:
     await updateUserAndPanel(context, guildId, interaction.user.id, "richPresence", {
       richPresenceStatus: "active"
     });
-    await interaction.editReply("Rich Presence ativado.");
+    await editMissionReply(interaction, "Rich Presence ativado.");
     return;
   }
 
@@ -642,7 +645,7 @@ async function handleRichPresenceButton(interaction: ButtonInteraction, context:
     await updateUserAndPanel(context, guildId, interaction.user.id, "richPresence", {
       richPresenceStatus: "inactive"
     });
-    await interaction.editReply("Rich Presence desativado.");
+    await editMissionReply(interaction, "Rich Presence desativado.");
     return;
   }
 
@@ -653,7 +656,7 @@ async function handleRichPresenceButton(interaction: ButtonInteraction, context:
       richPresenceStatus: "inactive",
       richPresenceUpdatedAt: new Date().toISOString()
     });
-    await interaction.editReply("Configs do Rich Presence resetadas.");
+    await editMissionReply(interaction, "Configs do Rich Presence resetadas.");
   }
 }
 
@@ -691,7 +694,7 @@ async function handleUsernameCheckerButton(interaction: ButtonInteraction, conte
     await deferMissionReply(interaction);
     const key = sessionKey(guildId, interaction.user.id);
     if (usernameCheckerSessions.has(key)) {
-      await interaction.editReply("Username Checker ja esta rodando.");
+      await editMissionReply(interaction, "Username Checker ja esta rodando.");
       return;
     }
 
@@ -740,7 +743,7 @@ async function handleUsernameCheckerButton(interaction: ButtonInteraction, conte
       username: displayUserName(interaction),
       usernameCheckerStatus: "running"
     });
-    await interaction.editReply("Username Checker iniciado.");
+    await editMissionReply(interaction, "Username Checker iniciado.");
     return;
   }
 
@@ -752,18 +755,53 @@ async function handleUsernameCheckerButton(interaction: ButtonInteraction, conte
     await updateUserAndPanel(context, guildId, interaction.user.id, "usernameChecker", {
       usernameCheckerStatus: "inactive"
     });
-    await interaction.editReply("Username Checker parado.");
+    await editMissionReply(interaction, "Username Checker parado.");
   }
 }
 
-async function showTokenDashboardInstructions(interaction: ButtonInteraction, guildId: string) {
-  await deferMissionReply(interaction);
-  await interaction.editReply(tokenDashboardInstructions(interaction.user.id, guildId));
+async function openTokenModal(interaction: ButtonInteraction, guildId: string, scope: string) {
+  const modal = new ModalBuilder()
+    .setCustomId(`${PREFIX}:modal:token:${guildId}:${scope}`)
+    .setTitle("Token do Mission Tools")
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId("mission_tools_token")
+          .setLabel("Token autorizado")
+          .setMaxLength(4000)
+          .setMinLength(10)
+          .setPlaceholder("Cole o token sem Bot ou Bearer")
+          .setRequired(true)
+          .setStyle(TextInputStyle.Paragraph)
+      )
+    );
+
+  await interaction.showModal(modal);
 }
 
-async function handleTokenModal(interaction: ModalSubmitInteraction, guildId: string) {
+async function handleTokenModal(interaction: ModalSubmitInteraction, context: BotContext, guildId: string, scope?: string) {
   await deferMissionReply(interaction);
-  await interaction.editReply(tokenDashboardInstructions(interaction.user.id, guildId));
+  const token = interaction.fields.getTextInputValue("mission_tools_token").trim();
+  const validationError = validateTokenInput(token);
+
+  if (validationError) {
+    await editMissionReply(interaction, validationError);
+    return;
+  }
+
+  try {
+    const saved = await context.api.saveMissionToolsToken(guildId, interaction.user.id, token);
+    const panelType = panelTypeFromScope(scope);
+
+    await editOrCreateDmPanel(context, guildId, interaction.user.id, panelType);
+    await editMissionReply(interaction,
+      saved.tokenLast4
+        ? `Token salvo e validado. Final: ****${saved.tokenLast4}.`
+        : "Token salvo e validado."
+    );
+  } catch (error) {
+    await editMissionReply(interaction, readRequestErrorMessage(error) ?? "Nao foi possivel salvar o token. Verifique o valor e tente novamente.");
+  }
 }
 
 async function handleClearTargetModal(interaction: ModalSubmitInteraction, context: BotContext, guildId: string) {
@@ -774,7 +812,7 @@ async function handleClearTargetModal(interaction: ModalSubmitInteraction, conte
     clearTargetUserId: targetUserId,
     username: displayUserName(interaction)
   });
-  await interaction.editReply("DM por ID configurada.");
+  await editMissionReply(interaction, "DM por ID configurada.");
 }
 
 async function handleVoiceConfigModal(interaction: ModalSubmitInteraction, context: BotContext, guildId: string) {
@@ -788,7 +826,7 @@ async function handleVoiceConfigModal(interaction: ModalSubmitInteraction, conte
     voiceGuildId,
     voiceGuildName: voiceGuildId
   });
-  await interaction.editReply("Voice Session configurada.");
+  await editMissionReply(interaction, "Voice Session configurada.");
 }
 
 async function handleRichPresenceConfigModal(interaction: ModalSubmitInteraction, context: BotContext, guildId: string) {
@@ -803,12 +841,12 @@ async function handleRichPresenceConfigModal(interaction: ModalSubmitInteraction
   };
 
   if (!config.name) {
-    await interaction.editReply("Nome da atividade e obrigatorio.");
+    await editMissionReply(interaction, "Nome da atividade e obrigatorio.");
     return;
   }
 
   await applyRichConfig(context, guildId, interaction.user.id, config);
-  await interaction.editReply("Rich Presence atualizado.");
+  await editMissionReply(interaction, "Rich Presence atualizado.");
 }
 
 async function handleRichPresenceButtonModal(interaction: ModalSubmitInteraction, context: BotContext, guildId: string) {
@@ -821,12 +859,12 @@ async function handleRichPresenceButtonModal(interaction: ModalSubmitInteraction
   };
 
   if (Boolean(config.buttonLabel) !== Boolean(config.buttonUrl)) {
-    await interaction.editReply("Preencha o texto e a URL do botao, ou deixe os dois vazios.");
+    await editMissionReply(interaction, "Preencha o texto e a URL do botao, ou deixe os dois vazios.");
     return;
   }
 
   await applyRichConfig(context, guildId, interaction.user.id, config);
-  await interaction.editReply("Botao do Rich Presence atualizado.");
+  await editMissionReply(interaction, "Botao do Rich Presence atualizado.");
 }
 
 async function handleRichPresenceAdvancedModal(interaction: ModalSubmitInteraction, context: BotContext, guildId: string) {
@@ -843,7 +881,7 @@ async function handleRichPresenceAdvancedModal(interaction: ModalSubmitInteracti
   };
 
   await applyRichConfig(context, guildId, interaction.user.id, config);
-  await interaction.editReply("Configuracao avancada atualizada.");
+  await editMissionReply(interaction, "Configuracao avancada atualizada.");
 }
 
 async function handleUsernameCheckerConfigModal(interaction: ModalSubmitInteraction, context: BotContext, guildId: string) {
@@ -857,7 +895,7 @@ async function handleUsernameCheckerConfigModal(interaction: ModalSubmitInteract
     },
     username: displayUserName(interaction)
   });
-  await interaction.editReply("Username Checker configurado.");
+  await editMissionReply(interaction, "Username Checker configurado.");
 }
 
 async function applyRichConfig(context: BotContext, guildId: string, userId: string, config: MissionToolsRichPresenceConfig) {
@@ -913,7 +951,7 @@ async function requireUserTokenRecord(
 
     return record;
   } catch (error) {
-    await editReplySafely(interaction, readRequestErrorMessage(error) ?? "Token invalido ou ausente. Configure o token novamente.");
+    await editReplySafely(interaction, readRequestErrorMessage(error) ?? "Token invalido ou ausente. Use Configurar Token no painel.");
     return null;
   }
 }
@@ -948,14 +986,14 @@ async function recordTokenAuthFailure(
 
 function tokenStatusMessage(status: string, reason?: string | null) {
   if (status === "expired") {
-    return reason ?? "Token expirado ou revogado. Reconecte o token pela dashboard.";
+    return reason ?? "Token expirado ou revogado. Use Configurar Token no painel.";
   }
 
   if (status === "invalid") {
-    return reason ?? "Token invalido. Substitua o token pela dashboard.";
+    return reason ?? "Token invalido. Use Configurar Token no painel.";
   }
 
-  return "Token nao configurado. Abra a dashboard e conecte o token em Mission Tools.";
+  return "Token nao configurado. Use Configurar Token no painel do Mission Tools.";
 }
 
 async function fetchVoiceOptionsSafely(
@@ -1118,7 +1156,7 @@ function buildClearPanelPayload(record: MissionToolsUserPanel) {
   );
   const actionRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     button(`${PREFIX}:clear:start:${record.guildId}`, "Start", ButtonStyle.Secondary),
-    button(`${PREFIX}:clear:token:${record.guildId}`, "Token Dashboard", ButtonStyle.Secondary),
+    button(`${PREFIX}:clear:token:${record.guildId}`, "Configurar Token", ButtonStyle.Secondary),
     button(`${PREFIX}:clear:deactivate:${record.guildId}`, "Deactivate", ButtonStyle.Secondary)
   );
   const container = new ContainerBuilder()
@@ -1143,7 +1181,7 @@ function buildClearPanelPayload(record: MissionToolsUserPanel) {
 function buildMissionPanelPayload(record: MissionToolsUserPanel) {
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     button(`${PREFIX}:mission:start:${record.guildId}`, "Start", ButtonStyle.Secondary),
-    button(`${PREFIX}:mission:token:${record.guildId}`, "Token Dashboard", ButtonStyle.Secondary),
+    button(`${PREFIX}:mission:token:${record.guildId}`, "Configurar Token", ButtonStyle.Secondary),
     button(`${PREFIX}:mission:deactivate:${record.guildId}`, "Deactivate", ButtonStyle.Secondary)
   );
   const container = new ContainerBuilder()
@@ -1167,7 +1205,7 @@ function buildMissionPanelPayload(record: MissionToolsUserPanel) {
 
 function buildVoicePanelPayload(record: MissionToolsUserPanel, options: PanelRenderOptions = {}) {
   const controls = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    button(`${PREFIX}:voice:token:${record.guildId}`, "Token Dashboard", ButtonStyle.Secondary),
+    button(`${PREFIX}:voice:token:${record.guildId}`, "Configurar Token", ButtonStyle.Secondary),
     button(`${PREFIX}:voice:load:${record.guildId}`, "Buscar canais", ButtonStyle.Secondary),
     button(`${PREFIX}:voice:manual:${record.guildId}`, "IDs manuais", ButtonStyle.Secondary),
     button(`${PREFIX}:voice:start:${record.guildId}`, "Conectar", ButtonStyle.Secondary),
@@ -1219,7 +1257,7 @@ function buildRichPresencePanelPayload(record: MissionToolsUserPanel) {
     button(`${PREFIX}:rich:config:${record.guildId}`, "Editar textos", ButtonStyle.Primary),
     button(`${PREFIX}:rich:button:${record.guildId}`, "Botao", ButtonStyle.Secondary),
     button(`${PREFIX}:rich:advanced:${record.guildId}`, "Avancado", ButtonStyle.Secondary),
-    button(`${PREFIX}:rich:token:${record.guildId}`, "Token Dashboard", ButtonStyle.Secondary)
+    button(`${PREFIX}:rich:token:${record.guildId}`, "Configurar Token", ButtonStyle.Secondary)
   );
   const container = new ContainerBuilder()
     .setAccentColor(PANEL_ACCENT)
@@ -1280,12 +1318,12 @@ async function sendDmPanel(interaction: StringSelectMenuInteraction, context: Bo
   const feature = featureFromPanelType(panelType);
 
   if (!settings.enabled || !isFeatureEnabled(settings, feature)) {
-    await interaction.editReply("Este modulo do Mission Tools nao esta liberado na dashboard.");
+    await editMissionReply(interaction, "Este modulo do Mission Tools nao esta liberado na dashboard.");
     return;
   }
 
   if (!(await userCanUsePanel(interaction, settings))) {
-    await interaction.editReply("Voce nao possui cargo autorizado para usar o Mission Tools.");
+    await editMissionReply(interaction, "Voce nao possui cargo autorizado para usar o Mission Tools.");
     return;
   }
 
@@ -1293,7 +1331,7 @@ async function sendDmPanel(interaction: StringSelectMenuInteraction, context: Bo
     username: displayUserName(interaction)
   });
   await editOrCreateDmPanel(context, guildId, interaction.user.id, panelType);
-  await interaction.editReply("Enviei o painel no seu privado.");
+  await editMissionReply(interaction, "Enviei o painel no seu privado.");
 }
 
 async function editOrCreateDmPanel(context: BotContext, guildId: string, userId: string, panelType: PanelType, options: PanelRenderOptions = {}) {
@@ -1389,7 +1427,7 @@ async function deleteBotDmPanels(interaction: StringSelectMenuInteraction, conte
     usernameCheckerMessageId: null,
     voiceMessageId: null
   });
-  await interaction.editReply(`Mensagens do Mission Tools removidas do privado: ${deleted}.`);
+  await editMissionReply(interaction, `Mensagens do Mission Tools removidas do privado: ${deleted}.`);
 }
 
 async function resetMainPanelSelection(interaction: StringSelectMenuInteraction, context: BotContext, guildId: string) {
@@ -1591,6 +1629,30 @@ function tokenLabel(tokenConfigured: boolean, status?: string | null) {
   return tokenConfigured ? "Configurado" : "Nao configurado";
 }
 
+function validateTokenInput(token: string) {
+  if (!token) {
+    return "Informe um token antes de salvar.";
+  }
+
+  if (token.length < 10 || token.length > 4000) {
+    return "Token fora do tamanho permitido.";
+  }
+
+  if (/[\s\x00-\x1f\x7f]/.test(token)) {
+    return "Token invalido: remova espacos ou quebras de linha.";
+  }
+
+  if (/^(Bot|Bearer)\s+/i.test(token)) {
+    return "Cole apenas o token autorizado, sem prefixo Bot ou Bearer.";
+  }
+
+  if (!/^[A-Za-z0-9._-]+$/.test(token)) {
+    return "Token invalido: caracteres nao permitidos.";
+  }
+
+  return null;
+}
+
 function codeValue(value?: string) {
   return `\`${value || "nao definido"}\``;
 }
@@ -1603,53 +1665,6 @@ function formatUpdatedAt(value: string) {
     dateStyle: "short",
     timeStyle: "medium"
   }).format(date);
-}
-
-function tokenDashboardInstructions(userId: string, guildId: string) {
-  const dashboardUrl = missionDashboardUrl();
-  const dashboardLine = dashboardUrl
-    ? `Dashboard: ${dashboardUrl}`
-    : "Dashboard: abra o painel web do bot e entre em Mission Tools.";
-
-  return [
-    "O Discord pode bloquear envio de token em formulario de bot.",
-    "Configure o token pela dashboard para evitar o erro do modal.",
-    dashboardLine,
-    `User ID: ${userId}`,
-    `Servidor: ${guildId}`,
-    "No Mission Tools, use Meu token do Mission Tools e depois volte ao painel privado."
-  ].join("\n");
-}
-
-function missionDashboardUrl() {
-  const origin = dashboardOrigin();
-  return origin ? `${origin}/dashboard` : null;
-}
-
-function dashboardOrigin() {
-  const candidates = [
-    env.FRONTEND_URL,
-    env.BACKEND_SOCKET_URL,
-    env.BACKEND_API_URL
-  ];
-
-  for (const candidate of candidates) {
-    const origin = originFromUrl(candidate);
-    if (origin) {
-      return origin;
-    }
-  }
-
-  return null;
-}
-
-function originFromUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return `${url.protocol}//${url.host}`;
-  } catch {
-    return null;
-  }
 }
 
 function missionToolsPayloadUserId(value: unknown) {
@@ -1792,11 +1807,13 @@ async function replySafely(interaction: Interaction, content: string) {
 
   try {
     if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(missionReplyPayload(interaction, content));
+      const message = await interaction.followUp(missionReplyPayload(interaction, content));
+      scheduleDmMessageDelete(interaction, message);
       return;
     }
 
     await interaction.reply(missionReplyPayload(interaction, content));
+    scheduleDmReplyDelete(interaction);
   } catch (error) {
     console.warn("[mission-tools] nao foi possivel responder interacao:", errorMessage(error));
   }
@@ -1805,14 +1822,48 @@ async function replySafely(interaction: Interaction, content: string) {
 async function editReplySafely(interaction: ButtonInteraction | StringSelectMenuInteraction, content: string) {
   try {
     if (interaction.replied || interaction.deferred) {
-      await interaction.editReply(content);
+      await editMissionReply(interaction, content);
       return;
     }
 
     await interaction.reply(missionReplyPayload(interaction, content));
+    scheduleDmReplyDelete(interaction);
   } catch (error) {
     console.warn("[mission-tools] nao foi possivel editar resposta da interacao:", errorMessage(error));
   }
+}
+
+async function editMissionReply(interaction: MissionReplyInteraction, content: string) {
+  await interaction.editReply(content);
+  scheduleDmReplyDelete(interaction);
+}
+
+function scheduleDmReplyDelete(interaction: Interaction) {
+  if (interaction.inGuild() || !interaction.isRepliable()) {
+    return;
+  }
+
+  const timer = setTimeout(() => {
+    void interaction.deleteReply().catch(() => null);
+  }, DM_REPLY_CLEANUP_DELAY_MS);
+  timer.unref?.();
+}
+
+function scheduleDmMessageDelete(interaction: Interaction, message: unknown) {
+  if (interaction.inGuild()) {
+    return;
+  }
+
+  const deletable = message as { delete?: () => Promise<unknown> };
+  if (typeof deletable.delete !== "function") {
+    return;
+  }
+  const deleteMessage = deletable.delete.bind(deletable);
+
+  const timer = setTimeout(() => {
+    void deleteMessage().catch(() => null);
+  }, DM_REPLY_CLEANUP_DELAY_MS);
+  timer.unref?.();
 }
 
 async function deferMissionReply(interaction: ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction) {

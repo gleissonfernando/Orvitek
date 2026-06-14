@@ -1,6 +1,7 @@
 import { EmbedBuilder, type GuildMember, type PartialGuildMember } from "discord.js";
 import { env } from "../config/env";
 import type { BotContext } from "../types";
+import { getCachedGuildSettings } from "./guildSettingsCache";
 
 const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=3";
 const DEFAULT_WELCOME_TITLE = "Ricardin98";
@@ -36,7 +37,7 @@ const DEFAULT_LEAVE_CHANNEL_LABEL = "Canal da comunidade:";
 const DEFAULT_LEAVE_FOOTER_TEXT = "Ricardinn98 - Comunidade de lives";
 
 export async function sendWelcomeMessage(context: BotContext, member: GuildMember) {
-  const settings = await context.api.getSettings(member.guild.id, member.client.user.id).catch(() => null);
+  const settings = await getCachedGuildSettings(context, member.guild.id, member.client.user.id).catch(() => null);
 
   if (!settings?.welcomeEnabled || !settings.welcomeChannelId) {
     return;
@@ -61,7 +62,7 @@ export async function sendWelcomeMessage(context: BotContext, member: GuildMembe
 }
 
 export async function sendLeaveMessage(context: BotContext, member: GuildMember | PartialGuildMember) {
-  const settings = await context.api.getSettings(member.guild.id, member.client.user.id).catch(() => null);
+  const settings = await getCachedGuildSettings(context, member.guild.id, member.client.user.id).catch(() => null);
 
   if (!settings?.leaveEnabled || !settings.leaveChannelId) {
     return;

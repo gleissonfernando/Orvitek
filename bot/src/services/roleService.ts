@@ -1,9 +1,10 @@
 import type { GuildMember, Role } from "discord.js";
 import type { BotContext } from "../types";
+import { getCachedGuildSettings } from "./guildSettingsCache";
 
 const MAX_AUTOMATIC_ROLES = 2;
 const ROLE_ASSIGNMENT_ATTEMPTS = 3;
-const ROLE_ASSIGNMENT_RETRY_MS = 1_500;
+const ROLE_ASSIGNMENT_RETRY_MS = 500;
 
 export async function applyAutomaticRoles(context: BotContext, member: GuildMember, includeBoosterRole = true) {
   if (member.user.bot) {
@@ -63,12 +64,6 @@ export async function applyAutomaticRoles(context: BotContext, member: GuildMemb
   for (let attempt = 1; attempt <= ROLE_ASSIGNMENT_ATTEMPTS; attempt += 1) {
     try {
       await member.roles.add(missingRoleIds, "Cargos automaticos via dashboard");
-      const refreshedMember = await member.fetch();
-      const rolesStillMissing = missingRoleIds.filter((roleId) => !refreshedMember.roles.cache.has(roleId));
-
-      if (rolesStillMissing.length) {
-        throw new Error(`Discord nao confirmou os cargos: ${rolesStillMissing.join(", ")}.`);
-      }
 
       void writeRoleLog(context, member, settings.botId, "dashboard.roles.assigned", `${missingRoleIds.length} cargo(s) automatico(s) aplicado(s).`, {
         roleIds: missingRoleIds
@@ -99,7 +94,7 @@ async function loadSettings(context: BotContext, member: GuildMember) {
 
   for (let attempt = 1; attempt <= ROLE_ASSIGNMENT_ATTEMPTS; attempt += 1) {
     try {
-      return await context.api.getSettings(member.guild.id, member.client.user.id);
+      return await getCachedGuildSettings(context, member.guild.id, member.client.user.id);
     } catch (error) {
       lastError = error;
 
@@ -117,8 +112,17 @@ async function loadSettings(context: BotContext, member: GuildMember) {
 }
 
 async function resolveAssignableRoles(member: GuildMember, roleIds: string[]) {
-  await member.guild.members.fetchMe();
-  const availableRoles = await member.guild.roles.fetch();
+  if (!member.guild.members.me) {
+    await member.guild.members.fetchMe();
+  }
+
+  const missingFromCache = roleIds.filter((roleId) => !member.guild.roles.cache.has(roleId));
+
+  if (missingFromCache.length) {
+    await member.guild.roles.fetch();
+  }
+
+  const availableRoles = member.guild.roles.cache;
 
   return roleIds
     .map((roleId) => availableRoles.get(roleId))

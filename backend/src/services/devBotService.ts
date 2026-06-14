@@ -1906,6 +1906,10 @@ function resolveRuntimeReleaseModuleId(moduleId: string) {
     return moduleId;
   }
 
+  if (SELF_BOT_RUNTIME_MODULES.has(moduleId)) {
+    return "safe-bot";
+  }
+
   return RUNTIME_MODULE_RELEASE_ALIASES[moduleId] ?? null;
 }
 

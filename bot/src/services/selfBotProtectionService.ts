@@ -520,8 +520,10 @@ async function applyPunishment(input: {
   for (const action of input.settings.punishmentSequence) {
     try {
       if (action === "delete_message") {
-        await deleteSourceMessage(input.message);
-        actions.push(action);
+        if (input.message) {
+          await deleteSourceMessage(input.message);
+          actions.push(action);
+        }
       } else if (action === "warn") {
         await warnMember(input.member, input.message, input.violation.details);
         actions.push(action);
