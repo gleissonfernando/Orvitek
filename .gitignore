@@ -12,6 +12,7 @@ build
 coverage
 dev-logs
 logs
+.reference/
 .DS_Store
 npm-debug.log*
 yarn-debug.log*
