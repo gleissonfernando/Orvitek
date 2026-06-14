@@ -38,7 +38,6 @@ import {
   fetchDiscordVoiceChannelOptions,
   runDiscordDmCleanup,
   runMissionFlow,
-  validateDiscordToken,
   type CheckerStats,
   type DiscordGuildOption,
   type DiscordVoiceChannelOption,
@@ -244,7 +243,7 @@ async function handleButton(interaction: ButtonInteraction, context: BotContext)
   }
 
   if (action === "token") {
-    await openTokenModal(interaction, guildId, panelTypeFromScope(scope));
+    await showTokenDashboardInstructions(interaction, guildId);
     return;
   }
 
@@ -280,7 +279,6 @@ async function handleModal(interaction: ModalSubmitInteraction, context: BotCont
   const parts = interaction.customId.split(":");
   const modal = parts[2];
   const guildId = parts[3];
-  const panel = parts[4];
 
   if (!modal || !guildId) {
     await replySafely(interaction, "Formulario Mission Tools invalido.");
@@ -288,7 +286,7 @@ async function handleModal(interaction: ModalSubmitInteraction, context: BotCont
   }
 
   if (modal === "token") {
-    await handleTokenModal(interaction, context, guildId, panelTypeFromScope(panel ?? "mission"));
+    await handleTokenModal(interaction, guildId);
     return;
   }
 
@@ -723,49 +721,14 @@ async function handleUsernameCheckerButton(interaction: ButtonInteraction, conte
   }
 }
 
-async function openTokenModal(interaction: ButtonInteraction, guildId: string, panelType: PanelType) {
-  const titles: Record<PanelType, string> = {
-    clear: "Configure Clear Token",
-    mission: "Configure Mission Token",
-    richPresence: "Configure Rich Presence Token",
-    usernameChecker: "Configure Token",
-    voice: "Configure Voice Token"
-  };
-  const modal = new ModalBuilder()
-    .setCustomId(`${PREFIX}:modal:token:${guildId}:${scopeFromPanelType(panelType)}`)
-    .setTitle(titles[panelType])
-    .addComponents(
-      new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder()
-          .setCustomId("user_token")
-          .setLabel("Token autorizado")
-          .setMaxLength(2048)
-          .setMinLength(10)
-          .setPlaceholder("Cole o token autorizado.")
-          .setRequired(true)
-          .setStyle(TextInputStyle.Short)
-      )
-    );
-
-  await interaction.showModal(modal);
+async function showTokenDashboardInstructions(interaction: ButtonInteraction, guildId: string) {
+  await deferMissionReply(interaction);
+  await interaction.editReply(tokenDashboardInstructions(interaction.user.id, guildId));
 }
 
-async function handleTokenModal(interaction: ModalSubmitInteraction, context: BotContext, guildId: string, panelType: PanelType) {
+async function handleTokenModal(interaction: ModalSubmitInteraction, guildId: string) {
   await deferMissionReply(interaction);
-  const token = interaction.fields.getTextInputValue("user_token").trim();
-  const validation = await validateDiscordToken(token).catch(() => ({ valid: false }));
-
-  if (!validation.valid) {
-    await interaction.editReply("Token invalido ou expirado.");
-    return;
-  }
-
-  await context.api.saveMissionToolsToken(guildId, interaction.user.id, token);
-  await updateUserAndPanel(context, guildId, interaction.user.id, panelType, {
-    tokenConfigured: true,
-    username: displayUserName(interaction)
-  });
-  await interaction.editReply("Token configurado e salvo com protecao.");
+  await interaction.editReply(tokenDashboardInstructions(interaction.user.id, guildId));
 }
 
 async function handleClearTargetModal(interaction: ModalSubmitInteraction, context: BotContext, guildId: string) {
@@ -1039,7 +1002,7 @@ function buildClearPanelPayload(record: MissionToolsUserPanel) {
   );
   const actionRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     button(`${PREFIX}:clear:start:${record.guildId}`, "Start", ButtonStyle.Secondary),
-    button(`${PREFIX}:clear:token:${record.guildId}`, "Configure Token", ButtonStyle.Secondary),
+    button(`${PREFIX}:clear:token:${record.guildId}`, "Token Dashboard", ButtonStyle.Secondary),
     button(`${PREFIX}:clear:deactivate:${record.guildId}`, "Deactivate", ButtonStyle.Secondary)
   );
   const container = new ContainerBuilder()
@@ -1064,7 +1027,7 @@ function buildClearPanelPayload(record: MissionToolsUserPanel) {
 function buildMissionPanelPayload(record: MissionToolsUserPanel) {
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     button(`${PREFIX}:mission:start:${record.guildId}`, "Start", ButtonStyle.Secondary),
-    button(`${PREFIX}:mission:token:${record.guildId}`, "Configure Token", ButtonStyle.Secondary),
+    button(`${PREFIX}:mission:token:${record.guildId}`, "Token Dashboard", ButtonStyle.Secondary),
     button(`${PREFIX}:mission:deactivate:${record.guildId}`, "Deactivate", ButtonStyle.Secondary)
   );
   const container = new ContainerBuilder()
@@ -1088,7 +1051,7 @@ function buildMissionPanelPayload(record: MissionToolsUserPanel) {
 
 function buildVoicePanelPayload(record: MissionToolsUserPanel, options: PanelRenderOptions = {}) {
   const controls = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    button(`${PREFIX}:voice:token:${record.guildId}`, "Configurar Token", ButtonStyle.Secondary),
+    button(`${PREFIX}:voice:token:${record.guildId}`, "Token Dashboard", ButtonStyle.Secondary),
     button(`${PREFIX}:voice:load:${record.guildId}`, "Buscar canais", ButtonStyle.Secondary),
     button(`${PREFIX}:voice:manual:${record.guildId}`, "IDs manuais", ButtonStyle.Secondary),
     button(`${PREFIX}:voice:start:${record.guildId}`, "Conectar", ButtonStyle.Secondary),
@@ -1140,7 +1103,7 @@ function buildRichPresencePanelPayload(record: MissionToolsUserPanel) {
     button(`${PREFIX}:rich:config:${record.guildId}`, "Editar textos", ButtonStyle.Primary),
     button(`${PREFIX}:rich:button:${record.guildId}`, "Botao", ButtonStyle.Secondary),
     button(`${PREFIX}:rich:advanced:${record.guildId}`, "Avancado", ButtonStyle.Secondary),
-    button(`${PREFIX}:rich:token:${record.guildId}`, "Configurar Token", ButtonStyle.Secondary)
+    button(`${PREFIX}:rich:token:${record.guildId}`, "Token Dashboard", ButtonStyle.Secondary)
   );
   const container = new ContainerBuilder()
     .setAccentColor(PANEL_ACCENT)
@@ -1481,6 +1444,53 @@ function formatUpdatedAt(value: string) {
   }).format(date);
 }
 
+function tokenDashboardInstructions(userId: string, guildId: string) {
+  const dashboardUrl = missionDashboardUrl();
+  const dashboardLine = dashboardUrl
+    ? `Dashboard: ${dashboardUrl}`
+    : "Dashboard: abra o painel web do bot e entre em Mission Tools.";
+
+  return [
+    "O Discord pode bloquear envio de token em formulario de bot.",
+    "Configure o token pela dashboard para evitar o erro do modal.",
+    dashboardLine,
+    `User ID: ${userId}`,
+    `Servidor: ${guildId}`,
+    "No Mission Tools, use Adicionar token do usuario e depois volte ao painel privado."
+  ].join("\n");
+}
+
+function missionDashboardUrl() {
+  const origin = dashboardOrigin();
+  return origin ? `${origin}/dashboard` : null;
+}
+
+function dashboardOrigin() {
+  const candidates = [
+    env.FRONTEND_URL,
+    env.BACKEND_SOCKET_URL,
+    env.BACKEND_API_URL
+  ];
+
+  for (const candidate of candidates) {
+    const origin = originFromUrl(candidate);
+    if (origin) {
+      return origin;
+    }
+  }
+
+  return null;
+}
+
+function originFromUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return null;
+  }
+}
+
 function panelTypeFromMainValue(value: string | undefined): PanelType | null {
   if (value === MAIN_CLEAR_VALUE) return "clear";
   if (value === MAIN_MISSION_VALUE) return "mission";
@@ -1496,12 +1506,6 @@ function panelTypeFromScope(scope: string | undefined): PanelType {
   if (scope === "rich") return "richPresence";
   if (scope === "username") return "usernameChecker";
   return "mission";
-}
-
-function scopeFromPanelType(panelType: PanelType) {
-  if (panelType === "richPresence") return "rich";
-  if (panelType === "usernameChecker") return "username";
-  return panelType;
 }
 
 function featureFromPanelType(panelType: PanelType): MissionToolsFeatureId {

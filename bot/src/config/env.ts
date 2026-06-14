@@ -115,6 +115,7 @@ const envSchema = z
     DASHBOARD_GUILD_IDS: z.string().optional().default(""),
     BOT_MAIN_GUILD_ID: z.string().optional().default(""),
     BOT_COMMAND_GUILD_IDS: z.string().optional().default(""),
+    FRONTEND_URL: envUrl("FRONTEND_URL", productionFrontendUrl),
     BACKEND_API_URL: envUrl("BACKEND_API_URL", defaultBackendApiUrl),
     BACKEND_SOCKET_URL: envUrl("BACKEND_SOCKET_URL", defaultBackendUrl),
     BOT_API_TOKEN: z.string().default(""),
