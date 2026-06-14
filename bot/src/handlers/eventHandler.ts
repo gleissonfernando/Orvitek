@@ -16,6 +16,8 @@ import { handleVoiceRecorderVoiceStateUpdate } from "../services/voiceRecorderSe
 import type { BotContext } from "../types";
 
 export function registerEvents(client: Client, context: BotContext) {
+  const managedRuntimeBot = Boolean(env.DASHBOARD_BOT_ID.trim());
+
   client.once(Events.ClientReady, (readyClient) => void handleReady(readyClient, context));
   client.on(Events.InteractionCreate, (interaction) => void handleInteractionCreate(interaction, context));
   client.on(Events.UserUpdate, (_oldUser, newUser) => {
@@ -27,7 +29,7 @@ export function registerEvents(client: Client, context: BotContext) {
     void ensureSafeBotSetup(guild, context);
   });
 
-  if (env.BOT_MEMBER_EVENTS_ENABLED && ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security", "safe-bot"].some(isBotModuleEnabled)) {
+  if (env.BOT_MEMBER_EVENTS_ENABLED && (managedRuntimeBot || ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security", "safe-bot"].some(isBotModuleEnabled))) {
     client.on(Events.GuildMemberAdd, (member) => {
       void resolveMember(member).then((resolved) => {
         if (resolved) {
@@ -51,15 +53,15 @@ export function registerEvents(client: Client, context: BotContext) {
     client.on(Events.MessageDelete, (message) => void handleMessageDelete(message, context));
   }
 
-  if ((env.BOT_MESSAGE_LOGS_ENABLED && isBotModuleEnabled("logs")) || (isBotModuleEnabled("image-anti-spam") && !isSelfBotModuleEnabled())) {
+  if (managedRuntimeBot || (env.BOT_MESSAGE_LOGS_ENABLED && isBotModuleEnabled("logs")) || (isBotModuleEnabled("image-anti-spam") && !isSelfBotModuleEnabled())) {
     client.on(Events.MessageUpdate, (oldMessage, newMessage) => void handleMessageUpdate(oldMessage, newMessage, context));
   }
 
-  if (isBotModuleEnabled("image-anti-spam") || isLinkAntiSpamEnabled() || isSelfBotModuleEnabled()) {
+  if (managedRuntimeBot || isBotModuleEnabled("image-anti-spam") || isLinkAntiSpamEnabled() || isSelfBotModuleEnabled()) {
     client.on(Events.MessageCreate, (message) => void handleMessageCreate(message, context));
   }
 
-  if (isSelfBotModuleEnabled()) {
+  if (managedRuntimeBot || isSelfBotModuleEnabled()) {
     client.on(Events.ChannelDelete, (channel) => {
       if ("guild" in channel) {
         clearSafeBotSetupCache(channel.guild.id);
