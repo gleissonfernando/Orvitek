@@ -90,15 +90,6 @@ export async function ensureSafeBotSetup(guild: Guild, context: BotContext, know
     return null;
   });
 
-  const setupRequested = settings?.safeBotEnabled || protectionSettings?.enabled;
-  const setupAlreadySynced = Boolean(settings?.safeBotChannelId && settings.safeBotLogChannelId && settings.safeBotRoleId);
-  const shouldBootstrapReleasedModule = isDevBotMainGuild(guild.id) && !setupAlreadySynced;
-
-  if (!setupRequested && !shouldBootstrapReleasedModule) {
-    setupCache.delete(runtimeScopeKey(guild.id));
-    return null;
-  }
-
   const role = await findOrCreateSelfBotRole(guild);
   const filterChannel = await findOrCreateFilterChannel(guild);
   const logChannel = await findOrCreateLogChannel(guild);
@@ -178,26 +169,24 @@ export async function disableUnreleasedSafeBotChannels(client: Client<true>, con
       });
 
       if (!settings?.safeBotChannelId) {
+        const channelByName = await findTextChannel(guild, FILTER_CHANNEL_NAME);
+
+        if (!channelByName) {
+          return;
+        }
+
+        await disableFilterChannel(channelByName, guild.id);
         return;
       }
 
-      const channel = await guild.channels.fetch(settings.safeBotChannelId).catch(() => null);
+      const channel = await guild.channels.fetch(settings.safeBotChannelId).catch(() => null)
+        ?? await findTextChannel(guild, FILTER_CHANNEL_NAME);
 
       if (channel?.type !== ChannelType.GuildText) {
         return;
       }
 
-      await channel.permissionOverwrites.edit(
-        guild.roles.everyone,
-        {
-          SendMessages: false
-        },
-        {
-          reason: "Self Bot: modulo nao liberado para este bot"
-        }
-      ).catch((error) => {
-        console.warn(`[safe-bot] nao foi possivel desativar o canal em ${guild.id}:`, errorMessage(error));
-      });
+      await disableFilterChannel(channel, guild.id);
     })
   );
 }
@@ -260,6 +249,22 @@ async function processSafeBotMessage(message: Message, context: BotContext) {
     return false;
   }
 
+  if (message.channelId === runtime.filterChannelId) {
+    const punishment = await applyFilterChannelPunishment(member, message, runtime);
+    await Promise.allSettled([
+      sendFilterLog(message, runtime, punishment),
+      recordSafeBotIncident(context, message, runtime, {
+        actionError: punishment.error,
+        actions: punishment.actions,
+        details: "Mensagem enviada no canal de filtro. Cargo Self Bot aplicado.",
+        moduleId: "anti-auto-spam",
+        punishmentSucceeded: punishment.succeeded,
+        type: "Canal de filtro acionado"
+      })
+    ]);
+    return true;
+  }
+
   if (member.roles.cache.has(runtime.roleId)) {
     const detected = detectMarkedUserPayload(message);
 
@@ -287,22 +292,6 @@ async function processSafeBotMessage(message: Message, context: BotContext) {
         moduleId: detected.moduleId,
         punishmentSucceeded: punishment.succeeded,
         type: `Self Bot detectado: ${detected.label}`
-      })
-    ]);
-    return true;
-  }
-
-  if (message.channelId === runtime.filterChannelId) {
-    const punishment = await applyFilterChannelPunishment(member, message, runtime);
-    await Promise.allSettled([
-      sendFilterLog(message, runtime, punishment),
-      recordSafeBotIncident(context, message, runtime, {
-        actionError: punishment.error,
-        actions: punishment.actions,
-        details: "Mensagem enviada no canal de filtro. Cargo Self Bot aplicado.",
-        moduleId: "anti-auto-spam",
-        punishmentSucceeded: punishment.succeeded,
-        type: "Canal de filtro acionado"
       })
     ]);
     return true;
@@ -359,7 +348,9 @@ async function applyFilterChannelPunishment(
     errors.push(`add_role: ${errorMessage(error)}`);
   }
 
-  const configuredActions = runtime.protectionSettings?.punishmentSequence ?? [];
+  const configuredActions = runtime.protectionSettings?.enabled
+    ? runtime.protectionSettings.punishmentSequence
+    : [];
 
   for (const action of configuredActions) {
     if (action === "delete_message" || action === "add_role" || action === "log") {
@@ -982,6 +973,24 @@ async function findOrCreateLogChannel(guild: Guild) {
 async function findTextChannel(guild: Guild, name: string) {
   const channels = await guild.channels.fetch().catch(() => null);
   return channels?.find((channel) => channel?.type === ChannelType.GuildText && channel.name === name) ?? null;
+}
+
+async function disableFilterChannel(channel: Awaited<ReturnType<typeof findTextChannel>>, guildId: string) {
+  if (channel?.type !== ChannelType.GuildText) {
+    return;
+  }
+
+  await channel.permissionOverwrites.edit(
+    channel.guild.roles.everyone,
+    {
+      SendMessages: false
+    },
+    {
+      reason: "Self Bot: modulo nao liberado para este bot"
+    }
+  ).catch((error) => {
+    console.warn(`[safe-bot] nao foi possivel desativar o canal em ${guildId}:`, errorMessage(error));
+  });
 }
 
 function baseFilterOverwrites(guild: Guild) {

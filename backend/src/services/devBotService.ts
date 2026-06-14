@@ -1748,6 +1748,10 @@ async function isRuntimeModuleEnabled(input: {
     return false;
   }
 
+  if (input.releaseModuleId === "safe-bot" && input.moduleId === "safe-bot") {
+    return true;
+  }
+
   if (input.releaseModuleId === "safe-bot" || SELF_BOT_RUNTIME_MODULES.has(input.moduleId)) {
     const settings = await getSelfBotProtectionSettings(input.guildId, input.botId);
 

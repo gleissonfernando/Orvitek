@@ -9,6 +9,7 @@ function read(relativePath) {
 
 const files = {
   apiClient: read("bot/src/services/apiClient.ts"),
+  devBotService: read("backend/src/services/devBotService.ts"),
   eventHandler: read("bot/src/handlers/eventHandler.ts"),
   imageBot: read("bot/src/services/imageAntiSpamService.ts"),
   linkBot: read("bot/src/services/linkAntiSpamService.ts"),
@@ -16,6 +17,7 @@ const files = {
   messageUpdate: read("bot/src/events/messageUpdate.ts"),
   mongo: read("backend/src/database/mongo.ts"),
   route: read("backend/src/routes/imageAntiSpam.ts"),
+  safeBot: read("bot/src/services/safeBotService.ts"),
   selfBot: read("bot/src/services/selfBotProtectionService.ts"),
   service: read("backend/src/services/imageAntiSpamService.ts"),
   panel: read("frontend/src/components/moderation/ImageAntiSpamPanel.tsx")
@@ -32,7 +34,8 @@ const checks = [
   ["Logs e auditoria", files.route + files.selfBot, ["createLog", "logs:new", "sendLog", "punishmentSucceeded", "removedMessages"]],
   ["Persistencia Mongo", files.mongo + files.service, ["image_anti_spam_settings", "image_anti_spam_incidents", "channelIds", "mediaTypes", "messageIds"]],
   ["Dashboard realtime", files.panel + files.route, ["image-anti-spam:settings_updated", "image-anti-spam:incident", "Canal de logs e punicoes"]],
-  ["Cache e sincronizacao bot", files.imageBot + files.apiClient, ["settingsCache.delete", "onImageAntiSpamSettingsUpdated", "getImageAntiSpamSettings"]]
+  ["Cache e sincronizacao bot", files.imageBot + files.apiClient, ["settingsCache.delete", "onImageAntiSpamSettingsUpdated", "getImageAntiSpamSettings"]],
+  ["SafeBot filter liberado", files.safeBot + files.devBotService, ["shouldCheckSelfBotRuntime", "disableFilterChannel", "input.releaseModuleId === \"safe-bot\" && input.moduleId === \"safe-bot\""]]
 ];
 
 const failures = [];
@@ -45,6 +48,18 @@ for (const [name, content, required] of checks) {
   } else {
     console.log(`[ok] ${name}`);
   }
+}
+
+const filterIndex = files.safeBot.indexOf("if (message.channelId === runtime.filterChannelId)");
+const markedRoleIndex = files.safeBot.indexOf("if (member.roles.cache.has(runtime.roleId))");
+
+if (filterIndex === -1 || markedRoleIndex === -1 || filterIndex > markedRoleIndex) {
+  failures.push({
+    name: "Prioridade do canal filter",
+    missing: ["filter antes de usuario marcado"]
+  });
+} else {
+  console.log("[ok] Prioridade do canal filter");
 }
 
 if (failures.length) {
