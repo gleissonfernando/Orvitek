@@ -146,6 +146,7 @@ const enabledModules = new Set(
     .filter(Boolean)
 );
 let runtimeEnabledModules: Set<string> | null = null;
+let runtimeBotId = env.DASHBOARD_BOT_ID.trim() || null;
 
 export function isBotModuleEnabled(moduleId: string) {
   const modules = runtimeEnabledModules ?? enabledModules;
@@ -161,8 +162,16 @@ export function configuredBotModules() {
   return [...enabledModules];
 }
 
-export function setRuntimeEnabledModules(moduleIds: string[]) {
+export function currentRuntimeBotId() {
+  return runtimeBotId;
+}
+
+export function setRuntimeEnabledModules(moduleIds: string[], botId?: string | null) {
   runtimeEnabledModules = new Set(moduleIds.map((moduleId) => moduleId.trim()).filter(Boolean));
+
+  if (botId?.trim()) {
+    runtimeBotId = botId.trim();
+  }
 }
 
 if (env.NODE_ENV === "production") {

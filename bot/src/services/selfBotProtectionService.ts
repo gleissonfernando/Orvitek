@@ -14,6 +14,7 @@ import type {
   SelfBotPunishmentAction
 } from "./apiClient";
 import { clearSafeBotSetupCache, ensureSafeBotSetup, ensureSelfBotRole, isSelfBotModuleEnabled } from "./safeBotService";
+import { clearRuntimeModuleAuthorization, isRuntimeModuleAuthorized, runtimeScopeKey } from "./runtimeModuleGuard";
 
 type CachedSettings = {
   expiresAt: number;
@@ -46,6 +47,7 @@ type PunishmentResult = {
 };
 
 const SETTINGS_CACHE_MS = 30_000;
+const MODULE_ID = "safe-bot";
 const settingsCache = new Map<string, CachedSettings>();
 const messageHistory = new Map<string, MessageHistoryEntry[]>();
 const attachmentHistory = new Map<string, AttachmentHistoryEntry[]>();
@@ -72,7 +74,8 @@ export function startSelfBotProtectionService(context: BotContext) {
       return;
     }
 
-    settingsCache.delete(payload.guildId);
+    clearRuntimeModuleAuthorization(payload.guildId);
+    settingsCache.delete(runtimeScopeKey(payload.guildId));
     clearSafeBotSetupCache(payload.guildId);
     clearGuildWindows(payload.guildId);
 
@@ -88,7 +91,11 @@ export async function handleSelfBotProtectionMessage(message: Message, context: 
     return false;
   }
 
-  const key = `${message.guild.id}:${message.author.id}`;
+  if (!(await isRuntimeModuleAuthorized(context, message.guild.id, MODULE_ID))) {
+    return false;
+  }
+
+  const key = runtimeScopeKey(message.guild.id, message.author.id);
   const previous = processingQueues.get(key) ?? Promise.resolve(false);
   const next = previous
     .catch(() => false)
@@ -109,6 +116,10 @@ export async function handleSelfBotProtectionMessage(message: Message, context: 
 
 export async function handleSelfBotProtectionMemberAdd(member: GuildMember, context: BotContext) {
   if (!isSelfBotModuleEnabled()) {
+    return false;
+  }
+
+  if (!(await isRuntimeModuleAuthorized(context, member.guild.id, MODULE_ID))) {
     return false;
   }
 
@@ -147,7 +158,7 @@ export async function handleSelfBotProtectionMemberAdd(member: GuildMember, cont
   }
 
   if (isModuleEnabled(settings, "anti-raid")) {
-    const joins = pushWindow(guildJoinWindows, member.guild.id, now, settings.raidWindowSeconds);
+    const joins = pushWindow(guildJoinWindows, runtimeScopeKey(member.guild.id), now, settings.raidWindowSeconds);
 
     if (joins.length >= settings.raidJoinLimit) {
       await handleViolation({
@@ -183,6 +194,10 @@ export async function handleSelfBotProtectionGuildMutation(
     return false;
   }
 
+  if (!(await isRuntimeModuleAuthorized(context, guild.id, MODULE_ID))) {
+    return false;
+  }
+
   const settings = await getCachedSettings(guild.id, context).catch((error) => {
     console.warn("[self-bot-protection] nao foi possivel carregar configuracao de raid:", errorMessage(error));
     return null;
@@ -200,7 +215,7 @@ export async function handleSelfBotProtectionGuildMutation(
   }
 
   const now = Date.now();
-  const key = `${guild.id}:${mutation}`;
+  const key = runtimeScopeKey(guild.id, mutation);
   const mutations = pushWindow(guildMutationWindows, key, now, settings.raidWindowSeconds);
 
   if (!antiWebhook && mutations.length < settings.raidJoinLimit) {
@@ -297,6 +312,10 @@ async function handleViolation(input: {
   settings: SelfBotProtectionSettings;
   violation: Violation;
 }) {
+  if (!(await isRuntimeModuleAuthorized(input.context, input.guild.id, input.violation.moduleId))) {
+    return false;
+  }
+
   const punishment = await applyPunishment(input);
 
   await input.context.api.recordSelfBotProtectionIncident({
@@ -323,14 +342,15 @@ async function handleViolation(input: {
 }
 
 async function getCachedSettings(guildId: string, context: BotContext) {
-  const cached = settingsCache.get(guildId);
+  const cacheKey = runtimeScopeKey(guildId);
+  const cached = settingsCache.get(cacheKey);
 
   if (cached && cached.expiresAt > Date.now()) {
     return cached.settings;
   }
 
   const settings = await context.api.getSelfBotProtectionSettings(guildId);
-  settingsCache.set(guildId, {
+  settingsCache.set(cacheKey, {
     expiresAt: Date.now() + SETTINGS_CACHE_MS,
     settings
   });
@@ -338,7 +358,8 @@ async function getCachedSettings(guildId: string, context: BotContext) {
 }
 
 async function ensureRoleForEnabledGuild(guild: Guild, context: BotContext) {
-  const current = roleEnsureInFlight.get(guild.id);
+  const key = runtimeScopeKey(guild.id);
+  const current = roleEnsureInFlight.get(key);
 
   if (current) {
     return current;
@@ -351,12 +372,12 @@ async function ensureRoleForEnabledGuild(guild: Guild, context: BotContext) {
       return null;
     })
     .finally(() => {
-      if (roleEnsureInFlight.get(guild.id) === task) {
-        roleEnsureInFlight.delete(guild.id);
+      if (roleEnsureInFlight.get(key) === task) {
+        roleEnsureInFlight.delete(key);
       }
     });
 
-  roleEnsureInFlight.set(guild.id, task);
+  roleEnsureInFlight.set(key, task);
   return task;
 }
 
@@ -719,7 +740,7 @@ function recentAttachmentEntries(message: Message, windowSeconds: number) {
 }
 
 function keyForMessage(message: Message) {
-  return `${message.guildId}:${message.author.id}`;
+  return runtimeScopeKey(message.guildId, message.author.id);
 }
 
 function isChannelProtected(message: Message, settings: SelfBotProtectionSettings) {
@@ -899,22 +920,24 @@ function pushWindow(store: Map<string, number[]>, key: string, now: number, wind
 }
 
 function clearGuildWindows(guildId: string) {
+  const prefix = runtimeScopeKey(guildId);
+
   for (const key of messageHistory.keys()) {
-    if (key.startsWith(`${guildId}:`)) {
+    if (key.startsWith(`${prefix}:`)) {
       messageHistory.delete(key);
     }
   }
 
   for (const key of attachmentHistory.keys()) {
-    if (key.startsWith(`${guildId}:`)) {
+    if (key.startsWith(`${prefix}:`)) {
       attachmentHistory.delete(key);
     }
   }
 
-  guildJoinWindows.delete(guildId);
+  guildJoinWindows.delete(prefix);
 
   for (const key of guildMutationWindows.keys()) {
-    if (key.startsWith(`${guildId}:`)) {
+    if (key.startsWith(`${prefix}:`)) {
       guildMutationWindows.delete(key);
     }
   }

@@ -819,6 +819,7 @@ export type MissionToolsClearMode = "bulk" | "userDm";
 export type MissionToolsVoiceStatus = "connected" | "disconnected" | "reconnecting";
 export type MissionToolsRichPresenceStatus = "active" | "inactive";
 export type MissionToolsRichPresenceActivityType = 0 | 1 | 2 | 3 | 5;
+export type MissionToolsTokenStatus = "connected" | "invalid" | "expired" | "disconnected";
 
 export type MissionToolsRichPresenceConfig = {
   applicationId?: string;
@@ -881,6 +882,11 @@ export type MissionToolsUserPanel = {
   richPresenceMessageId: string | null;
   usernameCheckerMessageId: string | null;
   tokenConfigured: boolean;
+  tokenStatus: MissionToolsTokenStatus;
+  tokenLast4: string | null;
+  tokenUpdatedAt: string | null;
+  tokenLastValidatedAt: string | null;
+  tokenInvalidReason: string | null;
   clearStatus: MissionToolsStatus;
   clearMode: MissionToolsClearMode;
   clearTargetUserId: string | null;

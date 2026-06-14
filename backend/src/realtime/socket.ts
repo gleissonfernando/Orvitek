@@ -4,7 +4,14 @@ import { env } from "../config/env";
 import { createLiveEvent } from "../services/liveService";
 import { createLog } from "../services/logService";
 import { getBotStatus, updateBotStatus } from "../services/statsService";
-import { findDevBotIdByClientId, syncDevBotGuilds, syncDevBotProfile, updateDevBotRuntimeStatus } from "../services/devBotService";
+import {
+  authorizeBotRuntimeModule,
+  findDevBotIdByClientId,
+  runtimeModuleIdForLogType,
+  syncDevBotGuilds,
+  syncDevBotProfile,
+  updateDevBotRuntimeStatus
+} from "../services/devBotService";
 import { devBotRealtimeRoom, setRealtimeServer } from "./events";
 
 const BOT_SOCKET_OFFLINE_GRACE_MS = 45_000;
@@ -99,9 +106,24 @@ export function createSocketServer(httpServer: HttpServer) {
         return;
       }
 
+      const botId = socket.data.botId ?? payload.botId ?? null;
+      const moduleId = runtimeModuleIdForLogType(payload.type);
+
+      if (moduleId) {
+        const authorization = await authorizeBotRuntimeModule({
+          botId,
+          guildId: payload.guildId,
+          moduleId
+        }).catch(() => null);
+
+        if (!authorization?.allowed) {
+          return;
+        }
+      }
+
       const log = await createLog({
         ...payload,
-        botId: socket.data.botId ?? payload.botId ?? null
+        botId
       });
       io.emit("logs:new", log);
     });

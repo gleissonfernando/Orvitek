@@ -17,6 +17,7 @@ import {
   ensureSelfBotRoles,
   isSelfBotModuleEnabled
 } from "../services/safeBotService";
+import { clearRuntimeModuleAuthorization } from "../services/runtimeModuleGuard";
 import { startSelfBotProtectionService } from "../services/selfBotProtectionService";
 import { startSocialNetworkPanelSync } from "../services/socialNetworkPanelService";
 import { startSocialNotificationMonitor } from "../services/socialNotificationMonitor";
@@ -36,7 +37,11 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     : [];
   const runtimeBotId = runtimeAccess?.botId ?? (env.DASHBOARD_BOT_ID || null);
 
-  setRuntimeEnabledModules(runtimeAccess?.enabledModules ?? fallbackModules);
+  const runtimeModules = runtimeAccess
+    ? (runtimeAccess.active ? runtimeAccess.enabledModules : [])
+    : fallbackModules;
+
+  setRuntimeEnabledModules(runtimeModules, runtimeBotId);
   context.socket.onDevModuleUpdated((payload) => {
     if (!runtimeBotId || payload.botId !== runtimeBotId) {
       return;
@@ -45,6 +50,7 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     const wasSelfBotEnabled = isSelfBotModuleEnabled();
     const wasMissionToolsEnabled = isBotModuleEnabled("mission-tools");
     setRuntimeEnabledModules(payload.enabledModules);
+    clearRuntimeModuleAuthorization();
 
     if (!wasSelfBotEnabled && isSelfBotModuleEnabled()) {
       startSelfBotProtectionService(context);

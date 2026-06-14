@@ -33,7 +33,7 @@ const GATEWAY_GUILD_MEMBERS_LIMITED = 1 << 15;
 const GATEWAY_MESSAGE_CONTENT = 1 << 18;
 const GATEWAY_MESSAGE_CONTENT_LIMITED = 1 << 19;
 const MODULES_REQUIRING_MEMBER_EVENTS = ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security", "safe-bot", "moderation"];
-const MODULES_REQUIRING_MESSAGE_CONTENT = ["moderation", "safe-bot"];
+const MODULES_REQUIRING_MESSAGE_CONTENT = ["moderation", "safe-bot", "link-anti-spam", "image-anti-spam"];
 const runningBots = new Map<string, RunningBot>();
 const restartTimers = new Map<string, NodeJS.Timeout>();
 

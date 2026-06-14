@@ -12,6 +12,7 @@ import type {
   ImageAntiSpamIncidentResult,
   ImageAntiSpamSettings
 } from "./apiClient";
+import { clearRuntimeModuleAuthorization, isRuntimeModuleAuthorized, runtimeScopeKey } from "./runtimeModuleGuard";
 
 type CachedSettings = {
   expiresAt: number;
@@ -60,6 +61,7 @@ type MediaMessageRef = {
 };
 
 const SETTINGS_CACHE_MS = 30_000;
+const MODULE_ID = "image-anti-spam";
 const MAX_TRACKED_MESSAGES_PER_WINDOW = 100;
 const settingsCache = new Map<string, CachedSettings>();
 const userWindows = new Map<string, UserWindow>();
@@ -77,13 +79,18 @@ export function startImageAntiSpamService(context: BotContext) {
       return;
     }
 
-    settingsCache.delete(payload.guildId);
+    clearRuntimeModuleAuthorization(payload.guildId, MODULE_ID);
+    settingsCache.delete(runtimeScopeKey(payload.guildId));
     clearGuildWindows(payload.guildId);
   });
 }
 
 export async function handleImageAntiSpamMessage(message: Message, context: BotContext) {
-  if (!isBotModuleEnabled("image-anti-spam") || !message.guild || message.author.bot) {
+  if (!message.guild || message.author.bot) {
+    return false;
+  }
+
+  if (!isBotModuleEnabled(MODULE_ID) || !(await isRuntimeModuleAuthorized(context, message.guild.id, MODULE_ID))) {
     return false;
   }
 
@@ -93,7 +100,7 @@ export async function handleImageAntiSpamMessage(message: Message, context: BotC
     return false;
   }
 
-  const key = `${message.guild.id}:${message.author.id}`;
+  const key = runtimeScopeKey(message.guild.id, message.author.id);
   const previous = processingQueues.get(key) ?? Promise.resolve(false);
   const next = previous
     .catch(() => false)
@@ -131,7 +138,7 @@ async function processImageMessage(message: Message, media: MediaSummary, contex
     return false;
   }
 
-  const key = `${guild.id}:${message.author.id}`;
+  const key = runtimeScopeKey(guild.id, message.author.id);
   const now = Date.now();
   let window = userWindows.get(key);
 
@@ -156,7 +163,7 @@ async function processImageMessage(message: Message, media: MediaSummary, contex
   }
 
   const deletion = await deleteMediaSpamMessages(window.messages);
-  window.incidentKey ??= `${guild.id}:${message.author.id}:${window.startedAt}`;
+  window.incidentKey ??= runtimeScopeKey(guild.id, message.author.id, String(window.startedAt));
 
   const result = await context.api.recordImageAntiSpamIncident({
     guildId: guild.id,
@@ -269,14 +276,15 @@ function mergeActionOutcome(
 }
 
 async function getCachedSettings(guildId: string, context: BotContext) {
-  const cached = settingsCache.get(guildId);
+  const cacheKey = runtimeScopeKey(guildId);
+  const cached = settingsCache.get(cacheKey);
 
   if (cached && cached.expiresAt > Date.now()) {
     return cached.settings;
   }
 
   const settings = await context.api.getImageAntiSpamSettings(guildId);
-  settingsCache.set(guildId, {
+  settingsCache.set(cacheKey, {
     expiresAt: Date.now() + SETTINGS_CACHE_MS,
     settings
   });
@@ -558,8 +566,10 @@ function formatDuration(milliseconds: number) {
 }
 
 function clearGuildWindows(guildId: string) {
+  const prefix = runtimeScopeKey(guildId);
+
   for (const key of userWindows.keys()) {
-    if (key.startsWith(`${guildId}:`)) {
+    if (key.startsWith(`${prefix}:`)) {
       userWindows.delete(key);
     }
   }

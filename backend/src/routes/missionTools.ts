@@ -10,6 +10,7 @@ import {
   getMissionToolsUserPanel,
   getMissionToolsUserToken,
   listActiveMissionToolsSettings,
+  markMissionToolsTokenAuthFailure,
   requestMissionToolsPanelPublish,
   saveMissionToolsSettings,
   saveMissionToolsToken,
@@ -109,6 +110,11 @@ const tokenSchema = z.object({
 });
 const dashboardTokenSchema = tokenSchema.extend({
   username: z.string().max(120).nullable().optional()
+});
+const tokenAuthFailureSchema = z.object({
+  reason: z.string().max(500).nullable().optional(),
+  source: z.string().max(80).nullable().optional(),
+  statusCode: z.coerce.number().int().min(100).max(4999).nullable().optional()
 });
 
 export const missionToolsRouter = Router();
@@ -212,6 +218,20 @@ missionToolsRouter.delete("/bot/:guildId/users/:userId/token", requireBot, async
   }
 });
 
+missionToolsRouter.post("/bot/:guildId/users/:userId/token/auth-failure", requireBot, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const userId = snowflakeSchema.parse(req.params.userId);
+    const input = tokenAuthFailureSchema.parse(req.body);
+    const botId = await readRequiredBotId(req);
+    await assertBotMissionToolsLicense(botId);
+
+    return res.json(await markMissionToolsTokenAuthFailure(guildId, botId, userId, input));
+  } catch (error) {
+    return next(error);
+  }
+});
+
 missionToolsRouter.get("/bot/:guildId/users/:userId/token", requireBot, async (req, res, next) => {
   try {
     const guildId = guildIdSchema.parse(req.params.guildId);
@@ -240,7 +260,11 @@ missionToolsRouter.post("/:guildId/users/:userId/token", requireAuth, async (req
     const botId = await readRequiredBotId(req);
     const user = res.locals.dashboardAuth.user as AuthSessionUser;
 
-    await assertCanManageMissionTools(user, guildId, botId);
+    if (user.discordId !== userId) {
+      throw createRouteError("Voce so pode gerenciar o seu proprio token.", 403);
+    }
+
+    await assertCanReadMissionTools(user, guildId, botId);
 
     return res.json(await saveMissionToolsToken(guildId, botId, userId, input.token, {
       username: input.username ?? null,
@@ -264,6 +288,36 @@ missionToolsRouter.post("/:guildId/me/token", requireAuth, async (req, res, next
       username: user.globalName ?? user.username,
       validateOwner: true
     }));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+missionToolsRouter.get("/:guildId/me/token", requireAuth, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const botId = await readRequiredBotId(req);
+    const user = res.locals.dashboardAuth.user as AuthSessionUser;
+
+    await assertCanReadMissionTools(user, guildId, botId);
+
+    return res.json({
+      user: await getMissionToolsUserPanel(guildId, botId, user.discordId)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+missionToolsRouter.delete("/:guildId/me/token", requireAuth, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const botId = await readRequiredBotId(req);
+    const user = res.locals.dashboardAuth.user as AuthSessionUser;
+
+    await assertCanReadMissionTools(user, guildId, botId);
+
+    return res.json(await deleteMissionToolsToken(guildId, botId, user.discordId));
   } catch (error) {
     return next(error);
   }

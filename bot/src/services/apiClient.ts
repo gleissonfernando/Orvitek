@@ -33,8 +33,32 @@ export type BotCommandAuthorization = {
 };
 
 export type BotRuntimeModules = {
+  active: boolean;
   botId: string;
+  checkedAt: string;
   enabledModules: string[];
+  status: "online" | "offline" | "invalid_token" | "error";
+};
+
+export type BotRuntimeModuleAuthorization = {
+  allowed: boolean;
+  botAuthorized: boolean;
+  botId: string | null;
+  botStatus: "online" | "offline" | "invalid_token" | "error" | null;
+  checkedAt: string;
+  guildAuthorized: boolean;
+  guildId: string;
+  licenseExpiresAt: string | null;
+  licenseStatus: string | null;
+  licenseValid: boolean;
+  moduleEnabled: boolean;
+  moduleId: string;
+  moduleReleased: boolean;
+  plan: string | null;
+  policy: "fail_closed";
+  reason: string;
+  reasonCode: string;
+  releaseModuleId: string | null;
 };
 
 export type ImageAntiSpamSettings = {
@@ -606,6 +630,7 @@ export type MissionToolsClearMode = "bulk" | "userDm";
 export type MissionToolsVoiceStatus = "connected" | "disconnected" | "reconnecting";
 export type MissionToolsRichPresenceStatus = "active" | "inactive";
 export type MissionToolsRichPresenceActivityType = 0 | 1 | 2 | 3 | 5;
+export type MissionToolsTokenStatus = "connected" | "invalid" | "expired" | "disconnected";
 
 export type MissionToolsRichPresenceConfig = {
   applicationId?: string;
@@ -668,6 +693,11 @@ export type MissionToolsUserPanel = {
   richPresenceMessageId: string | null;
   usernameCheckerMessageId: string | null;
   tokenConfigured: boolean;
+  tokenStatus: MissionToolsTokenStatus;
+  tokenLast4: string | null;
+  tokenUpdatedAt: string | null;
+  tokenLastValidatedAt: string | null;
+  tokenInvalidReason: string | null;
   clearStatus: MissionToolsStatus;
   clearMode: MissionToolsClearMode;
   clearTargetUserId: string | null;
@@ -704,6 +734,9 @@ export type MissionToolsTokenResponse = {
   token: string;
   tokenConfigured: boolean;
   tokenLast4: string | null;
+  tokenStatus: MissionToolsTokenStatus;
+  invalidReason: string | null;
+  lastValidatedAt: string | null;
   updatedAt: string;
 };
 
@@ -773,6 +806,16 @@ export class ApiClient {
   async getRuntimeModules() {
     const { data } = await this.http.get<BotRuntimeModules>("/bot/runtime/modules");
     return data;
+  }
+
+  async authorizeRuntimeModule(guildId: string, moduleId: string) {
+    const { data } = await this.http.get<{ authorization: BotRuntimeModuleAuthorization }>(
+      `/bot/runtime/guilds/${guildId}/modules/${encodeURIComponent(moduleId)}/authorize`,
+      {
+        timeout: 8_000
+      }
+    );
+    return data.authorization;
   }
 
   async createTicket(input: { guildId: string; channelId?: string | null; openerId: string; subject: string }) {
@@ -1284,6 +1327,21 @@ export class ApiClient {
   async getMissionToolsToken(guildId: string, userId: string) {
     const { data } = await this.http.get<MissionToolsTokenResponse>(
       `/mission-tools/bot/${guildId}/users/${userId}/token`
+    );
+    return data;
+  }
+
+  async markMissionToolsTokenAuthFailure(guildId: string, userId: string, input: {
+    reason?: string | null;
+    source?: string | null;
+    statusCode?: number | null;
+  }) {
+    const { data } = await this.http.post<{
+      tokenStatus: MissionToolsTokenStatus;
+      user: MissionToolsUserPanel;
+    }>(
+      `/mission-tools/bot/${guildId}/users/${userId}/token/auth-failure`,
+      input
     );
     return data;
   }

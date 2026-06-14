@@ -18,6 +18,7 @@ import type {
   SelfBotProtectionSettings,
   SelfBotPunishmentAction
 } from "./apiClient";
+import { isRuntimeModuleAuthorized, runtimeScopeKey } from "./runtimeModuleGuard";
 
 const MODULE_ID = "safe-bot";
 const SELF_BOT_ROLE_NAME = "Self Bot";
@@ -69,6 +70,11 @@ export async function ensureSafeBotSetup(guild: Guild, context: BotContext, know
     return null;
   }
 
+  if (!(await isRuntimeModuleAuthorized(context, guild.id, MODULE_ID))) {
+    setupCache.delete(runtimeScopeKey(guild.id));
+    return null;
+  }
+
   const settings = knownSettings ?? await context.api.getSettings(guild.id, guild.client.user?.id).catch((error) => {
     console.warn("[safe-bot] nao foi possivel carregar configuracoes:", errorMessage(error));
     return null;
@@ -83,7 +89,7 @@ export async function ensureSafeBotSetup(guild: Guild, context: BotContext, know
   const shouldBootstrapReleasedModule = isDevBotMainGuild(guild.id) && !setupAlreadySynced;
 
   if (!setupRequested && !shouldBootstrapReleasedModule) {
-    setupCache.delete(guild.id);
+    setupCache.delete(runtimeScopeKey(guild.id));
     return null;
   }
 
@@ -128,7 +134,7 @@ export async function ensureSafeBotSetup(guild: Guild, context: BotContext, know
     } as GuildSettings
   };
 
-  setupCache.set(guild.id, runtime);
+  setupCache.set(runtimeScopeKey(guild.id), runtime);
   return runtime;
 }
 
@@ -153,12 +159,12 @@ export async function ensureSelfBotRoles(client: Client<true>, context: BotConte
 }
 
 export async function disableUnreleasedSafeBotChannels(client: Client<true>, context: BotContext) {
-  if (isSelfBotModuleEnabled()) {
-    return;
-  }
-
   await Promise.allSettled(
     client.guilds.cache.map(async (guild) => {
+      if (isSelfBotModuleEnabled() && await isRuntimeModuleAuthorized(context, guild.id, MODULE_ID)) {
+        return;
+      }
+
       clearSafeBotSetupCache(guild.id);
       const settings = await context.api.getSettings(guild.id, client.user.id).catch((error) => {
         console.warn(`[safe-bot] nao foi possivel carregar canal para desativar em ${guild.id}:`, errorMessage(error));
@@ -191,10 +197,11 @@ export async function disableUnreleasedSafeBotChannels(client: Client<true>, con
 }
 
 export function clearSafeBotSetupCache(guildId: string) {
-  setupCache.delete(guildId);
+  const prefix = runtimeScopeKey(guildId);
+  setupCache.delete(prefix);
 
   for (const key of messageHistory.keys()) {
-    if (key.startsWith(`${guildId}:`)) {
+    if (key.startsWith(`${prefix}:`)) {
       messageHistory.delete(key);
     }
   }
@@ -205,7 +212,11 @@ export async function handleSafeBotMessage(message: Message, context: BotContext
     return false;
   }
 
-  const key = `${message.guild.id}:${message.author.id}`;
+  if (!(await isRuntimeModuleAuthorized(context, message.guild.id, MODULE_ID))) {
+    return false;
+  }
+
+  const key = runtimeScopeKey(message.guild.id, message.author.id);
   const previous = processingQueues.get(key) ?? Promise.resolve(false);
   const next = previous
     .catch(() => false)
@@ -251,6 +262,10 @@ async function processSafeBotMessage(message: Message, context: BotContext) {
       return false;
     }
 
+    if (!(await isRuntimeModuleAuthorized(context, guild.id, detected.moduleId))) {
+      return false;
+    }
+
     await deleteMessages([message]);
     const punishment = await punishMarkedUser(member, message, runtime, detected);
     await Promise.allSettled([
@@ -268,6 +283,10 @@ async function processSafeBotMessage(message: Message, context: BotContext) {
   }
 
   if (message.channelId === runtime.filterChannelId) {
+    if (!(await isRuntimeModuleAuthorized(context, guild.id, "anti-auto-spam"))) {
+      return false;
+    }
+
     await deleteMessages([message]);
     const assigned = await applySelfBotRole(member, runtime.roleId);
     await Promise.allSettled([
@@ -287,6 +306,10 @@ async function processSafeBotMessage(message: Message, context: BotContext) {
   const flood = rememberAndDetectFlood(message);
 
   if (flood) {
+    if (!(await isRuntimeModuleAuthorized(context, guild.id, flood.moduleId))) {
+      return false;
+    }
+
     await deleteMessages(flood.messages);
     const assigned = await applySelfBotRole(member, runtime.roleId);
     await Promise.allSettled([
@@ -307,7 +330,8 @@ async function processSafeBotMessage(message: Message, context: BotContext) {
 }
 
 async function getSafeBotRuntime(guild: Guild, context: BotContext) {
-  const cached = setupCache.get(guild.id);
+  const key = runtimeScopeKey(guild.id);
+  const cached = setupCache.get(key);
 
   if (cached && cached.expiresAt > Date.now()) {
     return cached;
@@ -417,7 +441,7 @@ function resolveConfiguredPunishment(settings: SelfBotProtectionSettings | null)
 }
 
 function rememberSafeBotMessage(message: Message) {
-  const key = `${message.guildId}:${message.author.id}`;
+  const key = runtimeScopeKey(message.guildId, message.author.id);
   const entries = (messageHistory.get(key) ?? [])
     .filter((entry) => Date.now() - entry.at <= 15_000);
   const detected = detectMessageContent(message);

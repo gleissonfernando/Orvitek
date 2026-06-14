@@ -12,10 +12,14 @@ export function readConfiguredBotId(req: Request) {
 }
 
 export async function resolveRequestBotId(req: Request) {
-  const configuredBotId = readConfiguredBotId(req);
+  if (!isBotRequest(req)) {
+    return readConfiguredBotId(req);
+  }
 
-  if (configuredBotId || !isBotRequest(req)) {
-    return configuredBotId;
+  const headerBotId = req.header("x-dashboard-bot-id")?.trim();
+
+  if (headerBotId) {
+    return headerBotId;
   }
 
   const clientId = req.header("x-discord-bot-client-id")?.trim();

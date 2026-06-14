@@ -7,6 +7,7 @@ import {
   isGuildTextChannel
 } from "../services/discordOptionsService";
 import {
+  authorizeBotRuntimeModule,
   canReadDevBotModule,
   canUseDevBotModule,
   getBotApiPermissions,
@@ -90,7 +91,7 @@ selfBotProtectionRouter.get("/bot/:guildId", requireBot, async (req, res, next) 
     const guildId = guildIdSchema.parse(req.params.guildId);
     const botId = await readRequiredBotId(req);
 
-    await assertBotModuleLicense(botId);
+    await assertBotModuleLicense(botId, guildId);
 
     return res.json({
       settings: await getSelfBotProtectionSettings(guildId, botId)
@@ -105,7 +106,7 @@ selfBotProtectionRouter.post("/bot/incidents", requireBot, async (req, res, next
     const input = incidentSchema.parse(req.body);
     const botId = await readRequiredBotId(req);
 
-    await assertBotModuleLicense(botId);
+    await assertBotModuleLicense(botId, input.guildId, input.moduleId);
     const incident = await recordSelfBotProtectionIncident({
       ...input,
       botId,
@@ -245,7 +246,7 @@ async function assertCanManage(user: AuthSessionUser, guildId: string, botId: st
   throw createRouteError("Voce nao tem permissao para configurar o SelfBot Protection deste bot.", 403);
 }
 
-async function assertBotModuleLicense(botId: string) {
+async function assertBotModuleLicense(botId: string, guildId?: string, moduleId = MODULE_ID) {
   const permissions = await getBotApiPermissions(botId);
 
   if (!permissions) {
@@ -254,6 +255,18 @@ async function assertBotModuleLicense(botId: string) {
 
   if (!permissions.enabledModules.includes(MODULE_ID)) {
     throw createRouteError("O SelfBot Protection nao foi liberado para este bot.", 403);
+  }
+
+  if (guildId) {
+    const authorization = await authorizeBotRuntimeModule({
+      botId,
+      guildId,
+      moduleId
+    });
+
+    if (!authorization.allowed) {
+      throw createRouteError(authorization.reason, 403);
+    }
   }
 }
 

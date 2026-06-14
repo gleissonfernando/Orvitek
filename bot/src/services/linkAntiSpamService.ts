@@ -2,6 +2,7 @@ import type { Message } from "discord.js";
 import { isBotModuleEnabled } from "../config/env";
 import type { BotContext } from "../types";
 import { logModeration } from "./logService";
+import { isRuntimeModuleAuthorized, runtimeScopeKey } from "./runtimeModuleGuard";
 
 type UserLinkWindow = {
   expiresAt: number;
@@ -16,7 +17,11 @@ const userLinkWindows = new Map<string, UserLinkWindow>();
 const processingQueues = new Map<string, Promise<boolean>>();
 
 export async function handleLinkAntiSpamMessage(message: Message, context: BotContext) {
-  if (!isLinkAntiSpamEnabled() || !message.guild || message.author.bot) {
+  if (!message.guild || message.author.bot) {
+    return false;
+  }
+
+  if (!(await isRuntimeModuleAuthorized(context, message.guild.id, MODULE_ID))) {
     return false;
   }
 
@@ -26,7 +31,7 @@ export async function handleLinkAntiSpamMessage(message: Message, context: BotCo
     return false;
   }
 
-  const key = `${message.guild.id}:${message.author.id}`;
+  const key = runtimeScopeKey(message.guild.id, message.author.id);
   const previous = processingQueues.get(key) ?? Promise.resolve(false);
   const next = previous
     .catch(() => false)
@@ -52,7 +57,7 @@ async function processLinkMessage(message: Message, linkCount: number, context: 
     return false;
   }
 
-  const key = `${guild.id}:${message.author.id}`;
+  const key = runtimeScopeKey(guild.id, message.author.id);
   const now = Date.now();
   const currentWindow = userLinkWindows.get(key);
   const cooldownActive = Boolean(currentWindow && now < currentWindow.expiresAt);
@@ -132,7 +137,7 @@ function countLinks(content: string) {
 }
 
 export function isLinkAntiSpamEnabled() {
-  return isBotModuleEnabled(MODULE_ID) || isBotModuleEnabled("moderation");
+  return isBotModuleEnabled(MODULE_ID);
 }
 
 function setUserWindow(key: string, window: UserLinkWindow) {

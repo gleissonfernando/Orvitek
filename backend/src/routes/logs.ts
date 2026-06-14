@@ -4,7 +4,12 @@ import { z } from "zod";
 import { isBotRequest, requireAuthOrBot } from "../middleware/auth";
 import { emitRealtime } from "../realtime/events";
 import { canManageDashboardGuild, canReadDashboardGuild, getAccessibleGuildIds } from "../services/dashboardGuildAccessService";
-import { canReadDevBotModule, canUseDevBotModule } from "../services/devBotService";
+import {
+  authorizeBotRuntimeModule,
+  canReadDevBotModule,
+  canUseDevBotModule,
+  runtimeModuleIdForLogType
+} from "../services/devBotService";
 import { createLog, listLogs } from "../services/logService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
 
@@ -50,6 +55,22 @@ logsRouter.post("/", async (req, res, next) => {
   try {
     const input = logSchema.parse(req.body);
     const botId = await resolveRequestBotId(req);
+
+    if (isBotRequest(req)) {
+      const moduleId = runtimeModuleIdForLogType(input.type);
+
+      if (moduleId) {
+        const authorization = await authorizeBotRuntimeModule({
+          botId,
+          guildId: input.guildId,
+          moduleId
+        });
+
+        if (!authorization.allowed) {
+          return res.status(204).send();
+        }
+      }
+    }
 
     if (!isBotRequest(req) && !(await canManageScopedGuild(req, input.guildId, botId))) {
       return res.status(403).json({

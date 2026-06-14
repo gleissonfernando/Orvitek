@@ -1,6 +1,6 @@
 import type { Client } from "discord.js";
 import { io, type Socket } from "socket.io-client";
-import { env } from "../config/env";
+import { currentRuntimeBotId, env } from "../config/env";
 
 export type SocialPanelUpdateEvent = {
   action: "publish" | "remove" | "update";
@@ -159,7 +159,7 @@ export class BotSocketClient {
     this.socket = io(env.BACKEND_SOCKET_URL, {
       auth: {
         token: env.BOT_API_TOKEN,
-        botId: env.DASHBOARD_BOT_ID || null,
+        botId: (currentRuntimeBotId() ?? env.DASHBOARD_BOT_ID) || null,
         clientId: client.user?.id ?? null
       },
       reconnection: true,
@@ -182,7 +182,9 @@ export class BotSocketClient {
     });
 
     this.socket.on("bot:shutdown", (payload: { botId?: string | null } = {}) => {
-      if (payload.botId && env.DASHBOARD_BOT_ID && payload.botId !== env.DASHBOARD_BOT_ID) {
+      const botId = (currentRuntimeBotId() ?? env.DASHBOARD_BOT_ID) || null;
+
+      if (payload.botId && botId && payload.botId !== botId) {
         return;
       }
 
@@ -264,7 +266,7 @@ export class BotSocketClient {
     }));
 
     this.socket?.emit("bot:status", {
-      botId: env.DASHBOARD_BOT_ID || null,
+      botId: (currentRuntimeBotId() ?? env.DASHBOARD_BOT_ID) || null,
       botProfile: client.user
         ? {
             id: client.user.id,
@@ -280,16 +282,16 @@ export class BotSocketClient {
     });
   }
 
-  emitLog(payload: { guildId: string; type: string; message: string; userId?: string | null; metadata?: unknown }) {
-    this.socket?.emit("bot:log", { ...payload, botId: env.DASHBOARD_BOT_ID || null });
+  emitLog(payload: { botId?: string | null; guildId: string; type: string; message: string; userId?: string | null; metadata?: unknown }) {
+    this.socket?.emit("bot:log", { ...payload, botId: (payload.botId ?? currentRuntimeBotId() ?? env.DASHBOARD_BOT_ID) || null });
   }
 
   emitLiveStarted(payload: { guildId: string; streamer: string; title?: string; url?: string }) {
-    this.socket?.emit("live:started", { ...payload, botId: env.DASHBOARD_BOT_ID || null });
+    this.socket?.emit("live:started", { ...payload, botId: (currentRuntimeBotId() ?? env.DASHBOARD_BOT_ID) || null });
   }
 
   emitLiveEnded(payload: { guildId: string; streamer: string; title?: string; url?: string }) {
-    this.socket?.emit("live:ended", { ...payload, botId: env.DASHBOARD_BOT_ID || null });
+    this.socket?.emit("live:ended", { ...payload, botId: (currentRuntimeBotId() ?? env.DASHBOARD_BOT_ID) || null });
   }
 
   onSocialPanelUpdate(handler: (payload: SocialPanelUpdateEvent) => void) {

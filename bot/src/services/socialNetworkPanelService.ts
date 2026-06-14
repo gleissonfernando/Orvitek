@@ -8,7 +8,7 @@ import {
   type MessageCreateOptions,
   type MessageEditOptions
 } from "discord.js";
-import { env } from "../config/env";
+import { currentRuntimeBotId, env } from "../config/env";
 import type { BotSocketClient, SocialPanelUpdateEvent } from "../websocket/socketClient";
 import type { ApiClient, SocialMember, SocialPanelPayload, SocialPlatform } from "./apiClient";
 import { assertPanelChannelPermissions, pinPanelMessage } from "./panelDeliveryService";
@@ -298,7 +298,7 @@ function activeLinks(member: SocialMember) {
 }
 
 function isEventForThisBot(event: SocialPanelUpdateEvent) {
-  return (event.botId ?? null) === (env.DASHBOARD_BOT_ID || null);
+  return (event.botId ?? null) === ((currentRuntimeBotId() ?? env.DASHBOARD_BOT_ID) || null);
 }
 
 function isHttpUrl(value: string) {

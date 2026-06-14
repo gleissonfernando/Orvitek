@@ -16,6 +16,7 @@ import {
   Volume2
 } from "lucide-react";
 import {
+  deleteMissionToolsMyToken,
   getMissionTools,
   getMissionToolsOptions,
   publishMissionToolsPanel,
@@ -31,6 +32,7 @@ import type {
   MissionToolsFeatureId,
   MissionToolsSettings,
   MissionToolsStats,
+  MissionToolsTokenStatus,
   MissionToolsUserPanel
 } from "../../types";
 import { Badge } from "../ui/badge";
@@ -114,6 +116,7 @@ export function MissionToolsPanel({ botId, canManage, guild, user }: MissionTool
   const [syncing, setSyncing] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [savingToken, setSavingToken] = useState(false);
+  const [disconnectingToken, setDisconnectingToken] = useState(false);
   const [tokenValue, setTokenValue] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
@@ -123,6 +126,13 @@ export function MissionToolsPanel({ botId, canManage, guild, user }: MissionTool
     () => users.find((item) => item.userId === user.discordId) ?? null,
     [user.discordId, users]
   );
+  const tokenStatus = currentUserPanel?.tokenStatus ?? "disconnected";
+  const tokenStatusInfo = tokenStatusDefinition(tokenStatus);
+  const tokenActionLabel = tokenStatus === "connected"
+    ? "Substituir token"
+    : tokenStatus === "disconnected"
+      ? "Conectar token"
+      : "Reconectar token";
 
   useEffect(() => {
     let mounted = true;
@@ -275,8 +285,9 @@ export function MissionToolsPanel({ botId, canManage, guild, user }: MissionTool
 
     const token = tokenValue.trim();
 
-    if (token.length < 10) {
-      setMessage("Informe um token valido para salvar no seu painel.");
+    const tokenFormatError = validateTokenInput(token);
+    if (tokenFormatError) {
+      setMessage(tokenFormatError);
       return;
     }
 
@@ -291,11 +302,33 @@ export function MissionToolsPanel({ botId, canManage, guild, user }: MissionTool
       setStats(missionTools.stats);
       setUsers(missionTools.users);
       setTokenValue("");
-      setMessage(`Token salvo para ${saved.user.username ?? user.globalName ?? user.username}.`);
+      setMessage(`Token conectado para ${saved.user.username ?? user.globalName ?? user.username}.`);
     } catch (error) {
       setMessage(readRequestMessage(error) ?? "Nao foi possivel salvar o seu token.");
     } finally {
       setSavingToken(false);
+    }
+  }
+
+  async function handleDisconnectUserToken() {
+    if (!botId || !guild) return;
+
+    setDisconnectingToken(true);
+    setMessage(null);
+
+    try {
+      await deleteMissionToolsMyToken(guild.id, botId);
+      const missionTools = await getMissionTools(guild.id, botId);
+
+      setSettings(missionTools.settings);
+      setStats(missionTools.stats);
+      setUsers(missionTools.users);
+      setTokenValue("");
+      setMessage("Token desconectado. Voce pode conectar outro quando quiser.");
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Nao foi possivel desconectar o seu token.");
+    } finally {
+      setDisconnectingToken(false);
     }
   }
 
@@ -419,9 +452,9 @@ export function MissionToolsPanel({ botId, canManage, guild, user }: MissionTool
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <KeyRound className="h-5 w-5 text-zinc-300" />
-                Meu token do Mission Tools
+                Gerenciamento do token
               </CardTitle>
-              <CardDescription>Salve seu proprio token pelo painel para usar Mission, Clean, Voice e Rich Presence.</CardDescription>
+              <CardDescription>Conecte, reconecte ou substitua o token usado pelos modulos Mission, Clean, Voice e Rich Presence.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="rounded-lg border border-zinc-900 bg-zinc-950/70 p-3">
@@ -431,15 +464,26 @@ export function MissionToolsPanel({ botId, canManage, guild, user }: MissionTool
                     <p className="mt-1 truncate text-sm font-semibold text-zinc-100">{user.globalName ?? user.username}</p>
                     <p className="mt-1 truncate font-mono text-xs text-zinc-500">{user.discordId}</p>
                   </div>
-                  {currentUserPanel?.tokenConfigured ? <Badge variant="success">Token configurado</Badge> : <Badge variant="muted">Sem token</Badge>}
+                  <Badge variant={tokenStatusInfo.variant}>{tokenStatusInfo.label}</Badge>
+                </div>
+                <div className="mt-3 grid gap-2 text-xs text-zinc-500 sm:grid-cols-2">
+                  <span>Token: {currentUserPanel?.tokenLast4 ? `****${currentUserPanel.tokenLast4}` : "Nao configurado"}</span>
+                  <span>Ultima validacao: {formatOptionalDate(currentUserPanel?.tokenLastValidatedAt)}</span>
+                  <span>Atualizado: {formatOptionalDate(currentUserPanel?.tokenUpdatedAt)}</span>
+                  <span>Status: {tokenStatusInfo.label}</span>
                 </div>
               </div>
+              {tokenStatus === "invalid" || tokenStatus === "expired" ? (
+                <div className="rounded-lg border border-amber-900/70 bg-amber-950/30 p-3 text-sm text-amber-100">
+                  {currentUserPanel?.tokenInvalidReason ?? "A autenticacao do token falhou. Reconecte para continuar usando os modulos."}
+                </div>
+              ) : null}
               <label className="space-y-2">
-                <span className="text-sm font-medium text-zinc-200">Seu token</span>
+                <span className="text-sm font-medium text-zinc-200">Token autorizado</span>
                 <input
                   autoComplete="off"
                   className="social-input h-12"
-                  disabled={savingToken}
+                  disabled={savingToken || disconnectingToken}
                   onChange={(event) => setTokenValue(event.target.value)}
                   placeholder="Cole o seu token"
                   type="password"
@@ -447,14 +491,20 @@ export function MissionToolsPanel({ botId, canManage, guild, user }: MissionTool
                 />
               </label>
               <div className="flex flex-wrap items-center gap-2">
-                <Button disabled={savingToken || !tokenValue.trim()} onClick={() => void handleSaveUserToken()}>
+                <Button disabled={savingToken || disconnectingToken || !tokenValue.trim()} onClick={() => void handleSaveUserToken()}>
                   {savingToken ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-                  Salvar meu token
+                  {tokenActionLabel}
                 </Button>
+                {currentUserPanel?.tokenConfigured ? (
+                  <Button disabled={savingToken || disconnectingToken} onClick={() => void handleDisconnectUserToken()} variant="outline">
+                    {disconnectingToken ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                    Desconectar
+                  </Button>
+                ) : null}
                 <span className="text-xs text-zinc-500">O valor nao aparece depois de salvo.</span>
               </div>
               <div className="rounded-lg border border-zinc-900 bg-zinc-950/70 p-3 text-sm text-zinc-400">
-                O backend valida se o token pertence ao seu Discord ID e guarda somente a versao criptografada.
+                O backend valida se o token pertence ao seu Discord ID, bloqueia duplicados e guarda somente a versao criptografada.
               </div>
             </CardContent>
           </Card>
@@ -522,6 +572,8 @@ function FeatureGrid({
 }
 
 function UserCard({ user }: { user: MissionToolsUserPanel }) {
+  const tokenStatus = tokenStatusDefinition(user.tokenStatus);
+
   return (
     <div className="rounded-lg border border-zinc-900 bg-zinc-950/70 p-3">
       <div className="flex items-start justify-between gap-3">
@@ -529,7 +581,7 @@ function UserCard({ user }: { user: MissionToolsUserPanel }) {
           <p className="truncate text-sm font-semibold text-white">{user.username ?? user.userId}</p>
           <p className="mt-1 truncate text-xs text-zinc-500">{user.userId}</p>
         </div>
-        {user.tokenConfigured ? <Badge variant="success">Token</Badge> : <Badge variant="muted">Sem token</Badge>}
+        <Badge variant={tokenStatus.variant}>{tokenStatus.label}</Badge>
       </div>
       <div className="mt-3 grid gap-2 text-xs text-zinc-500 sm:grid-cols-2">
         <span>Mission: {statusLabel(user.missionStatus)}</span>
@@ -658,6 +710,71 @@ function statusLabel(status: string) {
   };
 
   return labels[status] ?? status;
+}
+
+function tokenStatusDefinition(status: MissionToolsTokenStatus): {
+  label: string;
+  variant: "default" | "success" | "warning" | "danger" | "muted";
+} {
+  const definitions: Record<MissionToolsTokenStatus, {
+    label: string;
+    variant: "default" | "success" | "warning" | "danger" | "muted";
+  }> = {
+    connected: {
+      label: "Connected",
+      variant: "success"
+    },
+    disconnected: {
+      label: "Disconnected",
+      variant: "muted"
+    },
+    expired: {
+      label: "Expired Token",
+      variant: "warning"
+    },
+    invalid: {
+      label: "Invalid Token",
+      variant: "danger"
+    }
+  };
+
+  return definitions[status];
+}
+
+function validateTokenInput(token: string) {
+  if (!token) {
+    return "Informe um token antes de salvar.";
+  }
+
+  if (token.length < 10 || token.length > 4096) {
+    return "Token fora do tamanho permitido.";
+  }
+
+  if (/[\s\x00-\x1f\x7f]/.test(token)) {
+    return "Token invalido: remova espacos ou quebras de linha.";
+  }
+
+  if (/^(Bot|Bearer)\s+/i.test(token)) {
+    return "Cole apenas o token autorizado, sem prefixo Bot ou Bearer.";
+  }
+
+  if (!/^[A-Za-z0-9._-]+$/.test(token)) {
+    return "Token invalido: caracteres nao permitidos.";
+  }
+
+  return null;
+}
+
+function formatOptionalDate(value?: string | null) {
+  if (!value) return "Nunca";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Indisponivel";
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "medium"
+  }).format(date);
 }
 
 function readRequestMessage(error: unknown) {

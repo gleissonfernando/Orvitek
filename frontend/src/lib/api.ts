@@ -1064,8 +1064,22 @@ export async function saveMissionToolsMyToken(
   const { data } = await api.post<{
     tokenConfigured: boolean;
     tokenLast4: string | null;
+    tokenStatus: MissionToolsUserPanel["tokenStatus"];
     user: MissionToolsUserPanel;
   }>(`/mission-tools/${guildId}/me/token`, payload, {
+    params: botParams(botId),
+    timeout: 15000
+  });
+  return data;
+}
+
+export async function deleteMissionToolsMyToken(guildId: string, botId: string) {
+  const { data } = await api.delete<{
+    tokenConfigured: boolean;
+    tokenLast4: string | null;
+    tokenStatus: MissionToolsUserPanel["tokenStatus"];
+    user: MissionToolsUserPanel;
+  }>(`/mission-tools/${guildId}/me/token`, {
     params: botParams(botId),
     timeout: 15000
   });

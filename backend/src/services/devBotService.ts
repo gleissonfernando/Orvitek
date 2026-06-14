@@ -2,7 +2,13 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID }
 import axios from "axios";
 import { isDashboardDevUserId } from "../config/devOwner";
 import { env } from "../config/env";
-import { getMongoCollections, type MongoBotGuildConfig, type MongoDevBot, type MongoDevBotStatus } from "../database/mongo";
+import {
+  getMongoCollections,
+  type MongoBotGuildConfig,
+  type MongoBotGuildModuleConfig,
+  type MongoDevBot,
+  type MongoDevBotStatus
+} from "../database/mongo";
 import { emitRealtime } from "../realtime/events";
 import type { AuthSessionUser } from "../types/session";
 import {
@@ -16,8 +22,10 @@ import {
 } from "./dashboardPermissionService";
 import { getDiscordAvatarUrl, getGuildIconUrl } from "./discordAssetService";
 import { fetchDiscordCurrentUserGuildMember, refreshDiscordTokens } from "./discordOAuthService";
-import { getPersistedDashboardAccess, updateGuildSettings } from "./settingsService";
+import { getGuildSettings, getPersistedDashboardAccess, updateGuildSettings } from "./settingsService";
+import { getImageAntiSpamSettings } from "./imageAntiSpamService";
 import { saveSelfBotProtectionSettings } from "./selfBotProtectionService";
+import { getSelfBotProtectionSettings, type SelfBotProtectionModuleId } from "./selfBotProtectionService";
 import { createLog } from "./logService";
 import { getStoredDiscordTokens, updateStoredDiscordTokens } from "./userService";
 
@@ -52,6 +60,90 @@ const LEGACY_MODULE_ALIASES: Record<string, (typeof DEV_MODULES)[number]["id"]> 
   "image-anti-spam": "safe-bot",
   "link-anti-spam": "safe-bot"
 };
+const RUNTIME_MODULE_RELEASE_ALIASES: Record<string, (typeof DEV_MODULES)[number]["id"]> = {
+  "anti-flood": "safe-bot",
+  "anti-imagens": "safe-bot",
+  "anti-link": "safe-bot",
+  "anti-links": "safe-bot",
+  "anti-spam": "safe-bot",
+  "image-anti-spam": "safe-bot",
+  "link-anti-spam": "safe-bot"
+};
+const RUNTIME_INACTIVE_BOT_STATUSES = new Set<MongoDevBotStatus>(["error", "invalid_token"]);
+const RUNTIME_ACTIVE_LICENSE_STATUSES = new Set(["active", "ativo", "approved", "aprovado", "enabled", "liberado", "valid", "valido"]);
+const RUNTIME_EXPIRED_LICENSE_STATUSES = new Set(["expired", "expirado", "expirada"]);
+const RUNTIME_BLOCKED_LICENSE_STATUSES = new Set([
+  "blocked",
+  "bloqueado",
+  "bloqueada",
+  "cancelled",
+  "canceled",
+  "deleted",
+  "removed",
+  "removido",
+  "removida",
+  "suspended",
+  "suspenso",
+  "suspensa"
+]);
+const SELF_BOT_RUNTIME_MODULES = new Set([
+  "anti-anexos",
+  "anti-auto-spam",
+  "anti-bots",
+  "anti-caps-lock",
+  "anti-comandos-em-massa",
+  "anti-contas-novas",
+  "anti-convites",
+  "anti-copypasta",
+  "anti-divulgacao",
+  "anti-emojis",
+  "anti-flood",
+  "anti-flood-multi-canais",
+  "anti-gif",
+  "anti-imagens",
+  "anti-link",
+  "anti-links",
+  "anti-mass-ping",
+  "anti-mencoes",
+  "anti-nitro-scam",
+  "anti-phishing",
+  "anti-raid",
+  "anti-scam",
+  "anti-spam",
+  "anti-texto-repetido",
+  "anti-token-grabber",
+  "anti-webhook",
+  "image-anti-spam",
+  "link-anti-spam",
+  "safe-bot"
+]);
+const SELF_BOT_PROTECTION_RUNTIME_TOGGLES = new Set([
+  "anti-anexos",
+  "anti-auto-spam",
+  "anti-bots",
+  "anti-caps-lock",
+  "anti-comandos-em-massa",
+  "anti-contas-novas",
+  "anti-convites",
+  "anti-copypasta",
+  "anti-divulgacao",
+  "anti-emojis",
+  "anti-flood",
+  "anti-flood-multi-canais",
+  "anti-gif",
+  "anti-imagens",
+  "anti-links",
+  "anti-mass-ping",
+  "anti-mencoes",
+  "anti-nitro-scam",
+  "anti-phishing",
+  "anti-raid",
+  "anti-scam",
+  "anti-spam",
+  "anti-texto-repetido",
+  "anti-token-grabber",
+  "anti-webhook"
+]);
 
 type DiscordBotUser = {
   id: string;
@@ -159,6 +251,27 @@ export type DevBotRuntimeConfig = {
   mainGuildId: string;
   guildIds: string[];
   enabledModules: string[];
+};
+
+export type BotRuntimeModuleAuthorization = {
+  allowed: boolean;
+  botAuthorized: boolean;
+  botId: string | null;
+  botStatus: MongoDevBotStatus | null;
+  checkedAt: string;
+  guildAuthorized: boolean;
+  guildId: string;
+  licenseExpiresAt: string | null;
+  licenseStatus: string | null;
+  licenseValid: boolean;
+  moduleEnabled: boolean;
+  moduleId: string;
+  moduleReleased: boolean;
+  plan: string | null;
+  policy: "fail_closed";
+  reason: string;
+  reasonCode: string;
+  releaseModuleId: string | null;
 };
 
 export type DevBotAccessDiagnostic = {
@@ -1355,6 +1468,485 @@ export async function getBotApiPermissions(botId: string) {
     enabledModules: sanitizeModules(bot.enabledModules),
     status: bot.status
   };
+}
+
+export async function authorizeBotRuntimeModule(input: {
+  botId: string | null | undefined;
+  guildId: string;
+  moduleId: string;
+}): Promise<BotRuntimeModuleAuthorization> {
+  const checkedAt = new Date().toISOString();
+  const botId = normalizeNullableId(input.botId);
+  const moduleId = normalizeRuntimeModuleId(input.moduleId);
+  const releaseModuleId = resolveRuntimeReleaseModuleId(moduleId);
+
+  if (!botId) {
+    return runtimeDenied({
+      botId: null,
+      checkedAt,
+      guildId: input.guildId,
+      moduleId,
+      reason: "Bot nao identificado na requisicao runtime.",
+      reasonCode: "missing_bot_id",
+      releaseModuleId
+    });
+  }
+
+  if (!releaseModuleId) {
+    return runtimeDenied({
+      botId,
+      checkedAt,
+      guildId: input.guildId,
+      moduleId,
+      reason: "Modulo nao reconhecido pela dashboard.",
+      reasonCode: "unknown_module",
+      releaseModuleId: null
+    });
+  }
+
+  const { botGuildConfigs, devBots, guilds } = await getMongoCollections();
+  const [bot, guild, guildConfig] = await Promise.all([
+    devBots.findOne({ _id: botId }),
+    guilds.findOne({ _id: input.guildId }),
+    botGuildConfigs.findOne({
+      botId,
+      guildId: input.guildId
+    })
+  ]);
+
+  if (!bot) {
+    return runtimeDenied({
+      botId,
+      checkedAt,
+      guildId: input.guildId,
+      moduleId,
+      reason: "Bot nao encontrado na dashboard.",
+      reasonCode: "bot_not_found",
+      releaseModuleId
+    });
+  }
+
+  if (RUNTIME_INACTIVE_BOT_STATUSES.has(bot.status)) {
+    return runtimeDenied({
+      botAuthorized: false,
+      botId,
+      botStatus: bot.status,
+      checkedAt,
+      guildId: input.guildId,
+      moduleId,
+      reason: `Bot esta com status ${bot.status}.`,
+      reasonCode: "bot_inactive",
+      releaseModuleId
+    });
+  }
+
+  if (!guild || guild.botEnabled === false) {
+    return runtimeDenied({
+      botAuthorized: true,
+      botId,
+      botStatus: bot.status,
+      checkedAt,
+      guildAuthorized: false,
+      guildId: input.guildId,
+      moduleId,
+      reason: "Servidor nao esta aprovado para este bot.",
+      reasonCode: "guild_inactive",
+      releaseModuleId
+    });
+  }
+
+  if (!guildConfig) {
+    return runtimeDenied({
+      botAuthorized: true,
+      botId,
+      botStatus: bot.status,
+      checkedAt,
+      guildAuthorized: false,
+      guildId: input.guildId,
+      moduleId,
+      reason: "Servidor nao esta vinculado a este bot.",
+      reasonCode: "guild_not_registered",
+      releaseModuleId
+    });
+  }
+
+  const enabledModules = sanitizeModules(bot.enabledModules);
+  const moduleReleased = enabledModules.includes(releaseModuleId as (typeof DEV_MODULES)[number]["id"]);
+  const moduleConfig = readRuntimeModuleConfig(guildConfig.modules, moduleId, releaseModuleId);
+  const license = evaluateRuntimeLicenseState(
+    moduleConfig,
+    guildConfig.modules?.license,
+    guildConfig.modules?.dashboard
+  );
+
+  if (!moduleReleased) {
+    return runtimeDenied({
+      botAuthorized: true,
+      botId,
+      botStatus: bot.status,
+      checkedAt,
+      guildAuthorized: true,
+      guildId: input.guildId,
+      license,
+      moduleId,
+      moduleReleased: false,
+      reason: "Modulo nao foi liberado para este bot.",
+      reasonCode: "module_not_released",
+      releaseModuleId
+    });
+  }
+
+  if (!license.valid) {
+    return runtimeDenied({
+      botAuthorized: true,
+      botId,
+      botStatus: bot.status,
+      checkedAt,
+      guildAuthorized: true,
+      guildId: input.guildId,
+      license,
+      moduleId,
+      moduleReleased: true,
+      reason: license.reason,
+      reasonCode: license.reasonCode,
+      releaseModuleId
+    });
+  }
+
+  const moduleEnabled = await isRuntimeModuleEnabled({
+    botId,
+    guildId: input.guildId,
+    moduleConfig,
+    moduleId,
+    releaseModuleId
+  });
+
+  if (!moduleEnabled) {
+    return runtimeDenied({
+      botAuthorized: true,
+      botId,
+      botStatus: bot.status,
+      checkedAt,
+      guildAuthorized: true,
+      guildId: input.guildId,
+      license,
+      moduleEnabled: false,
+      moduleId,
+      moduleReleased: true,
+      reason: "Modulo esta desativado para este bot/servidor.",
+      reasonCode: "module_disabled",
+      releaseModuleId
+    });
+  }
+
+  return {
+    allowed: true,
+    botAuthorized: true,
+    botId,
+    botStatus: bot.status,
+    checkedAt,
+    guildAuthorized: true,
+    guildId: input.guildId,
+    licenseExpiresAt: license.expiresAt?.toISOString() ?? null,
+    licenseStatus: license.status,
+    licenseValid: true,
+    moduleEnabled: true,
+    moduleId,
+    moduleReleased: true,
+    plan: license.plan,
+    policy: "fail_closed",
+    reason: "Modulo autorizado para este bot e servidor.",
+    reasonCode: "allowed",
+    releaseModuleId
+  };
+}
+
+export function runtimeModuleIdForLogType(type: string) {
+  const normalized = type.trim().toLowerCase();
+
+  if (normalized.startsWith("self_bot_protection.") || normalized.startsWith("security.self_bot")) {
+    return "safe-bot";
+  }
+
+  if (normalized.startsWith("image_anti_spam.")) {
+    return "image-anti-spam";
+  }
+
+  if (normalized === "moderation.link_anti_spam") {
+    return "link-anti-spam";
+  }
+
+  if (normalized.startsWith("moderation.")) {
+    return "moderation";
+  }
+
+  if (
+    normalized.startsWith("message.")
+    || normalized.startsWith("member.")
+    || normalized.startsWith("roles.")
+  ) {
+    return "logs";
+  }
+
+  return null;
+}
+
+function runtimeDenied(input: {
+  botAuthorized?: boolean;
+  botId: string | null;
+  botStatus?: MongoDevBotStatus | null;
+  checkedAt: string;
+  guildAuthorized?: boolean;
+  guildId: string;
+  license?: ReturnType<typeof evaluateRuntimeLicenseState>;
+  moduleEnabled?: boolean;
+  moduleId: string;
+  moduleReleased?: boolean;
+  reason: string;
+  reasonCode: string;
+  releaseModuleId: string | null;
+}): BotRuntimeModuleAuthorization {
+  const license = input.license ?? {
+    expiresAt: null,
+    plan: null,
+    reason: input.reason,
+    reasonCode: input.reasonCode,
+    status: null,
+    valid: true
+  };
+
+  return {
+    allowed: false,
+    botAuthorized: input.botAuthorized ?? false,
+    botId: input.botId,
+    botStatus: input.botStatus ?? null,
+    checkedAt: input.checkedAt,
+    guildAuthorized: input.guildAuthorized ?? false,
+    guildId: input.guildId,
+    licenseExpiresAt: license.expiresAt?.toISOString() ?? null,
+    licenseStatus: license.status,
+    licenseValid: license.valid,
+    moduleEnabled: input.moduleEnabled ?? false,
+    moduleId: input.moduleId,
+    moduleReleased: input.moduleReleased ?? false,
+    plan: license.plan,
+    policy: "fail_closed",
+    reason: input.reason,
+    reasonCode: input.reasonCode,
+    releaseModuleId: input.releaseModuleId
+  };
+}
+
+async function isRuntimeModuleEnabled(input: {
+  botId: string;
+  guildId: string;
+  moduleConfig: MongoBotGuildModuleConfig | null;
+  moduleId: string;
+  releaseModuleId: string;
+}) {
+  if (input.moduleConfig?.enabled === false) {
+    return false;
+  }
+
+  if (input.releaseModuleId === "safe-bot" || SELF_BOT_RUNTIME_MODULES.has(input.moduleId)) {
+    const settings = await getSelfBotProtectionSettings(input.guildId, input.botId);
+
+    if (!settings.enabled) {
+      return false;
+    }
+
+    const moduleToggle = selfBotToggleForRuntimeModule(input.moduleId);
+    return moduleToggle ? settings.moduleToggles[moduleToggle] === true : true;
+  }
+
+  if (input.moduleId === "image-anti-spam") {
+    const settings = await getImageAntiSpamSettings(input.guildId, input.botId);
+    return settings.enabled;
+  }
+
+  if (input.moduleId === "logs") {
+    const settings = await getGuildSettings(input.guildId, input.botId);
+    return Boolean(settings.logChannelId);
+  }
+
+  if (input.moduleConfig?.enabled === true) {
+    return true;
+  }
+
+  return true;
+}
+
+function selfBotToggleForRuntimeModule(moduleId: string): SelfBotProtectionModuleId | null {
+  const normalized = normalizeRuntimeModuleId(moduleId);
+
+  if (normalized === "safe-bot") {
+    return null;
+  }
+
+  if (normalized === "anti-link" || normalized === "link-anti-spam") {
+    return "anti-links";
+  }
+
+  if (normalized === "image-anti-spam") {
+    return "anti-imagens";
+  }
+
+  return SELF_BOT_PROTECTION_RUNTIME_TOGGLES.has(normalized)
+    ? normalized as SelfBotProtectionModuleId
+    : null;
+}
+
+function readRuntimeModuleConfig(
+  modules: Record<string, MongoBotGuildModuleConfig> | null | undefined,
+  moduleId: string,
+  releaseModuleId: string
+) {
+  return modules?.[moduleId] ?? modules?.[releaseModuleId] ?? null;
+}
+
+function evaluateRuntimeLicenseState(...configs: Array<MongoBotGuildModuleConfig | null | undefined>) {
+  let status: string | null = null;
+  let expiresAt: Date | null = null;
+  let plan: string | null = null;
+
+  for (const config of configs) {
+    const record = asRuntimeRecord(config);
+
+    if (!record) {
+      continue;
+    }
+
+    status ??= normalizeRuntimeStatus(
+      readRuntimeString(record.licenseStatus)
+      ?? readRuntimeString(record.licenceStatus)
+      ?? readRuntimeString(record.status)
+      ?? readRuntimeString(record.state)
+    );
+    expiresAt ??= readRuntimeDate(record.licenseExpiresAt)
+      ?? readRuntimeDate(record.licenceExpiresAt)
+      ?? readRuntimeDate(record.expiresAt)
+      ?? readRuntimeDate(record.expirationDate);
+    plan ??= readRuntimeString(record.plan)
+      ?? readRuntimeString(record.licensePlan)
+      ?? readRuntimeString(record.licencePlan);
+
+    if (
+      record.licenseActive === false
+      || record.licenceActive === false
+      || record.active === false
+      || record.approved === false
+    ) {
+      return {
+        expiresAt,
+        plan,
+        reason: "Licenca do modulo esta inativa na dashboard.",
+        reasonCode: "license_inactive",
+        status,
+        valid: false
+      };
+    }
+  }
+
+  if (status && !RUNTIME_ACTIVE_LICENSE_STATUSES.has(status)) {
+    if (RUNTIME_EXPIRED_LICENSE_STATUSES.has(status)) {
+      return {
+        expiresAt,
+        plan,
+        reason: "Licenca do modulo esta expirada.",
+        reasonCode: "license_expired",
+        status,
+        valid: false
+      };
+    }
+
+    if (RUNTIME_BLOCKED_LICENSE_STATUSES.has(status)) {
+      return {
+        expiresAt,
+        plan,
+        reason: "Licenca do modulo esta bloqueada.",
+        reasonCode: "license_blocked",
+        status,
+        valid: false
+      };
+    }
+
+    return {
+      expiresAt,
+      plan,
+      reason: "Licenca do modulo nao esta ativa.",
+      reasonCode: "license_inactive",
+      status,
+      valid: false
+    };
+  }
+
+  if (expiresAt && expiresAt.getTime() <= Date.now()) {
+    return {
+      expiresAt,
+      plan,
+      reason: "Licenca do modulo esta expirada.",
+      reasonCode: "license_expired",
+      status,
+      valid: false
+    };
+  }
+
+  return {
+    expiresAt,
+    plan,
+    reason: "Licenca valida.",
+    reasonCode: "license_valid",
+    status,
+    valid: true
+  };
+}
+
+function resolveRuntimeReleaseModuleId(moduleId: string) {
+  if (DEV_MODULE_IDS.has(moduleId as (typeof DEV_MODULES)[number]["id"])) {
+    return moduleId;
+  }
+
+  return RUNTIME_MODULE_RELEASE_ALIASES[moduleId] ?? null;
+}
+
+function normalizeRuntimeModuleId(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function normalizeNullableId(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+}
+
+function asRuntimeRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function readRuntimeString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readRuntimeDate(value: unknown) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+
+  if (typeof value !== "string" && typeof value !== "number") {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function normalizeRuntimeStatus(value: string | null) {
+  return value
+    ?.normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase() ?? null;
 }
 
 function sanitizeModules(modules: string[]) {

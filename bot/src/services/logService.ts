@@ -1,4 +1,5 @@
 import type { GuildMember, Message, PartialGuildMember, PartialMessage, User } from "discord.js";
+import { currentRuntimeBotId } from "../config/env";
 import type { BotContext } from "../types";
 
 export async function logMemberJoin(context: BotContext, member: GuildMember) {
@@ -82,10 +83,29 @@ export async function logModeration(context: BotContext, guildId: string, user: 
 }
 
 async function sendLog(context: BotContext, payload: { guildId: string; type: string; message: string; userId?: string | null; metadata?: unknown }) {
+  const scopedPayload = {
+    ...payload,
+    botId: currentRuntimeBotId()
+  };
+
   try {
-    await context.api.postLog(payload);
+    await context.api.postLog(scopedPayload);
   } catch (error) {
     console.warn("[api] falha ao registrar log:", error instanceof Error ? error.message : error);
-    context.socket.emitLog(payload);
+
+    if (isAuthorizationFailure(error)) {
+      return;
+    }
+
+    context.socket.emitLog(scopedPayload);
   }
+}
+
+function isAuthorizationFailure(error: unknown) {
+  if (!error || typeof error !== "object" || !("response" in error)) {
+    return false;
+  }
+
+  const response = (error as { response?: { status?: unknown } }).response;
+  return response?.status === 401 || response?.status === 403 || response?.status === 404;
 }

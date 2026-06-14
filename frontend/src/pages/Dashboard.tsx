@@ -926,6 +926,14 @@ function OverviewView({
         <MetricCard icon={CalendarClock} label="Atualizado" value={formatDate(status.updatedAt)} />
       </section>
 
+      <IsolationStatusPanel
+        availableModuleCount={availableModules.length}
+        bot={bot}
+        details={details}
+        status={status}
+        totalModuleCount={moduleCatalog.length}
+      />
+
       <section className="space-y-3">
         <div>
           <h2 className="text-lg font-semibold text-white">Modulos disponiveis</h2>
@@ -960,6 +968,92 @@ function OverviewView({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function IsolationStatusPanel({
+  availableModuleCount,
+  bot,
+  details,
+  status,
+  totalModuleCount
+}: {
+  availableModuleCount: number;
+  bot: DashboardBot | null;
+  details: OverviewDetails;
+  status: BotStatus;
+  totalModuleCount: number;
+}) {
+  const selfBotSettings = details.selfBotProtectionSettings;
+  const selfBotActive = Boolean(selfBotSettings?.enabled && bot?.enabledModules.includes("safe-bot"));
+  const items = [
+    {
+      label: "Bot ID",
+      value: bot?.id ?? "Nao selecionado",
+      active: Boolean(bot)
+    },
+    {
+      label: "Bot",
+      value: bot && status.online ? "Liberado" : "Bloqueado",
+      active: Boolean(bot && status.online)
+    },
+    {
+      label: "Modulos liberados",
+      value: String(availableModuleCount),
+      active: availableModuleCount > 0
+    },
+    {
+      label: "Modulos bloqueados",
+      value: String(Math.max(0, totalModuleCount - availableModuleCount)),
+      active: totalModuleCount - availableModuleCount === 0
+    },
+    {
+      label: "Validade da licenca",
+      value: "Sem data cadastrada",
+      active: false
+    },
+    {
+      label: "SelfBot",
+      value: selfBotActive ? "Ativo" : "Bloqueado",
+      active: selfBotActive
+    },
+    {
+      label: "Anti-Link",
+      value: selfBotActive && selfBotSettings?.moduleToggles["anti-links"] ? "Ativo" : "Bloqueado",
+      active: Boolean(selfBotActive && selfBotSettings?.moduleToggles["anti-links"])
+    },
+    {
+      label: "Anti-Spam",
+      value: selfBotActive && selfBotSettings?.moduleToggles["anti-spam"] ? "Ativo" : "Bloqueado",
+      active: Boolean(selfBotActive && selfBotSettings?.moduleToggles["anti-spam"])
+    },
+    {
+      label: "Anti-Flood",
+      value: selfBotActive && selfBotSettings?.moduleToggles["anti-flood"] ? "Ativo" : "Bloqueado",
+      active: Boolean(selfBotActive && selfBotSettings?.moduleToggles["anti-flood"])
+    }
+  ];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Isolamento por Bot ID</CardTitle>
+        <CardDescription>Estado runtime do bot selecionado, sem herdar configuracao de outro bot.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((item) => (
+            <div className="min-w-0 rounded-lg border border-zinc-900 bg-zinc-950/70 p-3" key={item.label}>
+              <p className="text-xs text-zinc-500">{item.label}</p>
+              <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
+                <p className="truncate text-sm font-semibold text-white" title={item.value}>{item.value}</p>
+                <Badge variant={item.active ? "success" : "muted"}>{item.active ? "OK" : "OFF"}</Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

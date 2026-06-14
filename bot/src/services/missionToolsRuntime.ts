@@ -76,6 +76,7 @@ export type CheckerOptions = {
 };
 
 type DiscordTokenValidation = {
+  status?: number;
   valid: boolean;
   userId?: string;
 };
@@ -149,6 +150,39 @@ const SUPER_PROPERTIES = Buffer.from(JSON.stringify({
   os: "Windows",
   os_version: "10"
 })).toString("base64");
+
+export class DiscordTokenAuthError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: number,
+    readonly source: string
+  ) {
+    super(message);
+    this.name = "DiscordTokenAuthError";
+  }
+}
+
+export function isDiscordTokenAuthError(error: unknown): error is DiscordTokenAuthError {
+  return error instanceof DiscordTokenAuthError;
+}
+
+function isAuthStatus(status: number) {
+  return status === 401 || status === 403;
+}
+
+function throwIfAuthStatus(status: number, source: string) {
+  if (!isAuthStatus(status)) {
+    return;
+  }
+
+  throw new DiscordTokenAuthError(
+    status === 401
+      ? "Token expirado ou revogado. Reconecte o token pela dashboard."
+      : "Token recusado pelo Discord. Substitua o token pela dashboard.",
+    status,
+    source
+  );
+}
 
 function discordHeaders(token: string) {
   return {
@@ -260,12 +294,14 @@ export async function validateDiscordToken(token: string): Promise<DiscordTokenV
         valid: true
       }
     : {
+        status,
         valid: false
       };
 }
 
 export async function fetchDiscordGuildOptions(token: string): Promise<DiscordGuildOption[]> {
   const { body, status } = await discordRequest<DiscordGuild[]>(token, "GET", "/users/@me/guilds");
+  throwIfAuthStatus(status, "guild-options");
 
   if (status !== 200 || !Array.isArray(body)) {
     return [];
@@ -279,6 +315,7 @@ export async function fetchDiscordGuildOptions(token: string): Promise<DiscordGu
 
 export async function fetchDiscordVoiceChannelOptions(token: string, guildId: string): Promise<DiscordVoiceChannelOption[]> {
   const { body, status } = await discordRequest<DiscordChannel[]>(token, "GET", `/guilds/${guildId}/channels`);
+  throwIfAuthStatus(status, "voice-channel-options");
 
   if (status !== 200 || !Array.isArray(body)) {
     return [];
@@ -431,6 +468,7 @@ export async function runMissionFlow(token: string, reportStatus: MissionStatusR
   });
 
   const { body, status } = await discordRequest<{ quests?: any[] }>(token, "GET", "/quests/@me");
+  throwIfAuthStatus(status, "mission-list");
   if (status !== 200 || !Array.isArray(body?.quests)) {
     throw new Error("Discord nao retornou a lista de missoes. Verifique o token.");
   }
@@ -481,6 +519,7 @@ export async function runMissionFlow(token: string, reportStatus: MissionStatusR
         });
 
         if (enroll.status < 200 || enroll.status >= 300) {
+          throwIfAuthStatus(enroll.status, "mission-enroll");
           throw new Error(`Nao foi possivel entrar na missao "${name}" (HTTP ${enroll.status}).`);
         }
 
@@ -503,6 +542,10 @@ export async function runMissionFlow(token: string, reportStatus: MissionStatusR
     } catch (error) {
       if (signal?.aborted) {
         throw abortError(signal);
+      }
+
+      if (isDiscordTokenAuthError(error)) {
+        throw error;
       }
 
       failed += 1;
@@ -566,6 +609,7 @@ async function runQuestTask(
         });
 
         if (progress.status < 200 || progress.status >= 300) {
+          throwIfAuthStatus(progress.status, "mission-video-progress");
           throw new Error(`Progresso de video falhou (HTTP ${progress.status}).`);
         }
 
@@ -603,6 +647,7 @@ async function runQuestTask(
       });
 
       if (heartbeat.status < 200 || heartbeat.status >= 300) {
+        throwIfAuthStatus(heartbeat.status, "mission-heartbeat");
         throw new Error(`Heartbeat da missao falhou (HTTP ${heartbeat.status}).`);
       }
 
@@ -619,10 +664,11 @@ async function runQuestTask(
       await sleep(60_000, signal);
     }
 
-    await discordRequest(token, "POST", `/quests/${quest.id}/heartbeat`, {
+    const terminalHeartbeat = await discordRequest(token, "POST", `/quests/${quest.id}/heartbeat`, {
       application_id: applicationId,
       terminal: true
     });
+    throwIfAuthStatus(terminalHeartbeat.status, "mission-heartbeat-terminal");
     return;
   }
 
@@ -651,7 +697,11 @@ class DiscordDmCleaner {
     throwIfAborted(this.signal);
     const validation = await validateDiscordToken(this.token);
     if (!validation.valid || !validation.userId) {
-      throw new Error("Token invalido.");
+      throw new DiscordTokenAuthError(
+        validation.status === 403 ? "Token recusado pelo Discord. Substitua o token pela dashboard." : "Token expirado ou revogado. Reconecte o token pela dashboard.",
+        validation.status ?? 401,
+        "dm-cleanup-validation"
+      );
     }
 
     this.currentUserId = validation.userId;
@@ -735,7 +785,14 @@ class DiscordDmCleaner {
       });
 
       socket.on("error", (error) => finish(() => reject(error)));
-      socket.on("close", () => finish(() => reject(new Error("Gateway closed before READY."))));
+      socket.on("close", (code: number) => finish(() => {
+        if (code === 4003 || code === 4004) {
+          reject(new DiscordTokenAuthError("Gateway recusou o token. Reconecte pela dashboard.", code, "dm-cleanup-gateway"));
+          return;
+        }
+
+        reject(new Error("Gateway closed before READY."));
+      }));
     });
   }
 
@@ -767,6 +824,7 @@ class DiscordDmCleaner {
       }
 
       const { body, status } = await discordRequest<DmMessage[]>(this.token, "GET", `/channels/${channelId}/messages?${params.toString()}`);
+      throwIfAuthStatus(status, "dm-cleanup-fetch-messages");
       const page = status === 200 && Array.isArray(body) ? body : [];
       lastPageSize = page.length;
       messages.push(...page);
@@ -791,17 +849,20 @@ class DiscordDmCleaner {
         continue;
       }
 
-      await discordRequest(this.token, "DELETE", `/channels/${message.channel_id}/messages/${message.id}`);
+      const deleted = await discordRequest(this.token, "DELETE", `/channels/${message.channel_id}/messages/${message.id}`);
+      throwIfAuthStatus(deleted.status, "dm-cleanup-delete-message");
       await sleep(750, this.signal);
     }
   }
 
   private async deleteRelationship(userId: string) {
-    await discordRequest(this.token, "DELETE", `/users/@me/relationships/${userId}`);
+    const deleted = await discordRequest(this.token, "DELETE", `/users/@me/relationships/${userId}`);
+    throwIfAuthStatus(deleted.status, "dm-cleanup-delete-relationship");
   }
 
   private async closeChannel(channelId: string, group: boolean) {
-    await discordRequest(this.token, "DELETE", group ? `/channels/${channelId}?silent=true` : `/channels/${channelId}`);
+    const closed = await discordRequest(this.token, "DELETE", group ? `/channels/${channelId}?silent=true` : `/channels/${channelId}`);
+    throwIfAuthStatus(closed.status, "dm-cleanup-close-channel");
   }
 }
 
@@ -817,7 +878,8 @@ export class DiscordVoiceSession {
 
   constructor(
     private readonly token: string,
-    private readonly onStatusChange: (update: VoiceSessionUpdate) => void
+    private readonly onStatusChange: (update: VoiceSessionUpdate) => void,
+    private readonly onAuthFailure?: (error: DiscordTokenAuthError) => void
   ) {}
 
   start(guildId: string, channelId: string) {
@@ -897,11 +959,23 @@ export class DiscordVoiceSession {
       }
     });
 
-    socket.on("close", () => {
+    socket.on("close", (code: number) => {
       this.clearHeartbeat();
       if (this.socket === socket) {
         this.socket = null;
       }
+
+      if (code === 4003 || code === 4004) {
+        this.desiredActive = false;
+        this.connectedAt = undefined;
+        this.onStatusChange({
+          connectedAt: undefined,
+          status: "disconnected"
+        });
+        this.onAuthFailure?.(new DiscordTokenAuthError("Gateway recusou o token. Reconecte pela dashboard.", code, "voice-gateway"));
+        return;
+      }
+
       if (this.desiredActive) {
         this.scheduleReconnect();
       }
@@ -1025,7 +1099,8 @@ export class DiscordRichPresenceSession {
 
   constructor(
     private readonly token: string,
-    private readonly onStatusChange: (status: "active" | "inactive") => void
+    private readonly onStatusChange: (status: "active" | "inactive") => void,
+    private readonly onAuthFailure?: (error: DiscordTokenAuthError) => void
   ) {}
 
   start(config: RichPresenceRuntimeConfig) {
@@ -1086,11 +1161,19 @@ export class DiscordRichPresenceSession {
       }
     });
 
-    socket.on("close", () => {
+    socket.on("close", (code: number) => {
       this.clearHeartbeat();
       if (this.socket === socket) {
         this.socket = null;
       }
+
+      if (code === 4003 || code === 4004) {
+        this.active = false;
+        this.onStatusChange("inactive");
+        this.onAuthFailure?.(new DiscordTokenAuthError("Gateway recusou o token. Reconecte pela dashboard.", code, "rich-presence-gateway"));
+        return;
+      }
+
       if (this.active) {
         this.scheduleReconnect();
       }

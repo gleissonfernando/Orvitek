@@ -7,6 +7,7 @@ import {
   isGuildTextChannel
 } from "../services/discordOptionsService";
 import {
+  authorizeBotRuntimeModule,
   canReadDevBotModule,
   canUseDevBotModule,
   getBotApiPermissions,
@@ -65,7 +66,7 @@ imageAntiSpamRouter.get("/bot/:guildId", requireBot, async (req, res, next) => {
     const guildId = guildIdSchema.parse(req.params.guildId);
     const botId = await readRequiredBotId(req);
 
-    await assertBotModuleLicense(botId);
+    await assertBotModuleLicense(botId, guildId);
 
     return res.json({
       settings: await getImageAntiSpamSettings(guildId, botId)
@@ -80,7 +81,7 @@ imageAntiSpamRouter.post("/bot/incidents", requireBot, async (req, res, next) =>
     const input = incidentSchema.parse(req.body);
     const botId = await readRequiredBotId(req);
 
-    await assertBotModuleLicense(botId);
+    await assertBotModuleLicense(botId, input.guildId);
 
     const result = await recordImageAntiSpamIncident({
       ...input,
@@ -103,8 +104,8 @@ imageAntiSpamRouter.patch("/bot/incidents/:incidentId", requireBot, async (req, 
     const input = completionSchema.parse(req.body);
     const botId = await readRequiredBotId(req);
 
-    await assertBotModuleLicense(botId);
     const incident = await completeImageAntiSpamIncident(incidentId, botId, input);
+    await assertBotModuleLicense(botId, incident.guildId);
     const log = await createLog({
       botId,
       guildId: incident.guildId,
@@ -229,15 +230,30 @@ async function assertCanManage(user: AuthSessionUser, guildId: string, botId: st
   throw createRouteError("Voce nao tem permissao para configurar o Anti-Spam de Imagens deste bot.", 403);
 }
 
-async function assertBotModuleLicense(botId: string) {
+async function assertBotModuleLicense(botId: string, guildId?: string) {
   const permissions = await getBotApiPermissions(botId);
 
   if (!permissions) {
     throw createRouteError("Bot nao encontrado.", 404);
   }
 
-  if (!(permissions.enabledModules as readonly string[]).includes(MODULE_ID)) {
+  if (
+    !(permissions.enabledModules as readonly string[]).includes(MODULE_ID)
+    && !permissions.enabledModules.includes("safe-bot")
+  ) {
     throw createRouteError("O Anti-Spam de Imagens nao foi liberado para este bot.", 403);
+  }
+
+  if (guildId) {
+    const authorization = await authorizeBotRuntimeModule({
+      botId,
+      guildId,
+      moduleId: MODULE_ID
+    });
+
+    if (!authorization.allowed) {
+      throw createRouteError(authorization.reason, 403);
+    }
   }
 }
 

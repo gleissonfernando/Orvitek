@@ -64,13 +64,7 @@ export async function authorizeBotCommand(input: BotCommandAuthorizationInput) {
       guildSettings.findOne({
         botId: normalizedInput.botId,
         guildId: normalizedInput.guildId
-      }).then((specificSettings) => specificSettings ?? guildSettings.findOne({
-        guildId: normalizedInput.guildId,
-        $or: [
-          { botId: null },
-          { botId: { $exists: false } }
-        ]
-      }))
+      })
     ]);
 
     if (!bot) {

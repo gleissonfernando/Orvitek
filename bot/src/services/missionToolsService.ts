@@ -25,6 +25,7 @@ import type {
   MissionToolsFeatureId,
   MissionToolsRichPresenceConfig,
   MissionToolsSettings,
+  MissionToolsTokenResponse,
   MissionToolsUserPanel,
   MissionToolsUserPatch
 } from "./apiClient";
@@ -36,6 +37,7 @@ import {
   MissionQueue,
   fetchDiscordGuildOptions,
   fetchDiscordVoiceChannelOptions,
+  isDiscordTokenAuthError,
   runDiscordDmCleanup,
   runMissionFlow,
   type CheckerStats,
@@ -69,8 +71,8 @@ const panelPublishPromises = new Map<string, Promise<MissionToolsSettings>>();
 const panelRequestErrorLogAt = new Map<string, number>();
 const missionQueue = new MissionQueue();
 const cleanupControllers = new Map<string, AbortController>();
-const voiceSessions = new Map<string, { session: DiscordVoiceSession; token: string }>();
-const richPresenceSessions = new Map<string, { session: DiscordRichPresenceSession; token: string }>();
+const voiceSessions = new Map<string, { session: DiscordVoiceSession; token: string; tokenUpdatedAt: string }>();
+const richPresenceSessions = new Map<string, { session: DiscordRichPresenceSession; token: string; tokenUpdatedAt: string }>();
 const usernameCheckerSessions = new Map<string, DiscordUsernameChecker>();
 
 export function startMissionToolsService(client: Client, context: BotContext) {
@@ -103,6 +105,7 @@ export function startMissionToolsService(client: Client, context: BotContext) {
       return;
     }
 
+    invalidateRuntimeSessionsFromUserPayload(payload.guildId, payload.user);
     void refreshExistingUserDmPanels(context, payload.guildId, payload.user)
       .then((updated) => {
         console.log(`[mission-tools] painel de usuario atualizado em ${payload.guildId}: ${updated} mensagem(ns).`);
@@ -194,9 +197,9 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction, contex
     const token = await requireUserToken(interaction, context, guildId);
     if (!token) return;
 
-    const guildOptions = await fetchDiscordGuildOptions(token);
-    const selectedGuild = guildOptions.find((guild) => guild.id === selected);
-    const channelOptions = await fetchDiscordVoiceChannelOptions(token, selected);
+    const options = await fetchVoiceOptionsSafely(interaction, context, guildId, token, selected);
+    if (!options) return;
+    const selectedGuild = options.guildOptions.find((guild) => guild.id === selected);
     await context.api.updateMissionToolsUser(guildId, interaction.user.id, {
       username: displayUserName(interaction),
       voiceChannelId: null,
@@ -205,8 +208,8 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction, contex
       voiceGuildName: selectedGuild?.name ?? selected
     });
     await editOrCreateDmPanel(context, guildId, interaction.user.id, "voice", {
-      guildOptions,
-      voiceChannelOptions: channelOptions
+      guildOptions: options.guildOptions,
+      voiceChannelOptions: options.voiceChannelOptions
     });
     await interaction.editReply("Servidor de voz selecionado. Agora escolha o canal.");
     return;
@@ -217,9 +220,14 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction, contex
     const record = await context.api.getMissionToolsUser(guildId, interaction.user.id);
     const token = await requireUserToken(interaction, context, guildId);
     if (!token) return;
-    const channelOptions = record.voiceGuildId
-      ? await fetchDiscordVoiceChannelOptions(token, record.voiceGuildId)
-      : [];
+    const options = record.voiceGuildId
+      ? await fetchVoiceOptionsSafely(interaction, context, guildId, token, record.voiceGuildId)
+      : {
+          guildOptions: [],
+          voiceChannelOptions: []
+        };
+    if (!options) return;
+    const channelOptions = options.voiceChannelOptions;
     const selectedChannel = channelOptions.find((channel) => channel.id === selected);
 
     await context.api.updateMissionToolsUser(guildId, interaction.user.id, {
@@ -361,9 +369,14 @@ async function handleMissionButton(interaction: ButtonInteraction, context: BotC
         await interaction.editReply(reason);
       },
       run: async (signal) => {
-        await runMissionFlow(token, async (update) => {
-          await updateMissionStatus(context, guildId, interaction.user.id, update);
-        }, signal);
+        try {
+          await runMissionFlow(token, async (update) => {
+            await updateMissionStatus(context, guildId, interaction.user.id, update);
+          }, signal);
+        } catch (error) {
+          await recordTokenAuthFailure(context, guildId, interaction.user.id, error, "mission", "mission");
+          throw error;
+        }
       }
     });
     if (queued) {
@@ -418,8 +431,9 @@ async function handleClearButton(interaction: ButtonInteraction, context: BotCon
 
   if (action === "start") {
     await deferMissionReply(interaction);
-    const token = await requireUserToken(interaction, context, guildId);
-    if (!token) return;
+    const tokenRecord = await requireUserTokenRecord(interaction, context, guildId);
+    if (!tokenRecord) return;
+    const token = tokenRecord.token;
     const record = await context.api.getMissionToolsUser(guildId, interaction.user.id);
     const key = sessionKey(guildId, interaction.user.id);
 
@@ -447,9 +461,10 @@ async function handleClearButton(interaction: ButtonInteraction, context: BotCon
         });
       })
       .catch(async (error) => {
+        const authFailed = await recordTokenAuthFailure(context, guildId, interaction.user.id, error, "clear", "clear");
         await updateUserAndPanel(context, guildId, interaction.user.id, "clear", {
           clearStatus: controller.signal.aborted ? "deactivated" : "error",
-          currentMission: errorMessage(error)
+          currentMission: authFailed ? "Token precisa ser reconectado." : errorMessage(error)
         });
       })
       .finally(() => cleanupControllers.delete(key));
@@ -474,12 +489,14 @@ async function handleVoiceButton(interaction: ButtonInteraction, context: BotCon
     await deferMissionReply(interaction);
     const token = await requireUserToken(interaction, context, guildId);
     if (!token) return;
-    const guildOptions = await fetchDiscordGuildOptions(token);
     const record = await context.api.getMissionToolsUser(guildId, interaction.user.id);
-    const channelOptions = record.voiceGuildId ? await fetchDiscordVoiceChannelOptions(token, record.voiceGuildId) : [];
+    const options = record.voiceGuildId
+      ? await fetchVoiceOptionsSafely(interaction, context, guildId, token, record.voiceGuildId)
+      : await fetchVoiceOptionsSafely(interaction, context, guildId, token);
+    if (!options) return;
     await editOrCreateDmPanel(context, guildId, interaction.user.id, "voice", {
-      guildOptions,
-      voiceChannelOptions: channelOptions
+      guildOptions: options.guildOptions,
+      voiceChannelOptions: options.voiceChannelOptions
     });
     await interaction.editReply("Lista de servidores/canais atualizada.");
     return;
@@ -518,8 +535,9 @@ async function handleVoiceButton(interaction: ButtonInteraction, context: BotCon
 
   if (action === "start") {
     await deferMissionReply(interaction);
-    const token = await requireUserToken(interaction, context, guildId);
-    if (!token) return;
+    const tokenRecord = await requireUserTokenRecord(interaction, context, guildId);
+    if (!tokenRecord) return;
+    const token = tokenRecord.token;
     const record = await context.api.getMissionToolsUser(guildId, interaction.user.id);
 
     if (!record.voiceGuildId || !record.voiceChannelId) {
@@ -529,15 +547,20 @@ async function handleVoiceButton(interaction: ButtonInteraction, context: BotCon
 
     const key = sessionKey(guildId, interaction.user.id);
     const current = voiceSessions.get(key);
-    const session = current?.token === token
+    if (current && (current.token !== token || current.tokenUpdatedAt !== tokenRecord.updatedAt)) {
+      current.session.stop();
+    }
+    const session = current?.token === token && current.tokenUpdatedAt === tokenRecord.updatedAt
       ? current.session
       : new DiscordVoiceSession(token, (update) => {
           void updateUserAndPanel(context, guildId, interaction.user.id, "voice", {
             voiceConnectedAt: update.connectedAt ?? null,
             voiceStatus: update.status
           });
+        }, (error) => {
+          void recordTokenAuthFailure(context, guildId, interaction.user.id, error, "voice-gateway", "voice");
         });
-    voiceSessions.set(key, { session, token });
+    voiceSessions.set(key, { session, token, tokenUpdatedAt: tokenRecord.updatedAt });
     session.start(record.voiceGuildId, record.voiceChannelId);
     await updateUserAndPanel(context, guildId, interaction.user.id, "voice", {
       voiceStatus: "reconnecting"
@@ -579,8 +602,9 @@ async function handleRichPresenceButton(interaction: ButtonInteraction, context:
 
   if (action === "start") {
     await deferMissionReply(interaction);
-    const token = await requireUserToken(interaction, context, guildId);
-    if (!token) return;
+    const tokenRecord = await requireUserTokenRecord(interaction, context, guildId);
+    if (!tokenRecord) return;
+    const token = tokenRecord.token;
     const validation = validateRichPresenceConfig(record.richPresenceConfig);
     if (validation) {
       await interaction.editReply(validation);
@@ -589,14 +613,19 @@ async function handleRichPresenceButton(interaction: ButtonInteraction, context:
 
     const key = sessionKey(guildId, interaction.user.id);
     const current = richPresenceSessions.get(key);
-    const session = current?.token === token
+    if (current && (current.token !== token || current.tokenUpdatedAt !== tokenRecord.updatedAt)) {
+      current.session.stop();
+    }
+    const session = current?.token === token && current.tokenUpdatedAt === tokenRecord.updatedAt
       ? current.session
       : new DiscordRichPresenceSession(token, (status) => {
           void updateUserAndPanel(context, guildId, interaction.user.id, "richPresence", {
             richPresenceStatus: status
           });
+        }, (error) => {
+          void recordTokenAuthFailure(context, guildId, interaction.user.id, error, "rich-presence-gateway", "richPresence");
         });
-    richPresenceSessions.set(key, { session, token });
+    richPresenceSessions.set(key, { session, token, tokenUpdatedAt: tokenRecord.updatedAt });
     session.start(record.richPresenceConfig);
     await updateUserAndPanel(context, guildId, interaction.user.id, "richPresence", {
       richPresenceStatus: "active"
@@ -866,12 +895,93 @@ async function updateUserAndPanel(context: BotContext, guildId: string, userId: 
 }
 
 async function requireUserToken(interaction: ButtonInteraction | StringSelectMenuInteraction, context: BotContext, guildId: string) {
+  const record = await requireUserTokenRecord(interaction, context, guildId);
+  return record?.token ?? null;
+}
+
+async function requireUserTokenRecord(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  context: BotContext,
+  guildId: string
+): Promise<MissionToolsTokenResponse | null> {
   try {
-    const token = await context.api.getMissionToolsToken(guildId, interaction.user.id);
-    return token.token;
+    const record = await context.api.getMissionToolsToken(guildId, interaction.user.id);
+    if (record.tokenStatus !== "connected") {
+      await editReplySafely(interaction, tokenStatusMessage(record.tokenStatus, record.invalidReason));
+      return null;
+    }
+
+    return record;
   } catch (error) {
     await editReplySafely(interaction, readRequestErrorMessage(error) ?? "Token invalido ou ausente. Configure o token novamente.");
     return null;
+  }
+}
+
+async function recordTokenAuthFailure(
+  context: BotContext,
+  guildId: string,
+  userId: string,
+  error: unknown,
+  source: string,
+  panelType: PanelType
+) {
+  if (!isDiscordTokenAuthError(error)) {
+    return false;
+  }
+
+  try {
+    const result = await context.api.markMissionToolsTokenAuthFailure(guildId, userId, {
+      reason: error.message,
+      source: error.source || source,
+      statusCode: error.statusCode
+    });
+    stopUserRuntimeSessions(guildId, userId);
+    await editOrCreateDmPanel(context, guildId, userId, panelType).catch(() => null);
+    await refreshExistingUserDmPanels(context, guildId, result.user).catch(() => null);
+  } catch (reportError) {
+    console.warn("[mission-tools] falha ao registrar token invalido:", errorMessage(reportError));
+  }
+
+  return true;
+}
+
+function tokenStatusMessage(status: string, reason?: string | null) {
+  if (status === "expired") {
+    return reason ?? "Token expirado ou revogado. Reconecte o token pela dashboard.";
+  }
+
+  if (status === "invalid") {
+    return reason ?? "Token invalido. Substitua o token pela dashboard.";
+  }
+
+  return "Token nao configurado. Abra a dashboard e conecte o token em Mission Tools.";
+}
+
+async function fetchVoiceOptionsSafely(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  context: BotContext,
+  guildId: string,
+  token: string,
+  selectedGuildId?: string
+) {
+  try {
+    const guildOptions = await fetchDiscordGuildOptions(token);
+    const voiceChannelOptions = selectedGuildId
+      ? await fetchDiscordVoiceChannelOptions(token, selectedGuildId)
+      : [];
+
+    return {
+      guildOptions,
+      voiceChannelOptions
+    };
+  } catch (error) {
+    if (await recordTokenAuthFailure(context, guildId, interaction.user.id, error, "voice-options", "voice")) {
+      await editReplySafely(interaction, errorMessage(error));
+      return null;
+    }
+
+    throw error;
   }
 }
 
@@ -1017,7 +1127,7 @@ function buildClearPanelPayload(record: MissionToolsUserPanel) {
     .addSeparatorComponents(separator())
     .addTextDisplayComponents(text(
       `**System Status:** ${statusLabel(record.clearStatus)}\n`
-      + `**Configured Token:** ${tokenLabel(record.tokenConfigured)}\n`
+      + `**Configured Token:** ${tokenLabel(record.tokenConfigured, record.tokenStatus)}\n`
       + `**Modo de limpeza:** ${record.clearMode === "userDm" ? "DM por ID" : "Em massa"}\n`
       + `**User ID alvo:** ${record.clearTargetUserId ?? "Nao definido"}\n`
       + `**Current Execution:** ${record.currentMission ?? "No execution in progress"}\n`
@@ -1043,7 +1153,7 @@ function buildMissionPanelPayload(record: MissionToolsUserPanel) {
     .addTextDisplayComponents(text(
       `**System:** Mission System\n`
       + `**Status:** ${statusLabel(record.missionStatus)}\n`
-      + `**Configured Token:** ${tokenLabel(record.tokenConfigured)}\n`
+      + `**Configured Token:** ${tokenLabel(record.tokenConfigured, record.tokenStatus)}\n`
       + `**Current Mission:** ${record.currentMission ?? "No mission in progress"}\n`
       + `**Detail:** ${record.missionDetail ?? "No recent event"}\n`
       + `**Progress:** ${Math.round(record.progress)}%\n`
@@ -1072,7 +1182,7 @@ function buildVoicePanelPayload(record: MissionToolsUserPanel, options: PanelRen
       + `**Canal atual:** ${record.voiceChannelName ?? "Nao selecionado"}\n`
       + `**Tempo de conexao ativo:** ${durationLabel(record.voiceConnectedAt)}\n`
       + `**Status da sessao:** ${voiceStatusLabel(record.voiceStatus)}\n`
-      + `**Token configurado:** ${tokenLabel(record.tokenConfigured)}`
+      + `**Token configurado:** ${tokenLabel(record.tokenConfigured, record.tokenStatus)}`
     ))
     .addSeparatorComponents(separator());
 
@@ -1117,7 +1227,7 @@ function buildRichPresencePanelPayload(record: MissionToolsUserPanel) {
     .addSeparatorComponents(separator())
     .addTextDisplayComponents(text(
       `**Status:** ${record.richPresenceStatus === "active" ? "Ativo" : "Inativo"}\n`
-      + `**Token:** ${tokenLabel(record.tokenConfigured)}\n`
+      + `**Token:** ${tokenLabel(record.tokenConfigured, record.tokenStatus)}\n`
       + `**Nome:** ${codeValue(config.name)}\n`
       + `**Detalhes:** ${codeValue(config.details)}\n`
       + `**Estado:** ${codeValue(config.state)}\n`
@@ -1473,7 +1583,11 @@ function durationLabel(value?: string | null) {
   return hours > 0 ? `${hours}h ${minutes}m ${seconds}s` : `${minutes}m ${seconds}s`;
 }
 
-function tokenLabel(tokenConfigured: boolean) {
+function tokenLabel(tokenConfigured: boolean, status?: string | null) {
+  if (status === "connected") return "Connected";
+  if (status === "invalid") return "Invalid Token";
+  if (status === "expired") return "Expired Token";
+  if (status === "disconnected") return "Disconnected";
   return tokenConfigured ? "Configurado" : "Nao configurado";
 }
 
@@ -1547,6 +1661,50 @@ function missionToolsPayloadUserId(value: unknown) {
   return typeof userId === "string" && /^\d{5,32}$/.test(userId) ? userId : null;
 }
 
+function missionToolsPayloadTokenStatus(value: unknown) {
+  if (!value || typeof value !== "object" || !("tokenStatus" in value)) {
+    return null;
+  }
+
+  const status = (value as { tokenStatus?: unknown }).tokenStatus;
+  return typeof status === "string" ? status : null;
+}
+
+function missionToolsPayloadTokenUpdatedAt(value: unknown) {
+  if (!value || typeof value !== "object" || !("tokenUpdatedAt" in value)) {
+    return null;
+  }
+
+  const updatedAt = (value as { tokenUpdatedAt?: unknown }).tokenUpdatedAt;
+  return typeof updatedAt === "string" && updatedAt ? updatedAt : null;
+}
+
+function invalidateRuntimeSessionsFromUserPayload(guildId: string, payloadUser: unknown) {
+  const userId = missionToolsPayloadUserId(payloadUser);
+  if (!userId) {
+    return;
+  }
+
+  const status = missionToolsPayloadTokenStatus(payloadUser);
+  const tokenUpdatedAt = missionToolsPayloadTokenUpdatedAt(payloadUser);
+  const key = sessionKey(guildId, userId);
+
+  if (status && status !== "connected") {
+    stopUserRuntimeSessions(guildId, userId);
+    return;
+  }
+
+  const voiceSession = voiceSessions.get(key);
+  const richSession = richPresenceSessions.get(key);
+  if (
+    tokenUpdatedAt
+    && ((voiceSession && voiceSession.tokenUpdatedAt !== tokenUpdatedAt)
+      || (richSession && richSession.tokenUpdatedAt !== tokenUpdatedAt))
+  ) {
+    stopUserRuntimeSessions(guildId, userId);
+  }
+}
+
 function panelTypeFromMainValue(value: string | undefined): PanelType | null {
   if (value === MAIN_CLEAR_VALUE) return "clear";
   if (value === MAIN_MISSION_VALUE) return "mission";
@@ -1589,6 +1747,16 @@ async function userCanUsePanel(interaction: StringSelectMenuInteraction, setting
 
 function sessionKey(guildId: string, userId: string) {
   return `${env.DASHBOARD_BOT_ID || "bot"}:${guildId}:${userId}`;
+}
+
+function stopUserRuntimeSessions(guildId: string, userId: string) {
+  const key = sessionKey(guildId, userId);
+  cleanupControllers.get(key)?.abort("Token precisa ser reconectado.");
+  cleanupControllers.delete(key);
+  voiceSessions.get(key)?.session.stop();
+  voiceSessions.delete(key);
+  richPresenceSessions.get(key)?.session.stop();
+  richPresenceSessions.delete(key);
 }
 
 function panelRequestKey(guildId: string) {

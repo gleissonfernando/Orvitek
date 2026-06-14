@@ -647,6 +647,7 @@ export type MongoMissionToolsClearMode = "bulk" | "userDm";
 export type MongoMissionToolsRichPresenceStatus = "active" | "inactive";
 
 export type MongoMissionToolsRichPresenceActivityType = 0 | 1 | 2 | 3 | 5;
+export type MongoMissionToolsTokenStatus = "connected" | "invalid" | "expired" | "disconnected";
 
 export type MongoMissionToolsRichPresenceConfig = {
   applicationId?: string;
@@ -744,7 +745,16 @@ export type MongoMissionToolsToken = {
   guildId: string;
   userId: string;
   tokenEncrypted: string;
+  tokenHash?: string | null;
   tokenLast4: string | null;
+  tokenStatus?: MongoMissionToolsTokenStatus;
+  tokenUserId?: string | null;
+  tokenUsername?: string | null;
+  invalidReason?: string | null;
+  lastValidatedAt?: Date | null;
+  lastAuthFailureAt?: Date | null;
+  authFailureCount?: number;
+  statusUpdatedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -1428,7 +1438,8 @@ async function ensureMissionToolsIndexes(db: Db) {
     settings.createIndex({ botId: 1, enabled: 1, updatedAt: -1 }),
     users.createIndex({ botId: 1, guildId: 1, updatedAt: -1 }),
     users.createIndex({ botId: 1, guildId: 1, userId: 1 }, { unique: true }),
-    tokens.createIndex({ botId: 1, guildId: 1, userId: 1 }, { unique: true })
+    tokens.createIndex({ botId: 1, guildId: 1, userId: 1 }, { unique: true }),
+    tokens.createIndex({ botId: 1, guildId: 1, tokenHash: 1 })
   ]);
 }
 

@@ -9,7 +9,7 @@ import {
   type MessageCreateOptions,
   type MessageEditOptions
 } from "discord.js";
-import { env } from "../config/env";
+import { currentRuntimeBotId, env } from "../config/env";
 import type { BotContext } from "../types";
 import type { ApiClient, Giveaway, GiveawayStatus } from "./apiClient";
 import { assertPanelChannelPermissions, pinPanelMessage } from "./panelDeliveryService";
@@ -300,7 +300,7 @@ function giveawayStatus(status: GiveawayStatus) {
 }
 
 function isEventForThisBot(event: GiveawayPanelUpdateEvent) {
-  return (event.botId ?? null) === (env.DASHBOARD_BOT_ID || null);
+  return (event.botId ?? null) === ((currentRuntimeBotId() ?? env.DASHBOARD_BOT_ID) || null);
 }
 
 function truncateField(value: string) {

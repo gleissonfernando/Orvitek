@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { requireBot } from "../middleware/auth";
 import { authorizeBotCommand } from "../services/botCommandAuthorizationService";
-import { getBotGuildConfig, getBotApiPermissions } from "../services/devBotService";
+import { authorizeBotRuntimeModule, getBotGuildConfig, getBotApiPermissions } from "../services/devBotService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
 
 export const botDevApiRouter = Router();
@@ -25,8 +25,28 @@ botDevApiRouter.get("/runtime/modules", async (req, res, next) => {
     }
 
     return res.json({
+      active: permissions.status !== "error" && permissions.status !== "invalid_token",
       botId,
-      enabledModules: permissions.enabledModules
+      checkedAt: new Date().toISOString(),
+      enabledModules: permissions.enabledModules,
+      status: permissions.status
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+botDevApiRouter.get("/runtime/guilds/:guildId/modules/:moduleId/authorize", async (req, res, next) => {
+  try {
+    const botId = await resolveRequestBotId(req);
+    const authorization = await authorizeBotRuntimeModule({
+      botId,
+      guildId: req.params.guildId,
+      moduleId: req.params.moduleId
+    });
+
+    return res.json({
+      authorization
     });
   } catch (error) {
     return next(error);

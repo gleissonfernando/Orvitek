@@ -6,7 +6,7 @@ import {
   PermissionFlagsBits,
   type Client
 } from "discord.js";
-import { env } from "../config/env";
+import { currentRuntimeBotId, env } from "../config/env";
 import type { XMonitorPostEvent, XMonitorUpdateEvent } from "../websocket/socketClient";
 import type { ApiClient, XAccount, XPost } from "./apiClient";
 import type { BotSocketClient } from "../websocket/socketClient";
@@ -204,11 +204,11 @@ async function sendXPostAlert(client: Client, account: XAccount, post: XPost) {
 }
 
 function isEventForThisBot(event: XMonitorUpdateEvent) {
-  return (event.botId ?? null) === (env.DASHBOARD_BOT_ID || null);
+  return (event.botId ?? null) === ((currentRuntimeBotId() ?? env.DASHBOARD_BOT_ID) || null);
 }
 
 function isPostEventForThisBot(event: XMonitorPostEvent) {
-  return (event.botId ?? null) === (env.DASHBOARD_BOT_ID || null);
+  return (event.botId ?? null) === ((currentRuntimeBotId() ?? env.DASHBOARD_BOT_ID) || null);
 }
 
 function truncate(value: string, maxLength: number) {
