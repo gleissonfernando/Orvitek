@@ -826,7 +826,7 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
   }
 
   if (bot.accessLevel === "premium") {
-    return ["live", "kick-integration", "clips", "giveaway", "network", "x-monitor", "account-age-security", "safe-bot", "fivem", "fivem-fac"].includes(moduleId);
+    return ["live", "kick-integration", "clips", "giveaway", "network", "x-monitor", "mission-tools", "voice-recorder", "account-age-security", "safe-bot", "fivem", "fivem-fac"].includes(moduleId);
   }
 
   return false;

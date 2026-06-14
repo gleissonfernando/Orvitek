@@ -59,6 +59,9 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "roles", label: "Sistema de Cargos" },
   { id: "tickets", label: "Sistema de Tickets" },
   { id: "moderation", label: "Sistema de Moderacao" },
+  { id: "mission-tools", label: "Mission Tools" },
+  { id: "voice-recorder", label: "Voice Recorder" },
+  { id: "safe-bot", label: "SelfBot Protection" },
   { id: "account-age-security", label: "Seguranca por Idade da Conta" },
   { id: "fivem", label: "FiveM" },
   { id: "fivem-fac", label: "FiveM - FAC Ausencia" },
@@ -122,7 +125,7 @@ export function DevPanel({
     Promise.all([getDevModules(), getDevBots()])
       .then(([moduleData, botData]) => {
         if (!mounted) return;
-        setModules(moduleData.length ? moduleData : fallbackModules);
+        setModules(mergeDevModules(moduleData));
         setBots(botData);
         setInternalSelectedBotId((current) => current ?? controlledSelectedBotId ?? botData[0]?.id ?? null);
       })
@@ -532,6 +535,15 @@ export function DevPanel({
       ) : null}
     </div>
   );
+}
+
+function mergeDevModules(modules: DevModuleDefinition[]) {
+  const apiModules = new Map(modules.map((module) => [module.id, module]));
+
+  return [
+    ...fallbackModules.map((module) => apiModules.get(module.id) ?? module),
+    ...modules.filter((module) => !fallbackModules.some((fallback) => fallback.id === module.id))
+  ];
 }
 
 function ConnectedBotPanel({

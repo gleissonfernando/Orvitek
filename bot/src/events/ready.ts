@@ -11,6 +11,7 @@ import { startFivemFacService } from "../services/fivemFacService";
 import { startGiveawayService } from "../services/giveawayService";
 import { startImageAntiSpamService } from "../services/imageAntiSpamService";
 import { startKickNotificationMonitor } from "../services/kickNotificationMonitor";
+import { startMissionToolsService } from "../services/missionToolsService";
 import {
   disableUnreleasedSafeBotChannels,
   ensureSelfBotRoles,
@@ -42,16 +43,20 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     }
 
     const wasSelfBotEnabled = isSelfBotModuleEnabled();
+    const wasMissionToolsEnabled = isBotModuleEnabled("mission-tools");
     setRuntimeEnabledModules(payload.enabledModules);
 
     if (!wasSelfBotEnabled && isSelfBotModuleEnabled()) {
       startSelfBotProtectionService(context);
       void ensureSelfBotRoles(client, context);
-      return;
     }
 
     if (wasSelfBotEnabled && !isSelfBotModuleEnabled()) {
       void disableUnreleasedSafeBotChannels(client, context);
+    }
+
+    if (!wasMissionToolsEnabled && isBotModuleEnabled("mission-tools")) {
+      startMissionToolsService(client, context);
     }
   });
 
@@ -86,6 +91,9 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   if (isBotModuleEnabled("giveaway")) {
     startGiveawayService(client, context.api, context.socket);
   }
+  if (isBotModuleEnabled("mission-tools")) {
+    startMissionToolsService(client, context);
+  }
   if (isBotModuleEnabled("fivem-fac")) {
     startFivemFacService(client, context);
   }
@@ -93,7 +101,7 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     startImageAntiSpamService(context);
   }
   if (isBotModuleEnabled("voice-recorder")) {
-    startVoiceRecorderService(context);
+    await startVoiceRecorderService(context);
   }
   startSelfBotProtectionService(context);
   if (isSelfBotModuleEnabled()) {

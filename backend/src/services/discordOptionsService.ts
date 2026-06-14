@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { env } from "../config/env";
 import { getDiscordAvatarUrl } from "./discordAssetService";
 
@@ -92,6 +93,10 @@ export type GuildPanelChannelValidationDto = {
 };
 
 const DISCORD_API_URL = "https://discord.com/api/v10";
+const LIVE_OPTIONS_CACHE_TTL_MS = 60_000;
+const LIVE_OPTIONS_STALE_TTL_MS = 15 * 60_000;
+const MAX_DISCORD_RATE_LIMIT_RETRIES = 1;
+const MAX_DISCORD_RETRY_DELAY_MS = 5_000;
 const TEXT_CHANNEL_TYPES = new Set([0, 5]);
 const VOICE_CHANNEL_TYPES = new Set([2, 13]);
 const ADMINISTRATOR = 0x8n;
@@ -109,7 +114,30 @@ const PANEL_CHANNEL_PERMISSIONS = [
   { bit: PIN_MESSAGES, label: "Pin Messages" }
 ] as const;
 
-export async function getGuildLiveOptions(guildId: string, botToken?: string | null): Promise<GuildLiveOptionsDto> {
+type GuildLiveOptionsCacheEntry = {
+  expiresAt: number;
+  staleUntil: number;
+  value: GuildLiveOptionsDto;
+};
+
+class DiscordApiRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message);
+    this.name = "DiscordApiRequestError";
+  }
+}
+
+const guildLiveOptionsCache = new Map<string, GuildLiveOptionsCacheEntry>();
+const guildLiveOptionsRequests = new Map<string, Promise<GuildLiveOptionsDto>>();
+
+export async function getGuildLiveOptions(
+  guildId: string,
+  botToken?: string | null,
+  forceRefresh = false
+): Promise<GuildLiveOptionsDto> {
   const token = botToken || env.DISCORD_BOT_TOKEN;
 
   if (!token) {
@@ -120,6 +148,49 @@ export async function getGuildLiveOptions(guildId: string, botToken?: string | n
     };
   }
 
+  const cacheKey = createLiveOptionsCacheKey(guildId, token);
+  const now = Date.now();
+  const cached = guildLiveOptionsCache.get(cacheKey);
+
+  if (!forceRefresh && cached && cached.expiresAt > now) {
+    return cached.value;
+  }
+
+  const activeRequest = guildLiveOptionsRequests.get(cacheKey);
+
+  if (activeRequest) {
+    return activeRequest;
+  }
+
+  const request = fetchGuildLiveOptions(guildId, token)
+    .then((value) => {
+      const cachedAt = Date.now();
+
+      guildLiveOptionsCache.set(cacheKey, {
+        expiresAt: cachedAt + LIVE_OPTIONS_CACHE_TTL_MS,
+        staleUntil: cachedAt + LIVE_OPTIONS_STALE_TTL_MS,
+        value
+      });
+
+      return value;
+    })
+    .catch((error) => {
+      if (cached && cached.staleUntil > Date.now() && isTransientDiscordError(error)) {
+        console.warn(`[discord:options] usando cache temporario para o servidor ${guildId}.`);
+        return cached.value;
+      }
+
+      throw error;
+    })
+    .finally(() => {
+      guildLiveOptionsRequests.delete(cacheKey);
+    });
+
+  guildLiveOptionsRequests.set(cacheKey, request);
+  return request;
+}
+
+async function fetchGuildLiveOptions(guildId: string, token: string): Promise<GuildLiveOptionsDto> {
   const [channels, roles] = await Promise.all([
     discordFetch<DiscordChannel[]>(`/guilds/${guildId}/channels`, token),
     getGuildRoleOptions(guildId, token)
@@ -518,16 +589,69 @@ function getMemberAvatarUrl(guildId: string, userId: string, avatar: string | nu
   return `https://cdn.discordapp.com/guilds/${guildId}/users/${userId}/avatars/${avatar}.${extension}?size=128`;
 }
 
-async function discordFetch<TResponse>(path: string, token: string) {
+function createLiveOptionsCacheKey(guildId: string, token: string) {
+  const tokenHash = createHash("sha256").update(token).digest("base64url").slice(0, 16);
+  return `${guildId}:${tokenHash}`;
+}
+
+function isTransientDiscordError(error: unknown) {
+  return error instanceof DiscordApiRequestError
+    ? error.status === 429 || error.status >= 500
+    : error instanceof TypeError;
+}
+
+async function discordFetch<TResponse>(path: string, token: string, attempt = 0): Promise<TResponse> {
   const response = await fetch(`${DISCORD_API_URL}${path}`, {
     headers: {
       Authorization: `Bot ${token}`
     }
   });
 
+  if (response.status === 429) {
+    const retryAfterMs = await readDiscordRetryAfterMs(response);
+
+    if (attempt < MAX_DISCORD_RATE_LIMIT_RETRIES) {
+      await wait(Math.min(retryAfterMs, MAX_DISCORD_RETRY_DELAY_MS));
+      return discordFetch<TResponse>(path, token, attempt + 1);
+    }
+
+    throw new DiscordApiRequestError(
+      "O Discord limitou temporariamente a consulta ao servidor. Aguarde alguns segundos e tente novamente.",
+      response.status
+    );
+  }
+
   if (!response.ok) {
-    throw new Error(`Discord API respondeu ${response.status} em ${path}.`);
+    throw new DiscordApiRequestError(`Discord API respondeu ${response.status} em ${path}.`, response.status);
   }
 
   return (await response.json()) as TResponse;
+}
+
+async function readDiscordRetryAfterMs(response: Response) {
+  const headerValue = response.headers.get("retry-after") ?? response.headers.get("x-ratelimit-reset-after");
+  const headerSeconds = headerValue ? Number(headerValue) : Number.NaN;
+
+  if (Number.isFinite(headerSeconds) && headerSeconds >= 0) {
+    return Math.max(250, Math.ceil(headerSeconds * 1000));
+  }
+
+  try {
+    const payload = await response.clone().json() as { retry_after?: unknown };
+    const bodySeconds = Number(payload.retry_after);
+
+    if (Number.isFinite(bodySeconds) && bodySeconds >= 0) {
+      return Math.max(250, Math.ceil(bodySeconds * 1000));
+    }
+  } catch {
+    // Discord may omit a JSON body on some gateway or proxy rate limits.
+  }
+
+  return 1_000;
+}
+
+function wait(milliseconds: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
 }

@@ -72,6 +72,8 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
   const [giveaways, setGiveaways] = useState<Giveaway[]>([]);
   const [options, setOptions] = useState<GuildLiveOptions | null>(null);
   const [kickStatus, setKickStatus] = useState<KickIntegrationStatus | null>(null);
+  const [kickStatusError, setKickStatusError] = useState<string | null>(null);
+  const [kickStatusLoading, setKickStatusLoading] = useState(true);
   const [form, setForm] = useState<GiveawayForm>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -105,6 +107,8 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
       setGiveaways([]);
       setOptions(null);
       setKickStatus(null);
+      setKickStatusError(null);
+      setKickStatusLoading(false);
       setLoading(false);
       return;
     }
@@ -113,26 +117,51 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
 
     setLoading(true);
     setMessage(null);
+    setGiveaways([]);
+    setOptions(null);
+    setKickStatus(null);
+    setKickStatusError(null);
+    setKickStatusLoading(true);
 
-    Promise.all([
+    Promise.allSettled([
       getGiveaways(guild.id, botId),
       getGuildLiveOptions(guild.id, botId),
-      getKickIntegrationStatus(guild.id, botId).catch(() => null)
+      getKickIntegrationStatus(guild.id, botId)
     ])
-      .then(([nextGiveaways, nextOptions, nextKickStatus]) => {
+      .then(([giveawaysResult, optionsResult, kickStatusResult]) => {
         if (!mounted) return;
-        setGiveaways(nextGiveaways);
-        setOptions(nextOptions);
-        setKickStatus(nextKickStatus);
-        if (canManage) {
-          void syncGiveawayList(nextGiveaways);
+
+        const loadErrors: string[] = [];
+
+        if (giveawaysResult.status === "fulfilled") {
+          setGiveaways(giveawaysResult.value);
+
+          if (canManage) {
+            void syncGiveawayList(giveawaysResult.value);
+          }
+        } else {
+          loadErrors.push(readRequestMessage(giveawaysResult.reason) ?? "Nao foi possivel carregar os sorteios.");
         }
-      })
-      .catch((error) => {
-        if (mounted) setMessage(readRequestMessage(error) ?? "Nao foi possivel carregar os sorteios.");
+
+        if (optionsResult.status === "fulfilled") {
+          setOptions(optionsResult.value);
+        } else {
+          loadErrors.push(readRequestMessage(optionsResult.reason) ?? "Nao foi possivel carregar os canais do Discord.");
+        }
+
+        if (kickStatusResult.status === "fulfilled") {
+          setKickStatus(kickStatusResult.value);
+        } else {
+          setKickStatusError(readRequestMessage(kickStatusResult.reason) ?? "Nao foi possivel verificar a API Kick.");
+        }
+
+        setMessage(loadErrors[0] ?? null);
       })
       .finally(() => {
-        if (mounted) setLoading(false);
+        if (mounted) {
+          setKickStatusLoading(false);
+          setLoading(false);
+        }
       });
 
     return () => {
@@ -143,10 +172,22 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
   async function refreshKickStatus() {
     if (!guild) {
       setKickStatus(null);
+      setKickStatusError(null);
+      setKickStatusLoading(false);
       return;
     }
 
-    setKickStatus(await getKickIntegrationStatus(guild.id, botId).catch(() => null));
+    setKickStatusLoading(true);
+    setKickStatusError(null);
+
+    try {
+      setKickStatus(await getKickIntegrationStatus(guild.id, botId));
+    } catch (error) {
+      setKickStatus(null);
+      setKickStatusError(readRequestMessage(error) ?? "Nao foi possivel verificar a API Kick.");
+    } finally {
+      setKickStatusLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -231,7 +272,7 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
     setMessage(null);
 
     try {
-      setOptions(await getGuildLiveOptions(guild.id, botId));
+      setOptions(await getGuildLiveOptions(guild.id, botId, true));
       setMessage("Canais do Discord sincronizados.");
     } catch (error) {
       setMessage(readRequestMessage(error) ?? "Nao foi possivel sincronizar canais.");
@@ -398,7 +439,12 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
         </div>
       ) : null}
 
-      <KickDiagnosticsPanel giveaways={giveaways} status={kickStatus} />
+      <KickDiagnosticsPanel
+        error={kickStatusError}
+        giveaways={giveaways}
+        loading={kickStatusLoading}
+        status={kickStatus}
+      />
 
       <Card className="border-zinc-800 bg-zinc-950/80">
         <CardHeader className="border-b border-zinc-900 p-5 sm:p-6">
@@ -654,10 +700,14 @@ function GiveawayRow({
 }
 
 function KickDiagnosticsPanel({
+  error,
   giveaways,
+  loading,
   status
 }: {
+  error: string | null;
   giveaways: Giveaway[];
+  loading: boolean;
   status: KickIntegrationStatus | null;
 }) {
   const kickGiveaways = giveaways.filter((giveaway) => giveaway.livePlatform === "kick" || giveaway.livePlatform === "multi" || giveaway.kickChannelName || giveaway.kickUserId);
@@ -666,8 +716,34 @@ function KickDiagnosticsPanel({
   }, 0);
   const webhook = status?.webhook ?? null;
   const apiOnline = status?.apiStatus === "ok";
+  const apiFailed = status?.apiStatus === "error";
+  const apiNotConfigured = status?.apiStatus === "not_configured";
   const webhookActive = webhook?.status === "active";
-  const tokenValid = status?.apiStatus === "ok";
+  const hasKickGiveaway = kickGiveaways.length > 0;
+  const webhookLabel = webhookActive
+    ? "Ativo"
+    : hasKickGiveaway
+      ? "Aguardando evento"
+      : "Aguardando sorteio Kick";
+  const apiBadgeLabel = loading
+    ? "Verificando API"
+    : apiOnline
+      ? "API Conectada"
+      : apiFailed
+        ? "API com erro"
+        : apiNotConfigured
+          ? "API nao configurada"
+          : "API nao verificada";
+  const tokenTone = apiOnline ? "success" : apiFailed ? "danger" : apiNotConfigured ? "warning" : "neutral";
+  const tokenLabel = loading
+    ? "Verificando"
+    : apiOnline
+      ? "Valido"
+      : apiFailed
+        ? "Erro na validacao"
+        : apiNotConfigured
+          ? "Nao configurado"
+          : "Nao verificado";
   const totalParticipants = webhook?.totalParticipants ?? kickGiveaways.reduce((total, giveaway) => total + giveaway.participants.length, 0);
   const kickParticipants = webhook?.kickParticipants ?? fallbackKickParticipants;
   const kickSubscribers = webhook?.kickSubscribers ?? countKickParticipantsByFlag(kickGiveaways, "subscriber");
@@ -681,8 +757,15 @@ function KickDiagnosticsPanel({
             <CardTitle>Diagnostico Kick</CardTitle>
             <CardDescription>Sorteios, API e webhook</CardDescription>
           </div>
-          <Badge className={apiOnline ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-300" : "border-red-500/25 bg-red-500/10 text-red-300"} variant="muted">
-            {apiOnline ? "API Conectada" : "API Offline"}
+          <Badge
+            className={apiOnline
+              ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-300"
+              : apiFailed
+                ? "border-red-500/25 bg-red-500/10 text-red-300"
+                : "border-yellow-500/25 bg-yellow-500/10 text-yellow-200"}
+            variant="muted"
+          >
+            {apiBadgeLabel}
           </Badge>
         </div>
       </CardHeader>
@@ -690,14 +773,14 @@ function KickDiagnosticsPanel({
         <DiagnosticMetric
           icon={apiOnline ? CheckCircle2 : AlertTriangle}
           label="Token"
-          tone={tokenValid ? "success" : "danger"}
-          value={tokenValid ? "Valido" : "Expirado"}
+          tone={tokenTone}
+          value={tokenLabel}
         />
         <DiagnosticMetric
-          icon={webhookActive ? Radio : AlertTriangle}
+          icon={webhookActive ? Radio : hasKickGiveaway ? AlertTriangle : Clock}
           label="Webhook"
-          tone={webhookActive ? "success" : "warning"}
-          value={webhookActive ? "Ativo" : "Inativo"}
+          tone={webhookActive ? "success" : hasKickGiveaway ? "warning" : "neutral"}
+          value={webhookLabel}
         />
         <DiagnosticMetric icon={Users} label="Participantes" value={`${totalParticipants} total / ${kickParticipants} Kick`} />
         <DiagnosticMetric icon={Trophy} label="Kick encontrados" value={`${kickSubscribers} subs / ${kickFollowers} seguidores`} />
@@ -714,9 +797,9 @@ function KickDiagnosticsPanel({
           <p className="text-xs text-zinc-500">Ultimo evento</p>
           <p className="mt-1 truncate text-sm font-medium text-zinc-200">{formatDateTime(webhook?.lastEventAt)}</p>
         </div>
-        {status?.apiMessage || webhook?.lastSyncError ? (
+        {error || status?.apiMessage || webhook?.lastSyncError ? (
           <div className="rounded-lg border border-zinc-900 bg-black/35 p-3 text-xs leading-5 text-zinc-300 sm:col-span-2 xl:col-span-4">
-            {webhook?.lastSyncError ?? status?.apiMessage}
+            {webhook?.lastSyncError ?? error ?? status?.apiMessage}
           </div>
         ) : null}
       </CardContent>

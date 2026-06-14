@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import {
+  AttachmentBuilder,
   ChannelType,
   EmbedBuilder,
   PermissionFlagsBits,
@@ -69,14 +70,30 @@ const BYTES_PER_SAMPLE = 2;
 const FRAME_BYTES = SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * FRAME_MS / 1000;
 const STORAGE_ROOT = path.resolve(__dirname, "../../../storage/voice-records");
 const activeSessions = new Map<string, VoiceRecorderSession>();
+let serviceStarted = false;
 
-export function startVoiceRecorderService(context: BotContext) {
+export async function startVoiceRecorderService(context: BotContext) {
+  if (serviceStarted) {
+    return;
+  }
+
+  serviceStarted = true;
   context.socket.onVoiceRecorderStart((event) => {
     void handleDashboardStart(event, context);
   });
   context.socket.onVoiceRecorderStop((event) => {
     void handleDashboardStop(event, context);
   });
+
+  try {
+    const reconciled = await context.api.reconcileVoiceRecordings();
+
+    if (reconciled.length) {
+      console.warn(`[voice-recorder] ${reconciled.length} gravacao(oes) orfa(s) encerrada(s) na inicializacao.`);
+    }
+  } catch (error) {
+    console.warn("[voice-recorder] falha ao reconciliar gravacoes na inicializacao:", readPlainError(error));
+  }
 }
 
 export async function handleVoiceRecordStartCommand(interaction: ChatInputCommandInteraction, context: BotContext) {
@@ -112,22 +129,33 @@ export async function handleVoiceRecordStartCommand(interaction: ChatInputComman
     return;
   }
 
+  const startInput = {
+    actorId: interaction.user.id,
+    actorRoleIds: memberRoleIds(member),
+    actorTag: interaction.user.tag,
+    channelId: voiceChannel.id,
+    channelName: voiceChannel.name,
+    guildId: interaction.guild.id,
+    guildName: interaction.guild.name,
+    source: "discord" as const
+  };
   let startResult: Awaited<ReturnType<typeof context.api.startVoiceRecording>>;
 
   try {
-    startResult = await context.api.startVoiceRecording({
-      actorId: interaction.user.id,
-      actorRoleIds: memberRoleIds(member),
-      actorTag: interaction.user.tag,
-      channelId: voiceChannel.id,
-      channelName: voiceChannel.name,
-      guildId: interaction.guild.id,
-      guildName: interaction.guild.name,
-      source: "discord"
-    });
+    startResult = await context.api.startVoiceRecording(startInput);
   } catch (error) {
-    await interaction.editReply(readErrorMessage(error, "Nao foi possivel iniciar a gravacao pela dashboard."));
-    return;
+    if (!isActiveRecordingConflict(error)) {
+      await interaction.editReply(readErrorMessage(error, "Nao foi possivel iniciar a gravacao."));
+      return;
+    }
+
+    try {
+      await failOrphanedRecording(context, startInput);
+      startResult = await context.api.startVoiceRecording(startInput);
+    } catch (recoveryError) {
+      await interaction.editReply(readErrorMessage(recoveryError, "Nao foi possivel recuperar a gravacao anterior."));
+      return;
+    }
   }
 
   try {
@@ -165,7 +193,23 @@ export async function handleVoiceRecordStopCommand(interaction: ChatInputCommand
   const session = activeSessions.get(interaction.guild.id);
 
   if (!session) {
-    await interaction.editReply("Nao existe gravacao em andamento neste servidor.");
+    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+
+    try {
+      const failed = await failOrphanedRecording(context, {
+        actorId: interaction.user.id,
+        actorRoleIds: member ? memberRoleIds(member) : [],
+        actorTag: interaction.user.tag,
+        guildId: interaction.guild.id
+      });
+      await interaction.editReply(
+        failed
+          ? "A gravacao sem conexao com o bot foi encerrada."
+          : "Nao existe gravacao em andamento neste servidor."
+      );
+    } catch (error) {
+      await interaction.editReply(readErrorMessage(error, "Nao existe gravacao em andamento neste servidor."));
+    }
     return;
   }
 
@@ -194,6 +238,39 @@ export async function handleVoiceRecorderVoiceStateUpdate(oldState: VoiceState, 
   const userId = newState.id;
   const oldInChannel = oldState.channelId === session.channel.id;
   const newInChannel = newState.channelId === session.channel.id;
+  const botUser = context.client.user;
+
+  if (botUser && userId === botUser.id) {
+    if (oldInChannel && !newInChannel && !session.stopping) {
+      await context.api.recordVoiceRecordingEvent(session.recordingId, {
+        guildId,
+        message: "O bot foi desconectado ou movido do canal. A gravacao sera encerrada automaticamente.",
+        type: "bot_disconnected",
+        userId: botUser.id,
+        username: botUser.tag
+      }).catch(() => undefined);
+
+      try {
+        await stopSession(context, session, {
+          actorId: botUser.id,
+          actorTag: `${botUser.tag} - desconectado do canal`,
+          trustedDashboard: true
+        });
+      } catch (error) {
+        console.warn("[voice-recorder] falha ao finalizar apos desconexao do bot:", readPlainError(error));
+
+        if (activeSessions.get(guildId)?.recordingId === session.recordingId) {
+          await abortLocalSession(guildId);
+          await context.api.failVoiceRecording(session.recordingId, {
+            error: `Bot desconectado do canal: ${readPlainError(error)}`,
+            guildId
+          }).catch(() => undefined);
+        }
+      }
+    }
+
+    return;
+  }
 
   if (!oldInChannel && newInChannel) {
     const participant = await ensureParticipant(session, userId, newState.member ?? null);
@@ -322,7 +399,7 @@ async function startCapture(input: {
     await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
     mixer = await PcmMp3Mixer.create(filePath);
   } catch (error) {
-    connection.destroy();
+    destroyVoiceConnection(connection);
     throw error;
   }
   const session: VoiceRecorderSession = {
@@ -405,8 +482,13 @@ async function stopSession(context: BotContext, session: VoiceRecorderSession, i
 
   try {
     await session.mixer.finish();
-    session.connection.destroy();
-    getVoiceConnection(session.guild.id)?.destroy();
+    destroyVoiceConnection(session.connection);
+    const registeredConnection = getVoiceConnection(session.guild.id);
+
+    if (registeredConnection && registeredConnection !== session.connection) {
+      destroyVoiceConnection(registeredConnection);
+    }
+
     activeSessions.delete(session.guild.id);
 
     const stat = await fs.stat(session.filePath);
@@ -429,7 +511,7 @@ async function stopSession(context: BotContext, session: VoiceRecorderSession, i
     });
   } catch (error) {
     activeSessions.delete(session.guild.id);
-    session.connection.destroy();
+    destroyVoiceConnection(session.connection);
     await context.api.failVoiceRecording(session.recordingId, {
       error: readPlainError(error),
       guildId: session.guild.id
@@ -447,8 +529,43 @@ async function abortLocalSession(guildId: string) {
 
   clearTimeout(session.maxTimer);
   activeSessions.delete(guildId);
-  session.connection.destroy();
+  destroyVoiceConnection(session.connection);
   await session.mixer.finish().catch(() => undefined);
+}
+
+async function failOrphanedRecording(context: BotContext, input: {
+  actorId: string;
+  actorRoleIds: string[];
+  actorTag?: string | null;
+  guildId: string;
+}) {
+  const recording = await context.api.stopVoiceRecording({
+    actorId: input.actorId,
+    actorRoleIds: input.actorRoleIds,
+    actorTag: input.actorTag,
+    guildId: input.guildId
+  });
+
+  return context.api.failVoiceRecording(recording.id, {
+    error: "Bot nao possui uma sessao local de audio ativa.",
+    guildId: input.guildId
+  });
+}
+
+function isActiveRecordingConflict(error: unknown) {
+  return readPlainError(error).includes("Ja existe uma gravacao em andamento neste servidor.");
+}
+
+function destroyVoiceConnection(connection: VoiceConnection) {
+  if (connection.state.status === VoiceConnectionStatus.Destroyed) {
+    return;
+  }
+
+  try {
+    connection.destroy();
+  } catch (error) {
+    console.warn("[voice-recorder] nao foi possivel destruir a conexao de voz:", readPlainError(error));
+  }
 }
 
 async function subscribeUserAudio(session: VoiceRecorderSession, userId: string, context: BotContext) {
@@ -556,7 +673,39 @@ async function sendRecordingLogEmbed(session: VoiceRecorderSession, recording: V
   const participantText = participants.length
     ? `${participants.join(", ")}${recording.participants.length > participants.length ? ` e mais ${recording.participants.length - participants.length}` : ""}`
     : "Nenhum participante detectado";
-  const embed = new EmbedBuilder()
+  const fileName = recording.fileName ?? `${recording.id}.mp3`;
+  const attachment = new AttachmentBuilder(session.filePath, {
+    description: `Gravacao do canal ${recording.channelName ?? recording.channelId}`,
+    name: fileName
+  });
+
+  try {
+    await channel.send({
+      embeds: [buildRecordingLogEmbed(session, recording, participantText, "Reproduza o audio diretamente no anexo abaixo.")],
+      files: [attachment]
+    });
+  } catch (error) {
+    console.warn("[voice-recorder] Discord recusou o anexo direto; enviando link da gravacao:", readPlainError(error));
+    await channel.send({
+      embeds: [
+        buildRecordingLogEmbed(
+          session,
+          recording,
+          participantText,
+          recording.fileUrl ?? "Disponivel no historico da dashboard."
+        )
+      ]
+    });
+  }
+}
+
+function buildRecordingLogEmbed(
+  session: VoiceRecorderSession,
+  recording: VoiceRecording,
+  participantText: string,
+  fileDelivery: string
+) {
+  return new EmbedBuilder()
     .setColor(0x8b5cf6)
     .setTitle("Voice Recorder - Gravacao finalizada")
     .addFields(
@@ -570,13 +719,9 @@ async function sendRecordingLogEmbed(session: VoiceRecorderSession, recording: V
       { name: "Duracao", value: formatDuration(recording.durationMs), inline: true },
       { name: "Tamanho", value: formatBytes(recording.fileSize), inline: true },
       { name: "Participantes", value: truncateEmbedValue(participantText), inline: false },
-      { name: "Arquivo", value: recording.fileUrl ?? "Disponivel no historico da dashboard.", inline: false }
+      { name: "Audio", value: fileDelivery, inline: false }
     )
     .setTimestamp(new Date());
-
-  await channel.send({
-    embeds: [embed]
-  });
 }
 
 function recordingFilePath(guildId: string, recordingId: string, date: Date) {

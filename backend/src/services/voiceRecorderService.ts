@@ -572,7 +572,10 @@ export async function failVoiceRecording(input: {
   const updated = await voiceRecordings.findOneAndUpdate(
     {
       _id: recording._id,
-      botId: input.botId
+      botId: input.botId,
+      status: {
+        $in: ACTIVE_STATUSES
+      }
     },
     {
       $set: {
@@ -620,6 +623,41 @@ export async function failVoiceRecording(input: {
   }
 
   return dto;
+}
+
+export async function failActiveVoiceRecordingsForBot(input: {
+  botId: string;
+  error: string;
+}) {
+  const { voiceRecordings } = await getMongoCollections();
+  const activeRecordings = await voiceRecordings.find(
+    {
+      botId: input.botId,
+      status: {
+        $in: ACTIVE_STATUSES
+      }
+    },
+    {
+      projection: {
+        _id: 1
+      }
+    }
+  ).toArray();
+  const failedRecordings: VoiceRecordingDto[] = [];
+
+  for (const recording of activeRecordings) {
+    const failed = await failVoiceRecording({
+      botId: input.botId,
+      error: input.error,
+      recordingId: recording._id
+    });
+
+    if (failed) {
+      failedRecordings.push(failed);
+    }
+  }
+
+  return failedRecordings;
 }
 
 export async function recordVoiceRecordingEvent(input: RecordVoiceEventInput) {

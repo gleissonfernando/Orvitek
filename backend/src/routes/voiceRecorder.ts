@@ -21,6 +21,7 @@ import {
   createBotVoiceRecording,
   createDashboardVoiceRecordingRequest,
   deleteVoiceRecording,
+  failActiveVoiceRecordingsForBot,
   failVoiceRecording,
   getVoiceRecorderDashboard,
   getVoiceRecorderSettings,
@@ -141,6 +142,23 @@ voiceRecorderRouter.post("/bot/start", requireBot, async (req, res, next) => {
       ...input,
       botId
     }));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+voiceRecorderRouter.post("/bot/reconcile", requireBot, async (req, res, next) => {
+  try {
+    const botId = await readRequiredBotId(req);
+
+    await assertBotVoiceRecorderLicense(botId);
+
+    return res.json({
+      recordings: await failActiveVoiceRecordingsForBot({
+        botId,
+        error: "Bot reiniciado sem uma sessao local de audio ativa."
+      })
+    });
   } catch (error) {
     return next(error);
   }

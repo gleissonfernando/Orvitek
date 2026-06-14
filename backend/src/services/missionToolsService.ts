@@ -73,17 +73,22 @@ export type SaveMissionToolsSettingsInput = {
 };
 
 export type CreateMissionToolMissionInput = {
+  actorRoleIds?: string[];
   botId: string;
+  canManageGuild?: boolean;
   guildId: string;
   title: string;
   description?: string | null;
   participantLimit?: number | null;
   createdBy?: string | null;
+  skipManagerCheck?: boolean;
 };
 
 export type MissionToolActorInput = {
   actorId: string;
   actorRoleIds?: string[];
+  canManageGuild?: boolean;
+  guildId?: string;
   skipManagerCheck?: boolean;
   username?: string | null;
 };
@@ -303,6 +308,9 @@ export async function createMissionToolMission(input: CreateMissionToolMissionIn
   const settings = await getMissionToolsSettings(input.guildId, input.botId);
 
   validateSettingsReady(settings);
+  if (!input.skipManagerCheck) {
+    ensureManagerAllowed(settings, input.actorRoleIds ?? [], input.canManageGuild === true);
+  }
   await assertNoActiveMission(input.botId, input.guildId);
 
   const { missionToolsMissions } = await getMongoCollections();
@@ -367,6 +375,7 @@ export async function getActiveMissionToolMission(guildId: string, botId: string
 
 export async function joinMissionToolMission(missionId: string, botId: string, actor: MissionToolActorInput) {
   const mission = await getMissionDocument(missionId, botId);
+  ensureActorGuild(mission, actor.guildId);
   const settings = await getMissionToolsSettings(mission.guildId, botId);
 
   validateSettingsReady(settings);
@@ -422,6 +431,7 @@ export async function joinMissionToolMission(missionId: string, botId: string, a
 
 export async function leaveMissionToolMission(missionId: string, botId: string, actor: MissionToolActorInput) {
   const mission = await getMissionDocument(missionId, botId);
+  ensureActorGuild(mission, actor.guildId);
 
   if (!ACTIVE_MISSION_STATUSES.includes(mission.status)) {
     throw createMissionError("Esta missao nao aceita mais saidas.", 409);
@@ -457,10 +467,11 @@ export async function leaveMissionToolMission(missionId: string, botId: string, 
 
 export async function startMissionToolMission(missionId: string, botId: string, actor: MissionToolActorInput) {
   const mission = await getMissionDocument(missionId, botId);
+  ensureActorGuild(mission, actor.guildId);
   const settings = await getMissionToolsSettings(mission.guildId, botId);
 
   if (!actor.skipManagerCheck) {
-    ensureManagerAllowed(settings, actor.actorRoleIds ?? []);
+    ensureManagerAllowed(settings, actor.actorRoleIds ?? [], actor.canManageGuild === true);
   }
 
   if (mission.status !== "open" && mission.status !== "running") {
@@ -472,10 +483,11 @@ export async function startMissionToolMission(missionId: string, botId: string, 
 
 export async function completeMissionToolMission(missionId: string, botId: string, actor: MissionToolActorInput) {
   const mission = await getMissionDocument(missionId, botId);
+  ensureActorGuild(mission, actor.guildId);
   const settings = await getMissionToolsSettings(mission.guildId, botId);
 
   if (!actor.skipManagerCheck) {
-    ensureManagerAllowed(settings, actor.actorRoleIds ?? []);
+    ensureManagerAllowed(settings, actor.actorRoleIds ?? [], actor.canManageGuild === true);
   }
 
   if (mission.status !== "open" && mission.status !== "running") {
@@ -487,10 +499,11 @@ export async function completeMissionToolMission(missionId: string, botId: strin
 
 export async function cancelMissionToolMission(missionId: string, botId: string, actor: MissionToolActorInput) {
   const mission = await getMissionDocument(missionId, botId);
+  ensureActorGuild(mission, actor.guildId);
   const settings = await getMissionToolsSettings(mission.guildId, botId);
 
   if (!actor.skipManagerCheck) {
-    ensureManagerAllowed(settings, actor.actorRoleIds ?? []);
+    ensureManagerAllowed(settings, actor.actorRoleIds ?? [], actor.canManageGuild === true);
   }
 
   if (mission.status === "completed" || mission.status === "cancelled") {
@@ -643,15 +656,21 @@ function ensureParticipantAllowed(settings: MissionToolsSettingsDto, roleIds: st
   }
 }
 
-function ensureManagerAllowed(settings: MissionToolsSettingsDto, roleIds: string[]) {
-  if (!settings.managerRoleIds.length) {
+function ensureManagerAllowed(settings: MissionToolsSettingsDto, roleIds: string[], canManageGuild: boolean) {
+  if (canManageGuild) {
     return;
   }
 
   const allowed = new Set(settings.managerRoleIds);
 
-  if (!roleIds.some((roleId) => allowed.has(roleId))) {
+  if (!settings.managerRoleIds.length || !roleIds.some((roleId) => allowed.has(roleId))) {
     throw createMissionError("Voce nao possui cargo autorizado para gerenciar missoes.", 403);
+  }
+}
+
+function ensureActorGuild(mission: MongoMissionToolMission, guildId?: string) {
+  if (guildId && mission.guildId !== guildId) {
+    throw createMissionError("Esta missao pertence a outro servidor.", 403);
   }
 }
 

@@ -112,6 +112,27 @@ type KickLivestreamsResponse = {
   message?: string;
 };
 
+type KickEventSubscriptionsResponse = {
+  data?: Array<{
+    broadcaster_user_id?: number | string | null;
+    event?: string | null;
+    id?: string | null;
+    method?: string | null;
+    version?: number | null;
+  }>;
+  message?: string;
+};
+
+type KickEventSubscriptionCreateResponse = {
+  data?: Array<{
+    error?: string | null;
+    name?: string | null;
+    subscription_id?: string | null;
+    version?: number | null;
+  }>;
+  message?: string;
+};
+
 type KickTokenResponse = {
   access_token: string;
   expires_in: number;
@@ -131,6 +152,14 @@ type KickUsersResponse = {
 };
 
 const tokenCache = new Map<string, KickToken>();
+const KICK_WEBHOOK_EVENT_TYPES = [
+  "livestream.status.updated",
+  "channel.followed",
+  "channel.subscription.new",
+  "channel.subscription.renewal",
+  "channel.subscription.gifts",
+  "chat.message.sent"
+] as const;
 
 export function normalizeKickChannel(input: string) {
   let value = input.trim();
@@ -219,6 +248,71 @@ export async function getKickLivestreamsByUserIds(userIds: string[], credentials
 export async function getKickLivestreamByUserId(userId: string, credentials?: KickApiCredentials | null) {
   const streams = await getKickLivestreamsByUserIds([userId], credentials);
   return streams.get(userId) ?? null;
+}
+
+export async function ensureKickWebhookEventSubscriptions(
+  broadcasterUserId: string,
+  credentials?: KickApiCredentials | null
+) {
+  const broadcasterId = Number(broadcasterUserId);
+
+  if (!Number.isSafeInteger(broadcasterId) || broadcasterId <= 0) {
+    throw new Error("ID do canal Kick invalido para configurar o webhook.");
+  }
+
+  const current = await kickApiGet<KickEventSubscriptionsResponse>("/events/subscriptions", {
+    credentials,
+    operation: "event_subscriptions_list",
+    params: {
+      broadcaster_user_id: broadcasterId
+    }
+  });
+  const configured = new Set(
+    (current.data ?? [])
+      .filter((subscription) => (
+        String(subscription.broadcaster_user_id ?? "") === broadcasterUserId
+        && subscription.method === "webhook"
+        && Number(subscription.version) === 1
+      ))
+      .map((subscription) => subscription.event?.trim())
+      .filter((event): event is string => Boolean(event))
+  );
+  const missing = KICK_WEBHOOK_EVENT_TYPES.filter((event) => !configured.has(event));
+
+  if (!missing.length) {
+    return {
+      created: 0,
+      total: configured.size
+    };
+  }
+
+  const response = await kickApiPost<KickEventSubscriptionCreateResponse>(
+    "/events/subscriptions",
+    {
+      broadcaster_user_id: broadcasterId,
+      events: missing.map((name) => ({
+        name,
+        version: 1
+      })),
+      method: "webhook"
+    },
+    {
+      credentials,
+      operation: "event_subscriptions_create"
+    }
+  );
+  const failures = (response.data ?? []).filter((subscription) => (
+    subscription.error && !subscription.subscription_id
+  ));
+
+  if (failures.length) {
+    throw new Error(failures.map((failure) => `${failure.name ?? "evento"}: ${failure.error}`).join("; "));
+  }
+
+  return {
+    created: missing.length,
+    total: configured.size + missing.length
+  };
 }
 
 export function kickGiveawayScopes() {
@@ -362,6 +456,58 @@ async function kickApiGet<T>(path: string, input: {
       const { data } = await axios.get<T>(`${KICK_API_URL}${path}`, {
         headers: kickHeaders(token),
         params: input.params,
+        timeout: 10_000
+      });
+
+      if (attempt > 1) {
+        console.info(`[kick:api] ${input.operation} recuperou apos retry ${attempt}.`);
+      }
+
+      return data;
+    } catch (error) {
+      lastError = error;
+      const status = axios.isAxiosError(error) ? error.response?.status ?? null : null;
+      const retryAfter = axios.isAxiosError(error) ? Number(error.response?.headers?.["retry-after"] ?? 0) : 0;
+
+      console.warn(`[kick:api] falha em ${input.operation} tentativa ${attempt}/${KICK_API_MAX_ATTEMPTS}:`, {
+        status,
+        message: error instanceof Error ? error.message : String(error)
+      });
+
+      if (status === 401) {
+        clearKickAppToken(input.credentials);
+      }
+
+      if (attempt >= KICK_API_MAX_ATTEMPTS || !shouldRetryKickStatus(status)) {
+        break;
+      }
+
+      await sleep(retryAfter > 0 ? retryAfter * 1000 : 500 * attempt);
+    }
+  }
+
+  throw normalizeKickApiError(lastError, input.operation);
+}
+
+async function kickApiPost<T>(
+  path: string,
+  body: unknown,
+  input: {
+    credentials?: KickApiCredentials | null;
+    operation: string;
+  }
+) {
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= KICK_API_MAX_ATTEMPTS; attempt += 1) {
+    const token = await getKickAppAccessToken(input.credentials);
+
+    try {
+      const { data } = await axios.post<T>(`${KICK_API_URL}${path}`, body, {
+        headers: {
+          ...kickHeaders(token),
+          "Content-Type": "application/json"
+        },
         timeout: 10_000
       });
 

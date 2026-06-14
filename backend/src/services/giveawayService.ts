@@ -20,7 +20,7 @@ import {
   type GiveawayConnectedAccountDto,
   type GiveawayEntryVerification
 } from "./giveawayIdentityService";
-import { getKickChannel, normalizeKickChannel } from "./kickService";
+import { ensureKickWebhookEventSubscriptions, getKickChannel, normalizeKickChannel } from "./kickService";
 import { resolveKickApiCredentials } from "./kickNotificationService";
 import { createLog } from "./logService";
 import { getGuildSettings } from "./settingsService";
@@ -1011,6 +1011,13 @@ async function resolveKickGiveawayChannel(value: string, guildId: string, botId:
   if (!kick) {
     throw createGiveawayError("Canal da Kick nao encontrado.", 404);
   }
+
+  await ensureKickWebhookEventSubscriptions(kick.broadcasterUserId, credentials).catch((error) => {
+    throw createGiveawayError(
+      `Canal Kick encontrado, mas nao foi possivel ativar o webhook: ${error instanceof Error ? error.message : String(error)}`,
+      503
+    );
+  });
 
   return {
     ...kick,

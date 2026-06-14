@@ -54,6 +54,7 @@ guildsRouter.get("/:guildId/live-options", async (req, res, next) => {
   try {
     const guildId = req.params.guildId;
     const botId = typeof req.query.botId === "string" && req.query.botId.trim() ? req.query.botId.trim() : null;
+    const forceRefresh = req.query.refresh === "1" || req.query.refresh === "true";
 
     if (!guildId) {
       return res.status(400).json({
@@ -71,7 +72,7 @@ guildsRouter.get("/:guildId/live-options", async (req, res, next) => {
     }
 
     return res.json({
-      options: await getGuildLiveOptions(guildId, await getDevBotToken(botId))
+      options: await getGuildLiveOptions(guildId, await getDevBotToken(botId), forceRefresh)
     });
   } catch (error) {
     return next(error);

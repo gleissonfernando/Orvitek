@@ -823,6 +823,11 @@ export class ApiClient {
     return data;
   }
 
+  async reconcileVoiceRecordings() {
+    const { data } = await this.http.post<{ recordings: VoiceRecording[] }>("/voice-recorder/bot/reconcile", {});
+    return data.recordings;
+  }
+
   async markVoiceRecordingStarted(recordingId: string, input: {
     channelName?: string | null;
     guildName?: string | null;
@@ -1192,6 +1197,8 @@ export class ApiClient {
   }
 
   async createMissionToolMission(input: {
+    actorRoleIds: string[];
+    canManageGuild: boolean;
     createdBy?: string | null;
     description?: string | null;
     guildId: string;
@@ -1202,27 +1209,27 @@ export class ApiClient {
     return data.mission;
   }
 
-  async joinMissionToolMission(missionId: string, input: { actorId: string; actorRoleIds: string[]; username?: string | null }) {
+  async joinMissionToolMission(missionId: string, input: { actorId: string; actorRoleIds: string[]; canManageGuild: boolean; guildId: string; username?: string | null }) {
     const { data } = await this.http.post<{ mission: MissionToolMission }>(`/mission-tools/bot/missions/${missionId}/join`, input);
     return data.mission;
   }
 
-  async leaveMissionToolMission(missionId: string, input: { actorId: string; actorRoleIds: string[]; username?: string | null }) {
+  async leaveMissionToolMission(missionId: string, input: { actorId: string; actorRoleIds: string[]; canManageGuild: boolean; guildId: string; username?: string | null }) {
     const { data } = await this.http.post<{ mission: MissionToolMission }>(`/mission-tools/bot/missions/${missionId}/leave`, input);
     return data.mission;
   }
 
-  async startMissionToolMission(missionId: string, input: { actorId: string; actorRoleIds: string[]; username?: string | null }) {
+  async startMissionToolMission(missionId: string, input: { actorId: string; actorRoleIds: string[]; canManageGuild: boolean; guildId: string; username?: string | null }) {
     const { data } = await this.http.post<{ mission: MissionToolMission }>(`/mission-tools/bot/missions/${missionId}/start`, input);
     return data.mission;
   }
 
-  async completeMissionToolMission(missionId: string, input: { actorId: string; actorRoleIds: string[]; username?: string | null }) {
+  async completeMissionToolMission(missionId: string, input: { actorId: string; actorRoleIds: string[]; canManageGuild: boolean; guildId: string; username?: string | null }) {
     const { data } = await this.http.post<{ mission: MissionToolMission }>(`/mission-tools/bot/missions/${missionId}/complete`, input);
     return data.mission;
   }
 
-  async cancelMissionToolMission(missionId: string, input: { actorId: string; actorRoleIds: string[]; username?: string | null }) {
+  async cancelMissionToolMission(missionId: string, input: { actorId: string; actorRoleIds: string[]; canManageGuild: boolean; guildId: string; username?: string | null }) {
     const { data } = await this.http.post<{ mission: MissionToolMission }>(`/mission-tools/bot/missions/${missionId}/cancel`, input);
     return data.mission;
   }

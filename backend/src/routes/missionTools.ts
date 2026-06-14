@@ -53,12 +53,16 @@ const botPanelStateSchema = z.object({
   messageId: optionalSnowflakeSchema
 });
 const botCreateMissionSchema = createMissionSchema.extend({
+  actorRoleIds: z.array(snowflakeSchema).default([]),
+  canManageGuild: z.boolean().default(false),
   guildId: guildIdSchema,
   createdBy: snowflakeSchema.nullable().optional()
 });
 const botActorSchema = z.object({
   actorId: snowflakeSchema,
   actorRoleIds: z.array(snowflakeSchema).default([]),
+  canManageGuild: z.boolean().default(false),
+  guildId: guildIdSchema,
   username: z.string().max(100).nullable().optional()
 });
 
@@ -127,7 +131,9 @@ missionToolsRouter.post("/bot/missions", requireBot, async (req, res, next) => {
 
     return res.status(201).json({
       mission: await createMissionToolMission({
+        actorRoleIds: input.actorRoleIds,
         botId,
+        canManageGuild: input.canManageGuild,
         createdBy: input.createdBy ?? null,
         description: input.description ?? null,
         guildId: input.guildId,
@@ -321,6 +327,7 @@ missionToolsRouter.post("/:guildId/missions", requireAuth, async (req, res, next
         description: input.description ?? null,
         guildId,
         participantLimit: input.participantLimit ?? 0,
+        skipManagerCheck: true,
         title: input.title
       })
     });
@@ -358,6 +365,7 @@ async function runDashboardMissionAction(
     const actor = {
       actorId: user.discordId,
       actorRoleIds: [],
+      guildId,
       skipManagerCheck: true,
       username: user.globalName || user.username
     };

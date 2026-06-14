@@ -3,12 +3,21 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ChatInputCommandInteraction,
+  ContainerBuilder,
   EmbedBuilder,
+  MessageFlags,
+  ModalBuilder,
+  PermissionFlagsBits,
+  SeparatorBuilder,
+  TextDisplayBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   type ButtonInteraction,
   type Client,
   type Guild,
   type GuildMember,
-  type Interaction
+  type Interaction,
+  type ModalSubmitInteraction
 } from "discord.js";
 import { env, isBotModuleEnabled } from "../config/env";
 import type { BotContext } from "../types";
@@ -22,6 +31,12 @@ const LEAVE_PREFIX = `${MISSION_PREFIX}:leave`;
 const START_PREFIX = `${MISSION_PREFIX}:start`;
 const COMPLETE_PREFIX = `${MISSION_PREFIX}:complete`;
 const CANCEL_PREFIX = `${MISSION_PREFIX}:cancel`;
+const CREATE_PREFIX = `${MISSION_PREFIX}:create`;
+const CREATE_MODAL_PREFIX = `${MISSION_PREFIX}:create_modal`;
+const REFRESH_PREFIX = `${MISSION_PREFIX}:refresh`;
+const TITLE_INPUT_ID = "mission_title";
+const DESCRIPTION_INPUT_ID = "mission_description";
+const LIMIT_INPUT_ID = "mission_limit";
 const PANEL_REQUEST_CHECK_INTERVAL_MS = 15_000;
 
 let serviceStarted = false;
@@ -38,7 +53,7 @@ export function startMissionToolsService(client: Client, context: BotContext) {
   serviceStarted = true;
 
   context.socket.onMissionToolsSettingsUpdated((payload) => {
-    if (!isPayloadForThisBot(payload.botId)) {
+    if (!isBotModuleEnabled(MODULE_ID) || !isPayloadForThisBot(payload.botId)) {
       return;
     }
 
@@ -46,7 +61,7 @@ export function startMissionToolsService(client: Client, context: BotContext) {
   });
 
   context.socket.onMissionToolsPanelPublish((payload) => {
-    if (!isPayloadForThisBot(payload.botId)) {
+    if (!isBotModuleEnabled(MODULE_ID) || !isPayloadForThisBot(payload.botId)) {
       return;
     }
 
@@ -56,7 +71,7 @@ export function startMissionToolsService(client: Client, context: BotContext) {
   });
 
   context.socket.onMissionToolsMissionUpdated((payload) => {
-    if (!isPayloadForThisBot(payload.botId) || !isMissionPayload(payload.mission)) {
+    if (!isBotModuleEnabled(MODULE_ID) || !isPayloadForThisBot(payload.botId) || !isMissionPayload(payload.mission)) {
       return;
     }
 
@@ -78,7 +93,7 @@ export function startMissionToolsService(client: Client, context: BotContext) {
 }
 
 export async function handleMissionToolsInteraction(interaction: Interaction, context: BotContext) {
-  if (!interaction.isButton()) {
+  if (!interaction.isButton() && !interaction.isModalSubmit()) {
     return false;
   }
 
@@ -96,7 +111,11 @@ export async function handleMissionToolsInteraction(interaction: Interaction, co
     return true;
   }
 
-  await handleMissionButton(interaction, context);
+  if (interaction.isModalSubmit()) {
+    await handleMissionCreateModal(interaction, context);
+  } else {
+    await handleMissionButton(interaction, context);
+  }
   return true;
 }
 
@@ -118,94 +137,10 @@ export async function handleMissionPanelPublishCommand(interaction: ChatInputCom
   }
 }
 
-export async function handleMissionCreateCommand(interaction: ChatInputCommandInteraction, context: BotContext) {
-  await interaction.deferReply({
-    ephemeral: true
-  });
-
-  if (!interaction.guild) {
-    await interaction.editReply("Este comando so funciona em servidores.");
-    return;
-  }
-
-  const title = interaction.options.getString("titulo", true);
-  const description = interaction.options.getString("descricao") ?? null;
-  const participantLimit = interaction.options.getInteger("limite") ?? 0;
-
-  try {
-    const mission = await context.api.createMissionToolMission({
-      createdBy: interaction.user.id,
-      description,
-      guildId: interaction.guild.id,
-      participantLimit,
-      title
-    });
-
-    await refreshMissionToolsPanel(context.client, context, interaction.guild.id);
-    await interaction.editReply(`Missao criada: ${mission.title}`);
-  } catch (error) {
-    await interaction.editReply(readRequestErrorMessage(error) ?? "Nao foi possivel criar a missao.");
-  }
-}
-
-export async function handleMissionStartCommand(interaction: ChatInputCommandInteraction, context: BotContext) {
-  await runActiveMissionCommand(interaction, context, "start");
-}
-
-export async function handleMissionCompleteCommand(interaction: ChatInputCommandInteraction, context: BotContext) {
-  await runActiveMissionCommand(interaction, context, "complete");
-}
-
-export async function handleMissionCancelCommand(interaction: ChatInputCommandInteraction, context: BotContext) {
-  await runActiveMissionCommand(interaction, context, "cancel");
-}
-
-async function runActiveMissionCommand(
-  interaction: ChatInputCommandInteraction,
-  context: BotContext,
-  action: "start" | "complete" | "cancel"
-) {
-  await interaction.deferReply({
-    ephemeral: true
-  });
-
-  if (!interaction.guild) {
-    await interaction.editReply("Este comando so funciona em servidores.");
-    return;
-  }
-
-  try {
-    const active = await context.api.getActiveMissionToolMission(interaction.guild.id);
-
-    if (!active) {
-      await interaction.editReply("Nenhuma missao aberta ou em andamento.");
-      return;
-    }
-
-    const actor = actorPayload(interaction);
-    const mission = action === "start"
-      ? await context.api.startMissionToolMission(active.id, actor)
-      : action === "complete"
-        ? await context.api.completeMissionToolMission(active.id, actor)
-        : await context.api.cancelMissionToolMission(active.id, actor);
-
-    if (action === "complete") {
-      const settings = await context.api.getMissionToolsSettings(interaction.guild.id);
-      const assigned = await assignCompletionRole(interaction.guild, settings, mission);
-      await sendMissionLog(interaction.guild, settings, "Missao concluida", mission, interaction.user.id, assigned ? `${assigned} cargo(s) aplicado(s).` : null);
-    }
-
-    await refreshMissionToolsPanel(context.client, context, interaction.guild.id);
-    await interaction.editReply(action === "start" ? "Missao iniciada." : action === "complete" ? "Missao concluida." : "Missao cancelada.");
-  } catch (error) {
-    await interaction.editReply(readRequestErrorMessage(error) ?? "Nao foi possivel atualizar a missao.");
-  }
-}
-
 async function handleMissionButton(interaction: ButtonInteraction, context: BotContext) {
-  const [prefix, action, missionId] = interaction.customId.split(":");
+  const [prefix, action, resourceId] = interaction.customId.split(":");
 
-  if (prefix !== MISSION_PREFIX || !missionId) {
+  if (prefix !== MISSION_PREFIX || !resourceId) {
     await interaction.reply({
       content: "Acao do Mission Tools invalida.",
       ephemeral: true
@@ -214,27 +149,49 @@ async function handleMissionButton(interaction: ButtonInteraction, context: BotC
   }
 
   if (action === "join") {
-    await joinMission(interaction, context, missionId);
+    await joinMission(interaction, context, resourceId);
     return;
   }
 
   if (action === "leave") {
-    await leaveMission(interaction, context, missionId);
+    await leaveMission(interaction, context, resourceId);
     return;
   }
 
   if (action === "start") {
-    await updateMissionFromButton(interaction, context, missionId, "start");
+    await updateMissionFromButton(interaction, context, resourceId, "start");
     return;
   }
 
   if (action === "complete") {
-    await updateMissionFromButton(interaction, context, missionId, "complete");
+    await updateMissionFromButton(interaction, context, resourceId, "complete");
     return;
   }
 
   if (action === "cancel") {
-    await updateMissionFromButton(interaction, context, missionId, "cancel");
+    await updateMissionFromButton(interaction, context, resourceId, "cancel");
+    return;
+  }
+
+  if (action === "create") {
+    await showMissionCreateModal(interaction, resourceId);
+    return;
+  }
+
+  if (action === "refresh") {
+    if (interaction.guildId !== resourceId) {
+      await interaction.reply({
+        content: "Este painel pertence a outro servidor.",
+        ephemeral: true
+      });
+      return;
+    }
+
+    await interaction.deferReply({
+      ephemeral: true
+    });
+    await refreshMissionToolsPanel(context.client, context, resourceId);
+    await interaction.editReply("Painel Mission Tools atualizado.");
     return;
   }
 
@@ -242,6 +199,92 @@ async function handleMissionButton(interaction: ButtonInteraction, context: BotC
     content: "Acao do Mission Tools nao reconhecida.",
     ephemeral: true
   });
+}
+
+async function showMissionCreateModal(interaction: ButtonInteraction, guildId: string) {
+  if (interaction.guildId !== guildId) {
+    await interaction.reply({
+      content: "Este painel pertence a outro servidor.",
+      ephemeral: true
+    });
+    return;
+  }
+
+  const modal = new ModalBuilder()
+    .setCustomId(`${CREATE_MODAL_PREFIX}:${guildId}`)
+    .setTitle("Criar missao");
+  const titleInput = new TextInputBuilder()
+    .setCustomId(TITLE_INPUT_ID)
+    .setLabel("Titulo")
+    .setMaxLength(120)
+    .setRequired(true)
+    .setStyle(TextInputStyle.Short);
+  const descriptionInput = new TextInputBuilder()
+    .setCustomId(DESCRIPTION_INPUT_ID)
+    .setLabel("Descricao")
+    .setMaxLength(1000)
+    .setRequired(false)
+    .setStyle(TextInputStyle.Paragraph);
+  const limitInput = new TextInputBuilder()
+    .setCustomId(LIMIT_INPUT_ID)
+    .setLabel("Limite de participantes (0 = sem limite)")
+    .setMaxLength(3)
+    .setPlaceholder("0")
+    .setRequired(false)
+    .setStyle(TextInputStyle.Short);
+
+  modal.addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(titleInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(limitInput)
+  );
+
+  await interaction.showModal(modal);
+}
+
+async function handleMissionCreateModal(interaction: ModalSubmitInteraction, context: BotContext) {
+  const [prefix, action, guildId] = interaction.customId.split(":");
+
+  if (prefix !== MISSION_PREFIX || action !== "create_modal" || !guildId || interaction.guildId !== guildId) {
+    await interaction.reply({
+      content: "Formulario do Mission Tools invalido.",
+      ephemeral: true
+    });
+    return;
+  }
+
+  await interaction.deferReply({
+    ephemeral: true
+  });
+
+  const title = interaction.fields.getTextInputValue(TITLE_INPUT_ID).trim();
+  const description = interaction.fields.getTextInputValue(DESCRIPTION_INPUT_ID).trim();
+  const rawLimit = interaction.fields.getTextInputValue(LIMIT_INPUT_ID).trim();
+  const participantLimit = rawLimit ? Number(rawLimit) : 0;
+
+  if (!Number.isInteger(participantLimit) || participantLimit < 0 || participantLimit > 500) {
+    await interaction.editReply("O limite precisa ser um numero inteiro entre 0 e 500.");
+    return;
+  }
+
+  const actor = actorPayload(interaction);
+
+  try {
+    const mission = await context.api.createMissionToolMission({
+      actorRoleIds: actor.actorRoleIds,
+      canManageGuild: actor.canManageGuild,
+      createdBy: interaction.user.id,
+      description: description || null,
+      guildId,
+      participantLimit,
+      title
+    });
+
+    await refreshMissionToolsPanel(context.client, context, guildId);
+    await interaction.editReply(`Missao criada: ${mission.title}`);
+  } catch (error) {
+    await interaction.editReply(readRequestErrorMessage(error) ?? "Nao foi possivel criar a missao.");
+  }
 }
 
 async function joinMission(interaction: ButtonInteraction, context: BotContext, missionId: string) {
@@ -356,9 +399,13 @@ async function publishMissionToolsPanel(client: Client, context: BotContext, gui
     const oldMessage = await channel.messages.fetch(settings.panelMessageId).catch(() => null);
 
     if (oldMessage) {
-      const edited = await oldMessage.edit(payload);
-      await pinPanelMessage(edited, "Mission Tools");
-      messageId = edited.id;
+      if (oldMessage.flags.has(MessageFlags.IsComponentsV2)) {
+        const edited = await oldMessage.edit(payload);
+        await pinPanelMessage(edited, "Mission Tools");
+        messageId = edited.id;
+      } else {
+        await oldMessage.delete().catch(() => null);
+      }
     }
   }
 
@@ -392,6 +439,11 @@ async function refreshMissionToolsPanel(client: Client, context: BotContext, gui
 
   const message = await channel.messages.fetch(settings.panelMessageId).catch(() => null);
   if (!message) return;
+
+  if (!message.flags.has(MessageFlags.IsComponentsV2)) {
+    await publishRequestedMissionToolsPanel(client, context, guildId);
+    return;
+  }
 
   const mission = await context.api.getActiveMissionToolMission(guildId);
   await message.edit(buildPanelPayload(settings, mission)).catch((error) => {
@@ -432,30 +484,46 @@ async function processPendingMissionToolsPanelRequests(client: Client, context: 
 }
 
 function buildPanelPayload(settings: MissionToolsSettings, mission: MissionToolMission | null) {
-  const embed = new EmbedBuilder()
-    .setColor(mission ? statusColor(mission.status) : 0x2b2d31)
-    .setTitle(settings.messages.panelTitle)
-    .setDescription(panelDescription(settings, mission))
-    .setTimestamp(new Date());
-
-  if (mission) {
-    embed.addFields(
-      { name: "Status", value: statusLabel(mission.status), inline: true },
-      { name: "Participantes", value: participantCountLabel(mission), inline: true },
-      { name: "Criada em", value: formatDateTime(mission.createdAt), inline: true }
-    );
-  }
+  const container = new ContainerBuilder()
+    .setAccentColor(mission ? statusColor(mission.status) : 0x4b5563)
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `# ${truncate(settings.messages.panelTitle, 120)}\n${truncate(settings.messages.panelDescription, 1000)}`
+      )
+    )
+    .addSeparatorComponents(new SeparatorBuilder())
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(missionStatusText(mission))
+    )
+    .addSeparatorComponents(new SeparatorBuilder());
 
   return {
     allowedMentions: {
       parse: []
     },
-    embeds: [embed],
-    components: mission ? buildMissionComponents(mission) : []
+    components: [
+      container.addActionRowComponents(...buildMissionComponents(settings.guildId, mission))
+    ],
+    flags: MessageFlags.IsComponentsV2 as const
   };
 }
 
-function buildMissionComponents(mission: MissionToolMission) {
+function buildMissionComponents(guildId: string, mission: MissionToolMission | null) {
+  if (!mission) {
+    return [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`${CREATE_PREFIX}:${guildId}`)
+          .setLabel("Criar missao")
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(`${REFRESH_PREFIX}:${guildId}`)
+          .setLabel("Atualizar")
+          .setStyle(ButtonStyle.Secondary)
+      )
+    ];
+  }
+
   const closed = mission.status === "completed" || mission.status === "cancelled";
 
   return [
@@ -463,12 +531,19 @@ function buildMissionComponents(mission: MissionToolMission) {
       new ButtonBuilder()
         .setCustomId(`${JOIN_PREFIX}:${mission.id}`)
         .setDisabled(closed)
-        .setLabel("Entrar")
+        .setLabel("Entrar na fila")
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId(`${LEAVE_PREFIX}:${mission.id}`)
         .setDisabled(closed)
-        .setLabel("Sair")
+        .setLabel("Sair da fila")
+        .setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${CREATE_PREFIX}:${guildId}`)
+        .setDisabled(true)
+        .setLabel("Criar missao")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`${START_PREFIX}:${mission.id}`)
@@ -484,7 +559,11 @@ function buildMissionComponents(mission: MissionToolMission) {
         .setCustomId(`${CANCEL_PREFIX}:${mission.id}`)
         .setDisabled(closed)
         .setLabel("Cancelar")
-        .setStyle(ButtonStyle.Danger)
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`${REFRESH_PREFIX}:${guildId}`)
+        .setLabel("Atualizar")
+        .setStyle(ButtonStyle.Secondary)
     )
   ];
 }
@@ -558,17 +637,20 @@ async function sendMissionLog(
   }).catch(() => null);
 }
 
-function actorPayload(interaction: ButtonInteraction | ChatInputCommandInteraction) {
+function actorPayload(interaction: ButtonInteraction | ChatInputCommandInteraction | ModalSubmitInteraction) {
   return {
     actorId: interaction.user.id,
     actorRoleIds: interactionRoleIds(interaction),
+    canManageGuild: interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) === true
+      || interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) === true,
+    guildId: interaction.guildId ?? "",
     username: interaction.member instanceof Object && "displayName" in interaction.member
       ? interaction.member.displayName
       : interaction.user.username
   };
 }
 
-function interactionRoleIds(interaction: ButtonInteraction | ChatInputCommandInteraction) {
+function interactionRoleIds(interaction: ButtonInteraction | ChatInputCommandInteraction | ModalSubmitInteraction) {
   const member = interaction.member;
   const roleIds = new Set<string>();
 
@@ -593,18 +675,38 @@ function interactionRoleIds(interaction: ButtonInteraction | ChatInputCommandInt
   return [...roleIds];
 }
 
-function panelDescription(settings: MissionToolsSettings, mission: MissionToolMission | null) {
+function missionStatusText(mission: MissionToolMission | null) {
   if (!mission) {
-    return `${settings.messages.panelDescription}\n\nNenhuma missao ativa no momento.`;
+    return [
+      "**Sistema:** Mission System",
+      "**Status:** Inativo",
+      "**Missao atual:** Nenhuma missao em andamento",
+      "**Fila:** 0 participantes",
+      "**Ultima sincronizacao:** agora"
+    ].join("\n");
   }
 
-  return [
-    settings.messages.panelDescription,
-    "",
-    `**Missao:** ${mission.title}`,
+  const activeParticipants = mission.participants.filter((participant) => !participant.leftAt);
+  const queue = activeParticipants.length
+    ? activeParticipants
+      .slice(0, 15)
+      .map((participant, index) => `${index + 1}. <@${participant.userId}>`)
+      .join("\n")
+    : "Fila vazia";
+  const hiddenCount = Math.max(0, activeParticipants.length - 15);
+
+  return truncate([
+    "**Sistema:** Mission System",
+    `**Status:** ${statusLabel(mission.status)}`,
+    `**Missao atual:** ${mission.title}`,
     mission.description ? `**Descricao:** ${mission.description}` : null,
-    `**Participantes:** ${participantCountLabel(mission)}`
-  ].filter(Boolean).join("\n");
+    `**Participantes:** ${participantCountLabel(mission)}`,
+    `**Criada em:** ${formatDateTime(mission.createdAt)}`,
+    "",
+    "**Fila de participantes**",
+    queue,
+    hiddenCount ? `... e mais ${hiddenCount} participante(s).` : null
+  ].filter(Boolean).join("\n"), 3800);
 }
 
 function participantCountLabel(mission: MissionToolMission) {

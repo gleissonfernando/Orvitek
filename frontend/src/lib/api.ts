@@ -218,9 +218,12 @@ export async function getGuildSettings(guildId: string, botId?: string | null) {
   return data.settings;
 }
 
-export async function getGuildLiveOptions(guildId: string, botId?: string | null) {
+export async function getGuildLiveOptions(guildId: string, botId?: string | null, refresh = false) {
   const { data } = await api.get<{ options: GuildLiveOptions }>(`/guilds/${guildId}/live-options`, {
-    params: botParams(botId)
+    params: {
+      ...botParams(botId),
+      refresh: refresh ? "1" : undefined
+    }
   });
   return data.options;
 }

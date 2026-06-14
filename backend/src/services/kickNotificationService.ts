@@ -6,6 +6,7 @@ import { createLog } from "./logService";
 import { isGuildTextChannel } from "./discordOptionsService";
 import type { LivePanelPreviewDto } from "./livePanelPreviewService";
 import {
+  ensureKickWebhookEventSubscriptions,
   getKickChannel,
   getKickLivestreamByUserId,
   getKickLivestreamsByUserIds,
@@ -442,6 +443,13 @@ export async function createKickNotification(guildId: string, input: CreateKickN
   if (!channel) {
     throw createServiceError("Canal da Kick nao encontrado.", 404);
   }
+
+  await ensureKickWebhookEventSubscriptions(channel.broadcasterUserId, credentials).catch((error) => {
+    throw createServiceError(
+      `Canal Kick encontrado, mas nao foi possivel ativar o webhook: ${error instanceof Error ? error.message : String(error)}`,
+      503
+    );
+  });
 
   const now = new Date();
   const doc: MongoSocialNotification = {
