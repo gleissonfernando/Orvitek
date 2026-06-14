@@ -72,7 +72,7 @@ const FILTER_WARNING_TITLE = "⚠️ Qualquer mensagem enviada nesta sala result
 const FILTER_WARNING_DESCRIPTION = "Sistema criado para identificar contas invadidas que realizam flood de links maliciosos, imagens e conteúdos automáticos, ajudando a impedir a divulgação de spam no servidor.";
 
 export async function ensureSafeBotSetup(guild: Guild, context: BotContext, knownSettings?: GuildSettings | null) {
-  if (!isSelfBotModuleEnabled()) {
+  if (!shouldCheckSelfBotRuntime()) {
     return null;
   }
 
@@ -155,7 +155,7 @@ export async function ensureSelfBotRole(guild: Guild, context: BotContext) {
 }
 
 export async function ensureSelfBotRoles(client: Client<true>, context: BotContext) {
-  if (!isSelfBotModuleEnabled()) {
+  if (!shouldCheckSelfBotRuntime()) {
     return;
   }
 
@@ -167,7 +167,7 @@ export async function ensureSelfBotRoles(client: Client<true>, context: BotConte
 export async function disableUnreleasedSafeBotChannels(client: Client<true>, context: BotContext) {
   await Promise.allSettled(
     client.guilds.cache.map(async (guild) => {
-      if (isSelfBotModuleEnabled() && await isRuntimeModuleAuthorized(context, guild.id, MODULE_ID)) {
+      if (shouldCheckSelfBotRuntime() && await isRuntimeModuleAuthorized(context, guild.id, MODULE_ID)) {
         return;
       }
 
@@ -214,7 +214,7 @@ export function clearSafeBotSetupCache(guildId: string) {
 }
 
 export async function handleSafeBotMessage(message: Message, context: BotContext) {
-  if (!isSelfBotModuleEnabled() || !message.guild || message.author.bot) {
+  if (!shouldCheckSelfBotRuntime() || !message.guild || message.author.bot) {
     return false;
   }
 
@@ -293,10 +293,6 @@ async function processSafeBotMessage(message: Message, context: BotContext) {
   }
 
   if (message.channelId === runtime.filterChannelId) {
-    if (!(await isRuntimeModuleAuthorized(context, guild.id, "anti-auto-spam"))) {
-      return false;
-    }
-
     const punishment = await applyFilterChannelPunishment(member, message, runtime);
     await Promise.allSettled([
       sendFilterLog(message, runtime, punishment),
@@ -1146,6 +1142,10 @@ function formatPunishmentActions(actions: SelfBotPunishmentAction[]) {
 
 export function isSelfBotModuleEnabled() {
   return isBotModuleEnabled(MODULE_ID);
+}
+
+function shouldCheckSelfBotRuntime() {
+  return isSelfBotModuleEnabled() || Boolean(env.DASHBOARD_BOT_ID.trim());
 }
 
 function isDevBotMainGuild(guildId: string) {
