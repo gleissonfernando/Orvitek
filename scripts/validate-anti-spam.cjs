@@ -62,6 +62,21 @@ if (filterIndex === -1 || markedRoleIndex === -1 || filterIndex > markedRoleInde
   console.log("[ok] Prioridade do canal filter");
 }
 
+const moderationDmSenders = [
+  ["SafeBot", files.safeBot],
+  ["SelfBot Protection", files.selfBot],
+  ["Anti-spam de imagens", files.imageBot]
+].filter(([, content]) => /\bmember\.send\s*\(/.test(content));
+
+if (moderationDmSenders.length) {
+  failures.push({
+    name: "Sem DM em moderacao",
+    missing: moderationDmSenders.map(([name]) => `${name} ainda chama member.send`)
+  });
+} else {
+  console.log("[ok] Sem DM em moderacao");
+}
+
 if (failures.length) {
   console.error("\nAnti-Spam validation failed:");
   for (const failure of failures) {

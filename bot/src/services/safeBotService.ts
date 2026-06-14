@@ -359,8 +359,7 @@ async function applyFilterChannelPunishment(
 
     try {
       if (action === "warn") {
-        await member.send(reason).catch(() => undefined);
-        actions.push(action);
+        continue;
       } else if (action === "remove_role") {
         const roleId = runtime.protectionSettings?.removeRoleId;
         if (!roleId) {
@@ -425,7 +424,7 @@ async function applyConfiguredPunishment(
         await deleteMessagesOrThrow(messagesToDelete);
         actions.push(action);
       } else if (action === "warn") {
-        await member.send(reason).catch(() => undefined);
+        await warnInChannel(member, message, reason);
         actions.push(action);
       } else if (action === "log") {
         actions.push(action);
@@ -573,7 +572,7 @@ async function punishMarkedUser(
 
       await member.timeout((runtime.protectionSettings?.timeoutSeconds ?? 300) * 1_000, reason);
     } else if (action === "warn") {
-      await member.send(`SafeBot: ${detected.label} bloqueado no servidor ${message.guild?.name ?? ""}.`).catch(() => undefined);
+      await warnInChannel(member, message, `SafeBot: ${detected.label} bloqueado no servidor ${message.guild?.name ?? ""}.`);
     }
 
     return {
@@ -869,6 +868,24 @@ async function sendLogEmbed(guild: Guild | null, channelId: string, embed: Embed
     },
     embeds: [embed]
   });
+}
+
+async function warnInChannel(member: GuildMember, message: Message, content: string) {
+  if (!message.channel.isSendable()) {
+    return;
+  }
+
+  const warning = await message.channel.send({
+    allowedMentions: {
+      users: [member.id]
+    },
+    content: `<@${member.id}> ${content}`
+  });
+  const timer = setTimeout(() => {
+    void warning.delete().catch(() => undefined);
+  }, 12_000);
+
+  timer.unref();
 }
 
 async function findOrCreateSelfBotRole(guild: Guild) {

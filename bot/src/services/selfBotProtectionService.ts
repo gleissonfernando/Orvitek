@@ -589,9 +589,8 @@ async function deleteSourceMessage(message: Message | undefined) {
 
 async function warnMember(member: GuildMember, message: Message | undefined, details: string) {
   const content = `SelfBot Protection: ${details}`;
-  const dmSent = await member.send(content).then(() => true).catch(() => false);
 
-  if (dmSent || !message?.channel.isSendable()) {
+  if (!message?.channel.isSendable()) {
     return;
   }
 

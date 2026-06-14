@@ -352,9 +352,7 @@ async function notifyMember(
     incident.action === "kick" ? incident.reason : ""
   ].filter(Boolean).join("\n");
 
-  const sentByDm = await member.send(content).then(() => true).catch(() => false);
-
-  if (sentByDm || !sourceMessage.channel.isSendable()) {
+  if (!sourceMessage.channel.isSendable()) {
     return;
   }
 
