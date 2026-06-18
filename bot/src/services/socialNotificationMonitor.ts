@@ -16,6 +16,10 @@ const TWITCH_BATCH_SIZE = 100;
 const NOTIFICATION_CONCURRENCY = 25;
 const LIVE_PREVIEW_REFRESH_DELAY_MS = 30_000;
 const LIVE_PANEL_BRAND = "vortex lives";
+const TWITCH_LOOKUP_PREFIX = {
+  login: "login:",
+  user: "user:"
+} as const;
 
 export function startSocialNotificationMonitor(client: Client, api: ApiClient) {
   const run = () => {
@@ -39,16 +43,62 @@ async function monitorTwitchNotifications(client: Client, api: ApiClient) {
   try {
     const notifications = await api.getActiveTwitchNotifications();
     const eligibleNotifications = notifications.filter((notification) => client.guilds.cache.has(notification.guildId));
-    const streamsByChannel = new Map<string, TwitchStream>();
+    const streamsByLookupKey = new Map<string, TwitchStream>();
+    const unresolvedLookupKeys = new Set<string>();
+    const twitchUserIds = [...new Set(
+      eligibleNotifications
+        .map((notification) => notification.twitchUserId?.trim())
+        .filter((value): value is string => Boolean(value))
+    )];
     const channelNames = [...new Set(
-      eligibleNotifications.map((notification) => notification.twitchChannelName.toLowerCase())
+      eligibleNotifications
+        .filter((notification) => !notification.twitchUserId?.trim())
+        .map((notification) => notification.twitchChannelName.toLowerCase())
     )];
 
-    for (let index = 0; index < channelNames.length; index += TWITCH_BATCH_SIZE) {
-      const batchStreams = await getTwitchStreams(channelNames.slice(index, index + TWITCH_BATCH_SIZE));
+    for (let index = 0; index < twitchUserIds.length; index += TWITCH_BATCH_SIZE) {
+      const userIdBatch = twitchUserIds.slice(index, index + TWITCH_BATCH_SIZE);
 
-      for (const [channelName, stream] of batchStreams) {
-        streamsByChannel.set(channelName, stream);
+      try {
+        const batchStreams = await getTwitchStreams({ userIds: userIdBatch });
+
+        for (const userId of userIdBatch) {
+          const stream = batchStreams.get(userId);
+
+          if (stream) {
+            streamsByLookupKey.set(twitchUserLookupKey(userId), stream);
+            streamsByLookupKey.set(channelLookupKey(stream.userLogin), stream);
+          }
+        }
+      } catch (error) {
+        for (const userId of userIdBatch) {
+          unresolvedLookupKeys.add(twitchUserLookupKey(userId));
+        }
+
+        console.warn("[social-notifications] lote Twitch por ID falhou:", error instanceof Error ? error.message : error);
+      }
+    }
+
+    for (let index = 0; index < channelNames.length; index += TWITCH_BATCH_SIZE) {
+      const channelBatch = channelNames.slice(index, index + TWITCH_BATCH_SIZE);
+
+      try {
+        const batchStreams = await getTwitchStreams(channelBatch);
+
+        for (const channelName of channelBatch) {
+          const stream = batchStreams.get(channelName);
+
+          if (stream) {
+            streamsByLookupKey.set(channelLookupKey(channelName), stream);
+            streamsByLookupKey.set(twitchUserLookupKey(stream.userId), stream);
+          }
+        }
+      } catch (error) {
+        for (const channelName of channelBatch) {
+          unresolvedLookupKeys.add(channelLookupKey(channelName));
+        }
+
+        console.warn("[social-notifications] lote Twitch por canal falhou:", error instanceof Error ? error.message : error);
       }
     }
 
@@ -58,7 +108,8 @@ async function monitorTwitchNotifications(client: Client, api: ApiClient) {
           client,
           api,
           notification,
-          streamsByChannel.get(notification.twitchChannelName.toLowerCase()) ?? null
+          streamsByLookupKey.get(notificationLookupKey(notification)) ?? null,
+          unresolvedLookupKeys.has(notificationLookupKey(notification))
         );
       } catch (error) {
         console.warn(
@@ -76,8 +127,13 @@ async function processNotification(
   client: Client,
   api: ApiClient,
   notification: SocialNotification,
-  stream: TwitchStream | null
+  stream: TwitchStream | null,
+  lookupUnresolved: boolean
 ) {
+  if (lookupUnresolved) {
+    return;
+  }
+
   if (!stream) {
     if (notification.isLive) {
       await api.updateTwitchNotificationState(notification.id, {
@@ -119,6 +175,24 @@ async function processNotification(
     title: stream.title,
     url: `https://www.twitch.tv/${stream.userLogin}`
   });
+}
+
+function notificationLookupKey(notification: SocialNotification) {
+  const twitchUserId = notification.twitchUserId?.trim();
+
+  if (twitchUserId) {
+    return twitchUserLookupKey(twitchUserId);
+  }
+
+  return channelLookupKey(notification.twitchChannelName);
+}
+
+function twitchUserLookupKey(userId: string) {
+  return `${TWITCH_LOOKUP_PREFIX.user}${userId.trim()}`;
+}
+
+function channelLookupKey(channelName: string) {
+  return `${TWITCH_LOOKUP_PREFIX.login}${channelName.trim().toLowerCase()}`;
 }
 
 async function sendLiveAlert(client: Client, notification: SocialNotification, stream: TwitchStream) {

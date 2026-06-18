@@ -8,6 +8,7 @@ type TwitchToken = {
 
 export type TwitchStream = {
   id: string;
+  userId: string;
   userLogin: string;
   userName: string;
   gameName: string;
@@ -43,14 +44,21 @@ export async function getTwitchStream(channelName: string) {
   return streams.get(channelName.toLowerCase()) ?? null;
 }
 
-export async function getTwitchStreams(channelNames: string[]) {
+export async function getTwitchStreams(input: string[] | { channelNames?: string[]; userIds?: string[] }) {
+  const channelNames = Array.isArray(input) ? input : input.channelNames ?? [];
+  const userIds = Array.isArray(input) ? [] : input.userIds ?? [];
   const uniqueChannelNames = [...new Set(
     channelNames
       .map((channelName) => channelName.trim().toLowerCase())
       .filter(Boolean)
   )].slice(0, 100);
+  const uniqueUserIds = [...new Set(
+    userIds
+      .map((userId) => userId.trim())
+      .filter(Boolean)
+  )].slice(0, Math.max(0, 100 - uniqueChannelNames.length));
 
-  if (!uniqueChannelNames.length) {
+  if (!uniqueChannelNames.length && !uniqueUserIds.length) {
     return new Map<string, TwitchStream>();
   }
 
@@ -59,6 +67,10 @@ export async function getTwitchStreams(channelNames: string[]) {
 
   for (const channelName of uniqueChannelNames) {
     params.append("user_login", channelName);
+  }
+
+  for (const userId of uniqueUserIds) {
+    params.append("user_id", userId);
   }
 
   const { data } = await axios.get<{ data: Array<Record<string, string | number>> }>("https://api.twitch.tv/helix/streams", {
@@ -70,9 +82,12 @@ export async function getTwitchStreams(channelNames: string[]) {
     timeout: 10_000
   });
 
-  return new Map(data.data.map((stream) => {
+  const streams = new Map<string, TwitchStream>();
+
+  for (const stream of data.data) {
     const parsed = {
       id: String(stream.id),
+      userId: String(stream.user_id),
       userLogin: String(stream.user_login),
       userName: String(stream.user_name),
       gameName: String(stream.game_name || ""),
@@ -82,8 +97,11 @@ export async function getTwitchStreams(channelNames: string[]) {
       startedAt: String(stream.started_at || new Date().toISOString())
     } satisfies TwitchStream;
 
-    return [parsed.userLogin.toLowerCase(), parsed];
-  }));
+    streams.set(parsed.userLogin.toLowerCase(), parsed);
+    streams.set(parsed.userId, parsed);
+  }
+
+  return streams;
 }
 
 export async function getTwitchUser(channelName: string) {

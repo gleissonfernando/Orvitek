@@ -84,13 +84,24 @@ let tokenCache: TwitchToken | null = null;
 export function normalizeTwitchChannel(input: string): string {
   let value = input.trim();
 
-  value = value.replace("https://www.twitch.tv/", "");
-  value = value.replace("https://twitch.tv/", "");
-  value = value.replace("http://www.twitch.tv/", "");
-  value = value.replace("http://twitch.tv/", "");
-  value = value.replace("www.twitch.tv/", "");
-  value = value.replace("twitch.tv/", "");
+  if (!value) {
+    return "";
+  }
 
+  try {
+    const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(value) ? value : `https://${value}`;
+    const url = new URL(candidate);
+    const hostname = url.hostname.toLowerCase();
+
+    if (hostname === "twitch.tv" || hostname === "www.twitch.tv" || hostname === "m.twitch.tv") {
+      value = url.pathname.split("/").filter(Boolean)[0] ?? "";
+    }
+  } catch {
+    value = value.replace(/^https?:\/\/(www\.|m\.)?twitch\.tv\//i, "");
+    value = value.replace(/^(www\.|m\.)?twitch\.tv\//i, "");
+  }
+
+  value = value.replace(/^@/, "");
   value = value.split("?")[0] ?? value;
   value = value.split("/")[0] ?? value;
 
