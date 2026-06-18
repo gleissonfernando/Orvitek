@@ -75,7 +75,7 @@ export async function getTwitchStreams(input: string[] | { channelNames?: string
 
   const { data } = await axios.get<{ data: Array<Record<string, string | number>> }>("https://api.twitch.tv/helix/streams", {
     headers: {
-      "Client-ID": env.TWITCH_CLIENT_ID,
+      "Client-ID": env.TWITCH_CLIENT_ID.trim(),
       Authorization: `Bearer ${token}`
     },
     params,
@@ -108,7 +108,7 @@ export async function getTwitchUser(channelName: string) {
   const token = await getAppAccessToken();
   const { data } = await axios.get<{ data: Array<Record<string, string>> }>("https://api.twitch.tv/helix/users", {
     headers: {
-      "Client-ID": env.TWITCH_CLIENT_ID,
+      "Client-ID": env.TWITCH_CLIENT_ID.trim(),
       Authorization: `Bearer ${token}`
     },
     params: {
@@ -139,7 +139,7 @@ export async function getTwitchClips(input: {
   const token = await getAppAccessToken();
   const { data } = await axios.get<{ data: Array<Record<string, string | number>> }>("https://api.twitch.tv/helix/clips", {
     headers: {
-      "Client-ID": env.TWITCH_CLIENT_ID,
+      "Client-ID": env.TWITCH_CLIENT_ID.trim(),
       Authorization: `Bearer ${token}`
     },
     params: {
@@ -165,7 +165,10 @@ export async function getTwitchClips(input: {
 }
 
 async function getAppAccessToken() {
-  if (!env.TWITCH_CLIENT_ID || !env.TWITCH_CLIENT_SECRET) {
+  const clientId = env.TWITCH_CLIENT_ID.trim();
+  const clientSecret = env.TWITCH_CLIENT_SECRET.trim();
+
+  if (!clientId || !clientSecret) {
     throw new Error("Credenciais da Twitch API nao configuradas no bot.");
   }
 
@@ -173,25 +176,33 @@ async function getAppAccessToken() {
     return tokenCache.accessToken;
   }
 
-  const { data } = await axios.post<{ access_token: string; expires_in: number }>(
-    "https://id.twitch.tv/oauth2/token",
-    new URLSearchParams({
-      client_id: env.TWITCH_CLIENT_ID,
-      client_secret: env.TWITCH_CLIENT_SECRET,
-      grant_type: "client_credentials"
-    }),
-    {
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      timeout: 10_000
+  try {
+    const { data } = await axios.post<{ access_token: string; expires_in: number }>(
+      "https://id.twitch.tv/oauth2/token",
+      new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: "client_credentials"
+      }),
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        timeout: 10_000
+      }
+    );
+
+    tokenCache = {
+      accessToken: data.access_token,
+      expiresAt: Date.now() + data.expires_in * 1000
+    };
+
+    return tokenCache.accessToken;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      throw new Error("Credenciais da Twitch invalidas. Confira TWITCH_CLIENT_ID e TWITCH_CLIENT_SECRET no .env e reinicie o bot.");
     }
-  );
 
-  tokenCache = {
-    accessToken: data.access_token,
-    expiresAt: Date.now() + data.expires_in * 1000
-  };
-
-  return tokenCache.accessToken;
+    throw error;
+  }
 }
