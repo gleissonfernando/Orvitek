@@ -4,6 +4,7 @@ import {
   Activity,
   AtSign,
   Bot,
+  Boxes,
   Building2,
   CalendarClock,
   CheckCircle2,
@@ -851,7 +852,40 @@ function fivemUserModules(enabledModules: string[]) {
     { description: "Fluxo financeiro, caixa e lancamentos RP.", icon: Activity, id: "fivem-finance", label: "Financeiro" }
   ];
   const enabled = new Set(enabledModules.map((moduleId) => moduleId === "fivem-fac" ? "fivem-absences" : moduleId));
-  return catalog.filter((module) => enabled.has(module.id) || enabled.has("fivem"));
+  const enabledCatalogModules = catalog.filter((module) => enabled.has(module.id));
+  const customModules = enabled.has("fivem") ? readActiveCustomFiveMModules() : [];
+
+  return [
+    ...enabledCatalogModules,
+    ...customModules
+  ];
+}
+
+function readActiveCustomFiveMModules() {
+  try {
+    const modules = JSON.parse(window.localStorage.getItem("dev.fivem.customModules") ?? "[]");
+    const activeIds = new Set(JSON.parse(window.localStorage.getItem("dev.fivem.activeCustomModules") ?? "[]"));
+
+    if (!Array.isArray(modules) || !activeIds.size) {
+      return [];
+    }
+
+    return modules
+      .filter((module): module is { description?: unknown; id: string; permissions?: unknown; title?: unknown } => (
+        Boolean(module)
+        && typeof module === "object"
+        && typeof module.id === "string"
+        && activeIds.has(module.id)
+      ))
+      .map((module) => ({
+        description: typeof module.description === "string" ? module.description : "Modulo personalizado liberado pelo desenvolvedor.",
+        icon: Boxes,
+        id: module.id,
+        label: typeof module.title === "string" ? module.title : "Modulo personalizado"
+      }));
+  } catch {
+    return [];
+  }
 }
 
 function DashboardRouteError({ message }: { message: string }) {

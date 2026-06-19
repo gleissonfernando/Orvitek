@@ -277,10 +277,11 @@ function DevFiveMManager({
   const modules = [...fiveMModules, ...customModules];
   const enabled = new Set((selectedBot?.enabledModules ?? []).map((moduleId) => moduleId === "fivem-fac" ? "fivem-absences" : moduleId));
   const activeCustomSet = new Set(activeCustomIds);
+  const activeModuleCount = modules.filter((module) => enabled.has(module.id) || activeCustomSet.has(module.id)).length;
   const stats = {
-    active: modules.filter((module) => enabled.has(module.id) || activeCustomSet.has(module.id)).length,
+    active: activeModuleCount,
     corporations: enabled.has("fivem-corporations") ? 1 : 0,
-    disabled: modules.filter((module) => !enabled.has(module.id)).length,
+    disabled: modules.length - activeModuleCount,
     factions: enabled.has("fivem-factions") ? 1 : 0,
     total: modules.length,
     users: bots.reduce((total, bot) => total + (bot.enabledModules.some((moduleId) => moduleId === "fivem" || moduleId.startsWith("fivem-")) ? 1 : 0), 0)
@@ -293,16 +294,31 @@ function DevFiveMManager({
         : activeCustomIds.filter((item) => item !== moduleId);
       setActiveCustomIds(next);
       storeActiveCustomFiveMModules(next);
+
+      if (selectedBot) {
+        const standardModules = normalizeFiveMModules(selectedBot.enabledModules);
+        const hasStandardFiveMModule = standardModules.some((item) => item.startsWith("fivem-"));
+        const nextModules = next.length || hasStandardFiveMModule
+          ? [...new Set([...standardModules, "fivem"])]
+          : standardModules.filter((item) => item !== "fivem");
+
+        setSavingModuleId(moduleId);
+        try {
+          onBotUpdated(await updateDevBotModules(selectedBot.id, nextModules));
+        } finally {
+          setSavingModuleId(null);
+        }
+      }
+
       return;
     }
 
     if (!selectedBot) return;
 
-    const normalizedModules = selectedBot.enabledModules.filter((item) => item !== "fivem-fac");
-    const withRoot = checked ? [...normalizedModules, "fivem"] : normalizedModules;
+    const normalizedModules = normalizeFiveMModules(selectedBot.enabledModules);
     const nextModules = checked
-      ? [...new Set([...withRoot, moduleId])]
-      : normalizedModules.filter((item) => item !== moduleId && (item !== "fivem" || modules.some((module) => module.id !== moduleId && enabled.has(module.id))));
+      ? [...new Set([...normalizedModules, "fivem", moduleId])]
+      : nextFiveMModulesAfterDisable(normalizedModules, moduleId, activeCustomIds.length > 0);
 
     setSavingModuleId(moduleId);
     try {
@@ -433,6 +449,21 @@ function FiveMStat({ icon: Icon, label, value }: { icon: LucideIcon; label: stri
       </CardContent>
     </Card>
   );
+}
+
+function normalizeFiveMModules(moduleIds: string[]) {
+  return moduleIds.map((moduleId) => moduleId === "fivem-fac" ? "fivem-absences" : moduleId);
+}
+
+function nextFiveMModulesAfterDisable(moduleIds: string[], disabledModuleId: string, hasActiveCustomModules: boolean) {
+  const withoutModule = moduleIds.filter((moduleId) => moduleId !== disabledModuleId);
+  const hasOtherFiveMModule = withoutModule.some((moduleId) => moduleId.startsWith("fivem-"));
+
+  if (hasOtherFiveMModule || hasActiveCustomModules) {
+    return [...new Set([...withoutModule, "fivem"])];
+  }
+
+  return withoutModule.filter((moduleId) => moduleId !== "fivem");
 }
 
 function readCustomFiveMModules(): FiveMModule[] {
