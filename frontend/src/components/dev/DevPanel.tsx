@@ -63,6 +63,14 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "voice-recorder", label: "Voice Recorder" },
   { id: "safe-bot", label: "SelfBot Protection" },
   { id: "account-age-security", label: "Seguranca por Idade da Conta" },
+  { id: "fivem", label: "FiveM" },
+  { id: "fivem-factions", label: "FiveM - Sistema de Faccao" },
+  { id: "fivem-corporations", label: "FiveM - Sistema de Corporacoes" },
+  { id: "fivem-absences", label: "FiveM - Sistema de Ausencias" },
+  { id: "fivem-orders", label: "FiveM - Sistema de Encomendas" },
+  { id: "fivem-ammo", label: "FiveM - Sistema de Municoes" },
+  { id: "fivem-finance", label: "FiveM - Sistema Financeiro" },
+  { id: "fivem-fac", label: "FiveM - FAC Ausencia" },
   { id: "avisos", label: "Mensagens e Personalizacao" }
 ];
 
@@ -219,7 +227,7 @@ export function DevPanel({
 
   async function handleToggleModule(bot: DevBot, moduleId: string, checked: boolean) {
     const nextModules = checked
-      ? [...new Set([...bot.enabledModules, moduleId])]
+      ? [...new Set([...bot.enabledModules, ...(isFiveMModule(moduleId) && moduleId !== "fivem" ? ["fivem"] : []), moduleId])]
       : bot.enabledModules.filter((item) => item !== moduleId);
 
     setBots((current) => current.map((item) => (item.id === bot.id ? { ...item, enabledModules: nextModules } : item)));
@@ -512,7 +520,7 @@ export function DevPanel({
                 <CardTitle>Configuracoes de bot</CardTitle>
                 <CardDescription>Modulos visiveis na dashboard de {selectedBot.name}.</CardDescription>
               </div>
-              <Badge variant="muted">{countBotModules(selectedBot.enabledModules)}/{modules.filter((module) => !isFiveMModule(module.id)).length} ativos</Badge>
+              <Badge variant="muted">{selectedBot.enabledModules.length}/{modules.length} ativos</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4 p-5 pt-0 sm:p-6 sm:pt-0">
@@ -537,11 +545,10 @@ export function DevPanel({
 
 function mergeDevModules(modules: DevModuleDefinition[]) {
   const apiModules = new Map(modules.map((module) => [module.id, module]));
-  const botModules = modules.filter((module) => !isFiveMModule(module.id));
 
   return [
     ...fallbackModules.map((module) => apiModules.get(module.id) ?? module),
-    ...botModules.filter((module) => !fallbackModules.some((fallback) => fallback.id === module.id))
+    ...modules.filter((module) => !fallbackModules.some((fallback) => fallback.id === module.id))
   ];
 }
 
@@ -768,36 +775,64 @@ function ModuleSwitchGrid({
   modules: DevModuleDefinition[];
   onToggle: (moduleId: string, checked: boolean) => void;
 }) {
-  return (
-    <div className="grid gap-3 lg:grid-cols-2">
-      {modules.map((module) => {
-        const enabled = enabledModules.includes(module.id);
+  const standardModules = modules.filter((module) => !isFiveMModule(module.id));
+  const fiveMModules = modules.filter((module) => isFiveMModule(module.id));
 
-        return (
-          <div
-            className="flex min-h-[74px] items-center gap-4 rounded-lg border border-zinc-900 bg-black/35 px-4 py-3 transition duration-200 hover:border-zinc-800 hover:bg-zinc-950/70"
-            key={module.id}
-          >
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-zinc-100">{module.label}</p>
-              <p className={enabled ? "text-xs text-emerald-300" : "text-xs text-zinc-500"}>
-                {enabled ? "Ativado" : "Desativado"}
-              </p>
-            </div>
-            <Switch checked={enabled} className="shrink-0" onCheckedChange={(checked) => onToggle(module.id, checked)} />
-          </div>
-        );
-      })}
+  return (
+    <div className="space-y-5">
+      <ModuleSwitchSection enabledModules={enabledModules} modules={standardModules} onToggle={onToggle} title="Sistemas do bot" />
+      <ModuleSwitchSection enabledModules={enabledModules} modules={fiveMModules} onToggle={onToggle} title="Sistemas FiveM" />
     </div>
+  );
+}
+
+function ModuleSwitchSection({
+  enabledModules,
+  modules,
+  onToggle,
+  title
+}: {
+  enabledModules: string[];
+  modules: DevModuleDefinition[];
+  onToggle: (moduleId: string, checked: boolean) => void;
+  title: string;
+}) {
+  if (!modules.length) {
+    return null;
+  }
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-zinc-100">{title}</h3>
+        <Badge variant="muted">{modules.filter((module) => enabledModules.includes(module.id)).length}/{modules.length}</Badge>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-2">
+        {modules.map((module) => {
+          const enabled = enabledModules.includes(module.id);
+
+          return (
+            <div
+              className="flex min-h-[74px] items-center gap-4 rounded-lg border border-zinc-900 bg-black/35 px-4 py-3 transition duration-200 hover:border-zinc-800 hover:bg-zinc-950/70"
+              key={module.id}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-zinc-100">{module.label}</p>
+                <p className={enabled ? "text-xs text-emerald-300" : "text-xs text-zinc-500"}>
+                  {enabled ? "Ativado" : "Desativado"}
+                </p>
+              </div>
+              <Switch checked={enabled} className="shrink-0" onCheckedChange={(checked) => onToggle(module.id, checked)} />
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
 function isFiveMModule(moduleId: string) {
   return moduleId === "fivem" || moduleId.startsWith("fivem-");
-}
-
-function countBotModules(moduleIds: string[]) {
-  return moduleIds.filter((moduleId) => !isFiveMModule(moduleId)).length;
 }
 
 function StatusBadge({ status }: { status: DevBotStatus }) {
