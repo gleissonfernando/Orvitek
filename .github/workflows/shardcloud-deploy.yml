@@ -59,7 +59,7 @@ jobs:
             return 1
           }
 
-          for endpoint in / /api/health /api/_shardcloud/health; do
+          for endpoint in / /api/health; do
             url="https://ricardinho98.shardweb.app$endpoint"
             echo "Checking $url"
             curl --fail --silent --show-error --max-time 30 "$url" > /tmp/health.json

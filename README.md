@@ -69,7 +69,6 @@ O GitHub Actions executa `npm run deploy:check`, `npm run build`, `shard-cloud/a
 ```text
 https://ricardinho98.shardweb.app/
 https://ricardinho98.shardweb.app/api/health
-https://ricardinho98.shardweb.app/api/_shardcloud/health
 ```
 
 Nao suba direto sem rodar `npm run deploy:check`. Segredos ficam na ShardCloud/GitHub, nunca no Git.
