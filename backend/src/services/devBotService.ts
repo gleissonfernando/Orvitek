@@ -1684,11 +1684,11 @@ export function runtimeModuleIdForLogType(type: string) {
   }
 
   if (normalized.startsWith("image_anti_spam.")) {
-    return "image-anti-spam";
+    return "safe-bot";
   }
 
   if (normalized === "moderation.link_anti_spam") {
-    return "link-anti-spam";
+    return "safe-bot";
   }
 
   if (normalized.startsWith("moderation.")) {

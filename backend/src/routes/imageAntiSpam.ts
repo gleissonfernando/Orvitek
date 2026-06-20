@@ -25,6 +25,7 @@ import { resolveRequestBotId } from "../services/requestBotScopeService";
 import type { AuthSessionUser } from "../types/session";
 
 const MODULE_ID = "image-anti-spam";
+const RELEASE_MODULE_ID = "safe-bot";
 const guildIdSchema = z.string().regex(/^\d{5,32}$/);
 const snowflakeSchema = z.string().regex(/^\d{5,32}$/);
 const optionalSnowflakeSchema = z.union([snowflakeSchema, z.literal(""), z.null()]).optional();
@@ -213,21 +214,21 @@ async function readRequiredBotId(req: Parameters<typeof resolveRequestBotId>[0])
 async function assertCanRead(user: AuthSessionUser, guildId: string, botId: string) {
   await assertBotModuleLicense(botId);
 
-  if (await canReadDevBotModule(user, botId, guildId, MODULE_ID)) {
+  if (await canReadDevBotModule(user, botId, guildId, RELEASE_MODULE_ID)) {
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para acessar o Anti-Spam de Imagens deste bot.", 403);
+  throw createRouteError("Voce nao tem permissao para acessar o SelfBot deste bot.", 403);
 }
 
 async function assertCanManage(user: AuthSessionUser, guildId: string, botId: string) {
   await assertBotModuleLicense(botId);
 
-  if (await canUseDevBotModule(user, botId, guildId, MODULE_ID)) {
+  if (await canUseDevBotModule(user, botId, guildId, RELEASE_MODULE_ID)) {
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para configurar o Anti-Spam de Imagens deste bot.", 403);
+  throw createRouteError("Voce nao tem permissao para configurar o SelfBot deste bot.", 403);
 }
 
 async function assertBotModuleLicense(botId: string, guildId?: string) {
@@ -237,11 +238,8 @@ async function assertBotModuleLicense(botId: string, guildId?: string) {
     throw createRouteError("Bot nao encontrado.", 404);
   }
 
-  if (
-    !(permissions.enabledModules as readonly string[]).includes(MODULE_ID)
-    && !permissions.enabledModules.includes("safe-bot")
-  ) {
-    throw createRouteError("O Anti-Spam de Imagens nao foi liberado para este bot.", 403);
+  if (!permissions.enabledModules.includes(RELEASE_MODULE_ID)) {
+    throw createRouteError("O SelfBot nao foi liberado para este bot.", 403);
   }
 
   if (guildId) {
