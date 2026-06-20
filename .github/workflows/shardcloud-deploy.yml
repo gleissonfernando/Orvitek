@@ -42,29 +42,39 @@ jobs:
 
       - name: Verify Shard Cloud health
         run: |
-          check_json() {
+          check_api_health() {
             endpoint="$1"
             url="https://ricardinho98.shardweb.app$endpoint"
             echo "Checking $url"
-            for attempt in 1 2 3 4 5 6; do
+            for attempt in $(seq 1 24); do
               if curl --fail --silent --show-error --max-time 30 "$url" > /tmp/health.json && grep -q '"status":"ok"' /tmp/health.json; then
                 cat /tmp/health.json
                 echo
                 return 0
               fi
-              echo "Waiting for healthy API response ($attempt/6)..."
+              echo "Waiting for healthy API response ($attempt/24)..."
               sleep 10
             done
             cat /tmp/health.json || true
             return 1
           }
 
-          for endpoint in / /api/health; do
-            url="https://ricardinho98.shardweb.app$endpoint"
+          check_root() {
+            url="https://ricardinho98.shardweb.app/"
             echo "Checking $url"
-            curl --fail --silent --show-error --max-time 30 "$url" > /tmp/health.json
-            if [ "$endpoint" != "/" ]; then
-              check_json "$endpoint"
-            fi
-            echo
-          done
+            for attempt in $(seq 1 12); do
+              if curl --fail --silent --show-error --max-time 30 "$url" > /tmp/root.html \
+                && ! grep -qi "502 Bad Gateway" /tmp/root.html; then
+                head -c 200 /tmp/root.html
+                echo
+                return 0
+              fi
+              echo "Waiting for frontend response ($attempt/12)..."
+              sleep 10
+            done
+            head -c 1000 /tmp/root.html || true
+            return 1
+          }
+
+          check_api_health "/api/health"
+          check_root
