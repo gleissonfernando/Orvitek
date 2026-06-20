@@ -234,6 +234,8 @@ type DevPanelProps = {
   user?: AuthUser;
 };
 
+type DevDashboardSection = "connected" | "bot-menu";
+
 export function DevPanel({
   guilds = [],
   onBotCreated,
@@ -249,6 +251,7 @@ export function DevPanel({
   const [modules, setModules] = useState<DevModuleDefinition[]>(fallbackModules);
   const [internalSelectedBotId, setInternalSelectedBotId] = useState<string | null>(null);
   const [activeBotMenuId, setActiveBotMenuId] = useState<BotMenuId>("overview");
+  const [activeDashboardSection, setActiveDashboardSection] = useState<DevDashboardSection>("connected");
   const [form, setForm] = useState<CreateDevBotPayload>(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -520,6 +523,7 @@ export function DevPanel({
   }
 
   function openModuleSettings() {
+    setActiveDashboardSection("bot-menu");
     document.getElementById("dev-bot-module-settings")?.scrollIntoView({
       behavior: "smooth",
       block: "start"
@@ -646,80 +650,123 @@ export function DevPanel({
         )}
       </section>
 
-      <Card className="border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(124,58,237,0.08)]">
-        <CardHeader className="p-5 sm:p-6">
-          <CardTitle className="text-white">Bots conectados</CardTitle>
-          <CardDescription className="font-medium text-zinc-300">{bots.length} bot{bots.length === 1 ? "" : "s"} nesta hospedagem.</CardDescription>
-        </CardHeader>
-        <CardContent className="p-5 pt-0 sm:p-6 sm:pt-0">
-          {bots.length ? (
-            <div className="grid gap-3">
-              {bots.map((bot) => (
-                <div
-                  className={`flex flex-col gap-3 rounded-lg border p-3.5 transition duration-200 sm:flex-row sm:items-center sm:justify-between ${
-                    selectedBot?.id === bot.id
-                      ? "border-purple-400/50 bg-purple-500/10 shadow-[0_0_24px_rgba(124,58,237,0.16)]"
-                      : "border-zinc-800 bg-black/35 hover:border-purple-500/25 hover:bg-zinc-950/80 hover:shadow-[0_0_24px_rgba(124,58,237,0.10)]"
-                  }`}
-                  key={bot.id}
-                >
-                  <button
-                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                    onClick={() => handleSelectBotId(bot.id)}
-                    type="button"
-                  >
-                    <Avatar className="h-12 w-12 shrink-0 rounded-full border border-zinc-800" fallback={bot.name} src={bot.avatarUrl} />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="truncate text-sm font-semibold text-white">{bot.name}</span>
-                        <StatusDot status={bot.status} />
-                      </span>
-                      <span className="block truncate text-xs font-medium text-zinc-300">
-                        {bot.mainGuildName || guildNameById.get(bot.mainGuildId) || bot.mainGuildId}
-                      </span>
-                      <span className="block truncate font-mono text-[11px] text-zinc-400">{bot.clientId}</span>
-                    </span>
-                  </button>
-                  <div className="flex shrink-0 items-center gap-2 self-end sm:self-center">
-                    <Button
-                      disabled={poweringBotId === bot.id}
-                      onClick={() => void handlePower(bot)}
-                      size="icon"
-                      title={bot.status === "online" ? "Desligar bot" : "Ligar bot"}
-                      variant="outline"
-                    >
-                      {poweringBotId === bot.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
-                    </Button>
-                    <Button
-                      disabled={deletingBotId === bot.id}
-                      onClick={() => void handleDelete(bot)}
-                      size="icon"
-                      title="Desconectar bot"
-                      variant="destructive"
-                    >
-                      {deletingBotId === bot.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex min-h-32 items-center justify-center rounded-lg border border-dashed border-zinc-700 bg-black/25 text-sm font-medium text-zinc-300">
-              Nenhum bot conectado.
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <section className="grid gap-5 lg:grid-cols-[250px_minmax(0,1fr)]">
+        <aside className="h-fit rounded-lg border border-purple-500/15 bg-black/40 p-2">
+          <button
+            className={`flex h-12 w-full items-center justify-between gap-3 rounded-lg px-3 text-left text-sm font-semibold transition duration-300 ${
+              activeDashboardSection === "connected"
+                ? "bg-purple-500/20 text-white ring-1 ring-purple-400/35 shadow-[0_0_24px_rgba(124,58,237,0.16)]"
+                : "text-zinc-300 hover:bg-purple-500/10 hover:text-white"
+            }`}
+            onClick={() => setActiveDashboardSection("connected")}
+            type="button"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <Bot className="h-4 w-4 shrink-0" />
+              <span className="truncate">Bots conectados</span>
+            </span>
+            <Badge variant="muted">{bots.length}</Badge>
+          </button>
+          <button
+            className={`mt-1 flex h-12 w-full items-center justify-between gap-3 rounded-lg px-3 text-left text-sm font-semibold transition duration-300 ${
+              activeDashboardSection === "bot-menu"
+                ? "bg-purple-500/20 text-white ring-1 ring-purple-400/35 shadow-[0_0_24px_rgba(124,58,237,0.16)]"
+                : "text-zinc-300 hover:bg-purple-500/10 hover:text-white"
+            }`}
+            onClick={() => setActiveDashboardSection("bot-menu")}
+            type="button"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <LayoutDashboard className="h-4 w-4 shrink-0" />
+              <span className="truncate">Menu do Bot</span>
+            </span>
+            <Badge variant="muted">{selectedBot ? `${selectedBot.enabledModules.length}/${modules.length}` : "0"}</Badge>
+          </button>
+        </aside>
 
-      {selectedBot ? (
-        <BotModuleWorkspace
-          activeMenuId={activeBotMenuId}
-          bot={selectedBot}
-          modules={modules}
-          onSelectMenu={setActiveBotMenuId}
-          onToggle={(moduleId, checked) => void handleToggleModule(selectedBot, moduleId, checked)}
-        />
-      ) : null}
+        <div className="min-w-0">
+          {activeDashboardSection === "connected" ? (
+            <Card className="border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(124,58,237,0.08)]">
+              <CardHeader className="p-5 sm:p-6">
+                <CardTitle className="text-white">Bots conectados</CardTitle>
+                <CardDescription className="font-medium text-zinc-300">{bots.length} bot{bots.length === 1 ? "" : "s"} nesta hospedagem.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-5 pt-0 sm:p-6 sm:pt-0">
+                {bots.length ? (
+                  <div className="grid gap-3">
+                    {bots.map((bot) => (
+                      <div
+                        className={`flex flex-col gap-3 rounded-lg border p-3.5 transition duration-200 sm:flex-row sm:items-center sm:justify-between ${
+                          selectedBot?.id === bot.id
+                            ? "border-purple-400/50 bg-purple-500/10 shadow-[0_0_24px_rgba(124,58,237,0.16)]"
+                            : "border-zinc-800 bg-black/35 hover:border-purple-500/25 hover:bg-zinc-950/80 hover:shadow-[0_0_24px_rgba(124,58,237,0.10)]"
+                        }`}
+                        key={bot.id}
+                      >
+                        <button
+                          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                          onClick={() => handleSelectBotId(bot.id)}
+                          type="button"
+                        >
+                          <Avatar className="h-12 w-12 shrink-0 rounded-full border border-zinc-800" fallback={bot.name} src={bot.avatarUrl} />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex min-w-0 items-center gap-2">
+                              <span className="truncate text-sm font-semibold text-white">{bot.name}</span>
+                              <StatusDot status={bot.status} />
+                            </span>
+                            <span className="block truncate text-xs font-medium text-zinc-300">
+                              {bot.mainGuildName || guildNameById.get(bot.mainGuildId) || bot.mainGuildId}
+                            </span>
+                            <span className="block truncate font-mono text-[11px] text-zinc-400">{bot.clientId}</span>
+                          </span>
+                        </button>
+                        <div className="flex shrink-0 items-center gap-2 self-end sm:self-center">
+                          <Button
+                            disabled={poweringBotId === bot.id}
+                            onClick={() => void handlePower(bot)}
+                            size="icon"
+                            title={bot.status === "online" ? "Desligar bot" : "Ligar bot"}
+                            variant="outline"
+                          >
+                            {poweringBotId === bot.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
+                          </Button>
+                          <Button
+                            disabled={deletingBotId === bot.id}
+                            onClick={() => void handleDelete(bot)}
+                            size="icon"
+                            title="Desconectar bot"
+                            variant="destructive"
+                          >
+                            {deletingBotId === bot.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex min-h-32 items-center justify-center rounded-lg border border-dashed border-zinc-700 bg-black/25 text-sm font-medium text-zinc-300">
+                    Nenhum bot conectado.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ) : selectedBot ? (
+            <BotModuleWorkspace
+              activeMenuId={activeBotMenuId}
+              bot={selectedBot}
+              modules={modules}
+              onSelectMenu={setActiveBotMenuId}
+              onToggle={(moduleId, checked) => void handleToggleModule(selectedBot, moduleId, checked)}
+            />
+          ) : (
+            <Card className="border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(124,58,237,0.08)]">
+              <CardContent className="flex min-h-40 items-center justify-center p-6 text-center text-sm font-medium text-zinc-300">
+                Selecione um bot para abrir o Menu do Bot.
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
