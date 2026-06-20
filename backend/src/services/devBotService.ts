@@ -2488,6 +2488,26 @@ async function checkAccessDevBotGuild(
     };
   }
 
+  if (bot.ownerId === user.discordId || bot.createdBy === user.discordId) {
+    return {
+      allowed: true,
+      accessLevel: "admin",
+      botId: bot._id,
+      botName: bot.name,
+      configuredRoleCount: 0,
+      configuredUserCount: 1,
+      guildId,
+      guildName,
+      matchedRoleIds: [],
+      matchedUserIds: [user.discordId],
+      matchedRoleCount: 0,
+      memberRoleIds: [],
+      requiredRoleIds: [],
+      requiredUserIds: [user.discordId],
+      reason: "Dono/criador do bot liberado para acessar esta dashboard."
+    };
+  }
+
   const panelRoleAccess = await checkConfiguredPanelRole(user.discordId, bot, guildId, options);
 
   return {
