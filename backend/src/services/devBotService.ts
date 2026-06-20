@@ -9,7 +9,7 @@ import {
   type MongoDevBot,
   type MongoDevBotStatus
 } from "../database/mongo";
-import { emitRealtime } from "../realtime/events";
+import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoom } from "../realtime/events";
 import type { AuthSessionUser } from "../types/session";
 import {
   canManageModuleAtLevel,
@@ -1004,6 +1004,12 @@ export async function updateDevBotModules(botId: string, enabledModules: string[
       botId,
       enabledModules: bot.enabledModules
     });
+    if (bot.enabledModules.includes("safe-bot")) {
+      emitRealtimeToRoom(devBotRealtimeRoom(bot.id), "self-bot:ensure_setup", {
+        botId: bot.id,
+        guildId: null
+      });
+    }
   }
 
   return bot;
@@ -2004,6 +2010,10 @@ async function enableSelfBotDefaults(bot: DevBotDto) {
 
   emitRealtime("settings:updated", settings);
   emitRealtime("self-bot-protection:settings_updated", protection);
+  emitRealtimeToRoom(devBotRealtimeRoom(bot.id), "self-bot:ensure_setup", {
+    botId: bot.id,
+    guildId: null
+  });
 }
 
 async function disableSelfBotDefaults(bot: DevBotDto) {

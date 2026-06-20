@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth, requireBot } from "../middleware/auth";
-import { emitRealtime } from "../realtime/events";
+import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoom } from "../realtime/events";
 import {
   areGuildAssignableRoles,
   isGuildTextChannel
@@ -207,6 +207,10 @@ selfBotProtectionRouter.patch("/:guildId", requireAuth, async (req, res, next) =
     emitRealtime("self-bot-protection:settings_updated", settings);
     emitRealtime("settings:updated", guildSettings);
     emitRealtime("logs:new", log);
+    emitRealtimeToRoom(devBotRealtimeRoom(botId), "self-bot:ensure_setup", {
+      botId,
+      guildId
+    });
 
     return res.json({
       settings

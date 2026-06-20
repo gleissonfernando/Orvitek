@@ -104,6 +104,11 @@ export type SelfBotProtectionSettingsEvent = {
   guildId: string;
 };
 
+export type SelfBotEnsureSetupEvent = {
+  botId?: string | null;
+  guildId?: string | null;
+};
+
 export type SettingsUpdatedEvent = GuildSettings;
 
 export type DiscordLogDispatchEvent = {
@@ -155,6 +160,7 @@ export class BotSocketClient {
   private giveawayPanelUpdateHandler: ((payload: GiveawayPanelUpdateEvent) => void) | null = null;
   private imageAntiSpamSettingsHandler: ((payload: ImageAntiSpamSettingsEvent) => void) | null = null;
   private selfBotProtectionSettingsHandler: ((payload: SelfBotProtectionSettingsEvent) => void) | null = null;
+  private selfBotEnsureSetupHandler: ((payload: SelfBotEnsureSetupEvent) => void) | null = null;
   private settingsUpdatedHandler: ((payload: SettingsUpdatedEvent) => void) | null = null;
   private discordLogDispatchHandler: ((payload: DiscordLogDispatchEvent) => void) | null = null;
   private devModuleUpdatedHandler: ((payload: DevModuleUpdatedEvent) => void) | null = null;
@@ -256,6 +262,10 @@ export class BotSocketClient {
 
     if (this.selfBotProtectionSettingsHandler) {
       this.socket.on("self-bot-protection:settings_updated", this.selfBotProtectionSettingsHandler);
+    }
+
+    if (this.selfBotEnsureSetupHandler) {
+      this.socket.on("self-bot:ensure_setup", this.selfBotEnsureSetupHandler);
     }
 
     if (this.settingsUpdatedHandler) {
@@ -388,6 +398,12 @@ export class BotSocketClient {
     this.selfBotProtectionSettingsHandler = handler;
     this.socket?.off("self-bot-protection:settings_updated");
     this.socket?.on("self-bot-protection:settings_updated", handler);
+  }
+
+  onSelfBotEnsureSetup(handler: (payload: SelfBotEnsureSetupEvent) => void) {
+    this.selfBotEnsureSetupHandler = handler;
+    this.socket?.off("self-bot:ensure_setup");
+    this.socket?.on("self-bot:ensure_setup", handler);
   }
 
   onSettingsUpdated(handler: (payload: SettingsUpdatedEvent) => void) {

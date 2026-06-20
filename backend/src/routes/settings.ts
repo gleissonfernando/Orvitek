@@ -2,7 +2,7 @@ import { Router, raw } from "express";
 import { z } from "zod";
 import type { Request, Response } from "express";
 import { isBotRequest, requireAuth, requireAuthOrBot, requireBot } from "../middleware/auth";
-import { emitRealtime } from "../realtime/events";
+import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoom } from "../realtime/events";
 import { isDashboardDevUserId } from "../config/devOwner";
 import { canManageDashboardGuild, canReadDashboardGuild } from "../services/dashboardGuildAccessService";
 import { authorizeBotRuntimeModule, canAccessDevBotGuild, canManageDevBot, canUseDevBotModule, getDevBot, getDevBotToken } from "../services/devBotService";
@@ -496,6 +496,12 @@ settingsRouter.patch("/:guildId", requireAuth, async (req, res, next) => {
 
     const settings = await updateGuildSettings(guildId, input, botId);
     emitRealtime("settings:updated", settings);
+    if (botId && touchesSafeBotSettings(input)) {
+      emitRealtimeToRoom(devBotRealtimeRoom(botId), "self-bot:ensure_setup", {
+        botId,
+        guildId
+      });
+    }
 
     const settingsLog = await createLog({
       botId,
@@ -668,6 +674,10 @@ async function canPatchSettings(
 
 function touchesOwnerDevOnlySettings(input: SettingsInput) {
   return (Object.keys(input) as Array<keyof SettingsInput>).some((key) => ownerDevOnlySettingKeys.has(key));
+}
+
+function touchesSafeBotSettings(input: SettingsInput) {
+  return Object.keys(input).some((key) => key.startsWith("safeBot"));
 }
 
 async function validateSafeBotActivation(guildId: string, botId: string | null, input: SettingsInput) {

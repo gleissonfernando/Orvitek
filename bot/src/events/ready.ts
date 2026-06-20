@@ -16,6 +16,7 @@ import { startKickNotificationMonitor } from "../services/kickNotificationMonito
 import { startMissionToolsService } from "../services/missionToolsService";
 import {
   disableUnreleasedSafeBotChannels,
+  ensureSafeBotSetup,
   ensureSelfBotRoles,
   isSelfBotModuleEnabled
 } from "../services/safeBotService";
@@ -64,6 +65,26 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     if (!wasMissionToolsEnabled && isBotModuleEnabled("mission-tools")) {
       startMissionToolsService(client, context);
     }
+  });
+  context.socket.onSelfBotEnsureSetup((payload) => {
+    if (payload.botId && runtimeBotId && payload.botId !== runtimeBotId) {
+      return;
+    }
+
+    if (!isSelfBotModuleEnabled()) {
+      return;
+    }
+
+    if (payload.guildId) {
+      const guild = client.guilds.cache.get(payload.guildId);
+
+      if (guild) {
+        void ensureSafeBotSetup(guild, context);
+      }
+      return;
+    }
+
+    void ensureSelfBotRoles(client, context);
   });
   startGuildSettingsCache(context);
   startDiscordLogDelivery(context);
