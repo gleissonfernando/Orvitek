@@ -266,6 +266,61 @@ export function DevPanel({
     }),
     [bots]
   );
+  const visibleStats = selectedBot
+    ? [
+        {
+          icon: Bot,
+          iconClassName: "border-purple-500/25 bg-purple-500/10 text-purple-200",
+          label: "Bot selecionado",
+          value: selectedBot.name
+        },
+        {
+          icon: CheckCircle2,
+          iconClassName: selectedBot.status === "online"
+            ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-300"
+            : "border-zinc-700 bg-zinc-900 text-zinc-300",
+          label: "Status",
+          value: statusLabel(selectedBot.status)
+        },
+        {
+          icon: LayoutDashboard,
+          iconClassName: "border-[#5865f2]/25 bg-[#5865f2]/10 text-[#c7d2fe]",
+          label: "Modulos ativos",
+          value: `${selectedBot.enabledModules.length}/${modules.length}`
+        },
+        {
+          icon: Server,
+          iconClassName: "border-zinc-700 bg-zinc-900 text-zinc-300",
+          label: "Servidores",
+          value: String(selectedBot.guildIds.length)
+        }
+      ]
+    : [
+        {
+          icon: Bot,
+          iconClassName: "border-purple-500/25 bg-purple-500/10 text-purple-200",
+          label: "Bots cadastrados",
+          value: String(stats.total)
+        },
+        {
+          icon: CheckCircle2,
+          iconClassName: "border-emerald-500/25 bg-emerald-500/10 text-emerald-300",
+          label: "Bots online",
+          value: String(stats.online)
+        },
+        {
+          icon: Unplug,
+          iconClassName: "border-zinc-700 bg-zinc-900 text-zinc-300",
+          label: "Bots offline",
+          value: String(stats.offline)
+        },
+        {
+          icon: Circle,
+          iconClassName: "border-red-500/25 bg-red-500/10 text-red-300",
+          label: "Com erro",
+          value: String(stats.errors)
+        }
+      ];
 
   useEffect(() => {
     let mounted = true;
@@ -295,6 +350,18 @@ export function DevPanel({
       mainGuildId: current.mainGuildId || selectedGuildId || guilds[0]?.id || ""
     }));
   }, [guilds, selectedGuildId]);
+
+  useEffect(() => {
+    if (!selectedBot) {
+      return;
+    }
+
+    const visibleMenuIds = new Set(flattenBotMenuItems(visibleBotMenuItems(botMenuItems, modules, selectedBot.enabledModules)).map((item) => item.id));
+
+    if (!visibleMenuIds.has(activeBotMenuId)) {
+      setActiveBotMenuId("overview");
+    }
+  }, [activeBotMenuId, modules, selectedBot]);
 
   useEffect(() => {
     const socket = createDashboardSocket();
@@ -469,31 +536,18 @@ export function DevPanel({
 
   return (
     <div className="space-y-7">
+      <BotGlobalSelect bots={bots} selectedBotId={selectedBotId} onSelectBot={handleSelectBotId} />
+
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <DevStatCard
-          icon={Bot}
-          iconClassName="border-purple-500/25 bg-purple-500/10 text-purple-200"
-          label="Bots cadastrados"
-          value={String(stats.total)}
-        />
-        <DevStatCard
-          icon={CheckCircle2}
-          iconClassName="border-emerald-500/25 bg-emerald-500/10 text-emerald-300"
-          label="Bots online"
-          value={String(stats.online)}
-        />
-        <DevStatCard
-          icon={Unplug}
-          iconClassName="border-zinc-700 bg-zinc-900 text-zinc-300"
-          label="Bots offline"
-          value={String(stats.offline)}
-        />
-        <DevStatCard
-          icon={Circle}
-          iconClassName="border-red-500/25 bg-red-500/10 text-red-300"
-          label="Com erro"
-          value={String(stats.errors)}
-        />
+        {visibleStats.map((stat) => (
+          <DevStatCard
+            icon={stat.icon}
+            iconClassName={stat.iconClassName}
+            key={stat.label}
+            label={stat.label}
+            value={stat.value}
+          />
+        ))}
       </section>
 
       {message ? (
@@ -891,6 +945,39 @@ function DevInput({
   );
 }
 
+function BotGlobalSelect({
+  bots,
+  onSelectBot,
+  selectedBotId
+}: {
+  bots: DevBot[];
+  onSelectBot: (botId: string | null) => void;
+  selectedBotId: string | null;
+}) {
+  return (
+    <Card className="border-zinc-800/80 bg-zinc-950/75 hover:translate-y-0">
+      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-white">Selecionar Bot</p>
+          <p className="text-xs text-zinc-500">Tudo nesta aba DEV carrega e salva apenas para o bot selecionado.</p>
+        </div>
+        <select
+          className="h-11 min-w-0 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition focus:border-[#5865f2]/70 sm:min-w-[280px]"
+          onChange={(event) => onSelectBot(event.target.value || null)}
+          value={selectedBotId ?? ""}
+        >
+          <option value="">Selecionar Bot</option>
+          {bots.map((bot) => (
+            <option key={bot.id} value={bot.id}>
+              {bot.name}
+            </option>
+          ))}
+        </select>
+      </CardContent>
+    </Card>
+  );
+}
+
 function BotModuleWorkspace({
   activeMenuId,
   bot,
@@ -904,10 +991,14 @@ function BotModuleWorkspace({
   onSelectMenu: (menuId: BotMenuId) => void;
   onToggle: (moduleId: string, checked: boolean) => void;
 }) {
-  const allMenuItems = flattenBotMenuItems(botMenuItems);
-  const activeMenu = allMenuItems.find((item) => item.id === activeMenuId) ?? botMenuItems[0];
-  const activeModules = activeMenu ? modulesForMenu(activeMenu, modules) : [];
-  const activeCount = activeModules.filter((module) => bot.enabledModules.includes(module.id)).length;
+  const visibleMenuItems = visibleBotMenuItems(botMenuItems, modules, bot.enabledModules);
+  const allMenuItems = flattenBotMenuItems(visibleMenuItems);
+  const activeMenu = allMenuItems.find((item) => item.id === activeMenuId) ?? visibleMenuItems[0] ?? botMenuItems[0];
+  const activeModules = activeMenu && activeMenuId !== "settings"
+    ? modulesForMenu(activeMenu, modules).filter((module) => bot.enabledModules.includes(module.id))
+    : [];
+  const headerCount = activeMenuId === "settings" ? bot.enabledModules.length : activeModules.length;
+  const headerTotal = activeMenuId === "settings" ? modules.length : activeModules.length;
 
   return (
     <Card className="border-zinc-800/80 bg-zinc-950/75" id="dev-bot-module-settings">
@@ -931,7 +1022,7 @@ function BotModuleWorkspace({
               </div>
             </div>
             <nav className="space-y-1">
-              {botMenuItems.map((item) => (
+              {visibleMenuItems.map((item) => (
                 <BotMenuButton
                   activeMenuId={activeMenuId}
                   item={item}
@@ -956,12 +1047,18 @@ function BotModuleWorkspace({
                     <p className="text-sm text-zinc-500">{activeMenu.description}</p>
                   </div>
                 </div>
-                <Badge variant="muted">{activeCount}/{activeModules.length} ativos</Badge>
+                <Badge variant="muted">{headerCount}/{headerTotal} ativos</Badge>
               </div>
             ) : null}
 
             {activeMenuId === "overview" ? (
               <BotOverview bot={bot} modules={modules} />
+            ) : activeMenuId === "settings" ? (
+              <ModuleManager
+                enabledModules={bot.enabledModules}
+                modules={modules}
+                onToggle={onToggle}
+              />
             ) : activeModules.length ? (
               <ModuleSwitchSection
                 enabledModules={bot.enabledModules}
@@ -993,8 +1090,8 @@ function BotMenuButton({
   selectedModules: string[];
 }) {
   const active = activeMenuId === item.id || Boolean(item.children?.some((child) => child.id === activeMenuId));
-  const count = countEnabledMenuModules(item, modules, selectedModules);
-  const total = modulesForMenu(item, modules, true).length;
+  const count = item.id === "settings" ? selectedModules.length : countEnabledMenuModules(item, modules, selectedModules);
+  const total = item.id === "settings" ? modules.length : modulesForMenu(item, modules, true).length;
 
   return (
     <div>
@@ -1054,6 +1151,38 @@ function BotOverview({ bot, modules }: { bot: DevBot; modules: DevModuleDefiniti
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ModuleManager({
+  enabledModules,
+  modules,
+  onToggle
+}: {
+  enabledModules: string[];
+  modules: DevModuleDefinition[];
+  onToggle: (moduleId: string, checked: boolean) => void;
+}) {
+  const groups = moduleManagerGroups(modules);
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-lg border border-[#5865f2]/20 bg-[#5865f2]/[0.06] p-4">
+        <p className="text-sm font-medium text-zinc-100">Gerenciador de modulos por bot</p>
+        <p className="mt-1 text-xs text-zinc-500">
+          Ativar aqui libera o modulo somente para o bot selecionado e faz a area aparecer no menu lateral dele.
+        </p>
+      </div>
+      {groups.map((group) => (
+        <ModuleSwitchSection
+          enabledModules={enabledModules}
+          key={group.title}
+          modules={group.modules}
+          onToggle={onToggle}
+          title={group.title}
+        />
+      ))}
     </div>
   );
 }
@@ -1154,6 +1283,100 @@ function modulesForMenu(item: BotMenuItem, modules: DevModuleDefinition[], inclu
   ]);
 
   return modules.filter((module) => moduleIds.has(module.id));
+}
+
+function visibleBotMenuItems(items: BotMenuItem[], modules: DevModuleDefinition[], enabledModules: string[]): BotMenuItem[] {
+  return items.flatMap((item) => {
+    if (item.id === "overview" || item.id === "settings") {
+      return [item];
+    }
+
+    const children = item.children ? visibleBotMenuItems(item.children, modules, enabledModules) : undefined;
+    const ownEnabled = modulesForMenu(item, modules).some((module) => enabledModules.includes(module.id));
+
+    if (!ownEnabled && !children?.length) {
+      return [];
+    }
+
+    return [{
+      ...item,
+      children
+    }];
+  });
+}
+
+function moduleManagerGroups(modules: DevModuleDefinition[]) {
+  const usedModuleIds = new Set<string>();
+  const groups: Array<{ title: string; modules: DevModuleDefinition[] }> = [];
+
+  for (const item of botMenuItems) {
+    if (item.id === "overview") {
+      continue;
+    }
+
+    if (item.id === "settings") {
+      const settingsModules = modulesForIds(modules, item.moduleIds, usedModuleIds);
+
+      if (settingsModules.length) {
+        groups.push({
+          title: "Configuracoes",
+          modules: settingsModules
+        });
+      }
+      continue;
+    }
+
+    if (item.children?.length) {
+      const parentModules = modulesForIds(modules, item.moduleIds, usedModuleIds);
+
+      if (parentModules.length) {
+        groups.push({
+          title: `${item.label} geral`,
+          modules: parentModules
+        });
+      }
+
+      for (const child of item.children) {
+        const childModules = modulesForIds(modules, child.moduleIds, usedModuleIds);
+
+        if (childModules.length) {
+          groups.push({
+            title: child.label,
+            modules: childModules
+          });
+        }
+      }
+      continue;
+    }
+
+    const itemModules = modulesForIds(modules, item.moduleIds, usedModuleIds);
+
+    if (itemModules.length) {
+      groups.push({
+        title: item.label,
+        modules: itemModules
+      });
+    }
+  }
+
+  const remainingModules = modules.filter((module) => !usedModuleIds.has(module.id));
+
+  if (remainingModules.length) {
+    groups.push({
+      title: "Outros modulos",
+      modules: remainingModules
+    });
+  }
+
+  return groups;
+}
+
+function modulesForIds(modules: DevModuleDefinition[], moduleIds: string[], usedModuleIds: Set<string>) {
+  const wanted = new Set(moduleIds);
+  const found = modules.filter((module) => wanted.has(module.id) && !usedModuleIds.has(module.id));
+
+  found.forEach((module) => usedModuleIds.add(module.id));
+  return found;
 }
 
 function countEnabledMenuModules(item: BotMenuItem, modules: DevModuleDefinition[], selectedModules: string[]) {
