@@ -64,7 +64,7 @@ git commit -m "sua mensagem"
 git push origin main
 ```
 
-O GitHub Actions executa `npm run deploy:check`, `npm run build`, `shard-cloud/action@main`, `commit 5b061ec4-2c46-4506-b567-56c463f7a9d9`, `restart 5b061ec4-2c46-4506-b567-56c463f7a9d9` e valida:
+O GitHub Actions executa `npm run deploy:check`, `npm run build`, `shard-cloud/action@main`, `commit 5b061ec4-2c46-4506-b567-56c463f7a9d9`, `start 5b061ec4-2c46-4506-b567-56c463f7a9d9` e valida:
 
 ```text
 https://ricardinho98.shardweb.app/
