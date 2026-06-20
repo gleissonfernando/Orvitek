@@ -10,9 +10,9 @@ const appId = "5b061ec4-2c46-4506-b567-56c463f7a9d9";
 const requiredShardcloud = {
   APPID: appId,
   LANGUAGE: "node",
-  MEMORY: "1024",
+  MEMORY: "512",
   MAIN: "index.js",
-  CUSTOM_COMMAND: "PORT=80 npm start"
+  CUSTOM_COMMAND: "npm start"
 };
 
 const checks = [];
