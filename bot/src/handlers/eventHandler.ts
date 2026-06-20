@@ -10,6 +10,7 @@ import { handlePresenceEvent } from "../events/presenceUpdate";
 import { handleReady } from "../events/ready";
 import { env, isBotModuleEnabled } from "../config/env";
 import { isLinkAntiSpamEnabled } from "../services/linkAntiSpamService";
+import { isMaintenanceModeActive } from "../services/maintenanceService";
 import { clearSafeBotSetupCache, ensureSafeBotSetup, isSelfBotModuleEnabled } from "../services/safeBotService";
 import { handleSelfBotProtectionGuildMutation } from "../services/selfBotProtectionService";
 import { handleVoiceRecorderVoiceStateUpdate } from "../services/voiceRecorderService";
@@ -31,6 +32,7 @@ export function registerEvents(client: Client, context: BotContext) {
 
   if (env.BOT_MEMBER_EVENTS_ENABLED && (managedRuntimeBot || ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security", "safe-bot"].some(isBotModuleEnabled))) {
     client.on(Events.GuildMemberAdd, (member) => {
+      if (isMaintenanceModeActive()) return;
       void resolveMember(member).then((resolved) => {
         if (resolved) {
           void handleGuildMemberAdd(resolved, context);
@@ -38,9 +40,11 @@ export function registerEvents(client: Client, context: BotContext) {
       });
     });
     client.on(Events.GuildMemberRemove, (member) => {
+      if (isMaintenanceModeActive()) return;
       void handleGuildMemberRemove(member, context);
     });
     client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
+      if (isMaintenanceModeActive()) return;
       void Promise.all([resolveMember(oldMember), resolveMember(newMember)]).then(([oldResolved, newResolved]) => {
         if (oldResolved && newResolved) {
           void handleGuildMemberUpdate(oldResolved, newResolved, context);
@@ -50,11 +54,17 @@ export function registerEvents(client: Client, context: BotContext) {
   }
 
   if (managedRuntimeBot || isBotModuleEnabled("logs") || isSelfBotModuleEnabled()) {
-    client.on(Events.MessageDelete, (message) => void handleMessageDelete(message, context));
+    client.on(Events.MessageDelete, (message) => {
+      if (isMaintenanceModeActive()) return;
+      void handleMessageDelete(message, context);
+    });
   }
 
   if (managedRuntimeBot || isBotModuleEnabled("logs") || (isBotModuleEnabled("image-anti-spam") && !isSelfBotModuleEnabled())) {
-    client.on(Events.MessageUpdate, (oldMessage, newMessage) => void handleMessageUpdate(oldMessage, newMessage, context));
+    client.on(Events.MessageUpdate, (oldMessage, newMessage) => {
+      if (isMaintenanceModeActive()) return;
+      void handleMessageUpdate(oldMessage, newMessage, context);
+    });
   }
 
   if (managedRuntimeBot || isBotModuleEnabled("image-anti-spam") || isLinkAntiSpamEnabled() || isSelfBotModuleEnabled()) {
@@ -63,24 +73,29 @@ export function registerEvents(client: Client, context: BotContext) {
 
   if (managedRuntimeBot || isSelfBotModuleEnabled()) {
     client.on(Events.ChannelDelete, (channel) => {
+      if (isMaintenanceModeActive()) return;
       if ("guild" in channel) {
         clearSafeBotSetupCache(channel.guild.id);
         void ensureSafeBotSetup(channel.guild, context);
       }
     });
     client.on(Events.ChannelCreate, (channel) => {
+      if (isMaintenanceModeActive()) return;
       if ("guild" in channel) {
         void handleSelfBotProtectionGuildMutation(channel.guild, context, "channel_create", channel.id);
       }
     });
     client.on(Events.GuildRoleCreate, (role) => {
+      if (isMaintenanceModeActive()) return;
       void handleSelfBotProtectionGuildMutation(role.guild, context, "role_create", null);
     });
     client.on(Events.GuildRoleDelete, (role) => {
+      if (isMaintenanceModeActive()) return;
       clearSafeBotSetupCache(role.guild.id);
       void ensureSafeBotSetup(role.guild, context);
     });
     client.on(Events.WebhooksUpdate, (channel) => {
+      if (isMaintenanceModeActive()) return;
       if ("guild" in channel) {
         void handleSelfBotProtectionGuildMutation(channel.guild, context, "webhook_create", channel.id);
       }
@@ -88,11 +103,17 @@ export function registerEvents(client: Client, context: BotContext) {
   }
 
   if (env.BOT_PRESENCE_MONITOR_ENABLED && isBotModuleEnabled("live")) {
-    client.on(Events.PresenceUpdate, (oldPresence, newPresence) => void handlePresenceEvent(oldPresence, newPresence, context));
+    client.on(Events.PresenceUpdate, (oldPresence, newPresence) => {
+      if (isMaintenanceModeActive()) return;
+      void handlePresenceEvent(oldPresence, newPresence, context);
+    });
   }
 
   if (isBotModuleEnabled("voice-recorder")) {
-    client.on(Events.VoiceStateUpdate, (oldState, newState) => void handleVoiceRecorderVoiceStateUpdate(oldState, newState, context));
+    client.on(Events.VoiceStateUpdate, (oldState, newState) => {
+      if (isMaintenanceModeActive()) return;
+      void handleVoiceRecorderVoiceStateUpdate(oldState, newState, context);
+    });
   }
 }
 

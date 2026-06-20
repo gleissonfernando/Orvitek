@@ -33,6 +33,11 @@ import {
   updateFivemModule
 } from "../services/fivemModuleService";
 import { createLog } from "../services/logService";
+import {
+  getMaintenanceState,
+  sendMaintenanceManualAlert,
+  setMaintenanceMode
+} from "../services/maintenanceService";
 import type { DashboardAuth } from "../services/tokenService";
 
 const moduleIds = DEV_MODULES.map((module) => module.id) as [string, ...string[]];
@@ -90,6 +95,74 @@ devRouter.get("/modules", (_req, res) => {
   return res.json({
     modules: DEV_MODULES
   });
+});
+
+devRouter.get("/maintenance", async (_req, res, next) => {
+  try {
+    return res.json({
+      maintenance: await getMaintenanceState()
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.patch("/maintenance", async (req, res, next) => {
+  try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+    const input = z.object({
+      active: z.boolean()
+    }).parse(req.body ?? {});
+    const maintenance = await setMaintenanceMode({
+      active: input.active,
+      actorId: auth.user.discordId,
+      actorName: auth.user.globalName || auth.user.username
+    });
+
+    await writeDevBotAudit(
+      auth,
+      auth.user.selectedGuildId ?? "global",
+      null,
+      input.active ? "maintenance_enabled" : "maintenance_disabled",
+      input.active ? "Modo de manutencao global ativado." : "Modo de manutencao global desativado.",
+      {
+        maintenance: true
+      }
+    );
+
+    return res.json({
+      maintenance
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.post("/maintenance/alert", async (_req, res, next) => {
+  try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+    const maintenance = await sendMaintenanceManualAlert({
+      actorId: auth.user.discordId,
+      actorName: auth.user.globalName || auth.user.username
+    });
+
+    await writeDevBotAudit(
+      auth,
+      auth.user.selectedGuildId ?? "global",
+      null,
+      "maintenance_manual_alert",
+      "Alerta manual de manutencao enviado.",
+      {
+        maintenance: true
+      }
+    );
+
+    return res.json({
+      maintenance
+    });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 devRouter.get("/fivem/modules", async (_req, res, next) => {

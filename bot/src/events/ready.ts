@@ -13,12 +13,14 @@ import { startGiveawayService } from "../services/giveawayService";
 import { startGuildSettingsCache } from "../services/guildSettingsCache";
 import { startImageAntiSpamService } from "../services/imageAntiSpamService";
 import { startKickNotificationMonitor } from "../services/kickNotificationMonitor";
+import { startMaintenanceService } from "../services/maintenanceService";
 import { startMissionToolsService } from "../services/missionToolsService";
 import {
   disableUnreleasedSafeBotChannels,
   ensureSafeBotSetup,
   ensureSelfBotRoles,
-  isSelfBotModuleEnabled
+  isSelfBotModuleEnabled,
+  reconcileSelfBotPunishmentRoles
 } from "../services/safeBotService";
 import { clearRuntimeModuleAuthorization } from "../services/runtimeModuleGuard";
 import { startSelfBotProtectionService } from "../services/selfBotProtectionService";
@@ -56,6 +58,7 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     if (!wasSelfBotEnabled && isSelfBotModuleEnabled()) {
       startSelfBotProtectionService(context);
       void ensureSelfBotRoles(client, context);
+      void reconcileSelfBotPunishmentRoles(client, context);
     }
 
     if (wasSelfBotEnabled && !isSelfBotModuleEnabled()) {
@@ -88,6 +91,7 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   });
   startGuildSettingsCache(context);
   startDiscordLogDelivery(context);
+  startMaintenanceService(context);
 
   const commandGuildIds = commandRegistrationGuildIds(client);
   const commands = [...context.commands.values()];
@@ -135,6 +139,7 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   startSelfBotProtectionService(context);
   if (isSelfBotModuleEnabled()) {
     await ensureSelfBotRoles(client, context);
+    await reconcileSelfBotPunishmentRoles(client, context);
   } else {
     await disableUnreleasedSafeBotChannels(client, context);
   }
@@ -195,6 +200,7 @@ async function reconcileRuntimeModules(client: Client<true>, context: BotContext
   if (isSelfBotModuleEnabled()) {
     startSelfBotProtectionService(context);
     await ensureSelfBotRoles(client, context);
+    await reconcileSelfBotPunishmentRoles(client, context);
   } else if (wasSelfBotEnabled) {
     await disableUnreleasedSafeBotChannels(client, context);
   }

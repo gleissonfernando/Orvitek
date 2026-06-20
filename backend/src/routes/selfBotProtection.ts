@@ -18,6 +18,7 @@ import { resolveRequestBotId } from "../services/requestBotScopeService";
 import {
   SELF_BOT_PROTECTION_MODULES,
   SELF_BOT_PUNISHMENT_ACTIONS,
+  getSelfBotRoleAssignments,
   getSelfBotProtectionDashboard,
   getSelfBotProtectionSettings,
   recordSelfBotProtectionIncident,
@@ -96,6 +97,21 @@ selfBotProtectionRouter.get("/bot/:guildId", requireBot, async (req, res, next) 
 
     return res.json({
       settings: await getSelfBotProtectionSettings(guildId, botId)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+selfBotProtectionRouter.get("/bot/:guildId/role-assignments", requireBot, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const botId = await readRequiredBotId(req);
+
+    await assertBotModuleLicense(botId, guildId);
+
+    return res.json({
+      assignments: await getSelfBotRoleAssignments(guildId, botId)
     });
   } catch (error) {
     return next(error);

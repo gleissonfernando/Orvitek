@@ -127,6 +127,20 @@ export type DevModuleUpdatedEvent = {
   enabledModules: string[];
 };
 
+export type MaintenanceUpdatedEvent = {
+  action: string;
+  alertMessage?: string;
+  state: {
+    active: boolean;
+    activatedAt: string | null;
+    affectedBots: number;
+    deactivatedAt: string | null;
+    updatedAt: string;
+    updatedById: string | null;
+    updatedByName: string | null;
+  };
+};
+
 export type VoiceRecorderStartEvent = {
   actorId: string;
   actorTag?: string | null;
@@ -164,6 +178,7 @@ export class BotSocketClient {
   private settingsUpdatedHandler: ((payload: SettingsUpdatedEvent) => void) | null = null;
   private discordLogDispatchHandler: ((payload: DiscordLogDispatchEvent) => void) | null = null;
   private devModuleUpdatedHandler: ((payload: DevModuleUpdatedEvent) => void) | null = null;
+  private maintenanceUpdatedHandler: ((payload: MaintenanceUpdatedEvent) => void) | null = null;
   private voiceRecorderStartHandler: ((payload: VoiceRecorderStartEvent) => void) | null = null;
   private voiceRecorderStopHandler: ((payload: VoiceRecorderStopEvent) => void) | null = null;
 
@@ -278,6 +293,10 @@ export class BotSocketClient {
 
     if (this.devModuleUpdatedHandler) {
       this.socket.on("dev:module_updated", this.devModuleUpdatedHandler);
+    }
+
+    if (this.maintenanceUpdatedHandler) {
+      this.socket.on("maintenance:updated", this.maintenanceUpdatedHandler);
     }
 
     if (this.voiceRecorderStartHandler) {
@@ -422,6 +441,12 @@ export class BotSocketClient {
     this.devModuleUpdatedHandler = handler;
     this.socket?.off("dev:module_updated");
     this.socket?.on("dev:module_updated", handler);
+  }
+
+  onMaintenanceUpdated(handler: (payload: MaintenanceUpdatedEvent) => void) {
+    this.maintenanceUpdatedHandler = handler;
+    this.socket?.off("maintenance:updated");
+    this.socket?.on("maintenance:updated", handler);
   }
 
   onVoiceRecorderStart(handler: (payload: VoiceRecorderStartEvent) => void) {

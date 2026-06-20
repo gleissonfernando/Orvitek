@@ -871,6 +871,20 @@ export type MongoSelfBotProtectionIncident = {
   createdAt: Date;
 };
 
+export type MongoSelfBotRoleAssignment = {
+  _id: string;
+  active: boolean;
+  botId: string;
+  guildId: string;
+  lastIncidentId: string;
+  lastPunishedAt: Date;
+  roleId: string | null;
+  userId: string;
+  username: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type MongoDevBotStatus = "online" | "offline" | "invalid_token" | "error";
 
 export type MongoDevBot = {
@@ -926,6 +940,26 @@ export type MongoDevPermission = {
   canDeleteBot: boolean;
   canManageModules: boolean;
   createdAt: Date;
+};
+
+export type MongoMaintenanceState = {
+  _id: "global";
+  active: boolean;
+  activatedAt: Date | null;
+  deactivatedAt: Date | null;
+  updatedAt: Date;
+  updatedById: string | null;
+  updatedByName: string | null;
+};
+
+export type MongoMaintenanceLog = {
+  _id: string;
+  action: "enabled" | "disabled" | "manual_alert";
+  active: boolean;
+  actorId: string | null;
+  actorName: string | null;
+  createdAt: Date;
+  message: string;
 };
 
 const globalForMongo = globalThis as unknown as {
@@ -997,9 +1031,12 @@ export async function getMongoCollections() {
     missionToolsTokens: db.collection<MongoMissionToolsToken>("mission_tools_tokens"),
     selfBotProtectionSettings: db.collection<MongoSelfBotProtectionSettings>("self_bot_protection_settings"),
     selfBotProtectionIncidents: db.collection<MongoSelfBotProtectionIncident>("self_bot_protection_incidents"),
+    selfBotRoleAssignments: db.collection<MongoSelfBotRoleAssignment>("self_bot_role_assignments"),
     devBots: db.collection<MongoDevBot>("Bot"),
     botGuildConfigs: db.collection<MongoBotGuildConfig>("BotGuildConfig"),
-    devPermissions: db.collection<MongoDevPermission>("DevPermission")
+    devPermissions: db.collection<MongoDevPermission>("DevPermission"),
+    maintenanceState: db.collection<MongoMaintenanceState>("MaintenanceState"),
+    maintenanceLogs: db.collection<MongoMaintenanceLog>("MaintenanceLog")
   };
 }
 
@@ -1496,6 +1533,20 @@ async function ensureSelfBotProtectionIndexes(db: Db) {
       guildId: 1,
       userId: 1,
       createdAt: -1
+    }),
+    db.collection<MongoSelfBotRoleAssignment>("self_bot_role_assignments").createIndex(
+      {
+        botId: 1,
+        guildId: 1,
+        userId: 1
+      },
+      { unique: true }
+    ),
+    db.collection<MongoSelfBotRoleAssignment>("self_bot_role_assignments").createIndex({
+      active: 1,
+      botId: 1,
+      guildId: 1,
+      updatedAt: -1
     })
   ]);
 }

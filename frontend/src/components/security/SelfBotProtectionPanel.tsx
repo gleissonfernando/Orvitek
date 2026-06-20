@@ -94,7 +94,7 @@ const punishmentActions: Array<{ id: SelfBotPunishmentAction; label: string }> =
   { id: "delete_message", label: "Apagar mensagem" },
   { id: "warn", label: "Advertir" },
   { id: "log", label: "Registrar" },
-  { id: "add_role", label: "Adicionar cargo" },
+  { id: "add_role", label: "Castigar com cargo" },
   { id: "timeout", label: "Timeout" },
   { id: "remove_role", label: "Remover cargo" },
   { id: "kick", label: "Kick" },
@@ -128,7 +128,7 @@ const emptySettings: SelfBotProtectionSettings = {
   punishmentLogChannelId: null,
   logWebhookUrl: null,
   embedColor: "#7c3aed",
-  punishmentSequence: ["delete_message", "log", "ban"],
+  punishmentSequence: ["delete_message", "add_role", "log"],
   addRoleId: null,
   removeRoleId: null,
   timeoutSeconds: 300,
@@ -599,7 +599,7 @@ export function SelfBotProtectionPanel({
             </div>
           </Section>
 
-          <Section icon={UserRoundX} title="Punicoes">
+          <Section icon={UserRoundX} title="Punicoes e castigo">
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,360px)]">
               <div className="grid gap-2 sm:grid-cols-2">
                 {punishmentActions.map((action) => (
@@ -631,7 +631,7 @@ export function SelfBotProtectionPanel({
               <SelectField
                 disabled={disabled}
                 icon={ShieldCheck}
-                label="Cargo para adicionar"
+                label="Cargo de castigo"
                 onChange={(value) => updateSetting("addRoleId", value || null)}
                 options={selectableRoles.map((role) => ({ label: role.name, value: role.id }))}
                 placeholder="Usar cargo Self Bot"

@@ -417,6 +417,11 @@ export type GuildVoiceChannelOption = {
   type: "voice" | "stage";
 };
 
+export type GuildCategoryOption = {
+  id: string;
+  name: string;
+};
+
 export type GuildRoleOption = {
   assignable: boolean;
   id: string;
@@ -436,6 +441,7 @@ export type GuildMemberOption = {
 };
 
 export type GuildLiveOptions = {
+  categories?: GuildCategoryOption[];
   channels: GuildChannelOption[];
   roles: GuildRoleOption[];
   voiceChannels?: GuildVoiceChannelOption[];
@@ -1425,6 +1431,27 @@ export type DevBot = {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+};
+
+export type MaintenanceLog = {
+  id: string;
+  action: "enabled" | "disabled" | "manual_alert";
+  active: boolean;
+  actorId: string | null;
+  actorName: string | null;
+  createdAt: string;
+  message: string;
+};
+
+export type MaintenanceState = {
+  active: boolean;
+  activatedAt: string | null;
+  affectedBots: number;
+  deactivatedAt: string | null;
+  logs: MaintenanceLog[];
+  updatedAt: string;
+  updatedById: string | null;
+  updatedByName: string | null;
 };
 
 export type CreateDevBotPayload = {

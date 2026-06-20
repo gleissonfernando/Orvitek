@@ -155,6 +155,16 @@ export async function ensureSelfBotRoles(client: Client<true>, context: BotConte
   );
 }
 
+export async function reconcileSelfBotPunishmentRoles(client: Client<true>, context: BotContext) {
+  if (!shouldCheckSelfBotRuntime()) {
+    return;
+  }
+
+  await Promise.allSettled(
+    client.guilds.cache.map((guild) => reconcileGuildPunishmentRoles(guild, context))
+  );
+}
+
 export async function disableUnreleasedSafeBotChannels(client: Client<true>, context: BotContext) {
   await Promise.allSettled(
     client.guilds.cache.map(async (guild) => {
@@ -359,82 +369,12 @@ async function applyFilterChannelPunishment(
   message: Message,
   runtime: SafeBotRuntime
 ): Promise<SequencePunishmentOutcome> {
-  const actions: SelfBotPunishmentAction[] = [];
-  const errors: string[] = [];
-  const reason = "SafeBot: mensagem enviada no canal de filtro.";
-
-  try {
-    await deleteMessagesOrThrow([message]);
-    actions.push("delete_message");
-  } catch (error) {
-    errors.push(`delete_message: ${errorMessage(error)}`);
-  }
-
-  try {
-    const assigned = await applySelfBotRole(member, runtime.roleId);
-    if (!assigned.succeeded) {
-      throw new Error(assigned.error ?? "Nao foi possivel aplicar o cargo Self Bot.");
-    }
-    actions.push("add_role");
-  } catch (error) {
-    errors.push(`add_role: ${errorMessage(error)}`);
-  }
-
-  const configuredActions = runtime.protectionSettings?.enabled
-    ? runtime.protectionSettings.punishmentSequence
-    : [];
-
-  for (const action of configuredActions) {
-    if (action === "delete_message" || action === "add_role" || action === "log") {
-      continue;
-    }
-
-    try {
-      if (action === "warn") {
-        continue;
-      } else if (action === "remove_role") {
-        const roleId = runtime.protectionSettings?.removeRoleId;
-        if (!roleId) {
-          throw new Error("Nenhum cargo configurado para remover.");
-        }
-        await member.roles.remove(roleId, reason);
-        actions.push(action);
-      } else if (action === "timeout") {
-        if (!member.moderatable) {
-          throw new Error("O bot nao pode aplicar mute neste membro por falta de permissao ou hierarquia.");
-        }
-        await member.timeout((runtime.protectionSettings?.timeoutSeconds ?? 300) * 1_000, reason);
-        actions.push(action);
-      } else if (action === "kick") {
-        if (!member.kickable) {
-          throw new Error("O bot nao pode expulsar este membro por falta de permissao ou hierarquia.");
-        }
-        await member.kick(reason);
-        actions.push(action);
-        break;
-      } else if (action === "ban") {
-        if (!member.bannable) {
-          throw new Error("O bot nao pode banir este membro por falta de permissao ou hierarquia.");
-        }
-        await member.ban({
-          deleteMessageSeconds: 60 * 60,
-          reason
-        });
-        actions.push(action);
-        break;
-      }
-    } catch (error) {
-      errors.push(`${action}: ${errorMessage(error)}`);
-    }
-  }
-
-  actions.push("log");
-
-  return {
-    actions,
-    error: errors.length ? errors.join(" | ") : null,
-    succeeded: errors.length === 0
-  };
+  return applyConfiguredPunishment(
+    member,
+    message,
+    runtime,
+    "SafeBot: mensagem enviada no canal de filtro."
+  );
 }
 
 async function applyConfiguredPunishment(
@@ -461,9 +401,9 @@ async function applyConfiguredPunishment(
       } else if (action === "log") {
         actions.push(action);
       } else if (action === "add_role") {
-        const assigned = await applySelfBotRole(member, runtime.roleId);
+        const assigned = await applySelfBotRole(member, punishmentAddRoleId(runtime));
         if (!assigned.succeeded) {
-          throw new Error(assigned.error ?? "Nao foi possivel aplicar o cargo Self Bot.");
+          throw new Error(assigned.error ?? "Nao foi possivel aplicar o cargo de castigo.");
         }
         actions.push(action);
       } else if (action === "remove_role") {
@@ -570,6 +510,50 @@ async function applySelfBotRole(member: GuildMember, roleId: string) {
       succeeded: false
     };
   }
+}
+
+async function reconcileGuildPunishmentRoles(guild: Guild, context: BotContext) {
+  if (!(await isRuntimeModuleAuthorized(context, guild.id, MODULE_ID))) {
+    return;
+  }
+
+  const runtime = await getSafeBotRuntime(guild, context).catch((error) => {
+    console.warn(`[safe-bot] nao foi possivel carregar runtime para reconciliar cargos em ${guild.id}:`, errorMessage(error));
+    return null;
+  });
+
+  if (!runtime) {
+    return;
+  }
+
+  const assignments = await context.api.getSelfBotRoleAssignments(guild.id).catch((error) => {
+    console.warn(`[safe-bot] nao foi possivel buscar castigos persistidos em ${guild.id}:`, errorMessage(error));
+    return [];
+  });
+
+  await Promise.allSettled(
+    assignments.map(async (assignment) => {
+      const roleId = assignment.roleId ?? punishmentAddRoleId(runtime);
+      const member = await guild.members.fetch(assignment.userId).catch(() => null);
+
+      if (!member || member.roles.cache.has(roleId)) {
+        return;
+      }
+
+      const assigned = await applySelfBotRole(member, roleId);
+
+      if (!assigned.succeeded) {
+        console.warn(
+          `[safe-bot] nao foi possivel reaplicar cargo de castigo para ${assignment.userId} em ${guild.id}:`,
+          assigned.error
+        );
+      }
+    })
+  );
+}
+
+function punishmentAddRoleId(runtime: SafeBotRuntime) {
+  return runtime.protectionSettings?.addRoleId ?? runtime.roleId;
 }
 
 async function punishMarkedUser(
@@ -869,7 +853,8 @@ async function recordSafeBotIncident(
       details: input.details,
       filterChannelId: runtime.filterChannelId,
       logChannelId: runtime.logChannelId,
-      roleId: runtime.roleId
+      punishmentRoleId: punishmentAddRoleId(runtime),
+      roleId: punishmentAddRoleId(runtime)
     },
     moduleId: input.moduleId,
     punishmentActions: input.actions,

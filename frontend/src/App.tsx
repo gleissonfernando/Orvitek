@@ -115,13 +115,17 @@ function rouletteTokenFromPath(path: string) {
   }
 }
 
-function devViewFromPath(path: string): "bots" | "fivem" | "logs" {
+function devViewFromPath(path: string): "bots" | "fivem" | "logs" | "maintenance" {
   if (path.startsWith("/dev/fivem")) {
     return "fivem";
   }
 
   if (path.startsWith("/dev/logs")) {
     return "logs";
+  }
+
+  if (path.startsWith("/dev/maintenance")) {
+    return "maintenance";
   }
 
   return "bots";

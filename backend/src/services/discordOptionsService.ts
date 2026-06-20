@@ -62,6 +62,11 @@ export type GuildVoiceChannelOptionDto = {
   type: "voice" | "stage";
 };
 
+export type GuildCategoryOptionDto = {
+  id: string;
+  name: string;
+};
+
 export type GuildRoleOptionDto = {
   assignable: boolean;
   id: string;
@@ -71,6 +76,7 @@ export type GuildRoleOptionDto = {
 };
 
 export type GuildLiveOptionsDto = {
+  categories: GuildCategoryOptionDto[];
   channels: GuildChannelOptionDto[];
   roles: GuildRoleOptionDto[];
   voiceChannels: GuildVoiceChannelOptionDto[];
@@ -142,6 +148,7 @@ export async function getGuildLiveOptions(
 
   if (!token) {
     return {
+      categories: [],
       channels: [],
       roles: [createEveryoneRole(guildId)],
       voiceChannels: []
@@ -197,6 +204,13 @@ async function fetchGuildLiveOptions(guildId: string, token: string): Promise<Gu
   ]);
 
   return {
+    categories: channels
+      .filter((channel) => channel.type === 4)
+      .sort((left, right) => (left.position ?? 0) - (right.position ?? 0))
+      .map((channel) => ({
+        id: channel.id,
+        name: channel.name
+      })),
     channels: channels
       .filter((channel) => TEXT_CHANNEL_TYPES.has(channel.type))
       .sort((left, right) => (left.position ?? 0) - (right.position ?? 0))

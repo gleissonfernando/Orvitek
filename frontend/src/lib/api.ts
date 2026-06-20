@@ -41,6 +41,7 @@ import type {
   MissionToolsResponse,
   MissionToolsSettings,
   MissionToolsUserPanel,
+  MaintenanceState,
   PublicKickClips,
   SaveClipsConfigPayload,
   SaveFivemFacSettingsPayload,
@@ -1144,6 +1145,23 @@ export async function getDevModules() {
 export async function getDevBots() {
   const { data } = await api.get<{ bots: DevBot[] }>("/dev/bots");
   return data.bots;
+}
+
+export async function getMaintenanceState() {
+  const { data } = await api.get<{ maintenance: MaintenanceState }>("/dev/maintenance");
+  return data.maintenance;
+}
+
+export async function setMaintenanceMode(active: boolean) {
+  const { data } = await api.patch<{ maintenance: MaintenanceState }>("/dev/maintenance", {
+    active
+  });
+  return data.maintenance;
+}
+
+export async function sendMaintenanceAlert() {
+  const { data } = await api.post<{ maintenance: MaintenanceState }>("/dev/maintenance/alert");
+  return data.maintenance;
 }
 
 export async function createDevBot(payload: CreateDevBotPayload) {

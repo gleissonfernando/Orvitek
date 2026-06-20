@@ -1,11 +1,16 @@
 import type { Message } from "discord.js";
 import { handleImageAntiSpamMessage } from "../services/imageAntiSpamService";
 import { handleLinkAntiSpamMessage } from "../services/linkAntiSpamService";
+import { blockMessageIfMaintenance } from "../services/maintenanceService";
 import { handleSafeBotMessage, isSelfBotModuleEnabled } from "../services/safeBotService";
 import { handleSelfBotProtectionMessage } from "../services/selfBotProtectionService";
 import type { BotContext } from "../types";
 
 export async function handleMessageCreate(message: Message, context: BotContext) {
+  if (await blockMessageIfMaintenance(message)) {
+    return;
+  }
+
   const safeBotBlocked = await handleSafeBotMessage(message, context);
 
   if (safeBotBlocked) {

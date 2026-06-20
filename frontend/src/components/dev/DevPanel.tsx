@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Bot,
   CalendarDays,
+  ChevronDown,
   CheckCircle2,
   Circle,
   Copy,
@@ -13,6 +14,7 @@ import {
   Loader2,
   MessageSquare,
   Power,
+  Search,
   ScrollText,
   Server,
   Settings,
@@ -551,21 +553,21 @@ export function DevPanel({
       </section>
 
       {message ? (
-        <div className="rounded-lg border border-zinc-700 bg-zinc-950/85 px-4 py-3 text-sm text-zinc-100 shadow-lg">
+        <div className="rounded-lg border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-sm font-semibold text-white shadow-[0_0_28px_rgba(124,58,237,0.12)]">
           {message}
         </div>
       ) : null}
 
       <section className="grid items-stretch gap-6 lg:grid-cols-[minmax(320px,0.95fr)_minmax(0,1.05fr)]">
-        <Card className="flex h-full flex-col border-[#5865f2]/30 bg-black/70 backdrop-blur-xl hover:translate-y-0">
-          <CardHeader className="border-b border-zinc-900/80 p-5 sm:p-6">
+        <Card className="flex h-full flex-col border-purple-500/25 bg-[linear-gradient(135deg,rgba(24,24,27,0.92),rgba(7,7,10,0.96))] shadow-[0_0_42px_rgba(124,58,237,0.10)] backdrop-blur-xl hover:translate-y-0">
+          <CardHeader className="border-b border-purple-500/15 p-5 sm:p-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#5865f2] text-white shadow-[0_12px_30px_rgba(88,101,242,0.3)]">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-purple-600 text-white shadow-[0_12px_30px_rgba(124,58,237,0.34)]">
                 <Bot className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle>Conectar Bot</CardTitle>
-                <CardDescription>Token e servidor. O Discord fornece o restante.</CardDescription>
+                <CardTitle className="text-white">Conectar Bot</CardTitle>
+                <CardDescription className="font-medium text-zinc-300">Token e servidor. O Discord fornece o restante.</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -586,7 +588,7 @@ export function DevPanel({
               value={form.mainGuildId}
             />
 
-            <div className="flex flex-col gap-3 rounded-lg border border-zinc-900 bg-zinc-950/65 p-4 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-3 rounded-lg border border-purple-500/15 bg-white/[0.05] p-4 sm:flex-row sm:items-center">
               <Avatar
                 className="h-10 w-10 rounded-full border border-zinc-800"
                 fallback={user?.globalName || user?.username || "Discord"}
@@ -596,13 +598,13 @@ export function DevPanel({
                 <p className="truncate text-sm font-medium text-white">
                   {user?.globalName || user?.username || "Usuario Discord autenticado"}
                 </p>
-                <p className="truncate text-xs text-zinc-500">Responsavel via Discord OAuth2</p>
+                <p className="truncate text-xs font-medium text-zinc-300">Responsavel via Discord OAuth2</p>
               </div>
               <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-400" />
             </div>
 
             <Button
-              className="h-12 w-full bg-[#5865f2] text-white shadow-[0_14px_34px_rgba(88,101,242,0.28)] hover:bg-[#4752c4]"
+              className="h-12 w-full bg-purple-600 text-white shadow-[0_14px_34px_rgba(124,58,237,0.30)] hover:bg-purple-500"
               disabled={saving || form.token.trim().length < 10 || !/^\d{5,32}$/.test(form.mainGuildId)}
               onClick={handleCreateBot}
             >
@@ -610,7 +612,7 @@ export function DevPanel({
               {saving ? "Validando no Discord..." : "Conectar Bot"}
             </Button>
 
-            <div className="grid gap-2 text-xs text-zinc-500 sm:grid-cols-2">
+            <div className="grid gap-2 text-xs font-semibold text-zinc-300 sm:grid-cols-2">
               <AutomaticField label="Nome e avatar" />
               <AutomaticField label="Application ID" />
               <AutomaticField label="Data de criacao" />
@@ -632,22 +634,22 @@ export function DevPanel({
             powering={poweringBotId === selectedBot.id}
           />
         ) : (
-          <Card className="flex h-full min-h-[420px] border-dashed border-zinc-800 bg-zinc-950/45 hover:translate-y-0">
+          <Card className="flex h-full min-h-[420px] border-dashed border-purple-500/20 bg-zinc-950/60 hover:translate-y-0">
             <CardContent className="flex flex-1 flex-col items-center justify-center p-8 text-center">
               <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-lg border border-zinc-800 bg-black">
                 <Bot className="h-7 w-7 text-zinc-500" />
               </div>
               <p className="text-sm font-semibold text-zinc-200">Nenhum bot selecionado</p>
-              <p className="mt-1 text-sm text-zinc-500">Conecte um bot ou selecione um da lista.</p>
+              <p className="mt-1 text-sm font-medium text-zinc-300">Conecte um bot ou selecione um da lista.</p>
             </CardContent>
           </Card>
         )}
       </section>
 
-      <Card className="border-zinc-800/80 bg-zinc-950/75">
+      <Card className="border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(124,58,237,0.08)]">
         <CardHeader className="p-5 sm:p-6">
-          <CardTitle>Bots conectados</CardTitle>
-          <CardDescription>{bots.length} bot{bots.length === 1 ? "" : "s"} nesta hospedagem.</CardDescription>
+          <CardTitle className="text-white">Bots conectados</CardTitle>
+          <CardDescription className="font-medium text-zinc-300">{bots.length} bot{bots.length === 1 ? "" : "s"} nesta hospedagem.</CardDescription>
         </CardHeader>
         <CardContent className="p-5 pt-0 sm:p-6 sm:pt-0">
           {bots.length ? (
@@ -656,8 +658,8 @@ export function DevPanel({
                 <div
                   className={`flex flex-col gap-3 rounded-lg border p-3.5 transition duration-200 sm:flex-row sm:items-center sm:justify-between ${
                     selectedBot?.id === bot.id
-                      ? "border-[#5865f2]/55 bg-[#5865f2]/10 shadow-[0_0_0_1px_rgba(88,101,242,0.16)]"
-                      : "border-zinc-900 bg-black/35 hover:border-zinc-700 hover:bg-zinc-950/70"
+                      ? "border-purple-400/50 bg-purple-500/10 shadow-[0_0_24px_rgba(124,58,237,0.16)]"
+                      : "border-zinc-800 bg-black/35 hover:border-purple-500/25 hover:bg-zinc-950/80 hover:shadow-[0_0_24px_rgba(124,58,237,0.10)]"
                   }`}
                   key={bot.id}
                 >
@@ -672,10 +674,10 @@ export function DevPanel({
                         <span className="truncate text-sm font-semibold text-white">{bot.name}</span>
                         <StatusDot status={bot.status} />
                       </span>
-                      <span className="block truncate text-xs text-zinc-500">
+                      <span className="block truncate text-xs font-medium text-zinc-300">
                         {bot.mainGuildName || guildNameById.get(bot.mainGuildId) || bot.mainGuildId}
                       </span>
-                      <span className="block truncate font-mono text-[11px] text-zinc-600">{bot.clientId}</span>
+                      <span className="block truncate font-mono text-[11px] text-zinc-400">{bot.clientId}</span>
                     </span>
                   </button>
                   <div className="flex shrink-0 items-center gap-2 self-end sm:self-center">
@@ -702,7 +704,7 @@ export function DevPanel({
               ))}
             </div>
           ) : (
-            <div className="flex min-h-32 items-center justify-center rounded-lg border border-dashed border-zinc-800 bg-black/25 text-sm text-zinc-500">
+            <div className="flex min-h-32 items-center justify-center rounded-lg border border-dashed border-zinc-700 bg-black/25 text-sm font-medium text-zinc-300">
               Nenhum bot conectado.
             </div>
           )}
@@ -770,8 +772,8 @@ function ConnectedBotPanel({
   }
 
   return (
-    <Card className="flex h-full min-h-[420px] flex-col overflow-hidden border-zinc-800 bg-zinc-950/75 backdrop-blur-xl hover:translate-y-0">
-      <div className="h-20 shrink-0 border-b border-[#5865f2]/25 bg-[linear-gradient(135deg,rgba(88,101,242,0.32),rgba(16,185,129,0.08),rgba(9,9,11,0.15))]" />
+    <Card className="flex h-full min-h-[420px] flex-col overflow-hidden border-purple-500/25 bg-[linear-gradient(135deg,rgba(24,24,27,0.92),rgba(7,7,10,0.96))] shadow-[0_0_44px_rgba(124,58,237,0.10)] backdrop-blur-xl hover:translate-y-0">
+      <div className="h-20 shrink-0 border-b border-purple-500/25 bg-[linear-gradient(135deg,rgba(124,58,237,0.36),rgba(16,185,129,0.08),rgba(9,9,11,0.15))]" />
       <CardContent className="-mt-8 flex flex-1 flex-col gap-5 p-5 pt-0 sm:p-6 sm:pt-0">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex min-w-0 items-end gap-3">
@@ -785,13 +787,13 @@ function ConnectedBotPanel({
                 <h3 className="truncate text-lg font-semibold text-white">{bot.name}</h3>
                 <StatusBadge status={bot.status} />
               </div>
-              <p className="truncate text-sm text-zinc-500">{guildName}</p>
+              <p className="truncate text-sm font-medium text-zinc-300">{guildName}</p>
             </div>
           </div>
           <Badge variant="muted">{bot.guildIds.length} servidor{bot.guildIds.length === 1 ? "" : "es"}</Badge>
         </div>
 
-        <div className="grid gap-px overflow-hidden rounded-lg border border-zinc-800 bg-zinc-800 sm:grid-cols-2">
+        <div className="grid gap-px overflow-hidden rounded-lg border border-purple-500/15 bg-purple-500/15 sm:grid-cols-2">
           <BotDetail icon={Hash} label="Client / Application ID" value={bot.clientId} />
           <BotDetail icon={CalendarDays} label="Criado em" value={bot.botCreatedAt ? formatDate(bot.botCreatedAt) : "Nao informado"} />
           <BotDetail icon={Server} label="Servidor" value={guildName} />
@@ -804,16 +806,16 @@ function ConnectedBotPanel({
               ? "border-emerald-500/20 bg-emerald-500/[0.06] text-emerald-200"
               : bot.status === "error" || bot.status === "invalid_token"
                 ? "border-red-500/25 bg-red-500/[0.07] text-red-200"
-                : "border-zinc-800 bg-black/30 text-zinc-400"
+                : "border-zinc-700 bg-black/35 text-zinc-200"
           }`}>
             {bot.statusMessage}
           </div>
         ) : null}
 
-        <div className="rounded-lg border border-[#5865f2]/25 bg-[#5865f2]/[0.06] p-4">
+        <div className="rounded-lg border border-purple-500/25 bg-purple-500/[0.08] p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
-              <p className="text-xs font-medium uppercase text-purple-200">URL da Dashboard</p>
+              <p className="text-xs font-bold uppercase text-purple-100">URL da Dashboard</p>
               <p className="mt-1 break-all font-mono text-sm text-zinc-100">{botDashboardUrl}</p>
               <p className={`mt-2 text-xs text-emerald-300 transition duration-300 ${copiedDashboardUrl ? "opacity-100" : "opacity-0"}`}>
                 URL copiada com sucesso.
@@ -832,7 +834,7 @@ function ConnectedBotPanel({
           </div>
         </div>
 
-        <div className="mt-auto flex flex-wrap gap-2 border-t border-zinc-900 pt-4">
+        <div className="mt-auto flex flex-wrap gap-2 border-t border-purple-500/15 pt-4">
           <Button onClick={onOpenDashboard} size="sm">
             <LayoutDashboard className="h-4 w-4" />
             Dashboard
@@ -867,19 +869,19 @@ function BotDetail({
   value: string;
 }) {
   return (
-    <div className="min-w-0 bg-zinc-950 p-4">
-      <p className="flex items-center gap-2 text-xs text-zinc-500">
+    <div className="min-w-0 bg-zinc-950/90 p-4">
+      <p className="flex items-center gap-2 text-xs font-semibold text-zinc-300">
         <Icon className="h-3.5 w-3.5" />
         {label}
       </p>
-      <p className="mt-1 truncate text-sm font-medium text-zinc-100" title={value}>{value}</p>
+      <p className="mt-1 truncate text-sm font-bold text-white" title={value}>{value}</p>
     </div>
   );
 }
 
 function AutomaticField({ label }: { label: string }) {
   return (
-    <span className="flex min-h-10 items-center gap-2 rounded-md border border-zinc-900 bg-zinc-950/70 px-3 py-2">
+    <span className="flex min-h-10 items-center gap-2 rounded-md border border-purple-500/15 bg-white/[0.04] px-3 py-2">
       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
       {label}
     </span>
@@ -898,14 +900,14 @@ function DevStatCard({
   value: string;
 }) {
   return (
-    <Card className="h-full border-zinc-800/80 bg-zinc-950/75 hover:translate-y-0">
+    <Card className="h-full border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.88),rgba(9,9,11,0.96))] shadow-[0_0_36px_rgba(124,58,237,0.07)] hover:translate-y-0">
       <CardContent className="flex min-h-[116px] items-center gap-4 p-5">
         <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border ${iconClassName}`}>
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm text-zinc-400">{label}</p>
-          <p className="mt-1 text-3xl font-semibold leading-none text-white">{value}</p>
+          <p className="truncate text-sm font-semibold text-zinc-200">{label}</p>
+          <p className="mt-1 text-3xl font-bold leading-none text-white">{value}</p>
         </div>
       </CardContent>
     </Card>
@@ -931,10 +933,10 @@ function DevInput({
 }) {
   return (
     <label className="block space-y-2">
-      <span className="text-sm font-medium text-zinc-200">{label}</span>
+      <span className="text-sm font-semibold text-white">{label}</span>
       <input
         autoComplete={autoComplete}
-        className="social-input h-12"
+        className="social-input h-12 border-purple-500/20 bg-black/55 font-medium text-white placeholder:text-zinc-500 focus:border-purple-400/70"
         inputMode={inputMode}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
@@ -954,25 +956,104 @@ function BotGlobalSelect({
   onSelectBot: (botId: string | null) => void;
   selectedBotId: string | null;
 }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const selectedBot = bots.find((bot) => bot.id === selectedBotId) ?? null;
+  const filteredBots = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+
+    if (!normalized) return bots;
+
+    return bots.filter((bot) => (
+      bot.name.toLowerCase().includes(normalized)
+      || bot.clientId.toLowerCase().includes(normalized)
+      || bot.id.toLowerCase().includes(normalized)
+      || bot.mainGuildName?.toLowerCase().includes(normalized)
+    ));
+  }, [bots, query]);
+
   return (
-    <Card className="border-zinc-800/80 bg-zinc-950/75 hover:translate-y-0">
-      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+    <Card className="border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(124,58,237,0.08)] hover:translate-y-0">
+      <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-white">Selecionar Bot</p>
-          <p className="text-xs text-zinc-500">Tudo nesta aba DEV carrega e salva apenas para o bot selecionado.</p>
+          <p className="text-sm font-bold text-white">Selecionar Bot</p>
+          <p className="mt-1 text-xs font-medium text-zinc-300">Tudo nesta aba DEV carrega e salva apenas para o bot selecionado.</p>
         </div>
-        <select
-          className="h-11 min-w-0 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition focus:border-[#5865f2]/70 sm:min-w-[280px]"
-          onChange={(event) => onSelectBot(event.target.value || null)}
-          value={selectedBotId ?? ""}
-        >
-          <option value="">Selecionar Bot</option>
-          {bots.map((bot) => (
-            <option key={bot.id} value={bot.id}>
-              {bot.name}
-            </option>
-          ))}
-        </select>
+        <div className="relative w-full lg:w-[420px]">
+          <button
+            className="flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border border-purple-500/20 bg-black/55 px-3 py-2 text-left shadow-inner transition duration-300 hover:border-purple-400/40 hover:bg-purple-500/10"
+            onClick={() => setOpen((current) => !current)}
+            type="button"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <Avatar className="h-10 w-10 rounded-xl border border-zinc-700" fallback={selectedBot?.name ?? "Bot"} src={selectedBot?.avatarUrl} />
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-bold text-white">{selectedBot?.name ?? "Selecione um bot"}</span>
+                <span className="flex min-w-0 items-center gap-2 text-xs font-medium text-zinc-300">
+                  {selectedBot ? <StatusDot status={selectedBot.status} /> : null}
+                  <span className="truncate">{selectedBot ? selectedBot.clientId : "Busque por nome, ID ou servidor"}</span>
+                </span>
+              </span>
+            </span>
+            <ChevronDown className={`h-4 w-4 shrink-0 text-zinc-300 transition ${open ? "rotate-180" : ""}`} />
+          </button>
+
+          {open ? (
+            <div className="absolute right-0 top-16 z-30 w-full overflow-hidden rounded-xl border border-purple-500/25 bg-[#101014] shadow-[0_24px_80px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+              <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2">
+                <Search className="h-4 w-4 text-purple-200" />
+                <input
+                  className="h-10 min-w-0 flex-1 bg-transparent text-sm font-medium text-white outline-none placeholder:text-zinc-500"
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Buscar bot..."
+                  value={query}
+                />
+              </div>
+              <div className="discord-scrollbar max-h-80 overflow-y-auto p-2">
+                <button
+                  className="mb-1 flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-semibold text-zinc-300 transition hover:bg-zinc-900 hover:text-white"
+                  onClick={() => {
+                    onSelectBot(null);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                  type="button"
+                >
+                  Selecionar Bot
+                </button>
+                {filteredBots.map((bot) => (
+                  <button
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition duration-200 ${
+                      selectedBotId === bot.id
+                        ? "bg-purple-500/15 ring-1 ring-purple-400/25"
+                        : "hover:bg-zinc-900/85"
+                    }`}
+                    key={bot.id}
+                    onClick={() => {
+                      onSelectBot(bot.id);
+                      setOpen(false);
+                      setQuery("");
+                    }}
+                    type="button"
+                  >
+                    <Avatar className="h-11 w-11 rounded-xl border border-zinc-700" fallback={bot.name} src={bot.avatarUrl} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-bold text-white">{bot.name}</span>
+                      <span className="block truncate text-xs font-medium text-zinc-300">{bot.mainGuildName || bot.mainGuildId}</span>
+                      <span className="block truncate font-mono text-[11px] text-zinc-400">ID: {bot.clientId}</span>
+                    </span>
+                    <Badge variant={bot.status === "online" ? "success" : bot.status === "error" || bot.status === "invalid_token" ? "danger" : "muted"}>
+                      {statusLabel(bot.status)}
+                    </Badge>
+                  </button>
+                ))}
+                {!filteredBots.length ? (
+                  <p className="px-3 py-6 text-center text-sm font-medium text-zinc-400">Nenhum bot encontrado.</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+        </div>
       </CardContent>
     </Card>
   );
@@ -1001,24 +1082,24 @@ function BotModuleWorkspace({
   const headerTotal = activeMenuId === "settings" ? modules.length : activeModules.length;
 
   return (
-    <Card className="border-zinc-800/80 bg-zinc-950/75" id="dev-bot-module-settings">
+    <Card className="border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(124,58,237,0.08)]" id="dev-bot-module-settings">
       <CardHeader className="p-5 sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle>Menu do Bot</CardTitle>
-            <CardDescription>Organize os sistemas de {bot.name} por area.</CardDescription>
+            <CardTitle className="text-white">Menu do Bot</CardTitle>
+            <CardDescription className="font-medium text-zinc-300">Organize os sistemas de {bot.name} por area.</CardDescription>
           </div>
           <Badge variant="muted">{bot.enabledModules.length}/{modules.length} ativos</Badge>
         </div>
       </CardHeader>
       <CardContent className="p-5 pt-0 sm:p-6 sm:pt-0">
         <div className="grid gap-5 lg:grid-cols-[270px_minmax(0,1fr)]">
-          <aside className="rounded-lg border border-zinc-900 bg-black/35 p-2">
-            <div className="mb-2 flex items-center gap-3 border-b border-zinc-900 px-2 pb-3">
+          <aside className="rounded-lg border border-purple-500/15 bg-black/40 p-2">
+            <div className="mb-2 flex items-center gap-3 border-b border-purple-500/15 px-2 pb-3">
               <Avatar className="h-9 w-9 rounded-full border border-zinc-800" fallback={bot.name} src={bot.avatarUrl} />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-white">{bot.name}</p>
-                <p className="truncate text-xs text-zinc-500">{bot.mainGuildName || bot.mainGuildId}</p>
+                <p className="truncate text-xs font-medium text-zinc-300">{bot.mainGuildName || bot.mainGuildId}</p>
               </div>
             </div>
             <nav className="space-y-1">
@@ -1035,16 +1116,16 @@ function BotModuleWorkspace({
             </nav>
           </aside>
 
-          <section className="min-w-0 rounded-lg border border-zinc-900 bg-black/25 p-4 sm:p-5">
+          <section className="min-w-0 rounded-lg border border-purple-500/15 bg-black/25 p-4 sm:p-5">
             {activeMenu ? (
-              <div className="mb-4 flex flex-col gap-3 border-b border-zinc-900 pb-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mb-4 flex flex-col gap-3 border-b border-purple-500/15 pb-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950 text-zinc-300">
                     <activeMenu.icon className="h-5 w-5" />
                   </div>
                   <div className="min-w-0">
                     <h3 className="truncate text-base font-semibold text-white">{activeMenu.label}</h3>
-                    <p className="text-sm text-zinc-500">{activeMenu.description}</p>
+                    <p className="text-sm font-medium text-zinc-300">{activeMenu.description}</p>
                   </div>
                 </div>
                 <Badge variant="muted">{headerCount}/{headerTotal} ativos</Badge>
@@ -1096,18 +1177,20 @@ function BotMenuButton({
   return (
     <div>
       <button
-        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition ${
-          active ? "bg-[#5865f2]/15 text-white" : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-100"
+        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold transition duration-300 ${
+          active
+            ? "bg-purple-500/20 text-white ring-1 ring-purple-400/25 shadow-[0_0_20px_rgba(124,58,237,0.12)]"
+            : "text-zinc-300 hover:bg-purple-500/10 hover:text-white hover:shadow-[0_0_18px_rgba(124,58,237,0.10)]"
         }`}
         onClick={() => onSelectMenu(item.id)}
         type="button"
       >
         <item.icon className="h-4 w-4 shrink-0" />
         <span className="min-w-0 flex-1 truncate">{item.label}</span>
-        {total ? <span className="text-xs text-zinc-500">{count}/{total}</span> : null}
+        {total ? <span className="text-xs font-semibold text-zinc-300">{count}/{total}</span> : null}
       </button>
       {item.children && active ? (
-        <div className="ml-5 mt-1 space-y-1 border-l border-zinc-900 pl-2">
+        <div className="ml-5 mt-1 space-y-1 border-l border-purple-500/15 pl-2">
           {item.children.map((child) => {
             const childActive = activeMenuId === child.id;
             const childModules = modulesForMenu(child, modules);
@@ -1115,8 +1198,8 @@ function BotMenuButton({
 
             return (
               <button
-                className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition ${
-                  childActive ? "bg-zinc-800 text-white" : "text-zinc-500 hover:bg-zinc-900/80 hover:text-zinc-200"
+                className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${
+                  childActive ? "bg-purple-500/15 text-white" : "text-zinc-300 hover:bg-zinc-900/80 hover:text-white"
                 }`}
                 key={child.id}
                 onClick={() => onSelectMenu(child.id)}
@@ -1142,12 +1225,12 @@ function BotOverview({ bot, modules }: { bot: DevBot; modules: DevModuleDefiniti
       <OverviewMetric label="Status" value={statusLabel(bot.status)} />
       <OverviewMetric label="Modulos ativos" value={`${activeModules.length}/${modules.length}`} />
       <OverviewMetric label="Servidor" value={bot.mainGuildName || bot.mainGuildId} />
-      <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] p-4 sm:col-span-3">
+      <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/[0.08] p-4 sm:col-span-3">
         <div className="flex items-center gap-3">
           <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-400" />
           <div>
-            <p className="text-sm font-medium text-zinc-100">Acesso protegido</p>
-            <p className="text-xs text-zinc-500">Login Discord e usuario autorizado para este bot.</p>
+            <p className="text-sm font-bold text-white">Acesso protegido</p>
+            <p className="text-xs font-medium text-zinc-300">Login Discord e usuario autorizado para este bot.</p>
           </div>
         </div>
       </div>
@@ -1168,9 +1251,9 @@ function ModuleManager({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-lg border border-[#5865f2]/20 bg-[#5865f2]/[0.06] p-4">
-        <p className="text-sm font-medium text-zinc-100">Gerenciador de modulos por bot</p>
-        <p className="mt-1 text-xs text-zinc-500">
+      <div className="rounded-lg border border-purple-500/25 bg-purple-500/[0.08] p-4">
+        <p className="text-sm font-bold text-white">Gerenciador de modulos por bot</p>
+        <p className="mt-1 text-xs font-medium text-zinc-300">
           Ativar aqui libera o modulo somente para o bot selecionado e faz a area aparecer no menu lateral dele.
         </p>
       </div>
@@ -1189,19 +1272,19 @@ function ModuleManager({
 
 function OverviewMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-zinc-900 bg-zinc-950/70 p-4">
-      <p className="text-xs uppercase tracking-[0.18em] text-zinc-600">{label}</p>
-      <p className="mt-2 truncate text-sm font-semibold text-zinc-100">{value}</p>
+    <div className="rounded-lg border border-purple-500/15 bg-zinc-950/80 p-4">
+      <p className="text-xs font-bold uppercase text-zinc-300">{label}</p>
+      <p className="mt-2 truncate text-sm font-bold text-white">{value}</p>
     </div>
   );
 }
 
 function EmptyBotMenuCategory({ label }: { label: string }) {
   return (
-    <div className="flex min-h-44 items-center justify-center rounded-lg border border-dashed border-zinc-800 bg-black/25 p-6 text-center">
+    <div className="flex min-h-44 items-center justify-center rounded-lg border border-dashed border-zinc-700 bg-black/30 p-6 text-center">
       <div>
-        <p className="text-sm font-semibold text-zinc-200">{label} ainda nao tem modulos cadastrados</p>
-        <p className="mt-1 text-sm text-zinc-500">Quando um sistema dessa area existir, ele aparece aqui.</p>
+        <p className="text-sm font-bold text-white">{label} ainda nao tem modulos cadastrados</p>
+        <p className="mt-1 text-sm font-medium text-zinc-300">Quando um sistema dessa area existir, ele aparece aqui.</p>
       </div>
     </div>
   );
@@ -1245,7 +1328,7 @@ function ModuleSwitchSection({
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-zinc-100">{title}</h3>
+        <h3 className="text-sm font-bold text-white">{title}</h3>
         <Badge variant="muted">{modules.filter((module) => enabledModules.includes(module.id)).length}/{modules.length}</Badge>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
@@ -1254,12 +1337,12 @@ function ModuleSwitchSection({
 
           return (
             <div
-              className="flex min-h-[74px] items-center gap-4 rounded-lg border border-zinc-900 bg-black/35 px-4 py-3 transition duration-200 hover:border-zinc-800 hover:bg-zinc-950/70"
+              className="flex min-h-[74px] items-center gap-4 rounded-lg border border-zinc-800 bg-black/40 px-4 py-3 transition duration-200 hover:border-purple-500/25 hover:bg-zinc-950/80 hover:shadow-[0_0_20px_rgba(124,58,237,0.08)]"
               key={module.id}
             >
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-zinc-100">{module.label}</p>
-                <p className={enabled ? "text-xs text-emerald-300" : "text-xs text-zinc-500"}>
+                <p className="truncate text-sm font-semibold text-white">{module.label}</p>
+                <p className={enabled ? "text-xs font-semibold text-emerald-300" : "text-xs font-medium text-zinc-300"}>
                   {enabled ? "Ativado" : "Desativado"}
                 </p>
               </div>

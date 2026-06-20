@@ -5,6 +5,7 @@ import {
   type MongoSelfBotProtectionIncident,
   type MongoSelfBotProtectionModuleId,
   type MongoSelfBotProtectionSettings,
+  type MongoSelfBotRoleAssignment,
   type MongoSelfBotPunishmentAction
 } from "../database/mongo";
 
@@ -90,6 +91,16 @@ export type SelfBotProtectionDashboardDto = {
   incidents: SelfBotProtectionIncidentDto[];
   settings: SelfBotProtectionSettingsDto;
   stats: SelfBotProtectionStatsDto;
+};
+
+export type SelfBotRoleAssignmentDto = {
+  botId: string;
+  guildId: string;
+  lastIncidentId: string;
+  lastPunishedAt: string;
+  roleId: string | null;
+  userId: string;
+  username: string | null;
 };
 
 export type SaveSelfBotProtectionSettingsInput = Partial<Omit<
@@ -201,7 +212,7 @@ export function defaultSelfBotProtectionSettings(guildId: string, botId: string)
     punishmentLogChannelId: null,
     logWebhookUrl: null,
     embedColor: DEFAULT_EMBED_COLOR,
-    punishmentSequence: ["delete_message", "log", "ban"] as SelfBotPunishmentAction[],
+    punishmentSequence: ["delete_message", "add_role", "log"] as SelfBotPunishmentAction[],
     addRoleId: null,
     removeRoleId: null,
     timeoutSeconds: 300,
@@ -251,6 +262,29 @@ export async function getSelfBotProtectionSettings(guildId: string, botId: strin
   const settings = await selfBotProtectionSettings.findOne({ botId, guildId });
 
   return settings ? toSettingsDto(settings) : defaultSelfBotProtectionSettings(guildId, botId);
+}
+
+export async function getSelfBotRoleAssignments(
+  guildId: string,
+  botId: string,
+  limit = 500
+): Promise<SelfBotRoleAssignmentDto[]> {
+  const { selfBotRoleAssignments } = await getMongoCollections();
+  const assignments = await selfBotRoleAssignments
+    .find({
+      active: true,
+      botId,
+      guildId
+    })
+    .sort({ updatedAt: -1 })
+    .limit(Math.min(Math.max(limit, 1), 1000))
+    .toArray();
+
+  if (assignments.length) {
+    return assignments.map(toRoleAssignmentDto);
+  }
+
+  return getLegacySelfBotRoleAssignments(guildId, botId, limit);
 }
 
 export async function saveSelfBotProtectionSettings(
@@ -348,6 +382,7 @@ export async function recordSelfBotProtectionIncident(input: RecordSelfBotProtec
   };
 
   await selfBotProtectionIncidents.insertOne(incident);
+  await persistRoleAssignmentFromIncident(incident);
 
   return toIncidentDto(incident);
 }
@@ -493,6 +528,109 @@ function toIncidentDto(incident: MongoSelfBotProtectionIncident): SelfBotProtect
   };
 }
 
+function toRoleAssignmentDto(assignment: MongoSelfBotRoleAssignment): SelfBotRoleAssignmentDto {
+  return {
+    botId: assignment.botId,
+    guildId: assignment.guildId,
+    lastIncidentId: assignment.lastIncidentId,
+    lastPunishedAt: assignment.lastPunishedAt.toISOString(),
+    roleId: assignment.roleId,
+    userId: assignment.userId,
+    username: assignment.username
+  };
+}
+
+async function persistRoleAssignmentFromIncident(incident: MongoSelfBotProtectionIncident) {
+  if (!incident.punishmentActions.includes("add_role")) {
+    return;
+  }
+
+  const roleId = readMetadataSnowflake(incident.metadata, "punishmentRoleId")
+    ?? readMetadataSnowflake(incident.metadata, "roleId");
+  const { selfBotRoleAssignments } = await getMongoCollections();
+  const now = new Date();
+
+  await selfBotRoleAssignments.updateOne(
+    {
+      botId: incident.botId,
+      guildId: incident.guildId,
+      userId: incident.userId
+    },
+    {
+      $set: {
+        active: true,
+        botId: incident.botId,
+        guildId: incident.guildId,
+        lastIncidentId: incident._id,
+        lastPunishedAt: incident.createdAt,
+        roleId,
+        userId: incident.userId,
+        username: incident.username,
+        updatedAt: now
+      },
+      $setOnInsert: {
+        _id: randomUUID(),
+        createdAt: now
+      }
+    },
+    { upsert: true }
+  );
+}
+
+async function getLegacySelfBotRoleAssignments(
+  guildId: string,
+  botId: string,
+  limit: number
+): Promise<SelfBotRoleAssignmentDto[]> {
+  const { selfBotProtectionIncidents } = await getMongoCollections();
+  const assignments = await selfBotProtectionIncidents
+    .aggregate<{
+      _id: string;
+      botId: string;
+      guildId: string;
+      lastIncidentId: string;
+      lastPunishedAt: Date;
+      roleId?: string | null;
+      username: string | null;
+    }>([
+      {
+        $match: {
+          botId,
+          guildId,
+          punishmentActions: "add_role"
+        }
+      },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: "$userId",
+          botId: { $first: "$botId" },
+          guildId: { $first: "$guildId" },
+          lastIncidentId: { $first: "$_id" },
+          lastPunishedAt: { $first: "$createdAt" },
+          roleId: {
+            $first: {
+              $ifNull: ["$metadata.punishmentRoleId", "$metadata.roleId"]
+            }
+          },
+          username: { $first: "$username" }
+        }
+      },
+      { $limit: Math.min(Math.max(limit, 1), 1000) }
+    ])
+    .toArray();
+
+  return assignments.map((assignment) => ({
+    botId: assignment.botId,
+    guildId: assignment.guildId,
+    lastIncidentId: assignment.lastIncidentId,
+    lastPunishedAt: assignment.lastPunishedAt.toISOString(),
+    roleId: normalizeSnowflake(assignment.roleId),
+    userId: assignment._id,
+    username: assignment.username
+  }));
+}
+
 function normalizeSettings(settings: SelfBotProtectionSettingsDto): SelfBotProtectionSettingsDto {
   const defaults = defaultSelfBotProtectionSettings(settings.guildId, settings.botId);
 
@@ -567,7 +705,7 @@ function normalizeModuleToggles(value: Partial<Record<SelfBotProtectionModuleId,
 
 function normalizePunishmentSequence(value: readonly string[]) {
   const normalized = value.filter((action): action is SelfBotPunishmentAction => punishmentActionSet.has(action as SelfBotPunishmentAction));
-  return normalized.length ? [...new Set(normalized)] : ["delete_message", "log", "ban"] as SelfBotPunishmentAction[];
+  return normalized.length ? [...new Set(normalized)] : ["delete_message", "add_role", "log"] as SelfBotPunishmentAction[];
 }
 
 function normalizeSnowflakes(values: string[]) {
@@ -577,6 +715,11 @@ function normalizeSnowflakes(values: string[]) {
 function normalizeSnowflake(value: string | null | undefined) {
   const normalized = value?.trim();
   return normalized && /^\d{5,32}$/.test(normalized) ? normalized : null;
+}
+
+function readMetadataSnowflake(metadata: Record<string, unknown>, key: string) {
+  const value = metadata[key];
+  return typeof value === "string" ? normalizeSnowflake(value) : null;
 }
 
 function normalizeText(value: string | null | undefined, maxLength: number) {

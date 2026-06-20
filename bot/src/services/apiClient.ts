@@ -40,6 +40,16 @@ export type BotRuntimeModules = {
   status: "online" | "offline" | "invalid_token" | "error";
 };
 
+export type MaintenanceState = {
+  active: boolean;
+  activatedAt: string | null;
+  affectedBots: number;
+  deactivatedAt: string | null;
+  updatedAt: string;
+  updatedById: string | null;
+  updatedByName: string | null;
+};
+
 export type BotRuntimeModuleAuthorization = {
   allowed: boolean;
   botAuthorized: boolean;
@@ -262,6 +272,16 @@ export type SelfBotProtectionSettings = {
   blockedTerms: string[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type SelfBotRoleAssignment = {
+  botId: string;
+  guildId: string;
+  lastIncidentId: string;
+  lastPunishedAt: string;
+  roleId: string | null;
+  userId: string;
+  username: string | null;
 };
 
 export type SelfBotProtectionIncident = {
@@ -809,6 +829,11 @@ export class ApiClient {
     return data;
   }
 
+  async getMaintenanceState() {
+    const { data } = await this.http.get<{ maintenance: MaintenanceState }>("/bot/maintenance");
+    return data.maintenance;
+  }
+
   async authorizeRuntimeModule(guildId: string, moduleId: string) {
     const { data } = await this.http.get<{ authorization: BotRuntimeModuleAuthorization }>(
       `/bot/runtime/guilds/${guildId}/modules/${encodeURIComponent(moduleId)}/authorize`,
@@ -1030,6 +1055,13 @@ export class ApiClient {
       `/self-bot-protection/bot/${guildId}`
     );
     return data.settings;
+  }
+
+  async getSelfBotRoleAssignments(guildId: string) {
+    const { data } = await this.http.get<{ assignments: SelfBotRoleAssignment[] }>(
+      `/self-bot-protection/bot/${guildId}/role-assignments`
+    );
+    return data.assignments;
   }
 
   async recordSelfBotProtectionIncident(input: {

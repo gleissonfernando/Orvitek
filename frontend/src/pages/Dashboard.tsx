@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import {
   Activity,
   AtSign,
+  Bell,
   Bot,
   Boxes,
   Building2,
@@ -58,6 +59,7 @@ import {
   getDashboardBySlug,
   getDashboardMe,
   getFivemModules,
+  getGuildLiveOptions,
   getGuildSettings,
   getKickNotifications,
   getLives,
@@ -79,6 +81,7 @@ import type {
   DashboardMeGuild,
   DashboardMeResponse,
   FivemModuleDefinition,
+  GuildChannelOption,
   GuildSettings,
   KickNotification,
   LiveEvent,
@@ -124,6 +127,7 @@ type EntryLeaveMode = "welcome" | "leave";
 
 const CONFIGURED_GUILD_ID = "";
 const CONFIGURED_GUILD_NAME = "Servidor configurado";
+const LAST_BOT_STORAGE_KEY = "dashboard.last_selected_bot_id";
 
 const initialBotStatus: BotStatus = {
   online: false,
@@ -384,7 +388,11 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
       if (!mounted) return;
 
       setDashboardProfile(profile);
-      const targetBot = profile.bots[0] ?? null;
+      const storedBotId = readStoredBotId();
+      const targetBot = profile.bots.find((bot) => bot.slug === requestedSlug)
+        ?? profile.bots.find((bot) => bot.id === storedBotId)
+        ?? profile.bots[0]
+        ?? null;
 
       if (!targetBot) {
         setDashboardRouteError("Nenhuma dashboard liberada para este usuario.");
@@ -396,6 +404,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
       }
 
       setSelectedBotId(targetBot?.id ?? null);
+      storeSelectedBotId(targetBot?.id ?? null);
 
       const nextGuildId = targetBot
         ? (targetBot.guildIds.includes(profile.selectedGuildId ?? "") ? profile.selectedGuildId : targetBot.guildIds[0])
@@ -653,6 +662,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
     }
 
     setSelectedBotId(nextBot.id);
+    storeSelectedBotId(nextBot.id);
     window.history.replaceState({}, "", `/dashboard/${encodeURIComponent(nextBot.slug)}`);
 
     if (!selectedGuildId || !nextBot.guildIds.includes(selectedGuildId)) {
@@ -667,13 +677,17 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
   return (
     <DashboardLayout
       activeView={activeView}
+      bots={panelBots}
       dashboardUser={dashboardProfile?.user}
       enabledModules={enabledModules}
       guilds={scopedDashboardGuilds}
       onChangeView={setActiveView}
       onLogout={onLogout}
+      onSelectBot={handleSelectBot}
       onSelectGuild={handleSelectGuild}
+      selectedBot={selectedBot}
       selectedGuildId={selectedGuild?.id ?? null}
+      status={displayedBotStatus}
       user={auth.user}
     >
       <motion.div
@@ -787,6 +801,16 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             loading={settingsLoading}
             logs={logs}
             onSettingsChange={(nextSettings) => void handleLogsSettingsChange(nextSettings)}
+            settings={settings}
+          />
+        ) : null}
+        {activeView === "notifications" ? (
+          <NotificationsView
+            botId={activeBotId}
+            canManage={canManageDashboard}
+            guild={selectedGuild}
+            loading={settingsLoading}
+            onSettingsChange={setSettings}
             settings={settings}
           />
         ) : null}
@@ -1511,6 +1535,208 @@ function LogsView({
   );
 }
 
+type NotificationChannelKey =
+  | "logChannelId"
+  | "welcomeDisplayChannelId"
+  | "safeBotLogChannelId"
+  | "ticketCategoryId"
+  | "welcomeChannelId"
+  | "leaveChannelId"
+  | "leaveDisplayChannelId";
+
+const notificationChannelFields: Array<{
+  description: string;
+  key: NotificationChannelKey;
+  label: string;
+}> = [
+  {
+    key: "logChannelId",
+    label: "Canal de Logs",
+    description: "Eventos gerais do bot, dashboard e automacoes."
+  },
+  {
+    key: "welcomeDisplayChannelId",
+    label: "Canal de Avisos",
+    description: "Canal usado como referencia para avisos exibidos nos paineis."
+  },
+  {
+    key: "safeBotLogChannelId",
+    label: "Canal de Moderacao",
+    description: "Alertas de filtros, punicoes e acoes de seguranca."
+  },
+  {
+    key: "ticketCategoryId",
+    label: "Categoria de Tickets",
+    description: "Destino usado pelo sistema atual de tickets."
+  },
+  {
+    key: "welcomeChannelId",
+    label: "Canal de Boas-vindas",
+    description: "Onde o bot envia a mensagem de entrada."
+  },
+  {
+    key: "leaveChannelId",
+    label: "Canal de Saida",
+    description: "Onde o bot envia a mensagem de saida."
+  },
+  {
+    key: "leaveDisplayChannelId",
+    label: "Canal de Anuncios",
+    description: "Canal de referencia para comunicados e anuncios."
+  }
+];
+
+function NotificationsView({
+  botId,
+  canManage,
+  guild,
+  loading,
+  onSettingsChange,
+  settings
+}: {
+  botId?: string | null;
+  canManage: boolean;
+  guild: DashboardGuild | null;
+  loading: boolean;
+  onSettingsChange: (settings: GuildSettings) => void;
+  settings: GuildSettings | null;
+}) {
+  const [channels, setChannels] = useState<GuildChannelOption[]>([]);
+  const [categories, setCategories] = useState<GuildChannelOption[]>([]);
+  const [channelsLoading, setChannelsLoading] = useState(false);
+  const [savingField, setSavingField] = useState<NotificationChannelKey | null>(null);
+  const [savedField, setSavedField] = useState<NotificationChannelKey | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!guild) {
+      setChannels([]);
+      return;
+    }
+
+    let mounted = true;
+    setChannelsLoading(true);
+
+    getGuildLiveOptions(guild.id, botId)
+      .then((options) => {
+        if (mounted) {
+          setChannels(options.channels);
+          setCategories((options.categories ?? []).map((category) => ({
+            ...category,
+            parentId: null,
+            type: "text" as const
+          })));
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setChannels([]);
+          setCategories([]);
+        }
+      })
+      .finally(() => {
+        if (mounted) setChannelsLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [botId, guild?.id]);
+
+  async function handleChannelChange(key: NotificationChannelKey, value: string) {
+    if (!guild || !settings || !canManage) return;
+
+    const nextValue = value || null;
+    const previous = settings;
+    const optimistic = {
+      ...settings,
+      [key]: nextValue
+    };
+
+    setError(null);
+    setSavingField(key);
+    setSavedField(null);
+    onSettingsChange(optimistic);
+
+    try {
+      const saved = await patchGuildSettings(guild.id, { [key]: nextValue }, botId);
+      onSettingsChange(saved);
+      setSavedField(key);
+      window.setTimeout(() => setSavedField((current) => current === key ? null : current), 1800);
+    } catch {
+      onSettingsChange(previous);
+      setError("Nao foi possivel salvar este canal. Verifique as permissoes do bot e tente novamente.");
+    } finally {
+      setSavingField(null);
+    }
+  }
+
+  if (!guild) {
+    return <EmptyState icon={Bell} title="Selecione um servidor para configurar notificacoes" />;
+  }
+
+  return (
+    <section className="space-y-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-white">Notificacoes</h2>
+          <p className="mt-1 text-sm text-zinc-500">Configure os canais do bot selecionado. Cada alteracao salva automaticamente no banco.</p>
+        </div>
+        <Badge variant={canManage ? "success" : "muted"}>{canManage ? "Auto-save ativo" : "Somente leitura"}</Badge>
+      </div>
+
+      {error ? (
+        <div className="rounded-lg border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>
+      ) : null}
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        {notificationChannelFields.map((field) => {
+          const value = settings?.[field.key] ?? "";
+          const saving = savingField === field.key;
+          const saved = savedField === field.key;
+          const options = field.key === "ticketCategoryId" ? categories : channels;
+
+          return (
+            <Card className="border-purple-500/10 bg-zinc-950/70" key={field.key}>
+              <CardContent className="space-y-3 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-white">{field.label}</h3>
+                    <p className="mt-1 text-xs leading-5 text-zinc-500">{field.description}</p>
+                  </div>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin text-purple-300" /> : null}
+                  {saved ? <CheckCircle2 className="h-4 w-4 text-emerald-300" /> : null}
+                </div>
+
+                {loading || channelsLoading ? (
+                  <div className="h-11 animate-pulse rounded-lg border border-zinc-800 bg-zinc-900/70" />
+                ) : (
+                  <select
+                    className="h-11 w-full rounded-lg border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={!settings || !canManage || saving}
+                    onChange={(event) => void handleChannelChange(field.key, event.target.value)}
+                    value={value}
+                  >
+                    <option value="">Selecionar Canal</option>
+                    {value && !options.some((channel) => channel.id === value) ? (
+                      <option value={value}>Canal atual ({value})</option>
+                    ) : null}
+                    {options.map((channel) => (
+                      <option key={channel.id} value={channel.id}>
+                        {field.key === "ticketCategoryId" ? channel.name : `#${channel.name}`}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function SimpleToggleCard({
   checked,
   description,
@@ -1929,7 +2155,7 @@ function readResponseMessage(error: unknown) {
 }
 
 function isViewAllowed(view: ViewId, enabledModules: string[]) {
-  if (view === "overview") {
+  if (view === "overview" || view === "notifications") {
     return true;
   }
 
@@ -1974,6 +2200,26 @@ function ensureDashboardGuilds(guilds: DashboardGuild[]) {
       channelCount: 0
     }
   ];
+}
+
+function readStoredBotId() {
+  try {
+    return window.localStorage.getItem(LAST_BOT_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeSelectedBotId(botId: string | null) {
+  try {
+    if (botId) {
+      window.localStorage.setItem(LAST_BOT_STORAGE_KEY, botId);
+    } else {
+      window.localStorage.removeItem(LAST_BOT_STORAGE_KEY);
+    }
+  } catch {
+    // Local storage is only a convenience for restoring the last bot.
+  }
 }
 
 function mergeDashboardGuilds(guilds: DashboardMeGuild[], fallbackGuilds: DashboardGuild[]) {

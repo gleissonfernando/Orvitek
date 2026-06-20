@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireBot } from "../middleware/auth";
 import { authorizeBotCommand } from "../services/botCommandAuthorizationService";
 import { authorizeBotRuntimeModule, getBotGuildConfig, getBotApiPermissions } from "../services/devBotService";
+import { getMaintenanceState } from "../services/maintenanceService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
 
 export const botDevApiRouter = Router();
@@ -12,6 +13,16 @@ const commandAuthorizationSchema = z.object({
 });
 
 botDevApiRouter.use(requireBot);
+
+botDevApiRouter.get("/maintenance", async (_req, res, next) => {
+  try {
+    return res.json({
+      maintenance: await getMaintenanceState()
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
 
 botDevApiRouter.get("/runtime/modules", async (req, res, next) => {
   try {

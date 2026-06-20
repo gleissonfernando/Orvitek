@@ -42,6 +42,7 @@ type Violation = {
 
 type PunishmentResult = {
   actions: SelfBotPunishmentAction[];
+  addedRoleId: string | null;
   error: string | null;
   succeeded: boolean;
 };
@@ -332,7 +333,8 @@ async function handleViolation(input: {
     punishmentError: punishment.error,
     metadata: {
       ...input.violation.metadata,
-      details: input.violation.details
+      details: input.violation.details,
+      punishmentRoleId: punishment.addedRoleId
     }
   }).catch((error) => {
     console.warn("[self-bot-protection] nao foi possivel registrar incidente:", errorMessage(error));
@@ -514,6 +516,7 @@ async function applyPunishment(input: {
   violation: Violation;
 }): Promise<PunishmentResult> {
   const actions: SelfBotPunishmentAction[] = [];
+  let addedRoleId: string | null = null;
   const errors: string[] = [];
   const role = await ensureSelfBotRole(input.guild, input.context).catch(() => null);
 
@@ -536,6 +539,7 @@ async function applyPunishment(input: {
           throw new Error("Nenhum cargo configurado para adicionar.");
         }
         await input.member.roles.add(roleId, `SelfBot Protection: ${input.violation.infractionType}`);
+        addedRoleId = roleId;
         actions.push(action);
       } else if (action === "remove_role") {
         if (!input.settings.removeRoleId) {
@@ -574,6 +578,7 @@ async function applyPunishment(input: {
 
   return {
     actions,
+    addedRoleId,
     error: errors.length ? errors.join(" | ") : null,
     succeeded: errors.length === 0
   };

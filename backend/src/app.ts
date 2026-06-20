@@ -8,6 +8,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 import { env } from "./config/env";
 import { errorHandler } from "./middleware/errorHandler";
+import { maintenanceMiddleware } from "./middleware/maintenance";
 import { sessionMiddleware } from "./middleware/session";
 import { apiRouter } from "./routes";
 import { authRouter } from "./routes/auth";
@@ -66,13 +67,14 @@ app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
 app.use("/uploads", express.static(uploadsPath));
 
 app.use("/auth", authRouter);
-app.use("/webhooks", kickWebhookPublicRouter);
 app.get(["/health", "/_shardcloud/health"], (_req, res) => {
   res.json({
     status: "ok",
     timestamp: new Date().toISOString()
   });
 });
+app.use(maintenanceMiddleware);
+app.use("/webhooks", kickWebhookPublicRouter);
 app.use("/api", apiRouter);
 
 if (fs.existsSync(frontendDistPath)) {
