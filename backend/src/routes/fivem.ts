@@ -83,6 +83,7 @@ const facPhotoUpload = raw({
   type: ["image/gif", "image/jpeg", "image/png", "image/webp"]
 });
 const allowedFacPhotoMimeTypes = new Set(["image/gif", "image/jpeg", "image/png", "image/webp"]);
+const FAC_MODULE_IDS = ["fivem-absences", "fivem-fac"] as const;
 
 export const fivemRouter = Router();
 
@@ -446,7 +447,7 @@ async function readRequiredBotId(req: Parameters<typeof resolveRequestBotId>[0])
 async function assertCanReadFac(user: AuthSessionUser, guildId: string, botId: string) {
   await assertBotFacLicense(botId);
 
-  if (await canReadDevBotModule(user, botId, guildId, "fivem-fac")) {
+  if (await canReadAnyFacModule(user, guildId, botId)) {
     return;
   }
 
@@ -456,7 +457,7 @@ async function assertCanReadFac(user: AuthSessionUser, guildId: string, botId: s
 async function assertCanManageFac(user: AuthSessionUser, guildId: string, botId: string) {
   await assertBotFacLicense(botId);
 
-  if (await canUseDevBotModule(user, botId, guildId, "fivem-fac")) {
+  if (await canUseAnyFacModule(user, guildId, botId)) {
     return;
   }
 
@@ -470,9 +471,29 @@ async function assertBotFacLicense(botId: string) {
     throw createRouteError("Bot nao encontrado.", 404);
   }
 
-  if (!permissions.enabledModules.includes("fivem-fac")) {
+  if (!hasAnyFacModule(permissions.enabledModules)) {
     throw createRouteError("O sistema FAC nao foi liberado para este cliente FiveM.", 403);
   }
+}
+
+async function canReadAnyFacModule(user: AuthSessionUser, guildId: string, botId: string) {
+  const checks = await Promise.all(
+    FAC_MODULE_IDS.map((moduleId) => canReadDevBotModule(user, botId, guildId, moduleId))
+  );
+
+  return checks.some(Boolean);
+}
+
+async function canUseAnyFacModule(user: AuthSessionUser, guildId: string, botId: string) {
+  const checks = await Promise.all(
+    FAC_MODULE_IDS.map((moduleId) => canUseDevBotModule(user, botId, guildId, moduleId))
+  );
+
+  return checks.some(Boolean);
+}
+
+function hasAnyFacModule(enabledModules: string[]) {
+  return FAC_MODULE_IDS.some((moduleId) => enabledModules.includes(moduleId));
 }
 
 async function validateFacResources(guildId: string, botId: string, input: z.infer<typeof facSettingsSchema>) {

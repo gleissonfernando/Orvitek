@@ -148,14 +148,19 @@ const enabledModules = new Set(
     .map((moduleId) => moduleId.trim())
     .filter(Boolean)
 );
+const MODULE_ALIASES: Record<string, string[]> = {
+  "fivem-absences": ["fivem-absences", "fivem-fac"],
+  "fivem-fac": ["fivem-fac", "fivem-absences"]
+};
 let runtimeEnabledModules: Set<string> | null = null;
 let runtimeBotId = env.DASHBOARD_BOT_ID.trim() || null;
 
 export function isBotModuleEnabled(moduleId: string) {
   const modules = runtimeEnabledModules ?? enabledModules;
+  const candidateModuleIds = MODULE_ALIASES[moduleId] ?? [moduleId];
 
   if (modules.size > 0) {
-    return modules.has(moduleId);
+    return candidateModuleIds.some((candidateModuleId) => modules.has(candidateModuleId));
   }
 
   return runtimeEnabledModules === null && !env.DASHBOARD_BOT_ID && env.BOT_DEFAULT_ALL_MODULES;

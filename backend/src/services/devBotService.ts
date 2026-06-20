@@ -74,6 +74,7 @@ const RUNTIME_MODULE_RELEASE_ALIASES: Record<string, (typeof DEV_MODULES)[number
   "anti-link": "safe-bot",
   "anti-links": "safe-bot",
   "anti-spam": "safe-bot",
+  "fivem-fac": "fivem-absences",
   "image-anti-spam": "safe-bot",
   "link-anti-spam": "safe-bot"
 };
@@ -626,10 +627,13 @@ export async function canUseDevBotModule(
   }
 
   const { devBots } = await getMongoCollections();
+  const moduleIds = devBotModuleReleaseIds(moduleId);
   const bot = await devBots.findOne(
     {
       _id: botId,
-      enabledModules: moduleId
+      enabledModules: {
+        $in: moduleIds
+      }
     },
     {
       projection: {
@@ -658,10 +662,13 @@ export async function canReadDevBotModule(
   }
 
   const { devBots } = await getMongoCollections();
+  const moduleIds = devBotModuleReleaseIds(moduleId);
   const bot = await devBots.findOne(
     {
       _id: botId,
-      enabledModules: moduleId
+      enabledModules: {
+        $in: moduleIds
+      }
     },
     {
       projection: {
@@ -1914,6 +1921,12 @@ function evaluateRuntimeLicenseState(...configs: Array<MongoBotGuildModuleConfig
 }
 
 function resolveRuntimeReleaseModuleId(moduleId: string) {
+  const alias = RUNTIME_MODULE_RELEASE_ALIASES[moduleId];
+
+  if (alias) {
+    return alias;
+  }
+
   if (DEV_MODULE_IDS.has(moduleId as (typeof DEV_MODULES)[number]["id"])) {
     return moduleId;
   }
@@ -1922,7 +1935,7 @@ function resolveRuntimeReleaseModuleId(moduleId: string) {
     return "safe-bot";
   }
 
-  return RUNTIME_MODULE_RELEASE_ALIASES[moduleId] ?? null;
+  return null;
 }
 
 function normalizeRuntimeModuleId(value: string) {
@@ -1971,6 +1984,12 @@ function sanitizeModules(modules: string[]) {
       .map((module) => LEGACY_MODULE_ALIASES[module] ?? module)
       .filter((module) => DEV_MODULE_IDS.has(module as (typeof DEV_MODULES)[number]["id"]) || isCustomFivemModuleId(module))
   )];
+}
+
+function devBotModuleReleaseIds(moduleId: string) {
+  const canonicalModuleId = LEGACY_MODULE_ALIASES[moduleId] ?? moduleId;
+
+  return [...new Set([moduleId, canonicalModuleId])];
 }
 
 async function enableSelfBotDefaults(bot: DevBotDto) {
