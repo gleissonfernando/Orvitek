@@ -1,3 +1,4 @@
+APPID=5b061ec4-2c46-4506-b567-56c463f7a9d9
 DISPLAY_NAME=Ricardinho98
 DESCRIPTION=Discord dashboard, API and bot
 LANGUAGE=node
@@ -5,4 +6,4 @@ MEMORY=1024
 VERSION=recommended
 SUBDOMAIN=ricardinho98
 MAIN=index.js
-CUSTOM_COMMAND=npm start
+CUSTOM_COMMAND=PORT=80 npm start

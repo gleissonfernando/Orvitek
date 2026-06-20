@@ -22,9 +22,14 @@ jobs:
             exit 1
           fi
 
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Preflight deploy
+        run: npm run deploy:check
+
       - name: Build project
         run: |
-          npm ci
           npm run build
 
       - name: Deploy and restart application
@@ -34,3 +39,13 @@ jobs:
           commands: |
             commit 5b061ec4-2c46-4506-b567-56c463f7a9d9
             restart 5b061ec4-2c46-4506-b567-56c463f7a9d9
+
+      - name: Verify Shard Cloud health
+        run: |
+          for endpoint in /health /_shardcloud/health /api/health; do
+            url="https://ricardinho98.shardweb.app$endpoint"
+            echo "Checking $url"
+            curl --fail --silent --show-error --max-time 30 "$url" > /tmp/health.json
+            cat /tmp/health.json
+            echo
+          done

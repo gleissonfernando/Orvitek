@@ -34,6 +34,46 @@ O `npm start` sobe backend, frontend compilado e processos de bot em modo de pro
 
 Em producao, o bot principal roda em modo leve quando `BOT_ENABLED_MODULES` nao estiver definido. Para habilitar modulos especificos, configure uma lista como `BOT_ENABLED_MODULES=giveaway,logs,welcome,leave`. Para voltar ao comportamento antigo de ligar todos os modulos, use `BOT_DEFAULT_ALL_MODULES=true`. Bots cadastrados no painel DEV tambem nao iniciam automaticamente em producao a menos que `START_REGISTERED_DEV_BOTS=true`.
 
+## Fluxo Seguro De Deploy
+
+Antes de subir qualquer alteracao, rode o preflight principal:
+
+```bash
+npm run deploy:check
+```
+
+Esse comando builda API, bot e painel, valida `.shardcloud`, sintaxe JS, comandos do Discord e arquivos `dist`.
+
+Para uma checagem mais rapida usando o build existente:
+
+```bash
+npm run deploy:check:fast
+```
+
+Para validar tambem o `.env` local:
+
+```bash
+npm run deploy:check:env
+```
+
+Se passar, faca commit e push na `main`:
+
+```bash
+git add .
+git commit -m "sua mensagem"
+git push origin main
+```
+
+O GitHub Actions executa `npm run deploy:check`, `npm run build`, `shard-cloud/action@main`, `commit 5b061ec4-2c46-4506-b567-56c463f7a9d9`, `restart 5b061ec4-2c46-4506-b567-56c463f7a9d9` e valida:
+
+```text
+https://ricardinho98.shardweb.app/health
+https://ricardinho98.shardweb.app/_shardcloud/health
+https://ricardinho98.shardweb.app/api/health
+```
+
+Nao suba direto sem rodar `npm run deploy:check`. Segredos ficam na ShardCloud/GitHub, nunca no Git.
+
 ## Variaveis Na Hospedagem
 
 Se a hospedagem tiver limite de variaveis, use somente uma variavel:

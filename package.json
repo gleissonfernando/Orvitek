@@ -19,8 +19,11 @@
     "start:frontend": "npm run dev:frontend",
     "start:backend": "npm run dev:backend",
     "start:bot": "npm run dev:bot",
-    "build": "npm run build --workspaces",
+    "build": "npm --prefix frontend run build && npm --prefix backend run build && npm --prefix bot run build",
     "typecheck": "npm run typecheck --workspaces",
+    "deploy:check": "npm run build && node scripts/deploy-check.mjs",
+    "deploy:check:fast": "node scripts/deploy-check.mjs fast",
+    "deploy:check:env": "npm run build && node scripts/deploy-check.mjs env",
     "validate:anti-spam": "node scripts/validate-anti-spam.cjs"
   },
   "devDependencies": {

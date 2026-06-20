@@ -67,6 +67,12 @@ app.use("/uploads", express.static(uploadsPath));
 
 app.use("/auth", authRouter);
 app.use("/webhooks", kickWebhookPublicRouter);
+app.get(["/health", "/_shardcloud/health"], (_req, res) => {
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString()
+  });
+});
 app.use("/api", apiRouter);
 
 if (fs.existsSync(frontendDistPath)) {
