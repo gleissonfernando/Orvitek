@@ -99,7 +99,9 @@ check("arquivos dist", () => {
   const requiredFiles = [
     "backend/dist/server.js",
     "bot/dist/index.js",
-    "frontend/dist/index.html"
+    "frontend/dist/index.html",
+    "frontend/dist/health",
+    "frontend/dist/_shardcloud/health"
   ];
 
   for (const file of requiredFiles) {

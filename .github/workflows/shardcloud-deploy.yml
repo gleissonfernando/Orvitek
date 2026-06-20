@@ -47,5 +47,6 @@ jobs:
             echo "Checking $url"
             curl --fail --silent --show-error --max-time 30 "$url" > /tmp/health.json
             cat /tmp/health.json
+            grep -q '"status":"ok"' /tmp/health.json
             echo
           done
