@@ -676,12 +676,16 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
       return;
     }
 
+    const nextGuildId = nextBot.mainGuildId || nextBot.guildIds[0] || null;
+
     setSelectedBotId(nextBot.id);
     storeSelectedBotId(nextBot.id);
     window.history.replaceState({}, "", `/dashboard/${encodeURIComponent(nextBot.slug)}`);
 
-    if (!selectedGuildId || !nextBot.guildIds.includes(selectedGuildId)) {
-      setSelectedGuildId(nextBot.guildIds[0] ?? null);
+    if (nextGuildId) {
+      setSelectedGuildId(nextGuildId);
+      setDashboardProfile((current) => (current ? { ...current, selectedGuildId: nextGuildId } : current));
+      void updateSelectedDashboardGuild(nextGuildId, nextBot.id).catch(() => undefined);
     }
   }
 
