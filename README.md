@@ -16,7 +16,7 @@ Start command: npm start
 Node entry: index.js
 ```
 
-O arquivo `.shardcloud` ja aponta o comando de producao para `npm start` e memoria base de 1024 MB. O script de start define `NODE_ENV=production`, `HOST=0.0.0.0` e `PORT=80` quando a hospedagem nao informar esses valores. Nao use URL local na hospedagem.
+O projeto ja deve estar configurado no painel da ShardCloud com `npm start` e `index.js`. Nao versionamos `.shardcloud`, porque a integracao pode tentar atualizar o projeto e falhar com `user cannot update project`. O script de start define `NODE_ENV=production`, `HOST=0.0.0.0` e `PORT=80` quando a hospedagem nao informar esses valores. Nao use URL local na hospedagem.
 
 Build:
 
@@ -42,7 +42,7 @@ Antes de subir qualquer alteracao, rode o preflight principal:
 npm run deploy:check
 ```
 
-Esse comando builda API, bot e painel, valida `.shardcloud`, sintaxe JS, comandos do Discord e arquivos `dist`.
+Esse comando builda API, bot e painel, valida a configuracao `.shardcloud` somente se o arquivo existir, sintaxe JS, comandos do Discord e arquivos `dist`.
 
 Para uma checagem mais rapida usando o build existente:
 

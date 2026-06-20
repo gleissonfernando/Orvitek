@@ -81,7 +81,7 @@ function listFiles(targetPath, predicate) {
 
 check("configuracao .shardcloud", () => {
   if (!existsSync(path.join(root, ".shardcloud"))) {
-    fail(".shardcloud nao encontrado.");
+    return;
   }
 
   const config = parseKeyValueFile(".shardcloud");
