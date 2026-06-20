@@ -22,6 +22,7 @@ export type SelfBotProtectionSettingsDto = {
   mediaChannelIds: string[];
   linkChannelIds: string[];
   logChannelId: string | null;
+  punishmentLogChannelId: string | null;
   logWebhookUrl: string | null;
   embedColor: string;
   punishmentSequence: SelfBotPunishmentAction[];
@@ -197,6 +198,7 @@ export function defaultSelfBotProtectionSettings(guildId: string, botId: string)
     mediaChannelIds: [],
     linkChannelIds: [],
     logChannelId: null,
+    punishmentLogChannelId: null,
     logWebhookUrl: null,
     embedColor: DEFAULT_EMBED_COLOR,
     punishmentSequence: ["delete_message", "log", "ban"] as SelfBotPunishmentAction[],
@@ -285,6 +287,7 @@ export async function saveSelfBotProtectionSettings(
         mediaChannelIds: next.mediaChannelIds,
         linkChannelIds: next.linkChannelIds,
         logChannelId: next.logChannelId,
+        punishmentLogChannelId: next.punishmentLogChannelId,
         logWebhookUrl: next.logWebhookUrl,
         embedColor: next.embedColor,
         punishmentSequence: next.punishmentSequence,
@@ -441,6 +444,7 @@ function toSettingsDto(settings: MongoSelfBotProtectionSettings): SelfBotProtect
     mediaChannelIds: settings.mediaChannelIds ?? [],
     linkChannelIds: settings.linkChannelIds ?? [],
     logChannelId: settings.logChannelId,
+    punishmentLogChannelId: settings.punishmentLogChannelId ?? null,
     logWebhookUrl: settings.logWebhookUrl,
     embedColor: settings.embedColor,
     punishmentSequence: settings.punishmentSequence ?? [],
@@ -501,6 +505,7 @@ function normalizeSettings(settings: SelfBotProtectionSettingsDto): SelfBotProte
     mediaChannelIds: normalizeSnowflakes(settings.mediaChannelIds),
     linkChannelIds: normalizeSnowflakes(settings.linkChannelIds),
     logChannelId: normalizeSnowflake(settings.logChannelId),
+    punishmentLogChannelId: normalizeSnowflake(settings.punishmentLogChannelId),
     logWebhookUrl: normalizeWebhookUrl(settings.logWebhookUrl),
     embedColor: normalizeColor(settings.embedColor),
     punishmentSequence: normalizePunishmentSequence(settings.punishmentSequence),

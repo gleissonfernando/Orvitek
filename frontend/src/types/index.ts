@@ -294,6 +294,7 @@ export type SelfBotProtectionSettings = {
   mediaChannelIds: string[];
   linkChannelIds: string[];
   logChannelId: string | null;
+  punishmentLogChannelId: string | null;
   logWebhookUrl: string | null;
   embedColor: string;
   punishmentSequence: SelfBotPunishmentAction[];

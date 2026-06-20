@@ -644,9 +644,13 @@ async function sendLog(input: {
     },
     embeds: [embed]
   };
+  const punishmentLogChannelId = input.settings.punishmentLogChannelId === input.settings.logChannelId
+    ? null
+    : input.settings.punishmentLogChannelId;
 
   await Promise.allSettled([
     sendChannelLog(input.guild, input.settings.logChannelId, payload),
+    sendChannelLog(input.guild, punishmentLogChannelId, payload),
     sendWebhookLog(input.settings.logWebhookUrl, embed)
   ]);
 }

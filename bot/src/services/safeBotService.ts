@@ -803,7 +803,7 @@ async function sendFilterLog(message: Message, runtime: SafeBotRuntime, punishme
     ].join("\n"))
     .setTimestamp(new Date());
 
-  await sendLogEmbed(message.guild, runtime.logChannelId, embed);
+  await sendPunishmentLogEmbeds(message.guild, runtime, embed);
 }
 
 async function sendFloodLog(message: Message, runtime: SafeBotRuntime, reason: string, punishment: SequencePunishmentOutcome) {
@@ -820,7 +820,7 @@ async function sendFloodLog(message: Message, runtime: SafeBotRuntime, reason: s
     ].join("\n"))
     .setTimestamp(new Date());
 
-  await sendLogEmbed(message.guild, runtime.logChannelId, embed);
+  await sendPunishmentLogEmbeds(message.guild, runtime, embed);
 }
 
 async function sendSelfBotDetectedLog(
@@ -844,7 +844,7 @@ async function sendSelfBotDetectedLog(
     ].filter(Boolean).join("\n"))
     .setTimestamp(new Date());
 
-  await sendLogEmbed(message.guild, runtime.logChannelId, embed);
+  await sendPunishmentLogEmbeds(message.guild, runtime, embed);
 }
 
 async function recordSafeBotIncident(
@@ -900,6 +900,17 @@ async function sendLogEmbed(guild: Guild | null, channelId: string, embed: Embed
     },
     embeds: [embed]
   });
+}
+
+async function sendPunishmentLogEmbeds(guild: Guild | null, runtime: SafeBotRuntime, embed: EmbedBuilder) {
+  const punishmentLogChannelId = runtime.protectionSettings?.punishmentLogChannelId ?? null;
+  const sends = [sendLogEmbed(guild, runtime.logChannelId, embed)];
+
+  if (punishmentLogChannelId && punishmentLogChannelId !== runtime.logChannelId) {
+    sends.push(sendLogEmbed(guild, punishmentLogChannelId, EmbedBuilder.from(embed)));
+  }
+
+  await Promise.allSettled(sends);
 }
 
 async function warnInChannel(member: GuildMember, message: Message, content: string) {

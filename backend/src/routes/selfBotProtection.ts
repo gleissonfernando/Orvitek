@@ -45,6 +45,7 @@ const settingsSchema = z.object({
   mediaChannelIds: z.array(snowflakeSchema).max(250).optional(),
   linkChannelIds: z.array(snowflakeSchema).max(250).optional(),
   logChannelId: optionalSnowflakeSchema,
+  punishmentLogChannelId: optionalSnowflakeSchema,
   logWebhookUrl: z.string().max(500).nullable().optional(),
   embedColor: hexColorSchema.optional(),
   punishmentSequence: z.array(punishmentActionSchema).max(8).optional(),
@@ -174,6 +175,7 @@ selfBotProtectionRouter.patch("/:guildId", requireAuth, async (req, res, next) =
         ...input,
         addRoleId: input.addRoleId || null,
         logChannelId: input.logChannelId || null,
+        punishmentLogChannelId: input.punishmentLogChannelId || null,
         removeRoleId: input.removeRoleId || null
       },
       user.discordId
@@ -295,6 +297,7 @@ async function validateResources(
   const botToken = await getDevBotToken(botId);
   const channelIds = [
     input.logChannelId,
+    input.punishmentLogChannelId,
     ...(input.ignoredChannelIds ?? []),
     ...(input.protectedChannelIds ?? []),
     ...(input.mediaChannelIds ?? []),

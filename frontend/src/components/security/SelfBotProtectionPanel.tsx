@@ -125,6 +125,7 @@ const emptySettings: SelfBotProtectionSettings = {
   mediaChannelIds: [],
   linkChannelIds: [],
   logChannelId: null,
+  punishmentLogChannelId: null,
   logWebhookUrl: null,
   embedColor: "#7c3aed",
   punishmentSequence: ["delete_message", "log", "ban"],
@@ -375,6 +376,7 @@ export function SelfBotProtectionPanel({
         imageWindowSeconds: settings.imageWindowSeconds,
         linkChannelIds: settings.linkChannelIds,
         logChannelId: settings.logChannelId,
+        punishmentLogChannelId: settings.punishmentLogChannelId,
         logWebhookUrl: settings.logWebhookUrl,
         mediaChannelIds: settings.mediaChannelIds,
         mentionLimit: settings.mentionLimit,
@@ -476,7 +478,7 @@ export function SelfBotProtectionPanel({
             />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <SelectField
               disabled={disabled}
               icon={ScrollText}
@@ -485,6 +487,15 @@ export function SelfBotProtectionPanel({
               options={channels.map((channel) => ({ label: `#${channel.name}`, value: channel.id }))}
               placeholder="Criar canal padrao"
               value={settings.logChannelId ?? ""}
+            />
+            <SelectField
+              disabled={disabled}
+              icon={UserRoundX}
+              label="Canal de punicoes"
+              onChange={(value) => updateSetting("punishmentLogChannelId", value || null)}
+              options={channels.map((channel) => ({ label: `#${channel.name}`, value: channel.id }))}
+              placeholder="Usar canal de logs"
+              value={settings.punishmentLogChannelId ?? ""}
             />
             <div className="grid gap-2 text-sm">
               <span className="flex items-center gap-2 font-medium text-zinc-200">
