@@ -32,7 +32,13 @@ function packedConfigValue(key) {
 }
 
 function ensureBuild() {
-  const requiredBuildFiles = ["backend/dist/server.js", "bot/dist/index.js", "frontend/dist/index.html"];
+  const requiredBuildFiles = [
+    "backend/dist/server.js",
+    "bot/dist/index.js",
+    "frontend/dist/index.html",
+    "frontend/dist/health",
+    "frontend/dist/_shardcloud/health"
+  ];
   const sourcePaths = [
     ".env",
     "package.json",
@@ -44,8 +50,10 @@ function ensureBuild() {
     "bot/src",
     "frontend/index.html",
     "frontend/package.json",
+    "frontend/public",
+    "frontend/scripts",
     "frontend/src",
-    "frontend/vite.config.ts"
+    "frontend/vite.config.mjs"
   ];
 
   if (requiredBuildFiles.every((file) => existsSync(file)) && !isBuildStale(requiredBuildFiles, sourcePaths)) {
