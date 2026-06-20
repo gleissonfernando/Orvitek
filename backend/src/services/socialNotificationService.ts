@@ -102,22 +102,25 @@ export async function listSocialNotifications(
   const page = Math.max(1, Math.trunc(options.page ?? 1));
   const pageSize = Math.max(1, Math.min(Math.trunc(options.pageSize ?? DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE));
   const search = options.search?.trim() ?? "";
-  const query = {
-    ...notificationScopeQuery(guildId, normalizedBotId),
-    platform: "twitch" as const,
-    ...(search
-      ? {
-          twitchChannelName: {
-            $regex: escapeRegex(search),
-            $options: "i"
-          }
-        }
-      : {})
-  };
 
   try {
-    const { socialNotifications } = await getMongoCollections();
+    const { botGuildConfigs, devBots, socialNotifications } = await getMongoCollections();
     await claimLegacyTwitchNotifications(guildId, normalizedBotId);
+    const scopeQuery = normalizedBotId
+      ? notificationScopeQuery(guildId, normalizedBotId)
+      : await notificationReadScopeQuery(guildId, devBots, botGuildConfigs);
+    const query = {
+      ...scopeQuery,
+      platform: "twitch" as const,
+      ...(search
+        ? {
+            twitchChannelName: {
+              $regex: escapeRegex(search),
+              $options: "i"
+            }
+          }
+        : {})
+    };
     const filteredTotalPromise = socialNotifications.countDocuments(query);
     const [notifications, filteredTotal, total] = await Promise.all([
       socialNotifications
@@ -131,7 +134,7 @@ export async function listSocialNotifications(
       filteredTotalPromise,
       search
         ? socialNotifications.countDocuments({
-            ...notificationScopeQuery(guildId, normalizedBotId),
+            ...scopeQuery,
             platform: "twitch"
           })
         : filteredTotalPromise
@@ -882,6 +885,34 @@ function notificationScopeQuery(guildId: string, botId: string | null) {
           $exists: false
         }
       }
+    ]
+  };
+}
+
+async function notificationReadScopeQuery(
+  guildId: string,
+  devBots: Awaited<ReturnType<typeof getMongoCollections>>["devBots"],
+  botGuildConfigs: Awaited<ReturnType<typeof getMongoCollections>>["botGuildConfigs"]
+) {
+  const [mainGuildBots, configuredGuildBots] = await Promise.all([
+    devBots.find({ mainGuildId: guildId }, { projection: { _id: 1 } }).toArray(),
+    botGuildConfigs.find({ guildId }, { projection: { botId: 1 } }).toArray()
+  ]);
+  const botIds = [...new Set([
+    ...mainGuildBots.map((bot) => bot._id),
+    ...configuredGuildBots.map((config) => config.botId)
+  ])];
+
+  if (botIds.length !== 1) {
+    return notificationScopeQuery(guildId, null);
+  }
+
+  return {
+    guildId,
+    $or: [
+      { botId: null },
+      { botId: { $exists: false } },
+      { botId: botIds[0] }
     ]
   };
 }
