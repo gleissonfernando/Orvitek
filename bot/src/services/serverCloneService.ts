@@ -20,7 +20,7 @@ import {
 import { isBotModuleEnabled } from "../config/env";
 import type { BotContext } from "../types";
 import { getCachedGuildSettings } from "./guildSettingsCache";
-import { isRuntimeModuleAuthorized } from "./runtimeModuleGuard";
+import { getRuntimeModuleAuthorization } from "./runtimeModuleGuard";
 
 const MODULE_ID = "server-cloner";
 const V2_FLAG = 32768;
@@ -51,8 +51,10 @@ export async function handleServerCloneInteraction(interaction: Interaction, con
     return false;
   }
 
-  if (!(await isRuntimeModuleAuthorized(context, interaction.guild.id, MODULE_ID))) {
-    await replyNotice(interaction, "O modulo de clonagem de servidor nao foi liberado para este bot.");
+  const authorization = await getRuntimeModuleAuthorization(context, interaction.guild.id, MODULE_ID);
+
+  if (!authorization.allowed) {
+    await replyNotice(interaction, serverCloneAuthorizationMessage(authorization.reason));
     return true;
   }
 
@@ -558,6 +560,14 @@ function v2Payload(components: unknown[], ephemeral = false) {
 async function replyNotice(interaction: Interaction, message: string) {
   if (!("reply" in interaction)) return;
   await interaction.reply({ content: message, ephemeral: true }).catch(() => undefined);
+}
+
+function serverCloneAuthorizationMessage(reason: string | null | undefined) {
+  const detail = reason?.trim();
+
+  return detail
+    ? `O modulo de clonagem de servidor nao foi autorizado: ${detail}`
+    : "O modulo de clonagem de servidor nao foi autorizado pela dashboard.";
 }
 
 async function fetchBuffer(url: string) {
