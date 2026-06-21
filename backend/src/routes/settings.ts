@@ -257,28 +257,9 @@ settingsRouter.post("/bot/:guildId/safe-bot-setup", requireBot, async (req, res,
       )
       : null;
 
-    const settingsLog = await createLog({
-      botId,
-      guildId,
-      userId: null,
-      type: "security.safe_bot.setup_synced",
-      message: "SafeBot sincronizou cargo, canal filter e canal de logs.",
-      metadata: {
-        filterChannelId: input.filterChannelId,
-        filterChannelName: input.filterChannelName ?? null,
-        logChannelId: input.logChannelId,
-        logChannelName: input.logChannelName ?? null,
-        roleId: input.roleId,
-        roleName: input.roleName ?? null
-      }
-    }).catch(() => null);
-
     emitRealtime("settings:updated", settings);
     if (syncedProtectionSettings) {
       emitRealtime("self-bot-protection:settings_updated", syncedProtectionSettings);
-    }
-    if (settingsLog) {
-      emitRealtime("logs:new", settingsLog);
     }
 
     return res.json({
