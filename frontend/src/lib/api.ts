@@ -255,6 +255,21 @@ export async function patchGuildSettings(guildId: string, payload: Partial<Guild
   return data.settings;
 }
 
+export async function cloneEmojiToGuild(
+  guildId: string,
+  payload: { image: string; name: string; sourceLabel?: string | null },
+  botId?: string | null
+) {
+  const { data } = await api.post<{ emoji: { id: string; name: string; animated?: boolean } }>(
+    `/emoji-cloner/${guildId}/clone`,
+    payload,
+    {
+      params: botParams(botId)
+    }
+  );
+  return data.emoji;
+}
+
 export async function getImageAntiSpam(guildId: string, botId: string) {
   const { data } = await api.get<ImageAntiSpamResponse>(
     `/image-anti-spam/${guildId}`,

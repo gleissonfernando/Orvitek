@@ -10,27 +10,35 @@ import {
   CalendarClock,
   CheckCircle2,
   ChevronRight,
+  Clock3,
   Film,
   Gift,
   Globe2,
   Hash,
+  ImageIcon,
   ListChecks,
   Loader2,
   LockKeyhole,
   Mic2,
+  PlayCircle,
   SmilePlus,
   Plug,
   Radio,
+  RefreshCw,
   ScrollText,
+  Search,
   Server,
   Settings,
   Shield,
   ShieldAlert,
   ShieldCheck,
   TicketIcon,
+  Trash2,
+  Upload,
   UserMinus,
   UserPlus,
-  Users
+  Users,
+  XCircle
 } from "lucide-react";
 import { DashboardLayout } from "../components/layout/dashboard-layout";
 import type { ViewId } from "../components/layout/sidebar";
@@ -56,6 +64,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { Switch } from "../components/ui/switch";
 import { createDashboardSocket } from "../lib/socket";
 import {
+  cloneEmojiToGuild,
   getClipsConfig,
   getDashboardBySlug,
   getDashboardMe,
@@ -851,6 +860,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             canManageModule={(moduleId) => canManageModule(selectedBot, moduleId, canManageDashboard)}
             enabledModules={enabledModules}
             guild={selectedGuild}
+            guilds={scopedDashboardGuilds}
             loading={settingsLoading}
             onSettingsChange={setSettings}
             onToggle={updateSetting}
@@ -1352,6 +1362,7 @@ function SettingsView({
   canManageModule,
   enabledModules,
   guild,
+  guilds,
   loading,
   onSettingsChange,
   onToggle,
@@ -1367,6 +1378,7 @@ function SettingsView({
   canManageModule: (moduleId: string) => boolean;
   enabledModules: string[];
   guild: DashboardGuild | null;
+  guilds: DashboardGuild[];
   loading: boolean;
   onSettingsChange: (settings: GuildSettings) => void;
   onToggle: (key: BooleanSettingKey, checked: boolean) => void;
@@ -1440,6 +1452,7 @@ function SettingsView({
         bots={bots}
         canManage={canManageModule("emoji-cloner")}
         guild={guild}
+        guilds={guilds}
         key="emoji-cloner"
         loading={loading}
         onSettingsChange={onSettingsChange}
@@ -1559,6 +1572,7 @@ function EmojiCloneSettingsPanel({
   bots,
   canManage,
   guild,
+  guilds,
   loading,
   onSettingsChange,
   settings
@@ -1567,6 +1581,7 @@ function EmojiCloneSettingsPanel({
   bots: DashboardBot[];
   canManage: boolean;
   guild: DashboardGuild | null;
+  guilds: DashboardGuild[];
   loading: boolean;
   onSettingsChange: (settings: GuildSettings) => void;
   settings: GuildSettings | null;
@@ -1575,6 +1590,23 @@ function EmojiCloneSettingsPanel({
   const [roles, setRoles] = useState<Array<{ id: string; name: string }>>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sourceInput, setSourceInput] = useState("");
+  const [emojiName, setEmojiName] = useState("");
+  const [destinationGuildId, setDestinationGuildId] = useState(guild?.id ?? "");
+  const [serverSearch, setServerSearch] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [cloneProgress, setCloneProgress] = useState(0);
+  const [cloneStatus, setCloneStatus] = useState<"idle" | "running" | "success" | "error">("idle");
+  const [cloneMessage, setCloneMessage] = useState<string | null>(null);
+  const [historyFilter, setHistoryFilter] = useState("");
+  const [history, setHistory] = useState<Array<{
+    createdAt: string;
+    emojiUrl: string | null;
+    guildName: string;
+    name: string;
+    status: "success" | "failed";
+  }>>([]);
 
   useEffect(() => {
     if (!guild) {
@@ -1601,6 +1633,21 @@ function EmojiCloneSettingsPanel({
     };
   }, [botId, guild?.id]);
 
+  useEffect(() => {
+    setDestinationGuildId((current) => current || guild?.id || "");
+  }, [guild?.id]);
+
+  useEffect(() => {
+    if (!selectedFile) {
+      setFilePreview(null);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => setFilePreview(typeof reader.result === "string" ? reader.result : null);
+    reader.readAsDataURL(selectedFile);
+  }, [selectedFile]);
+
   async function savePatch(patch: Partial<GuildSettings>) {
     if (!guild || !settings || !canManage) return;
 
@@ -1624,6 +1671,75 @@ function EmojiCloneSettingsPanel({
 
   function toggleValue(values: string[], id: string) {
     return values.includes(id) ? values.filter((value) => value !== id) : [...values, id];
+  }
+
+  const selectedBot = botId ? bots.find((bot) => bot.id === botId) ?? null : null;
+  const destinationGuilds = (selectedBot ? guilds.filter((item) => selectedBot.guildIds.includes(item.id)) : guilds)
+    .filter((item) => item.name.toLowerCase().includes(serverSearch.trim().toLowerCase()) || item.id.includes(serverSearch.trim()));
+  const selectedDestination = guilds.find((item) => item.id === destinationGuildId) ?? guild ?? null;
+  const parsedEmoji = parseEmojiAsset(sourceInput);
+  const previewUrl = filePreview ?? parsedEmoji?.url ?? (isHttpImageUrl(sourceInput) ? sourceInput.trim() : null);
+  const sourceLabel = selectedFile?.name ?? parsedEmoji?.name ?? (sourceInput.trim() || null);
+  const sourceType = selectedFile
+    ? selectedFile.type.includes("gif") ? "Animado" : "Imagem"
+    : parsedEmoji
+      ? parsedEmoji.animated ? "Emoji animado" : "Emoji estatico"
+      : sourceInput.trim()
+        ? "URL"
+        : "Aguardando";
+  const sourceSize = selectedFile ? formatBytes(selectedFile.size) : previewUrl ? "Remoto" : "Nao carregado";
+  const filteredHistory = history.filter((item) => {
+    const query = historyFilter.trim().toLowerCase();
+    return !query || item.name.toLowerCase().includes(query) || item.guildName.toLowerCase().includes(query);
+  });
+  const credentialStatus = selectedBot
+    ? selectedBot.status === "online"
+      ? { label: "Valido", tone: "success" as const }
+      : selectedBot.status === "invalid_token"
+        ? { label: "Invalido", tone: "danger" as const }
+        : { label: "Validando", tone: "warning" as const }
+    : { label: "Nao configurado", tone: "muted" as const };
+
+  async function handleCloneEmoji() {
+    if (!canManage || !settings?.emojiCloneEnabled || !destinationGuildId) return;
+
+    const image = filePreview ?? sourceInput.trim();
+    const name = sanitizeEmojiName(emojiName || parsedEmoji?.name || selectedFile?.name.replace(/\.[^.]+$/, "") || "");
+
+    if (!image || !name) {
+      setCloneStatus("error");
+      setCloneMessage("Selecione uma imagem/emoji e defina um nome valido.");
+      return;
+    }
+
+    setCloneProgress(15);
+    setCloneStatus("running");
+    setCloneMessage("Validando imagem e permissoes do bot...");
+
+    try {
+      const emoji = await cloneEmojiToGuild(destinationGuildId, { image, name, sourceLabel }, botId);
+      setCloneProgress(100);
+      setCloneStatus("success");
+      setCloneMessage(`Emoji ${emoji.name} clonado com sucesso.`);
+      setHistory((current) => [{
+        createdAt: new Date().toISOString(),
+        emojiUrl: `https://cdn.discordapp.com/emojis/${emoji.id}.${emoji.animated ? "gif" : "png"}?size=64`,
+        guildName: selectedDestination?.name ?? destinationGuildId,
+        name: emoji.name,
+        status: "success" as const
+      }, ...current].slice(0, 20));
+    } catch (requestError) {
+      setCloneProgress(100);
+      setCloneStatus("error");
+      setCloneMessage(readErrorMessage(requestError, "Nao foi possivel clonar o emoji."));
+      setHistory((current) => [{
+        createdAt: new Date().toISOString(),
+        emojiUrl: previewUrl,
+        guildName: selectedDestination?.name ?? destinationGuildId,
+        name,
+        status: "failed" as const
+      }, ...current].slice(0, 20));
+    }
   }
 
   if (!guild) {
@@ -1651,6 +1767,175 @@ function EmojiCloneSettingsPanel({
       </CardHeader>
       <CardContent className="space-y-5">
         {error ? <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</p> : null}
+
+        <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="space-y-4 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 text-purple-200">
+                  <LockKeyhole className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-white">Credencial segura do bot</p>
+                  <p className="text-xs text-zinc-500">Usa somente o bot conectado ao painel. Credenciais de usuario nao sao aceitas.</p>
+                </div>
+              </div>
+              <Badge variant={credentialStatus.tone === "success" ? "success" : credentialStatus.tone === "danger" ? "danger" : "muted"}>
+                {credentialStatus.label}
+              </Badge>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <StatusPill icon={Server} label="Servidores encontrados" value={String(destinationGuilds.length)} />
+              <StatusPill icon={ShieldCheck} label="Modulo" value={settings?.emojiCloneEnabled ? "Ativo" : "Pausado"} />
+              <StatusPill icon={RefreshCw} label="Atualizacao" value="Automatica" />
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-white">Progresso</p>
+                <p className="text-xs text-zinc-500">Validacao, criacao e retorno do Discord.</p>
+              </div>
+              {cloneStatus === "running" ? <Loader2 className="h-5 w-5 animate-spin text-purple-300" /> : cloneStatus === "success" ? <CheckCircle2 className="h-5 w-5 text-emerald-300" /> : cloneStatus === "error" ? <XCircle className="h-5 w-5 text-red-300" /> : <Clock3 className="h-5 w-5 text-zinc-500" />}
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-zinc-900">
+              <div className="h-full rounded-full bg-purple-500 transition-all" style={{ width: `${cloneProgress}%` }} />
+            </div>
+            {cloneMessage ? <p className={["rounded-lg border px-3 py-2 text-sm", cloneStatus === "error" ? "border-red-500/20 bg-red-500/10 text-red-200" : cloneStatus === "success" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200" : "border-zinc-800 bg-zinc-900 text-zinc-300"].join(" ")}>{cloneMessage}</p> : null}
+          </div>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="space-y-4 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
+            <div className="flex items-center gap-2">
+              <ImageIcon className="h-5 w-5 text-purple-200" />
+              <p className="text-sm font-semibold text-white">Origem</p>
+            </div>
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-zinc-700 bg-zinc-950 px-3 py-4 text-sm text-zinc-300 transition hover:border-purple-500/60">
+              <Upload className="h-4 w-4" />
+              {selectedFile ? selectedFile.name : "Enviar imagem do emoji"}
+              <input
+                accept="image/png,image/gif,image/webp,image/jpeg"
+                className="hidden"
+                disabled={disabled}
+                onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                type="file"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-zinc-300">URL ou emoji personalizado</span>
+              <textarea
+                className="min-h-24 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-600"
+                disabled={disabled}
+                onChange={(event) => setSourceInput(event.target.value)}
+                placeholder="Cole https://cdn.discordapp.com/emojis/... ou <:nome:id>"
+                value={sourceInput}
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-zinc-300">Nome final</span>
+              <input
+                className="h-10 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-600"
+                disabled={disabled}
+                maxLength={32}
+                onChange={(event) => setEmojiName(event.target.value)}
+                placeholder="nome_do_emoji"
+                value={emojiName}
+              />
+            </label>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
+              <p className="text-sm font-semibold text-white">Informacoes</p>
+              <div className="mt-4 flex aspect-square items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950">
+                {previewUrl ? <img alt="" className="max-h-full max-w-full object-contain" src={previewUrl} /> : <ImageIcon className="h-10 w-10 text-zinc-700" />}
+              </div>
+              <div className="mt-4 space-y-2 text-sm">
+                <InfoRow label="Nome atual" value={parsedEmoji?.name ?? selectedFile?.name ?? "Nao definido"} />
+                <InfoRow label="Tipo" value={sourceType} />
+                <InfoRow label="Tamanho" value={sourceSize} />
+                <InfoRow label="Status" value={previewUrl ? "Imagem pronta" : "Aguardando imagem"} />
+              </div>
+            </div>
+
+            <div className="space-y-4 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">Destino</p>
+                  <p className="text-xs text-zinc-500">{destinationGuilds.length} servidores disponiveis</p>
+                </div>
+                <Badge variant="muted">{selectedDestination ? "Slots validos no Discord" : "Selecione"}</Badge>
+              </div>
+              <label className="relative block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                <input
+                  className="h-10 w-full rounded-lg border border-zinc-800 bg-zinc-950 pl-9 pr-3 text-sm text-white outline-none placeholder:text-zinc-600"
+                  disabled={disabled}
+                  onChange={(event) => setServerSearch(event.target.value)}
+                  placeholder="Pesquisar servidor"
+                  value={serverSearch}
+                />
+              </label>
+              <div className="max-h-52 space-y-2 overflow-auto pr-1">
+                {destinationGuilds.map((item) => (
+                  <button
+                    className={["flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition", destinationGuildId === item.id ? "border-purple-500/50 bg-purple-500/10" : "border-zinc-800 bg-zinc-950 hover:border-zinc-700"].join(" ")}
+                    disabled={disabled}
+                    key={item.id}
+                    onClick={() => setDestinationGuildId(item.id)}
+                    type="button"
+                  >
+                    <Avatar className="h-9 w-9 rounded-lg" fallback={item.name} src={item.iconUrl} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-white">{item.name}</span>
+                      <span className="block truncate text-xs text-zinc-500">{item.id}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <Button disabled={disabled || cloneStatus === "running" || !previewUrl || !destinationGuildId} onClick={() => void handleCloneEmoji()}>
+                {cloneStatus === "running" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlayCircle className="mr-2 h-4 w-4" />}
+                Iniciar clonagem
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-white">Historico</p>
+              <p className="text-xs text-zinc-500">Ultimas clonagens feitas por este painel nesta sessao.</p>
+            </div>
+            <div className="flex gap-2">
+              <input
+                className="h-9 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-600"
+                onChange={(event) => setHistoryFilter(event.target.value)}
+                placeholder="Filtrar historico"
+                value={historyFilter}
+              />
+              <Button onClick={() => setHistory([])} size="sm" type="button" variant="outline">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {filteredHistory.length ? filteredHistory.map((item) => (
+              <div className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2" key={`${item.createdAt}-${item.name}`}>
+                {item.emojiUrl ? <img alt="" className="h-9 w-9 rounded-lg object-contain" src={item.emojiUrl} /> : <ImageIcon className="h-9 w-9 rounded-lg border border-zinc-800 p-2 text-zinc-500" />}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-white">{item.name}</span>
+                  <span className="block truncate text-xs text-zinc-500">{item.guildName} • {new Date(item.createdAt).toLocaleString("pt-BR")}</span>
+                </span>
+                <Badge variant={item.status === "success" ? "success" : "danger"}>{item.status === "success" ? "Sucesso" : "Erro"}</Badge>
+              </div>
+            )) : (
+              <p className="rounded-lg border border-dashed border-zinc-800 px-3 py-6 text-center text-sm text-zinc-500">Nenhuma clonagem registrada ainda.</p>
+            )}
+          </div>
+        </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
           <label className="space-y-2">
@@ -2086,6 +2371,85 @@ function EventRow({
       </div>
     </div>
   );
+}
+
+function StatusPill({ icon: Icon, label, value }: { icon: typeof Server; label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2">
+      <div className="flex items-center gap-2 text-xs text-zinc-500">
+        <Icon className="h-4 w-4" />
+        {label}
+      </div>
+      <p className="mt-1 text-sm font-semibold text-white">{value}</p>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-zinc-900 pb-2 last:border-0 last:pb-0">
+      <span className="text-zinc-500">{label}</span>
+      <span className="truncate text-right text-zinc-200">{value}</span>
+    </div>
+  );
+}
+
+function parseEmojiAsset(value: string) {
+  const custom = value.trim().match(/<(?<animated>a?):(?<name>[a-zA-Z0-9_]{2,32}):(?<id>\d{5,32})>/);
+
+  if (custom?.groups) {
+    const animated = custom.groups.animated === "a";
+    const id = custom.groups.id;
+
+    return {
+      animated,
+      name: custom.groups.name,
+      url: `https://cdn.discordapp.com/emojis/${id}.${animated ? "gif" : "png"}?size=128&quality=lossless`
+    };
+  }
+
+  const url = value.trim().match(/https:\/\/cdn\.discordapp\.com\/emojis\/(?<id>\d{5,32})\.(?<ext>png|gif|webp|jpg|jpeg)(?:\?[^\s<>\]]*)?/i);
+
+  if (url?.groups) {
+    const extension = url.groups.ext ?? "png";
+
+    return {
+      animated: extension.toLowerCase() === "gif",
+      name: `emoji_${url.groups.id}`,
+      url: url[0]
+    };
+  }
+
+  return null;
+}
+
+function isHttpImageUrl(value: string) {
+  return /^https?:\/\/\S+\.(?:png|gif|webp|jpe?g)(?:\?\S*)?$/i.test(value.trim());
+}
+
+function sanitizeEmojiName(value: string) {
+  return value
+    .trim()
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^a-zA-Z0-9_]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 32);
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function readErrorMessage(error: unknown, fallback: string) {
+  if (typeof error === "object" && error && "response" in error) {
+    const response = (error as { response?: { data?: { message?: string } } }).response;
+    return response?.data?.message ?? fallback;
+  }
+
+  return error instanceof Error ? error.message : fallback;
 }
 
 function FriendlyLogList({ compact = false, logs }: { compact?: boolean; logs: LogEntry[] }) {
