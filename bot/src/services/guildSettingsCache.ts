@@ -60,6 +60,19 @@ export async function getCachedGuildSettings(
   return request;
 }
 
+export async function getFreshGuildSettings(
+  context: BotContext,
+  guildId: string,
+  discordBotClientId?: string | null
+) {
+  const key = settingsCacheKey(guildId);
+  settingsRequests.delete(key);
+
+  const settings = await context.api.getSettings(guildId, discordBotClientId);
+  setCachedGuildSettings(settings);
+  return settings;
+}
+
 export function clearCachedGuildSettings(guildId?: string | null) {
   if (!guildId) {
     settingsCache.clear();

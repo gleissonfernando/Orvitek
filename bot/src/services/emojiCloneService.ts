@@ -14,7 +14,7 @@ import {
 } from "discord.js";
 import { currentRuntimeBotId, isBotModuleEnabled } from "../config/env";
 import type { BotContext, GuildSettings } from "../types";
-import { getCachedGuildSettings } from "./guildSettingsCache";
+import { getCachedGuildSettings, getFreshGuildSettings } from "./guildSettingsCache";
 import { isRuntimeModuleAuthorized } from "./runtimeModuleGuard";
 
 const MODULE_ID = "emoji-cloner";
@@ -129,7 +129,7 @@ export async function handleEmojiCloneInteraction(interaction: Interaction, cont
   }
 
   if (interaction.isModalSubmit() && customId.startsWith("emoji_clone_modal:")) {
-    const settings = await getCachedGuildSettings(context, interaction.guild.id, context.client.user?.id);
+    const settings = await getFreshGuildSettings(context, interaction.guild.id, context.client.user?.id);
     const guard = await validateActor(interaction.guild, interaction.member as GuildMember, settings, context);
 
     if (guard) {
