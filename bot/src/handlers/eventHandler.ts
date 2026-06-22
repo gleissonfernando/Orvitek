@@ -19,34 +19,42 @@ import type { BotContext } from "../types";
 export function registerEvents(client: Client, context: BotContext) {
   const managedRuntimeBot = Boolean(env.DASHBOARD_BOT_ID.trim());
 
-  client.once(Events.ClientReady, (readyClient) => void handleReady(readyClient, context));
-  client.on(Events.InteractionCreate, (interaction) => void handleInteractionCreate(interaction, context));
+  client.on(Events.Error, (error) => {
+    console.error("[discord] erro no client:", error);
+  });
+  client.on(Events.Warn, (message) => {
+    console.warn("[discord] aviso:", message);
+  });
+  client.once(Events.ClientReady, (readyClient) => runEvent("ready", () => handleReady(readyClient, context)));
+  client.on(Events.InteractionCreate, (interaction) => runEvent("interactionCreate", () => handleInteractionCreate(interaction, context)));
   client.on(Events.UserUpdate, (_oldUser, newUser) => {
     if (client.user && newUser.id === client.user.id) {
       context.socket.emitStatus(client, true);
     }
   });
   client.on(Events.GuildCreate, (guild) => {
-    void ensureSafeBotSetup(guild, context);
+    runEvent("guildCreate", () => ensureSafeBotSetup(guild, context));
   });
 
   if (env.BOT_MEMBER_EVENTS_ENABLED && (managedRuntimeBot || ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security", "safe-bot"].some(isBotModuleEnabled))) {
     client.on(Events.GuildMemberAdd, (member) => {
-      void resolveMember(member).then((resolved) => {
+      runEvent("guildMemberAdd", async () => {
+        const resolved = await resolveMember(member);
         if (resolved) {
-          void handleGuildMemberAdd(resolved, context);
+          await handleGuildMemberAdd(resolved, context);
         }
       });
     });
     client.on(Events.GuildMemberRemove, (member) => {
       if (isMaintenanceModeActive()) return;
-      void handleGuildMemberRemove(member, context);
+      runEvent("guildMemberRemove", () => handleGuildMemberRemove(member, context));
     });
     client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
       if (isMaintenanceModeActive()) return;
-      void Promise.all([resolveMember(oldMember), resolveMember(newMember)]).then(([oldResolved, newResolved]) => {
+      runEvent("guildMemberUpdate", async () => {
+        const [oldResolved, newResolved] = await Promise.all([resolveMember(oldMember), resolveMember(newMember)]);
         if (oldResolved && newResolved) {
-          void handleGuildMemberUpdate(oldResolved, newResolved, context);
+          await handleGuildMemberUpdate(oldResolved, newResolved, context);
         }
       });
     });
@@ -55,19 +63,19 @@ export function registerEvents(client: Client, context: BotContext) {
   if (managedRuntimeBot || isBotModuleEnabled("logs") || isSelfBotModuleEnabled()) {
     client.on(Events.MessageDelete, (message) => {
       if (isMaintenanceModeActive()) return;
-      void handleMessageDelete(message, context);
+      runEvent("messageDelete", () => handleMessageDelete(message, context));
     });
   }
 
   if (managedRuntimeBot || isBotModuleEnabled("logs") || (isBotModuleEnabled("image-anti-spam") && !isSelfBotModuleEnabled())) {
     client.on(Events.MessageUpdate, (oldMessage, newMessage) => {
       if (isMaintenanceModeActive()) return;
-      void handleMessageUpdate(oldMessage, newMessage, context);
+      runEvent("messageUpdate", () => handleMessageUpdate(oldMessage, newMessage, context));
     });
   }
 
   if (managedRuntimeBot || isBotModuleEnabled("image-anti-spam") || isLinkAntiSpamEnabled() || isSelfBotModuleEnabled()) {
-    client.on(Events.MessageCreate, (message) => void handleMessageCreate(message, context));
+    client.on(Events.MessageCreate, (message) => runEvent("messageCreate", () => handleMessageCreate(message, context)));
   }
 
   if (managedRuntimeBot || isSelfBotModuleEnabled()) {
@@ -75,28 +83,28 @@ export function registerEvents(client: Client, context: BotContext) {
       if (isMaintenanceModeActive()) return;
       if ("guild" in channel) {
         clearSafeBotSetupCache(channel.guild.id);
-        void ensureSafeBotSetup(channel.guild, context);
+        runEvent("channelDelete.ensureSafeBotSetup", () => ensureSafeBotSetup(channel.guild, context));
       }
     });
     client.on(Events.ChannelCreate, (channel) => {
       if (isMaintenanceModeActive()) return;
       if ("guild" in channel) {
-        void handleSelfBotProtectionGuildMutation(channel.guild, context, "channel_create", channel.id);
+        runEvent("channelCreate.selfBotMutation", () => handleSelfBotProtectionGuildMutation(channel.guild, context, "channel_create", channel.id));
       }
     });
     client.on(Events.GuildRoleCreate, (role) => {
       if (isMaintenanceModeActive()) return;
-      void handleSelfBotProtectionGuildMutation(role.guild, context, "role_create", null);
+      runEvent("guildRoleCreate.selfBotMutation", () => handleSelfBotProtectionGuildMutation(role.guild, context, "role_create", null));
     });
     client.on(Events.GuildRoleDelete, (role) => {
       if (isMaintenanceModeActive()) return;
       clearSafeBotSetupCache(role.guild.id);
-      void ensureSafeBotSetup(role.guild, context);
+      runEvent("guildRoleDelete.ensureSafeBotSetup", () => ensureSafeBotSetup(role.guild, context));
     });
     client.on(Events.WebhooksUpdate, (channel) => {
       if (isMaintenanceModeActive()) return;
       if ("guild" in channel) {
-        void handleSelfBotProtectionGuildMutation(channel.guild, context, "webhook_create", channel.id);
+        runEvent("webhooksUpdate.selfBotMutation", () => handleSelfBotProtectionGuildMutation(channel.guild, context, "webhook_create", channel.id));
       }
     });
   }
@@ -104,16 +112,22 @@ export function registerEvents(client: Client, context: BotContext) {
   if (env.BOT_PRESENCE_MONITOR_ENABLED && isBotModuleEnabled("live")) {
     client.on(Events.PresenceUpdate, (oldPresence, newPresence) => {
       if (isMaintenanceModeActive()) return;
-      void handlePresenceEvent(oldPresence, newPresence, context);
+      runEvent("presenceUpdate", () => handlePresenceEvent(oldPresence, newPresence, context));
     });
   }
 
   if (isBotModuleEnabled("voice-recorder")) {
     client.on(Events.VoiceStateUpdate, (oldState, newState) => {
       if (isMaintenanceModeActive()) return;
-      void handleVoiceRecorderVoiceStateUpdate(oldState, newState, context);
+      runEvent("voiceStateUpdate", () => handleVoiceRecorderVoiceStateUpdate(oldState, newState, context));
     });
   }
+}
+
+function runEvent(name: string, handler: () => Promise<unknown>) {
+  void handler().catch((error) => {
+    console.error(`[event:${name}] falha capturada:`, error instanceof Error ? error.stack ?? error.message : error);
+  });
 }
 
 async function resolveMember(member: GuildMember | PartialGuildMember) {

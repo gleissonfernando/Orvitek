@@ -39,6 +39,7 @@ export type ViewId =
   | "giveaway"
   | "x-monitor"
   | "moderation"
+  | "rules"
   | "mission-tools"
   | "voice-recorder"
   | "self-bot-protection"
@@ -68,6 +69,7 @@ const navItems: NavItem[] = [
   { id: "giveaway", label: "Sorteio", icon: Gift, moduleId: "giveaway" },
   { id: "x-monitor", label: "X Monitor", icon: AtSign, moduleId: "x-monitor" },
   { id: "moderation", label: "Moderacao", icon: Shield, moduleId: "moderation" },
+  { id: "rules", label: "Regras", icon: ScrollText, moduleId: "rules" },
   { id: "mission-tools", label: "Mission Tools", icon: ListChecks, moduleId: "mission-tools" },
   { id: "voice-recorder", label: "Voice Recorder", icon: Mic2, moduleId: "voice-recorder" },
   { id: "self-bot-protection", label: "SelfBot Protection", icon: ShieldCheck, moduleId: "safe-bot" },

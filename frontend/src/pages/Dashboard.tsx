@@ -80,6 +80,7 @@ import {
   getTickets,
   getXMonitor,
   patchGuildSettings,
+  publishRulesPanel,
   resendEmojiFromLibrary,
   updateSelectedDashboardGuild,
   validateFakeEmojiCloneToken
@@ -118,7 +119,8 @@ type BooleanSettingKey =
   | "leaveEnabled"
   | "autoRoleEnabled"
   | "ticketEnabled"
-  | "moderationEnabled";
+  | "moderationEnabled"
+  | "rulesEnabled";
 
 type OverviewDetails = {
   selfBotProtectionSettings: SelfBotProtectionSettings | null;
@@ -212,6 +214,13 @@ const moduleCatalog: ModuleDefinition[] = [
     description: "Centraliza ajustes basicos de seguranca e moderacao do servidor.",
     icon: Shield,
     view: "moderation"
+  },
+  {
+    id: "rules",
+    title: "Regras",
+    description: "Publica um painel de regras com botao para liberar cargo aos membros.",
+    icon: ScrollText,
+    view: "rules"
   },
   {
     id: "mission-tools",
@@ -332,7 +341,8 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   "voice-recorder": "voice-recorder",
   "self-bot-protection": "safe-bot",
   security: "account-age-security",
-  moderation: "moderation"
+  moderation: "moderation",
+  rules: "rules"
 };
 
 const settingsModuleIds = new Set(["tickets", "avisos", "network", "emoji-cloner"]);
@@ -775,6 +785,16 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             settings={settings}
           />
         ) : null}
+        {activeView === "rules" ? (
+          <RulesView
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "rules", canManageDashboard)}
+            guild={selectedGuild}
+            loading={settingsLoading}
+            onSettingsChange={setSettings}
+            settings={settings}
+          />
+        ) : null}
         {activeView === "mission-tools" ? (
           <MissionToolsPanel
             botId={activeBotId}
@@ -1028,7 +1048,7 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
   }
 
   if (bot.accessLevel === "premium") {
-    return ["live", "kick-integration", "clips", "giveaway", "network", "x-monitor", "mission-tools", "voice-recorder", "emoji-cloner", "server-cloner", "account-age-security", "safe-bot", "fivem", "fivem-factions", "fivem-corporations", "fivem-absences", "fivem-orders", "fivem-ammo", "fivem-finance", "fivem-fac"].includes(moduleId);
+    return ["live", "kick-integration", "clips", "giveaway", "network", "x-monitor", "mission-tools", "voice-recorder", "emoji-cloner", "server-cloner", "rules", "account-age-security", "safe-bot", "fivem", "fivem-factions", "fivem-corporations", "fivem-absences", "fivem-orders", "fivem-ammo", "fivem-finance", "fivem-fac"].includes(moduleId);
   }
 
   return false;
@@ -1377,6 +1397,251 @@ function ModerationView({
           <CardTitle>Resumo</CardTitle>
           <CardDescription>As regras globais do bot ficam no painel DEV. Aqui ficam apenas ajustes deste servidor.</CardDescription>
         </CardHeader>
+      </Card>
+    </div>
+  );
+}
+
+function RulesView({
+  botId,
+  canManage,
+  guild,
+  loading,
+  onSettingsChange,
+  settings
+}: {
+  botId?: string | null;
+  canManage: boolean;
+  guild: DashboardGuild | null;
+  loading: boolean;
+  onSettingsChange: (settings: GuildSettings) => void;
+  settings: GuildSettings | null;
+}) {
+  const [options, setOptions] = useState<{ channels: GuildChannelOption[]; roles: Array<{ id: string; name: string; assignable?: boolean }> }>({
+    channels: [],
+    roles: []
+  });
+  const [draft, setDraft] = useState({
+    rulesButtonLabel: "",
+    rulesChannelId: "",
+    rulesColor: "#ef4444",
+    rulesMessage: "",
+    rulesRoleId: "",
+    rulesTitle: ""
+  });
+  const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraft({
+      rulesButtonLabel: settings?.rulesButtonLabel || "Li e aceito",
+      rulesChannelId: settings?.rulesChannelId || "",
+      rulesColor: settings?.rulesColor || "#ef4444",
+      rulesMessage: settings?.rulesMessage || "",
+      rulesRoleId: settings?.rulesRoleId || "",
+      rulesTitle: settings?.rulesTitle || "Regras do servidor"
+    });
+  }, [settings]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    if (!guild) {
+      return;
+    }
+
+    getGuildLiveOptions(guild.id, botId)
+      .then((data) => {
+        if (mounted) {
+          setOptions({
+            channels: data.channels,
+            roles: data.roles
+          });
+        }
+      })
+      .catch(() => {
+        if (mounted) setMessage("Nao foi possivel carregar canais e cargos.");
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [botId, guild]);
+
+  async function saveRules(nextEnabled = settings?.rulesEnabled ?? false) {
+    if (!guild) return;
+
+    setSaving(true);
+    setMessage(null);
+
+    try {
+      const nextSettings = await patchGuildSettings(guild.id, {
+        rulesButtonLabel: draft.rulesButtonLabel,
+        rulesChannelId: draft.rulesChannelId || null,
+        rulesColor: draft.rulesColor,
+        rulesEnabled: nextEnabled,
+        rulesMessage: draft.rulesMessage,
+        rulesRoleId: draft.rulesRoleId || null,
+        rulesTitle: draft.rulesTitle
+      }, botId);
+      onSettingsChange(nextSettings);
+      setMessage("Sistema de regras salvo.");
+      return nextSettings;
+    } catch (error) {
+      setMessage(readResponseMessage(error) ?? "Nao foi possivel salvar as regras.");
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function publishPanel() {
+    if (!guild) return;
+
+    setPublishing(true);
+    setMessage(null);
+
+    try {
+      const saved = await saveRules(true);
+
+      if (!saved) return;
+
+      const nextSettings = await publishRulesPanel(guild.id, botId);
+      onSettingsChange(nextSettings);
+      setMessage("Painel de regras publicado no Discord.");
+    } catch (error) {
+      setMessage(readResponseMessage(error) ?? "Nao foi possivel publicar o painel de regras.");
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  if (loading || !settings) {
+    return (
+      <Card>
+        <CardContent className="flex min-h-40 items-center justify-center gap-3 p-6 text-sm font-medium text-zinc-300">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Carregando regras...
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {message ? (
+        <div className="rounded-lg border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-sm font-semibold text-white">
+          {message}
+        </div>
+      ) : null}
+
+      <SimpleToggleCard
+        checked={Boolean(settings.rulesEnabled)}
+        description="Ativa o aceite de regras e libera o painel para este servidor."
+        disabled={!canManage || saving}
+        icon={ScrollText}
+        onChange={(checked) => void saveRules(checked)}
+        title="Sistema de regras"
+      />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Painel de regras</CardTitle>
+          <CardDescription>Configure a mensagem, o canal e o cargo entregue ao membro.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-zinc-100">Canal</span>
+              <select
+                className="h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none transition focus:border-purple-500"
+                disabled={!canManage}
+                onChange={(event) => setDraft((current) => ({ ...current, rulesChannelId: event.target.value }))}
+                value={draft.rulesChannelId}
+              >
+                <option value="">Selecione um canal</option>
+                {options.channels.map((channel) => (
+                  <option key={channel.id} value={channel.id}>#{channel.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-zinc-100">Cargo liberado</span>
+              <select
+                className="h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none transition focus:border-purple-500"
+                disabled={!canManage}
+                onChange={(event) => setDraft((current) => ({ ...current, rulesRoleId: event.target.value }))}
+                value={draft.rulesRoleId}
+              >
+                <option value="">Sem cargo</option>
+                {options.roles.map((role) => (
+                  <option key={role.id} value={role.id}>{role.name}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_10rem]">
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-zinc-100">Titulo</span>
+              <input
+                className="h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none transition focus:border-purple-500"
+                disabled={!canManage}
+                maxLength={120}
+                onChange={(event) => setDraft((current) => ({ ...current, rulesTitle: event.target.value }))}
+                value={draft.rulesTitle}
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-zinc-100">Cor</span>
+              <input
+                className="h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none transition focus:border-purple-500"
+                disabled={!canManage}
+                onChange={(event) => setDraft((current) => ({ ...current, rulesColor: event.target.value }))}
+                type="color"
+                value={draft.rulesColor}
+              />
+            </label>
+          </div>
+
+          <label className="space-y-2">
+            <span className="text-sm font-medium text-zinc-100">Regras</span>
+            <textarea
+              className="min-h-44 w-full resize-y rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-purple-500"
+              disabled={!canManage}
+              maxLength={1800}
+              onChange={(event) => setDraft((current) => ({ ...current, rulesMessage: event.target.value }))}
+              placeholder="Uma regra por linha"
+              value={draft.rulesMessage}
+            />
+          </label>
+
+          <label className="space-y-2">
+            <span className="text-sm font-medium text-zinc-100">Texto do botao</span>
+            <input
+              className="h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none transition focus:border-purple-500"
+              disabled={!canManage}
+              maxLength={80}
+              onChange={(event) => setDraft((current) => ({ ...current, rulesButtonLabel: event.target.value }))}
+              value={draft.rulesButtonLabel}
+            />
+          </label>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button disabled={!canManage || saving || publishing} onClick={() => void saveRules()} variant="secondary">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              Salvar
+            </Button>
+            <Button disabled={!canManage || saving || publishing || !draft.rulesChannelId} onClick={() => void publishPanel()}>
+              {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              Publicar painel
+            </Button>
+            {settings.rulesPanelMessageId ? (
+              <Badge variant="muted">Mensagem: {settings.rulesPanelMessageId}</Badge>
+            ) : null}
+          </div>
+        </CardContent>
       </Card>
     </div>
   );

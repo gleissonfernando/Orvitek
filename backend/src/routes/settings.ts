@@ -9,6 +9,7 @@ import { authorizeBotRuntimeModule, canAccessDevBotGuild, canManageDevBot, canUs
 import { createLog } from "../services/logService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
 import { getGuildSettings, LOG_CATEGORIES, MAX_AUTOMATIC_ROLES, updateGuildSettings } from "../services/settingsService";
+import { publishRulesPanelToDiscord } from "../services/rulesPanelService";
 import { getSelfBotProtectionSettings, saveSelfBotProtectionSettings } from "../services/selfBotProtectionService";
 import { saveLeaveImage, saveWelcomeImage, sendLeavePanelToDiscord, sendWelcomePanelToDiscord } from "../services/welcomePanelService";
 import {
@@ -69,6 +70,14 @@ const settingsSchema = z.object({
   emojiCloneAllowAnimated: z.boolean().optional(),
   emojiCloneMaxPerRun: z.coerce.number().int().min(1).max(100).optional(),
   emojiCloneAllowedBotIds: z.array(z.string().regex(/^\d{5,32}$/)).max(25).optional(),
+  rulesEnabled: z.boolean().optional(),
+  rulesChannelId: z.string().nullable().optional(),
+  rulesRoleId: z.string().nullable().optional(),
+  rulesTitle: z.string().max(120).nullable().optional(),
+  rulesMessage: z.string().max(1800).nullable().optional(),
+  rulesButtonLabel: z.string().max(80).nullable().optional(),
+  rulesColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
+  rulesPanelMessageId: z.string().nullable().optional(),
   verificationEnabled: z.boolean().optional(),
   verificationRoleId: z.string().nullable().optional(),
   verificationRoleIds: z.array(z.string()).optional(),
@@ -446,6 +455,50 @@ settingsRouter.post("/:guildId/leave-test", requireAuth, async (req, res, next) 
   }
 });
 
+settingsRouter.post("/:guildId/rules-panel", requireAuth, async (req, res, next) => {
+  try {
+    const { guildId } = req.params;
+    const botId = await resolveRequestBotId(req);
+
+    if (!guildId) {
+      return res.status(400).json({
+        message: "guildId obrigatorio."
+      });
+    }
+
+    if (!(await canManageSettings(req, res, guildId, botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem permissao para configurar este servidor."
+      });
+    }
+
+    if (!(await canManageModule(req, res, guildId, botId, "rules"))) {
+      return res.status(403).json({
+        message: "O modulo de regras nao foi liberado para este bot."
+      });
+    }
+
+    const settings = await getGuildSettings(guildId, botId);
+    const messageId = await publishRulesPanelToDiscord(settings, await getDevBotToken(botId));
+    const updatedSettings = await getGuildSettings(guildId, botId);
+
+    emitRealtime("settings:updated", updatedSettings);
+
+    return res.json({
+      messageId,
+      settings: updatedSettings
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      return res.status(400).json({
+        message: error.message
+      });
+    }
+
+    return next(error);
+  }
+});
+
 settingsRouter.patch("/:guildId", requireAuth, async (req, res, next) => {
   try {
     const { guildId } = req.params;
@@ -644,6 +697,14 @@ async function canPatchSettings(
     emojiCloneAllowAnimated: ["emoji-cloner"],
     emojiCloneMaxPerRun: ["emoji-cloner"],
     emojiCloneAllowedBotIds: ["emoji-cloner"],
+    rulesEnabled: ["rules"],
+    rulesChannelId: ["rules"],
+    rulesRoleId: ["rules"],
+    rulesTitle: ["rules"],
+    rulesMessage: ["rules"],
+    rulesButtonLabel: ["rules"],
+    rulesColor: ["rules"],
+    rulesPanelMessageId: ["rules"],
     verificationEnabled: ["verification"],
     verificationRoleId: ["verification"],
     verificationRoleIds: ["verification"],
@@ -710,7 +771,8 @@ async function validateGuildResources(
     input.accountAgeLogChannelId,
     input.safeBotChannelId,
     input.safeBotLogChannelId,
-    input.emojiCloneLogChannelId
+    input.emojiCloneLogChannelId,
+    input.rulesChannelId
   ].filter((channelId): channelId is string => Boolean(channelId));
 
   const textChannelChecks = await Promise.all(
@@ -763,7 +825,8 @@ async function validateGuildResources(
     input.boosterRoleId,
     input.safeBotRoleId,
     input.verificationRoleId,
-    ...(input.emojiCloneAllowedRoleIds ?? [])
+    ...(input.emojiCloneAllowedRoleIds ?? []),
+    input.rulesRoleId
   ].filter((roleId): roleId is string => Boolean(roleId));
 
   if (roleIds.length && !(await areGuildRoles(guildId, [...new Set(roleIds)], botToken))) {
@@ -807,6 +870,7 @@ function inferSettingsModuleName(input: z.infer<typeof settingsSchema>) {
   if ([...keys].some((key) => key.startsWith("accountAge"))) return "account_age_security";
   if ([...keys].some((key) => key.startsWith("safeBot"))) return "self_bot";
   if ([...keys].some((key) => key.startsWith("emojiClone"))) return "emoji_cloner";
+  if ([...keys].some((key) => key.startsWith("rules"))) return "rules";
   if ([...keys].some((key) => key.startsWith("welcome") || key.startsWith("autoRole"))) return "welcome";
   if ([...keys].some((key) => key.startsWith("leave"))) return "leave";
   if ([...keys].some((key) => key.startsWith("ticket"))) return "tickets";
@@ -850,6 +914,10 @@ function friendlySettingsMessage(input: z.infer<typeof settingsSchema>) {
 
   if (Object.keys(input).some((key) => key.startsWith("emojiClone"))) {
     return "Clonagem de emojis atualizada.";
+  }
+
+  if (Object.keys(input).some((key) => key.startsWith("rules"))) {
+    return "Sistema de regras atualizado.";
   }
 
   if (input.ticketEnabled !== undefined) {

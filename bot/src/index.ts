@@ -131,4 +131,12 @@ process.on("SIGTERM", () => {
   process.exit(0);
 });
 
+process.on("unhandledRejection", (reason) => {
+  console.error("[bot] promise rejeitada sem tratamento:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("[bot] excecao nao capturada:", error);
+});
+
 void client.login(env.DISCORD_BOT_TOKEN);

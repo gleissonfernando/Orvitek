@@ -57,6 +57,14 @@ export type GuildSettingsDto = {
   emojiCloneAllowAnimated: boolean;
   emojiCloneMaxPerRun: number;
   emojiCloneAllowedBotIds: string[];
+  rulesEnabled: boolean;
+  rulesChannelId: string | null;
+  rulesRoleId: string | null;
+  rulesTitle: string | null;
+  rulesMessage: string | null;
+  rulesButtonLabel: string | null;
+  rulesColor: string;
+  rulesPanelMessageId: string | null;
   verificationEnabled: boolean;
   verificationRoleId: string | null;
   verificationRoleIds: string[];
@@ -135,6 +143,14 @@ const MAX_ACCOUNT_AGE_MIN_DAYS = 3_650;
 const DEFAULT_LOG_CATEGORIES = [...LOG_CATEGORIES];
 const DEFAULT_EMOJI_CLONE_MAX_PER_RUN = 25;
 const MAX_EMOJI_CLONE_MAX_PER_RUN = 100;
+const DEFAULT_RULES_TITLE = "Regras do servidor";
+const DEFAULT_RULES_MESSAGE = [
+  "Respeite todos os membros.",
+  "Evite spam, flood e divulgacao sem autorizacao.",
+  "Use os canais corretos para cada assunto.",
+  "Siga as orientacoes da equipe."
+].join("\n");
+const DEFAULT_RULES_BUTTON_LABEL = "Li e aceito";
 
 export function defaultSettings(guildId: string, botId: string | null = null): GuildSettingsDto {
   return {
@@ -189,6 +205,14 @@ export function defaultSettings(guildId: string, botId: string | null = null): G
     emojiCloneAllowAnimated: true,
     emojiCloneMaxPerRun: DEFAULT_EMOJI_CLONE_MAX_PER_RUN,
     emojiCloneAllowedBotIds: [],
+    rulesEnabled: false,
+    rulesChannelId: null,
+    rulesRoleId: null,
+    rulesTitle: DEFAULT_RULES_TITLE,
+    rulesMessage: DEFAULT_RULES_MESSAGE,
+    rulesButtonLabel: DEFAULT_RULES_BUTTON_LABEL,
+    rulesColor: DEFAULT_PANEL_COLOR,
+    rulesPanelMessageId: null,
     verificationEnabled: false,
     verificationRoleId: null,
     verificationRoleIds: [],
@@ -330,6 +354,17 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
       DEFAULT_EMOJI_CLONE_MAX_PER_RUN
     ),
     emojiCloneAllowedBotIds,
+    rulesChannelId: normalizeSnowflake(
+      "rulesChannelId" in input ? input.rulesChannelId : current.rulesChannelId
+    ),
+    rulesRoleId: normalizeSnowflake(
+      "rulesRoleId" in input ? input.rulesRoleId : current.rulesRoleId
+    ),
+    rulesTitle: normalizePanelText("rulesTitle" in input ? input.rulesTitle : current.rulesTitle) || DEFAULT_RULES_TITLE,
+    rulesMessage: normalizePanelText("rulesMessage" in input ? input.rulesMessage : current.rulesMessage) || DEFAULT_RULES_MESSAGE,
+    rulesButtonLabel: normalizePanelText("rulesButtonLabel" in input ? input.rulesButtonLabel : current.rulesButtonLabel) || DEFAULT_RULES_BUTTON_LABEL,
+    rulesColor: normalizePanelColor("rulesColor" in input ? input.rulesColor : current.rulesColor),
+    rulesPanelMessageId: normalizeSnowflake("rulesPanelMessageId" in input ? input.rulesPanelMessageId : current.rulesPanelMessageId),
     autoRoleIds,
     welcomeTitle: normalizePanelText("welcomeTitle" in input ? input.welcomeTitle : current.welcomeTitle),
     welcomeMessage: normalizePanelMessage("welcomeMessage" in input ? input.welcomeMessage : current.welcomeMessage),
@@ -414,6 +449,14 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
           emojiCloneAllowAnimated: next.emojiCloneAllowAnimated,
           emojiCloneMaxPerRun: next.emojiCloneMaxPerRun,
           emojiCloneAllowedBotIds: next.emojiCloneAllowedBotIds,
+          rulesEnabled: next.rulesEnabled,
+          rulesChannelId: next.rulesChannelId,
+          rulesRoleId: next.rulesRoleId,
+          rulesTitle: next.rulesTitle,
+          rulesMessage: next.rulesMessage,
+          rulesButtonLabel: next.rulesButtonLabel,
+          rulesColor: next.rulesColor,
+          rulesPanelMessageId: next.rulesPanelMessageId,
           verificationEnabled: next.verificationEnabled,
           verificationRoleId: next.verificationRoleId,
           verificationRoleIds: next.verificationRoleIds,
@@ -517,6 +560,14 @@ function toDto(settings: MongoGuildSettings): GuildSettingsDto {
       DEFAULT_EMOJI_CLONE_MAX_PER_RUN
     ),
     emojiCloneAllowedBotIds: normalizeSnowflakes(settings.emojiCloneAllowedBotIds ?? []),
+    rulesEnabled: settings.rulesEnabled ?? defaults.rulesEnabled,
+    rulesChannelId: normalizeSnowflake(settings.rulesChannelId),
+    rulesRoleId: normalizeSnowflake(settings.rulesRoleId),
+    rulesTitle: normalizePanelText(settings.rulesTitle) || DEFAULT_RULES_TITLE,
+    rulesMessage: normalizePanelText(settings.rulesMessage) || DEFAULT_RULES_MESSAGE,
+    rulesButtonLabel: normalizePanelText(settings.rulesButtonLabel) || DEFAULT_RULES_BUTTON_LABEL,
+    rulesColor: normalizePanelColor(settings.rulesColor),
+    rulesPanelMessageId: normalizeSnowflake(settings.rulesPanelMessageId),
     verificationEnabled: settings.verificationEnabled,
     verificationRoleId: verificationRoleIds[0] ?? null,
     verificationRoleIds,

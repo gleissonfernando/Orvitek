@@ -5,6 +5,7 @@ import { handleGiveawayInteraction } from "../services/giveawayService";
 import { blockInteractionIfMaintenance } from "../services/maintenanceService";
 import { handleEmojiCloneInteraction } from "../services/emojiCloneService";
 import { handleMissionToolsInteraction } from "../services/missionToolsService";
+import { handleRulesInteraction } from "../services/rulesService";
 import { handleServerCloneInteraction } from "../services/serverCloneService";
 import type { BotContext } from "../types";
 
@@ -30,6 +31,10 @@ export async function handleInteractionCreate(interaction: Interaction, context:
   }
 
   if (await handleServerCloneInteraction(interaction, context)) {
+    return;
+  }
+
+  if (interaction.isButton() && await handleRulesInteraction(interaction, context)) {
     return;
   }
 

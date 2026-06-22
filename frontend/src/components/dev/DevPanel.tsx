@@ -72,6 +72,7 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "roles", label: "Sistema de Cargos" },
   { id: "tickets", label: "Sistema de Tickets" },
   { id: "moderation", label: "Sistema de Moderacao" },
+  { id: "rules", label: "Sistema de Regras" },
   { id: "mission-tools", label: "Mission Tools" },
   { id: "voice-recorder", label: "Voice Recorder" },
   { id: "emoji-cloner", label: "Clonagem de Emojis" },
@@ -141,7 +142,7 @@ const botMenuItems: BotMenuItem[] = [
     label: "Moderacao",
     description: "Ban, kick, warn e protecoes",
     icon: ShieldCheck,
-    moduleIds: ["moderation", "safe-bot", "account-age-security"]
+    moduleIds: ["moderation", "rules", "safe-bot", "account-age-security"]
   },
   {
     id: "tickets",
