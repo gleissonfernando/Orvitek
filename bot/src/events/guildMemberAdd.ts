@@ -11,11 +11,14 @@ import type { BotContext } from "../types";
 export async function handleGuildMemberAdd(member: GuildMember, context: BotContext) {
   const welcomeEnabled = isBotModuleEnabled("welcome");
   const rolesEnabled = isBotModuleEnabled("roles");
+  const automaticRolesTask = welcomeEnabled || rolesEnabled
+    ? applyAutomaticRoles(context, member, rolesEnabled).catch((error) => {
+        console.warn("[roles] falha ao aplicar cargos automaticos no evento de entrada:", error instanceof Error ? error.message : error);
+      })
+    : null;
 
   if (isMaintenanceModeActive()) {
-    if (welcomeEnabled || rolesEnabled) {
-      await applyAutomaticRoles(context, member, rolesEnabled);
-    }
+    await automaticRolesTask;
     return;
   }
 
@@ -34,7 +37,7 @@ export async function handleGuildMemberAdd(member: GuildMember, context: BotCont
   const tasks: Promise<unknown>[] = [];
 
   if (isBotModuleEnabled("logs")) tasks.push(logMemberJoin(context, member));
-  if (welcomeEnabled || rolesEnabled) tasks.push(applyAutomaticRoles(context, member, rolesEnabled));
+  if (automaticRolesTask) tasks.push(automaticRolesTask);
   if (welcomeEnabled) tasks.push(sendWelcomeMessage(context, member));
 
   await Promise.allSettled(tasks);

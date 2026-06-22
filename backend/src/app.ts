@@ -1,4 +1,5 @@
 import "./types/session";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import cookieParser from "cookie-parser";
@@ -19,8 +20,11 @@ import { kickWebhookPublicRouter } from "./routes/kickNotifications";
 
 export const app = express();
 const frontendDistPath = path.resolve(__dirname, "../../frontend/dist");
+const frontendIndexPath = path.join(frontendDistPath, "index.html");
 const uploadsPath = path.resolve(__dirname, "../uploads");
 const corsOrigin = env.FRONTEND_URL || true;
+
+ensureFrontendBuild();
 
 if (env.NODE_ENV === "production") {
   app.set("trust proxy", 1);
@@ -78,14 +82,15 @@ app.use(maintenanceMiddleware);
 app.use("/webhooks", kickWebhookPublicRouter);
 app.use("/api", apiRouter);
 
-if (fs.existsSync(frontendDistPath)) {
+if (fs.existsSync(frontendIndexPath)) {
   app.use(express.static(frontendDistPath));
   app.get("*", (_req, res) => {
-    res.sendFile(path.join(frontendDistPath, "index.html"));
+    res.sendFile(frontendIndexPath);
   });
 } else {
-  app.get("/", (_req, res) => {
+  app.get("*", (_req, res) => {
     res.json({
+      message: "Frontend build ausente. Execute npm run build antes de servir o painel.",
       name: "Painel de OrviteK Bots API",
       status: "online"
     });
@@ -93,3 +98,27 @@ if (fs.existsSync(frontendDistPath)) {
 }
 
 app.use(errorHandler);
+
+function ensureFrontendBuild() {
+  if (env.NODE_ENV !== "production" || fs.existsSync(frontendIndexPath)) {
+    return;
+  }
+
+  const frontendPackagePath = path.resolve(__dirname, "../../frontend/package.json");
+
+  if (!fs.existsSync(frontendPackagePath)) {
+    console.warn("[frontend] build ausente e fontes do frontend nao foram encontradas.");
+    return;
+  }
+
+  console.warn("[frontend] build ausente; gerando frontend/dist antes de iniciar rotas.");
+  const result = spawnSync("npm", ["--prefix", "frontend", "run", "build"], {
+    env: process.env,
+    shell: process.platform === "win32",
+    stdio: "inherit"
+  });
+
+  if (result.status !== 0 || !fs.existsSync(frontendIndexPath)) {
+    console.error("[frontend] nao foi possivel gerar frontend/dist/index.html.");
+  }
+}
