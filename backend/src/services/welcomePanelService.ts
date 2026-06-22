@@ -20,18 +20,13 @@ import {
 
 const DISCORD_API_URL = "https://discord.com/api/v10";
 const WELCOME_UPLOAD_DIR = path.resolve(__dirname, "../../uploads/welcome");
-const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=3";
 type MemberPanelMode = "welcome" | "leave";
-type DiscordEmbedPayload = {
-  color: number;
-  description?: string;
-  footer?: {
-    text: string;
+type DiscordMessagePayload = {
+  allowed_mentions: {
+    parse: never[];
   };
-  image?: {
-    url: string;
-  };
-  title?: string;
+  components: Array<Record<string, unknown>>;
+  flags: number;
 };
 
 const MIME_EXTENSIONS: Record<string, string> = {
@@ -109,51 +104,34 @@ function memberPanelDescription({
 
 export function createWelcomePanelEmbeds(settings: GuildSettingsDto, userMention: string) {
   const displayChannelId = settings.welcomeDisplayChannelId ?? settings.welcomeChannelId;
-  const imageUrl = toPublicUrl(settings.welcomeImageUrl ?? DEFAULT_WELCOME_IMAGE_URL);
-  return [
-    createMemberPanelEmbed({
-      description: welcomePanelDescription(settings, userMention, displayChannelId),
-      footerText: settings.welcomeFooterText ?? DEFAULT_WELCOME_FOOTER_TEXT,
-      imageUrl,
-      title: settings.welcomeTitle ?? DEFAULT_WELCOME_TITLE
-    })
-  ];
+  return createMemberPanelPayload(settings, userMention, {
+    channelId: displayChannelId,
+    channelLabel: settings.welcomeChannelLabel,
+    color: settings.welcomeColor,
+    description: settings.welcomeMessage,
+    footerText: settings.welcomeFooterText,
+    imageUrl: settings.welcomeImageUrl,
+    mode: "welcome",
+    rules: settings.welcomeRules,
+    rulesTitle: settings.welcomeRulesTitle,
+    title: settings.welcomeTitle
+  });
 }
 
 export function createLeavePanelEmbed(settings: GuildSettingsDto, userMention: string) {
   const displayChannelId = settings.leaveDisplayChannelId ?? settings.leaveChannelId;
-  const imageUrl = toPublicUrl(settings.leaveImageUrl ?? DEFAULT_WELCOME_IMAGE_URL);
-
-  return createMemberPanelEmbed({
-    description: leavePanelDescription(settings, userMention, displayChannelId),
-    footerText: settings.leaveFooterText ?? DEFAULT_LEAVE_FOOTER_TEXT,
-    imageUrl,
-    title: settings.leaveTitle ?? DEFAULT_LEAVE_TITLE
+  return createMemberPanelPayload(settings, userMention, {
+    channelId: displayChannelId,
+    channelLabel: settings.leaveChannelLabel,
+    color: settings.leaveColor,
+    description: settings.leaveMessage,
+    footerText: settings.leaveFooterText,
+    imageUrl: settings.leaveImageUrl,
+    mode: "leave",
+    rules: settings.leaveRules,
+    rulesTitle: settings.leaveRulesTitle,
+    title: settings.leaveTitle
   });
-}
-
-function createMemberPanelEmbed({
-  description,
-  footerText,
-  imageUrl,
-  title
-}: {
-  description: string;
-  footerText: string;
-  imageUrl: string | null;
-  title: string;
-}): DiscordEmbedPayload {
-  return {
-    color: 0xef4444,
-    title,
-    description,
-    image: imageUrl ? { url: imageUrl } : undefined,
-    footer: footerText.trim()
-      ? {
-          text: footerText.trim()
-        }
-      : undefined
-  };
 }
 
 export async function saveWelcomeImage(guildId: string, buffer: Buffer, mimeType: string) {
@@ -186,7 +164,7 @@ export async function sendWelcomePanelToDiscord(settings: GuildSettingsDto, user
   await sendMemberPanelToDiscord({
     botToken,
     channelId: settings.welcomeChannelId,
-    embeds: createWelcomePanelEmbeds(settings, userMention),
+    payload: createWelcomePanelEmbeds(settings, userMention),
     missingChannelMessage: "Selecione o canal onde o painel sera enviado.",
     testErrorLabel: "boas-vindas"
   });
@@ -196,7 +174,7 @@ export async function sendLeavePanelToDiscord(settings: GuildSettingsDto, userMe
   await sendMemberPanelToDiscord({
     botToken,
     channelId: settings.leaveChannelId,
-    embeds: [createLeavePanelEmbed(settings, userMention)],
+    payload: createLeavePanelEmbed(settings, userMention),
     missingChannelMessage: "Selecione o canal onde o painel de saida sera enviado.",
     testErrorLabel: "saida"
   });
@@ -205,13 +183,13 @@ export async function sendLeavePanelToDiscord(settings: GuildSettingsDto, userMe
 async function sendMemberPanelToDiscord({
   channelId,
   botToken,
-  embeds,
+  payload,
   missingChannelMessage,
   testErrorLabel
 }: {
   channelId: string | null;
   botToken?: string | null;
-  embeds: DiscordEmbedPayload[];
+  payload: DiscordMessagePayload | null;
   missingChannelMessage: string;
   testErrorLabel: string;
 }) {
@@ -225,18 +203,17 @@ async function sendMemberPanelToDiscord({
     throw new Error(missingChannelMessage);
   }
 
+  if (!payload) {
+    throw new Error("Configure titulo, texto, dicas, rodape ou imagem antes de testar.");
+  }
+
   const response = await fetch(`${DISCORD_API_URL}/channels/${channelId}/messages`, {
     method: "POST",
     headers: {
       Authorization: `Bot ${token}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({
-      embeds,
-      allowed_mentions: {
-        parse: []
-      }
-    })
+    body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
@@ -257,11 +234,105 @@ function toPublicUrl(value: string | null) {
   return origin ? `${origin}${value.startsWith("/") ? value : `/${value}`}` : value;
 }
 
+function createMemberPanelPayload(
+  settings: GuildSettingsDto,
+  userMention: string,
+  input: {
+    channelId: string | null;
+    channelLabel: string | null;
+    color: string;
+    description: string | null;
+    footerText: string | null;
+    imageUrl: string | null;
+    mode: MemberPanelMode;
+    rules: string | null;
+    rulesTitle: string | null;
+    title: string | null;
+  }
+): DiscordMessagePayload | null {
+  const variables: Record<"botName" | "channel" | "memberCount" | "server" | "user" | "username", string> = {
+    botName: "Bot",
+    channel: input.channelId ? `<#${input.channelId}>` : "",
+    memberCount: "",
+    server: settings.guildId,
+    user: userMention,
+    username: userMention.replace(/[<@>]/g, "")
+  };
+  const imageUrl = toPublicUrl(input.imageUrl);
+  const title = renderTemplate(input.title, variables);
+  const description = renderTemplate(input.description, variables);
+  const rulesTitle = renderTemplate(input.rulesTitle, variables);
+  const rules = formatRuleLines(renderTemplate(input.rules, variables));
+  const channelLabel = renderTemplate(input.channelLabel, variables);
+  const footerText = renderTemplate(input.footerText, variables);
+  const components: Array<Record<string, unknown>> = [];
+
+  if (imageUrl) {
+    components.push({
+      type: 12,
+      items: [{
+        media: {
+          url: imageUrl
+        },
+        description: `${input.mode} image`
+      }]
+    });
+  }
+
+  for (const content of [
+    title ? `## ${title}` : "",
+    description,
+    rulesTitle || rules.length
+      ? [rulesTitle ? `**${rulesTitle}**` : "", ...rules.map((rule, index) => `**${index + 1}.** ${rule}`)].filter(Boolean).join("\n")
+      : "",
+    channelLabel || input.channelId ? [channelLabel, variables.channel].filter(Boolean).join(" ") : "",
+    footerText ? `-# ${footerText}` : ""
+  ]) {
+    if (content) {
+      components.push({
+        type: 10,
+        content
+      });
+    }
+  }
+
+  if (!components.length) {
+    return null;
+  }
+
+  return {
+    allowed_mentions: {
+      parse: []
+    },
+    components: [{
+      type: 17,
+      accent_color: parseColor(input.color),
+      components
+    }],
+    flags: 32768
+  };
+}
+
+function renderTemplate(value: string | null | undefined, variables: Record<"botName" | "channel" | "memberCount" | "server" | "user" | "username", string>) {
+  const template = value?.trim() ?? "";
+  return template
+    .replace(/\{user\}/gi, variables.user)
+    .replace(/\{username\}/gi, variables.username)
+    .replace(/\{server\}/gi, variables.server)
+    .replace(/\{memberCount\}/gi, variables.memberCount)
+    .replace(/\{botName\}/gi, variables.botName)
+    .replace(/\{channel\}/gi, variables.channel);
+}
+
+function parseColor(value: string) {
+  return Number.parseInt(value.replace("#", ""), 16) || 0xef4444;
+}
+
 function formatPanelMessage(message: string | null, userMention: string, fallback: string) {
   return (message?.trim() || fallback).replace(/\{user\}/gi, userMention);
 }
 
-function formatRuleLines(rules: string | null, fallback: string) {
+function formatRuleLines(rules: string | null, fallback = "") {
   return (rules?.trim() || fallback)
     .split(/\r?\n/)
     .map((rule) => rule.replace(/^\s*(?:\d+[.)-]\s*|\*\*\d+[.)-]?\*\*\s*)/, "").trim())

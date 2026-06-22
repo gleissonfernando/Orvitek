@@ -46,6 +46,7 @@ export type MongoGuildSettings = {
   welcomeRules?: string | null;
   welcomeChannelLabel?: string | null;
   welcomeFooterText?: string | null;
+  welcomeColor?: string | null;
   leaveEnabled?: boolean;
   leaveChannelId?: string | null;
   leaveDisplayChannelId?: string | null;
@@ -56,6 +57,7 @@ export type MongoGuildSettings = {
   leaveRules?: string | null;
   leaveChannelLabel?: string | null;
   leaveFooterText?: string | null;
+  leaveColor?: string | null;
   autoRoleEnabled: boolean;
   autoRoleIds: string[];
   twitchRoleId: string | null;

@@ -38,7 +38,6 @@ type WelcomePanelProps = {
   viewerName: string;
 };
 
-const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=3";
 const DEFAULT_WELCOME_TITLE = "OrviteK";
 const DEFAULT_WELCOME_MESSAGE = [
   "Seja bem-vindo(a), {user}, \u00e0 nossa comunidade de lives.",
@@ -73,6 +72,7 @@ const DEFAULT_LEAVE_FOOTER_TEXT = "OrviteK - Comunidade de lives";
 const panelConfig = {
   welcome: {
     channelKey: "welcomeChannelId",
+    colorKey: "welcomeColor",
     description: "Mensagem automatica quando alguem entra.",
     displayChannelKey: "welcomeDisplayChannelId",
     enabledKey: "welcomeEnabled",
@@ -101,6 +101,7 @@ const panelConfig = {
   },
   leave: {
     channelKey: "leaveChannelId",
+    colorKey: "leaveColor",
     description: "Mensagem automatica quando alguem sai.",
     displayChannelKey: "leaveDisplayChannelId",
     enabledKey: "leaveEnabled",
@@ -131,6 +132,7 @@ const panelConfig = {
   MemberPanelMode,
   {
     channelKey: "welcomeChannelId" | "leaveChannelId";
+    colorKey: "welcomeColor" | "leaveColor";
     description: string;
     displayChannelKey: "welcomeDisplayChannelId" | "leaveDisplayChannelId";
     enabledKey: "welcomeEnabled" | "leaveEnabled";
@@ -172,15 +174,24 @@ export function WelcomePanel({
   const config = panelConfig[mode];
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [channels, setChannels] = useState<GuildChannelOption[]>([]);
+  const [channelLabelInput, setChannelLabelInput] = useState("");
+  const [colorInput, setColorInput] = useState("#ef4444");
+  const [footerInput, setFooterInput] = useState("");
   const [imageInput, setImageInput] = useState("");
   const [messageInput, setMessageInput] = useState("");
+  const [rulesInput, setRulesInput] = useState("");
+  const [rulesTitleInput, setRulesTitleInput] = useState("");
+  const [titleInput, setTitleInput] = useState("");
   const [loadingChannels, setLoadingChannels] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const imageUrl = useMemo(
-    () => resolveAssetUrl(settings?.[config.imageKey] ?? DEFAULT_WELCOME_IMAGE_URL),
+    () => {
+      const value = settings?.[config.imageKey]?.trim();
+      return value ? resolveAssetUrl(value) : "";
+    },
     [config.imageKey, settings]
   );
   const enabled = Boolean(settings?.[config.enabledKey]);
@@ -206,8 +217,14 @@ export function WelcomePanel({
   }, [config.imageKey, settings]);
 
   useEffect(() => {
-    setMessageInput(settings?.[config.messageKey]?.trim() || config.defaultMessage);
-  }, [config.defaultMessage, config.messageKey, settings]);
+    setTitleInput(settings?.[config.embedTitleKey]?.trim() ?? "");
+    setMessageInput(settings?.[config.messageKey]?.trim() ?? "");
+    setRulesTitleInput(settings?.[config.rulesTitleKey]?.trim() ?? "");
+    setRulesInput(settings?.[config.rulesKey]?.trim() ?? "");
+    setChannelLabelInput(settings?.[config.channelLabelKey]?.trim() ?? "");
+    setFooterInput(settings?.[config.footerTextKey]?.trim() ?? "");
+    setColorInput(settings?.[config.colorKey]?.trim() || "#ef4444");
+  }, [config.channelLabelKey, config.colorKey, config.embedTitleKey, config.footerTextKey, config.messageKey, config.rulesKey, config.rulesTitleKey, settings]);
 
   async function savePatch(payload: Partial<GuildSettings>, key: string, successText = "Alteracao salva.") {
     if (!guild || !settings || !canManage) {
@@ -242,23 +259,16 @@ export function WelcomePanel({
     );
   }
 
-  async function handleMessageSave(message = messageInput) {
-    const nextMessage = message.trim();
-
-    if (!nextMessage) {
-      setStatus(null);
-      setError("Escreva a mensagem antes de salvar.");
-      return;
-    }
-
+  async function handleMessageSave() {
     await savePatch(
       {
-        [config.embedTitleKey]: config.defaultTitle,
-        [config.messageKey]: nextMessage,
-        [config.rulesTitleKey]: config.defaultRulesTitle,
-        [config.rulesKey]: config.defaultRules,
-        [config.channelLabelKey]: config.defaultChannelLabel,
-        [config.footerTextKey]: config.defaultFooterText
+        [config.embedTitleKey]: titleInput.trim(),
+        [config.messageKey]: messageInput.trim(),
+        [config.rulesTitleKey]: rulesTitleInput.trim(),
+        [config.rulesKey]: rulesInput.trim(),
+        [config.channelLabelKey]: channelLabelInput.trim(),
+        [config.footerTextKey]: footerInput.trim(),
+        [config.colorKey]: colorInput
       } as Partial<GuildSettings>,
       "message",
       config.savedMessageText
@@ -266,8 +276,13 @@ export function WelcomePanel({
   }
 
   function handleMessageReset() {
+    setTitleInput(config.defaultTitle);
     setMessageInput(config.defaultMessage);
-    void handleMessageSave(config.defaultMessage);
+    setRulesTitleInput(config.defaultRulesTitle);
+    setRulesInput(config.defaultRules);
+    setChannelLabelInput(config.defaultChannelLabel);
+    setFooterInput(config.defaultFooterText);
+    setColorInput("#ef4444");
   }
 
   async function handleImageFile(file: File | undefined) {
@@ -316,6 +331,11 @@ export function WelcomePanel({
     }
 
     await savePatch({ [config.imageKey]: nextImageUrl } as Partial<GuildSettings>, "imageUrl", config.savedImageText);
+  }
+
+  async function handleImageRemove() {
+    setImageInput("");
+    await savePatch({ [config.imageKey]: null } as Partial<GuildSettings>, "imageUrl", "Imagem removida.");
   }
 
   async function handleTest() {
@@ -414,10 +434,40 @@ export function WelcomePanel({
             </select>
           </label>
 
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block space-y-2">
+              <span className="flex items-center gap-2 text-sm font-medium text-zinc-100">
+                <MessageSquareText className="h-4 w-4 text-zinc-400" />
+                Titulo
+              </span>
+              <input
+                className="h-11 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-zinc-600 disabled:opacity-50"
+                disabled={!canManage || saving === "message"}
+                maxLength={120}
+                onChange={(event) => setTitleInput(event.target.value)}
+                placeholder={config.defaultTitle}
+                value={titleInput}
+              />
+            </label>
+            <label className="block space-y-2">
+              <span className="flex items-center gap-2 text-sm font-medium text-zinc-100">
+                <ImageIcon className="h-4 w-4 text-zinc-400" />
+                Cor da lateral
+              </span>
+              <input
+                className="h-11 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition focus:border-zinc-600 disabled:opacity-50"
+                disabled={!canManage || saving === "message"}
+                onChange={(event) => setColorInput(event.target.value)}
+                type="color"
+                value={colorInput}
+              />
+            </label>
+          </div>
+
           <label className="block space-y-2">
             <span className="flex items-center gap-2 text-sm font-medium text-zinc-100">
               <MessageSquareText className="h-4 w-4 text-zinc-400" />
-              Mensagem
+              Descricao
             </span>
             <textarea
               className="min-h-36 w-full resize-y rounded-lg border border-zinc-800 bg-black px-3 py-3 text-sm leading-6 text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-zinc-600 disabled:opacity-50"
@@ -426,6 +476,55 @@ export function WelcomePanel({
               onChange={(event) => setMessageInput(event.target.value)}
               placeholder="Mensagem com {user}"
               value={messageInput}
+            />
+          </label>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-zinc-100">Titulo das dicas/regras</span>
+              <input
+                className="h-11 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-zinc-600 disabled:opacity-50"
+                disabled={!canManage || saving === "message"}
+                maxLength={120}
+                onChange={(event) => setRulesTitleInput(event.target.value)}
+                placeholder={config.defaultRulesTitle}
+                value={rulesTitleInput}
+              />
+            </label>
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-zinc-100">Texto do canal/botao</span>
+              <input
+                className="h-11 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-zinc-600 disabled:opacity-50"
+                disabled={!canManage || saving === "message"}
+                maxLength={120}
+                onChange={(event) => setChannelLabelInput(event.target.value)}
+                placeholder={config.defaultChannelLabel}
+                value={channelLabelInput}
+              />
+            </label>
+          </div>
+
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-zinc-100">Dicas/regras</span>
+            <textarea
+              className="min-h-32 w-full resize-y rounded-lg border border-zinc-800 bg-black px-3 py-3 text-sm leading-6 text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-zinc-600 disabled:opacity-50"
+              disabled={!canManage || saving === "message"}
+              maxLength={1500}
+              onChange={(event) => setRulesInput(event.target.value)}
+              placeholder={config.defaultRules}
+              value={rulesInput}
+            />
+          </label>
+
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-zinc-100">Rodape</span>
+            <input
+              className="h-11 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-zinc-600 disabled:opacity-50"
+              disabled={!canManage || saving === "message"}
+              maxLength={180}
+              onChange={(event) => setFooterInput(event.target.value)}
+              placeholder={config.defaultFooterText}
+              value={footerInput}
             />
           </label>
 
@@ -465,6 +564,9 @@ export function WelcomePanel({
                 {saving === "image" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                 Enviar
               </Button>
+              <Button disabled={!canManage || !settings?.[config.imageKey] || saving === "imageUrl"} onClick={() => void handleImageRemove()} type="button" variant="outline">
+                Remover
+              </Button>
             </div>
             <input
               accept="image/gif,image/png,image/jpeg,image/webp"
@@ -485,14 +587,15 @@ export function WelcomePanel({
         </div>
 
         <SimplePanelPreview
-          channelLabel={settings?.[config.channelLabelKey]?.trim() || config.defaultChannelLabel}
+          channelLabel={channelLabelInput.trim()}
           channelName={destinationChannel?.name ?? "canal"}
-          footerText={settings?.[config.footerTextKey]?.trim() || config.defaultFooterText}
+          color={colorInput}
+          footerText={footerInput.trim()}
           imageUrl={imageUrl}
-          message={messageInput.trim() || config.defaultMessage}
-          rules={settings?.[config.rulesKey]?.trim() || config.defaultRules}
-          rulesTitle={settings?.[config.rulesTitleKey]?.trim() || config.defaultRulesTitle}
-          title={settings?.[config.embedTitleKey]?.trim() || config.defaultTitle}
+          message={messageInput.trim()}
+          rules={rulesInput.trim()}
+          rulesTitle={rulesTitleInput.trim()}
+          title={titleInput.trim()}
           viewerName={viewerName}
         />
       </CardContent>
@@ -503,6 +606,7 @@ export function WelcomePanel({
 function SimplePanelPreview({
   channelLabel,
   channelName,
+  color,
   footerText,
   imageUrl,
   message,
@@ -513,6 +617,7 @@ function SimplePanelPreview({
 }: {
   channelLabel: string;
   channelName: string;
+  color: string;
   footerText: string;
   imageUrl: string;
   message: string;
@@ -525,32 +630,36 @@ function SimplePanelPreview({
 
   return (
     <aside className="space-y-2 rounded-lg border border-zinc-800 bg-[#313338] p-3">
-      <div className="overflow-hidden rounded border-l-4 border-red-500 bg-[#2b2d31]">
-        <img alt="" className="mx-auto aspect-[16/9] w-full border-b border-zinc-700/60 object-cover" src={imageUrl} />
+      <div className="overflow-hidden rounded border-l-4 bg-[#2b2d31]" style={{ borderLeftColor: color }}>
+        {imageUrl ? <img alt="" className="mx-auto aspect-[16/9] w-full border-b border-zinc-700/60 object-cover" src={imageUrl} /> : null}
         <div className="space-y-5 p-4">
-          <p className="break-words text-lg font-semibold leading-7 text-white">{title}</p>
-          <PanelMessage className="whitespace-pre-line break-words text-sm leading-6 text-zinc-100" message={message} viewerName={viewerName} />
+          {title ? <p className="break-words text-lg font-semibold leading-7 text-white">{title}</p> : null}
+          {message ? <PanelMessage className="whitespace-pre-line break-words text-sm leading-6 text-zinc-100" message={message} viewerName={viewerName} /> : null}
 
-          <div className="space-y-2">
-            <p className="text-sm font-semibold text-white">{rulesTitle}</p>
-            <ol className="space-y-1 text-sm leading-6 text-zinc-200">
-              {ruleItems.map((rule, index) => (
-                <li className="grid grid-cols-[1.6rem_minmax(0,1fr)] gap-2" key={`${rule}-${index}`}>
-                  <span className="font-semibold text-zinc-100">{index + 1}.</span>
-                  <span className="break-words">{rule}</span>
-                </li>
-              ))}
-            </ol>
-          </div>
+          {rulesTitle || ruleItems.length ? (
+            <div className="space-y-2">
+              {rulesTitle ? <p className="text-sm font-semibold text-white">{rulesTitle}</p> : null}
+              <ol className="space-y-1 text-sm leading-6 text-zinc-200">
+                {ruleItems.map((rule, index) => (
+                  <li className="grid grid-cols-[1.6rem_minmax(0,1fr)] gap-2" key={`${rule}-${index}`}>
+                    <span className="font-semibold text-zinc-100">{index + 1}.</span>
+                    <span className="break-words">{rule}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ) : null}
 
-          <div className="flex items-center gap-2 rounded border border-zinc-700/70 bg-[#232428] px-3 py-2 text-sm text-zinc-200">
-            <span aria-hidden="true">{"\u{1F517}"}</span>
-            <span className="min-w-0 truncate">
-              {channelLabel} <span className="font-medium text-zinc-100">#{channelName}</span>
-            </span>
-          </div>
+          {channelLabel ? (
+            <div className="flex items-center gap-2 rounded border border-zinc-700/70 bg-[#232428] px-3 py-2 text-sm text-zinc-200">
+              <span aria-hidden="true">{"\u{1F517}"}</span>
+              <span className="min-w-0 truncate">
+                {channelLabel} <span className="font-medium text-zinc-100">#{channelName}</span>
+              </span>
+            </div>
+          ) : null}
         </div>
-        <footer className="border-t border-zinc-700/60 px-4 py-3 text-xs text-zinc-400">{footerText}</footer>
+        {footerText ? <footer className="border-t border-zinc-700/60 px-4 py-3 text-xs text-zinc-400">{footerText}</footer> : null}
       </div>
     </aside>
   );

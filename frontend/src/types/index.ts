@@ -121,6 +121,7 @@ export type GuildSettings = {
   welcomeRules: string | null;
   welcomeChannelLabel: string | null;
   welcomeFooterText: string | null;
+  welcomeColor: string;
   leaveEnabled: boolean;
   leaveChannelId: string | null;
   leaveDisplayChannelId: string | null;
@@ -131,6 +132,7 @@ export type GuildSettings = {
   leaveRules: string | null;
   leaveChannelLabel: string | null;
   leaveFooterText: string | null;
+  leaveColor: string;
   autoRoleEnabled: boolean;
   autoRoleIds: string[];
   twitchRoleId: string | null;

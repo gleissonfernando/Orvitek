@@ -18,6 +18,7 @@ export type GuildSettingsDto = {
   welcomeRules: string | null;
   welcomeChannelLabel: string | null;
   welcomeFooterText: string | null;
+  welcomeColor: string;
   leaveEnabled: boolean;
   leaveChannelId: string | null;
   leaveDisplayChannelId: string | null;
@@ -28,6 +29,7 @@ export type GuildSettingsDto = {
   leaveRules: string | null;
   leaveChannelLabel: string | null;
   leaveFooterText: string | null;
+  leaveColor: string;
   autoRoleEnabled: boolean;
   autoRoleIds: string[];
   twitchRoleId: string | null;
@@ -82,7 +84,7 @@ export type PersistedDashboardAccess = {
 };
 
 const memorySettings = new Map<string, GuildSettingsDto>();
-const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=3";
+const DEFAULT_PANEL_COLOR = "#ef4444";
 const PREVIOUS_WELCOME_MESSAGE = [
   "Seja bem-vindo(a), {user}, a nossa comunidade de lives.",
   "Aqui a galera acompanha transmissoes, eventos da comunidade, avisos e momentos ao vivo juntos."
@@ -141,23 +143,25 @@ export function defaultSettings(guildId: string, botId: string | null = null): G
     welcomeEnabled: true,
     welcomeChannelId: null,
     welcomeDisplayChannelId: null,
-    welcomeImageUrl: DEFAULT_WELCOME_IMAGE_URL,
-    welcomeTitle: DEFAULT_WELCOME_TITLE,
-    welcomeMessage: DEFAULT_WELCOME_MESSAGE,
-    welcomeRulesTitle: DEFAULT_WELCOME_RULES_TITLE,
-    welcomeRules: DEFAULT_WELCOME_RULES,
-    welcomeChannelLabel: DEFAULT_WELCOME_CHANNEL_LABEL,
-    welcomeFooterText: DEFAULT_WELCOME_FOOTER_TEXT,
+    welcomeImageUrl: null,
+    welcomeTitle: "",
+    welcomeMessage: "",
+    welcomeRulesTitle: "",
+    welcomeRules: "",
+    welcomeChannelLabel: "",
+    welcomeFooterText: "",
+    welcomeColor: DEFAULT_PANEL_COLOR,
     leaveEnabled: true,
     leaveChannelId: null,
     leaveDisplayChannelId: null,
-    leaveImageUrl: DEFAULT_WELCOME_IMAGE_URL,
-    leaveTitle: DEFAULT_LEAVE_TITLE,
-    leaveMessage: DEFAULT_LEAVE_MESSAGE,
-    leaveRulesTitle: DEFAULT_LEAVE_RULES_TITLE,
-    leaveRules: DEFAULT_LEAVE_RULES,
-    leaveChannelLabel: DEFAULT_LEAVE_CHANNEL_LABEL,
-    leaveFooterText: DEFAULT_LEAVE_FOOTER_TEXT,
+    leaveImageUrl: null,
+    leaveTitle: "",
+    leaveMessage: "",
+    leaveRulesTitle: "",
+    leaveRules: "",
+    leaveChannelLabel: "",
+    leaveFooterText: "",
+    leaveColor: DEFAULT_PANEL_COLOR,
     autoRoleEnabled: false,
     autoRoleIds: [],
     twitchRoleId: null,
@@ -327,58 +331,20 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
     ),
     emojiCloneAllowedBotIds,
     autoRoleIds,
-    welcomeTitle: normalizePanelText(
-      "welcomeTitle" in input ? input.welcomeTitle : current.welcomeTitle,
-      DEFAULT_WELCOME_TITLE
-    ),
-    welcomeMessage: normalizePanelMessage(
-      "welcomeMessage" in input ? input.welcomeMessage : current.welcomeMessage,
-      DEFAULT_WELCOME_MESSAGE,
-      [LEGACY_WELCOME_MESSAGE, PREVIOUS_WELCOME_MESSAGE]
-    ),
-    welcomeRulesTitle: normalizePanelText(
-      "welcomeRulesTitle" in input ? input.welcomeRulesTitle : current.welcomeRulesTitle,
-      DEFAULT_WELCOME_RULES_TITLE
-    ),
-    welcomeRules: normalizePanelText(
-      "welcomeRules" in input ? input.welcomeRules : current.welcomeRules,
-      DEFAULT_WELCOME_RULES,
-      [PREVIOUS_WELCOME_RULES]
-    ),
-    welcomeChannelLabel: normalizePanelText(
-      "welcomeChannelLabel" in input ? input.welcomeChannelLabel : current.welcomeChannelLabel,
-      DEFAULT_WELCOME_CHANNEL_LABEL
-    ),
-    welcomeFooterText: normalizePanelText(
-      "welcomeFooterText" in input ? input.welcomeFooterText : current.welcomeFooterText,
-      DEFAULT_WELCOME_FOOTER_TEXT,
-      [PREVIOUS_WELCOME_FOOTER_TEXT]
-    ),
-    leaveTitle: normalizePanelText(
-      "leaveTitle" in input ? input.leaveTitle : current.leaveTitle,
-      DEFAULT_LEAVE_TITLE
-    ),
-    leaveMessage: normalizePanelMessage(
-      "leaveMessage" in input ? input.leaveMessage : current.leaveMessage,
-      DEFAULT_LEAVE_MESSAGE,
-      LEGACY_LEAVE_MESSAGE
-    ),
-    leaveRulesTitle: normalizePanelText(
-      "leaveRulesTitle" in input ? input.leaveRulesTitle : current.leaveRulesTitle,
-      DEFAULT_LEAVE_RULES_TITLE
-    ),
-    leaveRules: normalizePanelText(
-      "leaveRules" in input ? input.leaveRules : current.leaveRules,
-      DEFAULT_LEAVE_RULES
-    ),
-    leaveChannelLabel: normalizePanelText(
-      "leaveChannelLabel" in input ? input.leaveChannelLabel : current.leaveChannelLabel,
-      DEFAULT_LEAVE_CHANNEL_LABEL
-    ),
-    leaveFooterText: normalizePanelText(
-      "leaveFooterText" in input ? input.leaveFooterText : current.leaveFooterText,
-      DEFAULT_LEAVE_FOOTER_TEXT
-    ),
+    welcomeTitle: normalizePanelText("welcomeTitle" in input ? input.welcomeTitle : current.welcomeTitle),
+    welcomeMessage: normalizePanelMessage("welcomeMessage" in input ? input.welcomeMessage : current.welcomeMessage),
+    welcomeRulesTitle: normalizePanelText("welcomeRulesTitle" in input ? input.welcomeRulesTitle : current.welcomeRulesTitle),
+    welcomeRules: normalizePanelText("welcomeRules" in input ? input.welcomeRules : current.welcomeRules),
+    welcomeChannelLabel: normalizePanelText("welcomeChannelLabel" in input ? input.welcomeChannelLabel : current.welcomeChannelLabel),
+    welcomeFooterText: normalizePanelText("welcomeFooterText" in input ? input.welcomeFooterText : current.welcomeFooterText),
+    welcomeColor: normalizePanelColor("welcomeColor" in input ? input.welcomeColor : current.welcomeColor),
+    leaveTitle: normalizePanelText("leaveTitle" in input ? input.leaveTitle : current.leaveTitle),
+    leaveMessage: normalizePanelMessage("leaveMessage" in input ? input.leaveMessage : current.leaveMessage),
+    leaveRulesTitle: normalizePanelText("leaveRulesTitle" in input ? input.leaveRulesTitle : current.leaveRulesTitle),
+    leaveRules: normalizePanelText("leaveRules" in input ? input.leaveRules : current.leaveRules),
+    leaveChannelLabel: normalizePanelText("leaveChannelLabel" in input ? input.leaveChannelLabel : current.leaveChannelLabel),
+    leaveFooterText: normalizePanelText("leaveFooterText" in input ? input.leaveFooterText : current.leaveFooterText),
+    leaveColor: normalizePanelColor("leaveColor" in input ? input.leaveColor : current.leaveColor),
     verificationRoleIds,
     dashboardRolePermissions,
     dashboardUserPermissions,
@@ -409,6 +375,7 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
           welcomeRules: next.welcomeRules,
           welcomeChannelLabel: next.welcomeChannelLabel,
           welcomeFooterText: next.welcomeFooterText,
+          welcomeColor: next.welcomeColor,
           leaveEnabled: next.leaveEnabled,
           leaveChannelId: next.leaveChannelId,
           leaveDisplayChannelId: next.leaveDisplayChannelId,
@@ -419,6 +386,7 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
           leaveRules: next.leaveRules,
           leaveChannelLabel: next.leaveChannelLabel,
           leaveFooterText: next.leaveFooterText,
+          leaveColor: next.leaveColor,
           autoRoleEnabled: next.autoRoleEnabled,
           autoRoleIds: next.autoRoleIds,
           twitchRoleId: next.twitchRoleId,
@@ -494,30 +462,24 @@ function toDto(settings: MongoGuildSettings): GuildSettingsDto {
     welcomeChannelId: settings.welcomeChannelId,
     welcomeDisplayChannelId: settings.welcomeDisplayChannelId ?? null,
     welcomeImageUrl: normalizeWelcomeImageUrl(settings.welcomeImageUrl),
-    welcomeTitle: normalizePanelText(settings.welcomeTitle, DEFAULT_WELCOME_TITLE),
-    welcomeMessage: normalizePanelMessage(
-      settings.welcomeMessage,
-      DEFAULT_WELCOME_MESSAGE,
-      [LEGACY_WELCOME_MESSAGE, PREVIOUS_WELCOME_MESSAGE]
-    ),
-    welcomeRulesTitle: normalizePanelText(settings.welcomeRulesTitle, DEFAULT_WELCOME_RULES_TITLE),
-    welcomeRules: normalizePanelText(settings.welcomeRules, DEFAULT_WELCOME_RULES, [PREVIOUS_WELCOME_RULES]),
-    welcomeChannelLabel: normalizePanelText(settings.welcomeChannelLabel, DEFAULT_WELCOME_CHANNEL_LABEL),
-    welcomeFooterText: normalizePanelText(settings.welcomeFooterText, DEFAULT_WELCOME_FOOTER_TEXT, [PREVIOUS_WELCOME_FOOTER_TEXT]),
+    welcomeTitle: normalizePanelText(settings.welcomeTitle),
+    welcomeMessage: normalizePanelMessage(settings.welcomeMessage),
+    welcomeRulesTitle: normalizePanelText(settings.welcomeRulesTitle),
+    welcomeRules: normalizePanelText(settings.welcomeRules),
+    welcomeChannelLabel: normalizePanelText(settings.welcomeChannelLabel),
+    welcomeFooterText: normalizePanelText(settings.welcomeFooterText),
+    welcomeColor: normalizePanelColor(settings.welcomeColor),
     leaveEnabled: settings.leaveEnabled ?? defaults.leaveEnabled,
     leaveChannelId: settings.leaveChannelId ?? defaults.leaveChannelId,
     leaveDisplayChannelId: settings.leaveDisplayChannelId ?? defaults.leaveDisplayChannelId,
     leaveImageUrl: normalizeWelcomeImageUrl(settings.leaveImageUrl ?? defaults.leaveImageUrl),
-    leaveTitle: normalizePanelText(settings.leaveTitle, DEFAULT_LEAVE_TITLE),
-    leaveMessage: normalizePanelMessage(
-      settings.leaveMessage,
-      DEFAULT_LEAVE_MESSAGE,
-      LEGACY_LEAVE_MESSAGE
-    ),
-    leaveRulesTitle: normalizePanelText(settings.leaveRulesTitle, DEFAULT_LEAVE_RULES_TITLE),
-    leaveRules: normalizePanelText(settings.leaveRules, DEFAULT_LEAVE_RULES),
-    leaveChannelLabel: normalizePanelText(settings.leaveChannelLabel, DEFAULT_LEAVE_CHANNEL_LABEL),
-    leaveFooterText: normalizePanelText(settings.leaveFooterText, DEFAULT_LEAVE_FOOTER_TEXT),
+    leaveTitle: normalizePanelText(settings.leaveTitle),
+    leaveMessage: normalizePanelMessage(settings.leaveMessage),
+    leaveRulesTitle: normalizePanelText(settings.leaveRulesTitle),
+    leaveRules: normalizePanelText(settings.leaveRules),
+    leaveChannelLabel: normalizePanelText(settings.leaveChannelLabel),
+    leaveFooterText: normalizePanelText(settings.leaveFooterText),
+    leaveColor: normalizePanelColor(settings.leaveColor),
     autoRoleEnabled: settings.autoRoleEnabled,
     autoRoleIds: normalizeRoleIds(settings.autoRoleIds ?? []).slice(0, MAX_AUTOMATIC_ROLES),
     twitchRoleId: settings.twitchRoleId,
@@ -698,18 +660,21 @@ function createSettingsPersistenceError(cause: unknown) {
 }
 
 function normalizeWelcomeImageUrl(value: string | null | undefined) {
-  return !value || value === "/uploads/welcome/default.gif" ? DEFAULT_WELCOME_IMAGE_URL : value;
+  const normalized = value?.trim();
+  return !normalized || normalized.startsWith("/uploads/welcome/default.gif") ? null : normalized;
 }
 
-function normalizePanelMessage(value: string | null | undefined, fallback: string, legacyValue: string | string[]) {
-  const normalized = value?.trim();
-  const legacyValues = Array.isArray(legacyValue) ? legacyValue : [legacyValue];
-  return !normalized || legacyValues.includes(normalized) ? fallback : normalized;
+function normalizePanelMessage(value: string | null | undefined) {
+  return value?.trim() ?? "";
 }
 
-function normalizePanelText(value: string | null | undefined, fallback: string, legacyValues: string[] = []) {
+function normalizePanelText(value: string | null | undefined) {
+  return value?.trim() ?? "";
+}
+
+function normalizePanelColor(value: string | null | undefined) {
   const normalized = value?.trim();
-  return !normalized || legacyValues.includes(normalized) ? fallback : normalized;
+  return normalized && /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : DEFAULT_PANEL_COLOR;
 }
 
 function normalizeBotId(botId: string | null | undefined) {

@@ -1,40 +1,39 @@
-import { EmbedBuilder, type GuildMember, type PartialGuildMember } from "discord.js";
+import {
+  ContainerBuilder,
+  MediaGalleryBuilder,
+  MediaGalleryItemBuilder,
+  MessageFlags,
+  TextDisplayBuilder,
+  type GuildMember,
+  type PartialGuildMember
+} from "discord.js";
 import { env } from "../config/env";
 import type { BotContext } from "../types";
 import { getCachedGuildSettings } from "./guildSettingsCache";
 
-const DEFAULT_WELCOME_IMAGE_URL = "/uploads/welcome/default.gif?v=3";
-const DEFAULT_WELCOME_TITLE = "OrviteK";
-const DEFAULT_WELCOME_MESSAGE = [
-  "Seja bem-vindo(a), {user}, \u00e0 nossa comunidade de lives.",
-  "Aqui a galera acompanha transmiss\u00f5es, eventos da comunidade, avisos e momentos ao vivo juntos."
-].join("\n");
-const DEFAULT_WELCOME_RULES_TITLE = "Algumas dicas:";
-const DEFAULT_WELCOME_RULES = [
-  "Leia as regras antes de participar.",
-  "Aguarde os avisos oficiais de lives e eventos.",
-  "Respeite streamers, espectadores e moderadores.",
-  "N\u00e3o divulgue links ou canais sem autoriza\u00e7\u00e3o.",
-  "Converse, fa\u00e7a amizades e aproveite sua estadia."
-].join("\n");
-const DEFAULT_WELCOME_CHANNEL_LABEL = "Acesse o canal:";
-const DEFAULT_WELCOME_FOOTER_TEXT = "OrviteK - Comunidade de Lives";
-const LEGACY_WELCOME_FOOTER_TEXT = "OrviteK - Comunidade de lives";
-const DEFAULT_LEAVE_TITLE = "OrviteK";
-const DEFAULT_LEAVE_MESSAGE = [
-  "Ate mais, {user}. Obrigado por ter feito parte da nossa comunidade de lives.",
-  "As portas continuam abertas para quando quiser voltar e acompanhar as transmissoes com a galera."
-].join("\n");
-const DEFAULT_LEAVE_RULES_TITLE = "Registro de saida:";
-const DEFAULT_LEAVE_RULES = [
-  "A saida foi registrada automaticamente pelo bot.",
-  "Os canais oficiais continuam disponiveis para a comunidade.",
-  "Respeite as regras se decidir retornar ao servidor.",
-  "A equipe segue por aqui para organizar eventos e avisos.",
-  "Valeu pela passagem e ate a proxima."
-].join("\n");
-const DEFAULT_LEAVE_CHANNEL_LABEL = "Canal da comunidade:";
-const DEFAULT_LEAVE_FOOTER_TEXT = "OrviteK - Comunidade de lives";
+type MemberPanelMode = "welcome" | "leave";
+
+type MemberPanelInput = {
+  channelId: string | null;
+  channelLabel: string | null;
+  color: string;
+  description: string | null;
+  footerText: string | null;
+  imageUrl: string | null;
+  mode: MemberPanelMode;
+  rules: string | null;
+  rulesTitle: string | null;
+  title: string | null;
+};
+
+type VariableContext = {
+  botName: string;
+  channel: string;
+  memberCount: string;
+  server: string;
+  user: string;
+  username: string;
+};
 
 export async function sendWelcomeMessage(context: BotContext, member: GuildMember) {
   const settings = await getCachedGuildSettings(context, member.guild.id, member.client.user.id).catch(() => null);
@@ -45,20 +44,30 @@ export async function sendWelcomeMessage(context: BotContext, member: GuildMembe
 
   const channel = await resolveTextChannel(member, settings.welcomeChannelId);
 
-  if (!channel) {
+  if (!channel?.isSendable()) {
     return;
   }
 
   const displayChannelId = settings.welcomeDisplayChannelId ?? settings.welcomeChannelId;
-  const imageUrl = resolveImageUrl(settings.welcomeImageUrl ?? DEFAULT_WELCOME_IMAGE_URL);
-  const embed = createWelcomeMessageEmbed(settings, `<@${member.id}>`, displayChannelId, imageUrl);
-
-  await channel.send({
-    allowedMentions: {
-      parse: []
-    },
-    embeds: [embed]
+  const variables = panelVariables(member, displayChannelId);
+  const payload = createMemberPanelPayload(variables, {
+    channelId: displayChannelId,
+    channelLabel: settings.welcomeChannelLabel,
+    color: settings.welcomeColor,
+    description: settings.welcomeMessage,
+    footerText: settings.welcomeFooterText,
+    imageUrl: settings.welcomeImageUrl,
+    mode: "welcome",
+    rules: settings.welcomeRules,
+    rulesTitle: settings.welcomeRulesTitle,
+    title: settings.welcomeTitle
   });
+
+  if (!payload) {
+    return;
+  }
+
+  await channel.send(payload);
 }
 
 export async function sendLeaveMessage(context: BotContext, member: GuildMember | PartialGuildMember) {
@@ -70,151 +79,128 @@ export async function sendLeaveMessage(context: BotContext, member: GuildMember 
 
   const channel = await resolveTextChannel(member, settings.leaveChannelId);
 
-  if (!channel) {
+  if (!channel?.isSendable()) {
     return;
   }
 
   const displayChannelId = settings.leaveDisplayChannelId ?? settings.leaveChannelId;
-  const imageUrl = resolveImageUrl(settings.leaveImageUrl ?? DEFAULT_WELCOME_IMAGE_URL);
-  const embed = createLeaveMessageEmbed(settings, `<@${member.id}>`, displayChannelId, imageUrl);
-
-  await channel.send({
-    allowedMentions: {
-      parse: []
-    },
-    embeds: [embed]
-  });
-}
-
-function welcomePanelDescription(
-  settings: Awaited<ReturnType<BotContext["api"]["getSettings"]>>,
-  userMention: string,
-  channelId: string | null
-) {
-  return memberPanelDescription({
-    channelId,
-    channelLabel: settings.welcomeChannelLabel,
-    defaultChannelLabel: DEFAULT_WELCOME_CHANNEL_LABEL,
-    defaultMessage: DEFAULT_WELCOME_MESSAGE,
-    defaultRules: DEFAULT_WELCOME_RULES,
-    defaultRulesTitle: DEFAULT_WELCOME_RULES_TITLE,
-    message: settings.welcomeMessage,
-    rules: settings.welcomeRules,
-    rulesTitle: settings.welcomeRulesTitle,
-    userMention
-  });
-}
-
-function createWelcomeMessageEmbed(
-  settings: Awaited<ReturnType<BotContext["api"]["getSettings"]>>,
-  userMention: string,
-  displayChannelId: string | null,
-  imageUrl: string | null
-) {
-  return createMemberPanelEmbed({
-    description: welcomePanelDescription(settings, userMention, displayChannelId),
-    footerText: welcomeFooterText(settings.welcomeFooterText),
-    imageUrl,
-    title: settings.welcomeTitle?.trim() || DEFAULT_WELCOME_TITLE
-  });
-}
-
-function createLeaveMessageEmbed(
-  settings: Awaited<ReturnType<BotContext["api"]["getSettings"]>>,
-  userMention: string,
-  displayChannelId: string | null,
-  imageUrl: string | null
-) {
-  return createMemberPanelEmbed({
-    description: leavePanelDescription(settings, userMention, displayChannelId),
-    footerText: settings.leaveFooterText?.trim() || DEFAULT_LEAVE_FOOTER_TEXT,
-    imageUrl,
-    title: settings.leaveTitle?.trim() || DEFAULT_LEAVE_TITLE
-  });
-}
-
-function createMemberPanelEmbed({
-  description,
-  footerText,
-  imageUrl,
-  title
-}: {
-  description: string;
-  footerText: string;
-  imageUrl: string | null;
-  title: string;
-}) {
-  const embed = new EmbedBuilder()
-    .setColor(0xef4444)
-    .setTitle(title)
-    .setDescription(description);
-
-  if (imageUrl) {
-    embed.setImage(imageUrl);
-  }
-
-  if (footerText.trim()) {
-    embed.setFooter({
-      text: footerText.trim()
-    });
-  }
-
-  return embed;
-}
-
-function leavePanelDescription(
-  settings: Awaited<ReturnType<BotContext["api"]["getSettings"]>>,
-  userMention: string,
-  channelId: string | null
-) {
-  return memberPanelDescription({
-    channelId,
+  const variables = panelVariables(member, displayChannelId);
+  const payload = createMemberPanelPayload(variables, {
+    channelId: displayChannelId,
     channelLabel: settings.leaveChannelLabel,
-    defaultChannelLabel: DEFAULT_LEAVE_CHANNEL_LABEL,
-    defaultMessage: DEFAULT_LEAVE_MESSAGE,
-    defaultRules: DEFAULT_LEAVE_RULES,
-    defaultRulesTitle: DEFAULT_LEAVE_RULES_TITLE,
-    message: settings.leaveMessage,
+    color: settings.leaveColor,
+    description: settings.leaveMessage,
+    footerText: settings.leaveFooterText,
+    imageUrl: settings.leaveImageUrl,
+    mode: "leave",
     rules: settings.leaveRules,
     rulesTitle: settings.leaveRulesTitle,
-    userMention
+    title: settings.leaveTitle
   });
+
+  if (!payload) {
+    return;
+  }
+
+  await channel.send(payload);
 }
 
-function memberPanelDescription({
-  channelId,
-  channelLabel,
-  defaultChannelLabel,
-  defaultMessage,
-  defaultRules,
-  defaultRulesTitle,
-  message,
-  rules,
-  rulesTitle,
-  userMention
-}: {
-  channelId: string | null;
-  channelLabel: string | null;
-  defaultChannelLabel: string;
-  defaultMessage: string;
-  defaultRules: string;
-  defaultRulesTitle: string;
-  message: string | null;
-  rules: string | null;
-  rulesTitle: string | null;
-  userMention: string;
-}) {
-  const channelMention = channelId ? `<#${channelId}>` : "<#coloque_o_id_do_canal_de_lives_aqui>";
-  const ruleLines = formatRuleLines(rules, defaultRules);
+export function createMemberPanelPayload(
+  variables: VariableContext,
+  input: MemberPanelInput
+) {
+  const imageUrl = resolveImageUrl(input.imageUrl);
+  const title = renderTemplate(input.title, variables);
+  const description = renderTemplate(input.description, variables);
+  const rulesTitle = renderTemplate(input.rulesTitle, variables);
+  const rules = formatRuleLines(renderTemplate(input.rules, variables));
+  const channelLabel = renderTemplate(input.channelLabel, variables);
+  const footerText = renderTemplate(input.footerText, variables);
+  const contentBlocks: TextDisplayBuilder[] = [];
 
-  return [
-    formatPanelMessage(message, userMention, defaultMessage),
-    "",
-    `**${rulesTitle?.trim() || defaultRulesTitle}**`,
-    ...ruleLines.map((rule, index) => `**${index + 1}.** ${rule}`),
-    "",
-    `\u{1F517} ${channelLabel?.trim() || defaultChannelLabel} ${channelMention}`
-  ].join("\n");
+  if (title) {
+    contentBlocks.push(new TextDisplayBuilder().setContent(`## ${title}`));
+  }
+
+  if (description) {
+    contentBlocks.push(new TextDisplayBuilder().setContent(description));
+  }
+
+  if (rulesTitle || rules.length) {
+    contentBlocks.push(new TextDisplayBuilder().setContent([
+      rulesTitle ? `**${rulesTitle}**` : null,
+      ...rules.map((rule, index) => `**${index + 1}.** ${rule}`)
+    ].filter(Boolean).join("\n")));
+  }
+
+  if (channelLabel || input.channelId) {
+    contentBlocks.push(new TextDisplayBuilder().setContent(
+      [channelLabel, variables.channel].filter(Boolean).join(" ")
+    ));
+  }
+
+  if (footerText) {
+    contentBlocks.push(new TextDisplayBuilder().setContent(`-# ${footerText}`));
+  }
+
+  if (!imageUrl && !contentBlocks.length) {
+    return null;
+  }
+
+  const container = new ContainerBuilder()
+    .setAccentColor(parseColor(input.color));
+
+  if (imageUrl) {
+    container.addMediaGalleryComponents(
+      new MediaGalleryBuilder().addItems(
+        new MediaGalleryItemBuilder()
+          .setURL(imageUrl)
+          .setDescription(`${input.mode} image`)
+      )
+    );
+  }
+
+  if (contentBlocks.length) {
+    container.addTextDisplayComponents(...contentBlocks);
+  }
+
+  return {
+    allowedMentions: {
+      parse: [] as never[]
+    },
+    components: [container],
+    flags: MessageFlags.IsComponentsV2 as const
+  };
+}
+
+function panelVariables(member: GuildMember | PartialGuildMember, channelId: string | null): VariableContext {
+  const username = member.user?.username ?? member.displayName ?? member.id;
+  const botName = member.client.user?.username ?? "Bot";
+
+  return {
+    botName,
+    channel: channelId ? `<#${channelId}>` : "",
+    memberCount: String(member.guild.memberCount ?? ""),
+    server: member.guild.name,
+    user: `<@${member.id}>`,
+    username
+  };
+}
+
+function renderTemplate(value: string | null | undefined, variables: VariableContext) {
+  const template = value?.trim() ?? "";
+
+  if (!template) {
+    return "";
+  }
+
+  return template
+    .replace(/\{user\}/gi, variables.user)
+    .replace(/\{username\}/gi, variables.username)
+    .replace(/\{server\}/gi, variables.server)
+    .replace(/\{memberCount\}/gi, variables.memberCount)
+    .replace(/\{botName\}/gi, variables.botName)
+    .replace(/\{channel\}/gi, variables.channel);
 }
 
 function resolveImageUrl(value: string | null) {
@@ -237,18 +223,13 @@ async function resolveTextChannel(member: GuildMember | PartialGuildMember, chan
   return channel?.isTextBased() ? channel : null;
 }
 
-function formatPanelMessage(message: string | null, userMention: string, fallback: string) {
-  return (message?.trim() || fallback).replace(/\{user\}/gi, userMention);
-}
-
-function welcomeFooterText(value: string | null) {
-  const normalized = value?.trim();
-  return !normalized || normalized === LEGACY_WELCOME_FOOTER_TEXT ? DEFAULT_WELCOME_FOOTER_TEXT : normalized;
-}
-
-function formatRuleLines(rules: string | null, fallback: string) {
-  return (rules?.trim() || fallback)
+function formatRuleLines(rules: string) {
+  return rules
     .split(/\r?\n/)
     .map((rule) => rule.replace(/^\s*(?:\d+[.)-]\s*|\*\*\d+[.)-]?\*\*\s*)/, "").trim())
     .filter(Boolean);
+}
+
+function parseColor(value: string) {
+  return Number.parseInt(value.replace("#", ""), 16) || 0xef4444;
 }
