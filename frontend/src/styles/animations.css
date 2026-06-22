@@ -1,0 +1,67 @@
+/* Animações CSS otimizadas para performance */
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Classes de utilitário para animações */
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.2s ease-out;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+/* Respmeita preferência do usuário */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-slide-in,
+  .animate-fade-in-up {
+    animation: none;
+  }
+}
+
+/* Animações para transitions suaves */
+.transition-smooth {
+  transition: all 0.2s ease-out;
+}
+
+.transition-fast {
+  transition: all 0.1s ease-out;
+}
+
+.transition-slow {
+  transition: all 0.3s ease-out;
+}

@@ -1,55 +1,55 @@
-import { useEffect, useMemo, useState } from "react";
 import {
-  Bot,
-  CalendarDays,
-  ChevronDown,
-  CheckCircle2,
-  Circle,
-  Copy,
-  Eye,
-  EyeOff,
-  ExternalLink,
-  Gamepad2,
-  Hash,
-  LayoutDashboard,
-  Link2,
-  LockKeyhole,
-  Loader2,
-  MessageSquare,
-  Power,
-  Search,
-  ScrollText,
-  Server,
-  Settings,
-  ShieldCheck,
-  Ticket,
-  Trash2,
-  Unplug,
-  UserCheck,
-  Users
+    Bot,
+    CalendarDays,
+    CheckCircle2,
+    ChevronDown,
+    Circle,
+    Copy,
+    ExternalLink,
+    Eye,
+    EyeOff,
+    Gamepad2,
+    Hash,
+    LayoutDashboard,
+    Link2,
+    Loader2,
+    LockKeyhole,
+    MessageSquare,
+    Power,
+    ScrollText,
+    Search,
+    Server,
+    Settings,
+    ShieldCheck,
+    Ticket,
+    Trash2,
+    Unplug,
+    UserCheck,
+    Users
 } from "lucide-react";
+import { useEffect, useMemo, useState, useCallback, memo } from "react";
 import {
-  createDevBot,
-  deleteDevBot,
-  getGuildLiveOptions,
-  getDevBots,
-  getDevModules,
-  restartDevBot,
-  stopDevBot,
-  updateDevBotModules
+    createDevBot,
+    deleteDevBot,
+    getDevBots,
+    getDevModules,
+    getGuildLiveOptions,
+    restartDevBot,
+    stopDevBot,
+    updateDevBotModules
 } from "../../lib/api";
 import { createDashboardSocket } from "../../lib/socket";
 import { dashboardUrl } from "../../lib/urls";
 import type {
-  AuthUser,
-  CreateDevBotPayload,
-  DashboardBot,
-  DashboardMeGuild,
-  DevBot,
-  DevBotStatus,
-  DevModuleDefinition,
-  GuildChannelOption,
-  GuildVoiceChannelOption
+    AuthUser,
+    CreateDevBotPayload,
+    DashboardBot,
+    DashboardMeGuild,
+    DevBot,
+    DevBotStatus,
+    DevModuleDefinition,
+    GuildChannelOption,
+    GuildVoiceChannelOption
 } from "../../types";
 import { Avatar } from "../ui/avatar";
 import { Badge } from "../ui/badge";
@@ -103,6 +103,7 @@ type BotMenuId =
   | "logs"
   | "economy"
   | "discord"
+  | "select-menu"
   | "fivem"
   | "fivem-factions"
   | "fivem-ammo"
@@ -176,6 +177,13 @@ const botMenuItems: BotMenuItem[] = [
     description: "Cargos, boas-vindas e mensagens",
     icon: MessageSquare,
     moduleIds: ["roles", "welcome", "leave", "avisos"]
+  },
+  {
+    id: "select-menu",
+    label: "Select Menu",
+    description: "Gerenciamento de menus de selecao",
+    icon: ChevronDown,
+    moduleIds: []
   },
   {
     id: "fivem",
@@ -1418,6 +1426,8 @@ function BotModuleWorkspace({
                 modules={modules}
                 onToggle={onToggle}
               />
+            ) : activeMenuId === "select-menu" ? (
+              <BotSelectMenuManager bot={bot} />
             ) : activeModules.length ? (
               <ModuleSwitchSection
                 enabledModules={bot.enabledModules}
@@ -1569,6 +1579,26 @@ function EmptyBotMenuCategory({ label }: { label: string }) {
         <p className="text-sm font-bold text-white">{label} ainda nao tem modulos cadastrados</p>
         <p className="mt-1 text-sm font-medium text-zinc-300">Quando um sistema dessa area existir, ele aparece aqui.</p>
       </div>
+    </div>
+  );
+}
+
+function BotSelectMenuManager({ bot }: { bot: DevBot }) {
+  return (
+    <div className="space-y-4">
+      <Card className="border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(124,58,237,0.08)]">
+        <CardHeader className="p-5 sm:p-6">
+          <CardTitle className="text-white">Menus de Selecao</CardTitle>
+          <CardDescription className="font-medium text-zinc-300">Gerenciamento de select menus do Discord para o bot {bot.name}.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-5 pt-0 sm:p-6 sm:pt-0">
+          <div className="min-h-44 rounded-lg border border-dashed border-zinc-700 bg-black/30 p-8 text-center">
+            <ChevronDown className="mx-auto mb-3 h-8 w-8 text-zinc-600" />
+            <p className="text-sm font-bold text-white">Nenhum select menu configurado</p>
+            <p className="mt-2 text-sm font-medium text-zinc-300">Os menus de selecao do seu bot aparecerao aqui quando forem criados.</p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -4,25 +4,25 @@ import { requireAuth, requireBot } from "../middleware/auth";
 import { canReadDevBotModule, canUseDevBotModule, getBotApiPermissions, getDevBotToken } from "../services/devBotService";
 import { areGuildAssignableRoles, areGuildRoles, getGuildLiveOptions, isGuildTextChannel, validateGuildPanelChannel } from "../services/discordOptionsService";
 import {
-  approveFivemFacAbsence,
-  closeFivemFacAbsence,
-  createFivemFacAbsence,
-  getFivemFacDashboard,
-  getFivemFacAbsence,
-  getFivemFacSettings,
-  listActiveFivemFacSettings,
-  listFivemFacDueAbsences,
-  listFivemFacUserAbsences,
-  markFivemFacAbsenceFinished,
-  markFivemFacAbsenceStarted,
-  rejectFivemFacAbsence,
-  requestFivemFacPanelPublish,
-  saveFivemFacAbsencePhotoFile,
-  saveFivemFacPanelImageFile,
-  saveFivemFacSettings,
-  updateFivemFacAbsenceChannel,
-  updateFivemFacAbsencePhoto,
-  updateFivemFacPanelMessageState
+    approveFivemFacAbsence,
+    closeFivemFacAbsence,
+    createFivemFacAbsence,
+    getFivemFacAbsence,
+    getFivemFacDashboard,
+    getFivemFacSettings,
+    listActiveFivemFacSettings,
+    listFivemFacDueAbsences,
+    listFivemFacUserAbsences,
+    markFivemFacAbsenceFinished,
+    markFivemFacAbsenceStarted,
+    rejectFivemFacAbsence,
+    requestFivemFacPanelPublish,
+    saveFivemFacAbsencePhotoFile,
+    saveFivemFacPanelImageFile,
+    saveFivemFacSettings,
+    updateFivemFacAbsenceChannel,
+    updateFivemFacAbsencePhoto,
+    updateFivemFacPanelMessageState
 } from "../services/fivemFacService";
 import { listFivemModules } from "../services/fivemModuleService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
@@ -609,6 +609,14 @@ function normalizeFacSettingsInput(input: z.infer<typeof facSettingsSchema>) {
 
   if ("panelChannelId" in input) {
     normalized.panelChannelId = normalizeOptionalId(input.panelChannelId);
+  }
+
+  if (normalized.panelVisual?.buttons) {
+    normalized.panelVisual.buttons = normalized.panelVisual.buttons.map(button => ({
+      ...button,
+      emoji: button.emoji ?? null,
+      url: button.url ?? null
+    }));
   }
 
   return normalized;
