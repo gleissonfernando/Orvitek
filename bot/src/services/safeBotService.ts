@@ -1,10 +1,13 @@
 import {
+  AttachmentBuilder,
   ChannelType,
   ContainerBuilder,
   EmbedBuilder,
   MessageFlags,
   PermissionFlagsBits,
+  SectionBuilder,
   TextDisplayBuilder,
+  ThumbnailBuilder,
   type Client,
   type Guild,
   type GuildMember,
@@ -12,6 +15,8 @@ import {
   type Role,
   type TextChannel
 } from "discord.js";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { env, isBotModuleEnabled } from "../config/env";
 import type { BotContext, GuildSettings } from "../types";
 import type {
@@ -28,6 +33,9 @@ const LOG_CHANNEL_NAME = "📋・selfbot-logs";
 const SETUP_CACHE_MS = 30_000;
 const SELF_BOT_COLOR = 0x7f1d1d;
 const FILTER_WARNING_COLOR = 0xf59e0b;
+const FILTER_WARNING_IMAGE_NAME = "safe-bot-warning.png";
+const FILTER_WARNING_IMAGE_PATH = resolveAssetPath(FILTER_WARNING_IMAGE_NAME);
+const FILTER_WARNING_VERSION = "safe-bot-warning-image-v1";
 const processingQueues = new Map<string, Promise<boolean>>();
 const filterWarningQueues = new Map<string, Promise<void>>();
 const messageHistory = new Map<string, SafeBotHistoryEntry[]>();
@@ -71,7 +79,7 @@ type SequencePunishmentOutcome = {
   succeeded: boolean;
 };
 
-const FILTER_WARNING_TITLE = "## :warning: Não envie mensagens aqui";
+const FILTER_WARNING_TITLE = "## Não envie mensagens aqui";
 const FILTER_WARNING_DESCRIPTION = [
   "**Você receberá um banimento se enviar mensagens neste canal**",
   "",
@@ -1148,15 +1156,28 @@ async function reconcileFilterWarning(channel: NonNullable<Awaited<ReturnType<ty
   const created = !currentWarning;
   const container = new ContainerBuilder()
     .setAccentColor(FILTER_WARNING_COLOR)
-    .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(FILTER_WARNING_TITLE),
-      new TextDisplayBuilder().setContent(FILTER_WARNING_DESCRIPTION)
+    .addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(FILTER_WARNING_TITLE),
+          new TextDisplayBuilder().setContent(FILTER_WARNING_DESCRIPTION)
+        )
+        .setThumbnailAccessory(
+          new ThumbnailBuilder()
+            .setURL(`attachment://${FILTER_WARNING_IMAGE_NAME}`)
+            .setDescription(FILTER_WARNING_VERSION)
+        )
     );
   const warning = currentWarning ?? await channel.send({
     allowedMentions: {
       parse: []
     },
     components: [container],
+    files: [
+      new AttachmentBuilder(FILTER_WARNING_IMAGE_PATH, {
+        name: FILTER_WARNING_IMAGE_NAME
+      })
+    ],
     flags: MessageFlags.IsComponentsV2
   });
 
@@ -1192,7 +1213,8 @@ function isCurrentFilterWarning(message: Message) {
 
   const components = serializedMessageComponents(message);
   return components.includes(FILTER_WARNING_TITLE)
-    && components.includes(FILTER_WARNING_DESCRIPTION);
+    && components.includes(FILTER_WARNING_DESCRIPTION)
+    && components.includes(FILTER_WARNING_VERSION);
 }
 
 function serializedMessageComponents(message: Message) {
@@ -1201,6 +1223,15 @@ function serializedMessageComponents(message: Message) {
   } catch {
     return "";
   }
+}
+
+function resolveAssetPath(fileName: string) {
+  const candidates = [
+    path.resolve(process.cwd(), "bot", "assets", fileName),
+    path.resolve(process.cwd(), "assets", fileName)
+  ];
+
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0] ?? fileName;
 }
 
 function punishmentLabel(action: SelfBotPunishmentAction | "none") {
