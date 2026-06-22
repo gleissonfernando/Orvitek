@@ -34,6 +34,7 @@ import type {
   GuildMemberOption,
   GuildRoleOption,
   GuildSettings,
+  EmojiLibraryItem,
   ImageAntiSpamResponse,
   ImageAntiSpamSettings,
   LiveEvent,
@@ -260,14 +261,36 @@ export async function cloneEmojiToGuild(
   payload: { image: string; name: string; sourceLabel?: string | null },
   botId?: string | null
 ) {
-  const { data } = await api.post<{ emoji: { id: string; name: string; animated?: boolean } }>(
+  const { data } = await api.post<{ duplicate?: boolean; emoji: { id: string; name: string; animated?: boolean } }>(
     `/emoji-cloner/${guildId}/clone`,
     payload,
     {
       params: botParams(botId)
     }
   );
-  return data.emoji;
+  return { ...data.emoji, duplicate: data.duplicate === true };
+}
+
+export async function getEmojiLibrary(botId: string, filters: { animated?: "all" | "true" | "false"; q?: string } = {}) {
+  const { data } = await api.get<{ items: EmojiLibraryItem[] }>("/emoji-cloner/library", {
+    params: {
+      ...botParams(botId),
+      animated: filters.animated ?? "all",
+      q: filters.q || undefined
+    }
+  });
+  return data.items;
+}
+
+export async function resendEmojiFromLibrary(botId: string, emojiId: string, payload: { guildId: string; name?: string }) {
+  const { data } = await api.post<{ duplicate?: boolean; emoji: { id: string; name: string; animated?: boolean } }>(
+    `/emoji-cloner/library/${encodeURIComponent(emojiId)}/resend`,
+    payload,
+    {
+      params: botParams(botId)
+    }
+  );
+  return { ...data.emoji, duplicate: data.duplicate === true };
 }
 
 export async function validateFakeEmojiCloneToken(payload: {

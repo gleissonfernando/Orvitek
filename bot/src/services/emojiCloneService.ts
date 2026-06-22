@@ -300,26 +300,66 @@ async function runCloneJob(job: CloneJob, interaction: Interaction, context: Bot
   job.status = "running";
   let success = 0;
   let failed = 0;
+  await interaction.guild.emojis.fetch().catch(() => null);
 
   for (let index = 0; index < job.items.length; index += 1) {
     const item = job.items[index]!;
 
     try {
-      const image = await downloadEmoji(item.url);
-      const name = uniqueEmojiName(interaction.guild, `${job.prefix ?? ""}${item.name}`);
-      const emoji = await interaction.guild.emojis.create({
-        attachment: image,
-        name,
-        reason: `Clonagem solicitada por ${interaction.user.tag}`
-      });
-      item.status = "success";
-      item.newEmojiId = emoji.id;
-      item.newName = emoji.name;
-      success += 1;
+      const name = sanitizeName(`${job.prefix ?? ""}${item.name}`) || "emoji";
+      const existing = interaction.guild.emojis.cache.find((emoji) => emoji.name?.toLowerCase() === name.toLowerCase());
+
+      if (existing) {
+        item.status = "success";
+        item.newEmojiId = existing.id;
+        item.newName = existing.name;
+        success += 1;
+        context.socket.emitLog({
+          guildId: job.guildId,
+          type: "emoji_clone.duplicate",
+          message: `Emoji ja existente ignorado: ${name}.`,
+          userId: job.userId,
+          metadata: {
+            emojiId: existing.id,
+            name
+          }
+        });
+      } else {
+        const image = await downloadEmoji(item.url);
+        const emoji = await interaction.guild.emojis.create({
+          attachment: image,
+          name,
+          reason: `Clonagem solicitada por ${interaction.user.tag}`
+        });
+        item.status = "success";
+        item.newEmojiId = emoji.id;
+        item.newName = emoji.name;
+        success += 1;
+        context.socket.emitLog({
+          guildId: job.guildId,
+          type: "emoji_clone.sent",
+          message: `Emoji enviado ao servidor: ${emoji.name}.`,
+          userId: job.userId,
+          metadata: {
+            emojiId: emoji.id,
+            name: emoji.name,
+            originalEmojiId: item.id
+          }
+        });
+      }
     } catch (error) {
       item.status = "failed";
       item.errorReason = friendlyError(error);
       failed += 1;
+      context.socket.emitLog({
+        guildId: job.guildId,
+        type: "emoji_clone.failed",
+        message: `Falha ao importar emoji ${item.name}: ${item.errorReason}.`,
+        userId: job.userId,
+        metadata: {
+          originalEmojiId: item.id
+        }
+      });
     }
 
     if ((index + 1) % 3 === 0 || index + 1 === job.items.length) {
@@ -342,12 +382,13 @@ async function runCloneJob(job: CloneJob, interaction: Interaction, context: Bot
     prefix: job.prefix,
     createdAt: new Date(job.createdAt).toISOString(),
     finishedAt: new Date().toISOString(),
-    items: job.items.map((item) => ({
-      originalEmojiId: item.id,
-      originalName: item.name,
-      newEmojiId: item.newEmojiId,
-      newName: item.newName,
-      animated: item.animated,
+      items: job.items.map((item) => ({
+        originalEmojiId: item.id,
+        originalName: item.name,
+        originalUrl: item.url,
+        newEmojiId: item.newEmojiId,
+        newName: item.newName,
+        animated: item.animated,
       status: item.status,
       errorReason: item.errorReason
     }))
@@ -528,18 +569,6 @@ function looksLikeDiscordUserToken(value: string) {
 
 function sanitizeName(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_]/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "").slice(0, 32);
-}
-
-function uniqueEmojiName(guild: Guild, desired: string) {
-  const base = (sanitizeName(desired) || "emoji").slice(0, 28);
-  const used = new Set(guild.emojis.cache.map((emoji) => emoji.name));
-  let name = base;
-  let suffix = 1;
-  while (used.has(name) && suffix < 1000) {
-    name = `${base.slice(0, 28)}_${suffix}`;
-    suffix += 1;
-  }
-  return name.slice(0, 32);
 }
 
 function emojiLimit(guild: Guild) {

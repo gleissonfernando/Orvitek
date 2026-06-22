@@ -167,6 +167,22 @@ export type GuildSettings = {
   dashboardUserPermissions: Record<string, DashboardAccessLevel>;
 };
 
+export type EmojiLibraryItem = {
+  id: string;
+  animated: boolean;
+  botId: string;
+  destinationGuildId: string;
+  importedAt: string;
+  lastUpdatedAt: string;
+  name: string;
+  originalEmojiId: string;
+  sourceGuildId: string | null;
+  targetEmojiId: string | null;
+  targetEmojiName: string | null;
+  url: string;
+  userId: string;
+};
+
 export type LogCategory =
   | "members"
   | "messages"

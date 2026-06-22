@@ -1,13 +1,15 @@
 import { Router } from "express";
 import { z } from "zod";
+import { emitRealtime } from "../realtime/events";
 import { requireAuth, requireBot } from "../middleware/auth";
 import { canUseDevBotModule, getDevBotToken } from "../services/devBotService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
-import { recordEmojiCloneJob } from "../services/emojiCloneService";
+import { listEmojiLibrary, recordEmojiCloneJob } from "../services/emojiCloneService";
 
 const itemSchema = z.object({
   originalEmojiId: z.string().min(1).max(64),
   originalName: z.string().min(1).max(64),
+  originalUrl: z.string().max(2048).nullable().optional(),
   newEmojiId: z.string().max(64).nullable().optional(),
   newName: z.string().max(64).nullable().optional(),
   animated: z.boolean(),
@@ -32,6 +34,14 @@ const cloneSchema = z.object({
   image: z.string().min(1).max(1_000_000),
   name: z.string().min(2).max(32).regex(/^[a-zA-Z0-9_]+$/),
   sourceLabel: z.string().max(120).nullable().optional()
+});
+const libraryQuerySchema = z.object({
+  animated: z.enum(["all", "true", "false"]).optional().default("all"),
+  q: z.string().max(80).optional()
+});
+const resendSchema = z.object({
+  guildId: z.string().regex(/^\d{5,32}$/),
+  name: z.string().min(2).max(32).regex(/^[a-zA-Z0-9_]+$/).optional()
 });
 const fakeTokenSchema = z.object({
   sourceGuildId: z.string().regex(/^\d{5,32}$/),
@@ -97,59 +107,195 @@ emojiClonerRouter.post("/:guildId/clone", requireAuth, async (req, res, next) =>
       return res.status(403).json({ message: "Modulo de clonagem de emojis nao liberado para este bot neste servidor." });
     }
 
-    const botToken = await getDevBotToken(botId);
-
-    if (!botToken) {
-      return res.status(400).json({ message: "Bot sem credencial valida cadastrada." });
-    }
-
-    const image = await resolveEmojiImage(input.image);
-    const response = await fetch(`https://discord.com/api/v10/guilds/${guildId}/emojis`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bot ${botToken}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        image,
-        name: input.name
-      })
-    });
-
-    const payload = await response.json().catch(() => null) as { id?: string; name?: string; animated?: boolean; message?: string } | null;
-
-    if (!response.ok || !payload?.id) {
-      return res.status(response.status === 403 ? 403 : 400).json({
-        message: friendlyDiscordEmojiError(payload?.message, response.status)
-      });
-    }
-
-    const job = await recordEmojiCloneJob({
+    return res.json(await cloneEmojiForDashboard({
       botId,
-      failed: 0,
       guildId,
-      items: [{
-        animated: Boolean(payload.animated),
-        newEmojiId: payload.id,
-        newName: payload.name ?? input.name,
-        originalEmojiId: input.sourceLabel ?? "upload",
-        originalName: input.sourceLabel ?? input.name,
-        status: "success"
-      }],
-      status: "completed",
-      success: 1,
-      total: 1,
+      image: input.image,
+      name: input.name,
+      sourceLabel: input.sourceLabel ?? null,
       userId: user.discordId
-    });
+    }));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+emojiClonerRouter.get("/library", requireAuth, async (req, res, next) => {
+  try {
+    const botId = await resolveRequestBotId(req);
+    const user = res.locals.dashboardAuth.user;
+    const input = libraryQuerySchema.parse(req.query);
+
+    if (!botId) {
+      return res.status(400).json({ message: "Selecione um bot do Portal do Desenvolvedor." });
+    }
+
+    const animated = input.animated === "all" ? null : input.animated === "true";
 
     return res.json({
-      emoji: payload,
-      job
+      items: await listEmojiLibrary({
+        animated,
+        botId,
+        query: input.q,
+        userId: user.discordId
+      })
     });
   } catch (error) {
     return next(error);
   }
 });
+
+emojiClonerRouter.post("/library/:emojiId/resend", requireAuth, async (req, res, next) => {
+  try {
+    const botId = await resolveRequestBotId(req);
+    const user = res.locals.dashboardAuth.user;
+    const input = resendSchema.parse(req.body);
+
+    if (!botId || !(await canUseDevBotModule(user, botId, input.guildId, "emoji-cloner"))) {
+      return res.status(403).json({ message: "Modulo de clonagem de emojis nao liberado para este bot neste servidor." });
+    }
+
+    const library = await listEmojiLibrary({
+      botId,
+      query: null,
+      userId: user.discordId
+    });
+    const item = library.find((entry) => entry.id === req.params.emojiId);
+
+    if (!item) {
+      return res.status(404).json({ message: "Emoji nao encontrado na sua Biblioteca." });
+    }
+
+    return res.json(await cloneEmojiForDashboard({
+      botId,
+      guildId: input.guildId,
+      image: item.url,
+      name: input.name ?? item.name,
+      sourceLabel: item.name,
+      userId: user.discordId
+    }));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+async function cloneEmojiForDashboard(input: {
+  botId: string;
+  guildId: string;
+  image: string;
+  name: string;
+  sourceLabel: string | null;
+  userId: string;
+}) {
+  const botToken = await getDevBotToken(input.botId);
+
+  if (!botToken) {
+    throw Object.assign(new Error("Bot sem credencial valida cadastrada."), { statusCode: 400 });
+  }
+
+  await createEmojiCloneLog(input.botId, input.guildId, input.userId, "emoji_clone.received", `Emoji recebido: ${input.name}.`);
+  const resolved = await resolveEmojiImage(input.image);
+  const existingEmoji = await findGuildEmojiByName(input.guildId, botToken, input.name);
+
+  if (existingEmoji) {
+    const job = await recordEmojiCloneJob({
+      botId: input.botId,
+      failed: 0,
+      guildId: input.guildId,
+      items: [{
+        animated: Boolean(existingEmoji.animated ?? resolved.animated),
+        newEmojiId: existingEmoji.id,
+        newName: existingEmoji.name ?? input.name,
+        originalEmojiId: resolved.originalEmojiId,
+        originalName: input.sourceLabel ?? input.name,
+        originalUrl: resolved.url,
+        status: "success"
+      }],
+      status: "completed",
+      success: 1,
+      total: 1,
+      userId: input.userId
+    });
+
+    emitRealtime("emoji-cloner:notification", {
+      botId: input.botId,
+      guildId: input.guildId,
+      kind: "duplicate",
+      message: "Emoji ja existente.",
+      userId: input.userId
+    });
+    await createEmojiCloneLog(input.botId, input.guildId, input.userId, "emoji_clone.duplicate", `Emoji ja existente: ${input.name}.`);
+
+    return {
+      duplicate: true,
+      emoji: existingEmoji,
+      job
+    };
+  }
+
+  const response = await fetch(`https://discord.com/api/v10/guilds/${input.guildId}/emojis`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bot ${botToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      image: resolved.dataUri,
+      name: input.name
+    })
+  });
+
+  const payload = await response.json().catch(() => null) as { id?: string; name?: string; animated?: boolean; message?: string } | null;
+
+  if (!response.ok || !payload?.id) {
+    emitRealtime("emoji-cloner:notification", {
+      botId: input.botId,
+      guildId: input.guildId,
+      kind: "failed",
+      message: "Falha ao importar.",
+      userId: input.userId
+    });
+    await createEmojiCloneLog(input.botId, input.guildId, input.userId, "emoji_clone.failed", friendlyDiscordEmojiError(payload?.message, response.status));
+
+    throw Object.assign(new Error(friendlyDiscordEmojiError(payload?.message, response.status)), {
+      statusCode: response.status === 403 ? 403 : 400
+    });
+  }
+
+  const job = await recordEmojiCloneJob({
+    botId: input.botId,
+    failed: 0,
+    guildId: input.guildId,
+    items: [{
+      animated: Boolean(payload.animated),
+      newEmojiId: payload.id,
+      newName: payload.name ?? input.name,
+      originalEmojiId: resolved.originalEmojiId,
+      originalName: input.sourceLabel ?? input.name,
+      originalUrl: resolved.url,
+      status: "success"
+    }],
+    status: "completed",
+    success: 1,
+    total: 1,
+    userId: input.userId
+  });
+
+  emitRealtime("emoji-cloner:notification", {
+    botId: input.botId,
+    guildId: input.guildId,
+    kind: "success",
+    message: "Emoji enviado para o servidor e salvo na Biblioteca.",
+    userId: input.userId
+  });
+  await createEmojiCloneLog(input.botId, input.guildId, input.userId, "emoji_clone.sent", `Emoji enviado ao servidor: ${payload.name ?? input.name}.`);
+
+  return {
+    duplicate: false,
+    emoji: payload,
+    job
+  };
+}
 
 emojiClonerRouter.post("/bot/jobs", requireBot, async (req, res, next) => {
   try {
@@ -166,18 +312,34 @@ emojiClonerRouter.post("/bot/jobs", requireBot, async (req, res, next) => {
   }
 });
 
-async function resolveEmojiImage(value: string) {
+async function resolveEmojiImage(value: string): Promise<{
+  animated: boolean;
+  dataUri: string;
+  originalEmojiId: string;
+  url: string;
+}> {
   const trimmed = value.trim();
   const custom = trimmed.match(/^<(?<animated>a?):(?<name>[a-zA-Z0-9_]{2,32}):(?<id>\d{5,32})>$/);
 
   if (custom?.groups) {
     const animated = custom.groups.animated === "a";
-    return downloadImageAsDataUri(`https://cdn.discordapp.com/emojis/${custom.groups.id}.${animated ? "gif" : "png"}?size=128&quality=lossless`);
+    const url = `https://cdn.discordapp.com/emojis/${custom.groups.id}.${animated ? "gif" : "png"}?size=128&quality=lossless`;
+    return {
+      animated,
+      dataUri: await downloadImageAsDataUri(url),
+      originalEmojiId: custom.groups.id!,
+      url
+    };
   }
 
   if (/^data:image\/(png|gif|webp|jpe?g);base64,/i.test(trimmed)) {
     assertImageSize(trimmed);
-    return trimmed;
+    return {
+      animated: /^data:image\/gif/i.test(trimmed),
+      dataUri: trimmed,
+      originalEmojiId: `upload:${createDataUriFingerprint(trimmed)}`,
+      url: trimmed
+    };
   }
 
   const url = trimmed.match(/^https:\/\/cdn\.discordapp\.com\/emojis\/\d{5,32}\.(?:png|gif|webp|jpg|jpeg)(?:\?[^\s]*)?$/i)
@@ -190,7 +352,29 @@ async function resolveEmojiImage(value: string) {
     throw Object.assign(new Error("Informe um upload, URL de imagem ou codigo de emoji valido."), { statusCode: 400 });
   }
 
-  return downloadImageAsDataUri(url);
+  const idMatch = url.match(/\/emojis\/(?<id>\d{5,32})\.(?<ext>png|gif|webp|jpg|jpeg)/i);
+
+  return {
+    animated: idMatch?.groups?.ext?.toLowerCase() === "gif",
+    dataUri: await downloadImageAsDataUri(url),
+    originalEmojiId: idMatch?.groups?.id ?? `url:${createUrlFingerprint(url)}`,
+    url
+  };
+}
+
+async function findGuildEmojiByName(guildId: string, botToken: string, name: string) {
+  const response = await fetch(`https://discord.com/api/v10/guilds/${guildId}/emojis`, {
+    headers: {
+      Authorization: `Bot ${botToken}`
+    }
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const emojis = await response.json().catch(() => []) as Array<{ animated?: boolean; id: string; name: string }>;
+  return emojis.find((emoji) => emoji.name.toLowerCase() === name.toLowerCase()) ?? null;
 }
 
 async function downloadImageAsDataUri(url: string) {
@@ -231,6 +415,14 @@ function friendlyDiscordEmojiError(message: string | undefined, status: number) 
   return "Nao foi possivel criar o emoji no Discord.";
 }
 
+function createDataUriFingerprint(value: string) {
+  return Buffer.from(value.slice(0, 512)).toString("base64url").slice(0, 32);
+}
+
+function createUrlFingerprint(value: string) {
+  return Buffer.from(value.trim()).toString("base64url").slice(0, 32);
+}
+
 function looksLikeDiscordUserToken(value: string) {
   return /mfa\.[\w-]{20,}/i.test(value) || /^[\w-]{20,}\.[\w-]{6,}\.[\w-]{20,}$/.test(value);
 }
@@ -260,4 +452,21 @@ async function recordEmojiCloneTestLog(input: {
       token: input.tokenMasked
     }
   });
+}
+
+async function createEmojiCloneLog(botId: string | null, guildId: string, userId: string, type: string, message: string) {
+  const { createLog } = await import("../services/logService");
+
+  await createLog({
+    botId,
+    guildId,
+    userId,
+    type,
+    message,
+    metadata: {
+      botId,
+      guildId,
+      userId
+    }
+  }).catch(() => undefined);
 }

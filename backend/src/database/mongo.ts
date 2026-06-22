@@ -705,6 +705,22 @@ export type MongoEmojiCloneItem = {
   errorReason: string | null;
 };
 
+export type MongoEmojiLibraryItem = {
+  _id: string;
+  animated: boolean;
+  botId: string;
+  destinationGuildId: string;
+  importedAt: Date;
+  lastUpdatedAt: Date;
+  name: string;
+  originalEmojiId: string;
+  sourceGuildId: string | null;
+  targetEmojiId: string | null;
+  targetEmojiName: string | null;
+  url: string;
+  userId: string;
+};
+
 export type MongoMissionToolsFeatureId =
   | "mission"
   | "clear"
@@ -1110,6 +1126,7 @@ export async function getMongoCollections() {
     voiceRecordings: db.collection<MongoVoiceRecording>("voice_recordings"),
     emojiCloneJobs: db.collection<MongoEmojiCloneJob>("emoji_clone_jobs"),
     emojiCloneItems: db.collection<MongoEmojiCloneItem>("emoji_clone_items"),
+    emojiLibrary: db.collection<MongoEmojiLibraryItem>("emoji_library"),
     missionToolsSettings: db.collection<MongoMissionToolsSettings>("mission_tools_settings"),
     missionToolsUsers: db.collection<MongoMissionToolsUserPanel>("mission_tools_users"),
     missionToolsTokens: db.collection<MongoMissionToolsToken>("mission_tools_tokens"),
@@ -1600,7 +1617,13 @@ async function ensureEmojiCloneIndexes(db: Db) {
     db.collection<MongoEmojiCloneJob>("emoji_clone_jobs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
     db.collection<MongoEmojiCloneJob>("emoji_clone_jobs").createIndex({ botId: 1, status: 1, createdAt: -1 }),
     db.collection<MongoEmojiCloneItem>("emoji_clone_items").createIndex({ jobId: 1 }),
-    db.collection<MongoEmojiCloneItem>("emoji_clone_items").createIndex({ jobId: 1, status: 1 })
+    db.collection<MongoEmojiCloneItem>("emoji_clone_items").createIndex({ jobId: 1, status: 1 }),
+    db.collection<MongoEmojiLibraryItem>("emoji_library").createIndex({ botId: 1, userId: 1, importedAt: -1 }),
+    db.collection<MongoEmojiLibraryItem>("emoji_library").createIndex({ botId: 1, userId: 1, name: 1 }),
+    db.collection<MongoEmojiLibraryItem>("emoji_library").createIndex(
+      { botId: 1, userId: 1, originalEmojiId: 1 },
+      { unique: true }
+    )
   ]);
 }
 

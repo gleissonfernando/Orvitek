@@ -71,6 +71,7 @@ import {
   getFivemModules,
   getGuildLiveOptions,
   getGuildSettings,
+  getEmojiLibrary,
   getKickNotifications,
   getLives,
   getLogs,
@@ -79,6 +80,7 @@ import {
   getTickets,
   getXMonitor,
   patchGuildSettings,
+  resendEmojiFromLibrary,
   updateSelectedDashboardGuild,
   validateFakeEmojiCloneToken
 } from "../lib/api";
@@ -94,6 +96,7 @@ import type {
   FivemModuleDefinition,
   GuildChannelOption,
   GuildSettings,
+  EmojiLibraryItem,
   KickNotification,
   LiveEvent,
   LogEntry,
@@ -278,21 +281,21 @@ const moduleCatalog: ModuleDefinition[] = [
     title: "Boas-vindas",
     description: "Envia mensagem e imagem quando um membro entra no servidor.",
     icon: UserPlus,
-    view: "settings"
+    view: "entry-leave"
   },
   {
     id: "leave",
     title: "Saida",
     description: "Envia mensagem quando um membro sai do servidor.",
     icon: UserMinus,
-    view: "settings"
+    view: "entry-leave"
   },
   {
     id: "roles",
     title: "Cargos automaticos",
     description: "Aplica cargos configurados para novos membros.",
     icon: Users,
-    view: "settings"
+    view: "auto-roles"
   },
   {
     id: "tickets",
@@ -332,7 +335,7 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   moderation: "moderation"
 };
 
-const settingsModuleIds = new Set(["welcome", "leave", "roles", "tickets", "avisos", "network", "emoji-cloner", "server-cloner"]);
+const settingsModuleIds = new Set(["tickets", "avisos", "network", "emoji-cloner", "server-cloner"]);
 
 export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardProps) {
   const [dashboardProfile, setDashboardProfile] = useState<DashboardMeResponse | null>(null);
@@ -843,6 +846,28 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             settings={settings}
           />
         ) : null}
+        {activeView === "entry-leave" ? (
+          <EntryLeaveManager
+            availableModes={(["welcome", "leave"] as const).filter((mode) => enabledModules.includes(mode))}
+            botId={activeBotId}
+            canManageModule={(moduleId) => canManageModule(selectedBot, moduleId, canManageDashboard)}
+            guild={selectedGuild}
+            loading={settingsLoading}
+            onSettingsChange={setSettings}
+            settings={settings}
+            viewerName={auth.user.username}
+          />
+        ) : null}
+        {activeView === "auto-roles" ? (
+          <AutoRolesPanel
+            botId={activeBotId}
+            canManage={canManageOwnerDevModule("roles")}
+            guild={selectedGuild}
+            loading={settingsLoading}
+            onSettingsChange={setSettings}
+            settings={settings}
+          />
+        ) : null}
         {activeView === "fivem" ? (
           <FivemView
             botId={activeBotId}
@@ -868,7 +893,6 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             savingKey={savingKey}
             settings={settings}
             tickets={tickets}
-            viewerName={auth.user.username}
           />
         ) : null}
       </motion.div>
@@ -1369,8 +1393,7 @@ function SettingsView({
   onToggle,
   savingKey,
   settings,
-  tickets,
-  viewerName
+  tickets
 }: {
   botId?: string | null;
   bots: DashboardBot[];
@@ -1386,26 +1409,8 @@ function SettingsView({
   savingKey: BooleanSettingKey | null;
   settings: GuildSettings | null;
   tickets: Ticket[];
-  viewerName: string;
 }) {
   const blocks: JSX.Element[] = [];
-  const entryLeaveModes = (["welcome", "leave"] as const).filter((mode) => enabledModules.includes(mode));
-
-  if (entryLeaveModes.length) {
-    blocks.push(
-      <EntryLeaveManager
-        availableModes={entryLeaveModes}
-        botId={botId}
-        canManageModule={canManageModule}
-        guild={guild}
-        key="entry-leave"
-        loading={loading}
-        onSettingsChange={onSettingsChange}
-        settings={settings}
-        viewerName={viewerName}
-      />
-    );
-  }
 
   if (enabledModules.includes("tickets")) {
     blocks.push(
@@ -1417,20 +1422,6 @@ function SettingsView({
         key="tickets"
         onChange={(checked) => onToggle("ticketEnabled", checked)}
         title="Tickets"
-      />
-    );
-  }
-
-  if (enabledModules.includes("roles")) {
-    blocks.push(
-      <AutoRolesPanel
-        botId={botId}
-        canManage={canManageOwnerDevModule("roles")}
-        guild={guild}
-        key="roles"
-        loading={loading}
-        onSettingsChange={onSettingsChange}
-        settings={settings}
       />
     );
   }
@@ -1615,6 +1606,11 @@ function EmojiCloneSettingsPanel({
     name: string;
     status: "success" | "failed";
   }>>([]);
+  const [library, setLibrary] = useState<EmojiLibraryItem[]>([]);
+  const [libraryFilter, setLibraryFilter] = useState("");
+  const [libraryType, setLibraryType] = useState<"all" | "true" | "false">("all");
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!guild) {
@@ -1644,6 +1640,33 @@ function EmojiCloneSettingsPanel({
   useEffect(() => {
     setDestinationGuildId((current) => current || guild?.id || "");
   }, [guild?.id]);
+
+  useEffect(() => {
+    if (!botId || !settings?.emojiCloneEnabled) {
+      setLibrary([]);
+      return;
+    }
+
+    let mounted = true;
+    setLibraryLoading(true);
+    getEmojiLibrary(botId, {
+      animated: libraryType,
+      q: libraryFilter
+    })
+      .then((items) => {
+        if (mounted) setLibrary(items);
+      })
+      .catch(() => {
+        if (mounted) setLibrary([]);
+      })
+      .finally(() => {
+        if (mounted) setLibraryLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [botId, settings?.emojiCloneEnabled, libraryFilter, libraryType]);
 
   useEffect(() => {
     if (!selectedFile) {
@@ -1757,7 +1780,7 @@ function EmojiCloneSettingsPanel({
       const emoji = await cloneEmojiToGuild(destinationGuildId, { image, name, sourceLabel }, botId);
       setCloneProgress(100);
       setCloneStatus("success");
-      setCloneMessage(`Emoji ${emoji.name} clonado com sucesso.`);
+      setCloneMessage(emoji.duplicate ? `Emoji ${emoji.name} ja existia no servidor. Biblioteca atualizada.` : `Emoji ${emoji.name} clonado e salvo na Biblioteca.`);
       setHistory((current) => [{
         createdAt: new Date().toISOString(),
         emojiUrl: `https://cdn.discordapp.com/emojis/${emoji.id}.${emoji.animated ? "gif" : "png"}?size=64`,
@@ -1765,6 +1788,7 @@ function EmojiCloneSettingsPanel({
         name: emoji.name,
         status: "success" as const
       }, ...current].slice(0, 20));
+      await refreshEmojiLibrary();
     } catch (requestError) {
       setCloneProgress(100);
       setCloneStatus("error");
@@ -1776,6 +1800,45 @@ function EmojiCloneSettingsPanel({
         name,
         status: "failed" as const
       }, ...current].slice(0, 20));
+    }
+  }
+
+  async function refreshEmojiLibrary() {
+    if (!botId || !settings?.emojiCloneEnabled) return;
+
+    const items = await getEmojiLibrary(botId, {
+      animated: libraryType,
+      q: libraryFilter
+    }).catch(() => null);
+
+    if (items) {
+      setLibrary(items);
+    }
+  }
+
+  async function handleResendLibraryEmoji(item: EmojiLibraryItem) {
+    if (!botId || !destinationGuildId || !canManage) return;
+
+    setResendingId(item.id);
+    setCloneStatus("running");
+    setCloneProgress(35);
+    setCloneMessage(`Reenviando ${item.name}...`);
+
+    try {
+      const emoji = await resendEmojiFromLibrary(botId, item.id, {
+        guildId: destinationGuildId,
+        name: item.name
+      });
+      setCloneProgress(100);
+      setCloneStatus("success");
+      setCloneMessage(emoji.duplicate ? `Emoji ${emoji.name} ja existia no destino.` : `Emoji ${emoji.name} reenviado para ${selectedDestination?.name ?? destinationGuildId}.`);
+      await refreshEmojiLibrary();
+    } catch (requestError) {
+      setCloneProgress(100);
+      setCloneStatus("error");
+      setCloneMessage(readErrorMessage(requestError, "Nao foi possivel reenviar o emoji."));
+    } finally {
+      setResendingId(null);
     }
   }
 
@@ -2111,6 +2174,76 @@ function EmojiCloneSettingsPanel({
                 Iniciar clonagem
               </Button>
             </div>
+          </div>
+        </div>
+
+        <div className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-white">Biblioteca de Emojis</p>
+              <p className="text-xs text-zinc-500">Emojis importados pelo seu usuario neste bot do Portal do Desenvolvedor.</p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <label className="relative block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                <input
+                  className="h-9 w-full rounded-lg border border-zinc-800 bg-zinc-950 pl-9 pr-3 text-sm text-white outline-none placeholder:text-zinc-600 sm:w-56"
+                  onChange={(event) => setLibraryFilter(event.target.value)}
+                  placeholder="Buscar emoji"
+                  value={libraryFilter}
+                />
+              </label>
+              <select
+                className="h-9 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none"
+                onChange={(event) => setLibraryType(event.target.value as typeof libraryType)}
+                value={libraryType}
+              >
+                <option value="all">Todos</option>
+                <option value="false">Estaticos</option>
+                <option value="true">Animados</option>
+              </select>
+              <Button disabled={libraryLoading} onClick={() => void refreshEmojiLibrary()} size="sm" type="button" variant="outline">
+                {libraryLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {library.length ? library.map((item) => {
+              const sourceGuild = guilds.find((entry) => entry.id === item.sourceGuildId);
+              const targetGuild = guilds.find((entry) => entry.id === item.destinationGuildId);
+
+              return (
+                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3" key={item.id}>
+                  <div className="flex aspect-square items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/60">
+                    <img alt={item.name} className="max-h-full max-w-full object-contain" src={item.url} />
+                  </div>
+                  <div className="mt-3 min-w-0">
+                    <p className="truncate text-sm font-semibold text-white">{item.name}</p>
+                    <p className="mt-1 truncate text-xs text-zinc-500">
+                      {item.animated ? "Animado" : "Estatico"} • {new Date(item.importedAt).toLocaleString("pt-BR")}
+                    </p>
+                    <p className="mt-1 truncate text-xs text-zinc-600">
+                      {sourceGuild?.name ?? item.sourceGuildId ?? "Origem externa"} → {targetGuild?.name ?? item.destinationGuildId}
+                    </p>
+                  </div>
+                  <Button
+                    className="mt-3 w-full"
+                    disabled={disabled || !destinationGuildId || resendingId === item.id}
+                    onClick={() => void handleResendLibraryEmoji(item)}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    {resendingId === item.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                    Reenviar
+                  </Button>
+                </div>
+              );
+            }) : (
+              <p className="rounded-lg border border-dashed border-zinc-800 px-3 py-8 text-center text-sm text-zinc-500 sm:col-span-2 lg:col-span-3 xl:col-span-4">
+                {libraryLoading ? "Carregando Biblioteca..." : "Nenhum emoji importado na sua Biblioteca."}
+              </p>
+            )}
           </div>
         </div>
 
@@ -3047,6 +3180,14 @@ function isViewAllowed(view: ViewId, enabledModules: string[]) {
 
   if (view === "settings") {
     return enabledModules.some((moduleId) => settingsModuleIds.has(moduleId));
+  }
+
+  if (view === "entry-leave") {
+    return enabledModules.includes("welcome") || enabledModules.includes("leave");
+  }
+
+  if (view === "auto-roles") {
+    return enabledModules.includes("roles");
   }
 
   if (view === "lives") {

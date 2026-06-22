@@ -19,6 +19,7 @@ import {
   disableUnreleasedSafeBotChannels,
   ensureSafeBotSetup,
   ensureSelfBotRoles,
+  handleSafeBotSettingsUpdated,
   isSelfBotModuleEnabled,
   reconcileSelfBotPunishmentRoles
 } from "../services/safeBotService";
@@ -90,6 +91,9 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     void ensureSelfBotRoles(client, context);
   });
   startGuildSettingsCache(context);
+  context.socket.onSettingsUpdated((settings) => {
+    void handleSafeBotSettingsUpdated(settings, client, context);
+  });
   startDiscordLogDelivery(context);
   startMaintenanceService(context);
 

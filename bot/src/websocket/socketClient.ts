@@ -175,7 +175,7 @@ export class BotSocketClient {
   private imageAntiSpamSettingsHandler: ((payload: ImageAntiSpamSettingsEvent) => void) | null = null;
   private selfBotProtectionSettingsHandler: ((payload: SelfBotProtectionSettingsEvent) => void) | null = null;
   private selfBotEnsureSetupHandler: ((payload: SelfBotEnsureSetupEvent) => void) | null = null;
-  private settingsUpdatedHandler: ((payload: SettingsUpdatedEvent) => void) | null = null;
+  private settingsUpdatedHandlers = new Set<(payload: SettingsUpdatedEvent) => void>();
   private discordLogDispatchHandler: ((payload: DiscordLogDispatchEvent) => void) | null = null;
   private devModuleUpdatedHandler: ((payload: DevModuleUpdatedEvent) => void) | null = null;
   private maintenanceUpdatedHandler: ((payload: MaintenanceUpdatedEvent) => void) | null = null;
@@ -283,8 +283,8 @@ export class BotSocketClient {
       this.socket.on("self-bot:ensure_setup", this.selfBotEnsureSetupHandler);
     }
 
-    if (this.settingsUpdatedHandler) {
-      this.socket.on("settings:updated", this.settingsUpdatedHandler);
+    for (const handler of this.settingsUpdatedHandlers) {
+      this.socket.on("settings:updated", handler);
     }
 
     if (this.discordLogDispatchHandler) {
@@ -426,8 +426,7 @@ export class BotSocketClient {
   }
 
   onSettingsUpdated(handler: (payload: SettingsUpdatedEvent) => void) {
-    this.settingsUpdatedHandler = handler;
-    this.socket?.off("settings:updated");
+    this.settingsUpdatedHandlers.add(handler);
     this.socket?.on("settings:updated", handler);
   }
 

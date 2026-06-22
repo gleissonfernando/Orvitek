@@ -17,7 +17,7 @@ import {
 } from "discord.js";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { env, isBotModuleEnabled } from "../config/env";
+import { currentRuntimeBotId, env, isBotModuleEnabled } from "../config/env";
 import type { BotContext, GuildSettings } from "../types";
 import type {
   SelfBotProtectionModuleId,
@@ -40,6 +40,7 @@ const processingQueues = new Map<string, Promise<boolean>>();
 const filterWarningQueues = new Map<string, Promise<void>>();
 const messageHistory = new Map<string, SafeBotHistoryEntry[]>();
 const setupCache = new Map<string, SafeBotRuntime>();
+const filterWarningState = new Map<string, { lastCheckedAt: number; messageId: string | null }>();
 const URL_PATTERN = /(?:https?:\/\/|www\.|discord\.gg\/|discord(?:app)?\.com\/invite\/|(?:[a-z0-9-]+\.)+[a-z]{2,63}(?:\/[^\s<>()\]]*)?)/i;
 const IMAGE_PATTERN = /\.(?:png|jpe?g|gif|webp)(?:$|[?#])/i;
 const VIDEO_PATTERN = /\.(?:mp4|mov|avi|webm)(?:$|[?#])/i;
@@ -100,6 +101,12 @@ export async function ensureSafeBotSetup(guild: Guild, context: BotContext, know
     console.warn("[safe-bot] nao foi possivel carregar configuracoes:", errorMessage(error));
     return null;
   });
+
+  if (!settings?.safeBotEnabled) {
+    clearSafeBotSetupCache(guild.id);
+    return null;
+  }
+
   const protectionSettings = await context.api.getSelfBotProtectionSettings(guild.id).catch((error) => {
     console.warn("[safe-bot] nao foi possivel carregar configuracao avancada:", errorMessage(error));
     return null;
@@ -225,6 +232,39 @@ export function clearSafeBotSetupCache(guildId: string) {
       messageHistory.delete(key);
     }
   }
+
+  for (const key of filterWarningState.keys()) {
+    if (key.startsWith(`${guildId}:`)) {
+      filterWarningState.delete(key);
+    }
+  }
+}
+
+export async function handleSafeBotSettingsUpdated(settings: GuildSettings, client: Client<true>, context: BotContext) {
+  if (!settingsBelongsToRuntime(settings)) {
+    return;
+  }
+
+  clearSafeBotSetupCache(settings.guildId);
+
+  const guild = client.guilds.cache.get(settings.guildId);
+
+  if (!guild) {
+    return;
+  }
+
+  if (settings.safeBotEnabled && shouldCheckSelfBotRuntime()) {
+    await ensureSafeBotSetup(guild, context, settings);
+    return;
+  }
+
+  if (settings.safeBotChannelId) {
+    const channel = await guild.channels.fetch(settings.safeBotChannelId).catch(() => null);
+
+    if (channel?.type === ChannelType.GuildText) {
+      await disableFilterChannel(channel, guild.id);
+    }
+  }
 }
 
 export async function handleSafeBotMessage(message: Message, context: BotContext) {
@@ -296,7 +336,7 @@ async function processSafeBotMessage(message: Message, context: BotContext) {
 
   const runtime = await getSafeBotRuntime(guild, context);
 
-  if (!runtime) {
+  if (!runtime?.settings.safeBotEnabled) {
     return false;
   }
 
@@ -1150,6 +1190,17 @@ async function ensureFilterWarning(channel: Awaited<ReturnType<typeof findTextCh
 }
 
 async function reconcileFilterWarning(channel: NonNullable<Awaited<ReturnType<typeof findTextChannel>>>) {
+  const stateKey = `${channel.guild.id}:${channel.id}`;
+  const state = filterWarningState.get(stateKey);
+
+  if (state?.messageId && Date.now() - state.lastCheckedAt < 15_000) {
+    const knownMessage = await channel.messages.fetch(state.messageId).catch(() => null);
+
+    if (knownMessage && isCurrentFilterWarning(knownMessage)) {
+      return;
+    }
+  }
+
   const messages = await channel.messages.fetch({ limit: 100 });
   const warnings = messages.filter((message) => isFilterWarningMessage(message));
   const currentWarning = warnings.find((message) => isCurrentFilterWarning(message));
@@ -1187,6 +1238,10 @@ async function reconcileFilterWarning(channel: NonNullable<Awaited<ReturnType<ty
       .map((message) => message.delete())
   );
   const removed = removals.filter((result) => result.status === "fulfilled").length;
+  filterWarningState.set(stateKey, {
+    lastCheckedAt: Date.now(),
+    messageId: warning.id
+  });
 
   console.log(
     `[safe-bot] aviso Components V2 ${created ? "publicado" : "confirmado"} no canal ${channel.id}; avisos antigos removidos: ${removed}.`
@@ -1260,8 +1315,14 @@ function shouldCheckSelfBotRuntime() {
   return isSelfBotModuleEnabled() || Boolean(env.DASHBOARD_BOT_ID.trim());
 }
 
-function isDevBotMainGuild(guildId: string) {
-  return Boolean(env.DASHBOARD_BOT_ID && env.BOT_MAIN_GUILD_ID.trim() === guildId);
+function settingsBelongsToRuntime(settings: GuildSettings) {
+  const runtimeBotId = (currentRuntimeBotId() ?? env.DASHBOARD_BOT_ID.trim()) || null;
+
+  if (runtimeBotId) {
+    return settings.botId === runtimeBotId;
+  }
+
+  return !settings.botId;
 }
 
 function truncate(value: string, maxLength: number) {

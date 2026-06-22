@@ -1425,6 +1425,7 @@ export class ApiClient {
     items: Array<{
       originalEmojiId: string;
       originalName: string;
+      originalUrl?: string | null;
       newEmojiId?: string | null;
       newName?: string | null;
       animated: boolean;

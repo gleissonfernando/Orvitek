@@ -1,10 +1,12 @@
 import type { GuildMember, Role } from "discord.js";
 import type { BotContext } from "../types";
 import { getCachedGuildSettings } from "./guildSettingsCache";
+import { isRuntimeModuleAuthorized } from "./runtimeModuleGuard";
 
 const MAX_AUTOMATIC_ROLES = 2;
 const ROLE_ASSIGNMENT_ATTEMPTS = 3;
 const ROLE_ASSIGNMENT_RETRY_MS = 500;
+const MODULE_ID = "roles";
 
 export async function applyAutomaticRoles(context: BotContext, member: GuildMember, includeBoosterRole = true) {
   if (member.user.bot) {
@@ -13,6 +15,10 @@ export async function applyAutomaticRoles(context: BotContext, member: GuildMemb
 
   if (member.pending) {
     console.log(`[roles] aguardando ${member.user.tag} concluir a verificacao de entrada em ${member.guild.name}.`);
+    return;
+  }
+
+  if (!(await isRuntimeModuleAuthorized(context, member.guild.id, MODULE_ID))) {
     return;
   }
 

@@ -20,6 +20,9 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Search,
+  UserMinus,
+  UserPlus,
+  Users,
   X
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -44,6 +47,8 @@ export type ViewId =
   | "logs"
   | "fivem"
   | "notifications"
+  | "entry-leave"
+  | "auto-roles"
   | "settings";
 
 export type NavItem = {
@@ -70,7 +75,9 @@ const navItems: NavItem[] = [
   { id: "logs", label: "Logs", icon: ScrollText, moduleId: "logs" },
   { id: "fivem", label: "FiveM", icon: Building2, moduleIds: ["fivem", "fivem-factions", "fivem-corporations", "fivem-absences", "fivem-orders", "fivem-ammo", "fivem-finance", "fivem-fac"] },
   { id: "notifications", label: "Notificacoes", icon: Bell },
-  { id: "settings", label: "Configuracoes", icon: Settings, moduleIds: ["welcome", "leave", "roles", "tickets", "avisos", "network", "emoji-cloner", "server-cloner"] }
+  { id: "entry-leave", label: "Entrada/Saida", icon: UserPlus, moduleIds: ["welcome", "leave"] },
+  { id: "auto-roles", label: "Cargos automaticos", icon: Users, moduleId: "roles" },
+  { id: "settings", label: "Configuracoes", icon: Settings, moduleIds: ["tickets", "avisos", "network", "emoji-cloner", "server-cloner"] }
 ];
 
 type SidebarProps = {

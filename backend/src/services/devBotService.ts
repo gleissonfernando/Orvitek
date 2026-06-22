@@ -1771,9 +1771,26 @@ export function runtimeModuleIdForLogType(type: string) {
   }
 
   if (
+    normalized.startsWith("dashboard.roles.")
+    || normalized.startsWith("roles.")
+  ) {
+    return "roles";
+  }
+
+  if (
+    normalized.startsWith("server_clone.")
+    || normalized.startsWith("server-clone.")
+  ) {
+    return "server-cloner";
+  }
+
+  if (normalized.startsWith("emoji_clone.")) {
+    return "emoji-cloner";
+  }
+
+  if (
     normalized.startsWith("message.")
     || normalized.startsWith("member.")
-    || normalized.startsWith("roles.")
   ) {
     return "logs";
   }

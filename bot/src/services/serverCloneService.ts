@@ -124,7 +124,7 @@ export async function handleServerCloneInteraction(interaction: Interaction, con
       return true;
     }
 
-    const guard = await validateCloneAccess(sourceGuild, destinationGuild, interaction.user.id);
+    const guard = await validateCloneAccess(sourceGuild, destinationGuild, interaction.user.id, context);
     if (guard) {
       await interaction.reply({ content: guard, ephemeral: true });
       return true;
@@ -406,7 +406,7 @@ function mappedOverwrites(channel: GuildBasedChannel, roleMap: Map<string, strin
   return overwrites;
 }
 
-async function validateCloneAccess(sourceGuild: Guild, destinationGuild: Guild, userId: string) {
+async function validateCloneAccess(sourceGuild: Guild, destinationGuild: Guild, userId: string, context: BotContext) {
   const [sourceMember, destinationMember] = await Promise.all([
     sourceGuild.members.fetch(userId).catch(() => null),
     destinationGuild.members.fetch(userId).catch(() => null)
@@ -421,6 +421,19 @@ async function validateCloneAccess(sourceGuild: Guild, destinationGuild: Guild, 
 
   const destinationGuard = await validateAdmin(destinationGuild, destinationMember, userId);
   if (destinationGuard) return `Destino bloqueado: ${destinationGuard}`;
+
+  const [sourceAuthorization, destinationAuthorization] = await Promise.all([
+    getRuntimeModuleAuthorization(context, sourceGuild.id, MODULE_ID),
+    getRuntimeModuleAuthorization(context, destinationGuild.id, MODULE_ID)
+  ]);
+
+  if (!sourceAuthorization.allowed) {
+    return `Origem bloqueada pela dashboard: ${sourceAuthorization.reason}`;
+  }
+
+  if (!destinationAuthorization.allowed) {
+    return `Destino bloqueado pela dashboard: ${destinationAuthorization.reason}`;
+  }
 
   const permissionGuard = await validateBotPermissions(sourceGuild, "origem") ?? await validateBotPermissions(destinationGuild, "destino");
   return permissionGuard;
@@ -510,6 +523,25 @@ function serverCloneMessage(title: string, body: string, ephemeral = true) {
 
 async function sendServerCloneLog(source: Guild, destination: Guild, job: ServerCloneJob, stats: CloneStats, context: BotContext) {
   const settings = await getCachedGuildSettings(context, destination.id, context.client.user?.id).catch(() => null);
+  const metadata = {
+    destinationGuildId: destination.id,
+    failed: stats.failed,
+    jobId: job.id,
+    parts: job.parts,
+    sourceGuildId: source.id,
+    stats,
+    status: job.status
+  };
+
+  await context.api.postLog({
+    botId: settings?.botId ?? null,
+    guildId: destination.id,
+    userId: job.userId,
+    type: "server_clone.completed",
+    message: `Clonagem concluida de ${source.name} para ${destination.name}.`,
+    metadata
+  }).catch(() => null);
+
   const logChannelId = settings?.logChannelId;
   if (!logChannelId) return;
 
