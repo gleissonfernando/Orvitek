@@ -40,6 +40,7 @@ const processingQueues = new Map<string, Promise<boolean>>();
 const filterWarningQueues = new Map<string, Promise<void>>();
 const messageHistory = new Map<string, SafeBotHistoryEntry[]>();
 const setupCache = new Map<string, SafeBotRuntime>();
+const setupQueues = new Map<string, Promise<SafeBotRuntime | null>>();
 const URL_PATTERN = /(?:https?:\/\/|www\.|discord\.gg\/|discord(?:app)?\.com\/invite\/|(?:[a-z0-9-]+\.)+[a-z]{2,63}(?:\/[^\s<>()\]]*)?)/i;
 const IMAGE_PATTERN = /\.(?:png|jpe?g|gif|webp)(?:$|[?#])/i;
 const VIDEO_PATTERN = /\.(?:mp4|mov|avi|webm)(?:$|[?#])/i;
@@ -87,6 +88,25 @@ const FILTER_WARNING_DESCRIPTION = [
 ].join("\n");
 
 export async function ensureSafeBotSetup(guild: Guild, context: BotContext, knownSettings?: GuildSettings | null) {
+  const key = runtimeScopeKey(guild.id);
+  const queued = setupQueues.get(key);
+
+  if (queued) {
+    return queued;
+  }
+
+  const next = reconcileSafeBotSetup(guild, context, knownSettings)
+    .finally(() => {
+      if (setupQueues.get(key) === next) {
+        setupQueues.delete(key);
+      }
+    });
+
+  setupQueues.set(key, next);
+  return next;
+}
+
+async function reconcileSafeBotSetup(guild: Guild, context: BotContext, knownSettings?: GuildSettings | null) {
   if (!shouldCheckSelfBotRuntime()) {
     return null;
   }
@@ -94,6 +114,13 @@ export async function ensureSafeBotSetup(guild: Guild, context: BotContext, know
   if (!(await isRuntimeModuleAuthorized(context, guild.id, MODULE_ID))) {
     setupCache.delete(runtimeScopeKey(guild.id));
     return null;
+  }
+
+  const key = runtimeScopeKey(guild.id);
+  const cached = setupCache.get(key);
+
+  if (!knownSettings && cached && cached.expiresAt > Date.now()) {
+    return cached;
   }
 
   const settings = knownSettings ?? await context.api.getSettings(guild.id, guild.client.user?.id).catch((error) => {
@@ -152,7 +179,7 @@ export async function ensureSafeBotSetup(guild: Guild, context: BotContext, know
     } as GuildSettings
   };
 
-  setupCache.set(runtimeScopeKey(guild.id), runtime);
+  setupCache.set(key, runtime);
   return runtime;
 }
 

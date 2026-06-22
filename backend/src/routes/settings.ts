@@ -260,15 +260,28 @@ settingsRouter.post("/bot/:guildId/safe-bot-setup", requireBot, async (req, res,
       });
     }
 
-    const settings = await updateGuildSettings(guildId, {
-      safeBotEnabled: true,
-      safeBotChannelId: input.filterChannelId,
-      safeBotLogChannelId: input.logChannelId,
-      safeBotRoleId: input.roleId
-    }, botId);
+    const currentSettings = await getGuildSettings(guildId, botId);
+    const needsSettingsUpdate = currentSettings.safeBotEnabled !== true
+      || currentSettings.safeBotChannelId !== input.filterChannelId
+      || currentSettings.safeBotLogChannelId !== input.logChannelId
+      || currentSettings.safeBotRoleId !== input.roleId;
+
+    const settings = needsSettingsUpdate
+      ? await updateGuildSettings(guildId, {
+        safeBotEnabled: true,
+        safeBotChannelId: input.filterChannelId,
+        safeBotLogChannelId: input.logChannelId,
+        safeBotRoleId: input.roleId
+      }, botId)
+      : currentSettings;
 
     const protectionSettings = botId ? await getSelfBotProtectionSettings(guildId, botId) : null;
-    const syncedProtectionSettings = botId && protectionSettings
+    const needsProtectionUpdate = Boolean(
+      botId
+      && protectionSettings
+      && (!protectionSettings.addRoleId || !protectionSettings.logChannelId)
+    );
+    const syncedProtectionSettings = needsProtectionUpdate && botId && protectionSettings
       ? await saveSelfBotProtectionSettings(
         guildId,
         botId,
@@ -280,7 +293,9 @@ settingsRouter.post("/bot/:guildId/safe-bot-setup", requireBot, async (req, res,
       )
       : null;
 
-    emitRealtime("settings:updated", settings);
+    if (needsSettingsUpdate) {
+      emitRealtime("settings:updated", settings);
+    }
     if (syncedProtectionSettings) {
       emitRealtime("self-bot-protection:settings_updated", syncedProtectionSettings);
     }

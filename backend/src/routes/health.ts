@@ -6,7 +6,16 @@ import { getBotStatus } from "../services/statsService";
 
 export const healthRouter = Router();
 
-healthRouter.get("/", async (_req, res) => {
+healthRouter.get("/", async (req, res) => {
+  if (req.baseUrl.includes("_shardcloud")) {
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({
+      status: "ok",
+      service: "orvitek",
+      timestamp: new Date().toISOString()
+    });
+  }
+
   const [database, redis] = await Promise.all([
     databaseHealth(),
     redisHealth()
