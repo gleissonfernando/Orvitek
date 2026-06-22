@@ -2139,13 +2139,13 @@ function EmojiCloneSettingsPanel({
     } catch (requestError) {
       setFakeTokenAccepted(false);
       setCredentialTestMode("invalid");
-      setFakeTokenMessage(readErrorMessage(requestError, "Token invalido. Use apenas token falso gerado pelo sistema de testes."));
+      setFakeTokenMessage(readErrorMessage(requestError, "Token do usuario invalido"));
     }
   }
 
   function handleFetchFakeEmojis() {
     if (!fakeTokenAccepted) {
-      setFakeTokenMessage("Valide o token falso antes de buscar emojis.");
+      setFakeTokenMessage("Valide o token  antes de buscar emojis.");
       return;
     }
 
@@ -2166,7 +2166,7 @@ function EmojiCloneSettingsPanel({
 
     setCloneStatus("running");
     setCloneProgress(25);
-    setCloneMessage("[TESTE] Clonando emojis selecionados com token falso...");
+    setCloneMessage("[TESTE] Clonando emojis selecionados com token...");
     await new Promise((resolve) => window.setTimeout(resolve, 700));
     setCloneProgress(100);
     setCloneStatus("success");
@@ -2300,7 +2300,7 @@ function EmojiCloneSettingsPanel({
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button disabled={disabled || cloneStatus === "running"} onClick={() => void handleValidateFakeToken()} size="sm" type="button">
-                  Validar token falso
+                  Validar token 
                 </Button>
                 <Button disabled={disabled || !fakeTokenAccepted} onClick={handleFetchFakeEmojis} size="sm" type="button" variant="outline">
                   Buscar emojis

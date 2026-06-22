@@ -65,13 +65,13 @@ emojiClonerRouter.post("/fake-token/validate", requireAuth, async (req, res, nex
 
     if (!enabled) {
       return res.status(403).json({
-        message: "Sistema de token falso para clonagem de emojis esta desativado."
+        message: "Sistema de token  para clonagem de emojis esta desativado."
       });
     }
 
     if (looksLikeDiscordUserToken(input.token) || !input.token.startsWith(prefix)) {
       return res.status(400).json({
-        message: "Token invalido. Use apenas token falso gerado pelo sistema de testes."
+        message: "Token de usuario invalido."
       });
     }
 
@@ -84,7 +84,7 @@ emojiClonerRouter.post("/fake-token/validate", requireAuth, async (req, res, nex
 
     return res.json({
       accepted: true,
-      message: "Token falso aceito. Modo de teste ativado para clonagem de emojis.",
+      message: "Token do usuario aceito. Modo de teste ativado para clonagem de emojis.",
       tokenMasked: maskFakeToken(input.token, prefix)
     });
   } catch (error) {
