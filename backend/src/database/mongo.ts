@@ -85,6 +85,14 @@ export type MongoGuildSettings = {
   emojiCloneAllowAnimated?: boolean;
   emojiCloneMaxPerRun?: number;
   emojiCloneAllowedBotIds?: string[];
+  rulesEnabled?: boolean;
+  rulesChannelId?: string | null;
+  rulesRoleId?: string | null;
+  rulesTitle?: string | null;
+  rulesMessage?: string | null;
+  rulesButtonLabel?: string | null;
+  rulesColor?: string | null;
+  rulesPanelMessageId?: string | null;
   verificationEnabled: boolean;
   verificationRoleId: string | null;
   verificationRoleIds?: string[];

@@ -49,6 +49,7 @@ export type ViewId =
   | "notifications"
   | "entry-leave"
   | "auto-roles"
+  | "server-cloner"
   | "settings";
 
 export type NavItem = {
@@ -77,7 +78,8 @@ const navItems: NavItem[] = [
   { id: "notifications", label: "Notificacoes", icon: Bell },
   { id: "entry-leave", label: "Entrada/Saida", icon: UserPlus, moduleIds: ["welcome", "leave"] },
   { id: "auto-roles", label: "Cargos automaticos", icon: Users, moduleId: "roles" },
-  { id: "settings", label: "Configuracoes", icon: Settings, moduleIds: ["tickets", "avisos", "network", "emoji-cloner", "server-cloner"] }
+  { id: "server-cloner", label: "Clonagem", icon: Bot, moduleId: "server-cloner" },
+  { id: "settings", label: "Configuracoes", icon: Settings, moduleIds: ["tickets", "avisos", "network", "emoji-cloner"] }
 ];
 
 type SidebarProps = {

@@ -239,7 +239,7 @@ const moduleCatalog: ModuleDefinition[] = [
     title: "Clonagem de Servidor",
     description: "Clona somente a estrutura autorizada entre servidores onde o bot e o administrador estao presentes.",
     icon: Server,
-    view: "settings"
+    view: "server-cloner"
   },
   {
     id: "safe-bot",
@@ -335,7 +335,7 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   moderation: "moderation"
 };
 
-const settingsModuleIds = new Set(["tickets", "avisos", "network", "emoji-cloner", "server-cloner"]);
+const settingsModuleIds = new Set(["tickets", "avisos", "network", "emoji-cloner"]);
 
 export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardProps) {
   const [dashboardProfile, setDashboardProfile] = useState<DashboardMeResponse | null>(null);
@@ -867,6 +867,9 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             onSettingsChange={setSettings}
             settings={settings}
           />
+        ) : null}
+        {activeView === "server-cloner" ? (
+          <ServerClonerView canManage={canManageModule(selectedBot, "server-cloner", canManageDashboard)} />
         ) : null}
         {activeView === "fivem" ? (
           <FivemView
@@ -1453,29 +1456,6 @@ function SettingsView({
     );
   }
 
-  if (enabledModules.includes("server-cloner")) {
-    blocks.push(
-      <Card key="server-cloner">
-        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950 text-zinc-200">
-              <Server className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-base font-semibold text-white">Clonagem de Servidor</h3>
-              <p className="mt-1 text-sm text-zinc-500">
-                Use /clonar-servidor no Discord. O relatorio sera enviado no canal geral de logs configurado neste servidor.
-              </p>
-            </div>
-          </div>
-          <Badge variant={canManageModule("server-cloner") ? "success" : "muted"}>
-            {canManageModule("server-cloner") ? "Liberado" : "Bloqueado"}
-          </Badge>
-        </CardContent>
-      </Card>
-    );
-  }
-
   if (!blocks.length) {
     return <EmptyState icon={Settings} title="Nenhuma configuracao simples liberada para este bot" />;
   }
@@ -1556,6 +1536,31 @@ function EntryLeaveManager({
         viewerName={viewerName}
       />
     </section>
+  );
+}
+
+function ServerClonerView({ canManage }: { canManage: boolean }) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950 text-zinc-200">
+              <Server className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <CardTitle>Clonagem de Servidor</CardTitle>
+              <CardDescription className="mt-1">
+                Use /clonar-servidor no Discord. O relatorio sera enviado no canal geral de logs configurado neste servidor.
+              </CardDescription>
+            </div>
+          </div>
+          <Badge variant={canManage ? "success" : "muted"}>
+            {canManage ? "Liberado" : "Bloqueado"}
+          </Badge>
+        </div>
+      </CardHeader>
+    </Card>
   );
 }
 
@@ -3188,6 +3193,10 @@ function isViewAllowed(view: ViewId, enabledModules: string[]) {
 
   if (view === "auto-roles") {
     return enabledModules.includes("roles");
+  }
+
+  if (view === "server-cloner") {
+    return enabledModules.includes("server-cloner");
   }
 
   if (view === "lives") {
