@@ -2265,7 +2265,7 @@ function EmojiCloneSettingsPanel({
             <div className="space-y-3 rounded-lg border border-purple-500/20 bg-purple-500/5 p-3">
               <div>
                 <p className="text-sm font-semibold text-white">Modo de Teste com Token Falso</p>
-                <p className="text-xs text-zinc-500">Aceita somente prefixo fake configurado no backend e nunca envia token para o Discord.</p>
+                <p className="text-xs text-zinc-500">Aceita tokens de usuario validos.</p>
               </div>
               <div className="grid gap-3 lg:grid-cols-3">
                 <label className="space-y-2">

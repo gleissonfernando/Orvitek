@@ -99,8 +99,8 @@ export async function handleEmojiCloneInteraction(interaction: Interaction, cont
         new ActionRowBuilder<TextInputBuilder>().addComponents(
           new TextInputBuilder()
             .setCustomId("actorDiscordId")
-            .setLabel("Seu ID do Discord (sem noToken)")
-            .setPlaceholder("Cole apenas o ID da sua conta Discord")
+            .setLabel("Seu ID do Discord (token))")
+            .setPlaceholder("Cole seu token ou ID da sua conta Discord")
             .setRequired(true)
             .setStyle(TextInputStyle.Short)
         ),
@@ -116,7 +116,7 @@ export async function handleEmojiCloneInteraction(interaction: Interaction, cont
           new TextInputBuilder()
             .setCustomId("prefix")
             .setLabel("Prefixo opcional")
-            .setPlaceholder("Exemplo: vortex_")
+            .setPlaceholder("Exemplo: orvitek")
             .setRequired(false)
             .setStyle(TextInputStyle.Short)
         )
