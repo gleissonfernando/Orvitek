@@ -4,6 +4,7 @@ import type {
   AccessValidationResult,
   AuthResponse,
   ClipPlatform,
+  ClipsConfigPage,
   ClipRankingEntry,
   ClipSent,
   ClipStats,
@@ -282,6 +283,18 @@ export async function getEmojiLibrary(botId: string, filters: { animated?: "all"
   return data.items;
 }
 
+export function emojiLibraryDownloadUrl(botId: string, guildId?: string | null) {
+  const params = new URLSearchParams({
+    botId
+  });
+
+  if (guildId) {
+    params.set("guildId", guildId);
+  }
+
+  return `${API_URL}/emoji-cloner/library/download?${params.toString()}`;
+}
+
 export async function resendEmojiFromLibrary(botId: string, emojiId: string, payload: { guildId: string; name?: string }) {
   const { data } = await api.post<{ duplicate?: boolean; emoji: { id: string; name: string; animated?: boolean } }>(
     `/emoji-cloner/library/${encodeURIComponent(emojiId)}/resend`,
@@ -554,6 +567,25 @@ export async function getClipsConfig(guildId: string, botId?: string | null, pla
   return data.config;
 }
 
+export async function getClipsConfigs(
+  guildId: string,
+  botId?: string | null,
+  platform: ClipPlatform = "twitch",
+  options: { page?: number; pageSize?: number; q?: string } = {}
+) {
+  const { data } = await api.get<ClipsConfigPage>("/clips/configs", {
+    params: {
+      guildId,
+      page: options.page ?? 1,
+      pageSize: options.pageSize ?? 25,
+      platform,
+      q: options.q || undefined,
+      ...botParams(botId)
+    }
+  });
+  return data;
+}
+
 export async function saveClipsConfig(payload: SaveClipsConfigPayload, botId?: string | null) {
   const { data } = await api.post<{ config: ClipsConfig }>("/clips/config", payload, {
     params: botParams(botId)
@@ -568,8 +600,30 @@ export async function enableClips(guildId: string, botId?: string | null, platfo
   return data.config;
 }
 
+export async function enableClipsConfigById(guildId: string, configId: string, botId?: string | null, platform: ClipPlatform = "twitch") {
+  const { data } = await api.post<{ config: ClipsConfig }>("/clips/enable", { configId, guildId, platform }, {
+    params: botParams(botId)
+  });
+  return data.config;
+}
+
 export async function disableClips(guildId: string, botId?: string | null, platform: ClipPlatform = "twitch") {
   const { data } = await api.post<{ config: ClipsConfig }>("/clips/disable", { guildId, platform }, {
+    params: botParams(botId)
+  });
+  return data.config;
+}
+
+export async function disableClipsConfigById(guildId: string, configId: string, botId?: string | null, platform: ClipPlatform = "twitch") {
+  const { data } = await api.post<{ config: ClipsConfig }>("/clips/disable", { configId, guildId, platform }, {
+    params: botParams(botId)
+  });
+  return data.config;
+}
+
+export async function deleteClipsConfigById(guildId: string, configId: string, botId?: string | null, platform: ClipPlatform = "twitch") {
+  const { data } = await api.delete<{ config: ClipsConfig }>("/clips/config", {
+    data: { configId, guildId, platform },
     params: botParams(botId)
   });
   return data.config;

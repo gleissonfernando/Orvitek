@@ -101,6 +101,15 @@ export type MongoGuildSettings = {
   updatedAt: Date;
 };
 
+export type MongoSafeBotMessageState = {
+  _id: string;
+  botId?: string | null;
+  guildId: string;
+  channelId: string;
+  messageId: string;
+  updatedAt: Date;
+};
+
 export type MongoTicket = {
   _id: string;
   botId?: string | null;
@@ -283,6 +292,7 @@ export type MongoClipsConfig = {
   activeLiveStartedAt?: Date | null;
   activeLiveTitle?: string | null;
   activeLiveThumbnail?: string | null;
+  deletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -717,9 +727,11 @@ export type MongoEmojiLibraryItem = {
   _id: string;
   animated: boolean;
   botId: string;
+  category?: string | null;
   destinationGuildId: string;
   importedAt: Date;
   lastUpdatedAt: Date;
+  localFilePath?: string | null;
   name: string;
   originalEmojiId: string;
   sourceGuildId: string | null;
@@ -1109,6 +1121,7 @@ export async function getMongoCollections() {
     users: db.collection<MongoUser>("User"),
     guilds: db.collection<MongoGuild>("Guild"),
     guildSettings: db.collection<MongoGuildSettings>("GuildSettings"),
+    safeBotMessageStates: db.collection<MongoSafeBotMessageState>("safe_bot_message_states"),
     tickets: db.collection<MongoTicket>("Ticket"),
     logEntries: db.collection<MongoLogEntry>("LogEntry"),
     socialNotifications: db.collection<MongoSocialNotification>("social_notifications"),
@@ -1357,6 +1370,10 @@ async function ensureGuildSettingsIndexes(db: Db) {
     collection.dropIndex("GuildSettings_guildId_key").catch(() => undefined)
   ]);
   await collection.createIndex({ botId: 1, guildId: 1 }, { unique: true });
+  await db.collection<MongoSafeBotMessageState>("safe_bot_message_states").createIndex(
+    { botId: 1, guildId: 1 },
+    { unique: true }
+  );
 }
 
 async function ensureKickApiIndexes(db: Db) {
@@ -1496,13 +1513,31 @@ async function ensureClipsIndexes(db: Db) {
 
   await Promise.all([
     clipsConfig.dropIndex("botId_1_guildId_1").catch(() => undefined),
-    clipsSent.dropIndex("botId_1_guildId_1_clipId_1").catch(() => undefined)
+    clipsConfig.dropIndex("clips_config_scope_platform_unique").catch(() => undefined),
+    clipsSent.dropIndex("botId_1_guildId_1_clipId_1").catch(() => undefined),
+    clipsSent.dropIndex("clips_sent_scope_platform_clip_unique").catch(() => undefined)
   ]);
 
   await Promise.all([
-    clipsConfig.createIndex({ botId: 1, guildId: 1, platform: 1 }, { name: "clips_config_scope_platform_unique", unique: true }),
-    clipsConfig.createIndex({ enabled: 1, botId: 1, platform: 1, lastCheckAt: 1 }),
-    clipsSent.createIndex({ botId: 1, guildId: 1, platform: 1, clipId: 1 }, { name: "clips_sent_scope_platform_clip_unique", unique: true }),
+    clipsConfig.createIndex({ botId: 1, guildId: 1, platform: 1, updatedAt: -1 }, { name: "clips_config_scope_platform_idx" }),
+    clipsConfig.createIndex(
+      { botId: 1, guildId: 1, platform: 1, twitchBroadcasterId: 1 },
+      {
+        name: "clips_config_twitch_channel_unique",
+        partialFilterExpression: { platform: "twitch", twitchBroadcasterId: { $type: "string" }, deletedAt: null },
+        unique: true
+      }
+    ),
+    clipsConfig.createIndex(
+      { botId: 1, guildId: 1, platform: 1, kickUserId: 1 },
+      {
+        name: "clips_config_kick_channel_unique",
+        partialFilterExpression: { platform: "kick", kickUserId: { $type: "string" }, deletedAt: null },
+        unique: true
+      }
+    ),
+    clipsConfig.createIndex({ enabled: 1, botId: 1, platform: 1, deletedAt: 1, lastCheckAt: 1 }),
+    clipsSent.createIndex({ botId: 1, configId: 1, clipId: 1 }, { name: "clips_sent_config_clip_unique", unique: true }),
     clipsSent.createIndex({ botId: 1, guildId: 1, platform: 1, sentAt: -1 }),
     clipsSent.createIndex({ botId: 1, guildId: 1, platform: 1, clipCreatorName: 1, sentAt: -1 }),
     clipLiveSessions.createIndex({ botId: 1, configId: 1, streamId: 1 }, { unique: true }),

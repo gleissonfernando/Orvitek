@@ -126,6 +126,7 @@ export type PublicKickClipsDto = {
 };
 
 export type SaveClipsConfigInput = {
+  configId?: string | null;
   platform?: ClipPlatform | string | null;
   twitchChannelInput?: string | null;
   kickChannelInput?: string | null;
@@ -219,9 +220,68 @@ export async function getClipsConfig(guildId: string, botId?: string | null, pla
   const normalizedBotId = normalizeBotId(botId);
   const platform = normalizePlatform(platformInput);
   const { clipsConfig } = await getMongoCollections();
-  const config = await clipsConfig.findOne(scopeQuery(guildId, normalizedBotId, platform));
+  const config = await clipsConfig.findOne(scopeQuery(guildId, normalizedBotId, platform), {
+    sort: {
+      updatedAt: -1
+    }
+  });
 
-  return config ? toConfigDto(config, await countClipsSent(guildId, normalizedBotId, platform)) : null;
+  return config ? toConfigDto(config, await countClipsSentForConfig(config)) : null;
+}
+
+export async function listClipsConfigs(
+  guildId: string,
+  botId?: string | null,
+  options: {
+    limit?: number;
+    page?: number;
+    platform?: string | null;
+    query?: string | null;
+  } = {}
+) {
+  const normalizedBotId = normalizeBotId(botId);
+  const platform = normalizePlatform(options.platform);
+  const pageSize = Math.max(1, Math.min(options.limit ?? 25, 100));
+  const page = Math.max(1, options.page ?? 1);
+  const search = options.query?.trim();
+  const clauses: Array<Filter<MongoClipsConfig>> = [
+    { guildId },
+    botScopeClause(normalizedBotId) as Filter<MongoClipsConfig>,
+    platformClause(platform) as Filter<MongoClipsConfig>,
+    activeConfigClause() as Filter<MongoClipsConfig>
+  ];
+
+  if (search) {
+    clauses.push({
+      $or: [
+        { twitchChannelName: { $regex: escapeRegExp(search), $options: "i" } },
+        { twitchDisplayName: { $regex: escapeRegExp(search), $options: "i" } },
+        { kickChannelName: { $regex: escapeRegExp(search), $options: "i" } },
+        { kickDisplayName: { $regex: escapeRegExp(search), $options: "i" } }
+      ]
+    } as Filter<MongoClipsConfig>);
+  }
+
+  const { clipsConfig } = await getMongoCollections();
+  const query = { $and: clauses };
+  const [configs, total] = await Promise.all([
+    clipsConfig
+      .find(query)
+      .sort({ enabled: -1, updatedAt: -1 })
+      .skip((page - 1) * pageSize)
+      .limit(pageSize)
+      .toArray(),
+    clipsConfig.countDocuments(query)
+  ]);
+  const items = await Promise.all(configs.map(async (config) => toConfigDto(config, await countClipsSentForConfig(config))));
+
+  return {
+    configs: items,
+    page,
+    pageSize,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / pageSize))
+  };
 }
 
 export async function saveClipsConfig(
@@ -262,7 +322,7 @@ export async function saveClipsConfig(
 
   const { clipsConfig } = await getMongoCollections();
   const now = new Date();
-  const current = await clipsConfig.findOne(scopeQuery(guildId, normalizedBotId, platform));
+  const current = await findCurrentClipsConfig(guildId, normalizedBotId, platform, input.configId, channelPatch);
   const nextEnabled = input.enabled ?? current?.enabled ?? false;
 
   if (nextEnabled && !discordChannelId) {
@@ -286,6 +346,7 @@ export async function saveClipsConfig(
     clipRewards,
     checkInterval: CLIPS_CHECK_INTERVAL,
     lastCheckAt: shouldResetLastCheck ? now : current?.lastCheckAt ?? null,
+    deletedAt: null,
     updatedAt: now
   };
 
@@ -296,7 +357,7 @@ export async function saveClipsConfig(
   await ensureGuild(guildId);
 
   const saved = await clipsConfig.findOneAndUpdate(
-    scopeQuery(guildId, normalizedBotId, platform),
+    current ? { _id: current._id, ...botScopeQuery(normalizedBotId) } : channelScopeQuery(guildId, normalizedBotId, platform, channelPatch),
     {
       $set: docPatch,
       $setOnInsert: {
@@ -315,14 +376,14 @@ export async function saveClipsConfig(
   }
 
   await writeConfigLogs(current, saved, userId);
-  return toConfigDto(saved, await countClipsSent(guildId, normalizedBotId, platform));
+  return toConfigDto(saved, await countClipsSentForConfig(saved));
 }
 
-export async function enableClipsConfig(guildId: string, userId: string, botId?: string | null, platformInput?: string | null) {
+export async function enableClipsConfig(guildId: string, userId: string, botId?: string | null, platformInput?: string | null, configId?: string | null) {
   const normalizedBotId = normalizeBotId(botId);
   const platform = normalizePlatform(platformInput);
   const { clipsConfig } = await getMongoCollections();
-  const current = await clipsConfig.findOne(scopeQuery(guildId, normalizedBotId, platform));
+  const current = await getClipConfigForGuildAction(guildId, normalizedBotId, platform, configId);
 
   if (platform === "kick" && !current?.kickUserId) {
     throw createClipsError("Configure o canal da Kick antes de ativar.", 400);
@@ -337,7 +398,7 @@ export async function enableClipsConfig(guildId: string, userId: string, botId?:
   }
 
   const updated = await clipsConfig.findOneAndUpdate(
-    scopeQuery(guildId, normalizedBotId, platform),
+    { _id: current._id, ...botScopeQuery(normalizedBotId) },
     {
       $set: {
         enabled: true,
@@ -355,15 +416,16 @@ export async function enableClipsConfig(guildId: string, userId: string, botId?:
   }
 
   await writeClipLog(updated, "clips.enabled", userId, `Sistema de clipes ${platformLabel(platform)} ativado.`);
-  return toConfigDto(updated, await countClipsSent(guildId, normalizedBotId, platform));
+  return toConfigDto(updated, await countClipsSentForConfig(updated));
 }
 
-export async function disableClipsConfig(guildId: string, userId: string, botId?: string | null, platformInput?: string | null) {
+export async function disableClipsConfig(guildId: string, userId: string, botId?: string | null, platformInput?: string | null, configId?: string | null) {
   const normalizedBotId = normalizeBotId(botId);
   const platform = normalizePlatform(platformInput);
   const { clipsConfig } = await getMongoCollections();
+  const current = await getClipConfigForGuildAction(guildId, normalizedBotId, platform, configId);
   const updated = await clipsConfig.findOneAndUpdate(
-    scopeQuery(guildId, normalizedBotId, platform),
+    { _id: current._id, ...botScopeQuery(normalizedBotId) },
     {
       $set: {
         enabled: false,
@@ -380,7 +442,33 @@ export async function disableClipsConfig(guildId: string, userId: string, botId?
   }
 
   await writeClipLog(updated, "clips.disabled", userId, `Sistema de clipes ${platformLabel(platform)} desativado.`);
-  return toConfigDto(updated, await countClipsSent(guildId, normalizedBotId, platform));
+  return toConfigDto(updated, await countClipsSentForConfig(updated));
+}
+
+export async function deleteClipsConfig(guildId: string, userId: string, botId?: string | null, platformInput?: string | null, configId?: string | null) {
+  const normalizedBotId = normalizeBotId(botId);
+  const platform = normalizePlatform(platformInput);
+  const current = await getClipConfigForGuildAction(guildId, normalizedBotId, platform, configId);
+  const { clipsConfig } = await getMongoCollections();
+  const now = new Date();
+  const updated = await clipsConfig.findOneAndUpdate(
+    { _id: current._id, ...botScopeQuery(normalizedBotId) },
+    {
+      $set: {
+        deletedAt: now,
+        enabled: false,
+        updatedAt: now
+      }
+    },
+    { returnDocument: "after" }
+  );
+
+  if (!updated) {
+    throw createClipsError("Configuracao de clipes nao encontrada.", 404);
+  }
+
+  await writeClipLog(updated, "clips.config.deleted", userId, `Canal de clipes ${platformLabel(platform)} removido: ${displayNameForConfig(updated)}.`);
+  return toConfigDto(updated, await countClipsSentForConfig(updated));
 }
 
 export async function listClipsHistory(
@@ -517,7 +605,7 @@ export async function getPublicKickClips(channelInput: string): Promise<PublicKi
     listClipsHistory(config.guildId, botId, { platform: "kick", limit: 30 }),
     listClipsRanking(config.guildId, botId, { platform: "kick", limit: 10 }),
     getClipsStats(config.guildId, botId, "kick"),
-    toConfigDto(config, await countClipsSent(config.guildId, botId, "kick"))
+    toConfigDto(config, await countClipsSentForConfig(config))
   ]);
 
   return {
@@ -534,6 +622,7 @@ export async function listActiveClipsConfigs(botId?: string | null) {
   const configs = await clipsConfig
     .find({
       enabled: true,
+      ...activeConfigClause(),
       ...botScopeQuery(normalizedBotId)
     })
     .sort({
@@ -543,7 +632,7 @@ export async function listActiveClipsConfigs(botId?: string | null) {
 
   return Promise.all(configs.map(async (config) => {
     const platform = normalizePlatform(config.platform);
-    return toConfigDto(config, await countClipsSent(config.guildId, normalizeBotId(config.botId), platform));
+    return toConfigDto(config, await countClipsSentForConfig(config));
   }));
 }
 
@@ -702,7 +791,11 @@ export async function isClipSent(configId: string, clipId: string, botId?: strin
 
   const platform = normalizePlatform(config.platform);
   const { clipsSent } = await getMongoCollections();
-  return Boolean(await clipsSent.findOne(sentQuery(config.guildId, normalizeBotId(config.botId), platform, undefined, clipId), {
+  return Boolean(await clipsSent.findOne({
+    configId: config._id,
+    clipId,
+    ...botScopeQuery(normalizeBotId(config.botId))
+  }, {
     projection: {
       _id: 1
     }
@@ -936,6 +1029,7 @@ async function getClipConfigById(configId: string, botId?: string | null) {
   const { clipsConfig } = await getMongoCollections();
   return clipsConfig.findOne({
     _id: configId,
+    ...activeConfigClause(),
     ...botScopeQuery(normalizeBotId(botId))
   });
 }
@@ -996,6 +1090,14 @@ export async function writeClipLog(config: MongoClipsConfig, action: string, use
 async function countClipsSent(guildId: string, botId: string | null, platform: ClipPlatform) {
   const { clipsSent } = await getMongoCollections();
   return clipsSent.countDocuments(sentQuery(guildId, botId, platform));
+}
+
+async function countClipsSentForConfig(config: MongoClipsConfig) {
+  const { clipsSent } = await getMongoCollections();
+  return clipsSent.countDocuments({
+    configId: config._id,
+    ...botScopeQuery(normalizeBotId(config.botId))
+  });
 }
 
 async function resolveClipRewards(config: MongoClipsConfig, creatorName: string | null): Promise<ClipRewardAssignmentDto[]> {
@@ -1278,7 +1380,82 @@ function scopeQuery(guildId: string, botId: string | null, platform: ClipPlatfor
     $and: [
       { guildId },
       botScopeClause(botId) as Filter<MongoClipsConfig>,
-      platformClause(platform) as Filter<MongoClipsConfig>
+      platformClause(platform) as Filter<MongoClipsConfig>,
+      activeConfigClause() as Filter<MongoClipsConfig>
+    ]
+  };
+}
+
+async function findCurrentClipsConfig(
+  guildId: string,
+  botId: string | null,
+  platform: ClipPlatform,
+  configId: string | null | undefined,
+  channelPatch: Partial<MongoClipsConfig>
+) {
+  const { clipsConfig } = await getMongoCollections();
+
+  if (configId?.trim()) {
+    const current = await clipsConfig.findOne({
+      _id: configId.trim(),
+      guildId,
+      ...botScopeQuery(botId),
+      ...activeConfigClause()
+    });
+
+    if (!current) {
+      throw createClipsError("Configuracao de clipes nao encontrada.", 404);
+    }
+
+    return current;
+  }
+
+  return clipsConfig.findOne(channelScopeQuery(guildId, botId, platform, channelPatch));
+}
+
+async function getClipConfigForGuildAction(guildId: string, botId: string | null, platform: ClipPlatform, configId?: string | null) {
+  const { clipsConfig } = await getMongoCollections();
+  const config = configId?.trim()
+    ? await clipsConfig.findOne({
+        _id: configId.trim(),
+        guildId,
+        ...botScopeQuery(botId),
+        ...activeConfigClause()
+      })
+    : await clipsConfig.findOne(scopeQuery(guildId, botId, platform), {
+        sort: {
+          updatedAt: -1
+        }
+      });
+
+  if (!config) {
+    throw createClipsError("Configuracao de clipes nao encontrada.", 404);
+  }
+
+  return config;
+}
+
+function channelScopeQuery(guildId: string, botId: string | null, platform: ClipPlatform, patch: Partial<MongoClipsConfig>): Filter<MongoClipsConfig> {
+  const channelClause = platform === "kick"
+    ? { kickUserId: patch.kickUserId ?? "" }
+    : { twitchBroadcasterId: patch.twitchBroadcasterId ?? "" };
+
+  return {
+    $and: [
+      { guildId },
+      botScopeClause(botId) as Filter<MongoClipsConfig>,
+      { platform },
+      channelClause as Filter<MongoClipsConfig>,
+      activeConfigClause() as Filter<MongoClipsConfig>
+    ]
+  };
+}
+
+function activeConfigClause() {
+  return {
+    $or: [
+      { deletedAt: null },
+      { deletedAt: { $exists: false } }
     ]
   };
 }

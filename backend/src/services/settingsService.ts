@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { ensureGuild, getMongoCollections, type MongoGuildSettings } from "../database/mongo";
+import { ensureGuild, getMongoCollections, type MongoGuildSettings, type MongoSafeBotMessageState } from "../database/mongo";
 import {
   normalizeDashboardAccessLevel,
   type DashboardAccessLevel
@@ -89,6 +89,14 @@ export type PersistedDashboardAccess = {
   roleIds: string[];
   rolePermissions: Record<string, DashboardAccessLevel>;
   userPermissions: Record<string, DashboardAccessLevel>;
+};
+
+export type SafeBotMessageStateDto = {
+  botId: string | null;
+  guildId: string;
+  channelId: string;
+  messageId: string;
+  updatedAt: string;
 };
 
 const memorySettings = new Map<string, GuildSettingsDto>();
@@ -481,6 +489,65 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
   return next;
 }
 
+export async function getSafeBotMessageState(guildId: string, botId?: string | null) {
+  const normalizedBotId = normalizeBotId(botId);
+  const { safeBotMessageStates } = await getMongoCollections();
+  const state = await safeBotMessageStates.findOne(settingsQuery(guildId, normalizedBotId));
+  return state ? toSafeBotMessageStateDto(state) : null;
+}
+
+export async function saveSafeBotMessageState(
+  guildId: string,
+  input: {
+    channelId: string;
+    messageId: string;
+  },
+  botId?: string | null
+) {
+  const normalizedBotId = normalizeBotId(botId);
+  const now = new Date();
+  const { safeBotMessageStates } = await getMongoCollections();
+  const saved = await safeBotMessageStates.findOneAndUpdate(
+    {
+      botId: normalizedBotId,
+      guildId
+    },
+    {
+      $set: {
+        botId: normalizedBotId,
+        channelId: input.channelId,
+        guildId,
+        messageId: input.messageId,
+        updatedAt: now
+      },
+      $setOnInsert: {
+        _id: randomUUID()
+      }
+    },
+    {
+      returnDocument: "after",
+      upsert: true
+    }
+  );
+
+  return saved ? toSafeBotMessageStateDto(saved) : {
+    botId: normalizedBotId,
+    guildId,
+    channelId: input.channelId,
+    messageId: input.messageId,
+    updatedAt: now.toISOString()
+  };
+}
+
+export async function clearSafeBotMessageState(guildId: string, botId?: string | null) {
+  const normalizedBotId = normalizeBotId(botId);
+  const { safeBotMessageStates } = await getMongoCollections();
+  await safeBotMessageStates.deleteOne({
+    botId: normalizedBotId,
+    guildId
+  });
+}
+
 function toDto(settings: MongoGuildSettings): GuildSettingsDto {
   const botId = normalizeBotId(settings.botId);
   const defaults = defaultSettings(settings.guildId, botId);
@@ -574,6 +641,16 @@ function toDto(settings: MongoGuildSettings): GuildSettingsDto {
     dashboardRolePermissions,
     dashboardUserPermissions
   });
+}
+
+function toSafeBotMessageStateDto(state: MongoSafeBotMessageState): SafeBotMessageStateDto {
+  return {
+    botId: normalizeBotId(state.botId),
+    guildId: state.guildId,
+    channelId: state.channelId,
+    messageId: state.messageId,
+    updatedAt: state.updatedAt.toISOString()
+  };
 }
 
 function normalizeVerificationRoles(settings: GuildSettingsDto): GuildSettingsDto {

@@ -8,7 +8,15 @@ import { canManageDashboardGuild, canReadDashboardGuild } from "../services/dash
 import { authorizeBotRuntimeModule, canAccessDevBotGuild, canManageDevBot, canUseDevBotModule, getDevBot, getDevBotToken } from "../services/devBotService";
 import { createLog } from "../services/logService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
-import { getGuildSettings, LOG_CATEGORIES, MAX_AUTOMATIC_ROLES, updateGuildSettings } from "../services/settingsService";
+import {
+  clearSafeBotMessageState,
+  getGuildSettings,
+  getSafeBotMessageState,
+  LOG_CATEGORIES,
+  MAX_AUTOMATIC_ROLES,
+  saveSafeBotMessageState,
+  updateGuildSettings
+} from "../services/settingsService";
 import { publishRulesPanelToDiscord } from "../services/rulesPanelService";
 import { getSelfBotProtectionSettings, saveSelfBotProtectionSettings } from "../services/selfBotProtectionService";
 import { saveLeaveImage, saveWelcomeImage, sendLeavePanelToDiscord, sendWelcomePanelToDiscord } from "../services/welcomePanelService";
@@ -95,6 +103,10 @@ const botSafeBotSetupSchema = z.object({
   logChannelName: z.string().max(100).optional(),
   roleId: z.string().regex(/^\d{5,32}$/),
   roleName: z.string().max(100).optional()
+});
+const botSafeBotMessageStateSchema = z.object({
+  channelId: z.string().regex(/^\d{5,32}$/),
+  messageId: z.string().regex(/^\d{5,32}$/)
 });
 
 type SettingsInput = z.infer<typeof settingsSchema>;
@@ -276,6 +288,75 @@ settingsRouter.post("/bot/:guildId/safe-bot-setup", requireBot, async (req, res,
     return res.json({
       settings
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+settingsRouter.get("/bot/:guildId/safe-bot-message", requireBot, async (req, res, next) => {
+  try {
+    const { guildId } = req.params;
+    const botId = await resolveRequestBotId(req);
+
+    if (!guildId) {
+      return res.status(400).json({ message: "guildId obrigatorio." });
+    }
+
+    const authorization = await authorizeBotRuntimeModule({ botId, guildId, moduleId: "safe-bot" });
+
+    if (!authorization.allowed) {
+      return res.status(403).json({ message: authorization.reason });
+    }
+
+    return res.json({
+      state: await getSafeBotMessageState(guildId, botId)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+settingsRouter.put("/bot/:guildId/safe-bot-message", requireBot, async (req, res, next) => {
+  try {
+    const { guildId } = req.params;
+    const botId = await resolveRequestBotId(req);
+    const input = botSafeBotMessageStateSchema.parse(req.body);
+
+    if (!guildId) {
+      return res.status(400).json({ message: "guildId obrigatorio." });
+    }
+
+    const authorization = await authorizeBotRuntimeModule({ botId, guildId, moduleId: "safe-bot" });
+
+    if (!authorization.allowed) {
+      return res.status(403).json({ message: authorization.reason });
+    }
+
+    return res.json({
+      state: await saveSafeBotMessageState(guildId, input, botId)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+settingsRouter.delete("/bot/:guildId/safe-bot-message", requireBot, async (req, res, next) => {
+  try {
+    const { guildId } = req.params;
+    const botId = await resolveRequestBotId(req);
+
+    if (!guildId) {
+      return res.status(400).json({ message: "guildId obrigatorio." });
+    }
+
+    const authorization = await authorizeBotRuntimeModule({ botId, guildId, moduleId: "safe-bot" });
+
+    if (!authorization.allowed) {
+      return res.status(403).json({ message: authorization.reason });
+    }
+
+    await clearSafeBotMessageState(guildId, botId);
+    return res.json({ ok: true });
   } catch (error) {
     return next(error);
   }

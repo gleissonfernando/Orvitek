@@ -4,7 +4,7 @@ import { emitRealtime } from "../realtime/events";
 import { requireAuth, requireBot } from "../middleware/auth";
 import { canUseDevBotModule, getDevBotToken } from "../services/devBotService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
-import { listEmojiLibrary, recordEmojiCloneJob } from "../services/emojiCloneService";
+import { createEmojiLibraryZip, listEmojiLibrary, recordEmojiCloneJob } from "../services/emojiCloneService";
 
 const itemSchema = z.object({
   originalEmojiId: z.string().min(1).max(64),
@@ -140,6 +140,33 @@ emojiClonerRouter.get("/library", requireAuth, async (req, res, next) => {
         userId: user.discordId
       })
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+emojiClonerRouter.get("/library/download", requireAuth, async (req, res, next) => {
+  try {
+    const botId = await resolveRequestBotId(req);
+    const user = res.locals.dashboardAuth.user;
+    const guildId = typeof req.query.guildId === "string" ? req.query.guildId : null;
+
+    if (!botId) {
+      return res.status(400).json({ message: "Selecione um bot do Portal do Desenvolvedor." });
+    }
+
+    const zip = await createEmojiLibraryZip({
+      botId,
+      guildId,
+      userId: user.discordId
+    });
+
+    await createEmojiCloneLog(botId, guildId ?? "global", user.discordId, "emoji_clone.download", `Download realizado: ${zip.count} emoji(s).`).catch(() => undefined);
+
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", "attachment; filename=\"emojis.zip\"");
+    res.setHeader("Cache-Control", "no-store");
+    return res.send(zip.buffer);
   } catch (error) {
     return next(error);
   }

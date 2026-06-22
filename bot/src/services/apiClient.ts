@@ -50,6 +50,14 @@ export type MaintenanceState = {
   updatedByName: string | null;
 };
 
+export type SafeBotMessageState = {
+  botId: string | null;
+  guildId: string;
+  channelId: string;
+  messageId: string;
+  updatedAt: string;
+};
+
 export type BotRuntimeModuleAuthorization = {
   allowed: boolean;
   botAuthorized: boolean;
@@ -919,6 +927,25 @@ export class ApiClient {
       }
     );
     return data.settings;
+  }
+
+  async getSafeBotMessageState(guildId: string) {
+    const { data } = await this.http.get<{ state: SafeBotMessageState | null }>(
+      `/settings/bot/${guildId}/safe-bot-message`
+    );
+    return data.state;
+  }
+
+  async saveSafeBotMessageState(guildId: string, input: { channelId: string; messageId: string }) {
+    const { data } = await this.http.put<{ state: SafeBotMessageState }>(
+      `/settings/bot/${guildId}/safe-bot-message`,
+      input
+    );
+    return data.state;
+  }
+
+  async clearSafeBotMessageState(guildId: string) {
+    await this.http.delete<{ ok: boolean }>(`/settings/bot/${guildId}/safe-bot-message`);
   }
 
   async getImageAntiSpamSettings(guildId: string) {

@@ -40,7 +40,6 @@ const processingQueues = new Map<string, Promise<boolean>>();
 const filterWarningQueues = new Map<string, Promise<void>>();
 const messageHistory = new Map<string, SafeBotHistoryEntry[]>();
 const setupCache = new Map<string, SafeBotRuntime>();
-const filterWarningState = new Map<string, { lastCheckedAt: number; messageId: string | null }>();
 const URL_PATTERN = /(?:https?:\/\/|www\.|discord\.gg\/|discord(?:app)?\.com\/invite\/|(?:[a-z0-9-]+\.)+[a-z]{2,63}(?:\/[^\s<>()\]]*)?)/i;
 const IMAGE_PATTERN = /\.(?:png|jpe?g|gif|webp)(?:$|[?#])/i;
 const VIDEO_PATTERN = /\.(?:mp4|mov|avi|webm)(?:$|[?#])/i;
@@ -113,14 +112,14 @@ export async function ensureSafeBotSetup(guild: Guild, context: BotContext, know
   });
 
   const role = await findOrCreateSelfBotRole(guild);
-  const filterChannel = await findOrCreateFilterChannel(guild);
-  const logChannel = await findOrCreateLogChannel(guild);
+  const filterChannel = await findOrCreateFilterChannel(guild, settings.safeBotChannelId);
+  const logChannel = await findOrCreateLogChannel(guild, settings.safeBotLogChannelId);
 
   if (!role || !filterChannel || !logChannel) {
     return null;
   }
 
-  await ensureFilterWarning(filterChannel).catch((error) => {
+  await ensureFilterWarning(filterChannel, context).catch((error) => {
     console.warn("[safe-bot] nao foi possivel enviar aviso no canal filter:", errorMessage(error));
   });
 
@@ -233,11 +232,6 @@ export function clearSafeBotSetupCache(guildId: string) {
     }
   }
 
-  for (const key of filterWarningState.keys()) {
-    if (key.startsWith(`${guildId}:`)) {
-      filterWarningState.delete(key);
-    }
-  }
 }
 
 export async function handleSafeBotSettingsUpdated(settings: GuildSettings, client: Client<true>, context: BotContext) {
@@ -257,6 +251,8 @@ export async function handleSafeBotSettingsUpdated(settings: GuildSettings, clie
     await ensureSafeBotSetup(guild, context, settings);
     return;
   }
+
+  await removeSafeBotWarningMessage(guild, context, "SafeBot desativado.");
 
   if (settings.safeBotChannelId) {
     const channel = await guild.channels.fetch(settings.safeBotChannelId).catch(() => null);
@@ -321,7 +317,7 @@ export async function restoreSelfBotWarningAfterDelete(message: Message | { chan
     return false;
   }
 
-  await ensureFilterWarning(channel).catch((error) => {
+  await ensureFilterWarning(channel, context).catch((error) => {
     console.warn("[safe-bot] nao foi possivel recriar aviso no canal filter:", errorMessage(error));
   });
   return true;
@@ -1016,8 +1012,13 @@ async function normalizeSelfBotRole(role: Role) {
   }).catch(() => role);
 }
 
-async function findOrCreateFilterChannel(guild: Guild) {
-  const channel = await findTextChannel(guild, FILTER_CHANNEL_NAME);
+async function findOrCreateFilterChannel(guild: Guild, configuredChannelId?: string | null) {
+  const configuredChannel = configuredChannelId
+    ? await guild.channels.fetch(configuredChannelId).catch(() => null)
+    : null;
+  const channel = configuredChannel?.type === ChannelType.GuildText
+    ? configuredChannel
+    : await findTextChannel(guild, FILTER_CHANNEL_NAME);
   const overwrites = baseFilterOverwrites(guild);
 
   if (channel) {
@@ -1043,8 +1044,13 @@ async function findOrCreateFilterChannel(guild: Guild) {
   });
 }
 
-async function findOrCreateLogChannel(guild: Guild) {
-  const channel = await findTextChannel(guild, LOG_CHANNEL_NAME);
+async function findOrCreateLogChannel(guild: Guild, configuredChannelId?: string | null) {
+  const configuredChannel = configuredChannelId
+    ? await guild.channels.fetch(configuredChannelId).catch(() => null)
+    : null;
+  const channel = configuredChannel?.type === ChannelType.GuildText
+    ? configuredChannel
+    : await findTextChannel(guild, LOG_CHANNEL_NAME);
   const overwrites = await logChannelOverwrites(guild);
 
   if (channel) {
@@ -1169,16 +1175,20 @@ async function logChannelOverwrites(guild: Guild) {
   return overwrites;
 }
 
-async function ensureFilterWarning(channel: Awaited<ReturnType<typeof findTextChannel>>) {
+async function ensureFilterWarning(channel: Awaited<ReturnType<typeof findTextChannel>>, context: BotContext) {
   if (!channel?.isTextBased() || !channel.isSendable()) {
     return;
   }
 
-  const key = `${channel.guild.id}:${channel.id}`;
-  const previous = filterWarningQueues.get(key) ?? Promise.resolve();
+  const key = runtimeScopeKey(channel.guild.id);
+  const queued = filterWarningQueues.get(key);
+  const previous = queued ?? Promise.resolve();
+  if (queued) {
+    console.log("[safe-bot] Envio bloqueado por lock para evitar duplicação");
+  }
   const next = previous
     .catch(() => undefined)
-    .then(() => reconcileFilterWarning(channel))
+    .then(() => reconcileFilterWarning(channel, context))
     .finally(() => {
       if (filterWarningQueues.get(key) === next) {
         filterWarningQueues.delete(key);
@@ -1189,22 +1199,42 @@ async function ensureFilterWarning(channel: Awaited<ReturnType<typeof findTextCh
   await next;
 }
 
-async function reconcileFilterWarning(channel: NonNullable<Awaited<ReturnType<typeof findTextChannel>>>) {
-  const stateKey = `${channel.guild.id}:${channel.id}`;
-  const state = filterWarningState.get(stateKey);
+async function reconcileFilterWarning(channel: NonNullable<Awaited<ReturnType<typeof findTextChannel>>>, context: BotContext) {
+  const state = await context.api.getSafeBotMessageState(channel.guild.id).catch((error) => {
+    console.warn(`[safe-bot] nao foi possivel buscar mensagem salva em ${channel.guild.id}:`, errorMessage(error));
+    return null;
+  });
 
-  if (state?.messageId && Date.now() - state.lastCheckedAt < 15_000) {
-    const knownMessage = await channel.messages.fetch(state.messageId).catch(() => null);
+  if (state?.channelId === channel.id) {
+    const existing = await channel.messages.fetch(state.messageId).catch(() => null);
 
-    if (knownMessage && isCurrentFilterWarning(knownMessage)) {
+    if (existing && existing.author.id === channel.client.user?.id) {
+      console.log("[safe-bot] Mensagem SafeBot já existe, não será reenviada");
       return;
     }
+
+    console.log("[safe-bot] Mensagem SafeBot não encontrada, criando nova");
+  } else if (state?.channelId && state.messageId) {
+    console.log("[safe-bot] Canal alterado, movendo mensagem do SafeBot");
+    await deleteStoredSafeBotMessage(channel.guild, state.channelId, state.messageId);
+    await context.api.clearSafeBotMessageState(channel.guild.id).catch(() => undefined);
+  } else {
+    const currentWarning = await findExistingSafeBotWarning(channel);
+
+    if (currentWarning) {
+      console.log("[safe-bot] Mensagem SafeBot já existe, não será reenviada");
+      await context.api.saveSafeBotMessageState(channel.guild.id, {
+        channelId: channel.id,
+        messageId: currentWarning.id
+      }).catch((error) => {
+        console.warn(`[safe-bot] nao foi possivel salvar mensagem existente em ${channel.guild.id}:`, errorMessage(error));
+      });
+      return;
+    }
+
+    console.log("[safe-bot] Mensagem SafeBot não encontrada, criando nova");
   }
 
-  const messages = await channel.messages.fetch({ limit: 100 });
-  const warnings = messages.filter((message) => isFilterWarningMessage(message));
-  const currentWarning = warnings.find((message) => isCurrentFilterWarning(message));
-  const created = !currentWarning;
   const container = new ContainerBuilder()
     .setAccentColor(FILTER_WARNING_COLOR)
     .addSectionComponents(
@@ -1219,7 +1249,7 @@ async function reconcileFilterWarning(channel: NonNullable<Awaited<ReturnType<ty
             .setDescription(FILTER_WARNING_VERSION)
         )
     );
-  const warning = currentWarning ?? await channel.send({
+  const warning = await channel.send({
     allowedMentions: {
       parse: []
     },
@@ -1231,21 +1261,50 @@ async function reconcileFilterWarning(channel: NonNullable<Awaited<ReturnType<ty
     ],
     flags: MessageFlags.IsComponentsV2
   });
-
-  const removals = await Promise.allSettled(
-    warnings
-      .filter((message) => message.id !== warning.id)
-      .map((message) => message.delete())
-  );
-  const removed = removals.filter((result) => result.status === "fulfilled").length;
-  filterWarningState.set(stateKey, {
-    lastCheckedAt: Date.now(),
+  await context.api.saveSafeBotMessageState(channel.guild.id, {
+    channelId: channel.id,
     messageId: warning.id
+  }).catch((error) => {
+    console.warn(`[safe-bot] nao foi possivel salvar nova mensagem em ${channel.guild.id}:`, errorMessage(error));
   });
 
   console.log(
-    `[safe-bot] aviso Components V2 ${created ? "publicado" : "confirmado"} no canal ${channel.id}; avisos antigos removidos: ${removed}.`
+    `[safe-bot] aviso Components V2 publicado no canal ${channel.id}; messageId=${warning.id}.`
   );
+}
+
+async function findExistingSafeBotWarning(channel: NonNullable<Awaited<ReturnType<typeof findTextChannel>>>) {
+  const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+  return messages?.find((message) => isFilterWarningMessage(message)) ?? null;
+}
+
+async function deleteStoredSafeBotMessage(guild: Guild, channelId: string, messageId: string) {
+  const channel = await guild.channels.fetch(channelId).catch(() => null);
+
+  if (channel?.type !== ChannelType.GuildText) {
+    return;
+  }
+
+  const message = await channel.messages.fetch(messageId).catch(() => null);
+
+  if (message?.deletable) {
+    await message.delete().catch((error) => {
+      console.warn(`[safe-bot] nao foi possivel apagar mensagem antiga ${messageId}:`, errorMessage(error));
+    });
+  }
+}
+
+async function removeSafeBotWarningMessage(guild: Guild, context: BotContext, reason: string) {
+  const state = await context.api.getSafeBotMessageState(guild.id).catch(() => null);
+
+  if (state?.channelId && state.messageId) {
+    await deleteStoredSafeBotMessage(guild, state.channelId, state.messageId);
+  }
+
+  await context.api.clearSafeBotMessageState(guild.id).catch((error) => {
+    console.warn(`[safe-bot] nao foi possivel limpar mensagem salva em ${guild.id}:`, errorMessage(error));
+  });
+  console.log(`[safe-bot] mensagem do SafeBot removida/limpa: ${reason}`);
 }
 
 function isFilterWarningMessage(message: Message) {

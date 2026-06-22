@@ -65,6 +65,7 @@ import { Switch } from "../components/ui/switch";
 import { createDashboardSocket } from "../lib/socket";
 import {
   cloneEmojiToGuild,
+  emojiLibraryDownloadUrl,
   getClipsConfig,
   getDashboardBySlug,
   getDashboardMe,
@@ -2475,6 +2476,13 @@ function EmojiCloneSettingsPanel({
               <Button disabled={libraryLoading} onClick={() => void refreshEmojiLibrary()} size="sm" type="button" variant="outline">
                 {libraryLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               </Button>
+              {botId ? (
+                <Button asChild disabled={!library.length} size="sm" variant="outline">
+                  <a href={emojiLibraryDownloadUrl(botId, destinationGuildId || guild?.id)} rel="noreferrer">
+                    Baixar Todos
+                  </a>
+                </Button>
+              ) : null}
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -2490,10 +2498,10 @@ function EmojiCloneSettingsPanel({
                   <div className="mt-3 min-w-0">
                     <p className="truncate text-sm font-semibold text-white">{item.name}</p>
                     <p className="mt-1 truncate text-xs text-zinc-500">
-                      {item.animated ? "Animado" : "Estatico"} • {new Date(item.importedAt).toLocaleString("pt-BR")}
+                      {item.animated ? "Animado" : "Estatico"} - {item.category} - {new Date(item.importedAt).toLocaleString("pt-BR")}
                     </p>
                     <p className="mt-1 truncate text-xs text-zinc-600">
-                      {sourceGuild?.name ?? item.sourceGuildId ?? "Origem externa"} → {targetGuild?.name ?? item.destinationGuildId}
+                      {sourceGuild?.name ?? item.sourceGuildId ?? "Origem externa"} {"->"} {targetGuild?.name ?? item.destinationGuildId}
                     </p>
                   </div>
                   <Button

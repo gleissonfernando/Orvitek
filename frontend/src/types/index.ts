@@ -179,6 +179,7 @@ export type EmojiLibraryItem = {
   id: string;
   animated: boolean;
   botId: string;
+  category: string;
   destinationGuildId: string;
   importedAt: string;
   lastUpdatedAt: string;
@@ -1111,6 +1112,14 @@ export type PublicKickClips = {
   stats: ClipStats;
 };
 
+export type ClipsConfigPage = {
+  configs: ClipsConfig[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
 export type GiveawayStatus = "waiting" | "running" | "ended";
 export type GiveawayParticipantMode =
   | "twitch_subs"
@@ -1282,6 +1291,7 @@ export type GiveawayDiagnostics = {
 };
 
 export type SaveClipsConfigPayload = {
+  configId?: string | null;
   guildId: string;
   platform?: ClipPlatform;
   twitchChannelInput?: string | null;

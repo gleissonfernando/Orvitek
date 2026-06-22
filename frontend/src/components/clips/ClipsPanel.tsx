@@ -9,13 +9,18 @@ import {
   Save,
   ShieldCheck,
   Sparkles,
+  Trash2,
   Trophy,
   type LucideIcon
 } from "lucide-react";
 import {
   disableClips,
+  deleteClipsConfigById,
+  disableClipsConfigById,
+  enableClipsConfigById,
   enableClips,
   getClipsConfig,
+  getClipsConfigs,
   getClipsHistory,
   getClipsRanking,
   getClipsStats,
@@ -97,6 +102,7 @@ const filters: Array<{ id: ClipFilter; label: string }> = [
 export function ClipsPanel({ botId, canManage, guild, platform = "twitch", refreshSignal = 0 }: ClipsPanelProps) {
   const [activeTab, setActiveTab] = useState<ClipsTab>("clips");
   const [config, setConfig] = useState<ClipsConfig | null>(null);
+  const [configs, setConfigs] = useState<ClipsConfig[]>([]);
   const [filter, setFilter] = useState<ClipFilter>("all");
   const [history, setHistory] = useState<ClipSent[]>([]);
   const [options, setOptions] = useState<GuildLiveOptions>({ channels: [], roles: [] });
@@ -104,6 +110,8 @@ export function ClipsPanel({ botId, canManage, guild, platform = "twitch", refre
   const [preview, setPreview] = useState<ChannelPreview | null>(null);
   const [ranking, setRanking] = useState<ClipRankingEntry[]>([]);
   const [stats, setStats] = useState<ClipStats | null>(null);
+  const [configSearch, setConfigSearch] = useState("");
+  const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [validating, setValidating] = useState(false);
@@ -146,17 +154,19 @@ export function ClipsPanel({ botId, canManage, guild, platform = "twitch", refre
 
     Promise.all([
       getClipsConfig(guild.id, botId, platform),
+      getClipsConfigs(guild.id, botId, platform, { pageSize: 50, q: configSearch }),
       getClipsHistory(guild.id, botId, platform, filter),
       getClipsRanking(guild.id, botId, platform, filter),
       getClipsStats(guild.id, botId, platform),
       getGuildLiveOptions(guild.id, botId).catch(() => ({ channels: [], roles: [] }))
     ])
-      .then(([nextConfig, nextHistory, nextRanking, nextStats, nextOptions]) => {
+      .then(([nextConfig, nextConfigsPage, nextHistory, nextRanking, nextStats, nextOptions]) => {
         if (!mounted) {
           return;
         }
 
         setConfig(nextConfig);
+        setConfigs(nextConfigsPage.configs);
         setHistory(nextHistory);
         setRanking(nextRanking);
         setStats(nextStats);
@@ -178,7 +188,7 @@ export function ClipsPanel({ botId, canManage, guild, platform = "twitch", refre
     return () => {
       mounted = false;
     };
-  }, [botId, canManage, filter, guild, platform, refreshSignal]);
+  }, [botId, canManage, configSearch, filter, guild, platform, refreshSignal]);
 
   function updateForm<K extends keyof ClipsForm>(key: K, value: ClipsForm[K]) {
     setForm((current) => ({
@@ -238,6 +248,7 @@ export function ClipsPanel({ botId, canManage, guild, platform = "twitch", refre
     try {
       const nextConfig = await saveClipsConfig({
         guildId: guild.id,
+        configId: editingConfigId,
         platform,
         twitchChannelInput: isKick ? null : form.channelInput,
         kickChannelInput: isKick ? form.channelInput : null,
@@ -255,8 +266,10 @@ export function ClipsPanel({ botId, canManage, guild, platform = "twitch", refre
       }, botId);
 
       setConfig(nextConfig);
+      setConfigs((current) => upsertConfig(current, nextConfig));
       setForm(formFromConfig(nextConfig, platform));
       setPreview(previewFromConfig(nextConfig));
+      setEditingConfigId(nextConfig.id);
       setStatus(`Configuracao de clipes ${label} salva.`);
     } catch (requestError) {
       setError(readErrorMessage(requestError));
@@ -277,6 +290,7 @@ export function ClipsPanel({ botId, canManage, guild, platform = "twitch", refre
     try {
       const nextConfig = checked ? await enableClips(guild.id, botId, platform) : await disableClips(guild.id, botId, platform);
       setConfig(nextConfig);
+      setConfigs((current) => upsertConfig(current, nextConfig));
       setForm(formFromConfig(nextConfig, platform));
       setStatus(checked ? `Sistema de clipes ${label} ativado.` : `Sistema de clipes ${label} desativado.`);
     } catch (requestError) {
@@ -302,6 +316,68 @@ export function ClipsPanel({ botId, canManage, guild, platform = "twitch", refre
       setError(readErrorMessage(requestError));
     } finally {
       setTesting(false);
+    }
+  }
+
+  function handleEditConfig(item: ClipsConfig) {
+    setConfig(item);
+    setEditingConfigId(item.id);
+    setForm(formFromConfig(item, platform));
+    setPreview(previewFromConfig(item));
+    setStatus(`Editando ${item.displayName || item.channelName}.`);
+    setError(null);
+  }
+
+  function handleNewConfig() {
+    setConfig(null);
+    setEditingConfigId(null);
+    setForm(defaultForm(platform));
+    setPreview(null);
+    setStatus("Pronto para adicionar outro canal.");
+    setError(null);
+  }
+
+  async function handleToggleConfig(item: ClipsConfig) {
+    if (!guild) return;
+
+    setToggling(true);
+    setError(null);
+    setStatus(null);
+
+    try {
+      const nextConfig = item.enabled
+        ? await disableClipsConfigById(guild.id, item.id, botId, platform)
+        : await enableClipsConfigById(guild.id, item.id, botId, platform);
+      setConfigs((current) => upsertConfig(current, nextConfig));
+      if (config?.id === nextConfig.id) {
+        setConfig(nextConfig);
+      }
+      setStatus(nextConfig.enabled ? `Monitoramento ativado para ${nextConfig.channelName}.` : `Monitoramento pausado para ${nextConfig.channelName}.`);
+    } catch (requestError) {
+      setError(readErrorMessage(requestError));
+    } finally {
+      setToggling(false);
+    }
+  }
+
+  async function handleDeleteConfig(item: ClipsConfig) {
+    if (!guild) return;
+
+    setToggling(true);
+    setError(null);
+    setStatus(null);
+
+    try {
+      await deleteClipsConfigById(guild.id, item.id, botId, platform);
+      setConfigs((current) => current.filter((entry) => entry.id !== item.id));
+      if (config?.id === item.id) {
+        handleNewConfig();
+      }
+      setStatus(`Canal ${item.channelName} removido.`);
+    } catch (requestError) {
+      setError(readErrorMessage(requestError));
+    } finally {
+      setToggling(false);
     }
   }
 
@@ -336,6 +412,9 @@ export function ClipsPanel({ botId, canManage, guild, platform = "twitch", refre
           </div>
         </div>
         <div className="flex flex-wrap gap-3">
+          <Button disabled={saving || loading} onClick={handleNewConfig} variant="outline">
+            Adicionar canal
+          </Button>
           {config?.publicUrl ? (
             <Button asChild variant="outline">
               <a href={config.publicUrl} rel="noreferrer" target="_blank">
@@ -375,7 +454,7 @@ export function ClipsPanel({ botId, canManage, guild, platform = "twitch", refre
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Configuracao da {label}</CardTitle>
+              <CardTitle>{editingConfigId ? "Editar canal" : `Adicionar canal ${label}`}</CardTitle>
               <CardDescription>Canal monitorado para novos clipes.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -520,6 +599,29 @@ export function ClipsPanel({ botId, canManage, guild, platform = "twitch", refre
         <div className="space-y-6">
           <Card>
             <CardHeader>
+              <CardTitle>Canais cadastrados</CardTitle>
+              <CardDescription>Monitoramento independente por bot, servidor e canal.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <input
+                className="social-input"
+                onChange={(event) => setConfigSearch(event.target.value)}
+                placeholder={`Buscar canal ${label}`}
+                value={configSearch}
+              />
+              <ClipsConfigList
+                configs={configs}
+                loading={loading}
+                onDelete={handleDeleteConfig}
+                onEdit={handleEditConfig}
+                onToggle={handleToggleConfig}
+                toggling={toggling}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Preview do embed</CardTitle>
               <CardDescription>Exemplo do alerta enviado no Discord.</CardDescription>
             </CardHeader>
@@ -613,6 +715,70 @@ function StatusCard({
         {loading ? <Loader2 className="h-5 w-5 animate-spin text-zinc-500" /> : <Switch checked={enabled} onCheckedChange={onToggle} />}
       </CardContent>
     </Card>
+  );
+}
+
+function ClipsConfigList({
+  configs,
+  loading,
+  onDelete,
+  onEdit,
+  onToggle,
+  toggling
+}: {
+  configs: ClipsConfig[];
+  loading: boolean;
+  onDelete: (config: ClipsConfig) => void;
+  onEdit: (config: ClipsConfig) => void;
+  onToggle: (config: ClipsConfig) => void;
+  toggling: boolean;
+}) {
+  if (loading) {
+    return <div className="rounded-lg border border-zinc-900 bg-zinc-950/60 p-6 text-center text-sm text-zinc-500">Carregando canais...</div>;
+  }
+
+  if (!configs.length) {
+    return <div className="rounded-lg border border-dashed border-zinc-800 bg-zinc-950/60 p-6 text-center text-sm text-zinc-500">Nenhum canal cadastrado ainda.</div>;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-zinc-900">
+      <div className="grid grid-cols-[1.4fr_0.8fr_0.8fr_auto] gap-3 border-b border-zinc-900 bg-zinc-950 px-3 py-2 text-xs font-medium text-zinc-500">
+        <span>Canal</span>
+        <span>Status</span>
+        <span>Ultima verificacao</span>
+        <span className="text-right">Acoes</span>
+      </div>
+      <div className="divide-y divide-zinc-900">
+        {configs.map((item) => (
+          <div className="grid grid-cols-1 gap-3 bg-zinc-950/50 px-3 py-3 text-sm sm:grid-cols-[1.4fr_0.8fr_0.8fr_auto] sm:items-center" key={item.id}>
+            <button className="flex min-w-0 items-center gap-3 text-left" onClick={() => onEdit(item)} type="button">
+              <Avatar className="h-9 w-9 rounded-full border border-zinc-800" fallback={item.displayName || item.channelName} src={item.avatar} />
+              <span className="min-w-0">
+                <span className="block truncate font-medium text-white">{item.displayName || item.channelName}</span>
+                <span className="block truncate text-xs text-zinc-500">{item.discordChannelId ? `Discord: ${item.discordChannelId}` : "Sem canal Discord"}</span>
+              </span>
+            </button>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant={item.enabled ? "success" : "muted"}>{item.enabled ? "Ativo" : "Pausado"}</Badge>
+              <Badge variant="muted">{formatNumber(item.totalSent)} clipes</Badge>
+            </div>
+            <span className="text-xs text-zinc-500">{item.lastCheckAt ? formatDate(item.lastCheckAt) : "Nunca"}</span>
+            <div className="flex justify-end gap-2">
+              <Button disabled={toggling || !item.discordChannelId} onClick={() => onToggle(item)} size="sm" type="button" variant="outline">
+                {item.enabled ? "Pausar" : "Ativar"}
+              </Button>
+              <Button onClick={() => onEdit(item)} size="sm" type="button" variant="outline">
+                Editar
+              </Button>
+              <Button disabled={toggling} onClick={() => onDelete(item)} size="sm" type="button" variant="outline">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -810,6 +976,15 @@ function formFromConfig(config: ClipsConfig | null, platform: ClipPlatform): Cli
     mentionRoleId: config.mentionRoleId ?? "",
     mentionType: config.mentionType
   };
+}
+
+function upsertConfig(configs: ClipsConfig[], nextConfig: ClipsConfig) {
+  const exists = configs.some((config) => config.id === nextConfig.id);
+  const next = exists
+    ? configs.map((config) => config.id === nextConfig.id ? nextConfig : config)
+    : [nextConfig, ...configs];
+
+  return next.sort((left, right) => Number(right.enabled) - Number(left.enabled) || new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
 }
 
 function previewFromConfig(config: ClipsConfig | null): ChannelPreview | null {

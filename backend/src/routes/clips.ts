@@ -8,12 +8,14 @@ import { resolveRequestBotId } from "../services/requestBotScopeService";
 import { getBotGuildIds } from "../services/statsService";
 import {
   disableClipsConfig,
+  deleteClipsConfig,
   enableClipsConfig,
   getClipsConfig,
   getClipsStats,
   getPublicKickClips,
   isClipSent,
   listActiveClipsConfigs,
+  listClipsConfigs,
   listClipsHistory,
   listClipsRanking,
   recordClipSent,
@@ -35,6 +37,7 @@ const clipRewardSchema = z.object({
   roleId: z.string().regex(/^\d{5,32}$/)
 });
 const clipsConfigSchema = z.object({
+  configId: z.string().min(1).max(80).nullable().optional(),
   guildId: guildIdSchema,
   platform: clipPlatformSchema.optional(),
   twitchChannelInput: z.string().max(256).nullable().optional(),
@@ -52,6 +55,7 @@ const clipsConfigSchema = z.object({
   enabled: z.boolean().optional()
 });
 const guildActionSchema = z.object({
+  configId: z.string().min(1).max(80).nullable().optional(),
   guildId: guildIdSchema,
   platform: clipPlatformSchema.optional()
 });
@@ -95,6 +99,28 @@ clipsRouter.get("/config", requireAuth, async (req, res, next) => {
   }
 });
 
+clipsRouter.get("/configs", requireAuth, async (req, res, next) => {
+  try {
+    const guildId = readGuildId(req.query.guildId);
+    const botId = await resolveRequestBotId(req);
+    const platform = readPlatform(req.query.platform);
+    const page = Number.parseInt(typeof req.query.page === "string" ? req.query.page : "1", 10);
+    const pageSize = Number.parseInt(typeof req.query.pageSize === "string" ? req.query.pageSize : "25", 10);
+    const query = typeof req.query.q === "string" ? req.query.q : null;
+
+    await assertCanReadClips(res.locals.dashboardAuth.user, guildId, botId, platform);
+
+    return res.json(await listClipsConfigs(guildId, botId, {
+      limit: pageSize,
+      page,
+      platform,
+      query
+    }));
+  } catch (error) {
+    return next(error);
+  }
+});
+
 clipsRouter.post("/config", requireAuth, async (req, res, next) => {
   try {
     const input = clipsConfigSchema.parse(req.body);
@@ -124,7 +150,7 @@ clipsRouter.post("/enable", requireAuth, async (req, res, next) => {
     await assertCanManageClips(user, input.guildId, botId, platform);
 
     return res.json({
-      config: await enableClipsConfig(input.guildId, user.discordId, botId, platform)
+      config: await enableClipsConfig(input.guildId, user.discordId, botId, platform, input.configId)
     });
   } catch (error) {
     return next(error);
@@ -141,7 +167,24 @@ clipsRouter.post("/disable", requireAuth, async (req, res, next) => {
     await assertCanManageClips(user, input.guildId, botId, platform);
 
     return res.json({
-      config: await disableClipsConfig(input.guildId, user.discordId, botId, platform)
+      config: await disableClipsConfig(input.guildId, user.discordId, botId, platform, input.configId)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+clipsRouter.delete("/config", requireAuth, async (req, res, next) => {
+  try {
+    const input = guildActionSchema.parse(req.body);
+    const botId = await resolveRequestBotId(req);
+    const user = res.locals.dashboardAuth.user as AuthSessionUser;
+    const platform = input.platform ?? "twitch";
+
+    await assertCanManageClips(user, input.guildId, botId, platform);
+
+    return res.json({
+      config: await deleteClipsConfig(input.guildId, user.discordId, botId, platform, input.configId)
     });
   } catch (error) {
     return next(error);
