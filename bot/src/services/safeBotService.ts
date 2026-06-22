@@ -26,6 +26,7 @@ const FILTER_CHANNEL_NAME = "♻・filter";
 const LOG_CHANNEL_NAME = "📋・selfbot-logs";
 const SETUP_CACHE_MS = 30_000;
 const SELF_BOT_COLOR = 0x7f1d1d;
+const FILTER_WARNING_COLOR = 0xf59e0b;
 const processingQueues = new Map<string, Promise<boolean>>();
 const messageHistory = new Map<string, SafeBotHistoryEntry[]>();
 const setupCache = new Map<string, SafeBotRuntime>();
@@ -68,8 +69,12 @@ type SequencePunishmentOutcome = {
   succeeded: boolean;
 };
 
-const FILTER_WARNING_TITLE = "⚠️ Qualquer mensagem enviada nesta sala resultará automaticamente em punição.";
-const FILTER_WARNING_DESCRIPTION = "Sistema criado para identificar contas invadidas que realizam flood de links maliciosos, imagens e conteúdos automáticos, ajudando a impedir a divulgação de spam no servidor.";
+const FILTER_WARNING_TITLE = "## :warning: Não envie mensagens aqui";
+const FILTER_WARNING_DESCRIPTION = [
+  "**Você receberá um banimento se enviar mensagens neste canal**",
+  "",
+  "Isso serve para remover usuários self bot que mandam spam em todos os canais do servidor tentando infectar mais usuários."
+].join("\n");
 
 export async function ensureSafeBotSetup(guild: Guild, context: BotContext, knownSettings?: GuildSettings | null) {
   if (!shouldCheckSelfBotRuntime()) {
@@ -1123,7 +1128,7 @@ async function ensureFilterWarning(channel: Awaited<ReturnType<typeof findTextCh
   const currentWarning = warnings.find((message) => isCurrentFilterWarning(message));
   const created = !currentWarning;
   const container = new ContainerBuilder()
-    .setAccentColor(0xed4245)
+    .setAccentColor(FILTER_WARNING_COLOR)
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(FILTER_WARNING_TITLE),
       new TextDisplayBuilder().setContent(FILTER_WARNING_DESCRIPTION)
