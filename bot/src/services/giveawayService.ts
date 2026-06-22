@@ -18,8 +18,15 @@ import type { BotSocketClient, GiveawayPanelUpdateEvent } from "../websocket/soc
 type WritableGuildTextChannel = GuildTextBasedChannel;
 
 const syncingGiveaways = new Set<string>();
+let serviceStarted = false;
 
 export function startGiveawayService(client: Client, api: ApiClient, socket: BotSocketClient) {
+  if (serviceStarted) {
+    console.warn("[giveaway] start ignorado: servico ja esta em execucao.");
+    return;
+  }
+
+  serviceStarted = true;
   socket.onGiveawayPanelUpdate((event) => {
     if (!isEventForThisBot(event)) {
       return;

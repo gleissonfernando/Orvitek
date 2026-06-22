@@ -16,6 +16,7 @@ import { assertPanelChannelPermissions, pinPanelMessage } from "./panelDeliveryS
 type WritableGuildTextChannel = GuildTextBasedChannel;
 
 const syncingPanels = new Set<string>();
+let serviceStarted = false;
 const MAX_EMBED_TOTAL_CHARS = 5400;
 const MAX_MEMBER_FIELDS = 20;
 const SOCIAL_META: Array<{
@@ -75,6 +76,12 @@ const SOCIAL_META: Array<{
 ];
 
 export function startSocialNetworkPanelSync(client: Client, api: ApiClient, socket: BotSocketClient) {
+  if (serviceStarted) {
+    console.warn("[network] start ignorado: sincronizador ja esta em execucao.");
+    return;
+  }
+
+  serviceStarted = true;
   socket.onSocialPanelUpdate((event) => {
     if (!isEventForThisBot(event)) {
       return;

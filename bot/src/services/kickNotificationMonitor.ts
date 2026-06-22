@@ -11,11 +11,18 @@ import { env } from "../config/env";
 import type { ApiClient, KickNotification, KickStream } from "./apiClient";
 
 let running = false;
+let serviceStarted = false;
 const NOTIFICATION_CONCURRENCY = 25;
 const LIVE_PREVIEW_REFRESH_DELAY_MS = 30_000;
 const DEFAULT_EMBED_COLOR = "#53FC18";
 
 export function startKickNotificationMonitor(client: Client, api: ApiClient) {
+  if (serviceStarted) {
+    console.warn("[kick-integration] start ignorado: monitor ja esta em execucao.");
+    return;
+  }
+
+  serviceStarted = true;
   const run = () => {
     void monitorKickNotifications(client, api).catch((error) => {
       console.warn("[kick-integration] monitor falhou:", error instanceof Error ? error.message : error);

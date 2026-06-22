@@ -14,6 +14,7 @@ import { createTwitchClipProvider } from "./clips/providers/twitch";
 import type { ClipProvider, ProviderClip } from "./clips/providers/types";
 
 let running = false;
+let serviceStarted = false;
 const CLIPS_MONITOR_INTERVAL_MS = 30_000;
 const CLIPS_CONFIG_CONCURRENCY = 5;
 const providers: Record<ClipsConfig["platform"], ClipProvider> = {
@@ -22,6 +23,12 @@ const providers: Record<ClipsConfig["platform"], ClipProvider> = {
 };
 
 export function startClipsMonitor(client: Client, api: ApiClient) {
+  if (serviceStarted) {
+    console.warn("[clips] start ignorado: monitor ja esta em execucao.");
+    return;
+  }
+
+  serviceStarted = true;
   const run = () => {
     void monitorClips(client, api).catch((error) => {
       console.warn("[clips] monitor falhou:", error instanceof Error ? error.message : error);

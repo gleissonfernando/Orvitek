@@ -32,6 +32,24 @@ const mutationPolicy: RateLimitPolicy = {
   windowMs: 60_000
 };
 
+const botRuntimePolicy: RateLimitPolicy = {
+  keyPrefix: "bot-runtime",
+  limit: 90,
+  windowMs: 60_000
+};
+
+const botMutationPolicy: RateLimitPolicy = {
+  keyPrefix: "bot-mutation",
+  limit: 60,
+  windowMs: 60_000
+};
+
+const logPolicy: RateLimitPolicy = {
+  keyPrefix: "logs",
+  limit: 45,
+  windowMs: 60_000
+};
+
 const devPolicy: RateLimitPolicy = {
   keyPrefix: "dev",
   limit: 180,
@@ -52,6 +70,10 @@ export async function rateLimitMiddleware(req: Request, res: Response, next: Nex
   res.setHeader("X-RateLimit-Reset", String(Math.ceil(result.resetAt / 1000)));
 
   if (result.count > policy.limit) {
+    console.warn(
+      `[rate-limit] bloqueado policy=${policy.keyPrefix} method=${req.method} path=${req.path} identity=${identity} count=${result.count}/${policy.limit}`
+    );
+
     return res.status(429).json({
       success: false,
       error: {
@@ -82,11 +104,52 @@ function policyForRequest(req: Request): RateLimitPolicy {
     return devPolicy;
   }
 
+  if (path.startsWith("/api/logs") || path.startsWith("/logs")) {
+    return logPolicy;
+  }
+
+  if (isBotRuntimePath(path)) {
+    if (!["GET", "HEAD", "OPTIONS"].includes(req.method.toUpperCase())) {
+      return botMutationPolicy;
+    }
+
+    return botRuntimePolicy;
+  }
+
   if (!["GET", "HEAD", "OPTIONS"].includes(req.method.toUpperCase())) {
     return mutationPolicy;
   }
 
   return publicPolicy;
+}
+
+function isBotRuntimePath(path: string) {
+  return path.startsWith("/api/bot/")
+    || path.startsWith("/bot/")
+    || path.startsWith("/api/settings/bot/")
+    || path.startsWith("/settings/bot/")
+    || path.startsWith("/api/self-bot-protection/bot/")
+    || path.startsWith("/self-bot-protection/bot/")
+    || path.startsWith("/api/image-anti-spam/bot/")
+    || path.startsWith("/image-anti-spam/bot/")
+    || path.startsWith("/api/social-notifications/bot/")
+    || path.startsWith("/social-notifications/bot/")
+    || path.startsWith("/api/kick-integration/bot/")
+    || path.startsWith("/kick-integration/bot/")
+    || path.startsWith("/api/clips/bot/")
+    || path.startsWith("/clips/bot/")
+    || path.startsWith("/api/giveaways/bot/")
+    || path.startsWith("/giveaways/bot/")
+    || path.startsWith("/api/socials/bot/")
+    || path.startsWith("/socials/bot/")
+    || path.startsWith("/api/x-monitor/bot/")
+    || path.startsWith("/x-monitor/bot/")
+    || path.startsWith("/api/fivem/bot/")
+    || path.startsWith("/fivem/bot/")
+    || path.startsWith("/api/mission-tools/bot/")
+    || path.startsWith("/mission-tools/bot/")
+    || path.startsWith("/api/voice-recorder/bot/")
+    || path.startsWith("/voice-recorder/bot/");
 }
 
 function rateLimitIdentity(req: Request) {

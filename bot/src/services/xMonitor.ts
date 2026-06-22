@@ -12,9 +12,16 @@ import type { ApiClient, XAccount, XPost } from "./apiClient";
 import type { BotSocketClient } from "../websocket/socketClient";
 
 let running = false;
+let serviceStarted = false;
 const X_ACCOUNT_CONCURRENCY = 5;
 
 export function startXMonitor(client: Client, api: ApiClient, socket: BotSocketClient) {
+  if (serviceStarted) {
+    console.warn("[x-monitor] start ignorado: monitor ja esta em execucao.");
+    return;
+  }
+
+  serviceStarted = true;
   const run = () => {
     void monitorXAccounts(client, api).catch((error) => {
       console.warn("[x-monitor] monitor falhou:", error instanceof Error ? error.message : error);

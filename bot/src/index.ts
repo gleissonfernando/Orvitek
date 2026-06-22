@@ -119,16 +119,37 @@ if (!env.DISCORD_BOT_TOKEN) {
   process.exit(1);
 }
 
-process.on("SIGINT", () => {
+let loginStarted = false;
+let shuttingDown = false;
+
+async function startBot() {
+  if (loginStarted) {
+    console.warn("[bot] login ignorado: tentativa duplicada de inicializacao.");
+    return;
+  }
+
+  loginStarted = true;
+  await client.login(env.DISCORD_BOT_TOKEN);
+}
+
+function shutdown(signal: "SIGINT" | "SIGTERM") {
+  if (shuttingDown) {
+    return;
+  }
+
+  shuttingDown = true;
+  console.log(`[bot] encerrando por ${signal}.`);
   context.socket.disconnect(client);
   client.destroy();
   process.exit(0);
+}
+
+process.on("SIGINT", () => {
+  shutdown("SIGINT");
 });
 
 process.on("SIGTERM", () => {
-  context.socket.disconnect(client);
-  client.destroy();
-  process.exit(0);
+  shutdown("SIGTERM");
 });
 
 process.on("unhandledRejection", (reason) => {
@@ -139,7 +160,7 @@ process.on("uncaughtException", (error) => {
   console.error("[bot] excecao nao capturada:", error);
 });
 
-client.login(env.DISCORD_BOT_TOKEN).catch((error) => {
+startBot().catch((error) => {
   console.error("[bot] falha ao conectar:", error);
   process.exit(1);
 });

@@ -12,6 +12,7 @@ import type { ApiClient, SocialNotification } from "./apiClient";
 import { getTwitchStreams, type TwitchStream } from "./twitchApiService";
 
 let running = false;
+let serviceStarted = false;
 const TWITCH_BATCH_SIZE = 100;
 const NOTIFICATION_CONCURRENCY = 25;
 const LIVE_PREVIEW_REFRESH_DELAY_MS = 30_000;
@@ -22,6 +23,12 @@ const TWITCH_LOOKUP_PREFIX = {
 } as const;
 
 export function startSocialNotificationMonitor(client: Client, api: ApiClient) {
+  if (serviceStarted) {
+    console.warn("[social-notifications] start ignorado: monitor ja esta em execucao.");
+    return;
+  }
+
+  serviceStarted = true;
   console.log(`[social-notifications] monitor Twitch iniciado; intervalo ${env.TWITCH_MONITOR_INTERVAL_MS}ms.`);
 
   const run = () => {

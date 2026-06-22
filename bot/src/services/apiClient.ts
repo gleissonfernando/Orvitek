@@ -814,6 +814,7 @@ export class ApiClient {
         throw new Error("BACKEND_API_URL nao configurado.");
       }
 
+      recordApiRequest(config.method, config.url);
       return config;
     });
   }
@@ -1464,6 +1465,53 @@ export class ApiClient {
       timeout: 12_000
     });
     return data;
+  }
+}
+
+const API_REQUEST_WINDOW_MS = 60_000;
+const API_REQUEST_WARN_THRESHOLD = 40;
+const apiRequestCounters = new Map<string, { count: number; resetAt: number; warnedAt: number }>();
+
+function recordApiRequest(method = "GET", url = "") {
+  const now = Date.now();
+  const key = `${method.toUpperCase()} ${normalizeApiMetricUrl(url)}`;
+  const current = apiRequestCounters.get(key);
+
+  if (!current || current.resetAt <= now) {
+    apiRequestCounters.set(key, {
+      count: 1,
+      resetAt: now + API_REQUEST_WINDOW_MS,
+      warnedAt: 0
+    });
+    cleanupApiRequestCounters(now);
+    return;
+  }
+
+  current.count += 1;
+
+  if (current.count > API_REQUEST_WARN_THRESHOLD && now - current.warnedAt > API_REQUEST_WINDOW_MS) {
+    current.warnedAt = now;
+    console.warn(`[api-client] alto volume de requests: ${key} count=${current.count}/min`);
+  }
+}
+
+function normalizeApiMetricUrl(url: string) {
+  return url
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ":uuid")
+    .replace(/\b\d{15,22}\b/g, ":snowflake")
+    .replace(/\/sent\/[^/?]+/g, "/sent/:id")
+    .split("?")[0] || "/";
+}
+
+function cleanupApiRequestCounters(now: number) {
+  if (apiRequestCounters.size < 500) {
+    return;
+  }
+
+  for (const [key, value] of apiRequestCounters.entries()) {
+    if (value.resetAt <= now) {
+      apiRequestCounters.delete(key);
+    }
   }
 }
 
