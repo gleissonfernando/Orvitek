@@ -139,4 +139,7 @@ process.on("uncaughtException", (error) => {
   console.error("[bot] excecao nao capturada:", error);
 });
 
-void client.login(env.DISCORD_BOT_TOKEN);
+client.login(env.DISCORD_BOT_TOKEN).catch((error) => {
+  console.error("[bot] falha ao conectar:", error);
+  process.exit(1);
+});

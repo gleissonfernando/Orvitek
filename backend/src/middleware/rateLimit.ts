@@ -91,7 +91,9 @@ function policyForRequest(req: Request): RateLimitPolicy {
 
 function rateLimitIdentity(req: Request) {
   const user = req.session?.user?.discordId;
-  const botId = typeof req.query.botId === "string" ? req.query.botId.trim() : "";
+  const queryBotId = typeof req.query.botId === "string" ? req.query.botId.trim() : "";
+  const headerBotId = req.header("x-dashboard-bot-id")?.trim() ?? req.header("x-discord-bot-client-id")?.trim() ?? "";
+  const botId = queryBotId || headerBotId;
   const dashboardSlug = dashboardSlugFromPath(req.path);
   const ip = req.ip || req.socket.remoteAddress || "unknown";
 
