@@ -87,6 +87,10 @@ function readAuthError() {
   const reason = new URLSearchParams(window.location.search).get("reason");
   const authError = new URLSearchParams(window.location.search).get("authError");
 
+  if (!reason && !authError) {
+    return null;
+  }
+
   if (authError === "denied") {
     return "Voce nao esta liberado para acessar esta dashboard.";
   }

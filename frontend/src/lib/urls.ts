@@ -37,7 +37,7 @@ export function appUrl(path = "") {
 }
 
 export function dashboardPath(slug?: string | null) {
-  return slug ? `/dashboard/${encodeURIComponent(slug)}` : "/dashboard";
+  return slug ? `/${encodeURIComponent(slug)}/dashboard` : "/dashboard";
 }
 
 export function dashboardUrl(slug?: string | null) {
@@ -45,15 +45,24 @@ export function dashboardUrl(slug?: string | null) {
 }
 
 export function isDashboardRoutePath(path: string) {
-  return path === "/dashboard" || path.startsWith("/dashboard/");
+  return path === "/dashboard" || path.startsWith("/dashboard/") || dashboardSlugFromPath(path) !== null;
 }
 
 export function dashboardSlugFromPath(path: string) {
-  if (!path.startsWith("/dashboard/")) {
-    return null;
+  if (path.startsWith("/dashboard/")) {
+    const slug = path.slice("/dashboard/".length).split("/")[0]?.trim();
+    return decodeSlug(slug);
   }
 
-  const slug = path.slice("/dashboard/".length).split("/")[0]?.trim();
+  const match = path.match(/^\/([a-z0-9]+(?:-[a-z0-9]+)*)\/dashboard(?:\/|$)/i);
+  if (match?.[1]) {
+    return decodeSlug(match[1]);
+  }
+
+  return null;
+}
+
+function decodeSlug(slug?: string | null) {
   if (!slug) {
     return null;
   }

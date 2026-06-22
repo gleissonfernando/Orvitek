@@ -1175,7 +1175,7 @@ function slugifyBotName(value: string) {
 
 function buildDashboardUrl(slug: string) {
   const origin = env.SITE_ORIGIN || env.FRONTEND_URL;
-  const path = `/dashboard/${slug}`;
+  const path = `/${slug}/dashboard`;
 
   return origin ? `${origin}${path}` : path;
 }

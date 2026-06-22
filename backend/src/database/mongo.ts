@@ -997,6 +997,19 @@ export type MongoMaintenanceLog = {
   message: string;
 };
 
+export type MongoDashboardAuditLog = {
+  _id: string;
+  action: string;
+  userId: string | null;
+  botId?: string | null;
+  guildId?: string | null;
+  dashboardSlug?: string | null;
+  ip?: string | null;
+  userAgent?: string | null;
+  metadata?: Record<string, unknown>;
+  createdAt: Date;
+};
+
 const globalForMongo = globalThis as unknown as {
   mongoClient?: MongoClient;
   mongoIndexes?: Promise<void>;
@@ -1073,7 +1086,8 @@ export async function getMongoCollections() {
     botGuildConfigs: db.collection<MongoBotGuildConfig>("BotGuildConfig"),
     devPermissions: db.collection<MongoDevPermission>("DevPermission"),
     maintenanceState: db.collection<MongoMaintenanceState>("MaintenanceState"),
-    maintenanceLogs: db.collection<MongoMaintenanceLog>("MaintenanceLog")
+    maintenanceLogs: db.collection<MongoMaintenanceLog>("MaintenanceLog"),
+    dashboardAuditLogs: db.collection<MongoDashboardAuditLog>("DashboardAuditLog")
   };
 }
 
@@ -1181,7 +1195,8 @@ async function createMongoIndexes(db: Db) {
     ),
     ensureDevBotIndexes(db),
     db.collection<MongoBotGuildConfig>("BotGuildConfig").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
-    db.collection<MongoDevPermission>("DevPermission").createIndex({ userId: 1 }, { unique: true })
+    db.collection<MongoDevPermission>("DevPermission").createIndex({ userId: 1 }, { unique: true }),
+    ensureDashboardAuditLogIndexes(db)
   ]);
 }
 
@@ -1191,6 +1206,23 @@ async function ensureDevBotIndexes(db: Db) {
   await ensureDevBotSlugs(collection);
   await collection.createIndex({ clientId: 1 }, { unique: true });
   await collection.createIndex({ slug: 1 }, { unique: true });
+  await collection.createIndex({ ownerId: 1, createdAt: -1 });
+  await collection.createIndex({ _id: 1, slug: 1 }, { name: "Bot_botId_dashboardSlug_idx" });
+  await collection.createIndex({ mainGuildId: 1, updatedAt: -1 });
+}
+
+async function ensureDashboardAuditLogIndexes(db: Db) {
+  const collection = db.collection<MongoDashboardAuditLog>("DashboardAuditLog");
+
+  await Promise.all([
+    collection.createIndex({ createdAt: -1 }),
+    collection.createIndex({ userId: 1, createdAt: -1 }),
+    collection.createIndex({ botId: 1, createdAt: -1 }),
+    collection.createIndex({ guildId: 1, createdAt: -1 }),
+    collection.createIndex({ dashboardSlug: 1, createdAt: -1 }),
+    collection.createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    collection.createIndex({ botId: 1, dashboardSlug: 1, createdAt: -1 })
+  ]);
 }
 
 async function ensureDevBotSlugs(collection: Collection<MongoDevBot>) {

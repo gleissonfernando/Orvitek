@@ -86,8 +86,12 @@ export function useAuth() {
   const loginDiscord = useCallback(() => {
     setStatus("Conectando ao Discord...");
     const botSlug = dashboardSlugFromPath(window.location.pathname);
-    const query = botSlug ? `?botSlug=${encodeURIComponent(botSlug)}` : "";
-    window.location.href = appUrl(`/auth/discord${query}`);
+    const path = window.location.pathname.startsWith("/dev")
+      ? "/auth/discord/dev"
+      : botSlug
+        ? `/auth/discord/bot/${encodeURIComponent(botSlug)}`
+        : "/auth/discord/dev";
+    window.location.href = appUrl(path);
   }, []);
 
   const logout = useCallback(async () => {

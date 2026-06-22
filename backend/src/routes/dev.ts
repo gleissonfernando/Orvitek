@@ -32,6 +32,7 @@ import {
   listFivemModules,
   updateFivemModule
 } from "../services/fivemModuleService";
+import { createDashboardAuditLog } from "../services/dashboardAuditService";
 import { createLog } from "../services/logService";
 import {
   getMaintenanceState,
@@ -678,6 +679,8 @@ async function writeDevBotAudit(
   message: string,
   metadata: Record<string, unknown> = {}
 ) {
+  const bot = botId ? await getDevBot(botId).catch(() => null) : null;
+
   await createLog({
     botId,
     guildId,
@@ -689,5 +692,20 @@ async function writeDevBotAudit(
       action,
       ...metadata
     }
+  });
+
+  await createDashboardAuditLog({
+    action: `dev_bot.${action}`,
+    botId,
+    dashboardSlug: bot?.slug ?? null,
+    guildId,
+    metadata: {
+      module: "dev_bots",
+      message,
+      ...metadata
+    },
+    userId: auth.user.discordId
+  }).catch((error) => {
+    console.warn("[audit] nao foi possivel registrar auditoria da dashboard:", error instanceof Error ? error.message : error);
   });
 }

@@ -9,9 +9,12 @@ import morgan from "morgan";
 import { env } from "./config/env";
 import { errorHandler } from "./middleware/errorHandler";
 import { maintenanceMiddleware } from "./middleware/maintenance";
+import { rateLimitMiddleware } from "./middleware/rateLimit";
+import { requestMetricsMiddleware } from "./middleware/requestMetrics";
 import { sessionMiddleware } from "./middleware/session";
 import { apiRouter } from "./routes";
 import { authRouter } from "./routes/auth";
+import { healthRouter } from "./routes/health";
 import { kickWebhookPublicRouter } from "./routes/kickNotifications";
 
 export const app = express();
@@ -64,15 +67,13 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: true }));
 app.use(sessionMiddleware);
 app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
+app.use(requestMetricsMiddleware);
+app.use(rateLimitMiddleware);
 app.use("/uploads", express.static(uploadsPath));
 
+app.use("/health", healthRouter);
+app.use("/_shardcloud/health", healthRouter);
 app.use("/auth", authRouter);
-app.get(["/health", "/_shardcloud/health"], (_req, res) => {
-  res.json({
-    status: "ok",
-    timestamp: new Date().toISOString()
-  });
-});
 app.use(maintenanceMiddleware);
 app.use("/webhooks", kickWebhookPublicRouter);
 app.use("/api", apiRouter);

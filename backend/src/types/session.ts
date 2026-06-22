@@ -23,7 +23,15 @@ declare module "express-session" {
     user?: AuthSessionUser;
     verified?: boolean;
     accessValidatedAt?: number;
-    oauthState?: string;
+    oauthState?: {
+      botId?: string;
+      botSlug?: string;
+      expiresAt: number;
+      returnTo: string;
+      state: string;
+      type: "dev" | "bot";
+      ua: string;
+    };
     discordAccessToken?: string;
     discordRefreshToken?: string;
     giveawayOAuth?: {

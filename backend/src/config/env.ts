@@ -200,6 +200,7 @@ const envSchema = z
     KICK_WEBHOOK_PUBLIC_KEY: z.string().default(""),
     FRONTEND_URL: envUrl("FRONTEND_URL", defaultSiteOrigin),
     DASHBOARD_DEV_USER_IDS: z.string().optional().default(""),
+    DEV_DISCORD_IDS: z.string().optional().default(""),
     DASHBOARD_GUILD_IDS: z.string().optional().default(defaultDashboardGuildIds),
     DASHBOARD_VERIFICATION_MODE: z.enum(["temporary", "roles"]).default("roles"),
     START_REGISTERED_DEV_BOTS: envBoolean(true)
@@ -224,7 +225,11 @@ const envSchema = z
       KICK_OAUTH_REDIRECT_URI: value.KICK_OAUTH_REDIRECT_URI || (oauthFrontendUrl ? `${oauthFrontendUrl}/api/giveaways/oauth/kick/callback` : ""),
       DISCORD_SCOPES: mergeSpaceValues(value.DISCORD_SCOPES, requiredDiscordScopes),
       REDIS_URL: value.REDIS_SESSION_ENABLED ? productionSafeUrl(cleanEnvValue(value.REDIS_URL)) ?? "" : "",
-      DASHBOARD_DEV_USER_IDS: mergeCsvValues(value.DASHBOARD_DEV_USER_IDS, defaultDashboardDevUserIds),
+      DASHBOARD_DEV_USER_IDS: mergeCsvValues(
+        mergeCsvValues(value.DASHBOARD_DEV_USER_IDS, value.DEV_DISCORD_IDS),
+        defaultDashboardDevUserIds
+      ),
+      DEV_DISCORD_IDS: value.DEV_DISCORD_IDS,
       DASHBOARD_GUILD_IDS: mergeCsvValues(value.DASHBOARD_GUILD_IDS, defaultDashboardGuildIds)
     };
   });

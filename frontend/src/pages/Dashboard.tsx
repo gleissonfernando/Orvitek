@@ -425,7 +425,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
       }
 
       if (!requestedSlug) {
-        window.history.replaceState({}, "", `/dashboard/${encodeURIComponent(targetBot.slug)}`);
+        window.history.replaceState({}, "", `/${encodeURIComponent(targetBot.slug)}/dashboard`);
       }
 
       setSelectedBotId(targetBot?.id ?? null);
@@ -690,7 +690,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
 
     setSelectedBotId(nextBot.id);
     storeSelectedBotId(nextBot.id);
-    window.history.replaceState({}, "", `/dashboard/${encodeURIComponent(nextBot.slug)}`);
+    window.history.replaceState({}, "", `/${encodeURIComponent(nextBot.slug)}/dashboard`);
 
     if (nextGuildId) {
       setSelectedGuildId(nextGuildId);
@@ -1038,7 +1038,7 @@ function UserDashboardHeader({
                 ) : null}
               </div>
               {bot?.slug ? (
-                <p className="mt-1 truncate font-mono text-xs text-zinc-500">/dashboard/{bot.slug}</p>
+                <p className="mt-1 truncate font-mono text-xs text-zinc-500">/{bot.slug}/dashboard</p>
               ) : null}
             </div>
           </div>
