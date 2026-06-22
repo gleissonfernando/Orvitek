@@ -1492,22 +1492,24 @@ function sentQuery(
 }
 
 function botScopeQuery(botId: string | null) {
-  return botId
-    ? {
-        botId
-      }
-    : {
-        $or: [
-          {
-            botId: null
-          },
-          {
-            botId: {
-              $exists: false
-            }
-          }
-        ]
-      };
+  if (!botId) {
+    return {
+      $or: [
+        { botId: null },
+        { botId: { $exists: false } }
+      ]
+    };
+  }
+
+  // Also match null-scoped configs (created before multi-bot support) so existing
+  // configs remain accessible when a specific bot is selected in the dashboard.
+  return {
+    $or: [
+      { botId },
+      { botId: null },
+      { botId: { $exists: false } }
+    ]
+  };
 }
 
 function botScopeClause(botId: string | null) {
