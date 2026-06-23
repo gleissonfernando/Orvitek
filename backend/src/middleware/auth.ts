@@ -10,7 +10,7 @@ const ACCESS_DENIED_MESSAGE = "Você não está liberado para acessar esta dashb
 const AUTH_MIDDLEWARE_TIMEOUT_MS = 12_000;
 
 export function isBotRequest(req: Request) {
-  const token = req.header("x-bot-token");
+  const token = req.header("bot-token");
   return Boolean(env.BOT_API_TOKEN && token && token === env.BOT_API_TOKEN);
 }
 
