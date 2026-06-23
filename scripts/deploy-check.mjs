@@ -79,6 +79,10 @@ function listFiles(targetPath, predicate) {
   });
 }
 
+function readProjectFile(file) {
+  return readFileSync(path.join(root, file), "utf8");
+}
+
 check("configuracao .shardcloud", () => {
   if (!existsSync(path.join(root, ".shardcloud"))) {
     return;
@@ -92,6 +96,28 @@ check("configuracao .shardcloud", () => {
     if (actual !== expected) {
       fail(`.shardcloud ${key} esperado "${expected}", recebido "${actual ?? "<ausente>"}".`);
     }
+  }
+});
+
+check("contrato de token interno do bot", () => {
+  const backendAuth = readProjectFile("backend/src/middleware/auth.ts");
+  const botApiClient = readProjectFile("bot/src/services/apiClient.ts");
+  const botSocketClient = readProjectFile("bot/src/websocket/socketClient.ts");
+
+  if (!backendAuth.includes('req.header("x-bot-token")')) {
+    fail("backend precisa aceitar o header x-bot-token enviado pelo bot.");
+  }
+
+  if (!backendAuth.includes('req.header("bot-token")')) {
+    fail("backend precisa manter compatibilidade com o header bot-token.");
+  }
+
+  if (!botApiClient.includes('"x-bot-token": env.BOT_API_TOKEN')) {
+    fail("bot API client precisa enviar x-bot-token com BOT_API_TOKEN.");
+  }
+
+  if (!botSocketClient.includes("auth:") || !botSocketClient.includes("token: env.BOT_API_TOKEN")) {
+    fail("bot socket client precisa autenticar com BOT_API_TOKEN.");
   }
 });
 
