@@ -220,8 +220,12 @@ export class BotSocketClient {
 
     this.socket.on("bot:shutdown", (payload: { botId?: string | null } = {}) => {
       const botId = (currentRuntimeBotId() ?? env.DASHBOARD_BOT_ID) || null;
+      const requestedBotId = typeof payload.botId === "string" && payload.botId.trim()
+        ? payload.botId.trim()
+        : null;
 
-      if (payload.botId && botId && payload.botId !== botId) {
+      if (!requestedBotId || !botId || requestedBotId !== botId) {
+        console.warn("[socket] desligamento DEV ignorado: botId ausente ou diferente do runtime atual.");
         return;
       }
 

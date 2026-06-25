@@ -127,11 +127,11 @@ function startProcess(name, command, args, options = {}) {
     const detail = signal ? `signal ${signal}` : `code ${code ?? 0}`;
     console.error(`[${name}] saiu com ${detail}.`);
 
-    if (!signal && code === 0) {
-      return;
-    }
-
     if (critical || once) {
+      if (!signal && code === 0 && once) {
+        return;
+      }
+
       shutdown(code && code > 0 ? code : 1);
       return;
     }
