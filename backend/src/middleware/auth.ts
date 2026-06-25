@@ -5,7 +5,7 @@ import { dashboardPermissionsForLevel } from "../services/dashboardPermissionSer
 import { getBotStatus, refreshBotGuildsFromDiscord } from "../services/statsService";
 import { clearAuthCookies, issueAuthCookies, resolveAuthFromRequest, type DashboardAuth } from "../services/tokenService";
 
-const VERIFIED_ACCESS_RECHECK_MS = 30 * 1000;
+const VERIFIED_ACCESS_RECHECK_MS = 3 * 1000;
 const ACCESS_DENIED_MESSAGE = "Você não está liberado para acessar esta dashboard.";
 const AUTH_MIDDLEWARE_TIMEOUT_MS = 12_000;
 

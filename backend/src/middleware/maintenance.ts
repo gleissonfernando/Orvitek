@@ -53,14 +53,13 @@ function isMaintenanceBypass(req: Request) {
     || path.startsWith("/api/auth")
     || path.startsWith("/dev")
     || path.startsWith("/api/dev")
-    || path === "/api/dashboard/me"
     || path.startsWith("/api/bot/maintenance")
     || path.startsWith("/uploads")
   ) {
     return true;
   }
 
-  if (requestCameFromDevPanel(req) && path.startsWith("/api/logs")) {
+  if (requestCameFromDevPanel(req) && (path === "/api/dashboard/me" || path.startsWith("/api/logs"))) {
     return true;
   }
 

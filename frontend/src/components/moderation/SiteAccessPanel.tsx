@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Crown, Loader2, Plus, Search, ShieldCheck, Sparkles, Trash2, UserCheck, UserCog } from "lucide-react";
+import { Crown, ExternalLink, Loader2, Plus, Search, ShieldCheck, Sparkles, Trash2, UserCheck, UserCog } from "lucide-react";
 import { checkSiteAccess, getGuildMemberOptions, patchGuildSettings } from "../../lib/api";
+import { dashboardUrl } from "../../lib/urls";
 import type { AccessValidationResult, DashboardAccessLevel, DashboardGuild, GuildMemberOption, GuildSettings } from "../../types";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -31,6 +32,7 @@ export function SiteAccessPanel({
   const [validation, setValidation] = useState<AccessValidationResult | null>(null);
   const [userQuery, setUserQuery] = useState("");
   const [memberOptions, setMemberOptions] = useState<GuildMemberOption[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedMemberProfiles, setSelectedMemberProfiles] = useState<Record<string, GuildMemberOption>>({});
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -38,6 +40,11 @@ export function SiteAccessPanel({
   const userPermissions = settings?.dashboardUserPermissions ?? {};
   const selectedUserIds = Object.keys(userPermissions);
   const selectedUserKey = selectedUserIds.join(",");
+  const activeUserId = selectedUserId && selectedUserIds.includes(selectedUserId)
+    ? selectedUserId
+    : selectedUserIds[0] ?? null;
+  const activeUser = activeUserId ? selectedMemberProfiles[activeUserId] : null;
+  const botDashboardUrl = dashboardUrl(botSlug);
 
   useEffect(() => {
     if (!guild || !canManage) {
@@ -78,6 +85,17 @@ export function SiteAccessPanel({
       active = false;
     };
   }, [botId, canManage, guild, selectedUserKey]);
+
+  useEffect(() => {
+    if (!selectedUserIds.length) {
+      setSelectedUserId(null);
+      return;
+    }
+
+    if (!selectedUserId || !selectedUserIds.includes(selectedUserId)) {
+      setSelectedUserId(selectedUserIds[0] ?? null);
+    }
+  }, [selectedUserId, selectedUserKey, selectedUserIds]);
 
   async function saveAccess(payload: Partial<GuildSettings>, successText: string) {
     if (!guild || !settings || !canManage) {
@@ -146,6 +164,7 @@ export function SiteAccessPanel({
     );
 
     if (saved) {
+      setSelectedUserId(userId);
       setUserQuery("");
       setMemberOptions([]);
     }
@@ -341,30 +360,71 @@ export function SiteAccessPanel({
 
           <div className="space-y-2">
             {selectedUserIds.length ? (
-              selectedUserIds.map((userId) => {
-                const member = selectedMemberProfiles[userId];
+              <div className="grid gap-3 lg:grid-cols-[minmax(210px,0.75fr)_minmax(0,1.25fr)]">
+                <aside className="max-h-[420px] space-y-2 overflow-y-auto rounded-lg border border-zinc-900 bg-zinc-950/70 p-2">
+                  {selectedUserIds.map((userId) => {
+                    const member = selectedMemberProfiles[userId];
+                    const selected = userId === activeUserId;
 
-                return (
-                  <div className="rounded-lg border border-zinc-900 bg-black px-3 py-3" key={userId}>
+                    return (
+                      <button
+                        className={[
+                          "flex w-full min-w-0 items-center gap-3 rounded-lg border px-3 py-2 text-left transition",
+                          selected
+                            ? "border-purple-400/50 bg-purple-500/10 text-white"
+                            : "border-zinc-900 bg-black text-zinc-300 hover:border-zinc-700 hover:text-white"
+                        ].join(" ")}
+                        key={userId}
+                        onClick={() => setSelectedUserId(userId)}
+                        type="button"
+                      >
+                        {member?.avatarUrl ? (
+                          <img
+                            alt=""
+                            className="h-9 w-9 shrink-0 rounded-full border border-zinc-800 bg-zinc-950 object-cover"
+                            src={member.avatarUrl}
+                          />
+                        ) : (
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-zinc-800 bg-zinc-950 text-xs font-bold text-zinc-400">
+                            ID
+                          </span>
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold">{member?.displayName ?? userId}</span>
+                          <span className="block truncate text-xs text-zinc-500">{levelLabel(userPermissions[userId] ?? "basic")}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </aside>
+
+                {activeUserId ? (
+                  <div className="rounded-lg border border-zinc-900 bg-black px-3 py-3">
                     <div className="flex flex-wrap items-center gap-3">
-                      {member?.avatarUrl ? (
+                      {activeUser?.avatarUrl ? (
                         <img
                           alt=""
-                          className="h-10 w-10 shrink-0 rounded-full border border-zinc-800 bg-zinc-950 object-cover"
-                          src={member.avatarUrl}
+                          className="h-12 w-12 shrink-0 rounded-full border border-zinc-800 bg-zinc-950 object-cover"
+                          src={activeUser.avatarUrl}
                         />
                       ) : null}
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-zinc-100">{member?.displayName ?? userId}</p>
+                        <p className="truncate text-sm font-medium text-zinc-100">{activeUser?.displayName ?? activeUserId}</p>
                         <p className="mt-1 truncate text-xs text-zinc-500">
-                          {member ? `${member.tag} - ${userId}` : "Usuario Discord liberado"}
+                          {activeUser ? `${activeUser.tag} - ${activeUserId}` : "Usuario Discord liberado"}
                         </p>
                       </div>
-                      <Badge variant="muted">{levelLabel(userPermissions[userId] ?? "basic")}</Badge>
+                      <Badge variant="muted">{levelLabel(userPermissions[activeUserId] ?? "basic")}</Badge>
+                      <Button asChild className="h-9" variant="outline">
+                        <a href={botDashboardUrl} rel="noreferrer" target="_blank">
+                          <ExternalLink className="h-4 w-4" />
+                          Abrir dashboard
+                        </a>
+                      </Button>
                       <button
                         className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950 text-zinc-400 transition hover:border-red-500/50 hover:text-red-300"
                         disabled={disabled}
-                        onClick={() => handleDirectUserRemove(userId)}
+                        onClick={() => handleDirectUserRemove(activeUserId)}
                         type="button"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -373,7 +433,7 @@ export function SiteAccessPanel({
 
                     <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                       {levelOptions.map((option) => {
-                        const active = (userPermissions[userId] ?? "basic") === option.id;
+                        const active = (userPermissions[activeUserId] ?? "basic") === option.id;
                         const Icon = option.icon;
 
                         return (
@@ -386,7 +446,7 @@ export function SiteAccessPanel({
                             ].join(" ")}
                             disabled={disabled}
                             key={option.id}
-                            onClick={() => handleDirectUserLevelChange(userId, option.id)}
+                            onClick={() => handleDirectUserLevelChange(activeUserId, option.id)}
                             type="button"
                           >
                             <Icon className="h-3.5 w-3.5 shrink-0" />
@@ -396,8 +456,8 @@ export function SiteAccessPanel({
                       })}
                     </div>
                   </div>
-                );
-              })
+                ) : null}
+              </div>
             ) : (
               <p className="rounded-lg border border-zinc-900 bg-black px-3 py-2 text-sm text-zinc-500">
                 Nenhuma pessoa liberada.
