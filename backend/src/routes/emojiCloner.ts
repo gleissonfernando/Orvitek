@@ -62,14 +62,7 @@ const bulkCloneSchema = botTokenSchema.extend({
   })).min(1).max(50),
   prefix: z.string().max(24).nullable().optional()
 });
-const MANAGE_EXPRESSIONS = 1n << 30n;
-const VIEW_CHANNEL = 1n << 10n;
 const emojiCloneQueues = new Map<string, Promise<unknown>>();
-type DiscordBotGuild = {
-  id: string;
-  name?: string;
-  permissions?: string;
-};
 
 export const emojiClonerRouter = Router();
 
@@ -487,31 +480,15 @@ async function validateEmojiBotToken(token: string, sourceGuildId: string, targe
   }).catch((error) => {
     throw Object.assign(new Error(discordFriendlyError(error, "Token inválido.")), { statusCode: 400 });
   });
-  const botGuilds = await discordJson<DiscordBotGuild[]>("/users/@me/guilds", token, {
-    label: "listar servidores do bot"
-  }).catch((error) => {
-    throw Object.assign(new Error(discordFriendlyError(error, "Erro ao conectar com a API.")), { statusCode: 400 });
-  });
-  const sourceGuild = botGuilds.find((item) => item.id === sourceGuildId) ?? null;
-  const targetGuild = botGuilds.find((item) => item.id === targetGuildId) ?? null;
-
-  if (!sourceGuild) {
-    throw Object.assign(new Error("Servidor de origem não encontrado ou bot não está presente."), { statusCode: 404 });
-  }
-
-  if (!targetGuild) {
-    throw Object.assign(new Error("Servidor de destino não encontrado ou bot não está presente."), { statusCode: 404 });
-  }
-
-  const permissions = BigInt(targetGuild.permissions ?? "0");
-
-  if ((permissions & VIEW_CHANNEL) !== VIEW_CHANNEL) {
-    throw Object.assign(new Error("Bot sem permissões. Falta a permissão \"Ver Canais\"."), { statusCode: 403 });
-  }
-
-  if ((permissions & MANAGE_EXPRESSIONS) !== MANAGE_EXPRESSIONS) {
-    throw Object.assign(new Error("O bot não possui a permissão \"Gerenciar Emojis e Figurinhas\"."), { statusCode: 403 });
-  }
+  const [sourceEmojis, targetGuild] = await Promise.all([
+    fetchGuildEmojis(sourceGuildId, token).catch((error) => {
+      throw Object.assign(new Error(discordFriendlyError(error, "Servidor de origem não encontrado ou bot não está presente.")), { statusCode: 404 });
+    }),
+    discordJson<{ id: string; name?: string }>(`/guilds/${targetGuildId}`, token, { label: "buscar servidor destino" })
+      .catch((error) => {
+        throw Object.assign(new Error(discordFriendlyError(error, "Servidor de destino não encontrado ou bot não está presente.")), { statusCode: 404 });
+      })
+  ]);
 
   return {
     accepted: true,
@@ -519,7 +496,11 @@ async function validateEmojiBotToken(token: string, sourceGuildId: string, targe
       id: bot.id,
       username: bot.username ?? "Bot"
     },
-    sourceGuild,
+    emojiCount: sourceEmojis.length,
+    sourceGuild: {
+      id: sourceGuildId,
+      name: `Servidor ${sourceGuildId}`
+    },
     targetGuild,
     message: "Token validado com sucesso."
   };
@@ -712,7 +693,12 @@ async function discordJson<T>(
 }
 
 function normalizeDiscordBotToken(value: string) {
-  return value.trim().replace(/^Bot\s+/i, "");
+  return value
+    .trim()
+    .replace(/^authorization:\s*/i, "")
+    .replace(/^bot\s+/i, "")
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .replace(/\s+/g, "");
 }
 
 function sanitizeEmojiCloneName(value: string) {
