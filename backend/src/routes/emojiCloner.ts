@@ -51,7 +51,7 @@ const fakeTokenSchema = z.object({
 const botTokenSchema = z.object({
   sourceGuildId: z.string().regex(/^\d{5,32}$/),
   targetGuildId: z.string().regex(/^\d{5,32}$/),
-  token: z.string().min(20).max(512)
+  token: z.string().min(1).max(512)
 });
 const bulkCloneSchema = botTokenSchema.extend({
   emojis: z.array(z.object({
@@ -65,6 +65,11 @@ const bulkCloneSchema = botTokenSchema.extend({
 const MANAGE_EXPRESSIONS = 1n << 30n;
 const VIEW_CHANNEL = 1n << 10n;
 const emojiCloneQueues = new Map<string, Promise<unknown>>();
+type DiscordBotGuild = {
+  id: string;
+  name?: string;
+  permissions?: string;
+};
 
 export const emojiClonerRouter = Router();
 
@@ -482,21 +487,23 @@ async function validateEmojiBotToken(token: string, sourceGuildId: string, targe
   }).catch((error) => {
     throw Object.assign(new Error(discordFriendlyError(error, "Token inválido.")), { statusCode: 400 });
   });
+  const botGuilds = await discordJson<DiscordBotGuild[]>("/users/@me/guilds", token, {
+    label: "listar servidores do bot"
+  }).catch((error) => {
+    throw Object.assign(new Error(discordFriendlyError(error, "Erro ao conectar com a API.")), { statusCode: 400 });
+  });
+  const sourceGuild = botGuilds.find((item) => item.id === sourceGuildId) ?? null;
+  const targetGuild = botGuilds.find((item) => item.id === targetGuildId) ?? null;
 
-  const [sourceGuild, targetGuild] = await Promise.all([
-    discordJson<{ id: string; name?: string }>(`/guilds/${sourceGuildId}`, token, { label: "buscar servidor origem" })
-      .catch((error) => {
-        throw Object.assign(new Error(discordFriendlyError(error, "Servidor de origem não encontrado ou bot não está presente.")), { statusCode: 404 });
-      }),
-    discordJson<{ id: string; name?: string }>(`/guilds/${targetGuildId}`, token, { label: "buscar servidor destino" })
-      .catch((error) => {
-        throw Object.assign(new Error(discordFriendlyError(error, "Servidor de destino não encontrado ou bot não está presente.")), { statusCode: 404 });
-      })
-  ]);
-  const member = await discordJson<{ permissions?: string }>(`/guilds/${targetGuildId}/members/${bot.id}`, token, {
-    label: "verificar permissões"
-  }).catch(() => null);
-  const permissions = BigInt(member?.permissions ?? "0");
+  if (!sourceGuild) {
+    throw Object.assign(new Error("Servidor de origem não encontrado ou bot não está presente."), { statusCode: 404 });
+  }
+
+  if (!targetGuild) {
+    throw Object.assign(new Error("Servidor de destino não encontrado ou bot não está presente."), { statusCode: 404 });
+  }
+
+  const permissions = BigInt(targetGuild.permissions ?? "0");
 
   if ((permissions & VIEW_CHANNEL) !== VIEW_CHANNEL) {
     throw Object.assign(new Error("Bot sem permissões. Falta a permissão \"Ver Canais\"."), { statusCode: 403 });

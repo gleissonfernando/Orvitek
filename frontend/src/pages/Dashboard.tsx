@@ -1955,6 +1955,41 @@ function EmojiCloneSettingsPanel({
     reader.readAsDataURL(selectedFile);
   }, [selectedFile]);
 
+  useEffect(() => {
+    if (!guild) {
+      return;
+    }
+
+    const socket = createDashboardSocket();
+    socket.on("emoji-cloner:progress", (payload: {
+      botId: string | null;
+      current: number;
+      failed: number;
+      guildId: string;
+      success: number;
+      total: number;
+    }) => {
+      const targetGuildId = destinationGuildId || guild.id;
+
+      if (payload.guildId !== targetGuildId) {
+        return;
+      }
+
+      if (payload.botId && botId && payload.botId !== botId) {
+        return;
+      }
+
+      const percent = payload.total > 0 ? Math.round((payload.current / payload.total) * 24) + 75 : 75;
+      setCloneProgress(Math.min(99, Math.max(75, percent)));
+      setCloneMessage(`Clonando emojis... ${payload.current}/${payload.total} (${payload.success} sucesso, ${payload.failed} falha)`);
+      pushCloneLog(`[INFO] Clonando emojis: ${payload.current}/${payload.total}`);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [botId, destinationGuildId, guild?.id]);
+
   async function savePatch(patch: Partial<GuildSettings>) {
     if (!guild || !settings || !canManage) return;
 
@@ -2035,28 +2070,6 @@ function EmojiCloneSettingsPanel({
     setCloneMessage("Validando imagem e permissoes do bot...");
 
     try {
-      if (credentialTestMode !== "real") {
-        await new Promise((resolve) => window.setTimeout(resolve, 650));
-        setCloneProgress(70);
-
-        if (credentialTestMode === "invalid") {
-          throw new Error("Credencial falsa invalida para teste.");
-        }
-
-        await new Promise((resolve) => window.setTimeout(resolve, 450));
-        setCloneProgress(100);
-        setCloneStatus("success");
-        setCloneMessage(`Teste concluido: emoji ${name} seria clonado com sucesso.`);
-        setHistory((current) => [{
-          createdAt: new Date().toISOString(),
-          emojiUrl: previewUrl,
-          guildName: selectedDestination?.name ?? destinationGuildId,
-          name,
-          status: "success" as const
-        }, ...current].slice(0, 20));
-        return;
-      }
-
       const emoji = await cloneEmojiToGuild(destinationGuildId, { image, name, sourceLabel }, botId);
       setCloneProgress(100);
       setCloneStatus("success");
@@ -2132,9 +2145,10 @@ function EmojiCloneSettingsPanel({
     setFakeEmojis([]);
     setBulkLoading("validating");
     setCloneStatus("running");
-    setCloneProgress(10);
+    setCloneProgress(0);
     setCloneMessage("Validando token...");
-    pushCloneLog("[INFO] Validando token do bot");
+    pushCloneLog("[INFO] Iniciando validação");
+    pushCloneLog("[INFO] Conectando ao Discord");
 
     if (!/^\d{5,32}$/.test(sourceGuildId) || !/^\d{5,32}$/.test(targetGuildId)) {
       setFakeTokenMessage("Informe IDs validos de origem e destino.");
@@ -2186,6 +2200,7 @@ function EmojiCloneSettingsPanel({
     setCloneStatus("running");
     setCloneProgress(35);
     setCloneMessage("Buscando emojis...");
+    pushCloneLog("[INFO] Buscando emojis");
     pushCloneLog(`[INFO] Buscando emojis do servidor ${sourceGuildId}`);
 
     try {
@@ -2197,7 +2212,7 @@ function EmojiCloneSettingsPanel({
       setFakeEmojis(emojis.map((emoji) => ({ ...emoji, selected: true, status: "ready" as const })));
       setFakeTokenMessage(`${emojis.length} emoji(s) encontrados.`);
       setCloneStatus("success");
-      setCloneProgress(45);
+      setCloneProgress(50);
       setCloneMessage(`${emojis.length} emoji(s) encontrados. Selecione e inicie a clonagem.`);
       pushCloneLog(`[INFO] ${emojis.length} emojis encontrados`);
     } catch (requestError) {
@@ -2222,9 +2237,10 @@ function EmojiCloneSettingsPanel({
     const sourceGuildId = fakeSourceGuildId.trim();
     const targetGuildId = destinationGuildId || guild?.id || "";
     setCloneStatus("running");
-    setCloneProgress(50);
+    setCloneProgress(75);
     setBulkLoading("cloning");
-    setCloneMessage("Criando emojis...");
+    setCloneMessage("Preparando clonagem...");
+    pushCloneLog("[INFO] Preparando clonagem");
     pushCloneLog(`[INFO] Iniciando clonagem de ${selected.length} emoji(s)`);
 
     try {
@@ -2428,6 +2444,7 @@ function EmojiCloneSettingsPanel({
             <div className="h-2 overflow-hidden rounded-full bg-zinc-900">
               <div className="h-full rounded-full bg-purple-500 transition-all" style={{ width: `${cloneProgress}%` }} />
             </div>
+            <p className="text-right text-xs font-medium text-zinc-400">{cloneProgress}%</p>
             {cloneMessage ? <p className={["rounded-lg border px-3 py-2 text-sm", cloneStatus === "error" ? "border-red-500/20 bg-red-500/10 text-red-200" : cloneStatus === "success" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200" : "border-zinc-800 bg-zinc-900 text-zinc-300"].join(" ")}>{cloneMessage}</p> : null}
             <div className="max-h-44 overflow-y-auto rounded-lg border border-zinc-800 bg-black p-3">
               {cloneLogs.length ? cloneLogs.map((log, index) => (
