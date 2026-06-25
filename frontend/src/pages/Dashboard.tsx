@@ -2020,6 +2020,7 @@ function EmojiCloneSettingsPanel({
     .filter((item) => item.name.toLowerCase().includes(serverSearch.trim().toLowerCase()) || item.id.includes(serverSearch.trim()));
   const selectedDestination = guilds.find((item) => item.id === destinationGuildId) ?? guild ?? null;
   const parsedEmoji = parseEmojiAsset(sourceInput);
+  const pastedEmojiAssets = useMemo(() => parseEmojiAssets(sourceInput), [sourceInput]);
   const previewUrl = filePreview ?? parsedEmoji?.url ?? (isHttpImageUrl(sourceInput) ? sourceInput.trim() : null);
   const sourceLabel = selectedFile?.name ?? parsedEmoji?.name ?? (sourceInput.trim() || null);
   const sourceType = selectedFile
@@ -2094,6 +2095,61 @@ function EmojiCloneSettingsPanel({
         status: "failed" as const
       }, ...current].slice(0, 20));
     }
+  }
+
+  async function handleClonePastedEmojis() {
+    if (!canManage || !settings?.emojiCloneEnabled || !destinationGuildId || !pastedEmojiAssets.length) return;
+
+    setCloneProgress(0);
+    setCloneStatus("running");
+    setCloneMessage("Preparando clonagem por lista colada...");
+    pushCloneLog(`[INFO] Iniciando clonagem sem servidor de origem: ${pastedEmojiAssets.length} emoji(s)`);
+
+    let success = 0;
+    let failed = 0;
+
+    for (const [index, asset] of pastedEmojiAssets.entries()) {
+      const name = sanitizeEmojiName(`${settings.emojiCloneDefaultPrefix ?? ""}${asset.name}`) || `emoji_${index + 1}`;
+
+      try {
+        setCloneMessage(`Clonando emojis... ${index + 1}/${pastedEmojiAssets.length}`);
+        setCloneProgress(Math.max(10, Math.round((index / pastedEmojiAssets.length) * 90)));
+        pushCloneLog(`[INFO] Clonando emoji: ${name}`);
+        const emoji = await cloneEmojiToGuild(destinationGuildId, {
+          image: asset.url,
+          name,
+          sourceLabel: asset.name
+        }, botId);
+        success += 1;
+        pushCloneLog(`[SUCCESS] Emoji clonado: ${emoji.name}`);
+        setHistory((current) => [{
+          createdAt: new Date().toISOString(),
+          emojiUrl: `https://cdn.discordapp.com/emojis/${emoji.id}.${emoji.animated ? "gif" : "png"}?size=64`,
+          guildName: selectedDestination?.name ?? destinationGuildId,
+          name: emoji.name,
+          status: "success" as const
+        }, ...current].slice(0, 20));
+      } catch (requestError) {
+        failed += 1;
+        const message = readErrorMessage(requestError, "Falha ao clonar emoji.");
+        pushCloneLog(`[ERROR] Falha ao criar emoji ${name}: ${message}`);
+        setHistory((current) => [{
+          createdAt: new Date().toISOString(),
+          emojiUrl: asset.url,
+          guildName: selectedDestination?.name ?? destinationGuildId,
+          name,
+          status: "failed" as const
+        }, ...current].slice(0, 20));
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, 900));
+    }
+
+    setCloneProgress(100);
+    setCloneStatus(failed ? "error" : "success");
+    setCloneMessage(`Concluido. ${success}/${pastedEmojiAssets.length} emoji(s) clonados${failed ? `, ${failed} falharam` : ""}.`);
+    pushCloneLog(`[INFO] Processo concluido: ${success}/${pastedEmojiAssets.length} emoji(s) clonados`);
+    await refreshEmojiLibrary();
   }
 
   async function refreshEmojiLibrary() {
@@ -2507,6 +2563,7 @@ function EmojiCloneSettingsPanel({
                 <InfoRow label="Tipo" value={sourceType} />
                 <InfoRow label="Tamanho" value={sourceSize} />
                 <InfoRow label="Status" value={previewUrl ? "Imagem pronta" : "Aguardando imagem"} />
+                <InfoRow label="Lista colada" value={pastedEmojiAssets.length ? `${pastedEmojiAssets.length} emoji(s)` : "Nenhuma"} />
               </div>
             </div>
 
@@ -2548,6 +2605,10 @@ function EmojiCloneSettingsPanel({
               <Button disabled={disabled || cloneStatus === "running" || !previewUrl || !destinationGuildId} onClick={() => void handleCloneEmoji()}>
                 {cloneStatus === "running" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlayCircle className="mr-2 h-4 w-4" />}
                 Iniciar clonagem
+              </Button>
+              <Button disabled={disabled || cloneStatus === "running" || pastedEmojiAssets.length < 1 || !destinationGuildId} onClick={() => void handleClonePastedEmojis()} variant="outline">
+                {cloneStatus === "running" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ListChecks className="mr-2 h-4 w-4" />}
+                Clonar lista colada
               </Button>
             </div>
           </div>
@@ -3148,6 +3209,47 @@ function parseEmojiAsset(value: string) {
   }
 
   return null;
+}
+
+function parseEmojiAssets(value: string) {
+  const candidates = new Map<string, { animated: boolean; id: string; name: string; url: string }>();
+  const customPattern = /<(?<animated>a?):(?<name>[a-zA-Z0-9_]{2,32}):(?<id>\d{5,32})>/g;
+  const cdnPattern = /https:\/\/cdn\.discordapp\.com\/emojis\/(?<id>\d{5,32})\.(?<ext>png|gif|webp|jpg|jpeg)(?:\?[^\s<>\]]*)?/gi;
+
+  for (const match of value.matchAll(customPattern)) {
+    if (!match.groups) continue;
+    const animated = match.groups.animated === "a";
+    const id = match.groups.id;
+    const name = match.groups.name;
+
+    if (!id || !name) continue;
+
+    candidates.set(id, {
+      animated,
+      id,
+      name,
+      url: `https://cdn.discordapp.com/emojis/${id}.${animated ? "gif" : "png"}?size=128&quality=lossless`
+    });
+  }
+
+  for (const match of value.matchAll(cdnPattern)) {
+    if (!match.groups) continue;
+    const id = match.groups.id;
+    const ext = match.groups.ext;
+
+    if (!id || !ext) continue;
+
+    const extension = ext.toLowerCase();
+
+    candidates.set(id, {
+      animated: extension === "gif",
+      id,
+      name: `emoji_${id}`,
+      url: match[0]
+    });
+  }
+
+  return [...candidates.values()];
 }
 
 function isHttpImageUrl(value: string) {
