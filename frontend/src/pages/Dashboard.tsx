@@ -2226,10 +2226,10 @@ function EmojiCloneSettingsPanel({
       setFakeTokenMasked(`Bot ${result.bot.username} (${result.bot.id})`);
       setFakeTokenMessage(result.message);
       setCredentialTestMode("valid");
-      setCloneStatus("success");
       setCloneProgress(25);
-      setCloneMessage("Token validado. Busque os emojis do servidor de origem.");
+      setCloneMessage("Token validado. Buscando emojis...");
       pushCloneLog("[INFO] Token validado com sucesso");
+      await loadTokenEmojis(sourceGuildId, targetGuildId, fakeToken);
     } catch (requestError) {
       setFakeTokenAccepted(false);
       setCredentialTestMode("invalid");
@@ -2244,14 +2244,7 @@ function EmojiCloneSettingsPanel({
     }
   }
 
-  async function handleFetchFakeEmojis() {
-    if (!fakeTokenAccepted) {
-      setFakeTokenMessage("Valide o token antes de buscar emojis.");
-      return;
-    }
-
-    const sourceGuildId = fakeSourceGuildId.trim();
-    const targetGuildId = destinationGuildId || guild?.id || "";
+  async function loadTokenEmojis(sourceGuildId: string, targetGuildId: string, token: string) {
     setBulkLoading("fetching");
     setCloneStatus("running");
     setCloneProgress(35);
@@ -2263,7 +2256,7 @@ function EmojiCloneSettingsPanel({
       const emojis = await fetchEmojiCloneBotTokenEmojis({
         sourceGuildId,
         targetGuildId,
-        token: fakeToken
+        token
       });
       setFakeEmojis(emojis.map((emoji) => ({ ...emoji, selected: true, status: "ready" as const })));
       setFakeTokenMessage(`${emojis.length} emoji(s) encontrados.`);
@@ -2281,6 +2274,15 @@ function EmojiCloneSettingsPanel({
     } finally {
       setBulkLoading("idle");
     }
+  }
+
+  async function handleFetchFakeEmojis() {
+    if (!fakeTokenAccepted) {
+      setFakeTokenMessage("Valide o token antes de buscar emojis.");
+      return;
+    }
+
+    await loadTokenEmojis(fakeSourceGuildId.trim(), destinationGuildId || guild?.id || "", fakeToken);
   }
 
   async function handleCloneFakeSelected() {
@@ -2475,13 +2477,16 @@ function EmojiCloneSettingsPanel({
                 <div className="grid gap-2 sm:grid-cols-3">
                   {fakeEmojis.map((emoji) => (
                     <button
-                      className={["rounded-lg border px-3 py-2 text-left transition", emoji.selected ? "border-purple-500/50 bg-purple-500/10" : "border-zinc-800 bg-zinc-950"].join(" ")}
+                      className={["flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition", emoji.selected ? "border-purple-500/50 bg-purple-500/10" : "border-zinc-800 bg-zinc-950"].join(" ")}
                       key={emoji.id}
                       onClick={() => setFakeEmojis((current) => current.map((item) => item.id === emoji.id ? { ...item, selected: !item.selected } : item))}
                       type="button"
                     >
-                      <span className="block truncate text-sm font-medium text-white">{emoji.name}</span>
-                      <span className="mt-1 block text-xs text-zinc-500">{emoji.status === "cloned" ? "Clonado" : emoji.status === "failed" ? "Falhou" : emoji.status === "ignored" ? "Ignorado" : emoji.selected ? "Selecionado" : "Nao selecionado"}</span>
+                      <img alt="" className="h-9 w-9 shrink-0 rounded-md object-contain" src={emoji.url} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-white">{emoji.name}</span>
+                        <span className="mt-1 block text-xs text-zinc-500">{emoji.status === "cloned" ? "Clonado" : emoji.status === "failed" ? "Falhou" : emoji.status === "ignored" ? "Ignorado" : emoji.selected ? "Selecionado" : "Nao selecionado"}</span>
+                      </span>
                     </button>
                   ))}
                 </div>
