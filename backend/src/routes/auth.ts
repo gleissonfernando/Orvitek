@@ -308,18 +308,6 @@ authRouter.get("/discord/callback", async (req, res, next) => {
     };
     console.info(`[auth] oauth: usuario autenticado discordId=${discordUser.id}.`);
 
-    if (verifiedState.type === "dev" && !isDashboardDevUserId(discordUser.id)) {
-      console.warn(`[auth] oauth dev negado: discordId=${discordUser.id}.`);
-      clearAuthCookies(res);
-      req.session.user = undefined;
-      req.session.verified = false;
-      req.session.discordAccessToken = undefined;
-      req.session.discordRefreshToken = undefined;
-      req.session.oauthState = undefined;
-      await saveSession(req).catch(() => undefined);
-      return res.redirect(errorRedirectUrl("permission"));
-    }
-
     let botSlugForAccess: string | null = null;
     let redirectTo = verifiedState.returnTo;
 
@@ -353,6 +341,18 @@ authRouter.get("/discord/callback", async (req, res, next) => {
         discordRefreshToken: tokens.refresh_token
       })
     );
+
+    if (verifiedState.type === "dev" && !isDashboardDevUserId(discordUser.id) && !validation.canManageDashboard) {
+      console.warn(`[auth] oauth dev negado: discordId=${discordUser.id}.`);
+      clearAuthCookies(res);
+      req.session.user = undefined;
+      req.session.verified = false;
+      req.session.discordAccessToken = undefined;
+      req.session.discordRefreshToken = undefined;
+      req.session.oauthState = undefined;
+      await saveSession(req).catch(() => undefined);
+      return res.redirect(errorRedirectUrl("permission"));
+    }
 
     if (!validation.allowed) {
       console.warn(`[auth] oauth: acesso negado para ${discordUser.id}: ${validation.rejectionReasons.join(" | ") || "sem motivo detalhado"}`);
