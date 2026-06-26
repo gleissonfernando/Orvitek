@@ -256,7 +256,7 @@ const moduleCatalog: ModuleDefinition[] = [
     title: "Clonagem de Emojis",
     description: "Sincroniza emojis para a aplicacao do bot e clona emojis de servidores acessiveis.",
     icon: SmilePlus,
-    view: "application-emojis"
+    view: "server-cloner"
   },
   {
     id: "server-cloner",
@@ -472,7 +472,7 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   "application-emojis": "emoji-cloner"
 };
 
-const settingsModuleIds = new Set(["tickets", "avisos", "network", "emoji-cloner", "server-generator"]);
+const settingsModuleIds = new Set(["tickets", "avisos", "network", "server-generator"]);
 
 export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardProps) {
   const [dashboardProfile, setDashboardProfile] = useState<DashboardMeResponse | null>(null);
@@ -1021,16 +1021,19 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             settings={settings}
           />
         ) : null}
-        {activeView === "application-emojis" ? (
-          <ApplicationEmojisView
+        {activeView === "server-cloner" ? (
+          <CloningView
             botId={activeBotId}
-            canManage={canManageModule(selectedBot, "emoji-cloner", canManageDashboard)}
+            bots={panelBots}
+            canManageEmoji={canManageModule(selectedBot, "emoji-cloner", canManageDashboard)}
+            canManageServer={canManageModule(selectedBot, "server-cloner", canManageDashboard)}
+            enabledModules={enabledModules}
             guild={selectedGuild}
             guilds={scopedDashboardGuilds}
+            loading={settingsLoading}
+            onSettingsChange={setSettings}
+            settings={settings}
           />
-        ) : null}
-        {activeView === "server-cloner" ? (
-          <ServerClonerView canManage={canManageModule(selectedBot, "server-cloner", canManageDashboard)} />
         ) : null}
         {activeView === "fivem" ? (
           <FivemView
@@ -2023,27 +2026,118 @@ function SettingsView({
     );
   }
 
-  if (enabledModules.includes("emoji-cloner")) {
-    blocks.push(
-      <EmojiCloneSettingsPanel
-        botId={botId}
-        bots={bots}
-        canManage={canManageModule("emoji-cloner")}
-        guild={guild}
-        guilds={guilds}
-        key="emoji-cloner"
-        loading={loading}
-        onSettingsChange={onSettingsChange}
-        settings={settings}
-      />
-    );
-  }
-
   if (!blocks.length) {
     return <EmptyState icon={Settings} title="Nenhuma configuracao simples liberada para este bot" />;
   }
 
   return <div className="space-y-5">{blocks}</div>;
+}
+
+function CloningView({
+  botId,
+  bots,
+  canManageEmoji,
+  canManageServer,
+  enabledModules,
+  guild,
+  guilds,
+  loading,
+  onSettingsChange,
+  settings
+}: {
+  botId?: string | null;
+  bots: DashboardBot[];
+  canManageEmoji: boolean;
+  canManageServer: boolean;
+  enabledModules: string[];
+  guild: DashboardGuild | null;
+  guilds: DashboardGuild[];
+  loading: boolean;
+  onSettingsChange: (settings: GuildSettings) => void;
+  settings: GuildSettings | null;
+}) {
+  const sections = [
+    enabledModules.includes("emoji-cloner") ? "emoji-cloner" : null,
+    enabledModules.includes("server-cloner") ? "server-cloner" : null
+  ].filter((section): section is "emoji-cloner" | "server-cloner" => Boolean(section));
+  const [activeSection, setActiveSection] = useState<"emoji-cloner" | "server-cloner">(sections[0] ?? "emoji-cloner");
+  const sectionsKey = sections.join("|");
+
+  useEffect(() => {
+    const firstSection = sections[0];
+
+    if (firstSection && !sections.includes(activeSection)) {
+      setActiveSection(firstSection);
+    }
+  }, [activeSection, sections, sectionsKey]);
+
+  if (!sections.length) {
+    return <EmptyState icon={SmilePlus} title="Nenhum modulo de clonagem liberado para este bot" />;
+  }
+
+  return (
+    <div className="space-y-5">
+      <section className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <div>
+          <h2 className="text-lg font-semibold text-white">Clonagem</h2>
+          <p className="mt-1 text-sm text-zinc-500">Emojis, biblioteca, sincronizacao da aplicacao e estrutura de servidor em um so lugar.</p>
+        </div>
+        <div className="inline-flex w-full rounded-lg border border-zinc-800 bg-zinc-950 p-1 sm:w-auto">
+          {sections.includes("emoji-cloner") ? (
+            <button
+              className={[
+                "flex h-9 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition sm:flex-none",
+                activeSection === "emoji-cloner" ? "bg-white text-black" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              ].join(" ")}
+              onClick={() => setActiveSection("emoji-cloner")}
+              type="button"
+            >
+              <SmilePlus className="h-4 w-4" />
+              Emojis
+            </button>
+          ) : null}
+          {sections.includes("server-cloner") ? (
+            <button
+              className={[
+                "flex h-9 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition sm:flex-none",
+                activeSection === "server-cloner" ? "bg-white text-black" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              ].join(" ")}
+              onClick={() => setActiveSection("server-cloner")}
+              type="button"
+            >
+              <Server className="h-4 w-4" />
+              Servidor
+            </button>
+          ) : null}
+        </div>
+      </section>
+
+      {activeSection === "emoji-cloner" ? (
+        <div className="space-y-5">
+          <EmojiCloneSettingsPanel
+            botId={botId}
+            bots={bots}
+            canManage={canManageEmoji}
+            guild={guild}
+            guilds={guilds}
+            loading={loading}
+            onSettingsChange={onSettingsChange}
+            settings={settings}
+          />
+          <ApplicationEmojisView
+            botId={botId}
+            canManage={canManageEmoji}
+            guild={guild}
+            guilds={guilds}
+          />
+        </div>
+      ) : null}
+
+      {activeSection === "server-cloner" ? (
+        <ServerClonerView canManage={canManageServer} />
+      ) : null}
+    </div>
+  );
 }
 
 function ApplicationEmojisView({
@@ -4370,7 +4464,7 @@ function isViewAllowed(view: ViewId, enabledModules: string[]) {
   }
 
   if (view === "server-cloner") {
-    return enabledModules.includes("server-cloner");
+    return enabledModules.includes("server-cloner") || enabledModules.includes("emoji-cloner");
   }
 
   if (view === "lives") {

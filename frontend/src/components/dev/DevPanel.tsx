@@ -118,6 +118,7 @@ type BotMenuId =
   | "tickets"
   | "verification"
   | "logs"
+  | "cloning"
   | "anti-ban"
   | "suspicious-servers"
   | "global-blacklist"
@@ -164,7 +165,7 @@ const botMenuItems: BotMenuItem[] = [
     label: "Configuracoes",
     description: "Ajustes gerais do bot",
     icon: Settings,
-    moduleIds: ["avisos", "mission-tools", "voice-recorder", "emoji-cloner", "server-cloner", "server-generator"]
+    moduleIds: ["avisos", "mission-tools", "voice-recorder", "server-generator"]
   },
   {
     id: "moderation",
@@ -193,6 +194,13 @@ const botMenuItems: BotMenuItem[] = [
     description: "Eventos e auditoria",
     icon: ScrollText,
     moduleIds: ["logs"]
+  },
+  {
+    id: "cloning",
+    label: "Clonagem",
+    description: "Clonagem de emojis e estrutura de servidor",
+    icon: Copy,
+    moduleIds: ["emoji-cloner", "server-cloner"]
   },
   {
     id: "anti-ban",
