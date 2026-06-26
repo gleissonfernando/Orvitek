@@ -14,6 +14,7 @@ import { isMaintenanceModeActive } from "../services/maintenanceService";
 import { handleApplicationEmojiGuildCreate, handleApplicationEmojiGuildDelete, handleApplicationEmojiGuildUpdate } from "../services/applicationEmojiSyncService";
 import { clearSafeBotSetupCache, ensureSafeBotSetup, isSelfBotModuleEnabled } from "../services/safeBotService";
 import { handleSelfBotProtectionGuildMutation } from "../services/selfBotProtectionService";
+import { handleAutoUnmuteVoiceStateUpdate } from "../services/autoUnmuteService";
 import { handleVoiceRecorderVoiceStateUpdate } from "../services/voiceRecorderService";
 import type { BotContext } from "../types";
 
@@ -128,10 +129,15 @@ export function registerEvents(client: Client, context: BotContext) {
     });
   }
 
-  if (isBotModuleEnabled("voice-recorder")) {
+  if (isBotModuleEnabled("voice-recorder") || isBotModuleEnabled("auto-unmute")) {
     client.on(Events.VoiceStateUpdate, (oldState, newState) => {
       if (isMaintenanceModeActive()) return;
-      runEvent("voiceStateUpdate", () => handleVoiceRecorderVoiceStateUpdate(oldState, newState, context));
+      if (isBotModuleEnabled("voice-recorder")) {
+        runEvent("voiceStateUpdate.voiceRecorder", () => handleVoiceRecorderVoiceStateUpdate(oldState, newState, context));
+      }
+      if (isBotModuleEnabled("auto-unmute")) {
+        runEvent("voiceStateUpdate.autoUnmute", () => handleAutoUnmuteVoiceStateUpdate(oldState, newState, context));
+      }
     });
   }
 

@@ -115,7 +115,9 @@ import type {
   DashboardMeResponse,
   FivemModuleDefinition,
   GuildChannelOption,
+  GuildRoleOption,
   GuildSettings,
+  GuildVoiceChannelOption,
   EmojiCloneRemoteEmoji,
   EmojiLibraryItem,
   KickNotification,
@@ -350,7 +352,7 @@ const moduleCatalog: ModuleDefinition[] = [
   {
     id: "auto-unmute",
     title: "Auto Desmutar",
-    description: "Desmuta automaticamente membros no canal configurado.",
+    description: "Remove automaticamente o mute manual de usuarios ao entrarem no canal de voz configurado.",
     icon: Mic2,
     view: "auto-unmute"
   },
@@ -1164,7 +1166,7 @@ const advancedSecurityModuleDetails: Record<string, {
   },
   "auto-unmute": {
     title: "Auto Desmutar",
-    description: "Módulo isolado para remover mute manual ao entrar no canal configurado.",
+    description: "Remove automaticamente o mute manual de usuarios ao entrarem no canal de voz configurado.",
     icon: Mic2,
     items: ["Canal gatilho", "Logs", "Exceções", "Eventos recentes"]
   },
@@ -1208,7 +1210,8 @@ function AdvancedSecurityModulePanel({
   const details = advancedSecurityModuleDetails[moduleId];
   const Icon = details?.icon ?? Shield;
   const [config, setConfig] = useState<Record<string, unknown>>({});
-  const [roles, setRoles] = useState<Array<{ id: string; name: string; managed?: boolean }>>([]);
+  const [roles, setRoles] = useState<GuildRoleOption[]>([]);
+  const [voiceChannels, setVoiceChannels] = useState<GuildVoiceChannelOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -1220,6 +1223,7 @@ function AdvancedSecurityModulePanel({
       if (!botId || !guild || !details) {
         setConfig({});
         setRoles([]);
+        setVoiceChannels([]);
         setLoading(false);
         return;
       }
@@ -1229,19 +1233,21 @@ function AdvancedSecurityModulePanel({
 
       const [moduleResult, optionsResult] = await Promise.all([
         getAdvancedModuleConfig(botId, guild.id, moduleId),
-        getGuildLiveOptions(guild.id, botId).catch(() => ({ roles: [] }))
+        getGuildLiveOptions(guild.id, botId).catch(() => ({ channels: [], roles: [], voiceChannels: [] }))
       ]);
 
       if (!mounted) return;
 
       setConfig(defaultAdvancedModuleConfig(moduleId, moduleResult.config));
       setRoles(optionsResult.roles ?? []);
+      setVoiceChannels(optionsResult.voiceChannels ?? []);
     }
 
     load()
       .catch((error) => {
         if (mounted) {
           setConfig(defaultAdvancedModuleConfig(moduleId, {}));
+          setVoiceChannels([]);
           setMessage(readResponseMessage(error) ?? "Não foi possível carregar este módulo.");
         }
       })
@@ -1318,6 +1324,9 @@ function AdvancedSecurityModulePanel({
 
   const enabled = config.enabled === true;
   const disabled = !canManage || saving;
+  const moduleFooter = moduleId === "auto-unmute"
+    ? "Este menu so aparece quando o modulo Auto Desmutar esta liberado para este bot na Dashboard DEV."
+    : null;
 
   return (
     <div className="space-y-4">
@@ -1360,14 +1369,20 @@ function AdvancedSecurityModulePanel({
             moduleId={moduleId}
             onChange={patchConfig}
             roles={roles.filter((role) => !role.managed)}
+            voiceChannels={voiceChannels}
           />
           <div className="flex flex-wrap items-center gap-3">
             <Button disabled={disabled} onClick={() => void saveConfig()}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               Salvar
             </Button>
-            <Badge variant="muted">Escopo: {guild.name}</Badge>
+            <Badge variant="muted">Escopo: bot {botId} / {guild.name}</Badge>
           </div>
+          {moduleFooter ? (
+            <p className="rounded-lg border border-purple-500/20 bg-purple-500/[0.08] px-4 py-3 text-xs font-semibold text-zinc-300">
+              {moduleFooter}
+            </p>
+          ) : null}
         </CardContent>
       </Card>
     </div>
@@ -1379,15 +1394,18 @@ function AdvancedModuleFields({
   disabled,
   moduleId,
   onChange,
-  roles
+  roles,
+  voiceChannels
 }: {
   config: Record<string, unknown>;
   disabled: boolean;
   moduleId: string;
   onChange: (patch: Record<string, unknown>) => void;
   roles: Array<{ id: string; name: string }>;
+  voiceChannels: GuildVoiceChannelOption[];
 }) {
   const roleOptions = roles.map((role) => ({ label: role.name, value: role.id }));
+  const voiceChannelOptions = voiceChannels.map((channel) => ({ label: channel.name, value: channel.id }));
 
   if (moduleId === "tag-verification") {
     return (
@@ -1411,6 +1429,17 @@ function AdvancedModuleFields({
     );
   }
 
+  if (moduleId === "auto-unmute") {
+    return (
+      <div className="grid gap-3 sm:grid-cols-2">
+        <AdvancedSelectField disabled={disabled} label="Canal de voz monitorado" onChange={(value) => onChange({ voiceChannelId: value || null })} options={voiceChannelOptions} placeholder="Selecione um canal de voz" value={stringConfig(config.voiceChannelId)} />
+        <AdvancedSelectField disabled={disabled} label="Cargo permitido (opcional)" onChange={(value) => onChange({ requiredRoleId: value || null })} options={roleOptions} placeholder="Todos os usuarios" value={stringConfig(config.requiredRoleId)} />
+        <AdvancedNumberField disabled={disabled} label="Delay para desmutar (segundos)" max={60} min={0} onChange={(value) => onChange({ delaySeconds: value })} value={numberConfig(config.delaySeconds, 0)} />
+        <AdvancedNumberField disabled={disabled} label="Limite anti-spam (segundos)" max={300} min={1} onChange={(value) => onChange({ antiSpamSeconds: value })} value={numberConfig(config.antiSpamSeconds, 10)} />
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <AdvancedTextField disabled={disabled} label="Configuração principal" onChange={(value) => onChange({ primaryConfig: value })} placeholder="Informe o valor principal do módulo" value={stringConfig(config.primaryConfig)} />
@@ -1430,11 +1459,17 @@ function AdvancedTextField({ disabled, label, onChange, placeholder, value }: { 
   );
 }
 
-function AdvancedNumberField({ disabled, label, min, onChange, value }: { disabled: boolean; label: string; min: number; onChange: (value: number) => void; value: number }) {
+function AdvancedNumberField({ disabled, label, max, min, onChange, value }: { disabled: boolean; label: string; max?: number; min: number; onChange: (value: number) => void; value: number }) {
+  function handleChange(rawValue: string) {
+    const parsed = Number(rawValue);
+    const safeValue = Number.isFinite(parsed) ? parsed : min;
+    onChange(Math.min(max ?? safeValue, Math.max(min, safeValue)));
+  }
+
   return (
     <label className="grid gap-2 rounded-lg border border-zinc-800 bg-zinc-950/70 p-4 text-sm">
       <span className="font-semibold text-white">{label}</span>
-      <input className="h-10 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none focus:border-purple-500/60" disabled={disabled} min={min} onChange={(event) => onChange(Number(event.target.value) || min)} type="number" value={value} />
+      <input className="h-10 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none focus:border-purple-500/60" disabled={disabled} max={max} min={min} onChange={(event) => handleChange(event.target.value)} type="number" value={value} />
     </label>
   );
 }
@@ -1467,6 +1502,10 @@ function defaultAdvancedModuleConfig(moduleId: string, config: Record<string, un
 
   if (moduleId === "bio-url-verification") {
     return { allowedDomains: "", enabled: false, intervalMinutes: 15, removeOnMismatch: true, roleId: null, ...config };
+  }
+
+  if (moduleId === "auto-unmute") {
+    return { antiSpamSeconds: 10, delaySeconds: 0, enabled: false, requiredRoleId: null, voiceChannelId: null, ...config };
   }
 
   return { autoAction: false, enabled: false, intervalMinutes: 10, primaryConfig: "", roleId: null, ...config };
