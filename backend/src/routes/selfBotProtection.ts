@@ -11,7 +11,8 @@ import {
   canReadDevBotModule,
   canUseDevBotModule,
   getBotApiPermissions,
-  getDevBotToken
+  getDevBotToken,
+  isSecurityProtectionReleasedForBot
 } from "../services/devBotService";
 import { createLog } from "../services/logService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
@@ -322,6 +323,10 @@ async function assertBotModuleLicense(botId: string, guildId?: string, moduleId 
 
   if (!permissions.enabledModules.includes(MODULE_ID)) {
     throw createRouteError("O SelfBot Protection nao foi liberado para este bot.", 403);
+  }
+
+  if (!(await isSecurityProtectionReleasedForBot(botId))) {
+    throw createRouteError("Este sistema ainda nao foi liberado para este bot pelo desenvolvedor.", 403);
   }
 
   if (guildId) {

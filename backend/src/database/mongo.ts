@@ -1073,6 +1073,17 @@ export type MongoSelfBotRoleAssignment = {
   updatedAt: Date;
 };
 
+export type MongoSecurityFeatureAccess = {
+  _id: string;
+  botId: string;
+  featureKey: "security_protection";
+  enabledByDev: boolean;
+  enabledBy: string | null;
+  enabledAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type MongoDevBotStatus = "online" | "offline" | "invalid_token" | "error";
 
 export type MongoDevBot = {
@@ -1264,6 +1275,7 @@ export async function getMongoCollections() {
     selfBotPunishmentStates: db.collection<MongoSelfBotPunishmentState>("self_bot_punishment_states"),
     selfBotProtectionIncidents: db.collection<MongoSelfBotProtectionIncident>("self_bot_protection_incidents"),
     selfBotRoleAssignments: db.collection<MongoSelfBotRoleAssignment>("self_bot_role_assignments"),
+    securityFeatureAccess: db.collection<MongoSecurityFeatureAccess>("security_feature_access"),
     devBots: db.collection<MongoDevBot>("Bot"),
     botGuildConfigs: db.collection<MongoBotGuildConfig>("BotGuildConfig"),
     devPermissions: db.collection<MongoDevPermission>("DevPermission"),
@@ -1340,6 +1352,7 @@ async function createMongoIndexes(db: Db) {
     ensureEmojiCloneIndexes(db),
     ensureMissionToolsIndexes(db),
     ensureSelfBotProtectionIndexes(db),
+    ensureSecurityFeatureAccessIndexes(db),
     db.collection<MongoSocialNotification>("social_notifications").createIndex(
       {
         guildId: 1,
@@ -1813,6 +1826,20 @@ async function ensureMissionToolsIndexes(db: Db) {
     users.createIndex({ botId: 1, guildId: 1, userId: 1 }, { unique: true }),
     tokens.createIndex({ botId: 1, guildId: 1, userId: 1 }, { unique: true }),
     tokens.createIndex({ botId: 1, guildId: 1, tokenHash: 1 })
+  ]);
+}
+
+async function ensureSecurityFeatureAccessIndexes(db: Db) {
+  await Promise.all([
+    db.collection<MongoSecurityFeatureAccess>("security_feature_access").createIndex(
+      { botId: 1, featureKey: 1 },
+      { unique: true }
+    ),
+    db.collection<MongoSecurityFeatureAccess>("security_feature_access").createIndex({
+      featureKey: 1,
+      enabledByDev: 1,
+      updatedAt: -1
+    })
   ]);
 }
 

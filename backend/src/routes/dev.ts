@@ -9,12 +9,14 @@ import {
   deleteDevBot,
   DEV_MODULES,
   getBotGuildConfig,
+  getSecurityProtectionAccess,
   getDevBot,
   ensurePrimaryDevBotListed,
   listAccessibleDevBots,
   listBotGuildConfigs,
   registerPrimaryDevBot,
   testDiscordBotToken,
+  setSecurityProtectionAccess,
   updateBotGuildConfig,
   updateDevBot,
   updateDevBotModules,
@@ -67,6 +69,10 @@ const updateBotSchema = z.object({
 
 const modulesSchema = z.object({
   enabledModules: z.array(devModuleIdSchema)
+});
+
+const securityAccessSchema = z.object({
+  enabledByDev: z.boolean()
 });
 
 const registerPrimaryBotSchema = z.object({
@@ -412,6 +418,64 @@ devRouter.post("/bots/stop-all", async (_req, res, next) => {
     return res.json({
       bots: updatedBots,
       affected: bots.length
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.get("/bots/:botId/security-access", async (req, res, next) => {
+  try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+
+    if (!(await canManageDevBot(auth.user, req.params.botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem acesso a este bot."
+      });
+    }
+
+    return res.json({
+      access: await getSecurityProtectionAccess(req.params.botId)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.patch("/bots/:botId/security-access", async (req, res, next) => {
+  try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+    const input = securityAccessSchema.parse(req.body ?? {});
+
+    if (!(await canManageDevBot(auth.user, req.params.botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem acesso a este bot."
+      });
+    }
+
+    const access = await setSecurityProtectionAccess({
+      botId: req.params.botId,
+      enabledByDev: input.enabledByDev,
+      actorId: auth.user.discordId
+    });
+    const bot = await getDevBot(req.params.botId);
+
+    await writeDevBotAudit(
+      auth,
+      bot?.mainGuildId ?? auth.user.selectedGuildId ?? "global",
+      req.params.botId,
+      input.enabledByDev ? "security_access_enabled" : "security_access_disabled",
+      input.enabledByDev
+        ? "Protecao/SafeBot liberada para este bot."
+        : "Protecao/SafeBot bloqueada para este bot.",
+      {
+        featureKey: access.featureKey
+      }
+    );
+
+    return res.json({
+      access,
+      bot
     });
   } catch (error) {
     return next(error);

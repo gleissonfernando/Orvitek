@@ -150,7 +150,16 @@ const envSchema = z
     KICK_API_KEY: z.string().default(""),
     KICK_CLIENT_SECRET: z.string().default(""),
     KICK_MONITOR_INTERVAL_MS: z.coerce.number().default(30_000),
-    X_MONITOR_INTERVAL_MS: z.coerce.number().default(60_000)
+    X_MONITOR_INTERVAL_MS: z.coerce.number().default(60_000),
+    SECURITY_MAX_ACTIONS_PER_MINUTE: envNumber(40),
+    SECURITY_MAX_DELETES_PER_MINUTE: envNumber(20),
+    SECURITY_MAX_KICKS_PER_MINUTE: envNumber(4),
+    SECURITY_MAX_BANS_PER_MINUTE: envNumber(2),
+    SECURITY_MAX_ROLE_UPDATES_PER_MINUTE: envNumber(10),
+    SECURITY_BACKUP_COOLDOWN_MINUTES: envNumber(60),
+    SECURITY_CLEANUP_BATCH_SIZE: envNumber(10),
+    SECURITY_SAFE_MODE_ERROR_LIMIT: envNumber(8),
+    SECURITY_SAFE_MODE_TIME_MINUTES: envNumber(10)
   });
 
 export const env = envSchema.parse(process.env);

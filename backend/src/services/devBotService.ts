@@ -7,7 +7,8 @@ import {
   type MongoBotGuildConfig,
   type MongoBotGuildModuleConfig,
   type MongoDevBot,
-  type MongoDevBotStatus
+  type MongoDevBotStatus,
+  type MongoSecurityFeatureAccess
 } from "../database/mongo";
 import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoom } from "../realtime/events";
 import type { AuthSessionUser } from "../types/session";
@@ -31,6 +32,7 @@ import { getStoredDiscordTokens, updateStoredDiscordTokens } from "./userService
 import { isCustomFivemModuleId } from "./fivemModuleService";
 
 const DISCORD_API = "https://discord.com/api/v10";
+const SECURITY_PROTECTION_FEATURE_KEY = "security_protection" as const;
 
 export const DEV_MODULES = [
   { id: "live", label: "Sistema de Live" },
@@ -317,6 +319,15 @@ export type BotRuntimeModuleAuthorization = {
   reason: string;
   reasonCode: string;
   releaseModuleId: string | null;
+};
+
+export type SecurityFeatureAccessDto = {
+  botId: string;
+  enabledAt: string | null;
+  enabledBy: string | null;
+  enabledByDev: boolean;
+  featureKey: typeof SECURITY_PROTECTION_FEATURE_KEY;
+  updatedAt: string;
 };
 
 export type DevBotAccessDiagnostic = {
@@ -1623,6 +1634,96 @@ export async function getBotApiPermissions(botId: string) {
   };
 }
 
+export async function getSecurityProtectionAccess(botId: string): Promise<SecurityFeatureAccessDto> {
+  const bot = await getDevBot(botId);
+
+  if (!bot) {
+    throw new Error("Bot nao encontrado.");
+  }
+
+  const access = await readSecurityProtectionAccess(botId);
+  return toSecurityFeatureAccessDto(botId, access, bot.enabledModules.includes("safe-bot"));
+}
+
+export async function setSecurityProtectionAccess(input: {
+  botId: string;
+  enabledByDev: boolean;
+  actorId: string | null;
+}): Promise<SecurityFeatureAccessDto> {
+  const bot = await getDevBot(input.botId);
+
+  if (!bot) {
+    throw new Error("Bot nao encontrado.");
+  }
+
+  const { securityFeatureAccess } = await getMongoCollections();
+  const now = new Date();
+  await securityFeatureAccess.updateOne(
+    {
+      botId: input.botId,
+      featureKey: SECURITY_PROTECTION_FEATURE_KEY
+    },
+    {
+      $set: {
+        botId: input.botId,
+        enabledBy: input.actorId,
+        enabledByDev: input.enabledByDev,
+        enabledAt: input.enabledByDev ? now : null,
+        featureKey: SECURITY_PROTECTION_FEATURE_KEY,
+        updatedAt: now
+      },
+      $setOnInsert: {
+        _id: randomUUID(),
+        createdAt: now
+      }
+    },
+    { upsert: true }
+  );
+
+  const modules = input.enabledByDev
+    ? [...new Set([...bot.enabledModules, "safe-bot"])]
+    : bot.enabledModules.filter((moduleId) => moduleId !== "safe-bot");
+  const updatedBot = await updateDevBotModules(input.botId, modules);
+  const saved = await readSecurityProtectionAccess(input.botId);
+
+  return toSecurityFeatureAccessDto(input.botId, saved, Boolean(updatedBot?.enabledModules.includes("safe-bot")));
+}
+
+export async function isSecurityProtectionReleasedForBot(botId: string) {
+  const bot = await getDevBot(botId);
+
+  if (!bot) {
+    return false;
+  }
+
+  const access = await readSecurityProtectionAccess(botId);
+  return toSecurityFeatureAccessDto(botId, access, bot.enabledModules.includes("safe-bot")).enabledByDev;
+}
+
+async function readSecurityProtectionAccess(botId: string) {
+  const { securityFeatureAccess } = await getMongoCollections();
+  return securityFeatureAccess.findOne({
+    botId,
+    featureKey: SECURITY_PROTECTION_FEATURE_KEY
+  });
+}
+
+function toSecurityFeatureAccessDto(
+  botId: string,
+  access: MongoSecurityFeatureAccess | null,
+  legacySafeBotReleased: boolean
+): SecurityFeatureAccessDto {
+  const updatedAt = access?.updatedAt ?? new Date(0);
+  return {
+    botId: access?.botId ?? botId,
+    enabledAt: access?.enabledAt?.toISOString() ?? (legacySafeBotReleased ? updatedAt.toISOString() : null),
+    enabledBy: access?.enabledBy ?? null,
+    enabledByDev: access?.enabledByDev ?? legacySafeBotReleased,
+    featureKey: SECURITY_PROTECTION_FEATURE_KEY,
+    updatedAt: updatedAt.toISOString()
+  };
+}
+
 export async function authorizeBotRuntimeModule(input: {
   botId: string | null | undefined;
   guildId: string;
@@ -1725,6 +1826,9 @@ export async function authorizeBotRuntimeModule(input: {
 
   const enabledModules = sanitizeModules(bot.enabledModules);
   const moduleReleased = enabledModules.includes(releaseModuleId as (typeof DEV_MODULES)[number]["id"]);
+  const securityReleased = releaseModuleId === "safe-bot"
+    ? await isSecurityProtectionReleasedForBot(botId)
+    : true;
   const moduleConfig = readRuntimeModuleConfig(guildConfig.modules, moduleId, releaseModuleId);
   const license = evaluateRuntimeLicenseState(
     moduleConfig,
@@ -1732,7 +1836,7 @@ export async function authorizeBotRuntimeModule(input: {
     guildConfig.modules?.dashboard
   );
 
-  if (!moduleReleased) {
+  if (!moduleReleased || !securityReleased) {
     return runtimeDenied({
       botAuthorized: true,
       botId,
@@ -1743,8 +1847,10 @@ export async function authorizeBotRuntimeModule(input: {
       license,
       moduleId,
       moduleReleased: false,
-      reason: "Modulo nao foi liberado para este bot.",
-      reasonCode: "module_not_released",
+      reason: !securityReleased
+        ? "Protecao/SafeBot nao foi liberada pelo Dev para este bot."
+        : "Modulo nao foi liberado para este bot.",
+      reasonCode: !securityReleased ? "security_feature_not_released" : "module_not_released",
       releaseModuleId
     });
   }

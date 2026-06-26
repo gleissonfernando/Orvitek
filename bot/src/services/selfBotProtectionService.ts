@@ -56,6 +56,8 @@ const guildJoinWindows = new Map<string, number[]>();
 const guildMutationWindows = new Map<string, number[]>();
 const processingQueues = new Map<string, Promise<boolean>>();
 const roleEnsureInFlight = new Map<string, Promise<unknown>>();
+const actionRateWindows = new Map<string, number[]>();
+const safeModeStates = new Map<string, { errors: number[]; until: number }>();
 const URL_PATTERN =
   /(?:^|[\s<([{])((?:https?:\/\/|www\.)[^\s<>()\]]+|(?:discord\.gg|discord(?:app)?\.com\/invite)\/[^\s<>()\]]+|(?:[a-z0-9-]+\.)+[a-z]{2,63}(?:\/[^\s<>()\]]*)?)/gi;
 const INVITE_PATTERN = /(?:discord\.gg|discord(?:app)?\.com\/invite)\/[a-z0-9-]+/i;
@@ -317,6 +319,31 @@ async function handleViolation(input: {
     return false;
   }
 
+  if (isSafeModeActive(input.guild.id, input.violation.moduleId)) {
+    await input.context.api.recordSelfBotProtectionIncident({
+      guildId: input.guild.id,
+      userId: input.member.id,
+      username: input.member.user.tag,
+      channelId: input.message?.channelId ?? null,
+      messageId: input.message?.id ?? null,
+      messageContent: input.message?.content ?? null,
+      moduleId: input.violation.moduleId,
+      infractionType: "Modo seguro ativo",
+      punishmentActions: [],
+      punishmentSucceeded: false,
+      punishmentError: "Acao ignorada porque o modo seguro esta ativo para este modulo.",
+      metadata: {
+        ...input.violation.metadata,
+        details: input.violation.details,
+        skipped: true,
+        skipReason: "safe_mode"
+      }
+    }).catch((error) => {
+      console.warn("[self-bot-protection] nao foi possivel registrar modo seguro:", errorMessage(error));
+    });
+    return false;
+  }
+
   const punishment = await applyPunishment(input);
 
   await input.context.api.recordSelfBotProtectionIncident({
@@ -522,6 +549,11 @@ async function applyPunishment(input: {
 
   for (const action of input.settings.punishmentSequence) {
     try {
+      const rateLimit = consumeSecurityAction(input.guild.id, input.violation.moduleId, action);
+      if (!rateLimit.allowed) {
+        throw new Error(`Limite interno atingido para ${rateLimit.bucket}.`);
+      }
+
       if (action === "delete_message") {
         if (input.message) {
           await deleteSourceMessage(input.message);
@@ -573,6 +605,7 @@ async function applyPunishment(input: {
       }
     } catch (error) {
       errors.push(`${action}: ${errorMessage(error)}`);
+      rememberSecurityActionError(input.guild.id, input.violation.moduleId);
     }
   }
 
@@ -582,6 +615,101 @@ async function applyPunishment(input: {
     error: errors.length ? errors.join(" | ") : null,
     succeeded: errors.length === 0
   };
+}
+
+function consumeSecurityAction(guildId: string, moduleId: SelfBotProtectionModuleId, action: SelfBotPunishmentAction) {
+  const buckets = actionBuckets(action);
+
+  for (const bucket of buckets) {
+    const limit = securityBucketLimit(bucket);
+
+    if (limit <= 0 || !consumeRateWindow(`${guildId}:${moduleId}:${bucket}`, limit, 60_000)) {
+      return {
+        allowed: false,
+        bucket
+      };
+    }
+  }
+
+  return {
+    allowed: true,
+    bucket: "actions"
+  };
+}
+
+function actionBuckets(action: SelfBotPunishmentAction) {
+  const buckets = ["actions"];
+
+  if (action === "delete_message") {
+    buckets.push("deletes");
+  } else if (action === "kick") {
+    buckets.push("kicks");
+  } else if (action === "ban") {
+    buckets.push("bans");
+  } else if (action === "add_role" || action === "remove_role") {
+    buckets.push("role_updates");
+  }
+
+  return buckets;
+}
+
+function securityBucketLimit(bucket: string) {
+  if (bucket === "deletes") return env.SECURITY_MAX_DELETES_PER_MINUTE;
+  if (bucket === "kicks") return env.SECURITY_MAX_KICKS_PER_MINUTE;
+  if (bucket === "bans") return env.SECURITY_MAX_BANS_PER_MINUTE;
+  if (bucket === "role_updates") return env.SECURITY_MAX_ROLE_UPDATES_PER_MINUTE;
+  return env.SECURITY_MAX_ACTIONS_PER_MINUTE;
+}
+
+function consumeRateWindow(key: string, limit: number, windowMs: number) {
+  const now = Date.now();
+  const recent = (actionRateWindows.get(key) ?? []).filter((timestamp) => now - timestamp <= windowMs);
+
+  if (recent.length >= limit) {
+    actionRateWindows.set(key, recent);
+    return false;
+  }
+
+  recent.push(now);
+  actionRateWindows.set(key, recent);
+  return true;
+}
+
+function isSafeModeActive(guildId: string, moduleId: SelfBotProtectionModuleId) {
+  const key = runtimeScopeKey(guildId, moduleId);
+  const state = safeModeStates.get(key);
+
+  if (!state) {
+    return false;
+  }
+
+  if (state.until <= Date.now()) {
+    safeModeStates.delete(key);
+    return false;
+  }
+
+  return true;
+}
+
+function rememberSecurityActionError(guildId: string, moduleId: SelfBotProtectionModuleId) {
+  const limit = Math.max(1, env.SECURITY_SAFE_MODE_ERROR_LIMIT);
+  const now = Date.now();
+  const key = runtimeScopeKey(guildId, moduleId);
+  const current = safeModeStates.get(key);
+  const errors = (current?.errors ?? []).filter((timestamp) => now - timestamp <= 60_000);
+
+  errors.push(now);
+  if (errors.length >= limit) {
+    const until = now + Math.max(1, env.SECURITY_SAFE_MODE_TIME_MINUTES) * 60_000;
+    safeModeStates.set(key, { errors: [], until });
+    console.warn(`[self-bot-protection] modo seguro ativado em ${guildId}/${moduleId} ate ${new Date(until).toISOString()}.`);
+    return;
+  }
+
+  safeModeStates.set(key, {
+    errors,
+    until: current?.until ?? 0
+  });
 }
 
 async function deleteSourceMessage(message: Message | undefined) {
