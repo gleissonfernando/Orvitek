@@ -6,6 +6,7 @@ import {
   Building2,
   CalendarClock,
   Code2,
+  Copy,
   LayoutDashboard,
   Loader2,
   PackagePlus,
@@ -50,7 +51,7 @@ type DevDashboardProps = {
   onLogout: () => void;
 };
 
-type DevView = "bots" | "connected" | "bot-menu" | "fivem" | "logs" | "maintenance";
+type DevView = "bots" | "connected" | "bot-menu" | "cloning" | "fivem" | "logs" | "maintenance";
 
 type FiveMModuleView = FivemModuleDefinition & {
   icon: LucideIcon;
@@ -192,6 +193,7 @@ export function DevDashboard({ auth, initialView = "bots", onLogout }: DevDashbo
             { id: "bots" as const, label: "Dashboard" },
             { id: "connected" as const, label: "Bots conectados" },
             { id: "bot-menu" as const, label: "Menu do Bot" },
+            { id: "cloning" as const, label: "Clonagem" },
             { id: "fivem" as const, label: "FiveM" },
             { id: "logs" as const, label: "Logs" },
             { id: "maintenance" as const, label: "Manutenção" }
@@ -244,6 +246,7 @@ export function DevDashboard({ auth, initialView = "bots", onLogout }: DevDashbo
 function devPathForView(view: DevView) {
   if (view === "connected") return "/dev/bots-conectados";
   if (view === "bot-menu") return "/dev/menu-do-bot";
+  if (view === "cloning") return "/dev/clonagem";
   if (view === "fivem") return "/dev/fivem";
   if (view === "logs") return "/dev/logs";
   if (view === "maintenance") return "/dev/maintenance";
@@ -251,11 +254,11 @@ function devPathForView(view: DevView) {
 }
 
 function isBotManagerView(view: DevView) {
-  return view === "bots" || view === "connected" || view === "bot-menu";
+  return view === "bots" || view === "connected" || view === "bot-menu" || view === "cloning";
 }
 
 function dashboardSectionForView(view: DevView): DevDashboardSection | null {
-  if (view === "connected" || view === "bot-menu") {
+  if (view === "connected" || view === "bot-menu" || view === "cloning") {
     return view;
   }
 
@@ -273,6 +276,7 @@ function DevSidebar({
     { icon: LayoutDashboard, id: "bots", label: "Dashboard" },
     { icon: Boxes, id: "connected", label: "Bots conectados" },
     { icon: Settings, id: "bot-menu", label: "Menu do Bot" },
+    { icon: Copy, id: "cloning", label: "Clonagem" },
     { icon: Building2, id: "fivem", label: "FiveM" },
     { icon: ScrollText, id: "logs", label: "Logs" },
     { icon: Wrench, id: "maintenance", label: "Manutenção" }
