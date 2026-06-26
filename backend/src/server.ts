@@ -3,6 +3,7 @@ import { app } from "./app";
 import { env } from "./config/env";
 import { createSocketServer } from "./realtime/socket";
 import { runAccessControlStartupAudit } from "./services/accessStartupAuditService";
+import { markDevBotsOfflineAfterBackendRestart } from "./services/devBotService";
 import { startRegisteredDevBots, stopAllDevBotProcesses } from "./services/devBotRuntimeService";
 import { startGiveawayScheduler } from "./services/giveawayService";
 import { startVoiceRecorderRetentionScheduler } from "./services/voiceRecorderService";
@@ -15,7 +16,16 @@ httpServer.listen(env.PORT, env.HOST, () => {
   console.log(`[api] rodando em ${env.FRONTEND_URL} (${env.HOST}:${env.PORT})`);
   startGiveawayScheduler();
   startVoiceRecorderRetentionScheduler();
-  void runAccessControlStartupAudit()
+  void markDevBotsOfflineAfterBackendRestart()
+    .then((count) => {
+      if (count > 0) {
+        console.log(`[dev-bot] ${count} bot(s) marcado(s) como offline apos restart do backend.`);
+      }
+    })
+    .catch((error) => {
+      console.warn("[dev-bot] nao foi possivel reconciliar status no boot:", error instanceof Error ? error.message : error);
+    })
+    .then(() => runAccessControlStartupAudit())
     .catch((error) => {
       console.warn("[access-audit] varredura inicial falhou:", error instanceof Error ? error.message : error);
     })

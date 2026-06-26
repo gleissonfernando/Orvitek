@@ -1344,6 +1344,47 @@ export async function updateDevBotRuntimeStatus(botId: string, status: MongoDevB
   return bot;
 }
 
+export async function markDevBotsOfflineAfterBackendRestart() {
+  const { devBots } = await getMongoCollections();
+  const restartedAt = new Date();
+  const previouslyOnline = await devBots.find({
+    status: "online"
+  }, {
+    projection: {
+      _id: 1
+    }
+  }).toArray();
+
+  if (!previouslyOnline.length) {
+    return 0;
+  }
+
+  await devBots.updateMany(
+    {
+      _id: {
+        $in: previouslyOnline.map((bot) => bot._id)
+      }
+    },
+    {
+      $set: {
+        status: "offline",
+        statusMessage: "Backend reiniciado. Aguardando inicializacao do processo do bot.",
+        updatedAt: restartedAt
+      }
+    }
+  );
+
+  await Promise.all(previouslyOnline.map(async (bot) => {
+    const updatedBot = await getDevBot(bot._id);
+
+    if (updatedBot) {
+      emitRealtime("dev:bot_updated", toDashboardBotDto(updatedBot));
+    }
+  }));
+
+  return previouslyOnline.length;
+}
+
 export async function syncDevBotProfile(
   botId: string,
   profile: {

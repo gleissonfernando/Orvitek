@@ -112,7 +112,7 @@ function envBoolean(defaultValue: boolean) {
     .string()
     .optional()
     .default(String(defaultValue))
-    .transform((value) => value === "true");
+    .transform((value) => ["1", "true", "yes", "on"].includes(value.trim().toLowerCase()));
 }
 
 function mergeCsvValues(value: string, fallback: string) {
