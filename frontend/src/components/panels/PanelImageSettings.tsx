@@ -16,6 +16,8 @@ type PanelImageSettingsProps = {
   botId?: string | null;
   canManage: boolean;
   guildId?: string | null;
+  panelId?: string;
+  panelLabel?: string;
 };
 
 type PanelDefinition = {
@@ -61,18 +63,25 @@ const layoutOptions: Array<{ label: string; value: PanelImageLayoutMode }> = [
 
 const advancedPositions = new Set<PanelImagePosition>(["top", "below_text", "above_buttons"]);
 
-export function PanelImageSettings({ botId, canManage, guildId }: PanelImageSettingsProps) {
+export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLabel }: PanelImageSettingsProps) {
   const [settingsByPanel, setSettingsByPanel] = useState<Record<string, PanelImageSettingsDto>>({});
-  const [selectedPanelId, setSelectedPanelId] = useState(PANELS[0]?.id ?? "welcome");
+  const [selectedPanelId, setSelectedPanelId] = useState(panelId ?? PANELS[0]?.id ?? "welcome");
   const [draft, setDraft] = useState<PanelImageSettingsDto>(() => defaultSettings("", "", selectedPanelId));
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const selectedPanel = PANELS.find((panel) => panel.id === selectedPanelId) ?? PANELS[0]!;
+  const fixedPanel = panelId ? { id: panelId, label: panelLabel ?? panelLabelForId(panelId) } : null;
+  const selectedPanel = fixedPanel ?? PANELS.find((panel) => panel.id === selectedPanelId) ?? PANELS[0]!;
   const disabled = !canManage || !guildId || !botId || loading || saving;
   const effectiveLayoutMode = advancedPositions.has(draft.imagePosition) ? "components_v2" : draft.layoutMode;
   const previewStyle = previewImageStyle(draft.imageSize, draft.customWidth, draft.customHeight);
+
+  useEffect(() => {
+    if (panelId && panelId !== selectedPanelId) {
+      setSelectedPanelId(panelId);
+    }
+  }, [panelId, selectedPanelId]);
 
   useEffect(() => {
     if (!guildId || !botId) {
@@ -187,8 +196,8 @@ export function PanelImageSettings({ botId, canManage, guildId }: PanelImageSett
               <Image className="h-5 w-5 text-zinc-300" />
             </div>
             <div>
-              <CardTitle>Imagens dos paineis</CardTitle>
-              <CardDescription>{savedCount} painel(is) com imagem configurada.</CardDescription>
+              <CardTitle>{fixedPanel ? `Imagem do painel: ${selectedPanel.label}` : "Imagens dos paineis"}</CardTitle>
+              <CardDescription>{fixedPanel ? "Configure a imagem deste painel." : `${savedCount} painel(is) com imagem configurada.`}</CardDescription>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -202,36 +211,38 @@ export function PanelImageSettings({ botId, canManage, guildId }: PanelImageSett
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
-          <aside className="max-h-[420px] space-y-2 overflow-y-auto rounded-lg border border-zinc-900 bg-zinc-950/70 p-2">
-            {PANELS.map((panel) => {
-              const selected = panel.id === selectedPanelId;
-              const configured = settingsByPanel[panel.id]?.imageEnabled;
+        <div className={fixedPanel ? "grid gap-4" : "grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]"}>
+          {!fixedPanel ? (
+            <aside className="max-h-[420px] space-y-2 overflow-y-auto rounded-lg border border-zinc-900 bg-zinc-950/70 p-2">
+              {PANELS.map((panel) => {
+                const selected = panel.id === selectedPanelId;
+                const configured = settingsByPanel[panel.id]?.imageEnabled;
 
-              return (
-                <button
-                  className={[
-                    "flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border px-3 text-left text-sm transition",
-                    selected
-                      ? "border-purple-400/50 bg-purple-500/10 text-white"
-                      : "border-zinc-900 bg-black text-zinc-300 hover:border-zinc-700 hover:text-white"
-                  ].join(" ")}
-                  key={panel.id}
-                  onClick={() => setSelectedPanelId(panel.id)}
-                  type="button"
-                >
-                  <span className="min-w-0 truncate">{panel.label}</span>
-                  <span className={configured ? "text-xs text-emerald-300" : "text-xs text-zinc-600"}>
-                    {configured ? "on" : "off"}
-                  </span>
-                </button>
-              );
-            })}
-          </aside>
+                return (
+                  <button
+                    className={[
+                      "flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border px-3 text-left text-sm transition",
+                      selected
+                        ? "border-purple-400/50 bg-purple-500/10 text-white"
+                        : "border-zinc-900 bg-black text-zinc-300 hover:border-zinc-700 hover:text-white"
+                    ].join(" ")}
+                    key={panel.id}
+                    onClick={() => setSelectedPanelId(panel.id)}
+                    type="button"
+                  >
+                    <span className="min-w-0 truncate">{panel.label}</span>
+                    <span className={configured ? "text-xs text-emerald-300" : "text-xs text-zinc-600"}>
+                      {configured ? "on" : "off"}
+                    </span>
+                  </button>
+                );
+              })}
+            </aside>
+          ) : null}
 
           <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <label className="grid gap-2 text-sm">
+              {!fixedPanel ? <label className="grid gap-2 text-sm">
                 <span className="font-medium text-zinc-200">Painel</span>
                 <select
                   className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-500/60"
@@ -243,7 +254,7 @@ export function PanelImageSettings({ botId, canManage, guildId }: PanelImageSett
                     <option key={panel.id} value={panel.id}>{panel.label}</option>
                   ))}
                 </select>
-              </label>
+              </label> : null}
 
               <label className="grid gap-2 text-sm xl:col-span-2">
                 <span className="font-medium text-zinc-200">URL da imagem</span>
@@ -440,6 +451,10 @@ function defaultSettings(guildId: string, botId: string, panelId: string): Panel
     panelId,
     updatedAt: null
   };
+}
+
+function panelLabelForId(panelId: string) {
+  return PANELS.find((panel) => panel.id === panelId)?.label ?? panelId;
 }
 
 function buildPayload(settings: PanelImageSettingsDto, layoutMode: PanelImageLayoutMode): SavePanelImageSettingsPayload {

@@ -49,6 +49,7 @@ import { GiveawayPanel } from "../components/giveaway/GiveawayPanel";
 import { LogsSettingsPanel } from "../components/LogsSettingsPanel";
 import { MissionToolsPanel } from "../components/mission-tools/MissionToolsPanel";
 import { SiteAccessPanel } from "../components/moderation/SiteAccessPanel";
+import { PanelImageSettings } from "../components/panels/PanelImageSettings";
 import { VoiceRecorderPanel } from "../components/moderation/VoiceRecorderPanel";
 import { AccountAgeSecurityPanel } from "../components/security/AccountAgeSecurityPanel";
 import { SelfBotProtectionPanel } from "../components/security/SelfBotProtectionPanel";
@@ -901,7 +902,16 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
           <ClipsPanel botId={activeBotId} canManage={canManageModule(selectedBot, "clips", canManageDashboard)} guild={selectedGuild} refreshSignal={clipsRefreshSignal} />
         ) : null}
         {activeView === "giveaway" ? (
-          <GiveawayPanel botId={activeBotId} canManage={canManageModule(selectedBot, "giveaway", canManageDashboard)} guild={selectedGuild} />
+          <div className="space-y-5">
+            <PanelImageSettings
+              botId={activeBotId}
+              canManage={canManageModule(selectedBot, "giveaway", canManageDashboard)}
+              guildId={selectedGuild?.id ?? null}
+              panelId="giveaway"
+              panelLabel="Sorteio"
+            />
+            <GiveawayPanel botId={activeBotId} canManage={canManageModule(selectedBot, "giveaway", canManageDashboard)} guild={selectedGuild} />
+          </div>
         ) : null}
         {activeView === "x-monitor" ? (
           <XMonitorPanel botId={activeBotId} canManage={canManageModule(selectedBot, "x-monitor", canManageDashboard)} guild={selectedGuild} />
@@ -925,12 +935,21 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
           />
         ) : null}
         {activeView === "mission-tools" ? (
-          <MissionToolsPanel
-            botId={activeBotId}
-            canManage={canManageModule(selectedBot, "mission-tools", canManageDashboard)}
-            guild={selectedGuild}
-            user={auth.user}
-          />
+          <div className="space-y-5">
+            <PanelImageSettings
+              botId={activeBotId}
+              canManage={canManageModule(selectedBot, "mission-tools", canManageDashboard)}
+              guildId={selectedGuild?.id ?? null}
+              panelId="mission-tools"
+              panelLabel="Mission Tools"
+            />
+            <MissionToolsPanel
+              botId={activeBotId}
+              canManage={canManageModule(selectedBot, "mission-tools", canManageDashboard)}
+              guild={selectedGuild}
+              user={auth.user}
+            />
+          </div>
         ) : null}
         {activeView === "voice-recorder" ? (
           <VoiceRecorderPanel
@@ -1666,6 +1685,14 @@ function LiveView({
         <KickIntegrationPanel botId={botId} canManage={canManageKick} guild={guild} />
       ) : null}
 
+      <PanelImageSettings
+        botId={botId}
+        canManage={canManageTwitch || canManageKick}
+        guildId={guild?.id ?? null}
+        panelId="live"
+        panelLabel="Live"
+      />
+
       <Card>
         <CardHeader>
           <CardTitle>Sistema de lives</CardTitle>
@@ -1868,6 +1895,14 @@ function RulesView({
         title="Sistema de regras"
       />
 
+      <PanelImageSettings
+        botId={botId}
+        canManage={canManage}
+        guildId={guild?.id ?? null}
+        panelId="rules"
+        panelLabel="Regras"
+      />
+
       <Card>
         <CardHeader>
           <CardTitle>Painel de regras</CardTitle>
@@ -2005,26 +2040,42 @@ function SettingsView({
 
   if (enabledModules.includes("tickets")) {
     blocks.push(
-      <SimpleToggleCard
-        checked={Boolean(settings?.ticketEnabled)}
-        description={`${tickets.length} ticket(s) registrados neste servidor.`}
-        disabled={!settings || !canManageModule("tickets") || savingKey === "ticketEnabled"}
-        icon={TicketIcon}
-        key="tickets"
-        onChange={(checked) => onToggle("ticketEnabled", checked)}
-        title="Tickets"
-      />
+      <div className="space-y-4" key="tickets">
+        <SimpleToggleCard
+          checked={Boolean(settings?.ticketEnabled)}
+          description={`${tickets.length} ticket(s) registrados neste servidor.`}
+          disabled={!settings || !canManageModule("tickets") || savingKey === "ticketEnabled"}
+          icon={TicketIcon}
+          onChange={(checked) => onToggle("ticketEnabled", checked)}
+          title="Tickets"
+        />
+        <PanelImageSettings
+          botId={botId}
+          canManage={canManageModule("tickets")}
+          guildId={guild?.id ?? null}
+          panelId="ticket"
+          panelLabel="Ticket"
+        />
+      </div>
     );
   }
 
   if (enabledModules.includes("network")) {
     blocks.push(
-      <MemberSocialNetworkPanel
-        botId={botId}
-        canManage={canManageModule("network")}
-        guild={guild}
-        key="network"
-      />
+      <div className="space-y-4" key="network">
+        <PanelImageSettings
+          botId={botId}
+          canManage={canManageModule("network")}
+          guildId={guild?.id ?? null}
+          panelId="social-network"
+          panelLabel="Redes sociais"
+        />
+        <MemberSocialNetworkPanel
+          botId={botId}
+          canManage={canManageModule("network")}
+          guild={guild}
+        />
+      </div>
     );
   }
 
@@ -2562,6 +2613,14 @@ function EntryLeaveManager({
           })}
         </div>
       </div>
+
+      <PanelImageSettings
+        botId={botId}
+        canManage={canManageModule(activeMode)}
+        guildId={guild?.id ?? null}
+        panelId={activeMode}
+        panelLabel={activeMode === "welcome" ? "Entrada" : "Saida"}
+      />
 
       <WelcomePanel
         botId={botId}
