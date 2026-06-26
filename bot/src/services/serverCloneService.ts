@@ -47,8 +47,16 @@ type ServerCloneStoredPlan = {
   extraTextChannels: string[];
   extraVoiceChannels: string[];
   notes: string;
+  categoryRenames: RenamePair[];
+  channelRenames: RenamePair[];
   renameServer: string;
+  roleRenames: RenamePair[];
   sourceGuildId: string;
+};
+
+type RenamePair = {
+  from: string;
+  to: string;
 };
 
 const sessions = new Map<string, ClonePart[]>();
@@ -265,22 +273,22 @@ async function runServerClone(
 
   if (job.parts.includes("roles")) {
     await interaction.editReply(serverCloneProgress(job, "Criando cargos...")).catch(() => undefined);
-    await cloneRoles(sourceGuild, destinationGuild, roleMap, stats, job.report);
+    await cloneRoles(sourceGuild, destinationGuild, roleMap, stats, job.report, job.plan);
   }
 
   if (job.parts.includes("categories")) {
     await interaction.editReply(serverCloneProgress(job, "Criando categorias...")).catch(() => undefined);
-    await cloneCategories(sourceGuild, destinationGuild, roleMap, categoryMap, stats, job.report);
+    await cloneCategories(sourceGuild, destinationGuild, roleMap, categoryMap, stats, job.report, job.plan);
   }
 
   if (job.parts.includes("text")) {
     await interaction.editReply(serverCloneProgress(job, "Criando canais de texto...")).catch(() => undefined);
-    await cloneChannels(sourceGuild, destinationGuild, roleMap, categoryMap, stats, job.report, ChannelType.GuildText);
+    await cloneChannels(sourceGuild, destinationGuild, roleMap, categoryMap, stats, job.report, ChannelType.GuildText, job.plan);
   }
 
   if (job.parts.includes("voice")) {
     await interaction.editReply(serverCloneProgress(job, "Criando canais de voz...")).catch(() => undefined);
-    await cloneChannels(sourceGuild, destinationGuild, roleMap, categoryMap, stats, job.report, ChannelType.GuildVoice);
+    await cloneChannels(sourceGuild, destinationGuild, roleMap, categoryMap, stats, job.report, ChannelType.GuildVoice, job.plan);
   }
 
   await interaction.editReply(serverCloneProgress(job, "Aplicando permissoes...")).catch(() => undefined);
@@ -375,7 +383,14 @@ async function applyStoredPlanAdditions(destinationGuild: Guild, plan: ServerClo
   }
 }
 
-async function cloneRoles(sourceGuild: Guild, destinationGuild: Guild, roleMap: Map<string, string>, stats: CloneStats, report: string[]) {
+async function cloneRoles(
+  sourceGuild: Guild,
+  destinationGuild: Guild,
+  roleMap: Map<string, string>,
+  stats: CloneStats,
+  report: string[],
+  plan?: ServerCloneStoredPlan | null
+) {
   await sourceGuild.roles.fetch();
   const botHighest = destinationGuild.members.me?.roles.highest.position ?? 0;
   const sourceBotHighest = sourceGuild.members.me?.roles.highest.position ?? 0;
@@ -391,7 +406,7 @@ async function cloneRoles(sourceGuild: Guild, destinationGuild: Guild, roleMap: 
 
     try {
       const created = await destinationGuild.roles.create({
-        name: role.name,
+        name: resolvePlannedName(role.name, plan?.roleRenames),
         color: role.color,
         hoist: role.hoist,
         mentionable: role.mentionable,
@@ -420,7 +435,8 @@ async function cloneCategories(
   roleMap: Map<string, string>,
   categoryMap: Map<string, string>,
   stats: CloneStats,
-  report: string[]
+  report: string[],
+  plan?: ServerCloneStoredPlan | null
 ) {
   const categories = sourceGuild.channels.cache
     .filter((channel): channel is CategoryChannel => channel.type === ChannelType.GuildCategory)
@@ -429,7 +445,7 @@ async function cloneCategories(
   for (const category of categories.values()) {
     try {
       const created = await destinationGuild.channels.create({
-        name: category.name,
+        name: resolvePlannedName(category.name, [...(plan?.categoryRenames ?? []), ...(plan?.channelRenames ?? [])]),
         type: ChannelType.GuildCategory,
         permissionOverwrites: mappedOverwrites(category, roleMap),
         position: category.position,
@@ -453,7 +469,8 @@ async function cloneChannels(
   categoryMap: Map<string, string>,
   stats: CloneStats,
   report: string[],
-  type: ChannelType.GuildText | ChannelType.GuildVoice
+  type: ChannelType.GuildText | ChannelType.GuildVoice,
+  plan?: ServerCloneStoredPlan | null
 ) {
   const channels = sourceGuild.channels.cache
     .filter((channel): channel is TextChannel | VoiceChannel => channel.type === type)
@@ -465,7 +482,7 @@ async function cloneChannels(
 
       if (type === ChannelType.GuildText && channel.type === ChannelType.GuildText) {
         await destinationGuild.channels.create({
-          name: channel.name,
+          name: resolvePlannedName(channel.name, plan?.channelRenames),
           type: ChannelType.GuildText,
           parent,
           topic: channel.topic ?? undefined,
@@ -480,7 +497,7 @@ async function cloneChannels(
 
       if (type === ChannelType.GuildVoice && channel.type === ChannelType.GuildVoice) {
         await destinationGuild.channels.create({
-          name: channel.name,
+          name: resolvePlannedName(channel.name, plan?.channelRenames),
           type: ChannelType.GuildVoice,
           parent,
           userLimit: channel.userLimit,
@@ -717,6 +734,8 @@ function normalizeStoredServerClonePlan(value: unknown): ServerCloneStoredPlan |
 
   return {
     cloneParts: normalizeParts(readPlanStringArray(plan.cloneParts)),
+    categoryRenames: readRenamePairs(plan.categoryRenames),
+    channelRenames: readRenamePairs(plan.channelRenames),
     destinationGuildId,
     extraCategories: readPlanStringArray(plan.extraCategories, 30).map(normalizeChannelName).filter(Boolean),
     extraRoles: readPlanStringArray(plan.extraRoles, 30).map((name) => name.slice(0, 100)).filter(Boolean),
@@ -724,6 +743,7 @@ function normalizeStoredServerClonePlan(value: unknown): ServerCloneStoredPlan |
     extraVoiceChannels: readPlanStringArray(plan.extraVoiceChannels, 30).map((name) => name.slice(0, 100)).filter(Boolean),
     notes: readPlanString(plan.notes).slice(0, 500),
     renameServer: readPlanString(plan.renameServer).slice(0, 100),
+    roleRenames: readRenamePairs(plan.roleRenames),
     sourceGuildId
   };
 }
@@ -749,6 +769,25 @@ function normalizeChannelName(value: string) {
     .replace(/[^a-z0-9-_ ]/g, "")
     .replace(/\s+/g, "-")
     .slice(0, 100);
+}
+
+function readRenamePairs(value: unknown) {
+  return readPlanStringArray(value, 50)
+    .map((line) => {
+      const [from, ...rest] = line.includes("=>") ? line.split("=>") : line.split("=");
+      const to = rest.join("=>");
+
+      return {
+        from: readPlanString(from).slice(0, 100),
+        to: readPlanString(to).slice(0, 100)
+      };
+    })
+    .filter((pair) => pair.from && pair.to);
+}
+
+function resolvePlannedName(currentName: string, renames?: RenamePair[]) {
+  const rename = renames?.find((pair) => pair.from.toLowerCase() === currentName.toLowerCase());
+  return rename?.to || currentName;
 }
 
 function partsLabel(parts: ClonePart[]) {

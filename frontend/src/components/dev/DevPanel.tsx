@@ -1976,8 +1976,11 @@ const clonePartOptions = [
 ];
 
 type ServerClonePlanForm = {
+  categoryRenames: string;
+  channelRenames: string;
   sourceGuildId: string;
   destinationGuildId: string;
+  destinationGuildInput: string;
   renameServer: string;
   cloneParts: string[];
   extraCategories: string;
@@ -1985,6 +1988,7 @@ type ServerClonePlanForm = {
   extraVoiceChannels: string;
   extraRoles: string;
   notes: string;
+  roleRenames: string;
 };
 
 function ServerCloneDevWorkspace({
@@ -2002,15 +2006,19 @@ function ServerCloneDevWorkspace({
   const firstSourceId = bot.mainGuildId || guildOptions[0]?.id || "";
   const firstDestinationId = guildOptions.find((guild) => guild.id !== firstSourceId)?.id ?? firstSourceId;
   const [form, setForm] = useState<ServerClonePlanForm>(() => ({
+    categoryRenames: "",
+    channelRenames: "",
     sourceGuildId: firstSourceId,
     destinationGuildId: firstDestinationId,
+    destinationGuildInput: "",
     renameServer: "",
     cloneParts: clonePartOptions.map((part) => part.id),
     extraCategories: "",
     extraTextChannels: "",
     extraVoiceChannels: "",
     extraRoles: "",
-    notes: ""
+    notes: "",
+    roleRenames: ""
   }));
   const [saving, setSaving] = useState(false);
   const [loadingConfig, setLoadingConfig] = useState(false);
@@ -2022,15 +2030,19 @@ function ServerCloneDevWorkspace({
     const destinationGuildId = guildOptions.find((guild) => guild.id !== sourceGuildId)?.id ?? sourceGuildId;
 
     setForm({
+      categoryRenames: "",
+      channelRenames: "",
       sourceGuildId,
       destinationGuildId,
+      destinationGuildInput: "",
       renameServer: "",
       cloneParts: clonePartOptions.map((part) => part.id),
       extraCategories: "",
       extraTextChannels: "",
       extraVoiceChannels: "",
       extraRoles: "",
-      notes: ""
+      notes: "",
+      roleRenames: ""
     });
     setCurrentModules({});
     setMessage(null);
@@ -2052,15 +2064,19 @@ function ServerCloneDevWorkspace({
         if (plan) {
           setForm((current) => ({
             ...current,
+            categoryRenames: plan.categoryRenames.join("\n"),
+            channelRenames: plan.channelRenames.join("\n"),
             sourceGuildId: plan.sourceGuildId || current.sourceGuildId,
             destinationGuildId: plan.destinationGuildId || current.destinationGuildId,
+            destinationGuildInput: "",
             renameServer: plan.renameServer,
             cloneParts: plan.cloneParts.length ? plan.cloneParts : current.cloneParts,
             extraCategories: plan.extraCategories.join("\n"),
             extraTextChannels: plan.extraTextChannels.join("\n"),
             extraVoiceChannels: plan.extraVoiceChannels.join("\n"),
             extraRoles: plan.extraRoles.join("\n"),
-            notes: plan.notes
+            notes: plan.notes,
+            roleRenames: plan.roleRenames.join("\n")
           }));
         }
       })
@@ -2100,6 +2116,19 @@ function ServerCloneDevWorkspace({
     });
   }
 
+  function applyManualDestination() {
+    const guildId = form.destinationGuildInput.trim();
+
+    if (!/^\d{5,32}$/.test(guildId)) {
+      setMessage("Informe um ID valido para o servidor de destino.");
+      return;
+    }
+
+    updateForm("destinationGuildId", guildId);
+    updateForm("destinationGuildInput", "");
+    setMessage("Destino manual adicionado ao plano.");
+  }
+
   async function handleSavePlan() {
     if (!enabled) {
       onEnable();
@@ -2126,12 +2155,15 @@ function ServerCloneDevWorkspace({
           sourceGuildId: form.sourceGuildId,
           destinationGuildId: form.destinationGuildId,
           cloneParts: form.cloneParts,
+          categoryRenames: splitLines(form.categoryRenames),
+          channelRenames: splitLines(form.channelRenames),
           renameServer: form.renameServer.trim(),
           extraCategories: splitLines(form.extraCategories),
           extraTextChannels: splitLines(form.extraTextChannels),
           extraVoiceChannels: splitLines(form.extraVoiceChannels),
           extraRoles: splitLines(form.extraRoles),
           notes: form.notes.trim(),
+          roleRenames: splitLines(form.roleRenames),
           configuredFrom: "dev-dashboard",
           updatedAt: new Date().toISOString()
         }
@@ -2194,6 +2226,25 @@ function ServerCloneDevWorkspace({
             />
           </div>
 
+          <div className="grid gap-3 rounded-lg border border-zinc-800 bg-black/25 p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+            <label className="block">
+              <span className="text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">Adicionar destino por ID</span>
+              <input
+                className="mt-2 h-11 w-full rounded-lg border border-zinc-800 bg-black/35 px-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 focus:border-purple-400"
+                onChange={(event) => updateForm("destinationGuildInput", event.target.value)}
+                placeholder="Cole o ID do servidor que vai receber a clonagem"
+                value={form.destinationGuildInput}
+              />
+            </label>
+            <button
+              className="h-11 rounded-lg border border-purple-500/25 bg-purple-500/10 px-4 text-sm font-bold text-purple-100 transition hover:border-purple-400/45 hover:bg-purple-500/18"
+              onClick={applyManualDestination}
+              type="button"
+            >
+              Adicionar destino
+            </button>
+          </div>
+
           <div className="rounded-lg border border-zinc-800 bg-black/30 p-3">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">Itens clonados</p>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -2234,6 +2285,12 @@ function ServerCloneDevWorkspace({
             <CloneTextarea label="Adicionar canais de texto" onChange={(value) => updateForm("extraTextChannels", value)} placeholder="ex: anuncios&#10;staff-chat" value={form.extraTextChannels} />
             <CloneTextarea label="Adicionar canais de voz" onChange={(value) => updateForm("extraVoiceChannels", value)} placeholder="ex: Reuniao&#10;Suporte" value={form.extraVoiceChannels} />
             <CloneTextarea label="Adicionar cargos" onChange={(value) => updateForm("extraRoles", value)} placeholder="ex: Staff&#10;Membro VIP" value={form.extraRoles} />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <CloneTextarea label="Renomear canais clonados" onChange={(value) => updateForm("channelRenames", value)} placeholder="geral => chat-geral" value={form.channelRenames} />
+            <CloneTextarea label="Renomear categorias clonadas" onChange={(value) => updateForm("categoryRenames", value)} placeholder="Suporte => Atendimento" value={form.categoryRenames} />
+            <CloneTextarea label="Renomear cargos clonados" onChange={(value) => updateForm("roleRenames", value)} placeholder="Membro => Cliente" value={form.roleRenames} />
           </div>
 
           <CloneTextarea label="Notas internas" onChange={(value) => updateForm("notes", value)} placeholder="Observacoes para o DEV sobre esse plano" value={form.notes} />
@@ -2281,6 +2338,10 @@ function CloneSelect({
   options: Array<{ id: string; name: string }>;
   value: string;
 }) {
+  const visibleOptions = value && !options.some((guild) => guild.id === value)
+    ? [{ id: value, name: `Servidor ${value}` }, ...options]
+    : options;
+
   return (
     <label className="block">
       <span className="text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">{label}</span>
@@ -2289,7 +2350,7 @@ function CloneSelect({
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >
-        {options.map((guild) => (
+        {visibleOptions.map((guild) => (
           <option className="bg-zinc-950 text-white" key={guild.id} value={guild.id}>
             {guild.name} - {guild.id}
           </option>
@@ -2351,6 +2412,9 @@ function countPlanExtras(form: ServerClonePlanForm) {
     + splitLines(form.extraTextChannels).length
     + splitLines(form.extraVoiceChannels).length
     + splitLines(form.extraRoles).length
+    + splitLines(form.categoryRenames).length
+    + splitLines(form.channelRenames).length
+    + splitLines(form.roleRenames).length
     + (form.renameServer.trim() ? 1 : 0);
 }
 
@@ -2363,6 +2427,8 @@ function normalizeServerClonePlan(value: unknown) {
     : [];
 
   return {
+    categoryRenames: readArray("categoryRenames"),
+    channelRenames: readArray("channelRenames"),
     sourceGuildId: typeof plan.sourceGuildId === "string" ? plan.sourceGuildId : "",
     destinationGuildId: typeof plan.destinationGuildId === "string" ? plan.destinationGuildId : "",
     renameServer: typeof plan.renameServer === "string" ? plan.renameServer : "",
@@ -2371,7 +2437,8 @@ function normalizeServerClonePlan(value: unknown) {
     extraTextChannels: readArray("extraTextChannels"),
     extraVoiceChannels: readArray("extraVoiceChannels"),
     extraRoles: readArray("extraRoles"),
-    notes: typeof plan.notes === "string" ? plan.notes : ""
+    notes: typeof plan.notes === "string" ? plan.notes : "",
+    roleRenames: readArray("roleRenames")
   };
 }
 
