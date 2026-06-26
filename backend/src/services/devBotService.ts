@@ -667,10 +667,6 @@ export async function canUseDevBotModule(
     return false;
   }
 
-  if (isDashboardDevUserId(user.discordId)) {
-    return true;
-  }
-
   const { devBots } = await getMongoCollections();
   const moduleIds = devBotModuleReleaseIds(moduleId);
   const bot = await devBots.findOne(
@@ -700,10 +696,6 @@ export async function canReadDevBotModule(
 
   if (!botId || !access.allowed || !canReadModuleAtLevel(access.accessLevel, moduleId)) {
     return false;
-  }
-
-  if (isDashboardDevUserId(user.discordId)) {
-    return true;
   }
 
   const { devBots } = await getMongoCollections();

@@ -1357,6 +1357,10 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
     return fallback;
   }
 
+  if (!isModuleReleasedForBot(bot, moduleId)) {
+    return false;
+  }
+
   if (bot.accessLevel === "admin") {
     return true;
   }
@@ -1394,6 +1398,24 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
   }
 
   return false;
+}
+
+function isModuleReleasedForBot(bot: DashboardBot, moduleId: string) {
+  if (!moduleId) {
+    return false;
+  }
+
+  const released = new Set(bot.enabledModules);
+
+  if (moduleId === "fivem") {
+    return [...released].some((enabledModule) => enabledModule === "fivem" || enabledModule.startsWith("fivem-"));
+  }
+
+  if (moduleId === "fivem-fac") {
+    return released.has("fivem-fac") || released.has("fivem-absences");
+  }
+
+  return released.has(moduleId);
 }
 
 function UserDashboardHeader({
