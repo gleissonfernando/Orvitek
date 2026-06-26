@@ -17,7 +17,7 @@ import {
   type OverwriteResolvable,
   type Role
 } from "discord.js";
-import { isBotModuleEnabled } from "../config/env";
+import { currentRuntimeBotId, isBotModuleEnabled } from "../config/env";
 import type { BotContext } from "../types";
 import { getCachedGuildSettings } from "./guildSettingsCache";
 import { getRuntimeModuleAuthorization, runtimeModuleDenialMessage } from "./runtimeModuleGuard";
@@ -32,10 +32,23 @@ type ServerCloneJob = {
   destinationGuildId: string;
   id: string;
   parts: ClonePart[];
+  plan?: ServerCloneStoredPlan | null;
   report: string[];
   sourceGuildId: string;
   status: "pending" | "running" | "completed" | "cancelled";
   userId: string;
+};
+
+type ServerCloneStoredPlan = {
+  cloneParts: ClonePart[];
+  destinationGuildId: string;
+  extraCategories: string[];
+  extraRoles: string[];
+  extraTextChannels: string[];
+  extraVoiceChannels: string[];
+  notes: string;
+  renameServer: string;
+  sourceGuildId: string;
 };
 
 const sessions = new Map<string, ClonePart[]>();
@@ -81,25 +94,41 @@ export async function handleServerCloneInteraction(interaction: Interaction, con
       return true;
     }
 
+    const storedPlan = await getStoredServerClonePlan(context, interaction.guild.id);
+    if (storedPlan?.cloneParts.length) {
+      sessions.set(sessionKey(interaction.user.id, interaction.guild.id), storedPlan.cloneParts);
+    }
+
+    const sourceInput = new TextInputBuilder()
+      .setCustomId("sourceGuildId")
+      .setLabel("ID do servidor de origem")
+      .setPlaceholder("Servidor que sera copiado")
+      .setRequired(true)
+      .setStyle(TextInputStyle.Short);
+    const destinationInput = new TextInputBuilder()
+      .setCustomId("destinationGuildId")
+      .setLabel("ID do servidor de destino")
+      .setPlaceholder("Servidor que recebera a estrutura")
+      .setRequired(true)
+      .setStyle(TextInputStyle.Short);
+
+    if (storedPlan?.sourceGuildId) {
+      sourceInput.setValue(storedPlan.sourceGuildId);
+    }
+
+    if (storedPlan?.destinationGuildId) {
+      destinationInput.setValue(storedPlan.destinationGuildId);
+    }
+
     const modal = new ModalBuilder()
       .setCustomId("server_clone_modal")
       .setTitle("Clonar Servidor")
       .addComponents(
         new ActionRowBuilder<TextInputBuilder>().addComponents(
-          new TextInputBuilder()
-            .setCustomId("sourceGuildId")
-            .setLabel("ID do servidor de origem")
-            .setPlaceholder("Servidor que sera copiado")
-            .setRequired(true)
-            .setStyle(TextInputStyle.Short)
+          sourceInput
         ),
         new ActionRowBuilder<TextInputBuilder>().addComponents(
-          new TextInputBuilder()
-            .setCustomId("destinationGuildId")
-            .setLabel("ID do servidor de destino")
-            .setPlaceholder("Servidor que recebera a estrutura")
-            .setRequired(true)
-            .setStyle(TextInputStyle.Short)
+          destinationInput
         )
       );
 
@@ -131,11 +160,13 @@ export async function handleServerCloneInteraction(interaction: Interaction, con
     }
 
     const summary = await summarizeSource(sourceGuild);
+    const storedPlan = await getStoredServerClonePlan(context, destinationGuildId);
     const job: ServerCloneJob = {
       createdAt: Date.now(),
       destinationGuildId,
       id: randomUUID(),
       parts,
+      plan: planMatches(storedPlan, sourceGuildId, destinationGuildId) ? storedPlan : null,
       report: [],
       sourceGuildId,
       status: "pending",
@@ -255,9 +286,93 @@ async function runServerClone(
   await interaction.editReply(serverCloneProgress(job, "Aplicando permissoes...")).catch(() => undefined);
   await wait(500);
 
+  if (job.plan) {
+    await interaction.editReply(serverCloneProgress(job, "Aplicando ajustes do painel DEV...")).catch(() => undefined);
+    await applyStoredPlanAdditions(destinationGuild, job.plan, stats, job.report);
+  }
+
   job.status = "completed";
   await interaction.editReply(serverCloneDone(job, stats)).catch(() => undefined);
   await sendServerCloneLog(sourceGuild, destinationGuild, job, stats, context);
+}
+
+async function applyStoredPlanAdditions(destinationGuild: Guild, plan: ServerCloneStoredPlan, stats: CloneStats, report: string[]) {
+  if (plan.renameServer) {
+    try {
+      await destinationGuild.setName(plan.renameServer, "Ajuste pos-clonagem configurado no painel DEV");
+      report.push(`Servidor renomeado para ${plan.renameServer}.`);
+    } catch (error) {
+      stats.failed += 1;
+      report.push(`Falha ao renomear servidor: ${friendlyError(error)}`);
+    }
+  }
+
+  for (const roleName of plan.extraRoles) {
+    try {
+      if (!destinationGuild.roles.cache.some((role) => role.name.toLowerCase() === roleName.toLowerCase())) {
+        await destinationGuild.roles.create({
+          name: roleName,
+          reason: "Cargo adicional pos-clonagem configurado no painel DEV"
+        });
+        stats.roles += 1;
+        await wait(300);
+      }
+    } catch (error) {
+      stats.failed += 1;
+      report.push(`Falha ao criar cargo adicional ${roleName}: ${friendlyError(error)}`);
+    }
+  }
+
+  for (const categoryName of plan.extraCategories) {
+    try {
+      if (!destinationGuild.channels.cache.some((channel) => channel.type === ChannelType.GuildCategory && channel.name.toLowerCase() === categoryName.toLowerCase())) {
+        await destinationGuild.channels.create({
+          name: categoryName,
+          type: ChannelType.GuildCategory,
+          reason: "Categoria adicional pos-clonagem configurada no painel DEV"
+        });
+        stats.categories += 1;
+        await wait(300);
+      }
+    } catch (error) {
+      stats.failed += 1;
+      report.push(`Falha ao criar categoria adicional ${categoryName}: ${friendlyError(error)}`);
+    }
+  }
+
+  for (const channelName of plan.extraTextChannels) {
+    try {
+      if (!destinationGuild.channels.cache.some((channel) => channel.type === ChannelType.GuildText && channel.name.toLowerCase() === channelName.toLowerCase())) {
+        await destinationGuild.channels.create({
+          name: channelName,
+          type: ChannelType.GuildText,
+          reason: "Canal adicional pos-clonagem configurado no painel DEV"
+        });
+        stats.text += 1;
+        await wait(300);
+      }
+    } catch (error) {
+      stats.failed += 1;
+      report.push(`Falha ao criar canal de texto adicional ${channelName}: ${friendlyError(error)}`);
+    }
+  }
+
+  for (const channelName of plan.extraVoiceChannels) {
+    try {
+      if (!destinationGuild.channels.cache.some((channel) => channel.type === ChannelType.GuildVoice && channel.name.toLowerCase() === channelName.toLowerCase())) {
+        await destinationGuild.channels.create({
+          name: channelName,
+          type: ChannelType.GuildVoice,
+          reason: "Canal de voz adicional pos-clonagem configurado no painel DEV"
+        });
+        stats.voice += 1;
+        await wait(300);
+      }
+    } catch (error) {
+      stats.failed += 1;
+      report.push(`Falha ao criar canal de voz adicional ${channelName}: ${friendlyError(error)}`);
+    }
+  }
 }
 
 async function cloneRoles(sourceGuild: Guild, destinationGuild: Guild, roleMap: Map<string, string>, stats: CloneStats, report: string[]) {
@@ -570,6 +685,70 @@ function normalizeParts(values: string[]): ClonePart[] {
   const allowed = new Set<ClonePart>(["roles", "categories", "text", "voice"]);
   const parts = values.filter((value): value is ClonePart => allowed.has(value as ClonePart));
   return parts.length ? [...new Set(parts)] : ["roles", "categories", "text", "voice"];
+}
+
+async function getStoredServerClonePlan(context: BotContext, guildId: string) {
+  const botId = currentRuntimeBotId();
+
+  if (!botId) {
+    return null;
+  }
+
+  try {
+    const config = await context.api.getBotGuildConfig(botId, guildId);
+    return normalizeStoredServerClonePlan(config.modules?.[MODULE_ID]);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeStoredServerClonePlan(value: unknown): ServerCloneStoredPlan | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const plan = value as Record<string, unknown>;
+  const sourceGuildId = readPlanString(plan.sourceGuildId);
+  const destinationGuildId = readPlanString(plan.destinationGuildId);
+
+  if (!sourceGuildId || !destinationGuildId) {
+    return null;
+  }
+
+  return {
+    cloneParts: normalizeParts(readPlanStringArray(plan.cloneParts)),
+    destinationGuildId,
+    extraCategories: readPlanStringArray(plan.extraCategories, 30).map(normalizeChannelName).filter(Boolean),
+    extraRoles: readPlanStringArray(plan.extraRoles, 30).map((name) => name.slice(0, 100)).filter(Boolean),
+    extraTextChannels: readPlanStringArray(plan.extraTextChannels, 30).map(normalizeChannelName).filter(Boolean),
+    extraVoiceChannels: readPlanStringArray(plan.extraVoiceChannels, 30).map((name) => name.slice(0, 100)).filter(Boolean),
+    notes: readPlanString(plan.notes).slice(0, 500),
+    renameServer: readPlanString(plan.renameServer).slice(0, 100),
+    sourceGuildId
+  };
+}
+
+function planMatches(plan: ServerCloneStoredPlan | null, sourceGuildId: string, destinationGuildId: string) {
+  return Boolean(plan && plan.sourceGuildId === sourceGuildId && plan.destinationGuildId === destinationGuildId);
+}
+
+function readPlanString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readPlanStringArray(value: unknown, limit = 20) {
+  return Array.isArray(value)
+    ? value.map(readPlanString).filter(Boolean).slice(0, limit)
+    : [];
+}
+
+function normalizeChannelName(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-_ ]/g, "")
+    .replace(/\s+/g, "-")
+    .slice(0, 100);
 }
 
 function partsLabel(parts: ClonePart[]) {

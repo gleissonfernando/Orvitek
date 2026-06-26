@@ -14,6 +14,7 @@ import type {
   ClipsConfig,
   CreateTwitchNotificationPayload,
   CreateKickNotificationPayload,
+  BotGuildConfig,
   CreateDevBotPayload,
   DashboardBot,
   DashboardMeResponse,
@@ -1370,6 +1371,21 @@ export async function getDevModules() {
 export async function getDevBots() {
   const { data } = await api.get<{ bots: DevBot[] }>("/dev/bots");
   return data.bots;
+}
+
+export async function listBotGuildConfigs(botId: string) {
+  const { data } = await api.get<{ configs: BotGuildConfig[] }>(`/dev/bots/${botId}/guilds`);
+  return data.configs;
+}
+
+export async function getBotGuildConfig(botId: string, guildId: string) {
+  const { data } = await api.get<{ config: BotGuildConfig }>(`/dev/bots/${botId}/guilds/${guildId}/config`);
+  return data.config;
+}
+
+export async function updateBotGuildConfig(botId: string, guildId: string, payload: Pick<BotGuildConfig, "guildName" | "modules">) {
+  const { data } = await api.patch<{ config: BotGuildConfig }>(`/dev/bots/${botId}/guilds/${guildId}/config`, payload);
+  return data.config;
 }
 
 export async function startAllDevBots() {

@@ -1500,6 +1500,16 @@ export type DevModuleDefinition = {
   label: string;
 };
 
+export type BotGuildConfig = {
+  id: string;
+  botId: string;
+  guildId: string;
+  guildName: string;
+  modules: Record<string, Record<string, unknown>>;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type DevBotStatus = "online" | "offline" | "invalid_token" | "error";
 
 export type DashboardBot = {

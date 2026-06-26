@@ -825,6 +825,17 @@ export type MissionToolsTokenResponse = {
   updatedAt: string;
 };
 
+export type BotGuildRuntimeConfig = {
+  id: string;
+  botId: string;
+  guildId: string;
+  guildName: string;
+  modules: Record<string, Record<string, unknown>>;
+  enabledModules: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export class ApiClient {
   private readonly http: AxiosInstance;
 
@@ -907,6 +918,17 @@ export class ApiClient {
       }
     );
     return data.authorization;
+  }
+
+  async getBotGuildConfig(botId: string, guildId: string) {
+    const { data } = await this.http.get<BotGuildRuntimeConfig>(
+      `/bot/${encodeURIComponent(botId)}/guild/${encodeURIComponent(guildId)}/config`,
+      {
+        timeout: 8_000
+      }
+    );
+
+    return data;
   }
 
   async notifyApplicationEmojiGuildEvent(input: {
