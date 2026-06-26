@@ -112,6 +112,7 @@ export function createWelcomePanelEmbeds(settings: GuildSettingsDto, userMention
     footerText: settings.welcomeFooterText,
     imageUrl: settings.welcomeImageUrl,
     mode: "welcome",
+    panelImage: settings.welcomePanelImage,
     rules: settings.welcomeRules,
     rulesTitle: settings.welcomeRulesTitle,
     title: settings.welcomeTitle
@@ -128,6 +129,7 @@ export function createLeavePanelEmbed(settings: GuildSettingsDto, userMention: s
     footerText: settings.leaveFooterText,
     imageUrl: settings.leaveImageUrl,
     mode: "leave",
+    panelImage: settings.leavePanelImage,
     rules: settings.leaveRules,
     rulesTitle: settings.leaveRulesTitle,
     title: settings.leaveTitle
@@ -245,6 +247,7 @@ function createMemberPanelPayload(
     footerText: string | null;
     imageUrl: string | null;
     mode: MemberPanelMode;
+    panelImage: GuildSettingsDto["welcomePanelImage"];
     rules: string | null;
     rulesTitle: string | null;
     title: string | null;
@@ -258,7 +261,9 @@ function createMemberPanelPayload(
     user: userMention,
     username: userMention.replace(/[<@>]/g, "")
   };
-  const imageUrl = toPublicUrl(input.imageUrl);
+  const panelImage = input.panelImage?.imageEnabled ? input.panelImage : null;
+  const imageUrl = toPublicUrl(panelImage?.imageUrl || input.imageUrl);
+  const imagePosition = imageUrl ? panelImage?.imagePosition ?? "top" : "none";
   const title = renderTemplate(input.title, variables);
   const description = renderTemplate(input.description, variables);
   const rulesTitle = renderTemplate(input.rulesTitle, variables);
@@ -267,19 +272,11 @@ function createMemberPanelPayload(
   const footerText = renderTemplate(input.footerText, variables);
   const components: Array<Record<string, unknown>> = [];
 
-  if (imageUrl) {
-    components.push({
-      type: 12,
-      items: [{
-        media: {
-          url: imageUrl
-        },
-        description: `${input.mode} image`
-      }]
-    });
+  if (imageUrl && imagePosition === "top") {
+    components.push(mediaGalleryComponent(imageUrl, input.mode));
   }
 
-  for (const content of [
+  const contentBlocks = [
     title ? `## ${title}` : "",
     description,
     rulesTitle || rules.length
@@ -287,13 +284,35 @@ function createMemberPanelPayload(
       : "",
     channelLabel || input.channelId ? [channelLabel, variables.channel].filter(Boolean).join(" ") : "",
     footerText ? `-# ${footerText}` : ""
-  ]) {
+  ].filter(Boolean);
+
+  if (imageUrl && imagePosition === "thumbnail" && contentBlocks.length) {
+    const sectionBlocks = contentBlocks.splice(0, 3);
+    components.push({
+      type: 9,
+      components: sectionBlocks.map(textDisplayComponent),
+      accessory: {
+        type: 11,
+        media: {
+          url: imageUrl
+        },
+        description: `${input.mode} image`
+      }
+    });
+  }
+
+  for (const content of contentBlocks) {
     if (content) {
-      components.push({
-        type: 10,
-        content
-      });
+      components.push(textDisplayComponent(content));
     }
+  }
+
+  if (imageUrl && ["below_text", "above_buttons", "banner", "footer"].includes(imagePosition)) {
+    components.push(mediaGalleryComponent(imageUrl, input.mode));
+  }
+
+  if (imageUrl && imagePosition === "thumbnail" && !components.length) {
+    components.push(mediaGalleryComponent(imageUrl, input.mode));
   }
 
   if (!components.length) {
@@ -310,6 +329,25 @@ function createMemberPanelPayload(
       components
     }],
     flags: 32768
+  };
+}
+
+function textDisplayComponent(content: string) {
+  return {
+    type: 10,
+    content
+  };
+}
+
+function mediaGalleryComponent(imageUrl: string, mode: MemberPanelMode) {
+  return {
+    type: 12,
+    items: [{
+      media: {
+        url: imageUrl
+      },
+      description: `${mode} image`
+    }]
   };
 }
 

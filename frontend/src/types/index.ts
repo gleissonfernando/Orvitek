@@ -111,10 +111,12 @@ export type BotStatus = {
 export type GuildSettings = {
   botId: string | null;
   guildId: string;
+  leavePanelImage: PanelImageSettings | null;
   welcomeEnabled: boolean;
   welcomeChannelId: string | null;
   welcomeDisplayChannelId: string | null;
   welcomeImageUrl: string | null;
+  welcomePanelImage: PanelImageSettings | null;
   welcomeTitle: string | null;
   welcomeMessage: string | null;
   welcomeRulesTitle: string | null;

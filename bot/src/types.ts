@@ -26,10 +26,12 @@ export type BotCommand = {
 export type GuildSettings = {
   botId: string | null;
   guildId: string;
+  leavePanelImage: PanelImageSettings | null;
   welcomeEnabled: boolean;
   welcomeChannelId: string | null;
   welcomeDisplayChannelId: string | null;
   welcomeImageUrl: string | null;
+  welcomePanelImage: PanelImageSettings | null;
   welcomeTitle: string | null;
   welcomeMessage: string | null;
   welcomeRulesTitle: string | null;
@@ -95,3 +97,17 @@ export type LogCategory =
   | "moderation"
   | "dashboard"
   | "automation";
+
+export type PanelImageSettings = {
+  botId: string;
+  customHeight: number | null;
+  customWidth: number | null;
+  guildId: string;
+  imageEnabled: boolean;
+  imagePosition: "banner" | "thumbnail" | "top" | "below_text" | "above_buttons" | "footer" | "none";
+  imageSize: "small" | "medium" | "large" | "full_banner" | "custom";
+  imageUrl: string;
+  layoutMode: "embed" | "components_v2";
+  panelId: string;
+  updatedAt: string | null;
+};

@@ -1,14 +1,6 @@
-import {
-  ContainerBuilder,
-  MediaGalleryBuilder,
-  MediaGalleryItemBuilder,
-  MessageFlags,
-  TextDisplayBuilder,
-  type GuildMember,
-  type PartialGuildMember
-} from "discord.js";
+import { MessageFlags, type GuildMember, type PartialGuildMember } from "discord.js";
 import { env } from "../config/env";
-import type { BotContext } from "../types";
+import type { BotContext, PanelImageSettings } from "../types";
 import { getCachedGuildSettings } from "./guildSettingsCache";
 
 type MemberPanelMode = "welcome" | "leave";
@@ -21,6 +13,7 @@ type MemberPanelInput = {
   footerText: string | null;
   imageUrl: string | null;
   mode: MemberPanelMode;
+  panelImage: PanelImageSettings | null;
   rules: string | null;
   rulesTitle: string | null;
   title: string | null;
@@ -58,6 +51,7 @@ export async function sendWelcomeMessage(context: BotContext, member: GuildMembe
     footerText: settings.welcomeFooterText,
     imageUrl: settings.welcomeImageUrl,
     mode: "welcome",
+    panelImage: settings.welcomePanelImage,
     rules: settings.welcomeRules,
     rulesTitle: settings.welcomeRulesTitle,
     title: settings.welcomeTitle
@@ -93,6 +87,7 @@ export async function sendLeaveMessage(context: BotContext, member: GuildMember 
     footerText: settings.leaveFooterText,
     imageUrl: settings.leaveImageUrl,
     mode: "leave",
+    panelImage: settings.leavePanelImage,
     rules: settings.leaveRules,
     rulesTitle: settings.leaveRulesTitle,
     title: settings.leaveTitle
@@ -109,67 +104,104 @@ export function createMemberPanelPayload(
   variables: VariableContext,
   input: MemberPanelInput
 ) {
-  const imageUrl = resolveImageUrl(input.imageUrl);
+  const panelImage = input.panelImage?.imageEnabled ? input.panelImage : null;
+  const imageUrl = resolveImageUrl(panelImage?.imageUrl || input.imageUrl);
+  const imagePosition = imageUrl ? panelImage?.imagePosition ?? "top" : "none";
   const title = renderTemplate(input.title, variables);
   const description = renderTemplate(input.description, variables);
   const rulesTitle = renderTemplate(input.rulesTitle, variables);
   const rules = formatRuleLines(renderTemplate(input.rules, variables));
   const channelLabel = renderTemplate(input.channelLabel, variables);
   const footerText = renderTemplate(input.footerText, variables);
-  const contentBlocks: TextDisplayBuilder[] = [];
+  const contentBlocks: string[] = [];
 
   if (title) {
-    contentBlocks.push(new TextDisplayBuilder().setContent(`## ${title}`));
+    contentBlocks.push(`## ${title}`);
   }
 
   if (description) {
-    contentBlocks.push(new TextDisplayBuilder().setContent(description));
+    contentBlocks.push(description);
   }
 
   if (rulesTitle || rules.length) {
-    contentBlocks.push(new TextDisplayBuilder().setContent([
+    contentBlocks.push([
       rulesTitle ? `**${rulesTitle}**` : null,
       ...rules.map((rule, index) => `**${index + 1}.** ${rule}`)
-    ].filter(Boolean).join("\n")));
+    ].filter(Boolean).join("\n"));
   }
 
   if (channelLabel || input.channelId) {
-    contentBlocks.push(new TextDisplayBuilder().setContent(
-      [channelLabel, variables.channel].filter(Boolean).join(" ")
-    ));
+    contentBlocks.push([channelLabel, variables.channel].filter(Boolean).join(" "));
   }
 
   if (footerText) {
-    contentBlocks.push(new TextDisplayBuilder().setContent(`-# ${footerText}`));
+    contentBlocks.push(`-# ${footerText}`);
   }
 
   if (!imageUrl && !contentBlocks.length) {
     return null;
   }
 
-  const container = new ContainerBuilder()
-    .setAccentColor(parseColor(input.color));
+  const components: Array<Record<string, unknown>> = [];
 
-  if (imageUrl) {
-    container.addMediaGalleryComponents(
-      new MediaGalleryBuilder().addItems(
-        new MediaGalleryItemBuilder()
-          .setURL(imageUrl)
-          .setDescription(`${input.mode} image`)
-      )
-    );
+  if (imageUrl && imagePosition === "top") {
+    components.push(mediaGalleryComponent(imageUrl, input.mode));
   }
 
-  if (contentBlocks.length) {
-    container.addTextDisplayComponents(...contentBlocks);
+  if (imageUrl && imagePosition === "thumbnail" && contentBlocks.length) {
+    const sectionBlocks = contentBlocks.splice(0, 3);
+    components.push({
+      type: 9,
+      components: sectionBlocks.map(textDisplayComponent),
+      accessory: {
+        type: 11,
+        media: {
+          url: imageUrl
+        },
+        description: `${input.mode} image`
+      }
+    });
+  }
+
+  components.push(...contentBlocks.map(textDisplayComponent));
+
+  if (imageUrl && ["below_text", "above_buttons", "banner", "footer"].includes(imagePosition)) {
+    components.push(mediaGalleryComponent(imageUrl, input.mode));
+  }
+
+  if (imageUrl && imagePosition === "thumbnail" && !components.length) {
+    components.push(mediaGalleryComponent(imageUrl, input.mode));
   }
 
   return {
     allowedMentions: {
       parse: [] as never[]
     },
-    components: [container],
+    components: [{
+      type: 17,
+      accent_color: parseColor(input.color),
+      components
+    }],
     flags: MessageFlags.IsComponentsV2 as const
+  };
+}
+
+function textDisplayComponent(content: string) {
+  return {
+    type: 10,
+    content
+  };
+}
+
+function mediaGalleryComponent(imageUrl: string, mode: MemberPanelMode) {
+  return {
+    type: 12,
+    items: [{
+      media: {
+        url: imageUrl
+      },
+      description: `${mode} image`
+    }]
   };
 }
 

@@ -4,14 +4,17 @@ import {
   normalizeDashboardAccessLevel,
   type DashboardAccessLevel
 } from "./dashboardPermissionService";
+import { getPanelImageSettings, type PanelImageSettingsDto } from "./panelImageSettingsService";
 
 export type GuildSettingsDto = {
   botId: string | null;
   guildId: string;
+  leavePanelImage: PanelImageSettingsDto | null;
   welcomeEnabled: boolean;
   welcomeChannelId: string | null;
   welcomeDisplayChannelId: string | null;
   welcomeImageUrl: string | null;
+  welcomePanelImage: PanelImageSettingsDto | null;
   welcomeTitle: string | null;
   welcomeMessage: string | null;
   welcomeRulesTitle: string | null;
@@ -166,10 +169,12 @@ export function defaultSettings(guildId: string, botId: string | null = null): G
   return {
     botId,
     guildId,
+    leavePanelImage: null,
     welcomeEnabled: true,
     welcomeChannelId: null,
     welcomeDisplayChannelId: null,
     welcomeImageUrl: null,
+    welcomePanelImage: null,
     welcomeTitle: "",
     welcomeMessage: "",
     welcomeRulesTitle: "",
@@ -239,13 +244,13 @@ export async function getGuildSettings(guildId: string, botId?: string | null) {
     const settings = await guildSettings.findOne(settingsQuery(guildId, normalizedBotId));
 
     if (settings) {
-      return toDto(settings);
+      return withPanelImageSettings(toDto(settings));
     }
   } catch (error) {
     console.warn("[mongo] usando settings em memória:", error instanceof Error ? error.message : error);
   }
 
-  return memorySettings.get(settingsKey(guildId, normalizedBotId)) ?? defaultSettings(guildId, normalizedBotId);
+  return withPanelImageSettings(memorySettings.get(settingsKey(guildId, normalizedBotId)) ?? defaultSettings(guildId, normalizedBotId));
 }
 
 export async function getPersistedDashboardAccess(
@@ -570,10 +575,12 @@ function toDto(settings: MongoGuildSettings): GuildSettingsDto {
   return normalizeVerificationRoles({
     botId,
     guildId: settings.guildId,
+    leavePanelImage: null,
     welcomeEnabled: settings.welcomeEnabled,
     welcomeChannelId: settings.welcomeChannelId,
     welcomeDisplayChannelId: settings.welcomeDisplayChannelId ?? null,
     welcomeImageUrl: normalizeWelcomeImageUrl(settings.welcomeImageUrl),
+    welcomePanelImage: null,
     welcomeTitle: normalizePanelText(settings.welcomeTitle),
     welcomeMessage: normalizePanelMessage(settings.welcomeMessage),
     welcomeRulesTitle: normalizePanelText(settings.welcomeRulesTitle),
@@ -653,6 +660,36 @@ function toSafeBotMessageStateDto(state: MongoSafeBotMessageState): SafeBotMessa
     messageId: state.messageId,
     updatedAt: state.updatedAt.toISOString()
   };
+}
+
+async function withPanelImageSettings(settings: GuildSettingsDto): Promise<GuildSettingsDto> {
+  if (!settings.botId) {
+    return {
+      ...settings,
+      leavePanelImage: null,
+      welcomePanelImage: null
+    };
+  }
+
+  try {
+    const [welcomePanelImage, leavePanelImage] = await Promise.all([
+      getPanelImageSettings(settings.guildId, settings.botId, "welcome"),
+      getPanelImageSettings(settings.guildId, settings.botId, "leave")
+    ]);
+
+    return {
+      ...settings,
+      leavePanelImage: leavePanelImage.imageEnabled ? leavePanelImage : null,
+      welcomePanelImage: welcomePanelImage.imageEnabled ? welcomePanelImage : null
+    };
+  } catch (error) {
+    console.warn("[settings] nao foi possivel carregar imagens dos paineis:", error instanceof Error ? error.message : error);
+    return {
+      ...settings,
+      leavePanelImage: null,
+      welcomePanelImage: null
+    };
+  }
 }
 
 function normalizeVerificationRoles(settings: GuildSettingsDto): GuildSettingsDto {
