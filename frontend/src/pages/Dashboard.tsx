@@ -1368,17 +1368,6 @@ function AdvancedSecurityModulePanel({
             </Button>
             <Badge variant="muted">Escopo: {guild.name}</Badge>
           </div>
-          <div className="hidden">
-            {details.items.map((item) => (
-              <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-4" key={item}>
-                <p className="text-sm font-semibold text-white">{item}</p>
-                <p className="mt-1 text-xs font-medium text-zinc-500">Configuração dedicada deste módulo.</p>
-              </div>
-            ))}
-          </div>
-          <div className="rounded-lg border border-purple-500/20 bg-purple-500/[0.08] p-4 text-sm font-medium text-zinc-200">
-            Este menu só aparece quando o módulo <span className="font-mono text-purple-200">{moduleId}</span> está liberado para o bot na dashboard DEV.
-          </div>
         </CardContent>
       </Card>
     </div>
