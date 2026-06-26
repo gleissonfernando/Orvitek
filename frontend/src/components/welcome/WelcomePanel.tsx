@@ -196,7 +196,9 @@ export function WelcomePanel({
   );
   const enabled = Boolean(settings?.[config.enabledKey]);
   const channelId = settings?.[config.channelKey] ?? null;
+  const displayChannelId = settings?.[config.displayChannelKey] ?? null;
   const destinationChannel = channels.find((channel) => channel.id === channelId) ?? null;
+  const displayChannel = channels.find((channel) => channel.id === (displayChannelId ?? channelId)) ?? destinationChannel;
 
   useEffect(() => {
     if (!guild || !canManage) {
@@ -249,13 +251,30 @@ export function WelcomePanel({
   }
 
   async function handleChannelChange(nextChannelId: string) {
+    const payload: Partial<GuildSettings> = {
+      [config.channelKey]: nextChannelId || null
+    } as Partial<GuildSettings>;
+
+    if (!settings?.[config.displayChannelKey]) {
+      Object.assign(payload, {
+        [config.displayChannelKey]: nextChannelId || null
+      });
+    }
+
+    await savePatch(
+      payload,
+      "channel",
+      "Canal de envio salvo."
+    );
+  }
+
+  async function handleDisplayChannelChange(nextChannelId: string) {
     await savePatch(
       {
-        [config.channelKey]: nextChannelId || null,
         [config.displayChannelKey]: nextChannelId || null
       } as Partial<GuildSettings>,
-      "channel",
-      "Canal salvo."
+      "displayChannel",
+      nextChannelId ? "Canal do botao salvo." : "Canal do botao usando o canal de envio."
     );
   }
 
@@ -414,25 +433,47 @@ export function WelcomePanel({
 
       <CardContent className="grid gap-5 p-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-5">
-          <label className="block space-y-2">
-            <span className="flex items-center gap-2 text-sm font-medium text-zinc-100">
-              <Hash className="h-4 w-4 text-zinc-400" />
-              Canal
-            </span>
-            <select
-              className="h-11 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition focus:border-zinc-600 disabled:opacity-50"
-              disabled={!canManage || loadingChannels || saving === "channel"}
-              onChange={(event) => void handleChannelChange(event.target.value)}
-              value={channelId ?? ""}
-            >
-              <option value="">{loadingChannels ? "Carregando canais..." : "Selecione um canal"}</option>
-              {channels.map((channel) => (
-                <option key={channel.id} value={channel.id}>
-                  #{channel.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block space-y-2">
+              <span className="flex items-center gap-2 text-sm font-medium text-zinc-100">
+                <Hash className="h-4 w-4 text-zinc-400" />
+                Canal que recebe a mensagem
+              </span>
+              <select
+                className="h-11 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition focus:border-zinc-600 disabled:opacity-50"
+                disabled={!canManage || loadingChannels || saving === "channel"}
+                onChange={(event) => void handleChannelChange(event.target.value)}
+                value={channelId ?? ""}
+              >
+                <option value="">{loadingChannels ? "Carregando canais..." : "Selecione um canal"}</option>
+                {channels.map((channel) => (
+                  <option key={channel.id} value={channel.id}>
+                    #{channel.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block space-y-2">
+              <span className="flex items-center gap-2 text-sm font-medium text-zinc-100">
+                <Link2 className="h-4 w-4 text-zinc-400" />
+                Canal que aparece no botao
+              </span>
+              <select
+                className="h-11 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition focus:border-zinc-600 disabled:opacity-50"
+                disabled={!canManage || loadingChannels || saving === "displayChannel"}
+                onChange={(event) => void handleDisplayChannelChange(event.target.value)}
+                value={displayChannelId ?? ""}
+              >
+                <option value="">{channelId ? "Usar canal de envio" : "Selecione o canal de envio"}</option>
+                {channels.map((channel) => (
+                  <option key={channel.id} value={channel.id}>
+                    #{channel.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block space-y-2">
@@ -588,7 +629,7 @@ export function WelcomePanel({
 
         <SimplePanelPreview
           channelLabel={channelLabelInput.trim()}
-          channelName={destinationChannel?.name ?? "canal"}
+          channelName={displayChannel?.name ?? "canal"}
           color={colorInput}
           footerText={footerInput.trim()}
           imageUrl={imageUrl}
