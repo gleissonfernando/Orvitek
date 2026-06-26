@@ -32,6 +32,7 @@ import {
   Shield,
   ShieldAlert,
   ShieldCheck,
+  SlidersHorizontal,
   TicketIcon,
   Trash2,
   Upload,
@@ -286,6 +287,97 @@ const moduleCatalog: ModuleDefinition[] = [
     view: "security"
   },
   {
+    id: "anti-ban",
+    title: "Sistema Anti Ban",
+    description: "Protege cargos e usuarios contra ban, kick, timeout e remocao de cargos.",
+    icon: ShieldCheck,
+    view: "anti-ban"
+  },
+  {
+    id: "suspicious-servers",
+    title: "Servidores Suspeitos",
+    description: "Monitora entradas e identifica membros ligados a servidores suspeitos.",
+    icon: Search,
+    view: "suspicious-servers"
+  },
+  {
+    id: "global-blacklist",
+    title: "Blacklist Global",
+    description: "Bloqueia usuarios cadastrados por ID, usuario e motivo.",
+    icon: LockKeyhole,
+    view: "global-blacklist"
+  },
+  {
+    id: "advanced-permissions",
+    title: "Gerenciamento de Permissoes",
+    description: "Define permissoes avancadas por cargo para acoes sensiveis.",
+    icon: SlidersHorizontal,
+    view: "advanced-permissions"
+  },
+  {
+    id: "invite-cleanup",
+    title: "Limpeza de Convites",
+    description: "Remove convites automaticamente com excecoes configuraveis.",
+    icon: Trash2,
+    view: "invite-cleanup"
+  },
+  {
+    id: "server-backup",
+    title: "Backup Completo",
+    description: "Prepara backup manual, automatico, exportacao e restauracao seletiva.",
+    icon: Server,
+    view: "server-backup"
+  },
+  {
+    id: "vanity-url-protection",
+    title: "Protecao da URL Personalizada",
+    description: "Monitora alteracoes da URL personalizada e prepara restauracao automatica.",
+    icon: Globe2,
+    view: "vanity-url-protection"
+  },
+  {
+    id: "hide-empty-voice",
+    title: "Esconder Chamadas Vazias",
+    description: "Oculta canais de voz vazios e reexibe quando alguem entra.",
+    icon: Mic2,
+    view: "hide-empty-voice"
+  },
+  {
+    id: "auto-unmute",
+    title: "Auto Desmutar",
+    description: "Desmuta automaticamente membros no canal configurado.",
+    icon: Mic2,
+    view: "auto-unmute"
+  },
+  {
+    id: "temporary-voice",
+    title: "Chamadas Temporarias",
+    description: "Cria salas temporarias com dono, limite, bloqueio e exclusao automatica.",
+    icon: Users,
+    view: "temporary-voice"
+  },
+  {
+    id: "tag-verification",
+    title: "Verificacao de Tag",
+    description: "Entrega ou remove cargo conforme tag personalizada do Discord.",
+    icon: Hash,
+    view: "tag-verification"
+  },
+  {
+    id: "bio-url-verification",
+    title: "Verificacao de URL na Bio",
+    description: "Entrega ou remove cargo conforme URL permitida na bio do membro.",
+    icon: AtSign,
+    view: "bio-url-verification"
+  },
+  {
+    id: "first-lady",
+    title: "Sistema Primeira Dama",
+    description: "Gerencia damas, limites por cargo, historico e relacionamentos.",
+    icon: Users,
+    view: "first-lady"
+  },
+  {
     id: "fivem-absences",
     title: "Ausencias FiveM",
     description: "Gerencia solicitacoes de ausencia para faccoes, corporacoes e organizacoes.",
@@ -362,6 +454,19 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   "voice-recorder": "voice-recorder",
   "self-bot-protection": "safe-bot",
   security: "account-age-security",
+  "anti-ban": "anti-ban",
+  "suspicious-servers": "suspicious-servers",
+  "global-blacklist": "global-blacklist",
+  "advanced-permissions": "advanced-permissions",
+  "invite-cleanup": "invite-cleanup",
+  "server-backup": "server-backup",
+  "vanity-url-protection": "vanity-url-protection",
+  "hide-empty-voice": "hide-empty-voice",
+  "auto-unmute": "auto-unmute",
+  "temporary-voice": "temporary-voice",
+  "tag-verification": "tag-verification",
+  "bio-url-verification": "bio-url-verification",
+  "first-lady": "first-lady",
   moderation: "moderation",
   rules: "rules",
   "application-emojis": "emoji-cloner"
@@ -856,6 +961,12 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             settings={settings}
           />
         ) : null}
+        {advancedSecurityModuleViews.includes(activeView) ? (
+          <AdvancedSecurityModulePanel
+            canManage={canManageModule(selectedBot, viewModuleIds[activeView] ?? "", canManageDashboard)}
+            moduleId={viewModuleIds[activeView] ?? ""}
+          />
+        ) : null}
         {activeView === "permissions" ? (
           <SiteAccessPanel
             botId={activeBotId}
@@ -950,6 +1061,159 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
         ) : null}
       </motion.div>
     </DashboardLayout>
+  );
+}
+
+const advancedSecurityModuleViews: ViewId[] = [
+  "anti-ban",
+  "suspicious-servers",
+  "global-blacklist",
+  "advanced-permissions",
+  "invite-cleanup",
+  "server-backup",
+  "vanity-url-protection",
+  "hide-empty-voice",
+  "auto-unmute",
+  "temporary-voice",
+  "tag-verification",
+  "bio-url-verification",
+  "first-lady"
+];
+
+const advancedSecurityModuleDetails: Record<string, {
+  title: string;
+  description: string;
+  icon: typeof Bot;
+  items: string[];
+}> = {
+  "anti-ban": {
+    title: "Sistema Anti Ban",
+    description: "Modulo isolado para proteger cargos e membros contra acoes administrativas indevidas.",
+    icon: ShieldCheck,
+    items: ["Cargos protegidos", "Usuarios protegidos", "Punicao do executor", "Historico de tentativas"]
+  },
+  "suspicious-servers": {
+    title: "Servidores Suspeitos",
+    description: "Modulo isolado para revisar membros que entram com vinculo a listas suspeitas.",
+    icon: Search,
+    items: ["Lista personalizada", "Acao automatica", "Canal de revisao", "Historico de deteccoes"]
+  },
+  "global-blacklist": {
+    title: "Blacklist Global",
+    description: "Modulo isolado para bloquear IDs cadastrados antes de liberarem entrada no servidor.",
+    icon: LockKeyhole,
+    items: ["Usuarios bloqueados", "Motivos", "Importacao", "Exportacao"]
+  },
+  "advanced-permissions": {
+    title: "Gerenciamento de Permissoes",
+    description: "Modulo isolado para permissao granular por cargo em acoes sensiveis.",
+    icon: SlidersHorizontal,
+    items: ["Ban", "Kick", "Timeout", "Cargos e canais"]
+  },
+  "invite-cleanup": {
+    title: "Limpeza Automatica de Convites",
+    description: "Modulo isolado para apagar convites em rotina configuravel.",
+    icon: Trash2,
+    items: ["Intervalo", "Convites permanentes", "Whitelist", "Log de criadores"]
+  },
+  "server-backup": {
+    title: "Backup Completo",
+    description: "Modulo isolado para backup manual, automatico e restauracao seletiva.",
+    icon: Server,
+    items: ["Canais e cargos", "Emojis e stickers", "Webhooks", "Restauracao seletiva"]
+  },
+  "vanity-url-protection": {
+    title: "Protecao da URL Personalizada",
+    description: "Modulo isolado para monitorar e restaurar vanity URL do servidor.",
+    icon: Globe2,
+    items: ["URL esperada", "Tempo de verificacao", "Punicao", "Logs"]
+  },
+  "hide-empty-voice": {
+    title: "Esconder Chamadas Vazias",
+    description: "Modulo isolado para ocultar canais de voz vazios e mostrar quando houver membro.",
+    icon: Mic2,
+    items: ["Delay", "Categorias", "Permissoes", "Excecoes"]
+  },
+  "auto-unmute": {
+    title: "Auto Desmutar",
+    description: "Modulo isolado para remover mute manual ao entrar no canal configurado.",
+    icon: Mic2,
+    items: ["Canal gatilho", "Logs", "Excecoes", "Eventos recentes"]
+  },
+  "temporary-voice": {
+    title: "Chamadas Temporarias",
+    description: "Modulo isolado para criar salas de voz temporarias com controle pelo dono.",
+    icon: Users,
+    items: ["Canal criador", "Limite", "Senha", "Transferencia de dono"]
+  },
+  "tag-verification": {
+    title: "Verificacao de Tag",
+    description: "Modulo isolado para entregar cargo conforme tag personalizada.",
+    icon: Hash,
+    items: ["Tag exigida", "Cargo entregue", "Tempo de atualizacao", "Remocao automatica"]
+  },
+  "bio-url-verification": {
+    title: "Verificacao de URL na Bio",
+    description: "Modulo isolado para entregar cargo conforme dominios permitidos na bio.",
+    icon: AtSign,
+    items: ["Dominios permitidos", "Expressoes", "Cargo entregue", "Atualizacao automatica"]
+  },
+  "first-lady": {
+    title: "Sistema Primeira Dama",
+    description: "Modulo isolado para limites, relacoes e historico de damas por cargo.",
+    icon: Users,
+    items: ["Cargos autorizados", "Limites", "Relacionamentos", "Historico"]
+  }
+};
+
+function AdvancedSecurityModulePanel({ canManage, moduleId }: { canManage: boolean; moduleId: string }) {
+  const details = advancedSecurityModuleDetails[moduleId];
+  const Icon = details?.icon ?? Shield;
+
+  if (!details) {
+    return <EmptyState icon={Shield} title="Modulo nao encontrado" />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-purple-500/25 bg-purple-500/10 text-purple-200">
+                <Icon className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <CardTitle>{details.title}</CardTitle>
+                <CardDescription>{details.description}</CardDescription>
+              </div>
+            </div>
+            <Badge variant={canManage ? "success" : "muted"}>{canManage ? "Liberado" : "Somente leitura"}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SimpleToggleCard
+            checked={false}
+            description="Ative este modulo depois que as rotas e automacoes de runtime forem vinculadas."
+            disabled
+            icon={Icon}
+            onChange={() => undefined}
+            title="Status do sistema"
+          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {details.items.map((item) => (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-4" key={item}>
+                <p className="text-sm font-semibold text-white">{item}</p>
+                <p className="mt-1 text-xs font-medium text-zinc-500">Configuracao dedicada deste modulo.</p>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-lg border border-purple-500/20 bg-purple-500/[0.08] p-4 text-sm font-medium text-zinc-200">
+            Este menu so aparece quando o modulo <span className="font-mono text-purple-200">{moduleId}</span> esta liberado para o bot na dashboard DEV.
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -1078,7 +1342,31 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
   }
 
   if (bot.accessLevel === "premium") {
-    return ["live", "kick-integration", "clips", "giveaway", "network", "x-monitor", "mission-tools", "voice-recorder", "emoji-cloner", "server-cloner", "server-generator", "rules", "account-age-security", "safe-bot", "fivem", "fivem-factions", "fivem-corporations", "fivem-absences", "fivem-orders", "fivem-ammo", "fivem-finance", "fivem-fac"].includes(moduleId);
+    return [
+      "live",
+      "kick-integration",
+      "clips",
+      "giveaway",
+      "network",
+      "x-monitor",
+      "mission-tools",
+      "voice-recorder",
+      "emoji-cloner",
+      "server-cloner",
+      "server-generator",
+      "rules",
+      "account-age-security",
+      "safe-bot",
+      ...Object.keys(advancedSecurityModuleDetails),
+      "fivem",
+      "fivem-factions",
+      "fivem-corporations",
+      "fivem-absences",
+      "fivem-orders",
+      "fivem-ammo",
+      "fivem-finance",
+      "fivem-fac"
+    ].includes(moduleId);
   }
 
   return false;

@@ -82,6 +82,19 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "server-generator", label: "Gerador Inteligente de Servidores" },
   { id: "safe-bot", label: "SelfBot Protection" },
   { id: "account-age-security", label: "Seguranca por Idade da Conta" },
+  { id: "anti-ban", label: "Sistema Anti Ban" },
+  { id: "suspicious-servers", label: "Servidores Suspeitos" },
+  { id: "global-blacklist", label: "Blacklist Global" },
+  { id: "advanced-permissions", label: "Gerenciamento de Permissoes" },
+  { id: "invite-cleanup", label: "Limpeza Automatica de Convites" },
+  { id: "server-backup", label: "Backup Completo" },
+  { id: "vanity-url-protection", label: "Protecao da URL Personalizada" },
+  { id: "hide-empty-voice", label: "Esconder Chamadas Vazias" },
+  { id: "auto-unmute", label: "Auto Desmutar" },
+  { id: "temporary-voice", label: "Chamadas Temporarias" },
+  { id: "tag-verification", label: "Verificacao de Tag" },
+  { id: "bio-url-verification", label: "Verificacao de URL na Bio" },
+  { id: "first-lady", label: "Sistema Primeira Dama" },
   { id: "fivem", label: "FiveM" },
   { id: "fivem-factions", label: "FiveM - Sistema de Faccao" },
   { id: "fivem-corporations", label: "FiveM - Sistema de Corporacoes" },
@@ -105,6 +118,19 @@ type BotMenuId =
   | "tickets"
   | "verification"
   | "logs"
+  | "anti-ban"
+  | "suspicious-servers"
+  | "global-blacklist"
+  | "advanced-permissions"
+  | "invite-cleanup"
+  | "server-backup"
+  | "vanity-url-protection"
+  | "hide-empty-voice"
+  | "auto-unmute"
+  | "temporary-voice"
+  | "tag-verification"
+  | "bio-url-verification"
+  | "first-lady"
   | "economy"
   | "discord"
   | "select-menu"
@@ -167,6 +193,97 @@ const botMenuItems: BotMenuItem[] = [
     description: "Eventos e auditoria",
     icon: ScrollText,
     moduleIds: ["logs"]
+  },
+  {
+    id: "anti-ban",
+    label: "Anti Ban",
+    description: "Protecao contra ban, kick, timeout e remocao de cargos",
+    icon: ShieldCheck,
+    moduleIds: ["anti-ban"]
+  },
+  {
+    id: "suspicious-servers",
+    label: "Servidores Suspeitos",
+    description: "Monitoramento de entrada e servidores blacklist",
+    icon: Search,
+    moduleIds: ["suspicious-servers"]
+  },
+  {
+    id: "global-blacklist",
+    label: "Blacklist Global",
+    description: "Bloqueio de usuarios por ID e motivo",
+    icon: LockKeyhole,
+    moduleIds: ["global-blacklist"]
+  },
+  {
+    id: "advanced-permissions",
+    label: "Permissoes Avancadas",
+    description: "Permissoes especificas por cargo",
+    icon: UserCheck,
+    moduleIds: ["advanced-permissions"]
+  },
+  {
+    id: "invite-cleanup",
+    label: "Limpeza de Convites",
+    description: "Rotina automatica de remocao de convites",
+    icon: Trash2,
+    moduleIds: ["invite-cleanup"]
+  },
+  {
+    id: "server-backup",
+    label: "Backup",
+    description: "Backup e restauracao seletiva do servidor",
+    icon: Server,
+    moduleIds: ["server-backup"]
+  },
+  {
+    id: "vanity-url-protection",
+    label: "URL Personalizada",
+    description: "Protecao e restauracao da URL personalizada",
+    icon: Link2,
+    moduleIds: ["vanity-url-protection"]
+  },
+  {
+    id: "hide-empty-voice",
+    label: "Chamadas Vazias",
+    description: "Oculta canais de voz vazios automaticamente",
+    icon: EyeOff,
+    moduleIds: ["hide-empty-voice"]
+  },
+  {
+    id: "auto-unmute",
+    label: "Auto Desmutar",
+    description: "Desmuta membros ao entrar no canal configurado",
+    icon: Power,
+    moduleIds: ["auto-unmute"]
+  },
+  {
+    id: "temporary-voice",
+    label: "Chamadas Temporarias",
+    description: "Criacao e controle de salas temporarias",
+    icon: Users,
+    moduleIds: ["temporary-voice"]
+  },
+  {
+    id: "tag-verification",
+    label: "Verificacao de Tag",
+    description: "Cargo automatico por tag personalizada",
+    icon: Hash,
+    moduleIds: ["tag-verification"]
+  },
+  {
+    id: "bio-url-verification",
+    label: "URL na Bio",
+    description: "Cargo automatico por URL na bio",
+    icon: Link2,
+    moduleIds: ["bio-url-verification"]
+  },
+  {
+    id: "first-lady",
+    label: "Primeira Dama",
+    description: "Relacionamentos, limites e historico",
+    icon: UserCheck,
+    moduleIds: ["first-lady"]
   },
   {
     id: "economy",

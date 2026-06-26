@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Film,
   Gift,
+  Hash,
   ListChecks,
   LockKeyhole,
   Mic2,
@@ -21,6 +22,7 @@ import {
   SmilePlus,
   SlidersHorizontal,
   Search,
+  Server,
   UserMinus,
   UserPlus,
   Users,
@@ -45,6 +47,19 @@ export type ViewId =
   | "voice-recorder"
   | "self-bot-protection"
   | "security"
+  | "anti-ban"
+  | "suspicious-servers"
+  | "global-blacklist"
+  | "advanced-permissions"
+  | "invite-cleanup"
+  | "server-backup"
+  | "vanity-url-protection"
+  | "hide-empty-voice"
+  | "auto-unmute"
+  | "temporary-voice"
+  | "tag-verification"
+  | "bio-url-verification"
+  | "first-lady"
   | "permissions"
   | "logs"
   | "fivem"
@@ -76,6 +91,19 @@ const navItems: NavItem[] = [
   { id: "voice-recorder", label: "Voice Recorder", icon: Mic2, moduleId: "voice-recorder" },
   { id: "self-bot-protection", label: "SelfBot Protection", icon: ShieldCheck, moduleId: "safe-bot" },
   { id: "security", label: "Seguranca", icon: ShieldAlert, moduleId: "account-age-security" },
+  { id: "anti-ban", label: "Anti Ban", icon: ShieldCheck, moduleId: "anti-ban" },
+  { id: "suspicious-servers", label: "Servidores Suspeitos", icon: Search, moduleId: "suspicious-servers" },
+  { id: "global-blacklist", label: "Blacklist Global", icon: LockKeyhole, moduleId: "global-blacklist" },
+  { id: "advanced-permissions", label: "Permissoes Avancadas", icon: SlidersHorizontal, moduleId: "advanced-permissions" },
+  { id: "invite-cleanup", label: "Limpeza de Convites", icon: UserMinus, moduleId: "invite-cleanup" },
+  { id: "server-backup", label: "Backup", icon: Server, moduleId: "server-backup" },
+  { id: "vanity-url-protection", label: "URL Personalizada", icon: ChevronRight, moduleId: "vanity-url-protection" },
+  { id: "hide-empty-voice", label: "Chamadas Vazias", icon: Mic2, moduleId: "hide-empty-voice" },
+  { id: "auto-unmute", label: "Auto Desmutar", icon: Mic2, moduleId: "auto-unmute" },
+  { id: "temporary-voice", label: "Chamadas Temporarias", icon: Users, moduleId: "temporary-voice" },
+  { id: "tag-verification", label: "Verificacao de Tag", icon: Hash, moduleId: "tag-verification" },
+  { id: "bio-url-verification", label: "URL na Bio", icon: AtSign, moduleId: "bio-url-verification" },
+  { id: "first-lady", label: "Primeira Dama", icon: UserPlus, moduleId: "first-lady" },
   { id: "permissions", label: "Permissoes", icon: LockKeyhole, moduleId: "verification" },
   { id: "logs", label: "Logs", icon: ScrollText, moduleId: "logs" },
   { id: "fivem", label: "FiveM", icon: Building2, moduleIds: ["fivem", "fivem-factions", "fivem-corporations", "fivem-absences", "fivem-orders", "fivem-ammo", "fivem-finance", "fivem-fac"] },
