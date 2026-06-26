@@ -104,7 +104,7 @@ const navItems: NavItem[] = [
   { id: "tag-verification", label: "Verificacao de Tag", icon: Hash, moduleId: "tag-verification" },
   { id: "bio-url-verification", label: "URL na Bio", icon: AtSign, moduleId: "bio-url-verification" },
   { id: "first-lady", label: "Primeira Dama", icon: UserPlus, moduleId: "first-lady" },
-  { id: "permissions", label: "Permissoes", icon: LockKeyhole, moduleId: "verification" },
+  { id: "permissions", label: "Usuarios", icon: Users, moduleId: "verification" },
   { id: "logs", label: "Logs", icon: ScrollText, moduleId: "logs" },
   { id: "fivem", label: "FiveM", icon: Building2, moduleIds: ["fivem", "fivem-factions", "fivem-corporations", "fivem-absences", "fivem-orders", "fivem-ammo", "fivem-finance", "fivem-fac"] },
   { id: "notifications", label: "Notificacoes", icon: Bell },

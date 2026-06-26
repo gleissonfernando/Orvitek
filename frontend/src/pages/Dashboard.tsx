@@ -388,9 +388,9 @@ const moduleCatalog: ModuleDefinition[] = [
   },
   {
     id: "verification",
-    title: "Permissoes",
+    title: "Usuarios",
     description: "Define quais usuarios podem entrar e configurar este painel.",
-    icon: LockKeyhole,
+    icon: Users,
     view: "permissions"
   },
   {

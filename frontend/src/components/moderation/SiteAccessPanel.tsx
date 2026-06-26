@@ -270,6 +270,7 @@ export function SiteAccessPanel({
 
   return (
     <div className="space-y-5">
+    <PanelImageSettings botId={botId} canManage={canManage} guildId={guild?.id ?? null} />
     <Card>
       <CardHeader>
         <div className="flex items-start justify-between gap-4">
@@ -508,7 +509,6 @@ export function SiteAccessPanel({
         {error ? <p className="text-xs text-red-400">{error}</p> : null}
       </CardContent>
     </Card>
-    <PanelImageSettings botId={botId} canManage={canManage} guildId={guild?.id ?? null} />
     </div>
   );
 }
