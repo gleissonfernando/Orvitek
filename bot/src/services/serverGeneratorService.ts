@@ -56,9 +56,15 @@ type GeneratorInput = {
 };
 
 type GeneratedCategory = {
-  channels: Array<{ name: string; topic: string; type: ChannelType.GuildText | ChannelType.GuildVoice }>;
+  channels: GeneratedChannel[];
   name: string;
   privateStaff?: boolean;
+};
+
+type GeneratedChannel = {
+  name: string;
+  topic: string;
+  type: ChannelType.GuildText | ChannelType.GuildVoice;
 };
 
 type GeneratedRole = {
@@ -376,6 +382,11 @@ function parseInput(interaction: ModalSubmitInteraction): GeneratorInput {
 function generatePlan(input: GeneratorInput, guildId: string, userId: string): ServerPlan {
   const random = seededRandom(`${guildId}:${userId}:${Date.now()}:${input.serverName}:${input.objective}`);
   const profile = typeProfiles[input.type];
+
+  if (input.type === "streamer") {
+    return generateStreamerPlan(input, random, profile.systems);
+  }
+
   const categoryCount = input.categoryTarget ?? Math.min(10, Math.max(5, 5 + random.int(5)));
   const emojis = styleEmoji[input.style] ?? styleEmoji.modern ?? ["•"];
   const categorySeeds = random.shuffle(profile.categorySeeds).slice(0, categoryCount);
@@ -407,6 +418,88 @@ function generatePlan(input: GeneratorInput, guildId: string, userId: string): S
     roles,
     summary: `${input.serverName} recebeu estrutura ${input.style} para ${profile.systems.join(", ")}.`
   };
+}
+
+function generateStreamerPlan(input: GeneratorInput, random: RandomSource, systems: string[]): ServerPlan {
+  const voiceNames = random.shuffle([
+    "🔴・Ao vivo",
+    "🎙️・Papo da live",
+    "🎬・Bastidores",
+    "⭐・Sala dos subs",
+    "💤・AFK"
+  ]);
+  const categories: GeneratedCategory[] = [
+    {
+      name: "📢・Central",
+      channels: textChannels(input, [
+        ["📌・regras", "Regras, conduta e informacoes importantes."],
+        ["📣・avisos", "Avisos oficiais da live e da comunidade."],
+        ["🔴・lives", "Notificacoes quando a live estiver online."]
+      ])
+    },
+    {
+      name: "🎬・Conteúdo",
+      channels: textChannels(input, [
+        ["🎞️・clips", "Melhores momentos enviados pela comunidade."],
+        ["📸・bastidores", "Bastidores, previas e novidades do criador."],
+        ["💡・ideias", "Ideias de conteudo, quadros e desafios."]
+      ])
+    },
+    {
+      name: "💬・Comunidade",
+      channels: textChannels(input, [
+        ["💬・chat", "Conversa geral da comunidade."],
+        ["😂・memes", "Memes, zoeira leve e momentos da live."],
+        ["🤝・parcerias", "Divulgacao de parceiros e conexoes."]
+      ])
+    },
+    {
+      name: "⭐・Benefícios",
+      channels: textChannels(input, [
+        ["⭐・subs", "Area especial para inscritos e apoiadores."],
+        ["💎・vip", "Beneficios, sorteios e novidades VIP."],
+        ["🎁・sorteios", "Sorteios e recompensas da comunidade."]
+      ])
+    },
+    {
+      name: random.pick(["🎙️・Calls da Live", "🔊・Voice Lounge", "⭐・Salas de Voz"]),
+      channels: voiceNames.map((name) => ({
+        name,
+        topic: `Sala de voz para ${input.serverName}`,
+        type: ChannelType.GuildVoice as const
+      }))
+    },
+    {
+      name: "🛡️・Staff",
+      privateStaff: true,
+      channels: textChannels(input, [
+        ["🧰・staff-chat", "Organizacao interna da equipe."],
+        ["📋・logs", "Registros internos e auditoria."],
+        ["✅・tarefas", "Checklist de moderacao, lives e eventos."]
+      ])
+    }
+  ];
+  const roles = ["Streamer", "Manager", "Moderador", "Editor", "Subscriber", "VIP", "Viewer"].map((name, index) => ({
+    color: roleColors[(index + random.int(roleColors.length)) % roleColors.length]!,
+    hoist: index < 5,
+    name,
+    permissions: index === 0 ? PermissionFlagsBits.ManageGuild : index <= 2 ? PermissionFlagsBits.ManageMessages : undefined
+  }));
+
+  return {
+    categories,
+    panels: panelDefinitions(input, systems, random),
+    roles,
+    summary: `${input.serverName} recebeu estrutura streamer com central, conteudo, comunidade, beneficios, calls e staff.`
+  };
+}
+
+function textChannels(input: GeneratorInput, channels: Array<[string, string]>): GeneratedChannel[] {
+  return channels.map(([name, description]) => ({
+    name,
+    topic: `${description} ${input.objective.slice(0, 140)}`.trim(),
+    type: ChannelType.GuildText as const
+  }));
 }
 
 function buildTextChannel(input: GeneratorInput, prefix: string, channelSeed: string, salt: number) {
