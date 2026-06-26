@@ -64,9 +64,6 @@ export async function publishRulesPanelToDiscord(settings: GuildSettingsDto, bot
 function buildRulesPanelPayload(settings: GuildSettingsDto) {
   const rules = formatRuleLines(settings.rulesMessage);
   const columns = splitRulesIntoFields(rules);
-  const roleLine = settings.rulesRoleId
-    ? `Ao aceitar, voce recebe automaticamente o cargo <@&${settings.rulesRoleId}>.`
-    : "Ao aceitar, voce confirma que leu e concorda com as regras do servidor.";
 
   return {
     embeds: [
@@ -81,11 +78,7 @@ function buildRulesPanelPayload(settings: GuildSettingsDto) {
           ...columns.map((lines, index) => ({
             name: index === 0 ? "Conduta" : "Segurança e convivência",
             value: lines.join("\n")
-          })),
-          {
-            name: "Aceite",
-            value: roleLine
-          }
+          }))
         ],
         footer: {
           text: "Obrigado por ajudar a manter a comunidade organizada."
@@ -93,19 +86,7 @@ function buildRulesPanelPayload(settings: GuildSettingsDto) {
         timestamp: new Date().toISOString()
       }
     ],
-    components: [
-      {
-        type: 1,
-        components: [
-          {
-            type: 2,
-            custom_id: RULES_ACCEPT_BUTTON_ID,
-            label: settings.rulesButtonLabel || "Li e aceito",
-            style: 3
-          }
-        ]
-      }
-    ]
+    components: []
   };
 }
 
