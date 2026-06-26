@@ -17,6 +17,7 @@ import {
   registerPrimaryDevBot,
   testDiscordBotToken,
   setSecurityProtectionAccess,
+  syncSecurityProtectionAccessFromModules,
   updateBotGuildConfig,
   updateDevBot,
   updateDevBotModules,
@@ -532,6 +533,10 @@ devRouter.patch("/bots/:botId", async (req, res, next) => {
       });
     }
 
+    if (input.enabledModules !== undefined) {
+      await syncSecurityProtectionAccessFromModules(updatedBot.id, updatedBot.enabledModules, auth.user.discordId);
+    }
+
     await restartDevBotProcess(updatedBot.id);
     const bot = await getDevBot(updatedBot.id) ?? updatedBot;
     await writeDevBotAudit(auth, bot.mainGuildId, bot.id, "update", `Bot ${bot.name} atualizado no painel.`, {
@@ -689,7 +694,9 @@ devRouter.patch("/bots/:botId/modules", async (req, res, next) => {
     }
 
     const input = modulesSchema.parse(req.body);
-    const updatedBot = await updateDevBotModules(req.params.botId, input.enabledModules);
+    const updatedBot = await updateDevBotModules(req.params.botId, input.enabledModules, {
+      actorId: auth.user.discordId
+    });
 
     if (!updatedBot) {
       return res.status(404).json({

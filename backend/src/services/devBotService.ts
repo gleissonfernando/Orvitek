@@ -1035,7 +1035,11 @@ export async function deleteDevBot(botId: string) {
   return dto;
 }
 
-export async function updateDevBotModules(botId: string, enabledModules: string[]) {
+export async function updateDevBotModules(
+  botId: string,
+  enabledModules: string[],
+  options: { actorId?: string | null; syncSecurityAccess?: boolean } = {}
+) {
   const { devBots } = await getMongoCollections();
   const current = await devBots.findOne(
     { _id: botId },
@@ -1056,6 +1060,9 @@ export async function updateDevBotModules(botId: string, enabledModules: string[
     }
     if (hadSelfBot && !bot.enabledModules.includes("safe-bot")) {
       await disableSelfBotDefaults(bot);
+    }
+    if (options.syncSecurityAccess !== false) {
+      await syncSecurityProtectionAccessFromModules(botId, bot.enabledModules, options.actorId ?? null);
     }
 
     emitRealtime("dev:module_updated", {
@@ -1683,10 +1690,55 @@ export async function setSecurityProtectionAccess(input: {
   const modules = input.enabledByDev
     ? [...new Set([...bot.enabledModules, "safe-bot"])]
     : bot.enabledModules.filter((moduleId) => moduleId !== "safe-bot");
-  const updatedBot = await updateDevBotModules(input.botId, modules);
+  const updatedBot = await updateDevBotModules(input.botId, modules, {
+    syncSecurityAccess: false
+  });
   const saved = await readSecurityProtectionAccess(input.botId);
 
   return toSecurityFeatureAccessDto(input.botId, saved, Boolean(updatedBot?.enabledModules.includes("safe-bot")));
+}
+
+export async function syncSecurityProtectionAccessFromModules(
+  botId: string,
+  enabledModules: string[],
+  actorId: string | null = null
+) {
+  const enabledByDev = sanitizeModules(enabledModules).includes("safe-bot");
+  const { securityFeatureAccess } = await getMongoCollections();
+  const now = new Date();
+  const current = await securityFeatureAccess.findOne({
+    botId,
+    featureKey: SECURITY_PROTECTION_FEATURE_KEY
+  });
+
+  if (current?.enabledByDev === enabledByDev) {
+    return toSecurityFeatureAccessDto(botId, current, enabledByDev);
+  }
+
+  await securityFeatureAccess.updateOne(
+    {
+      botId,
+      featureKey: SECURITY_PROTECTION_FEATURE_KEY
+    },
+    {
+      $set: {
+        botId,
+        enabledBy: actorId ?? current?.enabledBy ?? null,
+        enabledByDev,
+        enabledAt: enabledByDev ? now : null,
+        featureKey: SECURITY_PROTECTION_FEATURE_KEY,
+        updatedAt: now
+      },
+      $setOnInsert: {
+        _id: randomUUID(),
+        createdAt: now
+      }
+    },
+    { upsert: true }
+  );
+
+  const saved = await readSecurityProtectionAccess(botId);
+  return toSecurityFeatureAccessDto(botId, saved, enabledByDev);
 }
 
 export async function isSecurityProtectionReleasedForBot(botId: string) {
