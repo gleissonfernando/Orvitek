@@ -4,7 +4,7 @@ import {
   UserSelectMenuBuilder, StringSelectMenuBuilder, type ButtonInteraction, type Channel, type Client, type Interaction, type ModalSubmitInteraction,
   type UserSelectMenuInteraction, type StringSelectMenuInteraction, type VoiceState, type VoiceChannel, type Guild, type Message
 } from "discord.js";
-import { isBotModuleEnabled } from "../config/env";
+import { isBotModuleEnabled, setRuntimeEnabledModules } from "../config/env";
 import type { BotContext } from "../types";
 import type { TemporaryCall, TemporaryVoiceSettings } from "./apiClient";
 
@@ -22,7 +22,18 @@ export function startTemporaryVoiceService(client: Client<true>, context: BotCon
 export async function handleTemporaryVoiceMessage(message: Message, context: BotContext) {
   if (message.author.bot || !message.guild || message.content.trim().toLowerCase() !== ".call") return false;
 
-  if (!isBotModuleEnabled("temporary-voice")) return false;
+  if (!isBotModuleEnabled("temporary-voice")) {
+    const runtime = await context.api.getRuntimeModules().catch(() => null);
+
+    if (runtime) {
+      setRuntimeEnabledModules(runtime.active ? runtime.enabledModules : [], runtime.botId);
+    }
+  }
+
+  if (!isBotModuleEnabled("temporary-voice")) {
+    await message.reply("Temporary calls are not released for this bot in the DEV dashboard.").catch(() => null);
+    return true;
+  }
 
   const settings = await context.api.getTemporaryVoiceSettings(message.guild.id).catch(() => null);
   if (!settings?.enabled) {

@@ -34,7 +34,7 @@ const GATEWAY_GUILD_MEMBERS_LIMITED = 1 << 15;
 const GATEWAY_MESSAGE_CONTENT = 1 << 18;
 const GATEWAY_MESSAGE_CONTENT_LIMITED = 1 << 19;
 const MODULES_REQUIRING_MEMBER_EVENTS = ["welcome", "leave", "roles", "logs", "fivem-absences", "fivem-fac", "account-age-security", "safe-bot", "moderation"];
-const MODULES_REQUIRING_MESSAGE_CONTENT = ["moderation", "safe-bot", "link-anti-spam", "image-anti-spam"];
+const MODULES_REQUIRING_MESSAGE_CONTENT = ["moderation", "safe-bot", "link-anti-spam", "image-anti-spam", "temporary-voice"];
 const DEV_BOT_START_CONCURRENCY = 2;
 const DEV_BOT_START_STAGGER_MS = 3_000;
 const DEV_BOT_RESTART_DELAY_MS = 30_000;
@@ -153,7 +153,7 @@ async function startRuntime(bot: DevBotRuntimeConfig) {
     await updateDevBotRuntimeStatus(
       bot.id,
       "error",
-      "Ative o Message Content Intent no Discord Developer Portal para usar SelfBot Protection."
+      "Ative o Message Content Intent no Discord Developer Portal para usar os modulos que leem mensagens."
     );
     return;
   }
