@@ -56,14 +56,21 @@ export async function handleMusicMessage(message: Message, context: BotContext) 
     return false;
   }
 
-  const access = await prepareMessageAccess(message, context, command !== "queue");
+  const access = await prepareMessageAccess(message, context, !["music", "queue"].includes(command));
   if (!access) return true;
 
   try {
     if (command === "music") {
-      const session = getMusicSession(message.guildId);
+      const session = await ensureMusicSession(
+        context,
+        access.member.guild,
+        access.voiceChannel,
+        access.textChannel,
+        access.config
+      );
+      updateAloneState(context, session, access.voiceChannel.members.some((member) => !member.user.bot));
       const panel = await message.channel.send(musicPanelPayload(session));
-      if (session) session.panelMessage = panel;
+      session.panelMessage = panel;
       return true;
     }
     if (command === "play") {
