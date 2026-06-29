@@ -38,10 +38,23 @@ const COMMANDS = new Set(["music", "play", "artist", "pause", "resume", "skip", 
 const cooldowns = new Map<string, number>();
 
 export async function handleMusicMessage(message: Message, context: BotContext) {
-  if (!message.inGuild() || message.author.bot || !message.content.startsWith(PREFIX)) return false;
-  const [rawCommand, ...parts] = message.content.slice(PREFIX.length).trim().split(/\s+/);
-  const command = rawCommand?.toLowerCase() ?? "";
-  if (!COMMANDS.has(command)) return false;
+  if (!message.inGuild() || message.author.bot) return false;
+
+  const directLink = directYouTubeLink(message.content);
+  let command: string;
+  let parts: string[];
+
+  if (message.content.startsWith(PREFIX)) {
+    const [rawCommand, ...commandParts] = message.content.slice(PREFIX.length).trim().split(/\s+/);
+    command = rawCommand?.toLowerCase() ?? "";
+    parts = commandParts;
+    if (!COMMANDS.has(command)) return false;
+  } else if (directLink && await shouldHandleDirectMusicLink(message, context)) {
+    command = "play";
+    parts = [directLink];
+  } else {
+    return false;
+  }
 
   const access = await prepareMessageAccess(message, context, command !== "queue");
   if (!access) return true;
@@ -70,6 +83,17 @@ export async function handleMusicMessage(message: Message, context: BotContext) 
     await message.reply(`❌ ${errorMessage(error)}`);
   }
   return true;
+}
+
+async function shouldHandleDirectMusicLink(message: Message<true>, context: BotContext) {
+  const [authorization, config] = await Promise.all([
+    getRuntimeModuleAuthorization(context, message.guildId, "music"),
+    getMusicConfig(context, message.guildId).catch(() => null)
+  ]);
+
+  return authorization.allowed
+    && config?.enabled === true
+    && (!config.commandChannelId || config.commandChannelId === message.channelId);
 }
 
 export async function handleMusicInteraction(interaction: Interaction, context: BotContext) {
@@ -356,4 +380,20 @@ function errorMessage(error: unknown) {
     return "A fonte de música não respondeu a tempo. Tente novamente em instantes.";
   }
   return message || "Não foi possível concluir essa ação.";
+}
+
+function directYouTubeLink(content: string) {
+  const value = content.trim().replace(/^<(.+)>$/, "$1");
+  if (!value || /\s/.test(value)) return null;
+
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    return url.protocol === "https:"
+      && (host === "youtube.com" || host.endsWith(".youtube.com") || host === "youtu.be")
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
 }
