@@ -142,6 +142,7 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "fivem-ammo", label: "FiveM - Sistema de Municoes" },
   { id: "fivem-finance", label: "FiveM - Sistema Financeiro" },
   { id: "fivem-goals", label: "FiveM - Sistema de Metas" },
+  { id: "fivem-hierarchy", label: "FiveM - Hierarquia FAQ" },
   { id: "fivem-fac", label: "FiveM - FAC Ausencia" },
   { id: "avisos", label: "Mensagens e Personalização" }
 ];
@@ -186,6 +187,7 @@ type BotMenuId =
   | "fivem-orders"
   | "fivem-finance"
   | "fivem-goals"
+  | "fivem-hierarchy"
   | "fivem-production"
   | "integrations";
 
@@ -422,6 +424,13 @@ const botMenuItems: BotMenuItem[] = [
         description: "Metas e producao",
         icon: ListChecks,
         moduleIds: ["fivem-goals"]
+      },
+      {
+        id: "fivem-hierarchy",
+        label: "Hierarquia FAQ",
+        description: "Painel de cargos e hierarquia",
+        icon: Users,
+        moduleIds: ["fivem-hierarchy"]
       },
       {
         id: "fivem-production",

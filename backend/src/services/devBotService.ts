@@ -83,6 +83,7 @@ export const DEV_MODULES = [
   { id: "fivem-ammo", label: "FiveM - Sistema de Municoes" },
   { id: "fivem-finance", label: "FiveM - Sistema Financeiro" },
   { id: "fivem-goals", label: "FiveM - Sistema de Metas" },
+  { id: "fivem-hierarchy", label: "FiveM - Hierarquia FAQ" },
   { id: "fivem-fac", label: "FiveM - FAC Ausencia" },
   { id: "avisos", label: "Mensagens e Personalizacao" }
 ] as const;

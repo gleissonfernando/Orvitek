@@ -116,7 +116,7 @@ const navItems: NavItem[] = [
   { id: "first-lady", label: "Primeira Dama", icon: UserPlus, moduleId: "first-lady" },
   { id: "permissions", label: "Usuarios", icon: Users, moduleId: "verification" },
   { id: "logs", label: "Logs e Notificações", icon: ScrollText, moduleId: "logs" },
-  { id: "fivem", label: "FiveM Geral", icon: Building2, moduleIds: ["fivem", "fivem-factions", "fivem-corporations", "fivem-absences", "fivem-ammo", "fivem-finance", "fivem-fac"] },
+  { id: "fivem", label: "FiveM Geral", icon: Building2, moduleIds: ["fivem", "fivem-factions", "fivem-corporations", "fivem-absences", "fivem-ammo", "fivem-finance", "fivem-hierarchy", "fivem-fac"] },
   { id: "fivem-orders", label: "Encomendas", icon: Archive, moduleId: "fivem-orders" },
   { id: "fivem-goals", label: "Metas", icon: ListChecks, moduleId: "fivem-goals" },
   { id: "entry-leave", label: "Entrada/Saida", icon: UserPlus, moduleIds: ["welcome", "leave"] },

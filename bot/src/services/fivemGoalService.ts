@@ -10,6 +10,7 @@ import {
   TextInputStyle,
   type Attachment,
   type ButtonInteraction,
+  type Client,
   type Guild,
   type Interaction,
   type Message,
@@ -19,9 +20,17 @@ import type { BotContext } from "../types";
 import type { FivemGoalSettings } from "./apiClient";
 
 const PREFIX = "fivem_goal";
+const REQUEST_CHANNEL_CUSTOM_ID = `${PREFIX}:request_channel`;
 const ALLOWED_IMAGE_EXTENSIONS = /\.(png|jpe?g|webp)(?:\?.*)?$/i;
 const ALLOWED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const pendingImages = new Map<string, { channelId: string; expiresAt: number; imageUrl: string; userId: string }>();
+
+export function startFivemGoalService(client: Client<true>, context: BotContext) {
+  context.socket.onFivemGoalPanelPublish((payload) => {
+    const guild = client.guilds.cache.get(payload.guildId);
+    if (guild) void publishGoalRequestPanel(guild, context);
+  });
+}
 
 export async function ensureFivemGoalChannelForUser(context: BotContext, guild: Guild, userId: string, username: string) {
   const settings = await context.api.getFivemGoalSettings(guild.id).catch(() => null);
@@ -117,6 +126,16 @@ export async function handleFivemGoalMessage(message: Message, context: BotConte
 export async function handleFivemGoalInteraction(interaction: Interaction, context: BotContext) {
   if (!("customId" in interaction) || !interaction.customId.startsWith(`${PREFIX}:`)) return false;
 
+  if (interaction.isButton() && interaction.customId === REQUEST_CHANNEL_CUSTOM_ID) {
+    await handleGoalChannelRequest(interaction, context);
+    return true;
+  }
+
+  if (interaction.isButton() && interaction.customId === `${PREFIX}:help`) {
+    await interaction.reply({ content: "Clique em Solicitar canal de meta. Depois envie suas fotos apenas no seu canal individual para registrar comprovantes.", ephemeral: true });
+    return true;
+  }
+
   if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:register:`)) {
     await showGoalModal(interaction, context);
     return true;
@@ -128,6 +147,65 @@ export async function handleFivemGoalInteraction(interaction: Interaction, conte
   }
 
   return false;
+}
+
+async function handleGoalChannelRequest(interaction: ButtonInteraction, context: BotContext) {
+  if (!interaction.guild) return;
+  await interaction.deferReply({ ephemeral: true });
+  const settings = await context.api.getFivemGoalSettings(interaction.guild.id).catch(() => null);
+  if (!settings?.enabled) {
+    await interaction.editReply("O sistema de metas nao esta ativo neste servidor.");
+    return;
+  }
+  const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+  const channelId = await ensureFivemGoalChannelForUser(context, interaction.guild, interaction.user.id, member?.displayName ?? interaction.user.username);
+  if (!channelId) {
+    await interaction.editReply("Nao foi possivel criar seu canal de meta. Avise a administracao para conferir categoria e permissoes do bot.");
+    return;
+  }
+  await interaction.editReply(`Seu canal individual de meta esta pronto: <#${channelId}>`);
+}
+
+async function publishGoalRequestPanel(guild: Guild, context: BotContext) {
+  const settings = await context.api.getFivemGoalSettings(guild.id);
+  if (!settings.enabled || !settings.requestPanelEnabled || !settings.requestPanelChannelId) return;
+  const channel = await guild.channels.fetch(settings.requestPanelChannelId).catch(() => null);
+  if (!channel || !("send" in channel) || !("messages" in channel)) return;
+  const payload = createGoalRequestPanelPayload(settings.requestPanelTitle, settings.requestPanelDescription);
+  let message = settings.requestPanelMessageId
+    ? await channel.messages.fetch(settings.requestPanelMessageId).catch(() => null)
+    : null;
+  if (message) {
+    await message.edit(payload).catch(async () => {
+      message = await channel.send(payload).catch(() => null);
+    });
+  } else {
+    message = await channel.send(payload).catch(() => null);
+  }
+  if (message) {
+    await context.api.updateFivemGoalPanelState({ guildId: guild.id, messageId: message.id }).catch(() => null);
+  }
+}
+
+function createGoalRequestPanelPayload(title: string, description: string) {
+  return {
+    allowedMentions: { parse: [] as never[] },
+    components: [
+      {
+        type: 17,
+        accent_color: 0x22c55e,
+        components: [
+          { type: 10, content: `# ${title || "Sistema de Metas FiveM"}\n${description || "Solicite seu canal individual de meta para enviar comprovantes e acompanhar seu progresso."}` },
+          { type: 10, content: "Use o botao abaixo para criar ou localizar seu canal individual de meta." }
+        ]
+      },
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(REQUEST_CHANNEL_CUSTOM_ID).setLabel("Solicitar canal de meta").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`${PREFIX}:help`).setLabel("Ajuda").setStyle(ButtonStyle.Secondary)
+      )
+    ],
+    flags: MessageFlags.IsComponentsV2 as const
+  };
 }
 
 async function showGoalModal(interaction: ButtonInteraction, context: BotContext) {

@@ -20,7 +20,7 @@ const needsMusic = isBotModuleEnabled("music") || managedRuntimeBot;
 const needsTagVerification = isBotModuleEnabled("tag-verification") || managedRuntimeBot;
 const needsVoiceEvents = managedRuntimeBot || isBotModuleEnabled("anti-abuse") || isBotModuleEnabled("anti-disconnect") || isBotModuleEnabled("temporary-voice") || isBotModuleEnabled("logs");
 const needsAntiBan = isBotModuleEnabled("anti-ban") || managedRuntimeBot;
-const needsMemberEvents = ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security", "anti-ban", "tag-verification"].some(isBotModuleEnabled)
+const needsMemberEvents = ["welcome", "leave", "roles", "logs", "fivem-fac", "fivem-hierarchy", "account-age-security", "anti-ban", "tag-verification"].some(isBotModuleEnabled)
   || isSelfBotModuleEnabled()
   || managedRuntimeBot;
 const selfBotModuleEnabled = isSelfBotModuleEnabled();

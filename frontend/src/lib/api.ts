@@ -28,6 +28,8 @@ import type {
   FivemGoalDashboard,
   FivemGoalSettings,
   FivemGoalSubmission,
+  FivemHierarchyDashboard,
+  FivemHierarchyPanel,
   FivemModuleDefinition,
   Giveaway,
   GiveawayDiagnostics,
@@ -1361,6 +1363,14 @@ export async function saveFivemGoalSettings(guildId: string, payload: Partial<Fi
   return data.settings;
 }
 
+export async function publishFivemGoalPanel(guildId: string, botId?: string | null) {
+  const { data } = await api.post<{ settings: FivemGoalSettings }>(`/fivem/${guildId}/goals/panel`, undefined, {
+    params: botId ? { botId } : undefined,
+    timeout: 15000
+  });
+  return data.settings;
+}
+
 export async function createFivemGoalConfig(guildId: string, payload: Partial<FivemGoalConfig>, botId?: string | null) {
   const { data } = await api.post<{ config: FivemGoalConfig }>(`/fivem/${guildId}/goals/configs`, payload, {
     params: botId ? { botId } : undefined
@@ -1390,6 +1400,36 @@ export async function moderateFivemGoalSubmission(guildId: string, submissionId:
     params: botId ? { botId } : undefined
   });
   return data.submission;
+}
+
+export async function getFivemHierarchy(guildId: string, botId?: string | null) {
+  const { data } = await api.get<FivemHierarchyDashboard>(`/fivem/${guildId}/hierarchy`, {
+    params: botId ? { botId } : undefined
+  });
+  return data;
+}
+
+export async function saveFivemHierarchyPanel(guildId: string, payload: Partial<FivemHierarchyPanel>, botId?: string | null) {
+  const request = payload.id
+    ? api.patch<{ panel: FivemHierarchyPanel }>(`/fivem/${guildId}/hierarchy/panels/${encodeURIComponent(payload.id)}`, payload, { params: botId ? { botId } : undefined })
+    : api.post<{ panel: FivemHierarchyPanel }>(`/fivem/${guildId}/hierarchy/panels`, payload, { params: botId ? { botId } : undefined });
+  const { data } = await request;
+  return data.panel;
+}
+
+export async function deleteFivemHierarchyPanel(guildId: string, panelId: string, botId?: string | null) {
+  const { data } = await api.delete<{ panel: FivemHierarchyPanel }>(`/fivem/${guildId}/hierarchy/panels/${encodeURIComponent(panelId)}`, {
+    params: botId ? { botId } : undefined
+  });
+  return data.panel;
+}
+
+export async function publishFivemHierarchyPanel(guildId: string, panelId: string, botId?: string | null) {
+  const { data } = await api.post<{ panel: FivemHierarchyPanel }>(`/fivem/${guildId}/hierarchy/panels/${encodeURIComponent(panelId)}/publish`, undefined, {
+    params: botId ? { botId } : undefined,
+    timeout: 15000
+  });
+  return data.panel;
 }
 
 export async function getDevFivemModules() {

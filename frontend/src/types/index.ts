@@ -775,6 +775,7 @@ export type FivemGoalItem = {
 };
 
 export type FivemGoalSettings = {
+  autoCreateWithManualRegistration: boolean;
   botId: string | null;
   categoryId: string | null;
   channelNameTemplate: string;
@@ -784,6 +785,12 @@ export type FivemGoalSettings = {
   items: FivemGoalItem[];
   logChannelId: string | null;
   managerRoleId: string | null;
+  requestPanelChannelId: string | null;
+  requestPanelDescription: string;
+  requestPanelEnabled: boolean;
+  requestPanelMessageId: string | null;
+  requestPanelTitle: string;
+  requestRequiresApproval: boolean;
   updatedAt: string | null;
   viewRoleId: string | null;
 };
@@ -876,6 +883,59 @@ export type FivemGoalDashboard = {
   logs: FivemGoalLog[];
   settings: FivemGoalSettings;
   submissions: FivemGoalSubmission[];
+};
+
+export type FivemHierarchyEntry = {
+  active: boolean;
+  color: string | null;
+  description: string | null;
+  emoji: string | null;
+  id: string;
+  limit: number | null;
+  name: string;
+  order: number;
+  roleId: string;
+};
+
+export type FivemHierarchyPanel = {
+  allowedRoleIds: string[];
+  botId: string | null;
+  color: string;
+  createdAt: string;
+  description: string | null;
+  enabled: boolean;
+  footerEnabled: boolean;
+  footerIconUrl: string | null;
+  footerText: string | null;
+  guildId: string;
+  hierarchies: FivemHierarchyEntry[];
+  id: string;
+  imagePosition: "top" | "bottom" | "thumbnail" | "none";
+  imageUrl: string | null;
+  linkedToFivem: boolean;
+  logChannelId: string | null;
+  name: string;
+  panelChannelId: string | null;
+  panelMessageId: string | null;
+  title: string;
+  updatedAt: string;
+  updatedBy?: string | null;
+};
+
+export type FivemHierarchyLog = {
+  action: string;
+  botId: string | null;
+  createdAt: string;
+  details: Record<string, unknown>;
+  guildId: string;
+  id: string;
+  panelId: string | null;
+  userId: string | null;
+};
+
+export type FivemHierarchyDashboard = {
+  logs: FivemHierarchyLog[];
+  panels: FivemHierarchyPanel[];
 };
 
 export type GlobalBlacklistSafeBotSettings = {

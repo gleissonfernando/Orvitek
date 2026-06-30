@@ -9,6 +9,7 @@ import {
   type MongoFivemGoalSubmission,
   type MongoFivemGoalUserChannel
 } from "../database/mongo";
+import { devBotRealtimeRoom, emitRealtimeToRoom } from "../realtime/events";
 
 export const FIVEM_GOALS_MODULE_ID = "fivem-goals";
 
@@ -33,6 +34,7 @@ export type FivemGoalItemDto = {
 };
 
 export type FivemGoalSettingsDto = {
+  autoCreateWithManualRegistration: boolean;
   botId: string | null;
   categoryId: string | null;
   channelNameTemplate: string;
@@ -42,6 +44,12 @@ export type FivemGoalSettingsDto = {
   items: FivemGoalItemDto[];
   logChannelId: string | null;
   managerRoleId: string | null;
+  requestPanelChannelId: string | null;
+  requestPanelDescription: string;
+  requestPanelEnabled: boolean;
+  requestPanelMessageId: string | null;
+  requestPanelTitle: string;
+  requestRequiresApproval: boolean;
   updatedAt: string | null;
   viewRoleId: string | null;
 };
@@ -156,6 +164,7 @@ const DEFAULT_ITEMS: FivemGoalItemDto[] = [
 
 export function defaultFivemGoalSettings(guildId: string, botId: string | null = null): FivemGoalSettingsDto {
   return {
+    autoCreateWithManualRegistration: true,
     botId,
     categoryId: null,
     channelNameTemplate: "📈・{username}",
@@ -165,6 +174,12 @@ export function defaultFivemGoalSettings(guildId: string, botId: string | null =
     items: DEFAULT_ITEMS.map((item) => ({ ...item })),
     logChannelId: null,
     managerRoleId: null,
+    requestPanelChannelId: null,
+    requestPanelDescription: "Solicite seu canal individual de meta para enviar comprovantes, acompanhar sua producao semanal e visualizar seu progresso.",
+    requestPanelEnabled: true,
+    requestPanelMessageId: null,
+    requestPanelTitle: "Sistema de Metas FiveM",
+    requestRequiresApproval: false,
     updatedAt: null,
     viewRoleId: null
   };
@@ -201,6 +216,36 @@ export async function saveFivemGoalSettings(guildId: string, botId: string | nul
   const saved = await getFivemGoalSettings(guildId, normalizedBotId);
   await ensureDefaultGoalConfigFromLegacy(saved, actorId);
   return saved;
+}
+
+export async function requestFivemGoalPanelPublish(guildId: string, botId: string, actorId: string | null) {
+  const settings = await getFivemGoalSettings(guildId, botId);
+  if (!settings.enabled) throw new Error("Ative o sistema de metas antes de publicar o painel.");
+  if (!settings.requestPanelChannelId) throw new Error("Configure o canal do painel de solicitacao de meta.");
+
+  await writeFivemGoalLog({
+    action: "request_panel.publish_requested",
+    botId,
+    details: { channelId: settings.requestPanelChannelId },
+    guildId,
+    metaId: null,
+    userId: actorId
+  });
+  emitRealtimeToRoom(devBotRealtimeRoom(botId), "fivem:goals:panel_publish", { botId, guildId, settings });
+  return settings;
+}
+
+export async function updateFivemGoalRequestPanelState(guildId: string, botId: string | null, messageId: string | null) {
+  const settings = await saveFivemGoalSettings(guildId, botId, { requestPanelMessageId: messageId }, null);
+  await writeFivemGoalLog({
+    action: "request_panel.state_updated",
+    botId: normalizeBotId(botId),
+    details: { messageId },
+    guildId,
+    metaId: null,
+    userId: null
+  });
+  return settings;
 }
 
 export async function getFivemGoalDashboard(guildId: string, botId?: string | null) {
@@ -490,6 +535,13 @@ function normalizeSettings(settings: FivemGoalSettingsDto): FivemGoalSettingsDto
     items: normalizeItems(settings.items),
     logChannelId: normalizeSnowflake(settings.logChannelId),
     managerRoleId: normalizeSnowflake(settings.managerRoleId),
+    requestPanelChannelId: normalizeSnowflake(settings.requestPanelChannelId),
+    requestPanelDescription: normalizeText(settings.requestPanelDescription, 900) || "Solicite seu canal individual de meta para enviar comprovantes, acompanhar sua producao semanal e visualizar seu progresso.",
+    requestPanelEnabled: settings.requestPanelEnabled !== false,
+    requestPanelMessageId: normalizeSnowflake(settings.requestPanelMessageId),
+    requestPanelTitle: normalizeText(settings.requestPanelTitle, 120) || "Sistema de Metas FiveM",
+    requestRequiresApproval: settings.requestRequiresApproval === true,
+    autoCreateWithManualRegistration: settings.autoCreateWithManualRegistration !== false,
     viewRoleId: normalizeSnowflake(settings.viewRoleId)
   };
 }
@@ -528,6 +580,7 @@ function normalizeItems(items: FivemGoalItemDto[]) {
 
 function toSettingsDto(settings: MongoFivemGoalSettings): FivemGoalSettingsDto {
   return normalizeSettings({
+    autoCreateWithManualRegistration: settings.autoCreateWithManualRegistration !== false,
     botId: normalizeBotId(settings.botId),
     categoryId: settings.categoryId,
     channelNameTemplate: settings.channelNameTemplate,
@@ -537,6 +590,12 @@ function toSettingsDto(settings: MongoFivemGoalSettings): FivemGoalSettingsDto {
     items: settings.items as FivemGoalItemDto[],
     logChannelId: settings.logChannelId,
     managerRoleId: settings.managerRoleId,
+    requestPanelChannelId: settings.requestPanelChannelId ?? null,
+    requestPanelDescription: settings.requestPanelDescription ?? "Solicite seu canal individual de meta para enviar comprovantes, acompanhar sua producao semanal e visualizar seu progresso.",
+    requestPanelEnabled: settings.requestPanelEnabled !== false,
+    requestPanelMessageId: settings.requestPanelMessageId ?? null,
+    requestPanelTitle: settings.requestPanelTitle ?? "Sistema de Metas FiveM",
+    requestRequiresApproval: settings.requestRequiresApproval === true,
     updatedAt: settings.updatedAt?.toISOString() ?? null,
     viewRoleId: settings.viewRoleId
   });

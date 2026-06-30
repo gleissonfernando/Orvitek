@@ -64,6 +64,13 @@ export const BUILTIN_FIVEM_MODULES: FivemModuleDefinition[] = [
     id: "fivem-goals",
     permissions: "Admin FiveM, Lideranca",
     title: "Sistema de Metas"
+  },
+  {
+    builtIn: true,
+    description: "Painel FAQ de hierarquia atualizado automaticamente pelos cargos do Discord.",
+    id: "fivem-hierarchy",
+    permissions: "Admin FiveM, Lideranca",
+    title: "Hierarquia FAQ"
   }
 ];
 

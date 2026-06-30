@@ -62,6 +62,19 @@ export type FivemFacPanelPublishEvent = {
   settings?: unknown;
 };
 
+export type FivemGoalPanelPublishEvent = {
+  botId?: string | null;
+  guildId: string;
+  settings?: unknown;
+};
+
+export type FivemHierarchyPanelUpdateEvent = {
+  action: "publish" | "update";
+  botId?: string | null;
+  guildId: string;
+  panelId: string;
+};
+
 export type FivemFacAbsenceUpdateEvent = {
   absence?: unknown;
   action: string;
@@ -186,6 +199,8 @@ export class BotSocketClient {
   private xMonitorPostHandler: ((payload: XMonitorPostEvent) => void) | null = null;
   private fivemFacSettingsHandler: ((payload: FivemFacSettingsEvent) => void) | null = null;
   private fivemFacPanelPublishHandler: ((payload: FivemFacPanelPublishEvent) => void) | null = null;
+  private fivemGoalPanelPublishHandler: ((payload: FivemGoalPanelPublishEvent) => void) | null = null;
+  private fivemHierarchyPanelUpdateHandler: ((payload: FivemHierarchyPanelUpdateEvent) => void) | null = null;
   private fivemFacAbsenceUpdateHandler: ((payload: FivemFacAbsenceUpdateEvent) => void) | null = null;
   private missionToolsSettingsHandler: ((payload: MissionToolsSettingsEvent) => void) | null = null;
   private missionToolsPanelPublishHandler: ((payload: MissionToolsPanelPublishEvent) => void) | null = null;
@@ -274,6 +289,14 @@ export class BotSocketClient {
 
     if (this.fivemFacPanelPublishHandler) {
       this.socket.on("fivem:fac:panel_publish", this.fivemFacPanelPublishHandler);
+    }
+
+    if (this.fivemGoalPanelPublishHandler) {
+      this.socket.on("fivem:goals:panel_publish", this.fivemGoalPanelPublishHandler);
+    }
+
+    if (this.fivemHierarchyPanelUpdateHandler) {
+      this.socket.on("fivem:hierarchy:panel_update", this.fivemHierarchyPanelUpdateHandler);
     }
 
     if (this.fivemFacAbsenceUpdateHandler) {
@@ -418,6 +441,18 @@ export class BotSocketClient {
     this.fivemFacPanelPublishHandler = handler;
     this.socket?.off("fivem:fac:panel_publish");
     this.socket?.on("fivem:fac:panel_publish", handler);
+  }
+
+  onFivemGoalPanelPublish(handler: (payload: FivemGoalPanelPublishEvent) => void) {
+    this.fivemGoalPanelPublishHandler = handler;
+    this.socket?.off("fivem:goals:panel_publish");
+    this.socket?.on("fivem:goals:panel_publish", handler);
+  }
+
+  onFivemHierarchyPanelUpdate(handler: (payload: FivemHierarchyPanelUpdateEvent) => void) {
+    this.fivemHierarchyPanelUpdateHandler = handler;
+    this.socket?.off("fivem:hierarchy:panel_update");
+    this.socket?.on("fivem:hierarchy:panel_update", handler);
   }
 
   onFivemFacAbsenceUpdated(handler: (payload: FivemFacAbsenceUpdateEvent) => void) {

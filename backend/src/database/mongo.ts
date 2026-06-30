@@ -216,6 +216,13 @@ export type MongoFivemGoalSettings = {
   items: MongoFivemGoalItem[];
   logChannelId: string | null;
   managerRoleId: string | null;
+  requestPanelChannelId?: string | null;
+  requestPanelDescription?: string | null;
+  requestPanelEnabled?: boolean;
+  requestPanelMessageId?: string | null;
+  requestPanelTitle?: string | null;
+  requestRequiresApproval?: boolean;
+  autoCreateWithManualRegistration?: boolean;
   updatedAt: Date;
   updatedBy?: string | null;
   viewRoleId: string | null;
@@ -313,6 +320,54 @@ export type MongoFivemGoalLog = {
   details: Record<string, unknown>;
   guildId: string;
   metaId: string | null;
+  userId: string | null;
+};
+
+export type MongoFivemHierarchyEntry = {
+  active: boolean;
+  color: string | null;
+  description: string | null;
+  emoji: string | null;
+  id: string;
+  limit: number | null;
+  name: string;
+  order: number;
+  roleId: string;
+};
+
+export type MongoFivemHierarchyPanel = {
+  _id: string;
+  allowedRoleIds: string[];
+  botId: string | null;
+  color: string;
+  createdAt: Date;
+  description: string | null;
+  enabled: boolean;
+  footerEnabled: boolean;
+  footerIconUrl: string | null;
+  footerText: string | null;
+  guildId: string;
+  hierarchies: MongoFivemHierarchyEntry[];
+  imagePosition: "top" | "bottom" | "thumbnail" | "none";
+  imageUrl: string | null;
+  linkedToFivem: boolean;
+  logChannelId: string | null;
+  name: string;
+  panelChannelId: string | null;
+  panelMessageId: string | null;
+  title: string;
+  updatedAt: Date;
+  updatedBy?: string | null;
+};
+
+export type MongoFivemHierarchyLog = {
+  _id: string;
+  action: string;
+  botId: string | null;
+  createdAt: Date;
+  details: Record<string, unknown>;
+  guildId: string;
+  panelId: string | null;
   userId: string | null;
 };
 
@@ -2016,6 +2071,8 @@ export async function getMongoCollections() {
     fivemGoalConfigs: db.collection<MongoFivemGoalConfig>("fivem_goal_configs"),
     fivemGoalSubmissions: db.collection<MongoFivemGoalSubmission>("fivem_goal_submissions"),
     fivemGoalLogs: db.collection<MongoFivemGoalLog>("fivem_goal_logs"),
+    fivemHierarchyPanels: db.collection<MongoFivemHierarchyPanel>("fivem_hierarchy_panels"),
+    fivemHierarchyLogs: db.collection<MongoFivemHierarchyLog>("fivem_hierarchy_logs"),
     globalBlacklistSettings: db.collection<MongoGlobalBlacklistSafeBotSettings>("global_blacklist_settings"),
     globalBlacklistEntries: db.collection<MongoGlobalBlacklistEntry>("global_blacklist_entries"),
     globalBlacklistHistory: db.collection<MongoGlobalBlacklistHistory>("global_blacklist_history"),
@@ -2153,6 +2210,9 @@ async function createMongoIndexes(db: Db) {
     db.collection<MongoFivemGoalSubmission>("fivem_goal_submissions").createIndex({ botId: 1, guildId: 1, userId: 1, createdAt: -1 }),
     db.collection<MongoFivemGoalSubmission>("fivem_goal_submissions").createIndex({ botId: 1, guildId: 1, status: 1, createdAt: -1 }),
     db.collection<MongoFivemGoalLog>("fivem_goal_logs").createIndex({ botId: 1, guildId: 1, metaId: 1, createdAt: -1 }),
+    db.collection<MongoFivemHierarchyPanel>("fivem_hierarchy_panels").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoFivemHierarchyPanel>("fivem_hierarchy_panels").createIndex({ botId: 1, guildId: 1, enabled: 1 }),
+    db.collection<MongoFivemHierarchyLog>("fivem_hierarchy_logs").createIndex({ botId: 1, guildId: 1, panelId: 1, createdAt: -1 }),
     db.collection<MongoGlobalBlacklistSafeBotSettings>("global_blacklist_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
     db.collection<MongoGlobalBlacklistEntry>("global_blacklist_entries").createIndex({ userId: 1, active: 1 }),
     db.collection<MongoGlobalBlacklistEntry>("global_blacklist_entries").createIndex({ botId: 1, guildId: 1, active: 1 }),

@@ -26,6 +26,15 @@ import {
 } from "../services/fivemFacService";
 import { listFivemModules } from "../services/fivemModuleService";
 import {
+  deleteFivemHierarchyPanel,
+  FIVEM_HIERARCHY_MODULE_ID,
+  getFivemHierarchyDashboard,
+  listActiveFivemHierarchyPanels,
+  requestFivemHierarchyPanelPublish,
+  saveFivemHierarchyPanel,
+  updateFivemHierarchyPanelState
+} from "../services/fivemHierarchyService";
+import {
   createFivemGoalConfig,
   createFivemGoalEntry,
   FIVEM_GOALS_MODULE_ID,
@@ -38,7 +47,9 @@ import {
   listFivemGoalEntries,
   listFivemGoalSubmissions,
   moderateFivemGoalSubmission,
+  requestFivemGoalPanelPublish,
   saveFivemGoalSettings,
+  updateFivemGoalRequestPanelState,
   updateFivemGoalConfig,
   upsertFivemGoalUserChannel
 } from "../services/fivemGoalService";
@@ -118,6 +129,7 @@ const goalItemSchema = z.object({
   order: z.coerce.number().int().min(0).max(10000)
 });
 const goalSettingsSchema = z.object({
+  autoCreateWithManualRegistration: z.boolean().optional(),
   categoryId: optionalSnowflakeSchema,
   channelNameTemplate: z.string().max(80).optional(),
   enabled: z.boolean().optional(),
@@ -125,6 +137,12 @@ const goalSettingsSchema = z.object({
   items: z.array(goalItemSchema).max(100).optional(),
   logChannelId: optionalSnowflakeSchema,
   managerRoleId: optionalSnowflakeSchema,
+  requestPanelChannelId: optionalSnowflakeSchema,
+  requestPanelDescription: z.string().max(900).optional(),
+  requestPanelEnabled: z.boolean().optional(),
+  requestPanelMessageId: optionalSnowflakeSchema,
+  requestPanelTitle: z.string().max(120).optional(),
+  requestRequiresApproval: z.boolean().optional(),
   viewRoleId: optionalSnowflakeSchema
 });
 const goalConfigSchema = z.object({
@@ -168,6 +186,36 @@ const goalEntrySchema = z.object({
   quantity: z.coerce.number().nullable().optional(),
   roleIdsSnapshot: z.array(snowflakeSchema).max(100).optional(),
   userId: snowflakeSchema
+});
+const hierarchyEntrySchema = z.object({
+  active: z.boolean().optional(),
+  color: z.string().regex(/^#[0-9a-f]{6}$/i).nullable().optional(),
+  description: z.string().max(300).nullable().optional(),
+  emoji: z.string().max(40).nullable().optional(),
+  id: z.string().max(80).optional(),
+  limit: z.coerce.number().int().min(1).max(100).nullable().optional(),
+  name: z.string().min(1).max(80),
+  order: z.coerce.number().int().min(0).max(1000),
+  roleId: snowflakeSchema
+});
+const hierarchyPanelSchema = z.object({
+  allowedRoleIds: z.array(snowflakeSchema).max(100).optional(),
+  color: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
+  description: z.string().max(1200).nullable().optional(),
+  enabled: z.boolean().optional(),
+  footerEnabled: z.boolean().optional(),
+  footerIconUrl: z.string().max(2048).nullable().optional(),
+  footerText: z.string().max(200).nullable().optional(),
+  hierarchies: z.array(hierarchyEntrySchema).max(50).optional(),
+  id: z.string().max(80).optional(),
+  imagePosition: z.enum(["top", "bottom", "thumbnail", "none"]).optional(),
+  imageUrl: z.string().max(2048).nullable().optional(),
+  linkedToFivem: z.boolean().optional(),
+  logChannelId: optionalSnowflakeSchema,
+  name: z.string().min(1).max(100).optional(),
+  panelChannelId: optionalSnowflakeSchema,
+  panelMessageId: optionalSnowflakeSchema,
+  title: z.string().min(1).max(120).optional()
 });
 const userAbsenceSchema = z.object({
   guildId: guildIdSchema,
@@ -250,6 +298,75 @@ fivemRouter.get("/:guildId/goals", requireAuth, async (req, res, next) => {
   }
 });
 
+fivemRouter.get("/:guildId/hierarchy", requireAuth, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const botId = await resolveRequestBotId(req);
+    if (!botId) throw createRouteError("Selecione um bot DEV para acessar Hierarquia FAQ.", 400);
+    await assertCanReadFivemHierarchy(res.locals.dashboardAuth.user, guildId, botId);
+    return res.json(await getFivemHierarchyDashboard(guildId, botId));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.post("/:guildId/hierarchy/panels", requireAuth, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const botId = await resolveRequestBotId(req);
+    if (!botId) throw createRouteError("Selecione um bot DEV para criar Hierarquia FAQ.", 400);
+    await assertCanManageFivemHierarchy(res.locals.dashboardAuth.user, guildId, botId);
+    const input = hierarchyPanelSchema.parse(req.body);
+    await validateHierarchyResources(guildId, botId, input);
+    return res.status(201).json({ panel: await saveFivemHierarchyPanel(guildId, botId, normalizeHierarchyPanelInput(input), res.locals.dashboardAuth.user.discordId) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.patch("/:guildId/hierarchy/panels/:panelId", requireAuth, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const panelId = z.string().min(1).max(80).parse(req.params.panelId);
+    const botId = await resolveRequestBotId(req);
+    if (!botId) throw createRouteError("Selecione um bot DEV para editar Hierarquia FAQ.", 400);
+    await assertCanManageFivemHierarchy(res.locals.dashboardAuth.user, guildId, botId);
+    const input = hierarchyPanelSchema.partial().parse(req.body);
+    await validateHierarchyResources(guildId, botId, input);
+    return res.json({ panel: await saveFivemHierarchyPanel(guildId, botId, { ...normalizeHierarchyPanelInput(input), id: panelId }, res.locals.dashboardAuth.user.discordId) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.delete("/:guildId/hierarchy/panels/:panelId", requireAuth, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const panelId = z.string().min(1).max(80).parse(req.params.panelId);
+    const botId = await resolveRequestBotId(req);
+    if (!botId) throw createRouteError("Selecione um bot DEV para excluir Hierarquia FAQ.", 400);
+    await assertCanManageFivemHierarchy(res.locals.dashboardAuth.user, guildId, botId);
+    const panel = await deleteFivemHierarchyPanel(guildId, botId, panelId, res.locals.dashboardAuth.user.discordId);
+    if (!panel) throw createRouteError("Painel de hierarquia nao encontrado.", 404);
+    return res.json({ panel });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.post("/:guildId/hierarchy/panels/:panelId/publish", requireAuth, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const panelId = z.string().min(1).max(80).parse(req.params.panelId);
+    const botId = await resolveRequestBotId(req);
+    if (!botId) throw createRouteError("Selecione um bot DEV para publicar Hierarquia FAQ.", 400);
+    await assertCanManageFivemHierarchy(res.locals.dashboardAuth.user, guildId, botId);
+    return res.json({ panel: await requestFivemHierarchyPanelPublish(guildId, botId, panelId, res.locals.dashboardAuth.user.discordId) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 fivemRouter.post("/:guildId/goals/configs", requireAuth, async (req, res, next) => {
   try {
     const guildId = guildIdSchema.parse(req.params.guildId);
@@ -326,8 +443,28 @@ fivemRouter.patch("/:guildId/goals", requireAuth, async (req, res, next) => {
     await assertCanManageFivemGoals(res.locals.dashboardAuth.user, guildId, botId);
     const input = goalSettingsSchema.parse(req.body);
     await validateGoalResources(guildId, botId, input);
+    if (input.enabled === true && input.requestPanelEnabled !== false && !input.requestPanelChannelId) {
+      const current = await getFivemGoalSettings(guildId, botId);
+      if (!current.requestPanelChannelId) {
+        throw createRouteError("Voce precisa configurar o canal do painel de solicitacao de meta, pois o Pedido Set esta desativado.", 400);
+      }
+    }
     return res.json({
       settings: await saveFivemGoalSettings(guildId, botId, normalizeGoalSettingsInput(input), res.locals.dashboardAuth.user.discordId)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.post("/:guildId/goals/panel", requireAuth, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const botId = await resolveRequestBotId(req);
+    if (!botId) throw createRouteError("Selecione um bot DEV para publicar o painel de metas.", 400);
+    await assertCanManageFivemGoals(res.locals.dashboardAuth.user, guildId, botId);
+    return res.json({
+      settings: await requestFivemGoalPanelPublish(guildId, botId, res.locals.dashboardAuth.user.discordId)
     });
   } catch (error) {
     return next(error);
@@ -343,6 +480,32 @@ fivemRouter.get("/bot/goals/:guildId", requireBot, async (req, res, next) => {
       settings: await getFivemGoalSettings(guildId, botId),
       submissions: await listFivemGoalSubmissions(guildId, botId)
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.get("/bot/hierarchy/configs", requireBot, async (req, res, next) => {
+  try {
+    const botId = await readRequiredBotId(req);
+    await assertBotFivemHierarchyLicense(botId);
+    return res.json({ panels: await listActiveFivemHierarchyPanels(botId) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.post("/bot/hierarchy/panel-state", requireBot, async (req, res, next) => {
+  try {
+    const input = z.object({
+      guildId: guildIdSchema,
+      messageId: optionalSnowflakeSchema,
+      panelId: z.string().min(1).max(80)
+    }).parse(req.body);
+    const botId = await readRequiredBotId(req);
+    await assertBotFivemHierarchyLicense(botId);
+    const panel = await updateFivemHierarchyPanelState(input.guildId, botId, input.panelId, input.messageId ?? null);
+    return res.json({ panel });
   } catch (error) {
     return next(error);
   }
@@ -384,6 +547,21 @@ fivemRouter.post("/bot/goals/entries", requireBot, async (req, res, next) => {
     const input = goalEntrySchema.parse(req.body);
     const botId = await resolveRequestBotId(req);
     return res.status(201).json({ entry: await createFivemGoalEntry({ ...input, botId }) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fivemRouter.post("/bot/goals/panel-state", requireBot, async (req, res, next) => {
+  try {
+    const input = z.object({
+      guildId: guildIdSchema,
+      messageId: optionalSnowflakeSchema
+    }).parse(req.body);
+    const botId = await resolveRequestBotId(req);
+    return res.json({
+      settings: await updateFivemGoalRequestPanelState(input.guildId, botId, input.messageId ?? null)
+    });
   } catch (error) {
     return next(error);
   }
@@ -771,6 +949,26 @@ async function assertCanManageFivemGoals(user: AuthSessionUser, guildId: string,
   throw createRouteError("Voce nao tem permissao para configurar metas FiveM deste bot.", 403);
 }
 
+async function assertCanReadFivemHierarchy(user: AuthSessionUser, guildId: string, botId: string) {
+  await assertBotFivemHierarchyLicense(botId);
+
+  if (await canReadDevBotModule(user, botId, guildId, FIVEM_HIERARCHY_MODULE_ID)) {
+    return;
+  }
+
+  throw createRouteError("Voce nao tem permissao para acessar Hierarquia FAQ deste bot.", 403);
+}
+
+async function assertCanManageFivemHierarchy(user: AuthSessionUser, guildId: string, botId: string) {
+  await assertBotFivemHierarchyLicense(botId);
+
+  if (await canUseDevBotModule(user, botId, guildId, FIVEM_HIERARCHY_MODULE_ID)) {
+    return;
+  }
+
+  throw createRouteError("Voce nao tem permissao para configurar Hierarquia FAQ deste bot.", 403);
+}
+
 async function assertBotFivemGoalsLicense(botId: string) {
   const permissions = await getBotApiPermissions(botId);
 
@@ -780,6 +978,18 @@ async function assertBotFivemGoalsLicense(botId: string) {
 
   if (!permissions.enabledModules.includes(FIVEM_GOALS_MODULE_ID)) {
     throw createRouteError("O sistema de metas FiveM nao foi liberado para este cliente.", 403);
+  }
+}
+
+async function assertBotFivemHierarchyLicense(botId: string) {
+  const permissions = await getBotApiPermissions(botId);
+
+  if (!permissions) {
+    throw createRouteError("Bot nao encontrado.", 404);
+  }
+
+  if (!permissions.enabledModules.includes(FIVEM_HIERARCHY_MODULE_ID)) {
+    throw createRouteError("O sistema Hierarquia FAQ FiveM nao foi liberado para este cliente.", 403);
   }
 }
 
@@ -855,7 +1065,7 @@ async function validateFacResources(guildId: string, botId: string, input: z.inf
 
 async function validateGoalResources(guildId: string, botId: string, input: z.infer<typeof goalSettingsSchema>) {
   const botToken = await getDevBotToken(botId);
-  const channelIds = [input.logChannelId].filter((channelId): channelId is string => typeof channelId === "string" && Boolean(channelId));
+  const channelIds = [input.logChannelId, input.requestPanelChannelId].filter((channelId): channelId is string => typeof channelId === "string" && Boolean(channelId));
 
   const channelChecks = await Promise.all(
     [...new Set(channelIds)].map((channelId) => isGuildTextChannel(guildId, channelId, botToken))
@@ -869,6 +1079,9 @@ async function validateGoalResources(guildId: string, botId: string, input: z.in
     if (!(await isGuildCategoryChannel(guildId, input.categoryId, botToken))) {
       throw createRouteError("A categoria de metas nao pertence a este servidor.", 400);
     }
+  }
+  if (input.requestPanelChannelId) {
+    await assertPanelChannelReady(guildId, botId, input.requestPanelChannelId);
   }
 
   const roleIds = [input.viewRoleId, input.managerRoleId].filter((roleId): roleId is string => typeof roleId === "string" && Boolean(roleId));
@@ -901,6 +1114,29 @@ async function validateGoalConfigResources(guildId: string, botId: string, input
     ...(input.deleteRoleIds ?? []),
     ...(input.viewerRoleIds ?? [])
   ];
+
+  if (roleIds.length && !(await areGuildRoles(guildId, [...new Set(roleIds)], botToken))) {
+    throw createRouteError("Um dos cargos selecionados nao pertence a este servidor.", 400);
+  }
+}
+
+async function validateHierarchyResources(guildId: string, botId: string, input: Partial<z.infer<typeof hierarchyPanelSchema>>) {
+  const botToken = await getDevBotToken(botId);
+  const channelIds = [input.panelChannelId, input.logChannelId].filter((channelId): channelId is string => typeof channelId === "string" && Boolean(channelId));
+  const channelChecks = await Promise.all([...new Set(channelIds)].map((channelId) => isGuildTextChannel(guildId, channelId, botToken)));
+
+  if (!channelChecks.every(Boolean)) {
+    throw createRouteError("Um dos canais selecionados nao pertence a este servidor.", 400);
+  }
+
+  if (input.panelChannelId) {
+    await assertPanelChannelReady(guildId, botId, input.panelChannelId);
+  }
+
+  const roleIds = [
+    ...(input.allowedRoleIds ?? []),
+    ...(input.hierarchies ?? []).map((item) => item.roleId)
+  ].filter(Boolean);
 
   if (roleIds.length && !(await areGuildRoles(guildId, [...new Set(roleIds)], botToken))) {
     throw createRouteError("Um dos cargos selecionados nao pertence a este servidor.", 400);
@@ -961,6 +1197,8 @@ function normalizeGoalSettingsInput(input: z.infer<typeof goalSettingsSchema>) {
     categoryId: normalizeOptionalId(input.categoryId),
     logChannelId: normalizeOptionalId(input.logChannelId),
     managerRoleId: normalizeOptionalId(input.managerRoleId),
+    requestPanelChannelId: normalizeOptionalId(input.requestPanelChannelId),
+    requestPanelMessageId: normalizeOptionalId(input.requestPanelMessageId),
     viewRoleId: normalizeOptionalId(input.viewRoleId)
   };
 }
@@ -976,6 +1214,26 @@ function normalizeGoalConfigInput(input: Partial<z.infer<typeof goalConfigSchema
       enabled: input.resetConfig.enabled === true,
       frequency: input.resetConfig.frequency ?? "none"
     } : undefined
+  };
+}
+
+function normalizeHierarchyPanelInput(input: Partial<z.infer<typeof hierarchyPanelSchema>>) {
+  return {
+    ...input,
+    hierarchies: input.hierarchies?.map((item, index) => ({
+      active: item.active !== false,
+      color: item.color ?? null,
+      description: item.description ?? null,
+      emoji: item.emoji ?? null,
+      id: item.id ?? `hierarquia-${index + 1}`,
+      limit: item.limit ?? null,
+      name: item.name,
+      order: item.order,
+      roleId: item.roleId
+    })),
+    logChannelId: normalizeOptionalId(input.logChannelId),
+    panelChannelId: normalizeOptionalId(input.panelChannelId),
+    panelMessageId: normalizeOptionalId(input.panelMessageId)
   };
 }
 

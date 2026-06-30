@@ -71,7 +71,7 @@ export function registerEvents(client: Client, context: BotContext) {
     runEvent("guildCreate", () => ensureSafeBotSetup(guild, context));
   });
 
-  if (env.BOT_MEMBER_EVENTS_ENABLED && (managedRuntimeBot || ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security", "safe-bot", "anti-ban"].some(isBotModuleEnabled))) {
+  if (env.BOT_MEMBER_EVENTS_ENABLED && (managedRuntimeBot || ["welcome", "leave", "roles", "logs", "fivem-fac", "fivem-hierarchy", "account-age-security", "safe-bot", "anti-ban"].some(isBotModuleEnabled))) {
     client.on(Events.GuildMemberAdd, (member) => {
       runEvent("guildMemberAdd", async () => {
         const resolved = await resolveMember(member);

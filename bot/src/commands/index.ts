@@ -5,6 +5,7 @@ import { clearCommand } from "./clear";
 import { deleteServeCommand } from "./deleteServe";
 import { emojiClonerCommand } from "./emojiCloner";
 import { gravarCommand } from "./gravar";
+import { hierarchyCommand } from "../services/fivemHierarchyService";
 import { manualRegistrationCommand } from "./manualRegistration";
 import { missionPanelCommand } from "./missionPanel";
 import { musicCommands } from "./music";
@@ -25,6 +26,7 @@ export function createCommandCollection() {
     deleteServeCommand,
     emojiClonerCommand,
     gravarCommand,
+    hierarchyCommand,
     manualRegistrationCommand,
     missionPanelCommand,
     ...musicCommands,

@@ -74,6 +74,7 @@ import {
   cloneSelectedEmojiCloneBotToken,
   createFivemGoalConfig,
   deleteFivemGoalConfig,
+  deleteFivemHierarchyPanel,
   emojiLibraryDownloadUrl,
   fetchEmojiCloneBotTokenEmojis,
   getAdvancedModuleConfig,
@@ -85,6 +86,7 @@ import {
   getBotGuildConfig,
   getFivemModules,
   getFivemGoals,
+  getFivemHierarchy,
   getGlobalBlacklistDashboard,
   getGuildLiveOptions,
   getGuildSettings,
@@ -99,12 +101,15 @@ import {
   getTickets,
   getXMonitor,
   patchGuildSettings,
+  publishFivemGoalPanel,
+  publishFivemHierarchyPanel,
   publishRulesPanel,
   refreshApplicationEmojis,
   removeAllApplicationEmojis,
   resendEmojiFromLibrary,
   saveAdvancedModuleConfig,
   saveFivemGoalSettings,
+  saveFivemHierarchyPanel,
   saveGlobalBlacklistSettings,
   saveManualRegistrationSettings,
   saveServerBackupSettings,
@@ -138,6 +143,7 @@ import type {
   FivemGoalField,
   FivemGoalItem,
   FivemGoalSubmission,
+  FivemHierarchyPanel as FivemHierarchyPanelType,
   FivemGoalSettings,
   GlobalBlacklistEntry,
   GlobalBlacklistHistory,
@@ -2562,6 +2568,7 @@ function FivemView({
   }
   const absencesEnabled = enabledModules.includes("fivem-absences") || enabledModules.includes("fivem-fac");
   const goalsEnabled = enabledModules.includes("fivem-goals");
+  const hierarchyEnabled = enabledModules.includes("fivem-hierarchy");
   const ordersEnabled = enabledModules.includes("fivem-orders");
 
   return (
@@ -2596,6 +2603,7 @@ function FivemView({
         ))}
       </div>
       {mode === "general" && absencesEnabled ? <FacAbsencePanel botId={botId} canManage={canManage} guild={guild} /> : null}
+      {mode === "general" && hierarchyEnabled ? <FivemHierarchyPanel botId={botId} canManage={canManage} guild={guild} /> : null}
       {mode === "goals" && goalsEnabled ? <FivemGoalsPanel botId={botId} canManage={canManage} guild={guild} /> : null}
       {mode === "orders" && ordersEnabled ? <FivemOrdersPanel canManage={canManage} guild={guild} /> : null}
     </div>
@@ -2637,6 +2645,213 @@ function FivemOrdersPanel({ canManage, guild }: { canManage: boolean; guild: Das
       </CardContent>
     </Card>
   );
+}
+
+function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | null; canManage: boolean; guild: DashboardGuild | null }) {
+  const [panels, setPanels] = useState<FivemHierarchyPanelType[]>([]);
+  const [draft, setDraft] = useState<FivemHierarchyPanelType | null>(null);
+  const [channels, setChannels] = useState<GuildChannelOption[]>([]);
+  const [roles, setRoles] = useState<GuildRoleOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!guild) return;
+    let active = true;
+    setLoading(true);
+    Promise.all([getFivemHierarchy(guild.id, botId), getGuildLiveOptions(guild.id, botId)])
+      .then(([dashboard, options]) => {
+        if (!active) return;
+        setPanels(dashboard.panels);
+        setDraft(dashboard.panels[0] ?? createEmptyHierarchyPanel(guild.id, botId));
+        setChannels(options.channels);
+        setRoles(options.roles);
+      })
+      .catch(() => {
+        if (active) setError("Nao foi possivel carregar Hierarquia FAQ.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [botId, guild?.id]);
+
+  function patchDraft(patch: Partial<FivemHierarchyPanelType>) {
+    setDraft((current) => current ? { ...current, ...patch } : current);
+  }
+
+  function patchHierarchy(index: number, patch: Partial<FivemHierarchyPanelType["hierarchies"][number]>) {
+    setDraft((current) => current ? {
+      ...current,
+      hierarchies: current.hierarchies.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item)
+    } : current);
+  }
+
+  function addHierarchy() {
+    setDraft((current) => current ? {
+      ...current,
+      hierarchies: [...current.hierarchies, { active: true, color: null, description: null, emoji: "👤", id: `hierarquia-${Date.now()}`, limit: null, name: "Nova hierarquia", order: current.hierarchies.length + 1, roleId: roles[0]?.id ?? "" }]
+    } : current);
+  }
+
+  async function savePanel() {
+    if (!guild || !draft) return;
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const saved = await saveFivemHierarchyPanel(guild.id, draft, botId);
+      setPanels((current) => [saved, ...current.filter((panel) => panel.id !== saved.id)]);
+      setDraft(saved);
+      setMessage("Hierarquia FAQ salva.");
+    } catch {
+      setError("Nao foi possivel salvar o painel de hierarquia.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function publishPanel() {
+    if (!guild || !draft || draft.id === "new") return;
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await publishFivemHierarchyPanel(guild.id, draft.id, botId);
+      setMessage("Painel FAQ enviado para atualizacao no Discord.");
+    } catch {
+      setError("Nao foi possivel publicar. Confira canal, cargos e permissoes do bot.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removePanel() {
+    if (!guild || !draft || draft.id === "new") return;
+    if (!window.confirm("Excluir este painel de Hierarquia FAQ?")) return;
+    setSaving(true);
+    try {
+      await deleteFivemHierarchyPanel(guild.id, draft.id, botId);
+      const next = panels.filter((panel) => panel.id !== draft.id);
+      setPanels(next);
+      setDraft(next[0] ?? createEmptyHierarchyPanel(guild.id, botId));
+      setMessage("Painel FAQ excluido.");
+    } catch {
+      setError("Nao foi possivel excluir o painel.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card className="border-emerald-500/10 bg-zinc-950/75">
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 text-emerald-300" /> Hierarquia FAQ FiveM</CardTitle>
+            <CardDescription>Painel fixo com membros agrupados por cargos, atualizado automaticamente quando a hierarquia muda.</CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={!canManage || !guild} onClick={() => setDraft(createEmptyHierarchyPanel(guild?.id ?? "", botId))} size="sm" type="button" variant="outline">Novo painel</Button>
+            <Button disabled={!canManage || !draft || saving} onClick={() => void savePanel()} size="sm" type="button">{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}Salvar</Button>
+            <Button disabled={!canManage || !draft || draft.id === "new" || saving} onClick={() => void publishPanel()} size="sm" type="button" variant="outline"><Upload className="mr-2 h-4 w-4" />Publicar</Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error ? <div className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</div> : null}
+        {message ? <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{message}</div> : null}
+        {loading || !draft ? <div className="h-40 animate-pulse rounded-lg border border-zinc-800 bg-zinc-900/60" /> : (
+          <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+            <div className="space-y-2">
+              {panels.map((panel) => (
+                <button className={`w-full rounded-lg border p-3 text-left ${draft.id === panel.id ? "border-emerald-500/50 bg-emerald-500/10" : "border-zinc-800 bg-black/30"}`} key={panel.id} onClick={() => setDraft(panel)} type="button">
+                  <p className="text-sm font-semibold text-white">{panel.name}</p>
+                  <p className="mt-1 text-xs text-zinc-500">{panel.hierarchies.length} hierarquias · {panel.enabled ? "ativo" : "desativado"}</p>
+                </button>
+              ))}
+            </div>
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <TicketField disabled={!canManage} label="Nome interno" onChange={(value) => patchDraft({ name: value })} value={draft.name} />
+                <TicketField disabled={!canManage} label="Titulo do painel" onChange={(value) => patchDraft({ title: value })} value={draft.title} />
+                <label className="block text-xs font-medium text-zinc-400">Canal do painel
+                  <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchDraft({ panelChannelId: event.target.value || null })} value={draft.panelChannelId ?? ""}>
+                    <option value="">Selecione</option>
+                    {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+                  </select>
+                </label>
+                <label className="block text-xs font-medium text-zinc-400">Canal de logs
+                  <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchDraft({ logChannelId: event.target.value || null })} value={draft.logChannelId ?? ""}>
+                    <option value="">Sem logs</option>
+                    {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+                  </select>
+                </label>
+                <TicketField disabled={!canManage} label="Cor" onChange={(value) => patchDraft({ color: value })} type="color" value={draft.color} />
+                <label className="block text-xs font-medium text-zinc-400">Imagem
+                  <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchDraft({ imagePosition: event.target.value as FivemHierarchyPanelType["imagePosition"] })} value={draft.imagePosition}>
+                    <option value="none">Sem imagem</option>
+                    <option value="top">Topo</option>
+                    <option value="bottom">Rodape</option>
+                    <option value="thumbnail">Thumbnail</option>
+                  </select>
+                </label>
+                <div className="md:col-span-2">
+                  <TicketArea disabled={!canManage} label="Descricao" onChange={(value) => patchDraft({ description: value })} value={draft.description ?? ""} />
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-white">Hierarquias cadastradas</p>
+                  <Button disabled={!canManage} onClick={addHierarchy} size="sm" type="button" variant="outline">Adicionar hierarquia</Button>
+                </div>
+                {draft.hierarchies.map((item, index) => (
+                  <div className="grid gap-3 rounded-lg border border-zinc-800 bg-black/30 p-3 md:grid-cols-[80px_1fr_1fr_90px]" key={item.id}>
+                    <TicketField disabled={!canManage} label="Emoji" onChange={(value) => patchHierarchy(index, { emoji: value })} value={item.emoji ?? ""} />
+                    <TicketField disabled={!canManage} label="Nome" onChange={(value) => patchHierarchy(index, { name: value })} value={item.name} />
+                    <RoleSelect disabled={!canManage} label="Cargo vinculado" onChange={(value) => patchHierarchy(index, { roleId: value })} roles={roles} value={item.roleId} />
+                    <TicketField disabled={!canManage} label="Ordem" onChange={(value) => patchHierarchy(index, { order: Number(value) || index + 1 })} value={String(item.order)} />
+                  </div>
+                ))}
+              </div>
+              {draft.id !== "new" ? <Button disabled={!canManage || saving} onClick={() => void removePanel()} size="sm" type="button" variant="destructive"><Trash2 className="mr-2 h-4 w-4" />Excluir painel</Button> : null}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function createEmptyHierarchyPanel(guildId: string, botId?: string | null): FivemHierarchyPanelType {
+  const now = new Date().toISOString();
+  return {
+    allowedRoleIds: [],
+    botId: botId ?? null,
+    color: "#22c55e",
+    createdAt: now,
+    description: "Hierarquia atualizada automaticamente pelos cargos do servidor.",
+    enabled: true,
+    footerEnabled: true,
+    footerIconUrl: null,
+    footerText: "Atualizado automaticamente",
+    guildId,
+    hierarchies: [],
+    id: "new",
+    imagePosition: "none",
+    imageUrl: null,
+    linkedToFivem: true,
+    logChannelId: null,
+    name: "Hierarquia FAQ",
+    panelChannelId: null,
+    panelMessageId: null,
+    title: "Hierarquia FAQ FiveM",
+    updatedAt: now
+  };
 }
 
 function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; canManage: boolean; guild: DashboardGuild | null }) {
@@ -2766,6 +2981,22 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
       setMessage("Meta salva.");
     } catch {
       setError("Nao foi possivel salvar a meta.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function publishRequestPanel() {
+    if (!guild || !settings) return;
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const saved = await publishFivemGoalPanel(guild.id, botId);
+      setSettings(saved);
+      setMessage("Painel de solicitacao enviado para o bot atualizar no Discord.");
+    } catch {
+      setError("Nao foi possivel publicar o painel. Confira canal, permissao do bot e se o sistema esta ativo.");
     } finally {
       setSaving(false);
     }
@@ -2945,6 +3176,58 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
               <RoleSelect disabled={!canManage} label="Cargo que pode visualizar" onChange={(value) => patch({ viewRoleId: value || null })} roles={roles} value={settings.viewRoleId ?? ""} />
               <RoleSelect disabled={!canManage} label="Cargo administrador" onChange={(value) => patch({ managerRoleId: value || null })} roles={roles} value={settings.managerRoleId ?? ""} />
             </div>
+            <div className="rounded-lg border border-emerald-500/15 bg-emerald-500/[0.04] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">Painel de Solicitação de Canal de Meta</p>
+                  <p className="mt-1 text-sm text-zinc-400">Use quando o Pedido Set estiver desligado ou quando quiser permitir solicitação manual do canal individual.</p>
+                </div>
+                <Button disabled={!canManage || saving || !settings.enabled || !settings.requestPanelChannelId} onClick={() => void publishRequestPanel()} size="sm" type="button">
+                  {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                  Enviar/Atualizar painel
+                </Button>
+              </div>
+              {settings.enabled && settings.requestPanelEnabled && !settings.requestPanelChannelId ? (
+                <div className="mt-3 rounded-md border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">Configure o canal onde os membros vao solicitar o canal de meta.</div>
+              ) : null}
+              <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="block text-xs font-medium text-zinc-400">Painel manual
+                    <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patch({ requestPanelEnabled: event.target.value === "true" })} value={String(settings.requestPanelEnabled)}>
+                      <option value="true">Ativado</option>
+                      <option value="false">Desativado</option>
+                    </select>
+                  </label>
+                  <label className="block text-xs font-medium text-zinc-400">Canal do painel
+                    <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patch({ requestPanelChannelId: event.target.value || null })} value={settings.requestPanelChannelId ?? ""}>
+                      <option value="">Selecione um canal</option>
+                      {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+                    </select>
+                  </label>
+                  <TicketField disabled={!canManage} label="Titulo do painel" onChange={(value) => patch({ requestPanelTitle: value })} value={settings.requestPanelTitle} />
+                  <label className="flex items-end gap-2 text-xs text-zinc-300">
+                    <span className="flex h-10 items-center gap-2 rounded-md border border-zinc-800 px-3">
+                      <input checked={settings.requestRequiresApproval} disabled={!canManage} onChange={(event) => patch({ requestRequiresApproval: event.target.checked })} type="checkbox" />
+                      Exigir aprovação manual
+                    </span>
+                  </label>
+                  <div className="md:col-span-2">
+                    <TicketArea disabled={!canManage} label="Texto do painel" onChange={(value) => patch({ requestPanelDescription: value })} value={settings.requestPanelDescription} />
+                  </div>
+                </div>
+                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+                  <p className="text-xs font-semibold uppercase text-zinc-500">Prévia Components V2</p>
+                  <div className="mt-3 rounded-lg border-l-4 border-emerald-400 bg-[#101013] p-4">
+                    <p className="text-base font-semibold text-white">{settings.requestPanelTitle}</p>
+                    <p className="mt-2 text-sm leading-6 text-zinc-300">{settings.requestPanelDescription}</p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span className="rounded-md bg-emerald-500 px-3 py-2 text-xs font-semibold text-white">Solicitar canal de meta</span>
+                      <span className="rounded-md bg-zinc-800 px-3 py-2 text-xs font-semibold text-zinc-200">Ajuda</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div className="space-y-3">
               <p className="text-sm font-semibold text-white">Campos do modal</p>
               {settings.fields.map((field, index) => (
@@ -3031,7 +3314,8 @@ function fivemUserModules(enabledModules: string[], fivemModules: FivemModuleDef
     { builtIn: true, description: "Pedidos, entregas e acompanhamento de encomendas.", id: "fivem-orders", permissions: "Admin FiveM", title: "Encomendas" },
     { builtIn: true, description: "Controle de municoes, estoque e distribuicao.", id: "fivem-ammo", permissions: "Admin FiveM", title: "Municoes" },
     { builtIn: true, description: "Fluxo financeiro, caixa e lancamentos RP.", id: "fivem-finance", permissions: "Admin FiveM", title: "Financeiro" },
-    { builtIn: true, description: "Metas por membro com fotos e registros via Components V2.", id: "fivem-goals", permissions: "Admin FiveM", title: "Metas" }
+    { builtIn: true, description: "Metas por membro com fotos e registros via Components V2.", id: "fivem-goals", permissions: "Admin FiveM", title: "Metas" },
+    { builtIn: true, description: "Painel automatico de hierarquia por cargos.", id: "fivem-hierarchy", permissions: "Admin FiveM", title: "Hierarquia FAQ" }
   ];
   const catalog = fivemModules.length ? fivemModules : fallbackCatalog;
   const enabled = new Set(enabledModules.map((moduleId) => moduleId === "fivem-fac" ? "fivem-absences" : moduleId));
@@ -3059,6 +3343,7 @@ function fivemIconForModule(moduleId: string) {
     "fivem-factions": Building2,
     "fivem-finance": Activity,
     "fivem-goals": ListChecks,
+    "fivem-hierarchy": Users,
     "fivem-orders": ListChecks
   };
 
@@ -3135,6 +3420,7 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
       "fivem-ammo",
       "fivem-finance",
       "fivem-goals",
+      "fivem-hierarchy",
       "fivem-fac"
     ].includes(moduleId);
   }

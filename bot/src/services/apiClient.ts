@@ -112,6 +112,7 @@ export type FivemGoalItem = {
 
 export type FivemGoalSettings = {
   configs?: FivemGoalConfig[];
+  autoCreateWithManualRegistration: boolean;
   categoryId: string | null;
   channelNameTemplate: string;
   enabled: boolean;
@@ -120,6 +121,12 @@ export type FivemGoalSettings = {
   items: FivemGoalItem[];
   logChannelId: string | null;
   managerRoleId: string | null;
+  requestPanelChannelId: string | null;
+  requestPanelDescription: string;
+  requestPanelEnabled: boolean;
+  requestPanelMessageId: string | null;
+  requestPanelTitle: string;
+  requestRequiresApproval: boolean;
   viewRoleId: string | null;
 };
 
@@ -147,6 +154,36 @@ export type FivemGoalUserChannel = {
   channelId: string;
   guildId: string;
   userId: string;
+};
+
+export type FivemHierarchyEntry = {
+  active: boolean;
+  color: string | null;
+  description: string | null;
+  emoji: string | null;
+  id: string;
+  limit: number | null;
+  name: string;
+  order: number;
+  roleId: string;
+};
+
+export type FivemHierarchyPanel = {
+  color: string;
+  description: string | null;
+  enabled: boolean;
+  footerEnabled: boolean;
+  footerIconUrl: string | null;
+  footerText: string | null;
+  guildId: string;
+  hierarchies: FivemHierarchyEntry[];
+  id: string;
+  imagePosition: "top" | "bottom" | "thumbnail" | "none";
+  imageUrl: string | null;
+  logChannelId: string | null;
+  panelChannelId: string | null;
+  panelMessageId: string | null;
+  title: string;
 };
 
 export type SafeBotMessageState = {
@@ -1217,6 +1254,21 @@ export class ApiClient {
   }) {
     const { data } = await this.http.post("/fivem/bot/goals/entries", input);
     return data;
+  }
+
+  async updateFivemGoalPanelState(input: { guildId: string; messageId?: string | null }) {
+    const { data } = await this.http.post<{ settings: FivemGoalSettings }>("/fivem/bot/goals/panel-state", input);
+    return data.settings;
+  }
+
+  async getActiveFivemHierarchyPanels() {
+    const { data } = await this.http.get<{ panels: FivemHierarchyPanel[] }>("/fivem/bot/hierarchy/configs");
+    return data.panels;
+  }
+
+  async updateFivemHierarchyPanelState(input: { guildId: string; messageId?: string | null; panelId: string }) {
+    const { data } = await this.http.post<{ panel: FivemHierarchyPanel | null }>("/fivem/bot/hierarchy/panel-state", input);
+    return data.panel;
   }
 
   async syncSelfBotRole(input: { guildId: string; roleId: string; roleName?: string | null }) {

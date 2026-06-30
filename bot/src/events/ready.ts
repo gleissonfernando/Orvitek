@@ -9,6 +9,8 @@ import { registerGuildCommands } from "../handlers/commandHandler";
 import { startClipsMonitor } from "../services/clipsMonitor";
 import { startDiscordLogDelivery } from "../services/discordLogDeliveryService";
 import { startFivemFacService } from "../services/fivemFacService";
+import { startFivemGoalService } from "../services/fivemGoalService";
+import { startFivemHierarchyService } from "../services/fivemHierarchyService";
 import { startGiveawayService } from "../services/giveawayService";
 import { startGuildSettingsCache } from "../services/guildSettingsCache";
 import { startImageAntiSpamService } from "../services/imageAntiSpamService";
@@ -147,6 +149,12 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   }
   if (isBotModuleEnabled("fivem-fac")) {
     startFivemFacService(client, context);
+  }
+  if (isBotModuleEnabled("fivem-goals")) {
+    startFivemGoalService(client, context);
+  }
+  if (isBotModuleEnabled("fivem-hierarchy")) {
+    startFivemHierarchyService(client, context);
   }
   if (isBotModuleEnabled("image-anti-spam") && !isSelfBotModuleEnabled()) {
     startImageAntiSpamService(context);
