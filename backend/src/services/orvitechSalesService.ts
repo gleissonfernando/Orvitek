@@ -1,6 +1,12 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
 import type {
+  MongoOrvitechProduct,
+  MongoOrvitechProductFeatureKey,
+  MongoOrvitechProductPlanConfig,
   MongoOrvitechSale,
+  MongoOrvitechSalePlanType,
   MongoOrvitechSalesPaymentProvider,
   MongoOrvitechSalesPlan,
   MongoOrvitechSalesSettings,
@@ -32,6 +38,13 @@ export type OrvitechSalesPlanDto = Omit<MongoOrvitechSalesPlan, "_id" | "created
   updatedAt: string;
 };
 
+export type OrvitechProductDto = Omit<MongoOrvitechProduct, "_id" | "createdAt" | "updatedAt"> & {
+  id: string;
+  publicUrl: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type OrvitechSaleDto = Omit<MongoOrvitechSale, "_id" | "createdAt" | "updatedAt" | "paidAt" | "expiresAt"> & {
   id: string;
   createdAt: string;
@@ -42,6 +55,7 @@ export type OrvitechSaleDto = Omit<MongoOrvitechSale, "_id" | "createdAt" | "upd
 
 export type OrvitechSalesDashboardDto = {
   plans: OrvitechSalesPlanDto[];
+  products: OrvitechProductDto[];
   sales: OrvitechSaleDto[];
   settings: OrvitechSalesSettingsDto;
   stats: {
@@ -54,6 +68,12 @@ export type OrvitechSalesDashboardDto = {
     salesThisMonth: number;
     totalSales: number;
   };
+};
+
+export type PublicOrvitechProductDto = {
+  paymentProviders: Array<Pick<OrvitechSalesPaymentProviderDto, "gatewayId" | "id" | "label" | "provider">>;
+  product: OrvitechProductDto;
+  settings: Pick<OrvitechSalesSettingsDto, "currency" | "enabled" | "panelColor" | "storeId" | "termsUrl">;
 };
 
 export type SaveOrvitechSalesSettingsInput = Partial<{
@@ -95,6 +115,27 @@ export type SavePlanInput = {
   priceCents: number;
 };
 
+export type SaveProductInput = {
+  active: boolean;
+  additionalInfo?: string | null;
+  bannerUrl?: string | null;
+  category: string;
+  fullDescription?: string | null;
+  howItWorks?: string | null;
+  layout?: Partial<MongoOrvitechProduct["layout"]>;
+  name: string;
+  observations?: string | null;
+  plans: {
+    lifetime: Partial<MongoOrvitechProductPlanConfig> & Pick<MongoOrvitechProductPlanConfig, "enabled" | "name" | "priceCents">;
+    monthly: Partial<MongoOrvitechProductPlanConfig> & Pick<MongoOrvitechProductPlanConfig, "enabled" | "name" | "priceCents">;
+  };
+  seo?: Partial<MongoOrvitechProduct["seo"]>;
+  shortDescription?: string | null;
+  slug?: string | null;
+  toggles?: Partial<Record<MongoOrvitechProductFeatureKey, boolean>>;
+  warnings?: string | null;
+};
+
 export type SaveSaleInput = {
   amountCents?: number | null;
   buyerId: string;
@@ -106,6 +147,22 @@ export type SaveSaleInput = {
   status: MongoOrvitechSaleStatus;
 };
 
+export type ProductCheckoutInput = {
+  buyerEmail?: string | null;
+  buyerId?: string | null;
+  buyerName?: string | null;
+  paymentProviderId?: string | null;
+  planType: Exclude<MongoOrvitechSalePlanType, "manual">;
+};
+
+const PRODUCT_UPLOAD_DIR = path.resolve(__dirname, "../../uploads/orvitech-products");
+const PRODUCT_IMAGE_EXTENSIONS: Record<string, string> = {
+  "image/gif": "gif",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp"
+};
+
 export type ProcessWebhookInput = {
   eventId?: string | null;
   eventType?: string | null;
@@ -115,17 +172,18 @@ export type ProcessWebhookInput = {
 };
 
 export async function getOrvitechSalesDashboard(botId: string, guildId: string, ownerUserId: string) {
-  const { orvitechCustomers, orvitechSales, orvitechSalesPlans, orvitechSubscriptions } = await getMongoCollections();
+  const { orvitechCustomers, orvitechProducts, orvitechSales, orvitechSalesPlans, orvitechSubscriptions } = await getMongoCollections();
   const settings = await ensureOrvitechSalesSettings(botId, guildId, ownerUserId);
   const scope = tenantScope(botId, guildId, ownerUserId, settings.storeId);
-  const [plans, sales, customers, subscriptions] = await Promise.all([
+  const [plans, products, sales, customers, subscriptions] = await Promise.all([
     orvitechSalesPlans.find(scope).sort({ createdAt: -1 }).toArray(),
+    orvitechProducts.find(scope).sort({ updatedAt: -1 }).toArray(),
     orvitechSales.find(scope).sort({ createdAt: -1 }).limit(100).toArray(),
     orvitechCustomers.countDocuments(scope),
     orvitechSubscriptions.countDocuments({ ...scope, status: "active" })
   ]);
 
-  return toDashboardDto(settings, plans, sales, customers, subscriptions);
+  return toDashboardDto(settings, plans, products, sales, customers, subscriptions);
 }
 
 export async function ensureOrvitechSalesSettings(botId: string, guildId: string, ownerUserId: string) {
@@ -359,6 +417,122 @@ export async function saveOrvitechSalesPlan(botId: string, guildId: string, plan
   return plan;
 }
 
+export async function saveOrvitechProduct(botId: string, guildId: string, productId: string | null, input: SaveProductInput, actorId: string) {
+  const { orvitechProducts } = await getMongoCollections();
+  const settings = await ensureOrvitechSalesSettings(botId, guildId, actorId);
+  const scope = tenantScope(botId, guildId, actorId, settings.storeId);
+  const now = new Date();
+  const slug = slugifyProduct(input.slug || input.name);
+  const productPatch = productFieldsFromInput(input, settings);
+
+  if (productId) {
+    await orvitechProducts.updateOne(
+      { _id: productId, ...scope },
+      {
+        $set: {
+          ...productPatch,
+          slug: productId ? slug : await uniqueProductSlug(settings.storeId, slug),
+          updatedAt: now,
+          updatedBy: actorId
+        }
+      }
+    );
+
+    return orvitechProducts.findOne({ _id: productId, ...scope });
+  }
+
+  const product: MongoOrvitechProduct = {
+    _id: randomUUID(),
+    botId,
+    guildId,
+    ownerUserId: actorId,
+    storeId: settings.storeId,
+    slug: await uniqueProductSlug(settings.storeId, slug),
+    createdBy: actorId,
+    createdAt: now,
+    updatedBy: actorId,
+    updatedAt: now,
+    ...productPatch
+  };
+
+  await orvitechProducts.insertOne(product);
+  return product;
+}
+
+export async function duplicateOrvitechProduct(botId: string, guildId: string, productId: string, actorId: string) {
+  const { orvitechProducts } = await getMongoCollections();
+  const settings = await ensureOrvitechSalesSettings(botId, guildId, actorId);
+  const scope = tenantScope(botId, guildId, actorId, settings.storeId);
+  const product = await orvitechProducts.findOne({ _id: productId, ...scope });
+
+  if (!product) return null;
+
+  const now = new Date();
+  const copy: MongoOrvitechProduct = {
+    ...product,
+    _id: randomUUID(),
+    name: `${product.name} Copia`,
+    slug: await uniqueProductSlug(settings.storeId, `${product.slug}-copia`),
+    active: false,
+    createdAt: now,
+    createdBy: actorId,
+    updatedAt: now,
+    updatedBy: actorId
+  };
+
+  await orvitechProducts.insertOne(copy);
+  return copy;
+}
+
+export async function deleteOrvitechProduct(botId: string, guildId: string, productId: string, actorId: string) {
+  const { orvitechProducts } = await getMongoCollections();
+  const settings = await ensureOrvitechSalesSettings(botId, guildId, actorId);
+  return orvitechProducts.findOneAndDelete({ _id: productId, ...tenantScope(botId, guildId, actorId, settings.storeId) });
+}
+
+export async function saveOrvitechProductBannerUpload(input: {
+  actorId: string;
+  botId: string;
+  buffer: Buffer;
+  guildId: string;
+  mimeType: string;
+  productId: string;
+}) {
+  const extension = PRODUCT_IMAGE_EXTENSIONS[input.mimeType];
+
+  if (!extension) {
+    throw createOrvitechSalesError("Formato de imagem nao suportado.", 400);
+  }
+
+  const { orvitechProducts } = await getMongoCollections();
+  const settings = await ensureOrvitechSalesSettings(input.botId, input.guildId, input.actorId);
+  const scope = tenantScope(input.botId, input.guildId, input.actorId, settings.storeId);
+  const product = await orvitechProducts.findOne({ _id: input.productId, ...scope });
+
+  if (!product) {
+    throw createOrvitechSalesError("Produto nao encontrado.", 404);
+  }
+
+  await fs.mkdir(PRODUCT_UPLOAD_DIR, { recursive: true });
+  const filename = `${settings.storeId}-${product._id}-${Date.now()}.${extension}`;
+  const filePath = path.join(PRODUCT_UPLOAD_DIR, filename);
+  await fs.writeFile(filePath, input.buffer);
+
+  const bannerUrl = `/uploads/orvitech-products/${filename}`;
+  await orvitechProducts.updateOne(
+    { _id: input.productId, ...scope },
+    {
+      $set: {
+        bannerUrl,
+        updatedAt: new Date(),
+        updatedBy: input.actorId
+      }
+    }
+  );
+
+  return orvitechProducts.findOne({ _id: input.productId, ...scope });
+}
+
 export async function deleteScopedOrvitechSalesPlan(botId: string, guildId: string, planId: string, ownerUserId: string) {
   const { orvitechSalesPlans } = await getMongoCollections();
   const settings = await ensureOrvitechSalesSettings(botId, guildId, ownerUserId);
@@ -401,6 +575,10 @@ export async function saveOrvitechSale(botId: string, guildId: string, input: Sa
     paymentGatewayId: provider?.gatewayId ?? null,
     paymentProviderId: provider?.id ?? null,
     paymentProviderLabel: provider?.label ?? null,
+    productId: null,
+    productName: null,
+    productPlanType: "manual",
+    productSlug: null,
     externalReference: normalizeNullable(input.externalReference),
     status: input.status,
     notes: normalizeNullable(input.notes),
@@ -431,6 +609,113 @@ export async function saveOrvitechSale(botId: string, guildId: string, input: Sa
     });
   }
   return sale;
+}
+
+export async function getPublicOrvitechProduct(storeId: string, slug: string): Promise<PublicOrvitechProductDto | null> {
+  const { orvitechProducts, orvitechSalesSettings } = await getMongoCollections();
+  const [settings, product] = await Promise.all([
+    orvitechSalesSettings.findOne({ storeId }),
+    orvitechProducts.findOne({ storeId, slug: slugifyProduct(slug), active: true })
+  ]);
+
+  if (!settings || !product || !settings.enabled) {
+    return null;
+  }
+
+  return {
+    settings: {
+      currency: settings.currency,
+      enabled: settings.enabled,
+      panelColor: settings.panelColor,
+      storeId: settings.storeId,
+      termsUrl: settings.termsUrl
+    },
+    product: toProductDto(product),
+    paymentProviders: settings.paymentProviders
+      .filter((provider) => provider.enabled)
+      .map((provider) => ({
+        gatewayId: provider.gatewayId,
+        id: provider.id,
+        label: provider.label,
+        provider: provider.provider
+      }))
+  };
+}
+
+export async function createProductCheckout(storeId: string, slug: string, input: ProductCheckoutInput) {
+  const { orvitechCustomers, orvitechProducts, orvitechSales, orvitechSalesSettings } = await getMongoCollections();
+  const settings = await orvitechSalesSettings.findOne({ storeId });
+  const product = await orvitechProducts.findOne({ storeId, slug: slugifyProduct(slug), active: true });
+
+  if (!settings || !product || !settings.enabled) {
+    return null;
+  }
+
+  const plan = product.plans[input.planType];
+
+  if (!plan.enabled) {
+    throw createOrvitechSalesError("Plano indisponivel para este produto.", 400);
+  }
+
+  const provider = settings.paymentProviders.find((item) => item.id === input.paymentProviderId && item.enabled)
+    ?? settings.paymentProviders.find((item) => item.id === plan.paymentProviderId && item.enabled)
+    ?? settings.paymentProviders.find((item) => item.enabled)
+    ?? null;
+
+  if (!provider) {
+    throw createOrvitechSalesError("Nenhum gateway de pagamento ativo nesta loja.", 400);
+  }
+
+  const now = new Date();
+  const buyerId = input.buyerId?.trim() || `guest-${randomUUID()}`;
+  const customer = await upsertCustomer(orvitechCustomers, {
+    botId: settings.botId,
+    guildId: settings.guildId,
+    ownerUserId: settings.ownerUserId,
+    storeId: settings.storeId,
+    buyerId,
+    buyerName: normalizeNullable(input.buyerName) ?? normalizeNullable(input.buyerEmail),
+    now
+  });
+  const sale: MongoOrvitechSale = {
+    _id: randomUUID(),
+    botId: settings.botId,
+    guildId: settings.guildId,
+    ownerUserId: settings.ownerUserId,
+    storeId: settings.storeId,
+    planId: null,
+    planName: plan.name,
+    customerId: customer._id,
+    buyerId,
+    buyerName: normalizeNullable(input.buyerName),
+    amountCents: plan.priceCents,
+    currency: settings.currency,
+    paymentGatewayId: provider.gatewayId,
+    paymentProviderId: provider.id,
+    paymentProviderLabel: provider.label,
+    productId: product._id,
+    productName: product.name,
+    productPlanType: input.planType,
+    productSlug: product.slug,
+    externalReference: null,
+    status: "pending",
+    notes: `Checkout publico ${input.planType}`,
+    paidAt: null,
+    expiresAt: null,
+    createdBy: null,
+    updatedBy: null,
+    createdAt: now,
+    updatedAt: now
+  };
+
+  await orvitechSales.insertOne(sale);
+  return {
+    gatewayId: provider.gatewayId,
+    instructions: provider.instructions,
+    provider: provider.provider,
+    publicKey: provider.publicKey,
+    sale: toSaleDto(sale)
+  };
 }
 
 export async function updateOrvitechSaleStatus(botId: string, guildId: string, saleId: string, status: MongoOrvitechSaleStatus, actorId: string) {
@@ -547,7 +832,14 @@ export async function processOrvitechPaymentWebhook(storeId: string, gatewayId: 
   };
 }
 
-function toDashboardDto(settings: MongoOrvitechSalesSettings, plans: MongoOrvitechSalesPlan[], sales: MongoOrvitechSale[], customers: number, subscriptions: number): OrvitechSalesDashboardDto {
+function toDashboardDto(
+  settings: MongoOrvitechSalesSettings,
+  plans: MongoOrvitechSalesPlan[],
+  products: MongoOrvitechProduct[],
+  sales: MongoOrvitechSale[],
+  customers: number,
+  subscriptions: number
+): OrvitechSalesDashboardDto {
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
@@ -555,6 +847,7 @@ function toDashboardDto(settings: MongoOrvitechSalesSettings, plans: MongoOrvite
   return {
     settings: toSettingsDto(settings),
     plans: plans.map(toPlanDto),
+    products: products.map(toProductDto),
     sales: sales.map(toSaleDto),
     stats: {
       activePlans: plans.filter((plan) => plan.enabled).length,
@@ -585,6 +878,16 @@ export function toPlanDto(plan: MongoOrvitechSalesPlan): OrvitechSalesPlanDto {
     id: plan._id,
     createdAt: plan.createdAt.toISOString(),
     updatedAt: plan.updatedAt.toISOString()
+  };
+}
+
+export function toProductDto(product: MongoOrvitechProduct): OrvitechProductDto {
+  return {
+    ...product,
+    id: product._id,
+    publicUrl: `/orvitech/${product.storeId}/${product.slug}`,
+    createdAt: product.createdAt.toISOString(),
+    updatedAt: product.updatedAt.toISOString()
   };
 }
 
@@ -711,4 +1014,104 @@ function readWebhookSaleId(payload: unknown) {
   const saleId = record.saleId ?? record.sale_id ?? record.external_reference ?? record.externalReference;
 
   return typeof saleId === "string" ? saleId : null;
+}
+
+function productFieldsFromInput(input: SaveProductInput, settings: MongoOrvitechSalesSettings): Omit<
+  MongoOrvitechProduct,
+  "_id" | "botId" | "createdAt" | "createdBy" | "guildId" | "ownerUserId" | "slug" | "storeId" | "updatedAt" | "updatedBy"
+> {
+  return {
+    active: input.active,
+    additionalInfo: normalizeNullable(input.additionalInfo) ?? "",
+    bannerUrl: normalizeNullable(input.bannerUrl),
+    category: input.category.trim() || "Produto digital",
+    fullDescription: normalizeNullable(input.fullDescription) ?? "",
+    howItWorks: normalizeNullable(input.howItWorks) ?? "",
+    layout: {
+      accentColor: input.layout?.accentColor?.trim() || settings.panelColor || "#7c3aed",
+      glassEffect: input.layout?.glassEffect ?? true,
+      theme: input.layout?.theme ?? "dark"
+    },
+    name: input.name.trim(),
+    observations: normalizeNullable(input.observations) ?? "",
+    plans: {
+      monthly: normalizePlan(input.plans.monthly, "Plano Mensal", "Mensal", 30, settings.paymentProviders[0]?.id ?? null),
+      lifetime: normalizePlan(input.plans.lifetime, "Plano Vitalicio", "Vitalicio", 0, settings.paymentProviders[0]?.id ?? null)
+    },
+    seo: {
+      description: normalizeNullable(input.seo?.description),
+      title: normalizeNullable(input.seo?.title)
+    },
+    shortDescription: normalizeNullable(input.shortDescription) ?? "",
+    toggles: normalizeFeatureToggles(input.toggles),
+    warnings: normalizeNullable(input.warnings) ?? ""
+  };
+}
+
+function normalizePlan(
+  plan: SaveProductInput["plans"]["monthly"],
+  fallbackName: string,
+  fallbackButton: string,
+  fallbackPrice: number,
+  fallbackProviderId: string | null
+): MongoOrvitechProductPlanConfig {
+  return {
+    benefits: Array.isArray(plan.benefits) ? plan.benefits.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [],
+    buttonColor: plan.buttonColor?.trim() || "#7c3aed",
+    buttonText: plan.buttonText?.trim() || fallbackButton,
+    description: plan.description?.trim() || "",
+    enabled: plan.enabled,
+    name: plan.name.trim() || fallbackName,
+    paymentProviderId: plan.paymentProviderId ?? fallbackProviderId,
+    priceCents: Number.isFinite(plan.priceCents) ? plan.priceCents : fallbackPrice,
+    priceText: plan.priceText?.trim() || ""
+  };
+}
+
+function normalizeFeatureToggles(toggles: SaveProductInput["toggles"] = {}) {
+  const keys: MongoOrvitechProductFeatureKey[] = [
+    "hosting",
+    "updates",
+    "support",
+    "automaticContract",
+    "automaticPix",
+    "releaseCode",
+    "coupons",
+    "automaticRenewal",
+    "passwordCreation",
+    "automaticLogin",
+    "activationKey"
+  ];
+
+  return Object.fromEntries(keys.map((key) => [key, Boolean(toggles[key])])) as Record<MongoOrvitechProductFeatureKey, boolean>;
+}
+
+function slugifyProduct(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-") || "produto";
+}
+
+async function uniqueProductSlug(storeId: string, wantedSlug: string) {
+  const { orvitechProducts } = await getMongoCollections();
+  const base = slugifyProduct(wantedSlug);
+  let slug = base;
+  let suffix = 2;
+
+  while (await orvitechProducts.findOne({ storeId, slug }, { projection: { _id: 1 } })) {
+    slug = `${base}-${suffix}`;
+    suffix += 1;
+  }
+
+  return slug;
+}
+
+function createOrvitechSalesError(message: string, statusCode: number) {
+  return Object.assign(new Error(message), {
+    statusCode
+  });
 }

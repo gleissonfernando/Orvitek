@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, raw } from "express";
 import { z } from "zod";
 import { emitRealtime } from "../realtime/events";
 import { requireDevAccess } from "../services/devAccessService";
@@ -46,13 +46,18 @@ import {
 } from "../services/maintenanceService";
 import {
   deleteOrvitechPaymentProvider,
+  deleteOrvitechProduct,
   deleteScopedOrvitechSalesPlan,
+  duplicateOrvitechProduct,
   getOrvitechSalesDashboard,
   ORVITECH_SALES_MODULE_ID,
   saveOrvitechPaymentProvider,
+  saveOrvitechProduct,
+  saveOrvitechProductBannerUpload,
   saveOrvitechSale,
   saveOrvitechSalesPlan,
   saveOrvitechSalesSettings,
+  toProductDto,
   toPlanDto,
   toSaleDto,
   toSettingsDto,
@@ -148,6 +153,50 @@ const orvitechSalesPlanSchema = z.object({
   moduleIds: z.array(devModuleIdSchema).default([ORVITECH_SALES_MODULE_ID]),
   name: z.string().min(2).max(100),
   priceCents: z.number().int().min(0).max(100000000)
+});
+
+const productPlanSchema = z.object({
+  benefits: z.array(z.string().max(220)).default([]),
+  buttonColor: z.string().min(4).max(24).default("#7c3aed"),
+  buttonText: z.string().min(1).max(40),
+  description: z.string().max(1200).default(""),
+  enabled: z.boolean(),
+  name: z.string().min(1).max(100),
+  paymentProviderId: z.string().max(120).nullable().optional(),
+  priceCents: z.number().int().min(0).max(100000000),
+  priceText: z.string().max(80).default("")
+});
+
+const orvitechProductSchema = z.object({
+  active: z.boolean().default(true),
+  additionalInfo: z.string().max(3000).nullable().optional().or(z.literal("")),
+  bannerUrl: z.string().url().max(2048).nullable().optional().or(z.literal("")),
+  category: z.string().min(1).max(80),
+  fullDescription: z.string().max(6000).nullable().optional().or(z.literal("")),
+  howItWorks: z.string().max(4000).nullable().optional().or(z.literal("")),
+  layout: z.object({
+    accentColor: z.string().min(4).max(24).optional(),
+    glassEffect: z.boolean().optional(),
+    theme: z.enum(["dark", "purple"]).optional()
+  }).optional(),
+  name: z.string().min(2).max(120),
+  observations: z.string().max(3000).nullable().optional().or(z.literal("")),
+  plans: z.object({
+    lifetime: productPlanSchema,
+    monthly: productPlanSchema
+  }).refine((plans) => plans.monthly.enabled || plans.lifetime.enabled, "Ative ao menos um plano."),
+  seo: z.object({
+    description: z.string().max(180).nullable().optional().or(z.literal("")),
+    title: z.string().max(80).nullable().optional().or(z.literal(""))
+  }).optional(),
+  shortDescription: z.string().max(400).nullable().optional().or(z.literal("")),
+  slug: z.string().max(120).nullable().optional().or(z.literal("")),
+  toggles: z.record(z.boolean()).optional(),
+  warnings: z.string().max(3000).nullable().optional().or(z.literal(""))
+});
+const orvitechProductBannerUpload = raw({
+  limit: "10mb",
+  type: ["image/gif", "image/jpeg", "image/png", "image/webp"]
 });
 
 const orvitechSaleSchema = z.object({
@@ -971,6 +1020,155 @@ devRouter.delete("/bots/:botId/guilds/:guildId/orvitech-sales/providers/:provide
   }
 });
 
+devRouter.post("/bots/:botId/guilds/:guildId/orvitech-sales/products", async (req, res, next) => {
+  try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+
+    if (!(await canManageDevBot(auth.user, req.params.botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem acesso a este bot."
+      });
+    }
+
+    const input = orvitechProductSchema.parse(req.body ?? {});
+    const product = await saveOrvitechProduct(req.params.botId, req.params.guildId, null, sanitizeOrvitechProductInput(input), auth.user.discordId);
+
+    await writeDevBotAudit(auth, req.params.guildId, req.params.botId, "orvitech_sales_product_create", `Produto OrviTech criado: ${input.name}.`);
+
+    return res.status(201).json({
+      product: product ? toProductDto(product) : null
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.patch("/bots/:botId/guilds/:guildId/orvitech-sales/products/:productId", async (req, res, next) => {
+  try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+
+    if (!(await canManageDevBot(auth.user, req.params.botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem acesso a este bot."
+      });
+    }
+
+    const input = orvitechProductSchema.parse(req.body ?? {});
+    const product = await saveOrvitechProduct(req.params.botId, req.params.guildId, req.params.productId, sanitizeOrvitechProductInput(input), auth.user.discordId);
+
+    if (!product) {
+      return res.status(404).json({
+        message: "Produto nao encontrado."
+      });
+    }
+
+    await writeDevBotAudit(auth, req.params.guildId, req.params.botId, "orvitech_sales_product_update", `Produto OrviTech atualizado: ${input.name}.`);
+
+    return res.json({
+      product: toProductDto(product)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.post("/bots/:botId/guilds/:guildId/orvitech-sales/products/:productId/duplicate", async (req, res, next) => {
+  try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+
+    if (!(await canManageDevBot(auth.user, req.params.botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem acesso a este bot."
+      });
+    }
+
+    const product = await duplicateOrvitechProduct(req.params.botId, req.params.guildId, req.params.productId, auth.user.discordId);
+
+    if (!product) {
+      return res.status(404).json({
+        message: "Produto nao encontrado."
+      });
+    }
+
+    await writeDevBotAudit(auth, req.params.guildId, req.params.botId, "orvitech_sales_product_duplicate", `Produto OrviTech duplicado: ${product.name}.`);
+
+    return res.status(201).json({
+      product: toProductDto(product)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.put("/bots/:botId/guilds/:guildId/orvitech-sales/products/:productId/banner", orvitechProductBannerUpload, async (req, res, next) => {
+  try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+
+    if (!(await canManageDevBot(auth.user, req.params.botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem acesso a este bot."
+      });
+    }
+
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({
+        message: "Envie uma imagem para o produto."
+      });
+    }
+
+    const product = await saveOrvitechProductBannerUpload({
+      actorId: auth.user.discordId,
+      botId: req.params.botId,
+      buffer: req.body,
+      guildId: req.params.guildId,
+      mimeType: req.header("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "",
+      productId: req.params.productId
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        message: "Produto nao encontrado."
+      });
+    }
+
+    await writeDevBotAudit(auth, req.params.guildId, req.params.botId, "orvitech_sales_product_banner", `Banner do produto OrviTech atualizado: ${product.name}.`);
+
+    return res.json({
+      product: toProductDto(product)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.delete("/bots/:botId/guilds/:guildId/orvitech-sales/products/:productId", async (req, res, next) => {
+  try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+
+    if (!(await canManageDevBot(auth.user, req.params.botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem acesso a este bot."
+      });
+    }
+
+    const product = await deleteOrvitechProduct(req.params.botId, req.params.guildId, req.params.productId, auth.user.discordId);
+
+    if (!product) {
+      return res.status(404).json({
+        message: "Produto nao encontrado."
+      });
+    }
+
+    await writeDevBotAudit(auth, req.params.guildId, req.params.botId, "orvitech_sales_product_delete", `Produto OrviTech removido: ${product.name}.`);
+
+    return res.json({
+      product: toProductDto(product)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 devRouter.post("/bots/:botId/guilds/:guildId/orvitech-sales/plans", async (req, res, next) => {
   try {
     const auth = res.locals.dashboardAuth as DashboardAuth;
@@ -1166,4 +1364,22 @@ async function writeDevBotAudit(
   }).catch((error) => {
     console.warn("[audit] nao foi possivel registrar auditoria da dashboard:", error instanceof Error ? error.message : error);
   });
+}
+
+function sanitizeOrvitechProductInput(input: z.infer<typeof orvitechProductSchema>) {
+  return {
+    ...input,
+    additionalInfo: input.additionalInfo === "" ? null : input.additionalInfo,
+    bannerUrl: input.bannerUrl === "" ? null : input.bannerUrl,
+    fullDescription: input.fullDescription === "" ? null : input.fullDescription,
+    howItWorks: input.howItWorks === "" ? null : input.howItWorks,
+    observations: input.observations === "" ? null : input.observations,
+    seo: input.seo ? {
+      description: input.seo.description === "" ? null : input.seo.description,
+      title: input.seo.title === "" ? null : input.seo.title
+    } : undefined,
+    shortDescription: input.shortDescription === "" ? null : input.shortDescription,
+    slug: input.slug === "" ? null : input.slug,
+    warnings: input.warnings === "" ? null : input.warnings
+  };
 }

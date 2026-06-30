@@ -924,7 +924,70 @@ export type MongoOrvitechSalesPlan = {
   updatedAt: Date;
 };
 
+export type MongoOrvitechProductFeatureKey =
+  | "hosting"
+  | "updates"
+  | "support"
+  | "automaticContract"
+  | "automaticPix"
+  | "releaseCode"
+  | "coupons"
+  | "automaticRenewal"
+  | "passwordCreation"
+  | "automaticLogin"
+  | "activationKey";
+
+export type MongoOrvitechProductPlanConfig = {
+  benefits: string[];
+  buttonColor: string;
+  buttonText: string;
+  description: string;
+  enabled: boolean;
+  name: string;
+  paymentProviderId: string | null;
+  priceCents: number;
+  priceText: string;
+};
+
+export type MongoOrvitechProduct = {
+  _id: string;
+  active: boolean;
+  additionalInfo: string;
+  bannerUrl: string | null;
+  botId: string;
+  category: string;
+  createdAt: Date;
+  createdBy: string | null;
+  fullDescription: string;
+  guildId: string;
+  howItWorks: string;
+  layout: {
+    accentColor: string;
+    glassEffect: boolean;
+    theme: "dark" | "purple";
+  };
+  name: string;
+  observations: string;
+  ownerUserId: string;
+  plans: {
+    lifetime: MongoOrvitechProductPlanConfig;
+    monthly: MongoOrvitechProductPlanConfig;
+  };
+  seo: {
+    description: string | null;
+    title: string | null;
+  };
+  shortDescription: string;
+  slug: string;
+  storeId: string;
+  toggles: Record<MongoOrvitechProductFeatureKey, boolean>;
+  updatedAt: Date;
+  updatedBy: string | null;
+  warnings: string;
+};
+
 export type MongoOrvitechSaleStatus = "pending" | "paid" | "cancelled" | "refunded";
+export type MongoOrvitechSalePlanType = "monthly" | "lifetime" | "manual";
 
 export type MongoOrvitechSale = {
   _id: string;
@@ -942,6 +1005,10 @@ export type MongoOrvitechSale = {
   paymentGatewayId: string | null;
   paymentProviderId: string | null;
   paymentProviderLabel: string | null;
+  productId?: string | null;
+  productName?: string | null;
+  productSlug?: string | null;
+  productPlanType?: MongoOrvitechSalePlanType;
   externalReference: string | null;
   status: MongoOrvitechSaleStatus;
   notes: string | null;
@@ -1649,6 +1716,7 @@ export async function getMongoCollections() {
     applicationEmojiSettings: db.collection<MongoApplicationEmojiSettings>("application_emoji_settings"),
     orvitechSalesSettings: db.collection<MongoOrvitechSalesSettings>("orvitech_sales_settings"),
     orvitechSalesPlans: db.collection<MongoOrvitechSalesPlan>("orvitech_sales_plans"),
+    orvitechProducts: db.collection<MongoOrvitechProduct>("orvitech_products"),
     orvitechSales: db.collection<MongoOrvitechSale>("orvitech_sales"),
     orvitechCustomers: db.collection<MongoOrvitechCustomer>("orvitech_customers"),
     orvitechSubscriptions: db.collection<MongoOrvitechSubscription>("orvitech_subscriptions"),
@@ -2248,6 +2316,9 @@ async function ensureOrvitechSalesIndexes(db: Db) {
     db.collection<MongoOrvitechSalesSettings>("orvitech_sales_settings").createIndex({ storeId: 1 }, { unique: true }),
     db.collection<MongoOrvitechSalesSettings>("orvitech_sales_settings").createIndex({ ownerUserId: 1, enabled: 1, updatedAt: -1 }),
     db.collection<MongoOrvitechSalesPlan>("orvitech_sales_plans").createIndex({ ownerUserId: 1, storeId: 1, enabled: 1, updatedAt: -1 }),
+    db.collection<MongoOrvitechProduct>("orvitech_products").createIndex({ ownerUserId: 1, storeId: 1, updatedAt: -1 }),
+    db.collection<MongoOrvitechProduct>("orvitech_products").createIndex({ storeId: 1, slug: 1 }, { unique: true }),
+    db.collection<MongoOrvitechProduct>("orvitech_products").createIndex({ storeId: 1, active: 1, updatedAt: -1 }),
     db.collection<MongoOrvitechSale>("orvitech_sales").createIndex({ ownerUserId: 1, storeId: 1, createdAt: -1 }),
     db.collection<MongoOrvitechSale>("orvitech_sales").createIndex({ ownerUserId: 1, storeId: 1, status: 1, createdAt: -1 }),
     db.collection<MongoOrvitechSale>("orvitech_sales").createIndex({ ownerUserId: 1, storeId: 1, buyerId: 1, createdAt: -1 }),

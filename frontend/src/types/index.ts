@@ -1615,6 +1615,69 @@ export type OrvitechSalesPlan = {
   updatedAt: string;
 };
 
+export type OrvitechProductFeatureKey =
+  | "hosting"
+  | "updates"
+  | "support"
+  | "automaticContract"
+  | "automaticPix"
+  | "releaseCode"
+  | "coupons"
+  | "automaticRenewal"
+  | "passwordCreation"
+  | "automaticLogin"
+  | "activationKey";
+
+export type OrvitechProductPlanConfig = {
+  benefits: string[];
+  buttonColor: string;
+  buttonText: string;
+  description: string;
+  enabled: boolean;
+  name: string;
+  paymentProviderId: string | null;
+  priceCents: number;
+  priceText: string;
+};
+
+export type OrvitechProduct = {
+  id: string;
+  active: boolean;
+  additionalInfo: string;
+  bannerUrl: string | null;
+  botId: string;
+  category: string;
+  createdAt: string;
+  createdBy: string | null;
+  fullDescription: string;
+  guildId: string;
+  howItWorks: string;
+  layout: {
+    accentColor: string;
+    glassEffect: boolean;
+    theme: "dark" | "purple";
+  };
+  name: string;
+  observations: string;
+  ownerUserId: string;
+  plans: {
+    lifetime: OrvitechProductPlanConfig;
+    monthly: OrvitechProductPlanConfig;
+  };
+  publicUrl: string;
+  seo: {
+    description: string | null;
+    title: string | null;
+  };
+  shortDescription: string;
+  slug: string;
+  storeId: string;
+  toggles: Record<OrvitechProductFeatureKey, boolean>;
+  updatedAt: string;
+  updatedBy: string | null;
+  warnings: string;
+};
+
 export type OrvitechSale = {
   id: string;
   botId: string;
@@ -1625,8 +1688,13 @@ export type OrvitechSale = {
   buyerName: string | null;
   amountCents: number;
   currency: "BRL" | "USD" | "EUR";
+  paymentGatewayId: string | null;
   paymentProviderId: string | null;
   paymentProviderLabel: string | null;
+  productId?: string | null;
+  productName?: string | null;
+  productPlanType?: "monthly" | "lifetime" | "manual";
+  productSlug?: string | null;
   externalReference: string | null;
   status: OrvitechSaleStatus;
   notes: string | null;
@@ -1640,6 +1708,7 @@ export type OrvitechSale = {
 
 export type OrvitechSalesDashboard = {
   plans: OrvitechSalesPlan[];
+  products: OrvitechProduct[];
   sales: OrvitechSale[];
   settings: OrvitechSalesSettings;
   stats: {
@@ -1652,6 +1721,12 @@ export type OrvitechSalesDashboard = {
     salesThisMonth: number;
     totalSales: number;
   };
+};
+
+export type PublicOrvitechProduct = {
+  paymentProviders: Array<Pick<OrvitechSalesPaymentProvider, "gatewayId" | "id" | "label" | "provider">>;
+  product: OrvitechProduct;
+  settings: Pick<OrvitechSalesSettings, "currency" | "enabled" | "panelColor" | "storeId" | "termsUrl">;
 };
 
 export type SaveOrvitechSalesSettingsPayload = Partial<Pick<
@@ -1693,6 +1768,11 @@ export type SaveOrvitechSalesPlanPayload = {
   name: string;
   priceCents: number;
 };
+
+export type SaveOrvitechProductPayload = Omit<
+  OrvitechProduct,
+  "botId" | "createdAt" | "createdBy" | "guildId" | "id" | "ownerUserId" | "publicUrl" | "storeId" | "updatedAt" | "updatedBy"
+>;
 
 export type SaveOrvitechSalePayload = {
   amountCents?: number | null;

@@ -1,12 +1,69 @@
 import { Router } from "express";
 import { z } from "zod";
-import { processOrvitechPaymentWebhook } from "../services/orvitechSalesService";
+import {
+  createProductCheckout,
+  getPublicOrvitechProduct,
+  processOrvitechPaymentWebhook
+} from "../services/orvitechSalesService";
 
 export const orvitechSalesRouter = Router();
 
 const webhookParamsSchema = z.object({
   gatewayId: z.string().min(8).max(120),
   storeId: z.string().min(8).max(120)
+});
+
+const productParamsSchema = z.object({
+  slug: z.string().min(1).max(120),
+  storeId: z.string().min(8).max(120)
+});
+
+const checkoutSchema = z.object({
+  buyerEmail: z.string().email().nullable().optional().or(z.literal("")),
+  buyerId: z.string().max(64).nullable().optional().or(z.literal("")),
+  buyerName: z.string().max(100).nullable().optional().or(z.literal("")),
+  paymentProviderId: z.string().max(120).nullable().optional(),
+  planType: z.enum(["monthly", "lifetime"])
+});
+
+orvitechSalesRouter.get("/stores/:storeId/products/:slug", async (req, res, next) => {
+  try {
+    const params = productParamsSchema.parse(req.params);
+    const product = await getPublicOrvitechProduct(params.storeId, params.slug);
+
+    if (!product) {
+      return res.status(404).json({
+        message: "Produto nao encontrado."
+      });
+    }
+
+    return res.json(product);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+orvitechSalesRouter.post("/stores/:storeId/products/:slug/checkout", async (req, res, next) => {
+  try {
+    const params = productParamsSchema.parse(req.params);
+    const input = checkoutSchema.parse(req.body ?? {});
+    const checkout = await createProductCheckout(params.storeId, params.slug, {
+      ...input,
+      buyerEmail: input.buyerEmail === "" ? null : input.buyerEmail,
+      buyerId: input.buyerId === "" ? null : input.buyerId,
+      buyerName: input.buyerName === "" ? null : input.buyerName
+    });
+
+    if (!checkout) {
+      return res.status(404).json({
+        message: "Produto nao encontrado."
+      });
+    }
+
+    return res.status(201).json(checkout);
+  } catch (error) {
+    return next(error);
+  }
 });
 
 orvitechSalesRouter.post("/webhooks/:storeId/:gatewayId", async (req, res, next) => {

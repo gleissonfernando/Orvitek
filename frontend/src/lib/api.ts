@@ -52,10 +52,12 @@ import type {
   MaintenanceState,
   OrvitechSale,
   OrvitechSaleStatus,
+  OrvitechProduct,
   OrvitechSalesDashboard,
   OrvitechSalesPlan,
   OrvitechSalesSettings,
   PanelImageSettings,
+  PublicOrvitechProduct,
   PublicKickClips,
   SaveClipsConfigPayload,
   SaveFivemFacSettingsPayload,
@@ -64,6 +66,7 @@ import type {
   SaveImageAntiSpamSettingsPayload,
   SaveMissionToolsSettingsPayload,
   SaveOrvitechPaymentProviderPayload,
+  SaveOrvitechProductPayload,
   SaveOrvitechSalePayload,
   SaveOrvitechSalesPlanPayload,
   SaveOrvitechSalesSettingsPayload,
@@ -1508,6 +1511,50 @@ export async function deleteOrvitechPaymentProvider(botId: string, guildId: stri
   return data.settings;
 }
 
+export async function createOrvitechProduct(botId: string, guildId: string, payload: SaveOrvitechProductPayload) {
+  const { data } = await api.post<{ product: OrvitechProduct }>(
+    `/dev/bots/${encodeURIComponent(botId)}/guilds/${encodeURIComponent(guildId)}/orvitech-sales/products`,
+    payload
+  );
+  return data.product;
+}
+
+export async function updateOrvitechProduct(botId: string, guildId: string, productId: string, payload: SaveOrvitechProductPayload) {
+  const { data } = await api.patch<{ product: OrvitechProduct }>(
+    `/dev/bots/${encodeURIComponent(botId)}/guilds/${encodeURIComponent(guildId)}/orvitech-sales/products/${encodeURIComponent(productId)}`,
+    payload
+  );
+  return data.product;
+}
+
+export async function duplicateOrvitechProduct(botId: string, guildId: string, productId: string) {
+  const { data } = await api.post<{ product: OrvitechProduct }>(
+    `/dev/bots/${encodeURIComponent(botId)}/guilds/${encodeURIComponent(guildId)}/orvitech-sales/products/${encodeURIComponent(productId)}/duplicate`
+  );
+  return data.product;
+}
+
+export async function deleteOrvitechProduct(botId: string, guildId: string, productId: string) {
+  const { data } = await api.delete<{ product: OrvitechProduct }>(
+    `/dev/bots/${encodeURIComponent(botId)}/guilds/${encodeURIComponent(guildId)}/orvitech-sales/products/${encodeURIComponent(productId)}`
+  );
+  return data.product;
+}
+
+export async function uploadOrvitechProductBanner(botId: string, guildId: string, productId: string, file: File) {
+  const { data } = await api.put<{ product: OrvitechProduct }>(
+    `/dev/bots/${encodeURIComponent(botId)}/guilds/${encodeURIComponent(guildId)}/orvitech-sales/products/${encodeURIComponent(productId)}/banner`,
+    file,
+    {
+      headers: {
+        "Content-Type": file.type || "application/octet-stream"
+      },
+      timeout: 30000
+    }
+  );
+  return data.product;
+}
+
 export async function createOrvitechSalesPlan(botId: string, guildId: string, payload: SaveOrvitechSalesPlanPayload) {
   const { data } = await api.post<{ plan: OrvitechSalesPlan }>(
     `/dev/bots/${encodeURIComponent(botId)}/guilds/${encodeURIComponent(guildId)}/orvitech-sales/plans`,
@@ -1545,6 +1592,37 @@ export async function updateOrvitechSaleStatus(botId: string, guildId: string, s
     { status }
   );
   return data.sale;
+}
+
+export async function getPublicOrvitechProduct(storeId: string, slug: string) {
+  const { data } = await api.get<PublicOrvitechProduct>(
+    `/orvitech-sales/stores/${encodeURIComponent(storeId)}/products/${encodeURIComponent(slug)}`
+  );
+  return data;
+}
+
+export async function checkoutOrvitechProduct(
+  storeId: string,
+  slug: string,
+  payload: {
+    buyerEmail?: string | null;
+    buyerId?: string | null;
+    buyerName?: string | null;
+    paymentProviderId?: string | null;
+    planType: "monthly" | "lifetime";
+  }
+) {
+  const { data } = await api.post<{
+    gatewayId: string;
+    instructions: string | null;
+    provider: string;
+    publicKey: string | null;
+    sale: OrvitechSale;
+  }>(
+    `/orvitech-sales/stores/${encodeURIComponent(storeId)}/products/${encodeURIComponent(slug)}/checkout`,
+    payload
+  );
+  return data;
 }
 
 export async function getAdvancedModuleConfig(botId: string, guildId: string, moduleId: string) {

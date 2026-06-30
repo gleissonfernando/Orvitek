@@ -36,9 +36,11 @@ import {
 import { useEffect, useMemo, useState, useCallback, memo } from "react";
 import {
     createDevBot,
+    createOrvitechProduct,
     createOrvitechSale,
     createOrvitechSalesPlan,
     deleteDevBot,
+    deleteOrvitechProduct,
     deleteOrvitechPaymentProvider,
     deleteOrvitechSalesPlan,
     getBotGuildConfig,
@@ -46,6 +48,7 @@ import {
     getDevModules,
     getGuildLiveOptions,
     getOrvitechSalesDashboard,
+    duplicateOrvitechProduct,
     restartDevBot,
     saveOrvitechPaymentProvider,
     saveOrvitechSalesSettings,
@@ -54,8 +57,10 @@ import {
     stopDevBot,
     updateBotGuildConfig,
     updateDevBotModules,
+    updateOrvitechProduct,
     updateOrvitechSaleStatus,
-    updateOrvitechSalesPlan
+    updateOrvitechSalesPlan,
+    uploadOrvitechProductBanner
 } from "../../lib/api";
 import { createDashboardSocket } from "../../lib/socket";
 import { dashboardUrl } from "../../lib/urls";
@@ -70,10 +75,13 @@ import type {
     GuildChannelOption,
     GuildVoiceChannelOption,
     OrvitechSaleStatus,
+    OrvitechProduct,
+    OrvitechProductFeatureKey,
     OrvitechSalesDashboard,
     OrvitechSalesPaymentProvider,
     OrvitechSalesPlan,
     SaveOrvitechPaymentProviderPayload,
+    SaveOrvitechProductPayload,
     SaveOrvitechSalePayload,
     SaveOrvitechSalesPlanPayload,
     SaveOrvitechSalesSettingsPayload
@@ -2117,6 +2125,80 @@ const defaultSaleForm: SaveOrvitechSalePayload = {
   status: "pending"
 };
 
+const productFeatureLabels: Record<OrvitechProductFeatureKey, string> = {
+  activationKey: "Chave de ativacao",
+  automaticContract: "Contrato automatico",
+  automaticLogin: "Login automatico",
+  automaticPix: "Pix automatico",
+  automaticRenewal: "Renovacao automatica",
+  coupons: "Aceita cupom",
+  hosting: "Hospedagem inclusa",
+  passwordCreation: "Criacao de senha",
+  releaseCode: "Codigo de liberacao",
+  support: "Suporte",
+  updates: "Atualizacoes"
+};
+
+const defaultProductForm: SaveOrvitechProductPayload = {
+  active: true,
+  additionalInfo: "",
+  bannerUrl: "",
+  category: "Bot Discord",
+  fullDescription: "",
+  howItWorks: "",
+  layout: {
+    accentColor: "#7c3aed",
+    glassEffect: true,
+    theme: "dark"
+  },
+  name: "Produto Premium",
+  observations: "",
+  plans: {
+    monthly: {
+      benefits: ["Hospedagem inclusa", "Atualizacoes", "Suporte", "Liberacao automatica"],
+      buttonColor: "#7c3aed",
+      buttonText: "Mensal",
+      description: "Hospedagem inclusa. Pagamento recorrente.",
+      enabled: true,
+      name: "Plano Mensal",
+      paymentProviderId: null,
+      priceCents: 3000,
+      priceText: "R$ 30,00/mes"
+    },
+    lifetime: {
+      benefits: ["Acesso permanente", "Sem mensalidade", "Atualizacoes vitalicias", "Suporte"],
+      buttonColor: "#9333ea",
+      buttonText: "Vitalicio",
+      description: "Acesso permanente sem mensalidade.",
+      enabled: false,
+      name: "Plano Vitalicio",
+      paymentProviderId: null,
+      priceCents: 12000,
+      priceText: "R$ 120,00"
+    }
+  },
+  seo: {
+    description: "",
+    title: ""
+  },
+  shortDescription: "Pagina de venda premium configuravel pela dashboard.",
+  slug: "",
+  toggles: {
+    activationKey: false,
+    automaticContract: true,
+    automaticLogin: false,
+    automaticPix: true,
+    automaticRenewal: true,
+    coupons: false,
+    hosting: true,
+    passwordCreation: true,
+    releaseCode: true,
+    support: true,
+    updates: true
+  },
+  warnings: ""
+};
+
 function OrvitechSalesWorkspace({
   bot,
   enabled,
@@ -2134,8 +2216,10 @@ function OrvitechSalesWorkspace({
   const [settingsForm, setSettingsForm] = useState<SaveOrvitechSalesSettingsPayload>(defaultSalesSettingsForm);
   const [providerForm, setProviderForm] = useState<SaveOrvitechPaymentProviderPayload>(defaultProviderForm);
   const [planForm, setPlanForm] = useState<SaveOrvitechSalesPlanPayload>(defaultPlanForm);
+  const [productForm, setProductForm] = useState<SaveOrvitechProductPayload>(defaultProductForm);
   const [saleForm, setSaleForm] = useState<SaveOrvitechSalePayload>(defaultSaleForm);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -2228,6 +2312,77 @@ function OrvitechSalesWorkspace({
     }
   }
 
+  async function handleSaveProduct() {
+    if (!guildId || !productForm.name.trim()) return;
+
+    setSaving("product");
+    setMessage(null);
+    try {
+      if (editingProductId) {
+        await updateOrvitechProduct(bot.id, guildId, editingProductId, productForm);
+      } else {
+        await createOrvitechProduct(bot.id, guildId, productForm);
+      }
+      setProductForm(defaultProductForm);
+      setEditingProductId(null);
+      await refreshDashboard();
+      setMessage("Produto salvo.");
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Nao foi possivel salvar o produto.");
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function handleDuplicateProduct(product: OrvitechProduct) {
+    if (!guildId) return;
+    setSaving(product.id);
+    try {
+      await duplicateOrvitechProduct(bot.id, guildId, product.id);
+      await refreshDashboard();
+      setMessage("Produto duplicado.");
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Nao foi possivel duplicar o produto.");
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function handleDeleteProduct(product: OrvitechProduct) {
+    if (!guildId || !window.confirm(`Excluir ${product.name}?`)) return;
+    setSaving(product.id);
+    try {
+      await deleteOrvitechProduct(bot.id, guildId, product.id);
+      if (editingProductId === product.id) {
+        setEditingProductId(null);
+        setProductForm(defaultProductForm);
+      }
+      await refreshDashboard();
+      setMessage("Produto excluido.");
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Nao foi possivel excluir o produto.");
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function handleUploadProductBanner(file: File | null) {
+    if (!guildId || !editingProductId || !file) return;
+
+    setSaving("product-banner");
+    setMessage(null);
+    try {
+      const product = await uploadOrvitechProductBanner(bot.id, guildId, editingProductId, file);
+      setProductForm(productToForm(product));
+      await refreshDashboard();
+      setMessage("Banner do produto atualizado.");
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Nao foi possivel enviar o banner.");
+    } finally {
+      setSaving(null);
+    }
+  }
+
   async function handleSavePlan() {
     if (!guildId || !planForm.name.trim()) return;
     setSaving("plan");
@@ -2307,6 +2462,11 @@ function OrvitechSalesWorkspace({
       name: plan.name,
       priceCents: plan.priceCents
     });
+  }
+
+  function editProduct(product: OrvitechProduct) {
+    setEditingProductId(product.id);
+    setProductForm(productToForm(product));
   }
 
   const stats = dashboard?.stats;
@@ -2484,6 +2644,141 @@ function OrvitechSalesWorkspace({
             </Card>
           </div>
 
+          <Card className="border-purple-500/20 bg-zinc-950/80 hover:translate-y-0 xl:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-white">Produtos</CardTitle>
+              <CardDescription>Paginas de venda com banner, planos mensal/vitalicio, beneficios e checkout vinculado ao gateway da loja.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.75fr)]">
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <DevInput label="Nome do produto" onChange={(value) => setProductForm((current) => ({ ...current, name: value }))} value={productForm.name} />
+                  <DevInput label="Slug da pagina" onChange={(value) => setProductForm((current) => ({ ...current, slug: value }))} value={productForm.slug} />
+                  <DevInput label="Categoria" onChange={(value) => setProductForm((current) => ({ ...current, category: value }))} value={productForm.category} />
+                  <DevInput label="Banner URL" onChange={(value) => setProductForm((current) => ({ ...current, bannerUrl: value }))} value={productForm.bannerUrl ?? ""} />
+                  <DevInput label="Cor destaque" onChange={(value) => setProductForm((current) => ({ ...current, layout: { ...current.layout, accentColor: value } }))} value={productForm.layout.accentColor} />
+                  <DevInput label="Descricao curta" onChange={(value) => setProductForm((current) => ({ ...current, shortDescription: value }))} value={productForm.shortDescription} />
+                </div>
+                <div className="rounded-lg border border-zinc-800 bg-black/30 p-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-white">Upload de banner</p>
+                      <p className="mt-1 text-xs font-medium text-zinc-400">Disponivel apos salvar/criar o produto.</p>
+                    </div>
+                    <input
+                      accept="image/gif,image/jpeg,image/png,image/webp"
+                      className="max-w-full text-sm text-zinc-300 file:mr-3 file:rounded-lg file:border-0 file:bg-purple-600 file:px-3 file:py-2 file:text-sm file:font-bold file:text-white"
+                      disabled={!editingProductId || saving === "product-banner"}
+                      onChange={(event) => void handleUploadProductBanner(event.target.files?.[0] ?? null)}
+                      type="file"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-3 lg:grid-cols-2">
+                  <ProductTextArea label="Descricao completa" onChange={(value) => setProductForm((current) => ({ ...current, fullDescription: value }))} value={productForm.fullDescription} />
+                  <ProductTextArea label="Como funciona" onChange={(value) => setProductForm((current) => ({ ...current, howItWorks: value }))} value={productForm.howItWorks} />
+                  <ProductTextArea label="Informacoes adicionais" onChange={(value) => setProductForm((current) => ({ ...current, additionalInfo: value }))} value={productForm.additionalInfo} />
+                  <ProductTextArea label="Avisos" onChange={(value) => setProductForm((current) => ({ ...current, warnings: value }))} value={productForm.warnings} />
+                </div>
+
+                <div className="grid gap-3 lg:grid-cols-2">
+                  <ProductPlanEditor
+                    currency={dashboard?.settings.currency ?? "BRL"}
+                    onChange={(plan) => setProductForm((current) => ({ ...current, plans: { ...current.plans, monthly: plan } }))}
+                    paymentProviders={dashboard?.settings.paymentProviders ?? []}
+                    plan={productForm.plans.monthly}
+                    title="Plano Mensal"
+                  />
+                  <ProductPlanEditor
+                    currency={dashboard?.settings.currency ?? "BRL"}
+                    onChange={(plan) => setProductForm((current) => ({ ...current, plans: { ...current.plans, lifetime: plan } }))}
+                    paymentProviders={dashboard?.settings.paymentProviders ?? []}
+                    plan={productForm.plans.lifetime}
+                    title="Plano Vitalicio"
+                  />
+                </div>
+
+                <div className="rounded-lg border border-zinc-800 bg-black/30 p-4">
+                  <p className="text-sm font-bold text-white">Recursos extras</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {(Object.keys(productFeatureLabels) as OrvitechProductFeatureKey[]).map((key) => (
+                      <label className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-black/30 p-2 text-xs font-semibold text-zinc-200" key={key}>
+                        <Switch
+                          checked={Boolean(productForm.toggles[key])}
+                          onCheckedChange={(checked) => setProductForm((current) => ({
+                            ...current,
+                            toggles: {
+                              ...current.toggles,
+                              [key]: checked
+                            }
+                          }))}
+                        />
+                        {productFeatureLabels[key]}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-black/30 p-3">
+                  <label className="flex items-center gap-3 text-sm font-semibold text-white">
+                    <Switch checked={productForm.active} onCheckedChange={(checked) => setProductForm((current) => ({ ...current, active: checked }))} />
+                    Produto ativo
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {editingProductId ? <Button onClick={() => { setEditingProductId(null); setProductForm(defaultProductForm); }} variant="outline">Cancelar</Button> : null}
+                    <Button disabled={saving === "product"} onClick={() => void handleSaveProduct()}>
+                      {saving === "product" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                      {editingProductId ? "Salvar alteracoes" : "Novo produto"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="overflow-hidden rounded-lg border border-purple-500/20 bg-black/35">
+                  <div className="aspect-[16/9] bg-zinc-900">
+                    {productForm.bannerUrl ? <img alt="Preview" className="h-full w-full object-cover" src={productForm.bannerUrl} /> : null}
+                  </div>
+                  <div className="p-4">
+                    <Badge variant={productForm.active ? "success" : "muted"}>{productForm.active ? "Ativo" : "Inativo"}</Badge>
+                    <h3 className="mt-3 text-lg font-bold text-white">{productForm.name}</h3>
+                    <p className="mt-1 text-sm font-medium text-zinc-400">{productForm.shortDescription}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {productForm.plans.monthly.enabled ? <Badge variant="muted">{productForm.plans.monthly.buttonText}</Badge> : null}
+                      {productForm.plans.lifetime.enabled ? <Badge variant="muted">{productForm.plans.lifetime.buttonText}</Badge> : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-3">
+                  {dashboard?.products.map((product) => (
+                    <div className="rounded-lg border border-zinc-800 bg-black/35 p-3" key={product.id}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-white">{product.name}</p>
+                          <p className="truncate text-xs font-medium text-zinc-400">{product.publicUrl}</p>
+                        </div>
+                        <Badge variant={product.active ? "success" : "muted"}>{product.active ? "Ativo" : "Off"}</Badge>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button onClick={() => editProduct(product)} size="sm" variant="outline"><Settings className="h-4 w-4" />Editar</Button>
+                        <Button onClick={() => void handleDuplicateProduct(product)} size="sm" variant="outline"><Copy className="h-4 w-4" />Duplicar</Button>
+                        <Button onClick={() => window.open(product.publicUrl, "_blank", "noopener,noreferrer")} size="sm" variant="outline"><ExternalLink className="h-4 w-4" />Ver</Button>
+                        <Button disabled={saving === product.id} onClick={() => void handleDeleteProduct(product)} size="sm" variant="destructive"><Trash2 className="h-4 w-4" />Excluir</Button>
+                      </div>
+                    </div>
+                  ))}
+                  {!dashboard?.products.length ? (
+                    <div className="flex min-h-24 items-center justify-center rounded-lg border border-dashed border-zinc-700 text-sm font-medium text-zinc-400">
+                      Nenhum produto criado.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="border-zinc-800/80 bg-zinc-950/80 hover:translate-y-0">
             <CardHeader>
               <CardTitle className="text-white">Planos de venda</CardTitle>
@@ -2588,6 +2883,66 @@ function SalesMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ProductTextArea({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-xs font-bold uppercase text-zinc-400">{label}</span>
+      <textarea
+        className="min-h-28 w-full rounded-lg border border-zinc-800 bg-black/40 px-3 py-2 text-sm font-medium text-white outline-none transition focus:border-purple-400/60"
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      />
+    </label>
+  );
+}
+
+function ProductPlanEditor({
+  currency,
+  onChange,
+  paymentProviders,
+  plan,
+  title
+}: {
+  currency: "BRL" | "USD" | "EUR";
+  onChange: (plan: SaveOrvitechProductPayload["plans"]["monthly"]) => void;
+  paymentProviders: OrvitechSalesPaymentProvider[];
+  plan: SaveOrvitechProductPayload["plans"]["monthly"];
+  title: string;
+}) {
+  function updatePlan<K extends keyof typeof plan>(key: K, value: (typeof plan)[K]) {
+    onChange({
+      ...plan,
+      [key]: value
+    });
+  }
+
+  return (
+    <div className="rounded-lg border border-purple-500/15 bg-purple-500/[0.06] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-bold text-white">{title}</p>
+        <Switch checked={plan.enabled} onCheckedChange={(checked) => updatePlan("enabled", checked)} />
+      </div>
+      <div className="mt-3 grid gap-3">
+        <DevInput label="Nome" onChange={(value) => updatePlan("name", value)} value={plan.name} />
+        <DevInput inputMode="numeric" label={`Valor em centavos (${currency})`} onChange={(value) => updatePlan("priceCents", Number(value.replace(/\D/g, "")))} value={String(plan.priceCents)} />
+        <DevInput label="Texto do valor" onChange={(value) => updatePlan("priceText", value)} value={plan.priceText} />
+        <DevInput label="Texto do botao" onChange={(value) => updatePlan("buttonText", value)} value={plan.buttonText} />
+        <DevInput label="Cor do botao" onChange={(value) => updatePlan("buttonColor", value)} value={plan.buttonColor} />
+        <select
+          className="h-11 rounded-lg border border-zinc-800 bg-black/40 px-3 text-sm font-semibold text-white outline-none"
+          onChange={(event) => updatePlan("paymentProviderId", event.target.value || null)}
+          value={plan.paymentProviderId ?? ""}
+        >
+          <option value="">Gateway padrao da loja</option>
+          {paymentProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
+        </select>
+        <ProductTextArea label="Descricao" onChange={(value) => updatePlan("description", value)} value={plan.description} />
+        <ProductTextArea label="Beneficios (um por linha)" onChange={(value) => updatePlan("benefits", splitLines(value))} value={plan.benefits.join("\n")} />
+      </div>
+    </div>
+  );
+}
+
 function settingsToForm(settings: OrvitechSalesDashboard["settings"]): SaveOrvitechSalesSettingsPayload {
   return {
     currency: settings.currency,
@@ -2603,6 +2958,26 @@ function settingsToForm(settings: OrvitechSalesDashboard["settings"]): SaveOrvit
     supportRoleIds: settings.supportRoleIds,
     termsUrl: settings.termsUrl,
     thumbnailUrl: settings.thumbnailUrl
+  };
+}
+
+function productToForm(product: OrvitechProduct): SaveOrvitechProductPayload {
+  return {
+    active: product.active,
+    additionalInfo: product.additionalInfo,
+    bannerUrl: product.bannerUrl ?? "",
+    category: product.category,
+    fullDescription: product.fullDescription,
+    howItWorks: product.howItWorks,
+    layout: product.layout,
+    name: product.name,
+    observations: product.observations,
+    plans: product.plans,
+    seo: product.seo,
+    shortDescription: product.shortDescription,
+    slug: product.slug,
+    toggles: product.toggles,
+    warnings: product.warnings
   };
 }
 

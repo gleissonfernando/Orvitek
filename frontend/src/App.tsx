@@ -5,6 +5,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { DevDashboard } from "./pages/DevDashboard";
 import { GiveawayRoulettePage } from "./pages/GiveawayRoulette";
 import { Login } from "./pages/Login";
+import { OrvitechProductPage } from "./pages/OrvitechProductPage";
 import { useAuth } from "./hooks/useAuth";
 import { dashboardSlugFromPath, dashboardUrl, isDashboardRoutePath } from "./lib/urls";
 
@@ -24,23 +25,24 @@ export function App() {
   } = useAuth();
   const path = window.location.pathname;
   const rouletteToken = rouletteTokenFromPath(path);
+  const productRoute = orvitechProductRouteFromPath(path);
   const routeError = readAuthError();
   const dashboardPath = isDashboardRoutePath(path);
   const devPanelPath = path === "/dev" || path.startsWith("/dev/");
   const protectedPanelPath = dashboardPath || devPanelPath;
 
   useEffect(() => {
-    if (rouletteToken) {
+    if (rouletteToken || productRoute) {
       return;
     }
 
     if (auth?.access.verified && !protectedPanelPath) {
       window.location.replace(dashboardUrl());
     }
-  }, [auth, protectedPanelPath, rouletteToken]);
+  }, [auth, productRoute, protectedPanelPath, rouletteToken]);
 
   useEffect(() => {
-    if (rouletteToken) {
+    if (rouletteToken || productRoute) {
       return;
     }
 
@@ -49,10 +51,14 @@ export function App() {
     }
 
     loginDiscord();
-  }, [auth, protectedPanelPath, error, loading, loginDiscord, routeError, rouletteToken]);
+  }, [auth, protectedPanelPath, error, loading, loginDiscord, productRoute, routeError, rouletteToken]);
 
   if (rouletteToken) {
     return <GiveawayRoulettePage token={rouletteToken} />;
+  }
+
+  if (productRoute) {
+    return <OrvitechProductPage slug={productRoute.slug} storeId={productRoute.storeId} />;
   }
 
   if (loading) {
@@ -126,6 +132,23 @@ function rouletteTokenFromPath(path: string) {
   } catch {
     return null;
   }
+}
+
+function orvitechProductRouteFromPath(path: string) {
+  if (!path.startsWith("/orvitech/")) {
+    return null;
+  }
+
+  const [, , storeId, slug] = path.split("/");
+
+  if (!storeId || !slug) {
+    return null;
+  }
+
+  return {
+    slug,
+    storeId
+  };
 }
 
 function devViewFromPath(path: string): "bots" | "connected" | "bot-menu" | "cloning" | "sales" | "fivem" | "logs" | "maintenance" {
