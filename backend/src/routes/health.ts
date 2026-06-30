@@ -3,6 +3,7 @@ import { getMongoDb } from "../database/mongo";
 import { getRedisClient } from "../database/redis";
 import { metricsSnapshot } from "../services/monitoringService";
 import { getBotStatus } from "../services/statsService";
+import { backgroundJobHealth } from "../services/backgroundJobService";
 
 export const healthRouter = Router();
 
@@ -16,9 +17,10 @@ healthRouter.get("/", async (req, res) => {
     });
   }
 
-  const [database, redis] = await Promise.all([
+  const [database, redis, jobs] = await Promise.all([
     databaseHealth(),
-    redisHealth()
+    redisHealth(),
+    backgroundJobHealth().catch((error) => ({ status: "error", lastError: error instanceof Error ? error.message : String(error) }))
   ]);
   const bot = getBotStatus();
   const healthy = database.ok && (!redis.configured || redis.ok);
@@ -27,6 +29,7 @@ healthRouter.get("/", async (req, res) => {
     status: healthy ? "ok" : "degraded",
     database,
     redis,
+    jobs,
     bot,
     timestamp: new Date().toISOString()
   });
@@ -50,10 +53,11 @@ healthRouter.get("/bots", (_req, res) => {
   });
 });
 
-healthRouter.get("/metrics", (_req, res) => {
+healthRouter.get("/metrics", async (_req, res) => {
   return res.json({
     status: "ok",
     metrics: metricsSnapshot(),
+    jobs: await backgroundJobHealth().catch((error) => ({ status: "error", lastError: error instanceof Error ? error.message : String(error) })),
     timestamp: new Date().toISOString()
   });
 });

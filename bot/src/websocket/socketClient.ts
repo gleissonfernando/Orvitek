@@ -127,6 +127,25 @@ export type DevModuleUpdatedEvent = {
   enabledModules: string[];
 };
 
+export type TagVerificationScopeEvent = {
+  botId: string;
+  guildId: string;
+};
+
+export type TagVerificationRunResult = {
+  botId: string;
+  guildId: string;
+  checked: number;
+  assigned: number;
+  removed: number;
+  ignored: number;
+  unavailable: number;
+  errors: number;
+  lastCheckAt: string;
+  nextCheckAt: string | null;
+  lastError: string | null;
+};
+
 export type MaintenanceUpdatedEvent = {
   action: string;
   alertMessage?: string;
@@ -178,6 +197,8 @@ export class BotSocketClient {
   private settingsUpdatedHandlers = new Set<(payload: SettingsUpdatedEvent) => void>();
   private discordLogDispatchHandler: ((payload: DiscordLogDispatchEvent) => void) | null = null;
   private devModuleUpdatedHandler: ((payload: DevModuleUpdatedEvent) => void) | null = null;
+  private tagVerificationConfigUpdatedHandler: ((payload: TagVerificationScopeEvent) => void) | null = null;
+  private tagVerificationRunHandler: ((payload: TagVerificationScopeEvent) => Promise<TagVerificationRunResult>) | null = null;
   private maintenanceUpdatedHandler: ((payload: MaintenanceUpdatedEvent) => void) | null = null;
   private voiceRecorderStartHandler: ((payload: VoiceRecorderStartEvent) => void) | null = null;
   private voiceRecorderStopHandler: ((payload: VoiceRecorderStopEvent) => void) | null = null;
@@ -299,6 +320,14 @@ export class BotSocketClient {
       this.socket.on("dev:module_updated", this.devModuleUpdatedHandler);
     }
 
+    if (this.tagVerificationConfigUpdatedHandler) {
+      this.socket.on("tag-verification:config_updated", this.tagVerificationConfigUpdatedHandler);
+    }
+
+    if (this.tagVerificationRunHandler) {
+      this.attachTagVerificationRunHandler();
+    }
+
     if (this.maintenanceUpdatedHandler) {
       this.socket.on("maintenance:updated", this.maintenanceUpdatedHandler);
     }
@@ -313,13 +342,16 @@ export class BotSocketClient {
   }
 
   emitStatus(client: Client, online = true) {
+    const memory = process.memoryUsage();
+    const shardIds = client.shard?.ids ?? [0];
     const users = client.guilds.cache.reduce((total, guild) => total + (guild.memberCount ?? 0), 0);
     const botGuilds = client.guilds.cache.map((guild) => ({
       id: guild.id,
       name: guild.name,
       iconUrl: guild.iconURL({ size: 128 }),
       memberCount: guild.memberCount ?? 0,
-      channelCount: guild.channels.cache.size
+      channelCount: guild.channels.cache.size,
+      shardId: guild.shardId
     }));
 
     this.socket?.emit("bot:status", {
@@ -335,7 +367,14 @@ export class BotSocketClient {
       latency: Math.max(0, Math.round(client.ws.ping)),
       guilds: client.guilds.cache.size,
       users,
-      botGuilds
+      botGuilds,
+      shardIds,
+      shardCount: client.shard?.count ?? 1,
+      instanceId: `shard:${shardIds.join(",")}`,
+      memory: {
+        rssMb: Math.round(memory.rss / 1024 / 1024),
+        heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024)
+      }
     });
   }
 
@@ -444,6 +483,36 @@ export class BotSocketClient {
     this.devModuleUpdatedHandler = handler;
     this.socket?.off("dev:module_updated");
     this.socket?.on("dev:module_updated", handler);
+  }
+
+  onTagVerificationConfigUpdated(handler: (payload: TagVerificationScopeEvent) => void) {
+    this.tagVerificationConfigUpdatedHandler = handler;
+    this.socket?.off("tag-verification:config_updated");
+    this.socket?.on("tag-verification:config_updated", handler);
+  }
+
+  onTagVerificationRun(handler: (payload: TagVerificationScopeEvent) => Promise<TagVerificationRunResult>) {
+    this.tagVerificationRunHandler = handler;
+    this.attachTagVerificationRunHandler();
+  }
+
+  private attachTagVerificationRunHandler() {
+    this.socket?.off("tag-verification:run");
+    this.socket?.on("tag-verification:run", async (
+      payload: TagVerificationScopeEvent,
+      callback: (response: TagVerificationRunResult | { error: string }) => void
+    ) => {
+      if (!this.tagVerificationRunHandler) {
+        callback({ error: "Verificacao de Tag indisponivel neste bot." });
+        return;
+      }
+
+      try {
+        callback(await this.tagVerificationRunHandler(payload));
+      } catch (error) {
+        callback({ error: error instanceof Error ? error.message : String(error) });
+      }
+    });
   }
 
   onMaintenanceUpdated(handler: (payload: MaintenanceUpdatedEvent) => void) {

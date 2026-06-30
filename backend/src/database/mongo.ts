@@ -309,6 +309,7 @@ export type MongoServerBackupSettings = {
 export type MongoServerBackupSnapshot = {
   _id: string;
   botId: string;
+  checksum?: string | null;
   counts: {
     categories: number;
     channels: number;
@@ -321,8 +322,9 @@ export type MongoServerBackupSnapshot = {
   guildId: string;
   guildName: string;
   kind: "manual" | "automatic";
+  snapshotVersion?: number;
   snapshot: Record<string, unknown>;
-  status: "completed" | "failed" | "partial";
+  status: "pending" | "completed" | "failed" | "partial";
   statusMessage: string | null;
   updatedAt: Date;
 };
@@ -336,11 +338,42 @@ export type MongoServerBackupRestoreJob = {
   createdBy: string | null;
   guildId: string;
   options: string[];
+  progress?: number;
   preview: Record<string, unknown>;
   result: Record<string, unknown> | null;
   sourceGuildId?: string | null;
   status: "pending" | "running" | "completed" | "failed" | "partial";
   targetGuildId?: string | null;
+  updatedAt: Date;
+};
+
+export type MongoBackgroundJob = {
+  _id: string;
+  attempts: number;
+  availableAt: Date;
+  completedAt: Date | null;
+  createdAt: Date;
+  idempotencyKey: string;
+  lastError: string | null;
+  lockedAt: Date | null;
+  lockedBy: string | null;
+  lockedUntil: Date | null;
+  logs: Array<{ at: Date; message: string; status: string }>;
+  maxAttempts: number;
+  payload: Record<string, unknown>;
+  priority: number;
+  status: "pending" | "running" | "completed" | "failed";
+  type: string;
+  updatedAt: Date;
+};
+
+export type MongoServiceHeartbeat = {
+  _id: string;
+  expiresAt: Date;
+  instanceId: string;
+  metadata: Record<string, unknown>;
+  service: string;
+  startedAt: Date;
   updatedAt: Date;
 };
 
@@ -1915,6 +1948,8 @@ export async function getMongoCollections() {
     serverBackupSettings: db.collection<MongoServerBackupSettings>("server_backup_settings"),
     serverBackupSnapshots: db.collection<MongoServerBackupSnapshot>("server_backup_snapshots"),
     serverBackupRestoreJobs: db.collection<MongoServerBackupRestoreJob>("server_backup_restore_jobs"),
+    backgroundJobs: db.collection<MongoBackgroundJob>("background_jobs"),
+    serviceHeartbeats: db.collection<MongoServiceHeartbeat>("service_heartbeats"),
     logEntries: db.collection<MongoLogEntry>("LogEntry"),
     socialNotifications: db.collection<MongoSocialNotification>("social_notifications"),
     kickApiConfigs: db.collection<MongoKickApiConfig>("kick_api_configs"),
@@ -2045,6 +2080,11 @@ async function createMongoIndexes(db: Db) {
     db.collection<MongoServerBackupSettings>("server_backup_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
     db.collection<MongoServerBackupSnapshot>("server_backup_snapshots").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
     db.collection<MongoServerBackupRestoreJob>("server_backup_restore_jobs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoBackgroundJob>("background_jobs").createIndex({ status: 1, availableAt: 1, priority: -1, createdAt: 1 }),
+    db.collection<MongoBackgroundJob>("background_jobs").createIndex({ type: 1, idempotencyKey: 1 }, { unique: true }),
+    db.collection<MongoBackgroundJob>("background_jobs").createIndex({ lockedUntil: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 30 }),
+    db.collection<MongoServiceHeartbeat>("service_heartbeats").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    db.collection<MongoServiceHeartbeat>("service_heartbeats").createIndex({ service: 1, updatedAt: -1 }),
     db.collection<MongoLogEntry>("LogEntry").createIndex({ guildId: 1, createdAt: -1 }),
     db.collection<MongoPanelImageSettings>("panel_image_settings").createIndex(
       { botId: 1, guildId: 1, panelId: 1 },

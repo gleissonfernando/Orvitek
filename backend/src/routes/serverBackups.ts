@@ -10,6 +10,7 @@ import {
   deleteServerBackup,
   getServerBackupDashboard,
   getServerBackupSettings,
+  isStoredServerBackupOwner,
   previewServerBackupRestore,
   restoreServerBackup,
   saveServerBackupSettings
@@ -21,7 +22,7 @@ const guildIdSchema = z.string().regex(/^\d{5,32}$/);
 const backupIdSchema = z.string().min(8).max(120);
 const snowflakeSchema = z.string().regex(/^\d{5,32}$/);
 const optionalSnowflakeSchema = z.union([snowflakeSchema, z.literal(""), z.null()]).optional();
-const restorePartSchema = z.enum(["roles", "channels", "permissions", "emojis", "settings", "panels"]);
+const restorePartSchema = z.enum(["roles", "channels", "permissions", "emojis", "stickers", "settings", "panels"]);
 
 const settingsSchema = z.object({
   autoEnabled: z.boolean().optional(),
@@ -33,8 +34,8 @@ const settingsSchema = z.object({
 
 const restoreSchema = z.object({
   confirmation: z.string().optional(),
-  mode: z.enum(["merge", "clear"]).default("merge"),
-  parts: z.array(restorePartSchema).max(6).default(["roles", "channels", "permissions", "emojis", "settings", "panels"]),
+  mode: z.enum(["merge", "missing", "replace", "clear"]).default("merge"),
+  parts: z.array(restorePartSchema).max(7).default(["roles", "channels", "permissions", "emojis", "stickers", "settings", "panels"]),
   targetGuildId: optionalSnowflakeSchema
 });
 
@@ -118,7 +119,7 @@ serverBackupsRouter.post("/:guildId/backups/:backupId/preview", async (req, res,
     const scope = await readScope(req, res);
     const backupId = backupIdSchema.parse(req.params.backupId);
     const input = restoreSchema.parse(req.body ?? {});
-    if (!scope || !(await canReadDevBotModule(scope.user, scope.botId, scope.guildId, MODULE_ID))) {
+    if (!scope || !(await canAccessStoredBackup(scope, backupId, false))) {
       return res.status(403).json({ message: "Sem permissao para visualizar restauracao." });
     }
     const targetGuildId = input.targetGuildId || scope.guildId;
@@ -152,7 +153,7 @@ serverBackupsRouter.post("/:guildId/backups/:backupId/restore", async (req, res,
     if (input.confirmation !== "CONFIRMAR") {
       return res.status(400).json({ message: "Digite CONFIRMAR para iniciar a restauracao." });
     }
-    if (!scope || !(await canManageServerBackup(scope))) {
+    if (!scope || !(await canAccessStoredBackup(scope, backupId, true))) {
       return res.status(403).json({ message: "Sem permissao para restaurar backup." });
     }
     const targetGuildId = input.targetGuildId || scope.guildId;
@@ -162,7 +163,7 @@ serverBackupsRouter.post("/:guildId/backups/:backupId/restore", async (req, res,
       return res.status(targetValidation.status).json({ message: targetValidation.message });
     }
 
-    return res.json({
+    return res.status(202).json({
       job: await restoreServerBackup({
         actorId: scope.user.discordId ?? scope.user.id,
         backupId,
@@ -203,6 +204,24 @@ async function canManageServerBackup(scope: { botId: string; guildId: string; us
   }
 
   return userHasAnyGuildRole(scope.guildId, scope.user.discordId, settings.authorizedRoleIds, await readBotToken(scope.botId));
+}
+
+async function canAccessStoredBackup(
+  scope: { botId: string; guildId: string; user: AuthSessionUser },
+  backupId: string,
+  requireWrite: boolean
+) {
+  const moduleAccess = requireWrite
+    ? await canUseDevBotModule(scope.user, scope.botId, scope.guildId, MODULE_ID)
+    : await canReadDevBotModule(scope.user, scope.botId, scope.guildId, MODULE_ID);
+  if (moduleAccess || await canManageDevBot(scope.user, scope.botId)) return true;
+
+  return isStoredServerBackupOwner(
+    scope.botId,
+    scope.guildId,
+    backupId,
+    [scope.user.id, scope.user.discordId].filter((value): value is string => Boolean(value))
+  );
 }
 
 async function validateBackupTargetGuild(scope: { botId: string; guildId: string; user: AuthSessionUser }, targetGuildId: string, botToken: string) {

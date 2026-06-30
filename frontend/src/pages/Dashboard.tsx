@@ -114,6 +114,7 @@ import {
   deleteServerBackup,
   previewServerBackupRestore,
   restoreServerBackup,
+  runTagVerificationNow,
   validateEmojiCloneBotToken
 } from "../lib/api";
 import type {
@@ -152,6 +153,7 @@ import type {
   SelfBotProtectionSettings,
   ServerBackupDashboard,
   ServerBackupRestoreMode,
+  ServerBackupRestoreJob,
   ServerBackupRestorePart,
   ServerBackupRestorePreview,
   ServerBackupSettings,
@@ -1512,6 +1514,7 @@ const serverBackupParts: Array<{ id: ServerBackupRestorePart; label: string }> =
   { id: "channels", label: "Canais" },
   { id: "permissions", label: "Permissoes" },
   { id: "emojis", label: "Emojis" },
+  { id: "stickers", label: "Stickers" },
   { id: "settings", label: "Configuracoes do bot" },
   { id: "panels", label: "Paineis do bot" }
 ];
@@ -1567,6 +1570,32 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!botId || !guild) return;
+    const socket = createDashboardSocket();
+    socket.on("server-backup:restore_progress", (job: ServerBackupRestoreJob) => {
+      const belongsToView = job.botId === botId
+        && [job.guildId, job.sourceGuildId, job.targetGuildId].includes(guild.id);
+      if (!belongsToView) return;
+      setDashboard((current) => {
+        if (!current) return current;
+        const jobs = current.restoreJobs.filter((item) => item.id !== job.id);
+        return { ...current, restoreJobs: [job, ...jobs].slice(0, 20) };
+      });
+    });
+    socket.on("server-backup:snapshot_updated", (snapshot: ServerBackupSnapshot) => {
+      if (snapshot.botId !== botId || snapshot.guildId !== guild.id) return;
+      setDashboard((current) => {
+        if (!current) return current;
+        const backups = current.backups.filter((item) => item.id !== snapshot.id);
+        return { ...current, backups: [snapshot, ...backups].slice(0, 50) };
+      });
+    });
+    return () => {
+      socket.disconnect();
+    };
+  }, [botId, guild]);
 
   async function patchSettings(patch: Partial<ServerBackupSettings>) {
     if (!botId || !guild || !settings) return;
@@ -1744,7 +1773,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold text-white">{backup.guildName}</p>
-                    <Badge variant={backup.status === "completed" ? "success" : backup.status === "partial" ? "warning" : "danger"}>{backup.status}</Badge>
+                    <Badge variant={backup.status === "completed" ? "success" : backup.status === "partial" || backup.status === "pending" ? "warning" : "danger"}>{backup.status}</Badge>
                     <Badge variant="muted">{backup.kind === "manual" ? "Manual" : "Automatico"}</Badge>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">{formatDate(backup.createdAt)} - criado por {backup.createdBy ?? "sistema"}</p>
@@ -1786,7 +1815,12 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
             disabled={!canManage}
             label="Modo de restauracao"
             onChange={(value) => { setRestoreMode(value as ServerBackupRestoreMode); setSendPreview(null); setSendConfirmation(""); }}
-            options={[{ label: "Restaurar por cima sem apagar", value: "merge" }, { label: "Limpar servidor antes de restaurar", value: "clear" }]}
+            options={[
+              { label: "Mesclar e atualizar existentes", value: "merge" },
+              { label: "Criar apenas itens ausentes", value: "missing" },
+              { label: "Substituir itens com mesmo nome", value: "replace" },
+              { label: "Limpar servidor antes de restaurar", value: "clear" }
+            ]}
             placeholder="Selecione"
             value={restoreMode}
           />
@@ -1801,7 +1835,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
           {sendPreview ? (
             <div className="rounded-lg border border-zinc-800 bg-black/40 p-4 text-sm text-zinc-300">
               <p className="font-semibold text-white">Origem {sendPreview.sourceGuildId} para destino {sendPreview.targetGuildId}</p>
-              <p className="mt-2">Serao restaurados: {sendPreview.summary.roles} cargos, {sendPreview.summary.categories} categorias, {sendPreview.summary.channels} canais, {sendPreview.summary.emojis} emojis e {sendPreview.summary.settings} configuracoes.</p>
+              <p className="mt-2">Serao restaurados: {sendPreview.summary.roles} cargos, {sendPreview.summary.categories} categorias, {sendPreview.summary.channels} canais, {sendPreview.summary.emojis} emojis, {sendPreview.summary.stickers} stickers e {sendPreview.summary.settings} configuracoes.</p>
               {sendPreview.missingPermissions.length ? <p className="mt-2 text-red-300">Permissoes faltando: {sendPreview.missingPermissions.join(", ")}</p> : <p className="mt-2 text-emerald-300">Destino validado para restauracao.</p>}
               {sendPreview.warnings.map((warning) => <p className="mt-1 text-amber-300" key={warning}>{warning}</p>)}
             </div>
@@ -1825,7 +1859,12 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
               disabled={!canManage}
               label="Modo de restauracao"
               onChange={(value) => { setRestoreMode(value as ServerBackupRestoreMode); setPreview(null); setConfirmation(""); }}
-              options={[{ label: "Restaurar por cima sem apagar", value: "merge" }, { label: "Limpar servidor antes de restaurar", value: "clear" }]}
+              options={[
+                { label: "Mesclar e atualizar existentes", value: "merge" },
+                { label: "Criar apenas itens ausentes", value: "missing" },
+                { label: "Substituir itens com mesmo nome", value: "replace" },
+                { label: "Limpar servidor antes de restaurar", value: "clear" }
+              ]}
               placeholder="Selecione"
               value={restoreMode}
             />
@@ -1836,7 +1875,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
             <Button disabled={workingBackupId === selectedBackup.id || !selectedParts.length} onClick={() => void previewRestore(selectedBackup)} variant="secondary">{workingBackupId === selectedBackup.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}Atualizar previa</Button>
             {preview ? (
               <div className="rounded-lg border border-zinc-800 bg-black/40 p-4 text-sm text-zinc-300">
-                <p className="font-semibold text-white">Previa: {preview.summary.roles} cargos, {preview.summary.categories} categorias, {preview.summary.channels} canais, {preview.summary.emojis} emojis e {preview.summary.settings} configuracoes.</p>
+                <p className="font-semibold text-white">Previa: {preview.summary.roles} cargos, {preview.summary.categories} categorias, {preview.summary.channels} canais, {preview.summary.emojis} emojis, {preview.summary.stickers} stickers e {preview.summary.settings} configuracoes.</p>
                 {preview.missingPermissions.length ? <p className="mt-2 text-red-300">Permissoes faltando: {preview.missingPermissions.join(", ")}</p> : <p className="mt-2 text-emerald-300">Permissoes principais validadas.</p>}
                 {preview.warnings.map((warning) => <p className="mt-1 text-amber-300" key={warning}>{warning}</p>)}
               </div>
@@ -1863,9 +1902,13 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
                 </div>
                 {result?.summary ? (
                   <p className="mt-2 text-zinc-300">
-                    Restaurados: {result.summary.roles} cargos, {result.summary.categories} categorias, {result.summary.channels} canais, {result.summary.permissions} permissoes, {result.summary.settings} configuracoes. Falhas: {result.summary.failed}.
+                    Restaurados: {result.summary.roles} cargos, {result.summary.categories} categorias, {result.summary.channels} canais, {result.summary.permissions} permissoes, {result.summary.emojis ?? 0} emojis, {result.summary.stickers ?? 0} stickers, {result.summary.settings} configuracoes. Reutilizados: {result.summary.reused ?? 0}. Falhas: {result.summary.failed}.
                   </p>
                 ) : null}
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-800" aria-label={`Progresso ${job.progress ?? result?.progressPercent ?? 0}%`}>
+                  <div className="h-full bg-purple-500 transition-[width] duration-300" style={{ width: `${Math.max(0, Math.min(100, job.progress ?? result?.progressPercent ?? 0))}%` }} />
+                </div>
+                <p className="mt-1 text-right text-xs text-zinc-500">{job.progress ?? result?.progressPercent ?? 0}%</p>
                 {result?.progress?.length ? (
                   <div className="mt-2 grid gap-1 text-xs text-zinc-500">
                     {result.progress.slice(-5).map((item, index) => <span key={`${job.id}-progress-${index}`}>{item.status}: {item.message}</span>)}
@@ -1909,6 +1952,7 @@ function AdvancedSecurityModulePanel({
   const [textChannels, setTextChannels] = useState<GuildChannelOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [runningNow, setRunningNow] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1956,6 +2000,25 @@ function AdvancedSecurityModulePanel({
     };
   }, [botId, details, guild, moduleId]);
 
+  useEffect(() => {
+    if (moduleId !== "tag-verification" || !botId || !guild) return;
+    let mounted = true;
+
+    async function refreshStatus() {
+      const module = await getAdvancedModuleConfig(botId!, guild!.id, moduleId).catch(() => null);
+      if (!mounted || !module) return;
+      setConfig((current) => ({ ...current, ...tagVerificationStatusFields(module.config) }));
+    }
+
+    const initialRefresh = window.setTimeout(() => void refreshStatus(), 3_000);
+    const interval = window.setInterval(() => void refreshStatus(), 10_000);
+    return () => {
+      mounted = false;
+      window.clearTimeout(initialRefresh);
+      window.clearInterval(interval);
+    };
+  }, [botId, guild, moduleId]);
+
   async function saveConfig(nextConfig = config) {
     if (!botId || !guild) return;
 
@@ -1968,9 +2031,16 @@ function AdvancedSecurityModulePanel({
         guildName: guild.name
       });
       setConfig(defaultAdvancedModuleConfig(moduleId, saved.config));
-      setMessage("Módulo salvo.");
+      if (moduleId === "tag-verification") {
+        const roleName = roles.find((role) => role.id === saved.config.roleId)?.name ?? "selecionado";
+        setMessage(`Configuração salva com sucesso. Verificação iniciada automaticamente. Cargo ${roleName} será entregue para membros com a tag ${String(saved.config.requiredTag ?? "")}.`);
+      } else {
+        setMessage("Módulo salvo.");
+      }
+      return true;
     } catch (error) {
       setMessage(readResponseMessage(error) ?? "Não foi possível salvar este módulo.");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -1984,13 +2054,50 @@ function AdvancedSecurityModulePanel({
   }
 
   function updateEnabled(enabled: boolean) {
+    if (moduleId === "tag-verification" && enabled && (!stringConfig(config.requiredTag).trim() || !stringConfig(config.roleId))) {
+      setMessage("Informe a tag exigida e selecione o cargo antes de ativar o sistema.");
+      return;
+    }
+
     const nextConfig = {
       ...config,
       enabled
     };
 
+    const previousConfig = config;
     setConfig(nextConfig);
-    void saveConfig(nextConfig);
+    void saveConfig(nextConfig).then((saved) => {
+      if (!saved) setConfig(previousConfig);
+    });
+  }
+
+  async function verifyTagNow() {
+    if (!botId || !guild) return;
+    setRunningNow(true);
+    setMessage(null);
+
+    try {
+      const result = await runTagVerificationNow(botId, guild.id);
+      setConfig((current) => ({
+        ...current,
+        lastCheckAt: result.lastCheckAt,
+        nextCheckAt: result.nextCheckAt,
+        totalChecked: result.checked,
+        totalAssigned: result.assigned,
+        totalRemoved: result.removed,
+        totalIgnored: result.ignored,
+        totalUnavailable: result.unavailable,
+        totalErrors: result.errors,
+        lastError: result.lastError
+      }));
+      setMessage(result.lastError
+        ? `Verificação concluída com erro: ${result.lastError}`
+        : `Verificação concluída: ${result.checked} membros verificados, ${result.assigned} cargos entregues e ${result.removed} removidos.`);
+    } catch (error) {
+      setMessage(readResponseMessage(error) ?? "Não foi possível executar a verificação agora.");
+    } finally {
+      setRunningNow(false);
+    }
   }
 
   if (!details) {
@@ -2065,7 +2172,7 @@ function AdvancedSecurityModulePanel({
             disabled={disabled}
             moduleId={moduleId}
             onChange={patchConfig}
-            roles={roles.filter((role) => !role.managed)}
+            roles={roles.filter((role) => !role.managed && (moduleId !== "tag-verification" || role.assignable))}
             voiceChannels={voiceChannels}
           />
           <div className="flex flex-wrap items-center gap-3">
@@ -2073,8 +2180,15 @@ function AdvancedSecurityModulePanel({
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               Salvar
             </Button>
+            {moduleId === "tag-verification" ? (
+              <Button disabled={disabled || !enabled || runningNow} onClick={() => void verifyTagNow()} variant="outline">
+                {runningNow ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Verificar agora
+              </Button>
+            ) : null}
             <Badge variant="muted">Escopo: bot {botId} / {guild.name}</Badge>
           </div>
+          {moduleId === "tag-verification" ? <TagVerificationStatus config={config} /> : null}
           {moduleFooter ? (
             <p className="rounded-lg border border-purple-500/20 bg-purple-500/[0.08] px-4 py-3 text-xs font-semibold text-zinc-300">
               {moduleFooter}
@@ -2124,8 +2238,8 @@ function AdvancedModuleFields({
       <div className="grid gap-3 sm:grid-cols-2">
         <AdvancedTextField disabled={disabled} label="Tag exigida" onChange={(value) => onChange({ requiredTag: value })} placeholder="Ex: VILAO" value={stringConfig(config.requiredTag)} />
         <AdvancedSelectField disabled={disabled} label="Cargo entregue" onChange={(value) => onChange({ roleId: value || null })} options={roleOptions} placeholder="Selecione um cargo" value={stringConfig(config.roleId)} />
-        <AdvancedNumberField disabled={disabled} label="Tempo de atualização (minutos)" min={1} onChange={(value) => onChange({ intervalMinutes: value })} value={numberConfig(config.intervalMinutes, 10)} />
-        <AdvancedToggleField checked={config.removeOnMismatch !== false} disabled={disabled} label="Remoção automática" onChange={(checked) => onChange({ removeOnMismatch: checked })} />
+        <AdvancedNumberField disabled={disabled} label="Tempo de atualização (minutos)" max={1440} min={1} onChange={(value) => onChange({ updateIntervalMinutes: value })} value={numberConfig(config.updateIntervalMinutes, 10)} />
+        <AdvancedToggleField checked={config.autoRemove !== false} disabled={disabled} label="Remoção automática" onChange={(checked) => onChange({ autoRemove: checked })} />
       </div>
     );
   }
@@ -2266,12 +2380,59 @@ function AdvancedToggleField({ checked, disabled, label, onChange }: { checked: 
   );
 }
 
+function TagVerificationStatus({ config }: { config: Record<string, unknown> }) {
+  const metrics = [
+    ["Última verificação", formatTagVerificationDate(config.lastCheckAt)],
+    ["Próxima verificação", formatTagVerificationDate(config.nextCheckAt)],
+    ["Membros verificados", String(numberConfig(config.totalChecked, 0))],
+    ["Cargos entregues", String(numberConfig(config.totalAssigned, 0))],
+    ["Cargos removidos", String(numberConfig(config.totalRemoved, 0))]
+  ];
+
+  return (
+    <div className="border-t border-zinc-800 pt-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {metrics.map(([label, value]) => (
+          <div className="min-w-0 border-l-2 border-purple-500/40 px-3" key={label}>
+            <span className="block text-xs font-medium text-zinc-500">{label}</span>
+            <span className="mt-1 block break-words text-sm font-semibold text-zinc-100">{value}</span>
+          </div>
+        ))}
+      </div>
+      {stringConfig(config.lastError) ? <p className="mt-3 text-sm font-medium text-red-300">Último erro: {stringConfig(config.lastError)}</p> : null}
+    </div>
+  );
+}
+
+function formatTagVerificationDate(value: unknown) {
+  if (typeof value !== "string" || !value) return "Ainda não executado";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Indisponível" : date.toLocaleString("pt-BR");
+}
+
+function tagVerificationStatusFields(config: Record<string, unknown>) {
+  return Object.fromEntries(
+    ["lastCheckAt", "nextCheckAt", "totalChecked", "totalAssigned", "totalRemoved", "totalIgnored", "totalUnavailable", "totalErrors", "lastError"]
+      .filter((key) => key in config)
+      .map((key) => [key, config[key]])
+  );
+}
+
 function defaultAdvancedModuleConfig(moduleId: string, config: Record<string, unknown>) {
   if (moduleId === "temporary-voice") {
     return { enabled: false, panelChannelId: null, panelMessageId: null, categoryId: null, defaultUserLimit: 10, emptyDeleteMinutes: 1, logChannelId: null, ...config };
   }
   if (moduleId === "tag-verification") {
-    return { enabled: false, intervalMinutes: 10, removeOnMismatch: true, requiredTag: "", roleId: null, ...config };
+    return {
+      enabled: false,
+      requiredTag: "",
+      roleId: null,
+      updateIntervalMinutes: numberConfig(config.updateIntervalMinutes ?? config.intervalMinutes, 10),
+      autoRemove: config.autoRemove ?? config.removeOnMismatch ?? true,
+      ...config,
+      intervalMinutes: undefined,
+      removeOnMismatch: undefined
+    };
   }
 
   if (moduleId === "bio-url-verification") {
@@ -2769,6 +2930,8 @@ function UserDashboardHeader({
   selectedGuild: DashboardGuild | null;
   status: BotStatus;
 }) {
+  const selectedGuildShard = status.botGuilds.find((guild) => guild.id === selectedGuild?.id)?.shardId;
+
   return (
     <section className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
       <Card className="border-purple-500/20 bg-[#0b0b0b]">
@@ -2788,6 +2951,9 @@ function UserDashboardHeader({
                 </Badge>
                 {bot ? (
                   <Badge variant="muted">{bot.guildIds.length} servidor{bot.guildIds.length === 1 ? "" : "es"}</Badge>
+                ) : null}
+                {(status.shardCount ?? 1) > 1 ? (
+                  <Badge variant="muted">{status.shardIds?.length ?? 0}/{status.shardCount} shards</Badge>
                 ) : null}
               </div>
               {bot?.slug ? (
@@ -2810,6 +2976,9 @@ function UserDashboardHeader({
           <div className="min-w-0">
             <p className="text-xs text-zinc-500">Servidor atual</p>
             <p className="truncate text-sm font-semibold text-zinc-100">{selectedGuild?.name ?? "Servidor configurado"}</p>
+            {selectedGuildShard !== undefined ? (
+              <p className="mt-1 text-xs text-zinc-500">Shard {selectedGuildShard}</p>
+            ) : null}
           </div>
         </CardContent>
       </Card>

@@ -26,6 +26,7 @@ import {
 import { ensureKickWebhookEventSubscriptions, getKickChannel, normalizeKickChannel } from "./kickService";
 import { resolveKickApiCredentials } from "./kickNotificationService";
 import { createLog } from "./logService";
+import { enqueueBackgroundJob, type BackgroundJobContext } from "./backgroundJobService";
 import { getGuildSettings } from "./settingsService";
 import { getTwitchStream, getTwitchUser, normalizeTwitchChannel } from "./twitchService";
 
@@ -480,7 +481,8 @@ export async function startGiveaway(giveawayId: string, actorId: string | null, 
   const updated = await giveaways.findOneAndUpdate(
     {
       _id: giveaway._id,
-      ...botScopeQuery(normalizedBotId)
+      ...botScopeQuery(normalizedBotId),
+      status: "waiting"
     },
     {
       $set: {
@@ -499,7 +501,9 @@ export async function startGiveaway(giveawayId: string, actorId: string | null, 
   );
 
   if (!updated) {
-    throw createGiveawayError("Sorteio nao encontrado.", 404);
+    const current = await findGiveawayById(giveawayId, normalizedBotId);
+    if (current?.status === "running") return toGiveawayDto(current);
+    throw createGiveawayError("Sorteio nao esta mais disponivel para iniciar.", 409);
   }
 
   await writeGiveawayLog(updated, "giveaway.started", actorId, `Sorteio iniciado com ${participants.length} participante(s): ${updated.title}.`);
@@ -516,7 +520,8 @@ export async function endGiveaway(giveawayId: string, actorId: string | null, bo
   const updated = await giveaways.findOneAndUpdate(
     {
       _id: giveawayId,
-      ...botScopeQuery(normalizedBotId)
+      ...botScopeQuery(normalizedBotId),
+      status: "running"
     },
     {
       $set: {
@@ -534,7 +539,9 @@ export async function endGiveaway(giveawayId: string, actorId: string | null, bo
   );
 
   if (!updated) {
-    throw createGiveawayError("Sorteio nao encontrado.", 404);
+    const current = await findGiveawayById(giveawayId, normalizedBotId);
+    if (current?.status === "ended") return toGiveawayDto(current);
+    throw createGiveawayError("Sorteio nao esta mais disponivel para encerrar.", 409);
   }
 
   await writeGiveawayLog(updated, "giveaway.ended", actorId, `Sorteio encerrado: ${updated.title}.`);
@@ -1108,15 +1115,39 @@ async function runScheduledGiveaways() {
     ]);
 
     for (const giveaway of toStart) {
-      await startGiveaway(giveaway._id, null, giveaway.botId).catch((error) => markSchedulerError(giveaway._id, error));
+      await enqueueBackgroundJob({
+        idempotencyKey: `start:${giveaway._id}`,
+        payload: { botId: giveaway.botId, giveawayId: giveaway._id },
+        type: "giveaway.start"
+      }).catch((error) => markSchedulerError(giveaway._id, error));
     }
 
     for (const giveaway of toEnd) {
-      await endGiveaway(giveaway._id, null, giveaway.botId).catch((error) => markSchedulerError(giveaway._id, error));
+      await enqueueBackgroundJob({
+        idempotencyKey: `end:${giveaway._id}`,
+        payload: { botId: giveaway.botId, giveawayId: giveaway._id },
+        type: "giveaway.end"
+      }).catch((error) => markSchedulerError(giveaway._id, error));
     }
   } finally {
     schedulerRunning = false;
   }
+}
+
+export async function backfillScheduledGiveaways() {
+  await runScheduledGiveaways();
+}
+
+export async function processQueuedGiveawayStart(payload: Record<string, unknown>, _context: BackgroundJobContext) {
+  const giveawayId = typeof payload.giveawayId === "string" ? payload.giveawayId : null;
+  if (!giveawayId) throw new Error("Job de sorteio sem giveawayId.");
+  await startGiveaway(giveawayId, null, typeof payload.botId === "string" ? payload.botId : null);
+}
+
+export async function processQueuedGiveawayEnd(payload: Record<string, unknown>, _context: BackgroundJobContext) {
+  const giveawayId = typeof payload.giveawayId === "string" ? payload.giveawayId : null;
+  if (!giveawayId) throw new Error("Job de sorteio sem giveawayId.");
+  await endGiveaway(giveawayId, null, typeof payload.botId === "string" ? payload.botId : null);
 }
 
 async function markSchedulerError(giveawayId: string, error: unknown) {

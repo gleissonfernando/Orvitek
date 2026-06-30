@@ -7,6 +7,10 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
+    "start:api": "node dist/api.js",
+    "start:worker": "node dist/worker.js",
+    "start:scheduler": "node dist/scheduler.js",
+    "start:backfill": "node dist/backfill.js",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

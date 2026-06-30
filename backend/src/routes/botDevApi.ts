@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { requireBot } from "../middleware/auth";
 import { authorizeBotCommand } from "../services/botCommandAuthorizationService";
-import { authorizeBotRuntimeModule, getBotGuildConfig, getBotApiPermissions } from "../services/devBotService";
+import { authorizeBotRuntimeModule, getBotGuildConfig, getBotApiPermissions, updateBotGuildModuleRuntimeStatus } from "../services/devBotService";
 import { getMaintenanceState } from "../services/maintenanceService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
 
@@ -10,6 +10,18 @@ export const botDevApiRouter = Router();
 const commandAuthorizationSchema = z.object({
   channelId: z.string().nullable().optional(),
   userId: z.string().nullable().optional()
+});
+const guildIdSchema = z.string().regex(/^\d{5,32}$/);
+const tagVerificationStatusSchema = z.object({
+  lastCheckAt: z.string().datetime(),
+  nextCheckAt: z.string().datetime().nullable(),
+  totalChecked: z.number().int().min(0),
+  totalAssigned: z.number().int().min(0),
+  totalRemoved: z.number().int().min(0),
+  totalIgnored: z.number().int().min(0),
+  totalUnavailable: z.number().int().min(0),
+  totalErrors: z.number().int().min(0),
+  lastError: z.string().max(500).nullable()
 });
 
 botDevApiRouter.use(requireBot);
@@ -59,6 +71,24 @@ botDevApiRouter.get("/runtime/guilds/:guildId/modules/:moduleId/authorize", asyn
     return res.json({
       authorization
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+botDevApiRouter.post("/runtime/guilds/:guildId/tag-verification/status", async (req, res, next) => {
+  try {
+    const botId = await resolveRequestBotId(req);
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const status = tagVerificationStatusSchema.parse(req.body ?? {});
+    const authorization = await authorizeBotRuntimeModule({ botId, guildId, moduleId: "tag-verification" });
+
+    if (!authorization.allowed || !botId) {
+      return res.status(403).json({ message: authorization.reason });
+    }
+
+    await updateBotGuildModuleRuntimeStatus({ botId, guildId, moduleId: "tag-verification", status });
+    return res.json({ ok: true });
   } catch (error) {
     return next(error);
   }

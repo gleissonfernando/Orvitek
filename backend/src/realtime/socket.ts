@@ -87,21 +87,25 @@ export function createSocketServer(httpServer: HttpServer) {
 
       const statusBotId = socket.data.botId
         ?? (typeof payload.botId === "string" && payload.botId.trim() ? payload.botId.trim() : null);
+      const updatedStatus = updateBotStatus({
+        ...payload,
+        botId: statusBotId ?? payload.botId
+      });
 
       if (statusBotId) {
-        if (payload.online === false) {
+        if (updatedStatus.online === false) {
           noteBotOfflineSignal(statusBotId);
         } else {
           recentBotOfflineSignals.delete(statusBotId);
           clearPendingBotDisconnect(statusBotId);
         }
 
-        void syncDevBotProfile(statusBotId, payload.botProfile);
+        void syncDevBotProfile(statusBotId, updatedStatus.botProfile);
 
-        if (payload.botGuilds) {
+        if (updatedStatus.botGuilds) {
           void syncDevBotGuilds(
             statusBotId,
-            payload.botGuilds.map((guild) => ({
+            updatedStatus.botGuilds.map((guild) => ({
               id: guild.id,
               name: guild.name
             }))
@@ -110,12 +114,12 @@ export function createSocketServer(httpServer: HttpServer) {
 
         void updateDevBotRuntimeStatus(
           statusBotId,
-          payload.online === false ? "offline" : "online",
-          payload.online === false ? "Bot offline." : "Bot conectado ao Discord."
+          updatedStatus.online === false ? "offline" : "online",
+          updatedStatus.online === false ? "Bot offline." : "Bot conectado ao Discord."
         );
       }
 
-      io.emit("bot:status", updateBotStatus(payload));
+      io.emit("bot:status", updatedStatus);
     });
 
     socket.on("bot:log", async (payload: { botId?: string | null; guildId: string; type: string; message: string; userId?: string; metadata?: unknown }) => {
@@ -242,14 +246,22 @@ function scheduleBotDisconnectOffline(io: Server, botId: string) {
 
   const timer = setTimeout(() => {
     pendingBotDisconnects.delete(botId);
-    void updateDevBotRuntimeStatus(botId, "offline", "Bot sem conexao realtime com o backend.");
+    void io.in(devBotRealtimeRoom(botId)).fetchSockets().then((sockets) => {
+      if (sockets.some((connectedSocket) => connectedSocket.data.isBot && connectedSocket.data.botId === botId)) {
+        return;
+      }
 
-    if ((getBotStatus().botId ?? null) === botId) {
-      io.emit("bot:status", updateBotStatus({
-        botId,
-        online: false
-      }));
-    }
+      void updateDevBotRuntimeStatus(botId, "offline", "Bot sem conexao realtime com o backend.");
+
+      if ((getBotStatus().botId ?? null) === botId) {
+        io.emit("bot:status", updateBotStatus({
+          botId,
+          online: false
+        }));
+      }
+    }).catch((error) => {
+      console.warn("[socket] falha ao verificar conexoes restantes do bot:", error instanceof Error ? error.message : error);
+    });
   }, BOT_SOCKET_OFFLINE_GRACE_MS);
 
   timer.unref();

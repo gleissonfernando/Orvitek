@@ -98,12 +98,20 @@ export type BotStatus = {
   latency: number;
   guilds: number;
   users: number;
+  shardIds?: number[];
+  shardCount?: number;
+  instanceId?: string;
+  memory?: {
+    heapUsedMb: number;
+    rssMb: number;
+  };
   botGuilds: Array<{
     id: string;
     name: string;
     iconUrl: string | null;
     memberCount?: number;
     channelCount?: number;
+    shardId?: number;
   }>;
   updatedAt: string;
 };
@@ -220,8 +228,8 @@ export type EmojiCloneRemoteEmoji = {
 };
 
 export type ServerBackupFrequency = "6h" | "12h" | "daily" | "weekly" | "monthly";
-export type ServerBackupRestorePart = "roles" | "channels" | "permissions" | "emojis" | "settings" | "panels";
-export type ServerBackupRestoreMode = "merge" | "clear";
+export type ServerBackupRestorePart = "roles" | "channels" | "permissions" | "emojis" | "stickers" | "settings" | "panels";
+export type ServerBackupRestoreMode = "merge" | "missing" | "replace" | "clear";
 
 export type ServerBackupSettings = {
   autoEnabled: boolean;
@@ -236,6 +244,7 @@ export type ServerBackupSettings = {
 
 export type ServerBackupSnapshot = {
   botId: string;
+  checksum?: string | null;
   counts: {
     categories: number;
     channels: number;
@@ -249,7 +258,8 @@ export type ServerBackupSnapshot = {
   guildName: string;
   id: string;
   kind: "manual" | "automatic";
-  status: "completed" | "failed" | "partial";
+  snapshotVersion?: number;
+  status: "pending" | "completed" | "failed" | "partial";
   statusMessage: string | null;
   updatedAt: string;
 };
@@ -267,6 +277,7 @@ export type ServerBackupRestorePreview = {
     emojis: number;
     roles: number;
     settings: number;
+    stickers: number;
   };
   targetGuildId: string;
   warnings: string[];
@@ -276,8 +287,11 @@ export type ServerBackupRestoreResult = {
   completedSteps: string[];
   errors: Array<{ message: string; step: string }>;
   idMap: {
+    categories: Record<string, string>;
     channels: Record<string, string>;
+    emojis: Record<string, string>;
     roles: Record<string, string>;
+    stickers: Record<string, string>;
   };
   progress: Array<{
     at: string;
@@ -288,11 +302,16 @@ export type ServerBackupRestoreResult = {
   summary: {
     categories: number;
     channels: number;
+    emojis: number;
     failed: number;
     permissions: number;
+    reused: number;
     roles: number;
     settings: number;
+    stickers: number;
   };
+  progressPercent: number;
+  durationMs: number;
 };
 
 export type ServerBackupRestoreJob = {
@@ -304,6 +323,7 @@ export type ServerBackupRestoreJob = {
   createdBy: string | null;
   guildId: string;
   options: Array<ServerBackupRestorePart | ServerBackupRestoreMode>;
+  progress?: number;
   preview: ServerBackupRestorePreview;
   result: ServerBackupRestoreResult | null;
   sourceGuildId?: string | null;
@@ -2066,6 +2086,20 @@ export type AdvancedModuleConfig = {
   guildId: string;
   moduleId: string;
   updatedAt: string;
+};
+
+export type TagVerificationRunResult = {
+  botId: string;
+  guildId: string;
+  checked: number;
+  assigned: number;
+  removed: number;
+  ignored: number;
+  unavailable: number;
+  errors: number;
+  lastCheckAt: string;
+  nextCheckAt: string | null;
+  lastError: string | null;
 };
 
 export type AntiBanAction = "log_only" | "remove_admin_roles" | "kick_executor" | "ban_executor" | "remove_dangerous_permissions" | "block_future_actions";

@@ -173,6 +173,9 @@ const envSchema = z
     MONGODB_URI: z.string().optional().default(""),
     REDIS_URL: z.string().optional().default(""),
     REDIS_SESSION_ENABLED: envBoolean(false),
+    BACKGROUND_JOB_CONCURRENCY: z.coerce.number().int().min(1).max(20).default(3),
+    BACKGROUND_WORKER_ENABLED: envBoolean(true),
+    SCHEDULER_ENABLED: envBoolean(true),
     SESSION_SECRET: envSecret(),
     SESSION_TTL_SECONDS: z.coerce.number().default(60 * 60 * 24 * 7),
     JWT_SECRET: envSecret(),
@@ -224,7 +227,7 @@ const envSchema = z
       TWITCH_OAUTH_REDIRECT_URI: value.TWITCH_OAUTH_REDIRECT_URI || (oauthFrontendUrl ? `${oauthFrontendUrl}/api/giveaways/oauth/twitch/callback` : ""),
       KICK_OAUTH_REDIRECT_URI: value.KICK_OAUTH_REDIRECT_URI || (oauthFrontendUrl ? `${oauthFrontendUrl}/api/giveaways/oauth/kick/callback` : ""),
       DISCORD_SCOPES: mergeSpaceValues(value.DISCORD_SCOPES, requiredDiscordScopes),
-      REDIS_URL: value.REDIS_SESSION_ENABLED ? productionSafeUrl(cleanEnvValue(value.REDIS_URL)) ?? "" : "",
+      REDIS_URL: productionSafeUrl(cleanEnvValue(value.REDIS_URL)) ?? "",
       DASHBOARD_DEV_USER_IDS: mergeCsvValues(
         mergeCsvValues(value.DASHBOARD_DEV_USER_IDS, value.DEV_DISCORD_IDS),
         defaultDashboardDevUserIds

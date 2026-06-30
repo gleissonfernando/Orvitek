@@ -11,6 +11,7 @@ export type BotGuildDto = {
   iconUrl: string | null;
   memberCount?: number;
   channelCount?: number;
+  shardId?: number;
 };
 
 export type BotStatusDto = {
@@ -25,6 +26,13 @@ export type BotStatusDto = {
   guilds: number;
   users: number;
   botGuilds: BotGuildDto[];
+  shardIds?: number[];
+  shardCount?: number;
+  instanceId?: string;
+  memory?: {
+    heapUsedMb: number;
+    rssMb: number;
+  };
   updatedAt: string;
 };
 
@@ -41,6 +49,14 @@ type BotStatusInput = Partial<Omit<BotStatusDto, "updatedAt" | "botGuilds">> & {
   botGuilds?: BotGuildDto[];
 };
 
+type ShardReport = {
+  input: BotStatusInput;
+  receivedAt: number;
+};
+
+const SHARD_REPORT_TTL_MS = 90_000;
+const shardReports = new Map<string, Map<string, ShardReport>>();
+
 type DiscordBotGuild = {
   id: string;
   name: string;
@@ -53,17 +69,74 @@ export function getBotStatus() {
 }
 
 export function updateBotStatus(input: BotStatusInput) {
-  const botGuilds = input.botGuilds ? normalizeBotGuilds(input.botGuilds) : botStatus.botGuilds;
+  const aggregatedInput = aggregateShardStatus(input);
+  const botGuilds = aggregatedInput.botGuilds ? normalizeBotGuilds(aggregatedInput.botGuilds) : botStatus.botGuilds;
 
   botStatus = {
     ...botStatus,
-    ...input,
+    ...aggregatedInput,
     botGuilds,
-    guilds: input.guilds ?? botGuilds.length,
+    guilds: aggregatedInput.guilds ?? botGuilds.length,
     updatedAt: new Date().toISOString()
   };
 
   return botStatus;
+}
+
+function aggregateShardStatus(input: BotStatusInput): BotStatusInput {
+  if (!input.instanceId || !input.shardIds?.length || (input.shardCount ?? 1) <= 1) {
+    return input;
+  }
+
+  const now = Date.now();
+  const botKey = input.botId?.trim() || input.botProfile?.id || "default";
+  const reports = shardReports.get(botKey) ?? new Map<string, ShardReport>();
+  reports.set(input.instanceId, { input, receivedAt: now });
+
+  for (const [instanceId, report] of reports) {
+    if (now - report.receivedAt > SHARD_REPORT_TTL_MS) {
+      reports.delete(instanceId);
+    }
+  }
+
+  shardReports.set(botKey, reports);
+  const currentReports = [...reports.values()].map((report) => report.input);
+  const guildsById = new Map<string, BotGuildDto>();
+  const ids = new Set<number>();
+
+  for (const report of currentReports) {
+    for (const guild of report.botGuilds ?? []) {
+      guildsById.set(guild.id, guild);
+    }
+    if (report.online !== false) {
+      for (const shardId of report.shardIds ?? []) {
+        ids.add(shardId);
+      }
+    }
+  }
+
+  const onlineReports = currentReports.filter((report) => report.online !== false);
+  const latencySamples = onlineReports.map((report) => report.latency).filter((value): value is number => typeof value === "number");
+  const memorySamples = onlineReports.map((report) => report.memory).filter((value): value is NonNullable<BotStatusDto["memory"]> => Boolean(value));
+  const botGuilds = [...guildsById.values()];
+
+  return {
+    ...input,
+    botProfile: currentReports.find((report) => report.botProfile)?.botProfile ?? input.botProfile,
+    online: onlineReports.length > 0,
+    latency: latencySamples.length ? Math.round(latencySamples.reduce((total, value) => total + value, 0) / latencySamples.length) : 0,
+    guilds: botGuilds.length,
+    users: botGuilds.reduce((total, guild) => total + (guild.memberCount ?? 0), 0),
+    botGuilds,
+    shardIds: [...ids].sort((left, right) => left - right),
+    shardCount: Math.max(...currentReports.map((report) => report.shardCount ?? 1)),
+    memory: memorySamples.length
+      ? {
+          heapUsedMb: memorySamples.reduce((total, value) => total + value.heapUsedMb, 0),
+          rssMb: memorySamples.reduce((total, value) => total + value.rssMb, 0)
+        }
+      : undefined
+  };
 }
 
 export function getBotGuildIds() {

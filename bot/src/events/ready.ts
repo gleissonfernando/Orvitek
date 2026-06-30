@@ -30,6 +30,7 @@ import { startSocialNotificationMonitor } from "../services/socialNotificationMo
 import { startVoiceRecorderService } from "../services/voiceRecorderService";
 import { startTemporaryVoiceService } from "../services/temporaryVoiceService";
 import { startAutomatedLogService } from "../services/automatedLogService";
+import { startTagVerificationService, stopTagVerificationService } from "../services/tagVerificationService";
 import { startXMonitor } from "../services/xMonitor";
 import type { BotContext } from "../types";
 
@@ -60,6 +61,7 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     const wasMissionToolsEnabled = isBotModuleEnabled("mission-tools");
     const wasTemporaryVoiceEnabled = isBotModuleEnabled("temporary-voice");
     const wereLogsEnabled = isBotModuleEnabled("logs");
+    const wasTagVerificationEnabled = isBotModuleEnabled("tag-verification");
     setRuntimeEnabledModules(payload.enabledModules);
     lastRuntimeModuleSignature = runtimeModuleSignature(true, runtimeBotId, payload.enabledModules);
     clearRuntimeModuleAuthorization();
@@ -79,6 +81,8 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     }
     if (!wasTemporaryVoiceEnabled && isBotModuleEnabled("temporary-voice")) startTemporaryVoiceService(client, context);
     if (!wereLogsEnabled && isBotModuleEnabled("logs")) startAutomatedLogService(client, context);
+    if (!wasTagVerificationEnabled && isBotModuleEnabled("tag-verification")) void startTagVerificationService(client, context);
+    if (wasTagVerificationEnabled && !isBotModuleEnabled("tag-verification")) stopTagVerificationService();
   });
   context.socket.onSelfBotEnsureSetup((payload) => {
     if (payload.botId && runtimeBotId && payload.botId !== runtimeBotId) {
@@ -154,6 +158,9 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   if (isBotModuleEnabled("temporary-voice")) {
     startTemporaryVoiceService(client, context);
   }
+  if (isBotModuleEnabled("tag-verification")) {
+    await startTagVerificationService(client, context);
+  }
   startSelfBotProtectionService(context);
   if (isSelfBotModuleEnabled()) {
     await ensureSelfBotRoles(client, context);
@@ -211,6 +218,7 @@ async function reconcileRuntimeModules(client: Client<true>, context: BotContext
   const wasSelfBotEnabled = isSelfBotModuleEnabled();
   const wasMissionToolsEnabled = isBotModuleEnabled("mission-tools");
   const wasTemporaryVoiceEnabled = isBotModuleEnabled("temporary-voice");
+  const wasTagVerificationEnabled = isBotModuleEnabled("tag-verification");
   const runtimeModules = runtimeAccess.active ? runtimeAccess.enabledModules : [];
   const nextSignature = runtimeModuleSignature(runtimeAccess.active, runtimeAccess.botId, runtimeModules);
 
@@ -235,6 +243,12 @@ async function reconcileRuntimeModules(client: Client<true>, context: BotContext
   }
   if (!wasTemporaryVoiceEnabled && isBotModuleEnabled("temporary-voice")) {
     startTemporaryVoiceService(client, context);
+  }
+  if (!wasTagVerificationEnabled && isBotModuleEnabled("tag-verification")) {
+    await startTagVerificationService(client, context);
+  }
+  if (wasTagVerificationEnabled && !isBotModuleEnabled("tag-verification")) {
+    stopTagVerificationService();
   }
 }
 

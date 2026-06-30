@@ -1,12 +1,15 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
+import { devBotRealtimeRoom, emitRealtimeToRoom, emitRealtimeToRoomWithAck } from "../realtime/events";
 import {
   canReadDevBotModule,
   canUseDevBotModule,
+  getDevBotToken,
   getBotGuildModuleConfig,
   updateBotGuildModuleConfig
 } from "../services/devBotService";
+import { validateGuildAssignableRole } from "../services/discordOptionsService";
 import { createLog } from "../services/logService";
 import type { AuthSessionUser } from "../types/session";
 
@@ -112,6 +115,38 @@ const temporaryVoiceConfigSchema = z.object({
   emptyDeleteMinutes: z.coerce.number().int().min(1).max(1440).default(1),
   logChannelId: snowflakeSchema.nullable().default(null)
 });
+const tagVerificationConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  requiredTag: z.string().trim().max(100).default(""),
+  roleId: snowflakeSchema.nullable().default(null),
+  updateIntervalMinutes: z.coerce.number().int().min(1).max(1440).default(10),
+  autoRemove: z.boolean().default(true),
+  updatedAt: z.string().datetime()
+}).superRefine((config, context) => {
+  if (!config.enabled) return;
+
+  if (!config.requiredTag) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Informe a tag exigida.", path: ["requiredTag"] });
+  }
+
+  if (!config.roleId) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Selecione o cargo que sera entregue.", path: ["roleId"] });
+  }
+});
+
+type TagVerificationRunResult = {
+  botId: string;
+  guildId: string;
+  checked: number;
+  assigned: number;
+  removed: number;
+  ignored: number;
+  unavailable: number;
+  errors: number;
+  lastCheckAt: string;
+  nextCheckAt: string | null;
+  lastError: string | null;
+};
 
 export const advancedModulesRouter = Router();
 
@@ -160,6 +195,11 @@ advancedModulesRouter.patch("/:botId/:guildId/:moduleId", async (req, res, next)
 
     const previous = await getBotGuildModuleConfig(botId, guildId, moduleId);
     const normalizedConfig = normalizeModuleConfig(moduleId, input.config);
+
+    if (moduleId === "tag-verification" && normalizedConfig.enabled === true) {
+      await validateTagVerificationRole(botId, guildId, String((normalizedConfig as Record<string, unknown>).roleId));
+    }
+
     const savedModule = await updateBotGuildModuleConfig({
       botId,
       guildId,
@@ -167,6 +207,7 @@ advancedModulesRouter.patch("/:botId/:guildId/:moduleId", async (req, res, next)
       moduleId,
       config: {
         ...normalizedConfig,
+        ...(moduleId === "tag-verification" ? { botId, guildId } : {}),
         updatedBy: user.id
       }
     });
@@ -180,9 +221,49 @@ advancedModulesRouter.patch("/:botId/:guildId/:moduleId", async (req, res, next)
       user
     });
 
+    if (moduleId === "tag-verification") {
+      emitRealtimeToRoom(devBotRealtimeRoom(botId), "tag-verification:config_updated", {
+        botId,
+        guildId
+      });
+    }
+
     return res.json({
       module: savedModule
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+advancedModulesRouter.post("/:botId/:guildId/tag-verification/run", async (req, res, next) => {
+  try {
+    const botId = botIdSchema.parse(req.params.botId);
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const user = res.locals.dashboardAuth.user as AuthSessionUser;
+
+    if (!(await canUseDevBotModule(user, botId, guildId, "tag-verification"))) {
+      return res.status(403).json({ message: "Este modulo nao foi liberado para este bot ou servidor." });
+    }
+
+    const module = await getBotGuildModuleConfig(botId, guildId, "tag-verification");
+
+    if (module.config.enabled !== true) {
+      return res.status(409).json({ message: "Ative e salve a Verificacao de Tag antes de executar." });
+    }
+
+    const responses = await emitRealtimeToRoomWithAck<
+      { botId: string; guildId: string },
+      TagVerificationRunResult | { error: string }
+    >(devBotRealtimeRoom(botId), "tag-verification:run", { botId, guildId }, 120_000);
+    const result = responses.find((item): item is TagVerificationRunResult => "checked" in item);
+
+    if (!result) {
+      const error = responses.find((item): item is { error: string } => "error" in item)?.error;
+      return res.status(503).json({ message: error || "O bot nao respondeu a verificacao manual." });
+    }
+
+    return res.json({ result });
   } catch (error) {
     return next(error);
   }
@@ -240,7 +321,52 @@ function normalizeModuleConfig(moduleId: z.infer<typeof moduleIdSchema>, config:
     return temporaryVoiceConfigSchema.parse(config);
   }
 
+  if (moduleId === "tag-verification") {
+    const result = tagVerificationConfigSchema.safeParse({
+      autoRemove: config.autoRemove ?? config.removeOnMismatch,
+      enabled: config.enabled,
+      requiredTag: config.requiredTag,
+      roleId: config.roleId,
+      updateIntervalMinutes: config.updateIntervalMinutes ?? config.intervalMinutes,
+      updatedAt: new Date().toISOString()
+    });
+
+    if (!result.success) {
+      const error = new Error(result.error.issues[0]?.message ?? "Configuracao de Verificacao de Tag invalida.");
+      Object.assign(error, { statusCode: 400 });
+      throw error;
+    }
+
+    return result.data;
+  }
+
   return config;
+}
+
+async function validateTagVerificationRole(botId: string, guildId: string, roleId: string) {
+  const token = await getDevBotToken(botId);
+  if (!token) {
+    const error = new Error("O token deste bot nao esta disponivel para validar o cargo.");
+    Object.assign(error, { statusCode: 400 });
+    throw error;
+  }
+
+  const validation = await validateGuildAssignableRole(guildId, roleId, token);
+
+  if (validation.ok) {
+    return;
+  }
+
+  const messages = {
+    bot_missing_manage_roles: "Bot sem permissao para gerenciar cargos.",
+    role_above_bot: "Cargo selecionado esta acima do cargo do bot.",
+    role_managed: "Cargo selecionado e gerenciado por uma integracao.",
+    role_not_found: "Cargo nao encontrado."
+  } as const;
+
+  const error = new Error(validation.reason ? messages[validation.reason] : "Nao foi possivel validar o cargo selecionado.");
+  Object.assign(error, { statusCode: 400 });
+  throw error;
 }
 
 async function writeModuleConfigLogs(input: {
@@ -251,7 +377,7 @@ async function writeModuleConfigLogs(input: {
   previousConfig: Record<string, unknown>;
   user: AuthSessionUser;
 }) {
-  const label = input.moduleId === "auto-unmute" ? "Auto Desmutar" : input.moduleId === "anti-disconnect" ? "Anti Disconnect" : input.moduleId === "anti-abuse" ? "Anti Abuse" : input.moduleId;
+  const label = input.moduleId === "auto-unmute" ? "Auto Desmutar" : input.moduleId === "anti-disconnect" ? "Anti Disconnect" : input.moduleId === "anti-abuse" ? "Anti Abuse" : input.moduleId === "tag-verification" ? "Verificacao de Tag" : input.moduleId;
   const enabled = input.config.enabled === true;
   const wasEnabled = input.previousConfig.enabled === true;
 
@@ -264,7 +390,13 @@ async function writeModuleConfigLogs(input: {
     metadata: {
       botId: input.botId,
       guildId: input.guildId,
-      moduleId: input.moduleId
+      moduleId: input.moduleId,
+      ...(input.moduleId === "tag-verification" ? {
+        autoRemove: input.config.autoRemove,
+        requiredTag: input.config.requiredTag,
+        roleId: input.config.roleId,
+        updateIntervalMinutes: input.config.updateIntervalMinutes
+      } : {})
     }
   }).catch(() => undefined);
 

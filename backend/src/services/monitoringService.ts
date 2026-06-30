@@ -1,3 +1,5 @@
+import os from "node:os";
+
 type RouteMetric = {
   errors: number;
   requests: number;
@@ -32,6 +34,7 @@ export function recordHttpRequest(input: {
 
 export function metricsSnapshot() {
   const memory = process.memoryUsage();
+  const cpu = process.cpuUsage();
   const routes = [...routeMetrics.entries()]
     .sort((left, right) => right[1].requests - left[1].requests)
     .slice(0, 50)
@@ -49,6 +52,11 @@ export function metricsSnapshot() {
       rss: memory.rss,
       heapUsed: memory.heapUsed,
       heapTotal: memory.heapTotal
+    },
+    cpu: {
+      loadAverage: os.loadavg(),
+      systemMilliseconds: Math.round(cpu.system / 1_000),
+      userMilliseconds: Math.round(cpu.user / 1_000)
     },
     routes
   };

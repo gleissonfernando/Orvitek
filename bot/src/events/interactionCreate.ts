@@ -17,6 +17,29 @@ import { handleManualRegistrationInteraction } from "../services/manualRegistrat
 import { handleFivemGoalInteraction } from "../services/fivemGoalService";
 
 export async function handleInteractionCreate(interaction: Interaction, context: BotContext) {
+  try {
+    await dispatchInteractionCreate(interaction, context);
+  } catch (error) {
+    console.error(JSON.stringify({
+      action: interaction.id,
+      at: new Date().toISOString(),
+      error: error instanceof Error ? error.stack ?? error.message : String(error),
+      guildId: interaction.guildId,
+      level: "error",
+      module: "interactions",
+      userId: interaction.user.id
+    }));
+    if (!interaction.isRepliable()) return;
+    const payload = { content: "Nao foi possivel concluir esta interacao.", ephemeral: true } as const;
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(payload).catch(() => undefined);
+    } else {
+      await interaction.reply(payload).catch(() => undefined);
+    }
+  }
+}
+
+async function dispatchInteractionCreate(interaction: Interaction, context: BotContext) {
   if (await blockInteractionIfMaintenance(interaction)) {
     return;
   }

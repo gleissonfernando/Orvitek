@@ -17,6 +17,8 @@ type AutoUnmuteConfig = {
   voiceChannelId: string | null;
 };
 
+type AutoUnmuteAction = "mute" | "deafen";
+
 const MODULE_ID = "auto-unmute";
 const DEFAULT_ANTI_SPAM_SECONDS = 10;
 const processedUsers = new Map<string, number>();
@@ -27,7 +29,9 @@ export async function handleAutoUnmuteVoiceStateUpdate(oldState: VoiceState, new
     return;
   }
 
-  if (!newState.channelId || oldState.channelId === newState.channelId) {
+  const actions = detectAutoUnmuteActions(oldState, newState);
+
+  if (!newState.channelId || !actions.length) {
     return;
   }
 
@@ -53,19 +57,21 @@ export async function handleAutoUnmuteVoiceStateUpdate(oldState: VoiceState, new
     return;
   }
 
-  if (!newState.serverMute) {
-    return;
-  }
-
-  const antiSpamKey = `${botId}:${newState.guild.id}:${newState.id}`;
   const antiSpamMs = config.antiSpamSeconds * 1000;
-  const lastProcessedAt = processedUsers.get(antiSpamKey) ?? 0;
+  const now = Date.now();
+  const eligibleActions = actions.filter((action) => {
+    const antiSpamKey = `${botId}:${newState.guild.id}:${newState.id}:${action}`;
+    const lastProcessedAt = processedUsers.get(antiSpamKey) ?? 0;
+    return now - lastProcessedAt >= antiSpamMs;
+  });
 
-  if (Date.now() - lastProcessedAt < antiSpamMs) {
+  if (!eligibleActions.length) {
     return;
   }
 
-  processedUsers.set(antiSpamKey, Date.now());
+  for (const action of eligibleActions) {
+    processedUsers.set(`${botId}:${newState.guild.id}:${newState.id}:${action}`, now);
+  }
 
   if (config.delaySeconds > 0) {
     await wait(config.delaySeconds * 1000);
@@ -73,7 +79,13 @@ export async function handleAutoUnmuteVoiceStateUpdate(oldState: VoiceState, new
 
   const member = await newState.guild.members.fetch(newState.id).catch(() => null);
 
-  if (!member || !member.voice.channelId || (config.voiceChannelId && member.voice.channelId !== config.voiceChannelId) || !member.voice.serverMute) {
+  if (!member || !member.voice.channelId || (config.voiceChannelId && member.voice.channelId !== config.voiceChannelId)) {
+    return;
+  }
+
+  const pendingActions = eligibleActions.filter((action) => action === "mute" ? member.voice.serverMute : member.voice.serverDeaf);
+
+  if (!pendingActions.length) {
     return;
   }
 
@@ -87,38 +99,69 @@ export async function handleAutoUnmuteVoiceStateUpdate(oldState: VoiceState, new
     return;
   }
 
-  const permissionError = await validateBotPermissions(member, channel);
+  for (const action of pendingActions) {
+    const permissionError = await validateBotPermissions(member, channel, action);
 
-  if (permissionError) {
-    await writeAutoUnmuteLog(context, member.guild.id, "auto_unmute.permission_failed", permissionError, {
-      botId,
-      channelId: channel.id,
-      userId: member.id
-    });
-    return;
-  }
-
-  try {
-    await member.voice.setMute(false, config.voiceChannelId ? "Auto Desmutar: usuario entrou no canal configurado." : "Auto Desmutar: usuario entrou em canal de voz do servidor.");
-    await writeAutoUnmuteLog(
-      context,
-      member.guild.id,
-      "auto_unmute.executed",
-      `Auto Desmutar executado: usuario ${member.user.tag} foi desmutado ao entrar ${config.voiceChannelId ? `no canal #${channel.name}` : `em #${channel.name}`}.`,
-      {
+    if (permissionError) {
+      await writeAutoUnmuteLog(context, member.guild.id, "auto_unmute.permission_failed", permissionError, {
+        action,
         botId,
         channelId: channel.id,
         userId: member.id
-      },
-      member.id
-    );
-  } catch (error) {
-    await writeAutoUnmuteLog(context, member.guild.id, "auto_unmute.failed", `Auto Desmutar falhou ao remover mute de ${member.user.tag}: ${readError(error)}.`, {
-      botId,
-      channelId: channel.id,
-      userId: member.id
-    }, member.id);
+      });
+      continue;
+    }
+
+    try {
+      const reason = action === "mute"
+        ? "Auto Desmutar: removendo mute de voz no servidor."
+        : "Auto Desmutar: reativando audio no servidor.";
+
+      if (action === "mute") {
+        await member.voice.setMute(false, reason);
+      } else {
+        await member.voice.setDeaf(false, reason);
+      }
+
+      await writeAutoUnmuteLog(
+        context,
+        member.guild.id,
+        "auto_unmute.executed",
+        action === "mute"
+          ? `Auto Desmutar executado: usuario ${member.user.tag} teve o mute de voz removido em #${channel.name}.`
+          : `Auto Desmutar executado: usuario ${member.user.tag} teve o audio reativado em #${channel.name}.`,
+        {
+          action,
+          botId,
+          channelId: channel.id,
+          userId: member.id
+        },
+        member.id
+      );
+    } catch (error) {
+      await writeAutoUnmuteLog(context, member.guild.id, "auto_unmute.failed", `Auto Desmutar falhou ao reverter ${action} de ${member.user.tag}: ${readError(error)}.`, {
+        action,
+        botId,
+        channelId: channel.id,
+        userId: member.id
+      }, member.id);
+    }
   }
+}
+
+function detectAutoUnmuteActions(oldState: VoiceState, newState: VoiceState): AutoUnmuteAction[] {
+  const enteredVoiceChannel = oldState.channelId !== newState.channelId;
+  const actions: AutoUnmuteAction[] = [];
+
+  if (newState.serverMute && (enteredVoiceChannel || !oldState.serverMute)) {
+    actions.push("mute");
+  }
+
+  if (newState.serverDeaf && (enteredVoiceChannel || !oldState.serverDeaf)) {
+    actions.push("deafen");
+  }
+
+  return actions;
 }
 
 async function readAutoUnmuteConfig(context: BotContext, botId: string, guildId: string): Promise<AutoUnmuteConfig> {
@@ -184,7 +227,7 @@ async function resolveConfiguredVoiceChannel(context: BotContext, member: GuildM
   return null;
 }
 
-async function validateBotPermissions(member: GuildMember, channel: VoiceBasedChannel) {
+async function validateBotPermissions(member: GuildMember, channel: VoiceBasedChannel, action: AutoUnmuteAction) {
   const botMember = member.guild.members.me ?? await member.guild.members.fetchMe().catch(() => null);
 
   if (!botMember) {
@@ -192,9 +235,12 @@ async function validateBotPermissions(member: GuildMember, channel: VoiceBasedCh
   }
 
   const channelPermissions = channel.permissionsFor(botMember);
+  const requiredPermission = action === "mute" ? PermissionFlagsBits.MuteMembers : PermissionFlagsBits.DeafenMembers;
 
-  if (!channelPermissions?.has(PermissionFlagsBits.ViewChannel) || !channelPermissions.has(PermissionFlagsBits.MuteMembers)) {
-    return "Auto Desmutar sem permissao para ver o canal ou gerenciar mute de voz.";
+  if (!channelPermissions?.has(PermissionFlagsBits.ViewChannel) || !channelPermissions.has(requiredPermission)) {
+    return action === "mute"
+      ? "Auto Desmutar sem permissao para ver o canal ou gerenciar mute de voz."
+      : "Auto Desmutar sem permissao para ver o canal ou gerenciar audio desativado.";
   }
 
   if (member.guild.ownerId !== member.id && botMember.roles.highest.comparePositionTo(member.roles.highest) <= 0) {

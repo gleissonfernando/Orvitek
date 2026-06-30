@@ -958,6 +958,18 @@ export type BotGuildRuntimeConfig = {
   updatedAt: string;
 };
 
+export type TagVerificationRuntimeStatus = {
+  lastCheckAt: string;
+  nextCheckAt: string | null;
+  totalChecked: number;
+  totalAssigned: number;
+  totalRemoved: number;
+  totalIgnored: number;
+  totalUnavailable: number;
+  totalErrors: number;
+  lastError: string | null;
+};
+
 export class ApiClient {
   private readonly http: AxiosInstance;
 
@@ -1070,6 +1082,15 @@ export class ApiClient {
       }
     );
 
+    return data;
+  }
+
+  async reportTagVerificationStatus(guildId: string, status: TagVerificationRuntimeStatus) {
+    const { data } = await this.http.post<{ ok: boolean }>(
+      `/bot/runtime/guilds/${encodeURIComponent(guildId)}/tag-verification/status`,
+      status,
+      { timeout: 8_000 }
+    );
     return data;
   }
 

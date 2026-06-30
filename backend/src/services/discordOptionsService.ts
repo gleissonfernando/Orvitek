@@ -98,6 +98,12 @@ export type GuildPanelChannelValidationDto = {
   reason: string | null;
 };
 
+export type GuildAssignableRoleValidationDto = {
+  ok: boolean;
+  reason: "bot_missing_manage_roles" | "role_above_bot" | "role_managed" | "role_not_found" | null;
+  roleName: string | null;
+};
+
 const DISCORD_API_URL = "https://discord.com/api/v10";
 const LIVE_OPTIONS_CACHE_TTL_MS = 60_000;
 const LIVE_OPTIONS_STALE_TTL_MS = 15 * 60_000;
@@ -435,6 +441,50 @@ export async function areGuildAssignableRoles(guildId: string, roleIds: string[]
   } catch {
     return false;
   }
+}
+
+export async function validateGuildAssignableRole(
+  guildId: string,
+  roleId: string,
+  botToken?: string | null
+): Promise<GuildAssignableRoleValidationDto> {
+  const token = botToken || env.DISCORD_BOT_TOKEN;
+
+  if (!token) {
+    return { ok: false, reason: "bot_missing_manage_roles", roleName: null };
+  }
+
+  const bot = await discordFetch<DiscordBotUser>("/users/@me", token);
+  const [roles, botMember] = await Promise.all([
+    discordFetch<DiscordRole[]>(`/guilds/${guildId}/roles`, token),
+    discordFetch<DiscordGuildMember>(`/guilds/${guildId}/members/${bot.id}`, token)
+  ]);
+  const role = roles.find((item) => item.id === roleId);
+
+  if (!role || role.id === guildId) {
+    return { ok: false, reason: "role_not_found", roleName: null };
+  }
+
+  if (role.managed) {
+    return { ok: false, reason: "role_managed", roleName: role.name };
+  }
+
+  const botRoleIds = new Set([guildId, ...botMember.roles]);
+  const botRoles = roles.filter((item) => botRoleIds.has(item.id));
+  const highestBotRolePosition = Math.max(0, ...botRoles.map((item) => item.position));
+  const botPermissions = botRoles.reduce((permissions, item) => permissions | parsePermissions(item.permissions), 0n);
+  const canManageRoles = (botPermissions & ADMINISTRATOR) === ADMINISTRATOR
+    || (botPermissions & MANAGE_ROLES) === MANAGE_ROLES;
+
+  if (!canManageRoles) {
+    return { ok: false, reason: "bot_missing_manage_roles", roleName: role.name };
+  }
+
+  if (role.position >= highestBotRolePosition) {
+    return { ok: false, reason: "role_above_bot", roleName: role.name };
+  }
+
+  return { ok: true, reason: null, roleName: role.name };
 }
 
 export async function areGuildMembers(guildId: string, userIds: string[], botToken?: string | null) {

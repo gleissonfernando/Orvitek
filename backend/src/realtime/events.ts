@@ -36,6 +36,20 @@ export function emitRealtimeToRoom<TPayload>(room: string, event: string, payloa
   io?.to(room).emit(event, payload);
 }
 
+export async function emitRealtimeToRoomWithAck<TPayload, TResponse>(
+  room: string,
+  event: string,
+  payload: TPayload,
+  timeoutMs = 30_000
+) {
+  if (!io) {
+    return [] as TResponse[];
+  }
+
+  return (io.to(room).timeout(timeoutMs).emitWithAck(event, payload) as Promise<TResponse[]>)
+    .catch(() => [] as TResponse[]);
+}
+
 function isDashboardLogPayload(payload: unknown): payload is { botId?: string | null; guildId: string } {
   return Boolean(
     payload

@@ -6,7 +6,7 @@ import {
 } from "discord.js";
 import { env, isBotModuleEnabled } from "./config/env";
 import { createCommandCollection } from "./commands";
-import { registerEvents } from "./handlers/eventHandler";
+import { registerEvents, stopEventProcessing } from "./handlers/eventHandler";
 import { ApiClient } from "./services/apiClient";
 import { isLinkAntiSpamEnabled } from "./services/linkAntiSpamService";
 import { isSelfBotModuleEnabled } from "./services/safeBotService";
@@ -18,9 +18,10 @@ const intents = [GatewayIntentBits.Guilds];
 const managedRuntimeBot = Boolean(env.DASHBOARD_BOT_ID.trim());
 const needsVoiceRecorder = isBotModuleEnabled("voice-recorder");
 const needsMusic = isBotModuleEnabled("music") || managedRuntimeBot;
+const needsTagVerification = isBotModuleEnabled("tag-verification") || managedRuntimeBot;
 const needsVoiceEvents = managedRuntimeBot || isBotModuleEnabled("anti-abuse") || isBotModuleEnabled("anti-disconnect") || isBotModuleEnabled("temporary-voice") || isBotModuleEnabled("logs");
 const needsAntiBan = isBotModuleEnabled("anti-ban") || managedRuntimeBot;
-const needsMemberEvents = ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security", "anti-ban"].some(isBotModuleEnabled)
+const needsMemberEvents = ["welcome", "leave", "roles", "logs", "fivem-fac", "account-age-security", "anti-ban", "tag-verification"].some(isBotModuleEnabled)
   || isSelfBotModuleEnabled()
   || managedRuntimeBot;
 const selfBotModuleEnabled = isSelfBotModuleEnabled();
@@ -33,7 +34,7 @@ const needsMessageEvents = needsLegacyMessageModeration
   || isBotModuleEnabled("temporary-voice")
   || needsMessageLogs;
 
-if (env.BOT_MEMBER_EVENTS_ENABLED && needsMemberEvents) {
+if (needsTagVerification || (env.BOT_MEMBER_EVENTS_ENABLED && needsMemberEvents)) {
   intents.push(GatewayIntentBits.GuildMembers);
 }
 
@@ -54,7 +55,7 @@ if (needsMessageEvents) {
   }
 }
 
-if (env.BOT_PRESENCE_MONITOR_ENABLED && isBotModuleEnabled("live")) {
+if ((env.BOT_PRESENCE_MONITOR_ENABLED && isBotModuleEnabled("live")) || needsTagVerification) {
   intents.push(GatewayIntentBits.GuildPresences);
 }
 
@@ -84,7 +85,7 @@ const client = new Client({
     GuildStickerManager: 0,
     GuildTextThreadManager: 0,
     MessageManager: needsMessageLogs ? env.BOT_CACHE_MESSAGES_PER_CHANNEL : 0,
-    PresenceManager: env.BOT_PRESENCE_MONITOR_ENABLED ? env.BOT_CACHE_PRESENCES_MAX : 0,
+    PresenceManager: needsTagVerification ? Math.max(env.BOT_CACHE_PRESENCES_MAX, env.BOT_CACHE_MEMBERS_MAX) : env.BOT_PRESENCE_MONITOR_ENABLED ? env.BOT_CACHE_PRESENCES_MAX : 0,
     ReactionManager: 0,
     ReactionUserManager: 0,
     StageInstanceManager: 0,
@@ -134,6 +135,7 @@ let loginStarted = false;
 let shuttingDown = false;
 let reconnectTimer: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
+let highMemorySamples = 0;
 
 function scheduleReconnect(reason: string) {
   if (shuttingDown || reconnectTimer) {
@@ -165,7 +167,7 @@ async function startBot() {
   reconnectAttempts = 0;
 }
 
-function shutdown(signal: "SIGINT" | "SIGTERM") {
+function shutdown(signal: string, exitCode = 0) {
   if (shuttingDown) {
     return;
   }
@@ -176,10 +178,18 @@ function shutdown(signal: "SIGINT" | "SIGTERM") {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
-  context.socket.disconnect(client);
-  destroyLavalink();
-  client.destroy();
-  process.exit(0);
+  const forceExit = setTimeout(() => process.exit(exitCode || 1), 15_000);
+  forceExit.unref();
+  void stopEventProcessing().finally(() => {
+    try {
+      context.socket.disconnect(client);
+      destroyLavalink();
+      client.destroy();
+    } catch (error) {
+      console.error("[bot] falha durante encerramento:", error);
+    }
+    process.exit(exitCode);
+  });
 }
 
 process.on("SIGINT", () => {
@@ -191,13 +201,35 @@ process.on("SIGTERM", () => {
 });
 
 process.on("unhandledRejection", (reason) => {
-  console.error("[bot] promise rejeitada sem tratamento:", reason);
+  console.error(JSON.stringify({
+    at: new Date().toISOString(),
+    error: reason instanceof Error ? reason.stack ?? reason.message : String(reason),
+    level: "critical",
+    service: "bot",
+    type: "unhandledRejection"
+  }));
+  shutdown("unhandledRejection", 1);
 });
 
 process.on("uncaughtException", (error) => {
-  console.error("[bot] excecao nao capturada:", error);
-  scheduleReconnect("excecao nao capturada");
+  console.error(JSON.stringify({ at: new Date().toISOString(), error: error.stack ?? error.message, level: "critical", service: "bot", type: "uncaughtException" }));
+  shutdown("uncaughtException", 1);
 });
+
+process.on("warning", (warning) => {
+  console.warn(JSON.stringify({ at: new Date().toISOString(), error: warning.stack ?? warning.message, level: "warning", service: "bot", type: warning.name }));
+});
+
+const memoryMonitor = setInterval(() => {
+  const memory = process.memoryUsage();
+  const rssMb = memory.rss / 1024 / 1024;
+  highMemorySamples = rssMb >= env.BOT_MEMORY_RESTART_MB ? highMemorySamples + 1 : 0;
+  if (highMemorySamples >= 3) {
+    console.error(JSON.stringify({ at: new Date().toISOString(), level: "critical", rssMb: Math.round(rssMb), service: "bot", thresholdMb: env.BOT_MEMORY_RESTART_MB, type: "memory_limit" }));
+    shutdown("memory limit", 1);
+  }
+}, 30_000);
+memoryMonitor.unref();
 
 startBot().catch((error) => {
   console.error("[bot] falha ao conectar:", error);

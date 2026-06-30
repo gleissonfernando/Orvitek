@@ -1698,6 +1698,15 @@ export async function saveAdvancedModuleConfig(
   return data.module;
 }
 
+export async function runTagVerificationNow(botId: string, guildId: string) {
+  const { data } = await api.post<{ result: import("../types").TagVerificationRunResult }>(
+    `/advanced-modules/${encodeURIComponent(botId)}/${encodeURIComponent(guildId)}/tag-verification/run`,
+    undefined,
+    { timeout: 120_000 }
+  );
+  return data.result;
+}
+
 export async function getServerBackupDashboard(botId: string, guildId: string) {
   const { data } = await api.get<ServerBackupDashboard>(`/server-backups/${encodeURIComponent(guildId)}`, {
     params: botParams(botId)
@@ -1718,7 +1727,7 @@ export async function createServerBackup(botId: string, guildId: string) {
   const { data } = await api.post<{ backup: ServerBackupSnapshot }>(
     `/server-backups/${encodeURIComponent(guildId)}/backups`,
     undefined,
-    { params: botParams(botId), timeout: 60000 }
+    { params: botParams(botId), timeout: 180000 }
   );
   return data.backup;
 }
@@ -1742,7 +1751,7 @@ export async function restoreServerBackup(botId: string, guildId: string, backup
   const { data } = await api.post(
     `/server-backups/${encodeURIComponent(guildId)}/backups/${encodeURIComponent(backupId)}/restore`,
     { confirmation, mode, parts, targetGuildId },
-    { params: botParams(botId), timeout: 120000 }
+    { params: botParams(botId), timeout: 600000 }
   );
   return data.job;
 }

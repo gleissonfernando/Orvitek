@@ -24,6 +24,18 @@ import { handleTemporaryCallChannelDelete, handleTemporaryVoiceStateUpdate } fro
 import { handleVoiceLogStateUpdate } from "../services/voiceLogService";
 import type { BotContext } from "../types";
 import { handleAntiBanDetection, recoverDeletedProtectedRole, recoverMemberProtectedRoles, recoverUpdatedProtectedRole } from "../services/antiBanService";
+import { BoundedTaskQueue } from "../services/boundedTaskQueue";
+
+const eventQueue = new BoundedTaskQueue(env.BOT_EVENT_CONCURRENCY, env.BOT_EVENT_QUEUE_MAX, (name, error) => {
+  console.error(JSON.stringify({
+    action: name,
+    at: new Date().toISOString(),
+    error: error instanceof Error ? error.stack ?? error.message : String(error),
+    level: "error",
+    module: "gateway-events",
+    queue: eventQueue.snapshot()
+  }));
+});
 
 export function registerEvents(client: Client, context: BotContext) {
   const managedRuntimeBot = Boolean(env.DASHBOARD_BOT_ID.trim());
@@ -46,7 +58,12 @@ export function registerEvents(client: Client, context: BotContext) {
     context.socket.emitStatus(client, true);
   });
   client.once(Events.ClientReady, (readyClient) => runEvent("ready", () => handleReady(readyClient, context)));
-  client.on(Events.InteractionCreate, (interaction) => runEvent("interactionCreate", () => handleInteractionCreate(interaction, context)));
+  client.on(Events.InteractionCreate, (interaction) => {
+    const accepted = runEvent("interactionCreate", () => handleInteractionCreate(interaction, context));
+    if (!accepted && interaction.isRepliable()) {
+      void interaction.reply({ content: "O sistema esta processando muitas solicitacoes. Tente novamente em instantes.", ephemeral: true }).catch(() => undefined);
+    }
+  });
   client.on(Events.UserUpdate, (_oldUser, newUser) => {
     if (client.user && newUser.id === client.user.id) {
       context.socket.emitStatus(client, true);
@@ -260,10 +277,16 @@ export function registerEvents(client: Client, context: BotContext) {
   }
 }
 
+export function stopEventProcessing(timeoutMs = 10_000) {
+  return eventQueue.stopAndDrain(timeoutMs);
+}
+
 function runEvent(name: string, handler: () => Promise<unknown>) {
-  void handler().catch((error) => {
-    console.error(`[event:${name}] falha capturada:`, error instanceof Error ? error.stack ?? error.message : error);
-  });
+  const accepted = eventQueue.enqueue(name, handler, name === "interactionCreate" || name === "ready");
+  if (!accepted) {
+    console.warn(`[event:${name}] descartado para proteger o processo contra sobrecarga.`);
+  }
+  return accepted;
 }
 
 async function resolveMember(member: GuildMember | PartialGuildMember) {

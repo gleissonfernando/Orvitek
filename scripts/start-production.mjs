@@ -109,7 +109,7 @@ function startProcess(name, command, args, options = {}) {
   const child = spawn(command, args, {
     env: {
       ...process.env,
-      NODE_OPTIONS: process.env.NODE_OPTIONS || "--max-old-space-size=192"
+      NODE_OPTIONS: process.env.NODE_OPTIONS || `--max-old-space-size=${Math.max(256, Number(process.env.ORVITEK_NODE_MAX_OLD_SPACE_MB) || 512)}`
     },
     shell: process.platform === "win32",
     stdio: "inherit"
@@ -156,12 +156,12 @@ function shutdown(code = 0) {
     child.kill("SIGTERM");
   }
 
-  setTimeout(() => process.exit(code), 1500).unref();
+  setTimeout(() => process.exit(code), 25_000).unref();
 }
 
 process.on("SIGINT", () => shutdown(0));
 process.on("SIGTERM", () => shutdown(0));
 
 ensureBuild();
-startProcess("backend", "node", ["backend/dist/server.js"], { critical: true });
-startProcess("bot", "node", ["bot/dist/index.js"]);
+startProcess("backend", "node", ["backend/dist/server.js"], { restartDelayMs: 5_000 });
+startProcess("bot", "node", [process.env.BOT_SHARDING_ENABLED === "true" ? "bot/dist/shard.js" : "bot/dist/index.js"]);

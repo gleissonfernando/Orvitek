@@ -1621,6 +1621,41 @@ export async function updateBotGuildModuleConfig(input: {
   };
 }
 
+export async function updateBotGuildModuleRuntimeStatus(input: {
+  botId: string;
+  guildId: string;
+  moduleId: string;
+  status: Record<string, boolean | number | string | null>;
+}) {
+  const { botGuildConfigs } = await getMongoCollections();
+  const current = await botGuildConfigs.findOne({ botId: input.botId, guildId: input.guildId });
+
+  if (!current) {
+    return null;
+  }
+
+  const moduleConfig = current.modules[input.moduleId] ?? {};
+  const updatedAt = new Date();
+
+  await botGuildConfigs.updateOne(
+    { botId: input.botId, guildId: input.guildId },
+    {
+      $set: {
+        [`modules.${input.moduleId}`]: {
+          ...moduleConfig,
+          ...input.status
+        },
+        updatedAt
+      }
+    }
+  );
+
+  return {
+    ...moduleConfig,
+    ...input.status
+  };
+}
+
 export async function updateBotGuildConfig(input: {
   botId: string;
   guildId: string;
@@ -2021,6 +2056,10 @@ export async function authorizeBotRuntimeModule(input: {
 
 export function runtimeModuleIdForLogType(type: string) {
   const normalized = type.trim().toLowerCase();
+
+  if (normalized.startsWith("tag_verification.")) {
+    return "tag-verification";
+  }
 
   if (normalized.startsWith("self_bot_protection.") || normalized.startsWith("security.self_bot") || normalized.startsWith("safe_bot.")) {
     return "safe-bot";
