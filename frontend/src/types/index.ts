@@ -272,6 +272,29 @@ export type ServerBackupRestorePreview = {
   warnings: string[];
 };
 
+export type ServerBackupRestoreResult = {
+  completedSteps: string[];
+  errors: Array<{ message: string; step: string }>;
+  idMap: {
+    channels: Record<string, string>;
+    roles: Record<string, string>;
+  };
+  progress: Array<{
+    at: string;
+    message: string;
+    status: "running" | "completed" | "warning" | "failed";
+    step: string;
+  }>;
+  summary: {
+    categories: number;
+    channels: number;
+    failed: number;
+    permissions: number;
+    roles: number;
+    settings: number;
+  };
+};
+
 export type ServerBackupRestoreJob = {
   id: string;
   backupId: string;
@@ -282,7 +305,7 @@ export type ServerBackupRestoreJob = {
   guildId: string;
   options: Array<ServerBackupRestorePart | ServerBackupRestoreMode>;
   preview: ServerBackupRestorePreview;
-  result: unknown;
+  result: ServerBackupRestoreResult | null;
   sourceGuildId?: string | null;
   status: "pending" | "running" | "completed" | "failed" | "partial";
   targetGuildId?: string | null;

@@ -1838,12 +1838,33 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
           <CardDescription>Restauracoes e eventos recentes deste bot neste servidor.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
-          {(dashboard?.restoreJobs ?? []).length ? dashboard!.restoreJobs.map((job) => (
-            <div className="flex flex-col gap-1 rounded-lg border border-zinc-800 bg-zinc-950/70 p-3 text-sm sm:flex-row sm:items-center sm:justify-between" key={job.id}>
-              <span className="font-semibold text-white">{job.status}</span>
-              <span className="text-zinc-500">{formatDate(job.createdAt)} - {(job.sourceGuildId || job.guildId) === (job.targetGuildId || job.guildId) ? job.guildId : `${job.sourceGuildId || job.guildId} para ${job.targetGuildId || job.guildId}`} - {job.options.join(", ")}</span>
-            </div>
-          )) : <p className="text-sm text-zinc-500">Nenhuma restauracao registrada.</p>}
+          {(dashboard?.restoreJobs ?? []).length ? dashboard!.restoreJobs.map((job) => {
+            const result = job.result;
+            return (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-3 text-sm" key={job.id}>
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="font-semibold text-white">{job.status}</span>
+                  <span className="text-zinc-500">{formatDate(job.createdAt)} - {(job.sourceGuildId || job.guildId) === (job.targetGuildId || job.guildId) ? job.guildId : `${job.sourceGuildId || job.guildId} para ${job.targetGuildId || job.guildId}`} - {job.options.join(", ")}</span>
+                </div>
+                {result?.summary ? (
+                  <p className="mt-2 text-zinc-300">
+                    Restaurados: {result.summary.roles} cargos, {result.summary.categories} categorias, {result.summary.channels} canais, {result.summary.permissions} permissoes, {result.summary.settings} configuracoes. Falhas: {result.summary.failed}.
+                  </p>
+                ) : null}
+                {result?.progress?.length ? (
+                  <div className="mt-2 grid gap-1 text-xs text-zinc-500">
+                    {result.progress.slice(-5).map((item, index) => <span key={`${job.id}-progress-${index}`}>{item.status}: {item.message}</span>)}
+                  </div>
+                ) : null}
+                {result?.errors?.length ? (
+                  <div className="mt-2 grid gap-1 rounded-lg border border-red-500/20 bg-red-500/10 p-2 text-xs text-red-200">
+                    {result.errors.slice(0, 4).map((item, index) => <span key={`${job.id}-error-${index}`}>{item.step}: {item.message}</span>)}
+                    {result.errors.length > 4 ? <span>Mais {result.errors.length - 4} erro(s) registrados no relatorio.</span> : null}
+                  </div>
+                ) : null}
+              </div>
+            );
+          }) : <p className="text-sm text-zinc-500">Nenhuma restauracao registrada.</p>}
         </CardContent>
       </Card>
     </div>

@@ -44,6 +44,7 @@ type RestoreResult = {
   completedSteps: string[];
   errors: Array<{ step: string; message: string }>;
   idMap: { roles: Record<string, string>; channels: Record<string, string> };
+  progress: Array<{ at: string; message: string; status: "running" | "completed" | "warning" | "failed"; step: string }>;
   summary: { roles: number; categories: number; channels: number; permissions: number; settings: number; failed: number };
 };
 
@@ -321,8 +322,10 @@ async function executeRestore(botToken: string, botId: string, guildId: string, 
     completedSteps: [],
     errors: [],
     idMap: { roles: {}, channels: {} },
+    progress: [],
     summary: { roles: 0, categories: 0, channels: 0, permissions: 0, settings: 0, failed: 0 }
   };
+  addRestoreProgress(result, "start", "running", "Iniciando restauracao.");
   const roles = Array.isArray(snapshot.roles) ? [...snapshot.roles].filter((role) => role.name !== "@everyone" && !role.managed && !role.tags?.bot_id).sort((a, b) => a.position - b.position) : [];
   const channels = Array.isArray(snapshot.channels) ? [...snapshot.channels].sort((a, b) => a.position - b.position) : [];
   const targetGuild = await discordGet(botToken, `/guilds/${guildId}`);
@@ -330,11 +333,14 @@ async function executeRestore(botToken: string, botId: string, guildId: string, 
   result.idMap.roles[guildId] = guildId;
 
   if (mode === "clear") {
+    addRestoreProgress(result, "clear", "running", "Limpando servidor destino antes de restaurar.");
     await clearTargetGuild(botToken, guildId, result);
     result.completedSteps.push("clear");
+    addRestoreProgress(result, "clear", "completed", "Limpeza inicial finalizada.");
   }
 
   if (parts.includes("roles")) {
+    addRestoreProgress(result, "roles", "running", "Criando cargos.");
     for (const role of roles) {
       try {
         const created = await discordPost(botToken, `/guilds/${guildId}/roles`, { name: role.name, color: role.color, hoist: role.hoist, mentionable: role.mentionable, permissions: role.permissions, unicode_emoji: role.unicode_emoji });
@@ -346,9 +352,11 @@ async function executeRestore(botToken: string, botId: string, guildId: string, 
     }
     await restoreRolePositions(botToken, guildId, roles, result);
     result.completedSteps.push("roles");
+    addRestoreProgress(result, "roles", "completed", `${result.summary.roles} cargo(s) restaurado(s).`);
   }
 
   if (parts.includes("channels")) {
+    addRestoreProgress(result, "categories", "running", "Criando categorias.");
     for (const channel of channels.filter((item) => item.type === 4)) {
       try {
         const created = await discordPost(botToken, `/guilds/${guildId}/channels`, channelPayload(channel, result.idMap));
@@ -358,6 +366,8 @@ async function executeRestore(botToken: string, botId: string, guildId: string, 
         addRestoreError(result, `category:${channel.name}`, errorMessage(error));
       }
     }
+    addRestoreProgress(result, "categories", "completed", `${result.summary.categories} categoria(s) restaurada(s).`);
+    addRestoreProgress(result, "channels", "running", "Criando canais.");
     for (const channel of channels.filter((item) => item.type !== 4)) {
       try {
         const created = await discordPost(botToken, `/guilds/${guildId}/channels`, channelPayload(channel, result.idMap));
@@ -368,29 +378,38 @@ async function executeRestore(botToken: string, botId: string, guildId: string, 
       }
     }
     result.completedSteps.push("channels");
+    addRestoreProgress(result, "channels", "completed", `${result.summary.channels} canal(is) restaurado(s).`);
   }
 
   if (parts.includes("permissions")) {
+    addRestoreProgress(result, "permissions", "running", "Aplicando permissoes dos canais.");
     await restoreChannelPermissions(botToken, channels, result);
     result.completedSteps.push("permissions");
+    addRestoreProgress(result, "permissions", "completed", `${result.summary.permissions} permissao(oes) aplicada(s).`);
   }
 
   if (parts.includes("emojis")) {
     result.completedSteps.push("emojis");
-    if ((snapshot.emojis ?? []).length) result.errors.push({ step: "emojis", message: "Emojis foram salvos no snapshot, mas a restauracao binaria exige arquivo original e foi ignorada." });
+    if ((snapshot.emojis ?? []).length) addRestoreError(result, "emojis", "Emojis foram salvos no snapshot, mas a restauracao binaria exige arquivo original e foi ignorada.");
   }
 
   if (parts.includes("settings")) {
+    addRestoreProgress(result, "settings", "running", "Restaurando configuracoes internas do bot com IDs convertidos.");
     try {
-      const mappedSettings = remapIdsDeep(snapshot.internalSettings ?? {}, result.idMap);
+      const mappedSettings = remapIdsDeep(snapshot.internalSettings ?? {}, result.idMap, collectSnapshotIds(snapshot));
       await updateBotGuildConfig({ botId, guildId, guildName: readString(targetGuild, "name") || guildId, modules: mappedSettings });
       result.summary.settings = Object.keys(mappedSettings).length;
     } catch (error) {
       addRestoreError(result, "settings", errorMessage(error));
     }
     result.completedSteps.push("settings");
+    addRestoreProgress(result, "settings", "completed", `${result.summary.settings} configuracao(oes) interna(s) restaurada(s).`);
   }
-  if (parts.includes("panels")) result.completedSteps.push("panels");
+  if (parts.includes("panels")) {
+    result.completedSteps.push("panels");
+    addRestoreProgress(result, "panels", "warning", "Paineis foram marcados como restaurados no relatorio; reenvio depende das configuracoes internas mapeadas.");
+  }
+  addRestoreProgress(result, "finish", result.errors.length ? "warning" : "completed", result.errors.length ? `Restauracao finalizada com ${result.errors.length} falha(s).` : "Backup restaurado com sucesso.");
   return result;
 }
 
@@ -402,6 +421,7 @@ async function validateRestorePermissions(botToken: string, guildId: string) {
   const permissions = computeMemberPermissions(member, roles, guild.owner_id);
   const botHighestRolePosition = Math.max(0, ...(member.roles ?? []).map((roleId: string) => roles.find((role: any) => role.id === roleId)?.position ?? 0));
   const required: Array<[string, bigint]> = [
+    ["Ver Canais", 0x400n],
     ["Gerenciar Cargos", 0x10000000n],
     ["Gerenciar Canais", 0x10n],
     ["Gerenciar Servidor", 0x20n],
@@ -506,12 +526,19 @@ function mapPermissionOverwrite(overwrite: any, idMap: { roles: Record<string, s
   return { allow: overwrite.allow ?? "0", deny: overwrite.deny ?? "0", id: mappedId, type };
 }
 
-function remapIdsDeep(value: unknown, idMap: { roles: Record<string, string>; channels: Record<string, string> }): Record<string, Record<string, unknown>> {
+function remapIdsDeep(value: unknown, idMap: { roles: Record<string, string>; channels: Record<string, string> }, sourceIds: Set<string>): Record<string, Record<string, unknown>> {
   const map = new Map<string, string>([...Object.entries(idMap.roles), ...Object.entries(idMap.channels)].filter(([oldId, newId]) => oldId && newId));
   const remap = (item: unknown): unknown => {
-    if (typeof item === "string") return map.get(item) ?? item;
-    if (Array.isArray(item)) return item.map(remap);
-    if (item && typeof item === "object") return Object.fromEntries(Object.entries(item).map(([key, nested]) => [key, remap(nested)]));
+    if (typeof item === "string") return map.get(item) ?? (sourceIds.has(item) ? null : item);
+    if (Array.isArray(item)) return item.map(remap).filter((nested) => nested !== null);
+    if (item && typeof item === "object") {
+      return Object.fromEntries(Object.entries(item).flatMap(([key, nested]) => {
+        const mappedKey = map.get(key) ?? key;
+        if (mappedKey === key && sourceIds.has(key)) return [];
+        const mappedValue = remap(nested);
+        return mappedValue === null ? [] : [[mappedKey, mappedValue]];
+      }));
+    }
     return item;
   };
   const mapped = remap(value);
@@ -521,6 +548,23 @@ function remapIdsDeep(value: unknown, idMap: { roles: Record<string, string>; ch
 function addRestoreError(result: RestoreResult, step: string, message: string) {
   result.errors.push({ step, message });
   result.summary.failed += 1;
+  addRestoreProgress(result, step, "failed", message);
+}
+
+function addRestoreProgress(result: RestoreResult, step: string, status: RestoreResult["progress"][number]["status"], message: string) {
+  result.progress.push({ at: new Date().toISOString(), message, status, step });
+}
+
+function collectSnapshotIds(snapshot: any) {
+  const ids = new Set<string>();
+  if (typeof snapshot.guild?.id === "string") ids.add(snapshot.guild.id);
+  for (const role of Array.isArray(snapshot.roles) ? snapshot.roles : []) {
+    if (typeof role.id === "string") ids.add(role.id);
+  }
+  for (const channel of Array.isArray(snapshot.channels) ? snapshot.channels : []) {
+    if (typeof channel.id === "string") ids.add(channel.id);
+  }
+  return ids;
 }
 
 async function enforceBackupLimit(botId: string, guildId: string) {
