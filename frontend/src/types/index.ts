@@ -581,6 +581,60 @@ export type Ticket = {
   closedAt?: string | null;
 };
 
+export type ManualRegistrationField = {
+  id: string;
+  label: string;
+  maxLength: number | null;
+  minLength: number | null;
+  name: string;
+  placeholder: string | null;
+  required: boolean;
+  style: "short" | "paragraph";
+};
+
+export type ManualRegistrationSettings = {
+  approvalChannelId: string | null;
+  autoRoleIds: string[];
+  bannerPosition: "top" | "bottom" | "none";
+  botId: string | null;
+  color: string;
+  description: string | null;
+  enabled: boolean;
+  emoji: string | null;
+  fields: ManualRegistrationField[];
+  footerText: string | null;
+  guildId: string;
+  name: string;
+  panelImage: PanelImageSettings | null;
+  removeRoleIds: string[];
+  thumbnailUrl: string | null;
+  title: string;
+  updatedAt: string | null;
+};
+
+export type ManualRegistrationSubmission = {
+  approvedAt: string | null;
+  approvedBy: string | null;
+  botId: string | null;
+  createdAt: string;
+  fields: Array<{ id: string; label: string; value: string }>;
+  guildId: string;
+  id: string;
+  messageId: string | null;
+  rejectedAt: string | null;
+  rejectedBy: string | null;
+  status: "pending" | "approved" | "rejected";
+  updatedAt: string;
+  userAvatar: string | null;
+  userId: string;
+  username: string;
+};
+
+export type ManualRegistrationDashboard = {
+  settings: ManualRegistrationSettings;
+  submissions: ManualRegistrationSubmission[];
+};
+
 export type GuildChannelOption = {
   id: string;
   name: string;

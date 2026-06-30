@@ -88,6 +88,7 @@ import {
   getKickNotifications,
   getLives,
   getLogs,
+  getManualRegistrationDashboard,
   getSelfBotProtection,
   getSocialNotifications,
   getTickets,
@@ -98,6 +99,7 @@ import {
   removeAllApplicationEmojis,
   resendEmojiFromLibrary,
   saveAdvancedModuleConfig,
+  saveManualRegistrationSettings,
   syncApplicationEmojis,
   updateSelectedDashboardGuild,
   updateApplicationEmojiSettings,
@@ -127,6 +129,9 @@ import type {
   LiveEvent,
   LogEntry,
   LogCategory,
+  ManualRegistrationField,
+  ManualRegistrationSettings,
+  ManualRegistrationSubmission,
   SelfBotProtectionSettings,
   SocialNotification,
   Ticket,
@@ -2452,6 +2457,17 @@ function SettingsView({
     );
   }
 
+  if (enabledModules.includes("manual-registration")) {
+    blocks.push(
+      <ManualRegistrationPanel
+        botId={botId}
+        canManage={canManageModule("manual-registration")}
+        guild={guild}
+        key="manual-registration"
+      />
+    );
+  }
+
   if (enabledModules.includes("network")) {
     blocks.push(
       <div className="space-y-4" key="network">
@@ -2476,6 +2492,218 @@ function SettingsView({
   }
 
   return <div className="space-y-5">{blocks}</div>;
+}
+
+function ManualRegistrationPanel({
+  botId,
+  canManage,
+  guild
+}: {
+  botId?: string | null;
+  canManage: boolean;
+  guild: DashboardGuild | null;
+}) {
+  const [settings, setSettings] = useState<ManualRegistrationSettings | null>(null);
+  const [submissions, setSubmissions] = useState<ManualRegistrationSubmission[]>([]);
+  const [channels, setChannels] = useState<GuildChannelOption[]>([]);
+  const [roles, setRoles] = useState<GuildRoleOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!guild) {
+      setSettings(null);
+      setSubmissions([]);
+      return;
+    }
+
+    let active = true;
+    setLoading(true);
+    setError(null);
+
+    Promise.all([
+      getManualRegistrationDashboard(guild.id, botId),
+      getGuildLiveOptions(guild.id, botId)
+    ])
+      .then(([dashboard, options]) => {
+        if (!active) return;
+        setSettings(dashboard.settings);
+        setSubmissions(dashboard.submissions);
+        setChannels(options.channels);
+        setRoles(options.roles);
+      })
+      .catch(() => {
+        if (active) setError("Nao foi possivel carregar o cadastro manual.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [botId, guild?.id]);
+
+  function patchSettings(patch: Partial<ManualRegistrationSettings>) {
+    setSettings((current) => current ? { ...current, ...patch } : current);
+  }
+
+  function patchField(index: number, patch: Partial<ManualRegistrationField>) {
+    setSettings((current) => current ? {
+      ...current,
+      fields: current.fields.map((field, fieldIndex) => fieldIndex === index ? { ...field, ...patch } : field)
+    } : current);
+  }
+
+  function addField() {
+    setSettings((current) => current ? {
+      ...current,
+      fields: [
+        ...current.fields,
+        {
+          id: `campo-${current.fields.length + 1}`,
+          label: `Campo ${current.fields.length + 1}`,
+          maxLength: 120,
+          minLength: null,
+          name: `campo_${current.fields.length + 1}`,
+          placeholder: "",
+          required: true,
+          style: "short"
+        }
+      ]
+    } : current);
+  }
+
+  function removeField(index: number) {
+    setSettings((current) => current ? {
+      ...current,
+      fields: current.fields.filter((_, fieldIndex) => fieldIndex !== index)
+    } : current);
+  }
+
+  async function save() {
+    if (!guild || !settings || !canManage) return;
+    setSaving(true);
+    setMessage(null);
+    setError(null);
+
+    try {
+      const saved = await saveManualRegistrationSettings(guild.id, settings, botId);
+      setSettings(saved);
+      setMessage("Cadastro manual salvo.");
+    } catch {
+      setError("Nao foi possivel salvar o cadastro manual.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!guild) {
+    return <EmptyState icon={ListChecks} title="Selecione um servidor para configurar o Cadastro Manual" />;
+  }
+
+  return (
+    <Card className="border-purple-500/10 bg-zinc-950/70">
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2"><ListChecks className="h-5 w-5 text-purple-300" /> Cadastro Manual</CardTitle>
+            <CardDescription>Painel, modal e aprovacoes em Discord Components V2.</CardDescription>
+          </div>
+          <Button disabled={!canManage || !settings || saving || loading} onClick={() => void save()} size="sm" type="button">
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+            Salvar
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error ? <div className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</div> : null}
+        {message ? <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{message}</div> : null}
+        {loading || !settings ? <div className="h-40 animate-pulse rounded-lg border border-zinc-800 bg-zinc-900/60" /> : (
+          <>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="block text-xs font-medium text-zinc-400">Ativo
+                <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchSettings({ enabled: event.target.value === "true" })} value={String(settings.enabled)}>
+                  <option value="true">Ativado</option>
+                  <option value="false">Desativado</option>
+                </select>
+              </label>
+              <TicketField disabled={!canManage} label="Nome" onChange={(value) => patchSettings({ name: value })} value={settings.name} />
+              <TicketField disabled={!canManage} label="Titulo do painel" onChange={(value) => patchSettings({ title: value })} value={settings.title} />
+              <TicketField disabled={!canManage} label="Emoji" onChange={(value) => patchSettings({ emoji: value })} value={settings.emoji ?? ""} />
+              <TicketField disabled={!canManage} label="Cor" onChange={(value) => patchSettings({ color: value })} type="color" value={settings.color} />
+              <TicketField disabled={!canManage} label="Thumbnail URL" onChange={(value) => patchSettings({ thumbnailUrl: value })} value={settings.thumbnailUrl ?? ""} />
+              <label className="block text-xs font-medium text-zinc-400">Canal de aprovação
+                <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchSettings({ approvalChannelId: event.target.value || null })} value={settings.approvalChannelId ?? ""}>
+                  <option value="">Selecionar canal</option>
+                  {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+                </select>
+              </label>
+              <label className="block text-xs font-medium text-zinc-400">Banner
+                <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchSettings({ bannerPosition: event.target.value as ManualRegistrationSettings["bannerPosition"] })} value={settings.bannerPosition}>
+                  <option value="top">Superior</option>
+                  <option value="bottom">Inferior</option>
+                  <option value="none">Sem banner</option>
+                </select>
+              </label>
+            </div>
+            <TicketArea disabled={!canManage} label="Descricao" onChange={(value) => patchSettings({ description: value })} value={settings.description ?? ""} />
+            <TicketField disabled={!canManage} label="Rodape" onChange={(value) => patchSettings({ footerText: value })} value={settings.footerText ?? ""} />
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <MultiRoleSelect disabled={!canManage} label="Cargos ao aprovar" onChange={(values) => patchSettings({ autoRoleIds: values })} roles={roles} values={settings.autoRoleIds} />
+              <MultiRoleSelect disabled={!canManage} label="Cargos para remover" onChange={(values) => patchSettings({ removeRoleIds: values })} roles={roles} values={settings.removeRoleIds} />
+            </div>
+
+            <PanelImageSettings botId={botId} canManage={canManage} guildId={guild.id} panelId="manual-registration" panelLabel="Cadastro Manual" />
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">Campos do modal</p>
+                  <p className="text-xs text-zinc-500">O Discord exibe ate 5 campos por modal; deixe os principais no topo.</p>
+                </div>
+                <Button disabled={!canManage || settings.fields.length >= 25} onClick={addField} size="sm" type="button" variant="outline">Adicionar campo</Button>
+              </div>
+              {settings.fields.map((field, index) => (
+                <div className="grid gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-3 lg:grid-cols-[1fr_1fr_120px_100px_auto]" key={`${field.id}-${index}`}>
+                  <TicketField disabled={!canManage} label="Label" onChange={(value) => patchField(index, { label: value, id: slugTicketOption(value, index), name: slugTicketOption(value, index).replace(/-/g, "_") })} value={field.label} />
+                  <TicketField disabled={!canManage} label="Placeholder" onChange={(value) => patchField(index, { placeholder: value })} value={field.placeholder ?? ""} />
+                  <label className="block text-xs font-medium text-zinc-400">Tipo
+                    <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchField(index, { style: event.target.value as ManualRegistrationField["style"] })} value={field.style}>
+                      <option value="short">Curto</option>
+                      <option value="paragraph">Longo</option>
+                    </select>
+                  </label>
+                  <label className="flex items-end gap-2 text-xs text-zinc-300">
+                    <span className="flex h-10 items-center gap-2 rounded-md border border-zinc-800 px-3">
+                      <input checked={field.required} disabled={!canManage} onChange={(event) => patchField(index, { required: event.target.checked })} type="checkbox" />
+                      Obrig.
+                    </span>
+                  </label>
+                  <div className="flex items-end">
+                    <Button disabled={!canManage || settings.fields.length <= 1} onClick={() => removeField(index)} size="icon" title="Remover campo" type="button" variant="outline"><Trash2 className="h-4 w-4" /></Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-white">Ultimas solicitacoes</p>
+              {submissions.slice(0, 5).map((submission) => (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 px-3 py-2 text-sm" key={submission.id}>
+                  <span className="truncate text-zinc-300">{submission.username} ({submission.userId})</span>
+                  <Badge variant={submission.status === "approved" ? "success" : submission.status === "rejected" ? "danger" : "muted"}>{submission.status}</Badge>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function TicketPanelConfigurator({
@@ -2764,6 +2992,37 @@ function TicketArea({
         onChange={(event) => onChange(event.target.value)}
         value={value}
       />
+    </label>
+  );
+}
+
+function MultiRoleSelect({
+  disabled,
+  label,
+  onChange,
+  roles,
+  values
+}: {
+  disabled: boolean;
+  label: string;
+  onChange: (values: string[]) => void;
+  roles: GuildRoleOption[];
+  values: string[];
+}) {
+  return (
+    <label className="block text-xs font-medium text-zinc-400">
+      {label}
+      <select
+        className="mt-1 min-h-28 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 py-2 text-sm text-zinc-100"
+        disabled={disabled}
+        multiple
+        onChange={(event) => onChange(Array.from(event.currentTarget.selectedOptions).map((option) => option.value))}
+        value={values}
+      >
+        {roles.map((role) => (
+          <option key={role.id} value={role.id}>{role.name}</option>
+        ))}
+      </select>
     </label>
   );
 }

@@ -50,6 +50,49 @@ export type MaintenanceState = {
   updatedByName: string | null;
 };
 
+export type ManualRegistrationField = {
+  id: string;
+  label: string;
+  maxLength: number | null;
+  minLength: number | null;
+  name: string;
+  placeholder: string | null;
+  required: boolean;
+  style: "short" | "paragraph";
+};
+
+export type ManualRegistrationSettings = {
+  approvalChannelId: string | null;
+  autoRoleIds: string[];
+  bannerPosition: "top" | "bottom" | "none";
+  botId: string | null;
+  color: string;
+  description: string | null;
+  enabled: boolean;
+  emoji: string | null;
+  fields: ManualRegistrationField[];
+  footerText: string | null;
+  guildId: string;
+  name: string;
+  panelImage: {
+    imageEnabled: boolean;
+    imageUrl: string;
+  } | null;
+  removeRoleIds: string[];
+  thumbnailUrl: string | null;
+  title: string;
+  updatedAt: string | null;
+};
+
+export type ManualRegistrationSubmission = {
+  id: string;
+  guildId: string;
+  userId: string;
+  username: string;
+  status: "pending" | "approved" | "rejected";
+  fields: Array<{ id: string; label: string; value: string }>;
+};
+
 export type SafeBotMessageState = {
   botId: string | null;
   guildId: string;
@@ -1022,6 +1065,32 @@ export class ApiClient {
         : undefined
     });
     return data.settings;
+  }
+
+  async getManualRegistrationSettings(guildId: string) {
+    const { data } = await this.http.get<{ settings: ManualRegistrationSettings }>(`/manual-registration/${guildId}/settings`);
+    return data.settings;
+  }
+
+  async createManualRegistrationSubmission(input: {
+    fields: Array<{ id: string; label: string; value: string }>;
+    guildId: string;
+    messageId?: string | null;
+    userAvatar?: string | null;
+    userId: string;
+    username: string;
+  }) {
+    const { data } = await this.http.post<{ submission: ManualRegistrationSubmission }>("/manual-registration/bot/submissions", input);
+    return data.submission;
+  }
+
+  async updateManualRegistrationSubmissionMessage(id: string, messageId: string | null) {
+    await this.http.patch(`/manual-registration/bot/submissions/${id}/message`, { messageId });
+  }
+
+  async updateManualRegistrationSubmissionStatus(id: string, status: "approved" | "rejected", actorId: string) {
+    const { data } = await this.http.patch<{ submission: ManualRegistrationSubmission }>(`/manual-registration/bot/submissions/${id}/status`, { actorId, status });
+    return data.submission;
   }
 
   async syncSelfBotRole(input: { guildId: string; roleId: string; roleName?: string | null }) {

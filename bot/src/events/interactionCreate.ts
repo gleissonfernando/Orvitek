@@ -13,6 +13,7 @@ import { handleMusicInteraction } from "../music/musicService";
 import { handleSafeBotWarningInteraction } from "../services/safeBotWarningService";
 import { handleTemporaryVoiceInteraction } from "../services/temporaryVoiceService";
 import { handleTicketPanelInteraction } from "../services/ticketPanelService";
+import { handleManualRegistrationInteraction } from "../services/manualRegistrationService";
 
 export async function handleInteractionCreate(interaction: Interaction, context: BotContext) {
   if (await blockInteractionIfMaintenance(interaction)) {
@@ -44,6 +45,10 @@ export async function handleInteractionCreate(interaction: Interaction, context:
   }
 
   if (await handleTicketPanelInteraction(interaction, context)) {
+    return;
+  }
+
+  if (await handleManualRegistrationInteraction(interaction, context)) {
     return;
   }
 

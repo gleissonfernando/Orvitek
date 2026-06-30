@@ -46,6 +46,8 @@ import type {
   ImageAntiSpamSettings,
   LiveEvent,
   LogEntry,
+  ManualRegistrationDashboard,
+  ManualRegistrationSettings,
   MissionToolsResponse,
   MissionToolsSettings,
   MissionToolsUserPanel,
@@ -734,6 +736,20 @@ export async function getTickets(guildId?: string, botId?: string | null) {
     }
   });
   return data.tickets;
+}
+
+export async function getManualRegistrationDashboard(guildId: string, botId?: string | null) {
+  const { data } = await api.get<ManualRegistrationDashboard>(`/manual-registration/${guildId}/settings`, {
+    params: botId ? { botId } : undefined
+  });
+  return data;
+}
+
+export async function saveManualRegistrationSettings(guildId: string, payload: Partial<ManualRegistrationSettings>, botId?: string | null) {
+  const { data } = await api.put<{ settings: ManualRegistrationSettings }>(`/manual-registration/${guildId}/settings`, payload, {
+    params: botId ? { botId } : undefined
+  });
+  return data.settings;
 }
 
 export async function getSocialNotifications(

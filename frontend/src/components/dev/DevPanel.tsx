@@ -107,6 +107,7 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "logs", label: "Sistema de Logs" },
   { id: "roles", label: "Sistema de Cargos" },
   { id: "tickets", label: "Sistema de Tickets" },
+  { id: "manual-registration", label: "Cadastro Manual" },
   { id: "moderation", label: "Sistema de Moderação" },
   { id: "rules", label: "Sistema de Regras" },
   { id: "mission-tools", label: "Mission Tools" },
@@ -152,6 +153,7 @@ type BotMenuId =
   | "settings"
   | "moderation"
   | "tickets"
+  | "manual-registration"
   | "verification"
   | "logs"
   | "cloning"
@@ -202,7 +204,7 @@ const botMenuItems: BotMenuItem[] = [
     label: "Configurações",
     description: "Ajustes gerais do bot",
     icon: Settings,
-    moduleIds: ["avisos", "mission-tools", "voice-recorder", "server-generator"]
+    moduleIds: ["avisos", "mission-tools", "voice-recorder", "server-generator", "manual-registration"]
   },
   {
     id: "moderation",
@@ -216,7 +218,7 @@ const botMenuItems: BotMenuItem[] = [
     label: "Tickets",
     description: "Atendimento e suporte",
     icon: Ticket,
-    moduleIds: ["tickets"]
+    moduleIds: ["tickets", "manual-registration"]
   },
   {
     id: "verification",

@@ -135,6 +135,56 @@ export type MongoTicket = {
   closedAt: Date | null;
 };
 
+export type MongoManualRegistrationField = {
+  id: string;
+  label: string;
+  maxLength?: number | null;
+  minLength?: number | null;
+  name: string;
+  placeholder?: string | null;
+  required: boolean;
+  style: "short" | "paragraph";
+};
+
+export type MongoManualRegistrationSettings = {
+  _id: string;
+  approvalChannelId: string | null;
+  autoRoleIds: string[];
+  bannerPosition: "top" | "bottom" | "none";
+  botId: string | null;
+  color: string;
+  description: string | null;
+  enabled: boolean;
+  emoji: string | null;
+  fields: MongoManualRegistrationField[];
+  footerText: string | null;
+  guildId: string;
+  name: string;
+  removeRoleIds: string[];
+  thumbnailUrl: string | null;
+  title: string;
+  updatedAt: Date;
+  updatedBy?: string | null;
+};
+
+export type MongoManualRegistrationSubmission = {
+  _id: string;
+  approvedAt?: Date | null;
+  approvedBy?: string | null;
+  botId: string | null;
+  createdAt: Date;
+  fields: Array<{ id: string; label: string; value: string }>;
+  guildId: string;
+  messageId?: string | null;
+  rejectedAt?: Date | null;
+  rejectedBy?: string | null;
+  status: "pending" | "approved" | "rejected";
+  updatedAt: Date;
+  userAvatar?: string | null;
+  userId: string;
+  username: string;
+};
+
 export type MongoLogEntry = {
   _id: string;
   botId?: string | null;
@@ -1695,6 +1745,8 @@ export async function getMongoCollections() {
     guildSettings: db.collection<MongoGuildSettings>("GuildSettings"),
     safeBotMessageStates: db.collection<MongoSafeBotMessageState>("safe_bot_message_states"),
     tickets: db.collection<MongoTicket>("Ticket"),
+    manualRegistrationSettings: db.collection<MongoManualRegistrationSettings>("manual_registration_settings"),
+    manualRegistrationSubmissions: db.collection<MongoManualRegistrationSubmission>("manual_registration_submissions"),
     logEntries: db.collection<MongoLogEntry>("LogEntry"),
     socialNotifications: db.collection<MongoSocialNotification>("social_notifications"),
     kickApiConfigs: db.collection<MongoKickApiConfig>("kick_api_configs"),
@@ -1807,6 +1859,13 @@ async function createMongoIndexes(db: Db) {
     ),
     ensureGuildSettingsIndexes(db),
     db.collection<MongoTicket>("Ticket").createIndex({ guildId: 1, createdAt: -1 }),
+    db.collection<MongoManualRegistrationSettings>("manual_registration_settings").createIndex(
+      { botId: 1, guildId: 1 },
+      { unique: true }
+    ),
+    db.collection<MongoManualRegistrationSubmission>("manual_registration_submissions").createIndex(
+      { botId: 1, guildId: 1, createdAt: -1 }
+    ),
     db.collection<MongoLogEntry>("LogEntry").createIndex({ guildId: 1, createdAt: -1 }),
     db.collection<MongoPanelImageSettings>("panel_image_settings").createIndex(
       { botId: 1, guildId: 1, panelId: 1 },

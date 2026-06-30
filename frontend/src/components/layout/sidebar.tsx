@@ -115,7 +115,7 @@ const navItems: NavItem[] = [
   { id: "auto-roles", label: "Cargos automaticos", icon: Users, moduleId: "roles" },
   { id: "media-library", label: "Emojis & Sons", icon: Archive, moduleId: "emoji-cloner" },
   { id: "server-cloner", label: "Clonagem", icon: SmilePlus, moduleIds: ["emoji-cloner", "server-cloner"] },
-  { id: "settings", label: "Configurações", icon: Settings, moduleIds: ["tickets", "avisos", "network", "server-generator"] }
+  { id: "settings", label: "Configurações", icon: Settings, moduleIds: ["tickets", "manual-registration", "avisos", "network", "server-generator"] }
 ];
 
 type SidebarProps = {
