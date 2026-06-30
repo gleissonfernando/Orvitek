@@ -2,7 +2,7 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
-import { canManageDevBotGuild, canReadDevBotModule, canUseDevBotModule, getDevBotToken } from "../services/devBotService";
+import { canManageDevBot, canManageDevBotGuild, canReadDevBotModule, canUseDevBotModule, getDevBotToken } from "../services/devBotService";
 import { areGuildRoles, userHasAnyGuildRole } from "../services/discordOptionsService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
 import {
@@ -33,6 +33,7 @@ const settingsSchema = z.object({
 
 const restoreSchema = z.object({
   confirmation: z.string().optional(),
+  mode: z.enum(["merge", "clear"]).default("merge"),
   parts: z.array(restorePartSchema).max(6).default(["roles", "channels", "permissions", "emojis", "settings", "panels"]),
   targetGuildId: optionalSnowflakeSchema
 });
@@ -133,6 +134,7 @@ serverBackupsRouter.post("/:guildId/backups/:backupId/preview", async (req, res,
         botId: scope.botId,
         botToken,
         guildId: scope.guildId,
+        mode: input.mode,
         parts: input.parts,
         targetGuildId
       })
@@ -167,6 +169,7 @@ serverBackupsRouter.post("/:guildId/backups/:backupId/restore", async (req, res,
         botId: scope.botId,
         botToken,
         guildId: scope.guildId,
+        mode: input.mode,
         parts: input.parts,
         targetGuildId
       })
@@ -203,17 +206,15 @@ async function canManageServerBackup(scope: { botId: string; guildId: string; us
 }
 
 async function validateBackupTargetGuild(scope: { botId: string; guildId: string; user: AuthSessionUser }, targetGuildId: string, botToken: string) {
-  if (!(await canManageDevBotGuild(scope.user, scope.botId, targetGuildId))) {
+  const canManageTarget = await canManageDevBotGuild(scope.user, scope.botId, targetGuildId)
+    || await canManageDevBot(scope.user, scope.botId);
+  if (!canManageTarget) {
     return { ok: false as const, status: 403, message: "Voce nao tem permissao para gerenciar o servidor de destino neste bot." };
-  }
-
-  if (!(await canManageServerBackup({ ...scope, guildId: targetGuildId }))) {
-    return { ok: false as const, status: 403, message: "Backup Completo nao foi liberado para voce no servidor de destino." };
   }
 
   const botInTarget = await discordBotCanReadGuild(botToken, targetGuildId);
   if (!botInTarget) {
-    return { ok: false as const, status: 400, message: "O bot nao esta presente no servidor de destino ou nao consegue acessa-lo." };
+    return { ok: false as const, status: 400, message: "O bot precisa estar no servidor destino para restaurar este backup." };
   }
 
   return { ok: true as const, status: 200, message: null };

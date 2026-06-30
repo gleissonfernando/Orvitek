@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import axios from "axios";
 import { getMongoCollections, type MongoServerBackupRestoreJob, type MongoServerBackupSettings, type MongoServerBackupSnapshot } from "../database/mongo";
-import { getBotGuildConfig, getDevBotToken } from "./devBotService";
+import { getBotGuildConfig, getDevBotToken, updateBotGuildConfig } from "./devBotService";
 import { createLog } from "./logService";
 
 const DISCORD_API = "https://discord.com/api/v10";
 const MODULE_ID = "server-backup";
 const RESTORE_PARTS = ["roles", "channels", "permissions", "emojis", "settings", "panels"] as const;
+const RESTORE_MODES = ["merge", "clear"] as const;
 const AUTO_BACKUP_TICK_MS = 5 * 60_000;
 let schedulerStarted = false;
 let schedulerRunning = false;
@@ -37,11 +38,20 @@ export type ServerBackupSnapshotDto = {
 };
 
 export type RestorePart = typeof RESTORE_PARTS[number];
+export type RestoreMode = typeof RESTORE_MODES[number];
+
+type RestoreResult = {
+  completedSteps: string[];
+  errors: Array<{ step: string; message: string }>;
+  idMap: { roles: Record<string, string>; channels: Record<string, string> };
+  summary: { roles: number; categories: number; channels: number; permissions: number; settings: number; failed: number };
+};
 
 export type RestorePreview = {
   backupId: string;
   canRestore: boolean;
   missingPermissions: string[];
+  mode: RestoreMode;
   parts: RestorePart[];
   sourceGuildId: string;
   summary: {
@@ -220,7 +230,7 @@ export async function deleteServerBackup(botId: string, guildId: string, backupI
   await createLog({ botId, guildId, userId: actorId, type: "server-backup.deleted", message: "Backup apagado.", metadata: { backupId } }).catch(() => null);
 }
 
-export async function previewServerBackupRestore(input: { botId: string; botToken: string; guildId: string; backupId: string; parts: RestorePart[]; targetGuildId?: string | null }) {
+export async function previewServerBackupRestore(input: { botId: string; botToken: string; guildId: string; backupId: string; parts: RestorePart[]; targetGuildId?: string | null; mode?: RestoreMode | null }) {
   const backup = await getSnapshotOrThrow(input.botId, input.guildId, input.backupId);
   const targetGuildId = input.targetGuildId || input.guildId;
   const validation = await validateRestorePermissions(input.botToken, targetGuildId);
@@ -232,6 +242,7 @@ export async function previewServerBackupRestore(input: { botId: string; botToke
     backupId: input.backupId,
     canRestore: validation.missingPermissions.length === 0,
     missingPermissions: validation.missingPermissions,
+    mode: normalizeRestoreMode(input.mode),
     parts: normalizeRestoreParts(input.parts),
     sourceGuildId: input.guildId,
     summary: {
@@ -247,7 +258,7 @@ export async function previewServerBackupRestore(input: { botId: string; botToke
   return preview;
 }
 
-export async function restoreServerBackup(input: { actorId: string | null; botId: string; botToken: string; guildId: string; backupId: string; parts: RestorePart[]; targetGuildId?: string | null }) {
+export async function restoreServerBackup(input: { actorId: string | null; botId: string; botToken: string; guildId: string; backupId: string; parts: RestorePart[]; targetGuildId?: string | null; mode?: RestoreMode | null }) {
   const backup = await getSnapshotOrThrow(input.botId, input.guildId, input.backupId);
   const preview = await previewServerBackupRestore(input);
   const targetGuildId = preview.targetGuildId;
@@ -262,7 +273,7 @@ export async function restoreServerBackup(input: { actorId: string | null; botId
     createdAt: now,
     createdBy: input.actorId,
     guildId: targetGuildId,
-    options: preview.parts,
+    options: [preview.mode, ...preview.parts],
     preview,
     result: null,
     sourceGuildId: input.guildId,
@@ -272,7 +283,7 @@ export async function restoreServerBackup(input: { actorId: string | null; botId
   };
   await serverBackupRestoreJobs.insertOne(job);
 
-  const result = await executeRestore(input.botToken, targetGuildId, backup.snapshot as any, preview.parts);
+  const result = await executeRestore(input.botToken, input.botId, targetGuildId, backup.snapshot as any, preview.parts, preview.mode);
   const status = result.errors.length ? (result.completedSteps.length ? "partial" : "failed") : "completed";
   await serverBackupRestoreJobs.updateOne({ _id: job._id }, { $set: { completedAt: new Date(), result, status, updatedAt: new Date() } });
   const metadata = { backupId: input.backupId, result, sourceGuildId: input.guildId, targetGuildId };
@@ -305,20 +316,35 @@ async function captureSnapshot(botToken: string, botId: string, guildId: string)
   };
 }
 
-async function executeRestore(botToken: string, guildId: string, snapshot: any, parts: RestorePart[]) {
-  const result = { completedSteps: [] as string[], errors: [] as Array<{ step: string; message: string }>, idMap: { roles: {} as Record<string, string>, channels: {} as Record<string, string> } };
-  const roles = Array.isArray(snapshot.roles) ? [...snapshot.roles].filter((role) => role.name !== "@everyone" && !role.managed).sort((a, b) => a.position - b.position) : [];
+async function executeRestore(botToken: string, botId: string, guildId: string, snapshot: any, parts: RestorePart[], mode: RestoreMode) {
+  const result: RestoreResult = {
+    completedSteps: [],
+    errors: [],
+    idMap: { roles: {}, channels: {} },
+    summary: { roles: 0, categories: 0, channels: 0, permissions: 0, settings: 0, failed: 0 }
+  };
+  const roles = Array.isArray(snapshot.roles) ? [...snapshot.roles].filter((role) => role.name !== "@everyone" && !role.managed && !role.tags?.bot_id).sort((a, b) => a.position - b.position) : [];
   const channels = Array.isArray(snapshot.channels) ? [...snapshot.channels].sort((a, b) => a.position - b.position) : [];
+  const targetGuild = await discordGet(botToken, `/guilds/${guildId}`);
+  result.idMap.roles[snapshot.guild?.id ?? ""] = guildId;
+  result.idMap.roles[guildId] = guildId;
+
+  if (mode === "clear") {
+    await clearTargetGuild(botToken, guildId, result);
+    result.completedSteps.push("clear");
+  }
 
   if (parts.includes("roles")) {
     for (const role of roles) {
       try {
-        const created = await discordPost(botToken, `/guilds/${guildId}/roles`, { name: role.name, color: role.color, hoist: role.hoist, mentionable: role.mentionable, permissions: role.permissions });
+        const created = await discordPost(botToken, `/guilds/${guildId}/roles`, { name: role.name, color: role.color, hoist: role.hoist, mentionable: role.mentionable, permissions: role.permissions, unicode_emoji: role.unicode_emoji });
         result.idMap.roles[role.id] = created.id;
+        result.summary.roles += 1;
       } catch (error) {
-        result.errors.push({ step: `role:${role.name}`, message: errorMessage(error) });
+        addRestoreError(result, `role:${role.name}`, `Cargo ${role.name} nao foi restaurado porque esta acima do cargo do bot, e gerenciado pelo Discord ou falhou: ${errorMessage(error)}`);
       }
     }
+    await restoreRolePositions(botToken, guildId, roles, result);
     result.completedSteps.push("roles");
   }
 
@@ -327,19 +353,26 @@ async function executeRestore(botToken: string, guildId: string, snapshot: any, 
       try {
         const created = await discordPost(botToken, `/guilds/${guildId}/channels`, channelPayload(channel, result.idMap));
         result.idMap.channels[channel.id] = created.id;
+        result.summary.categories += 1;
       } catch (error) {
-        result.errors.push({ step: `category:${channel.name}`, message: errorMessage(error) });
+        addRestoreError(result, `category:${channel.name}`, errorMessage(error));
       }
     }
     for (const channel of channels.filter((item) => item.type !== 4)) {
       try {
         const created = await discordPost(botToken, `/guilds/${guildId}/channels`, channelPayload(channel, result.idMap));
         result.idMap.channels[channel.id] = created.id;
+        result.summary.channels += 1;
       } catch (error) {
-        result.errors.push({ step: `channel:${channel.name}`, message: errorMessage(error) });
+        addRestoreError(result, `channel:${channel.name}`, errorMessage(error));
       }
     }
     result.completedSteps.push("channels");
+  }
+
+  if (parts.includes("permissions")) {
+    await restoreChannelPermissions(botToken, channels, result);
+    result.completedSteps.push("permissions");
   }
 
   if (parts.includes("emojis")) {
@@ -347,7 +380,16 @@ async function executeRestore(botToken: string, guildId: string, snapshot: any, 
     if ((snapshot.emojis ?? []).length) result.errors.push({ step: "emojis", message: "Emojis foram salvos no snapshot, mas a restauracao binaria exige arquivo original e foi ignorada." });
   }
 
-  if (parts.includes("settings")) result.completedSteps.push("settings");
+  if (parts.includes("settings")) {
+    try {
+      const mappedSettings = remapIdsDeep(snapshot.internalSettings ?? {}, result.idMap);
+      await updateBotGuildConfig({ botId, guildId, guildName: readString(targetGuild, "name") || guildId, modules: mappedSettings });
+      result.summary.settings = Object.keys(mappedSettings).length;
+    } catch (error) {
+      addRestoreError(result, "settings", errorMessage(error));
+    }
+    result.completedSteps.push("settings");
+  }
   if (parts.includes("panels")) result.completedSteps.push("panels");
   return result;
 }
@@ -360,7 +402,6 @@ async function validateRestorePermissions(botToken: string, guildId: string) {
   const permissions = computeMemberPermissions(member, roles, guild.owner_id);
   const botHighestRolePosition = Math.max(0, ...(member.roles ?? []).map((roleId: string) => roles.find((role: any) => role.id === roleId)?.position ?? 0));
   const required: Array<[string, bigint]> = [
-    ["Administrador", 0x0000000000000008n],
     ["Gerenciar Cargos", 0x10000000n],
     ["Gerenciar Canais", 0x10n],
     ["Gerenciar Servidor", 0x20n],
@@ -369,7 +410,10 @@ async function validateRestorePermissions(botToken: string, guildId: string) {
   const missingPermissions = required.filter(([, bit]) => (permissions & bit) !== bit).map(([name]) => String(name));
   const warnings = [];
   if (missingPermissions.length) {
-    warnings.push("O bot precisa de Administrador e permissoes de gerenciamento para restaurar tudo.");
+    warnings.push("O bot precisa das permissoes de gerenciamento para restaurar tudo.");
+  }
+  if ((permissions & 0x0000000000000008n) !== 0x0000000000000008n) {
+    warnings.push("Administrador nao e obrigatorio, mas reduz falhas de permissao durante a restauracao.");
   }
   if (botHighestRolePosition <= 1) {
     warnings.push("Coloque o cargo do bot acima dos cargos que serao restaurados para evitar falhas de hierarquia.");
@@ -393,13 +437,90 @@ function channelPayload(channel: any, idMap: { roles: Record<string, string>; ch
     name: channel.name,
     nsfw: channel.nsfw,
     parent_id: channel.parent_id ? idMap.channels[channel.parent_id] : undefined,
-    permission_overwrites: Array.isArray(channel.permission_overwrites) ? channel.permission_overwrites.map((overwrite: any) => ({ ...overwrite, id: idMap.roles[overwrite.id] ?? overwrite.id })) : undefined,
     position: channel.position,
     rate_limit_per_user: channel.rate_limit_per_user,
     topic: channel.topic,
     type: channel.type,
     user_limit: channel.user_limit
   };
+}
+
+async function clearTargetGuild(botToken: string, guildId: string, result: RestoreResult) {
+  const [channels, roles] = await Promise.all([
+    discordGet(botToken, `/guilds/${guildId}/channels`).catch(() => []),
+    discordGet(botToken, `/guilds/${guildId}/roles`).catch(() => [])
+  ]);
+  for (const channel of Array.isArray(channels) ? channels : []) {
+    try {
+      await discordDelete(botToken, `/channels/${channel.id}`);
+    } catch (error) {
+      addRestoreError(result, `clear-channel:${channel.name ?? channel.id}`, errorMessage(error));
+    }
+  }
+  const removableRoles = Array.isArray(roles) ? [...roles].filter((role) => role.id !== guildId && !role.managed).sort((a, b) => b.position - a.position) : [];
+  for (const role of removableRoles) {
+    try {
+      await discordDelete(botToken, `/guilds/${guildId}/roles/${role.id}`);
+    } catch (error) {
+      addRestoreError(result, `clear-role:${role.name ?? role.id}`, errorMessage(error));
+    }
+  }
+}
+
+async function restoreRolePositions(botToken: string, guildId: string, roles: any[], result: RestoreResult) {
+  const positions = roles
+    .map((role) => ({ id: result.idMap.roles[role.id], position: role.position }))
+    .filter((item) => item.id && Number.isFinite(item.position));
+  if (!positions.length) return;
+  try {
+    await discordPatch(botToken, `/guilds/${guildId}/roles`, positions);
+  } catch (error) {
+    addRestoreError(result, "role-positions", errorMessage(error));
+  }
+}
+
+async function restoreChannelPermissions(botToken: string, channels: any[], result: RestoreResult) {
+  for (const channel of channels) {
+    const newChannelId = result.idMap.channels[channel.id];
+    if (!newChannelId || !Array.isArray(channel.permission_overwrites)) continue;
+    for (const overwrite of channel.permission_overwrites) {
+      const mapped = mapPermissionOverwrite(overwrite, result.idMap);
+      if (!mapped) {
+        addRestoreError(result, `permission:${channel.name}`, `Overwrite ${overwrite.id} ignorado porque o cargo antigo nao existe no servidor destino.`);
+        continue;
+      }
+      try {
+        await discordPut(botToken, `/channels/${newChannelId}/permissions/${mapped.id}`, mapped);
+        result.summary.permissions += 1;
+      } catch (error) {
+        addRestoreError(result, `permission:${channel.name}:${overwrite.id}`, errorMessage(error));
+      }
+    }
+  }
+}
+
+function mapPermissionOverwrite(overwrite: any, idMap: { roles: Record<string, string>; channels: Record<string, string> }) {
+  const type = Number(overwrite.type);
+  const mappedId = type === 0 ? idMap.roles[overwrite.id] : overwrite.id;
+  if (!mappedId) return null;
+  return { allow: overwrite.allow ?? "0", deny: overwrite.deny ?? "0", id: mappedId, type };
+}
+
+function remapIdsDeep(value: unknown, idMap: { roles: Record<string, string>; channels: Record<string, string> }): Record<string, Record<string, unknown>> {
+  const map = new Map<string, string>([...Object.entries(idMap.roles), ...Object.entries(idMap.channels)].filter(([oldId, newId]) => oldId && newId));
+  const remap = (item: unknown): unknown => {
+    if (typeof item === "string") return map.get(item) ?? item;
+    if (Array.isArray(item)) return item.map(remap);
+    if (item && typeof item === "object") return Object.fromEntries(Object.entries(item).map(([key, nested]) => [key, remap(nested)]));
+    return item;
+  };
+  const mapped = remap(value);
+  return mapped && typeof mapped === "object" && !Array.isArray(mapped) ? mapped as Record<string, Record<string, unknown>> : {};
+}
+
+function addRestoreError(result: RestoreResult, step: string, message: string) {
+  result.errors.push({ step, message });
+  result.summary.failed += 1;
 }
 
 async function enforceBackupLimit(botId: string, guildId: string) {
@@ -427,6 +548,21 @@ async function discordPost(token: string, path: string, body: Record<string, unk
   return data;
 }
 
+async function discordPatch(token: string, path: string, body: unknown) {
+  const { data } = await axios.patch(`${DISCORD_API}${path}`, body, { headers: { Authorization: `Bot ${token}` }, timeout: 20_000 });
+  return data;
+}
+
+async function discordPut(token: string, path: string, body: Record<string, unknown>) {
+  const { data } = await axios.put(`${DISCORD_API}${path}`, body, { headers: { Authorization: `Bot ${token}` }, timeout: 20_000 });
+  return data;
+}
+
+async function discordDelete(token: string, path: string) {
+  const { data } = await axios.delete(`${DISCORD_API}${path}`, { headers: { Authorization: `Bot ${token}` }, timeout: 20_000 });
+  return data;
+}
+
 function normalizeSettings(settings: ServerBackupSettingsDto): ServerBackupSettingsDto {
   return {
     ...settings,
@@ -441,6 +577,10 @@ function normalizeRestoreParts(parts: string[]): RestorePart[] {
   const allowed = new Set(RESTORE_PARTS);
   const selected = [...new Set((parts.length ? parts : [...RESTORE_PARTS]).filter((part): part is RestorePart => allowed.has(part as RestorePart)))];
   return selected.length ? selected : [...RESTORE_PARTS];
+}
+
+function normalizeRestoreMode(mode: unknown): RestoreMode {
+  return mode === "clear" ? "clear" : "merge";
 }
 
 function countSnapshot(snapshot: any) {

@@ -67,6 +67,7 @@ export const DEV_MODULES = [
   { id: "server-backup", label: "Backup Completo" },
   { id: "vanity-url-protection", label: "Protecao da URL Personalizada" },
   { id: "hide-empty-voice", label: "Esconder Chamadas Vazias" },
+  { id: "anti-disconnect", label: "Anti Disconnect" },
   { id: "auto-unmute", label: "Auto Desmutar" },
   { id: "temporary-voice", label: "Chamadas Temporárias" },
   { id: "tag-verification", label: "Verificacao de Tag" },

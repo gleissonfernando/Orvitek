@@ -16,6 +16,7 @@ import { handleApplicationEmojiGuildCreate, handleApplicationEmojiGuildDelete, h
 import { clearSafeBotSetupCache, ensureSafeBotSetup, isSelfBotModuleEnabled } from "../services/safeBotService";
 import { handleSelfBotProtectionGuildMutation } from "../services/selfBotProtectionService";
 import { handleAutoUnmuteVoiceStateUpdate } from "../services/autoUnmuteService";
+import { handleAntiDisconnectVoiceStateUpdate } from "../services/antiDisconnectService";
 import { handleVoiceRecorderVoiceStateUpdate } from "../services/voiceRecorderService";
 import { handleMusicVoiceStateUpdate } from "../music/musicService";
 import { handleTemporaryCallChannelDelete, handleTemporaryVoiceStateUpdate } from "../services/temporaryVoiceService";
@@ -215,7 +216,7 @@ export function registerEvents(client: Client, context: BotContext) {
     });
   }
 
-  if (managedRuntimeBot || isBotModuleEnabled("music") || isBotModuleEnabled("voice-recorder") || isBotModuleEnabled("auto-unmute") || isBotModuleEnabled("temporary-voice") || isBotModuleEnabled("logs")) {
+  if (managedRuntimeBot || isBotModuleEnabled("music") || isBotModuleEnabled("voice-recorder") || isBotModuleEnabled("anti-disconnect") || isBotModuleEnabled("auto-unmute") || isBotModuleEnabled("temporary-voice") || isBotModuleEnabled("logs")) {
     client.on(Events.VoiceStateUpdate, (oldState, newState) => {
       if (isMaintenanceModeActive()) return;
       if (isBotModuleEnabled("voice-recorder")) {
@@ -226,6 +227,9 @@ export function registerEvents(client: Client, context: BotContext) {
       }
       if (isBotModuleEnabled("auto-unmute")) {
         runEvent("voiceStateUpdate.autoUnmute", () => handleAutoUnmuteVoiceStateUpdate(oldState, newState, context));
+      }
+      if (isBotModuleEnabled("anti-disconnect")) {
+        runEvent("voiceStateUpdate.antiDisconnect", () => handleAntiDisconnectVoiceStateUpdate(oldState, newState, context));
       }
       if (isBotModuleEnabled("temporary-voice")) {
         runEvent("voiceStateUpdate.temporaryVoice", () => handleTemporaryVoiceStateUpdate(oldState, newState, context));

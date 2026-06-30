@@ -21,6 +21,7 @@ const moduleIdSchema = z.enum([
   "server-backup",
   "vanity-url-protection",
   "hide-empty-voice",
+  "anti-disconnect",
   "auto-unmute",
   "temporary-voice",
   "tag-verification",
@@ -52,6 +53,14 @@ const autoUnmuteConfigSchema = z.object({
   requiredRoleId: snowflakeSchema.nullable().default(null),
   delaySeconds: z.coerce.number().int().min(0).max(60).default(0),
   antiSpamSeconds: z.coerce.number().int().min(1).max(300).default(10)
+});
+const antiDisconnectConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  allowedRoleIds: z.array(snowflakeSchema).max(100).default([]),
+  protectedRoleIds: z.array(snowflakeSchema).max(100).default([]),
+  logChannelId: snowflakeSchema.nullable().default(null),
+  reconnectDelayMs: z.coerce.number().int().min(250).max(5000).default(800),
+  cooldownSeconds: z.coerce.number().int().min(1).max(60).default(5)
 });
 const musicConfigSchema = z.object({
   enabled: z.boolean().default(false),
@@ -170,6 +179,17 @@ function normalizeModuleConfig(moduleId: z.infer<typeof moduleIdSchema>, config:
     });
   }
 
+  if (moduleId === "anti-disconnect") {
+    return antiDisconnectConfigSchema.parse({
+      allowedRoleIds: Array.isArray(config.allowedRoleIds) ? config.allowedRoleIds : [],
+      cooldownSeconds: config.cooldownSeconds,
+      enabled: config.enabled,
+      logChannelId: config.logChannelId || null,
+      protectedRoleIds: Array.isArray(config.protectedRoleIds) ? config.protectedRoleIds : [],
+      reconnectDelayMs: config.reconnectDelayMs
+    });
+  }
+
   if (moduleId === "music") {
     return musicConfigSchema.parse(config);
   }
@@ -189,7 +209,7 @@ async function writeModuleConfigLogs(input: {
   previousConfig: Record<string, unknown>;
   user: AuthSessionUser;
 }) {
-  const label = input.moduleId === "auto-unmute" ? "Auto Desmutar" : input.moduleId;
+  const label = input.moduleId === "auto-unmute" ? "Auto Desmutar" : input.moduleId === "anti-disconnect" ? "Anti Disconnect" : input.moduleId;
   const enabled = input.config.enabled === true;
   const wasEnabled = input.previousConfig.enabled === true;
 

@@ -57,6 +57,7 @@ export type ViewId =
   | "server-backup"
   | "vanity-url-protection"
   | "hide-empty-voice"
+  | "anti-disconnect"
   | "auto-unmute"
   | "temporary-voice"
   | "tag-verification"
@@ -105,6 +106,7 @@ const navItems: NavItem[] = [
   { id: "server-backup", label: "Backup", icon: Server, moduleId: "server-backup" },
   { id: "vanity-url-protection", label: "URL Personalizada", icon: ChevronRight, moduleId: "vanity-url-protection" },
   { id: "hide-empty-voice", label: "Chamadas Vazias", icon: Mic2, moduleId: "hide-empty-voice" },
+  { id: "anti-disconnect", label: "Anti Disconnect", icon: ShieldAlert, moduleId: "anti-disconnect" },
   { id: "auto-unmute", label: "Auto Desmutar", icon: Mic2, moduleId: "auto-unmute" },
   { id: "temporary-voice", label: "Chamadas Temporárias", icon: Users, moduleId: "temporary-voice" },
   { id: "tag-verification", label: "Verificação de Tag", icon: Hash, moduleId: "tag-verification" },

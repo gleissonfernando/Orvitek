@@ -127,6 +127,7 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "server-backup", label: "Backup Completo" },
   { id: "vanity-url-protection", label: "Protecao da URL Personalizada" },
   { id: "hide-empty-voice", label: "Esconder Chamadas Vazias" },
+  { id: "anti-disconnect", label: "Anti Disconnect" },
   { id: "auto-unmute", label: "Auto Desmutar" },
   { id: "temporary-voice", label: "Chamadas Temporárias" },
   { id: "tag-verification", label: "Verificação de Tag" },
@@ -167,6 +168,7 @@ type BotMenuId =
   | "server-backup"
   | "vanity-url-protection"
   | "hide-empty-voice"
+  | "anti-disconnect"
   | "auto-unmute"
   | "temporary-voice"
   | "tag-verification"
@@ -299,6 +301,13 @@ const botMenuItems: BotMenuItem[] = [
     description: "Oculta canais de voz vazios automaticamente",
     icon: EyeOff,
     moduleIds: ["hide-empty-voice"]
+  },
+  {
+    id: "anti-disconnect",
+    label: "Anti Disconnect",
+    description: "Reconecta membros removidos de calls por usuarios sem autorizacao",
+    icon: ShieldCheck,
+    moduleIds: ["anti-disconnect"]
   },
   {
     id: "auto-unmute",

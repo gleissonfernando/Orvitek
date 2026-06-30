@@ -1729,19 +1729,19 @@ export async function deleteServerBackup(botId: string, guildId: string, backupI
   });
 }
 
-export async function previewServerBackupRestore(botId: string, guildId: string, backupId: string, parts: ServerBackupRestorePart[], targetGuildId?: string | null) {
+export async function previewServerBackupRestore(botId: string, guildId: string, backupId: string, parts: ServerBackupRestorePart[], targetGuildId?: string | null, mode: import("../types").ServerBackupRestoreMode = "merge") {
   const { data } = await api.post<{ preview: ServerBackupRestorePreview }>(
     `/server-backups/${encodeURIComponent(guildId)}/backups/${encodeURIComponent(backupId)}/preview`,
-    { parts, targetGuildId },
+    { mode, parts, targetGuildId },
     { params: botParams(botId), timeout: 30000 }
   );
   return data.preview;
 }
 
-export async function restoreServerBackup(botId: string, guildId: string, backupId: string, parts: ServerBackupRestorePart[], confirmation: string, targetGuildId?: string | null) {
+export async function restoreServerBackup(botId: string, guildId: string, backupId: string, parts: ServerBackupRestorePart[], confirmation: string, targetGuildId?: string | null, mode: import("../types").ServerBackupRestoreMode = "merge") {
   const { data } = await api.post(
     `/server-backups/${encodeURIComponent(guildId)}/backups/${encodeURIComponent(backupId)}/restore`,
-    { confirmation, parts, targetGuildId },
+    { confirmation, mode, parts, targetGuildId },
     { params: botParams(botId), timeout: 120000 }
   );
   return data.job;

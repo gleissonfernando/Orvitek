@@ -151,6 +151,7 @@ import type {
   ManualRegistrationSubmission,
   SelfBotProtectionSettings,
   ServerBackupDashboard,
+  ServerBackupRestoreMode,
   ServerBackupRestorePart,
   ServerBackupRestorePreview,
   ServerBackupSettings,
@@ -381,6 +382,13 @@ const moduleCatalog: ModuleDefinition[] = [
     view: "hide-empty-voice"
   },
   {
+    id: "anti-disconnect",
+    title: "Anti Disconnect",
+    description: "Reconecta automaticamente membros removidos de calls por usuarios sem autorizacao.",
+    icon: ShieldAlert,
+    view: "anti-disconnect"
+  },
+  {
     id: "auto-unmute",
     title: "Auto Desmutar",
     description: "Remove automaticamente o mute manual de usuarios ao entrarem no canal de voz configurado.",
@@ -517,6 +525,7 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   "server-backup": "server-backup",
   "vanity-url-protection": "vanity-url-protection",
   "hide-empty-voice": "hide-empty-voice",
+  "anti-disconnect": "anti-disconnect",
   "auto-unmute": "auto-unmute",
   "temporary-voice": "temporary-voice",
   "tag-verification": "tag-verification",
@@ -1201,6 +1210,7 @@ const advancedSecurityModuleViews: ViewId[] = [
   "server-backup",
   "vanity-url-protection",
   "hide-empty-voice",
+  "anti-disconnect",
   "auto-unmute",
   "temporary-voice",
   "tag-verification",
@@ -1262,6 +1272,12 @@ const advancedSecurityModuleDetails: Record<string, {
     description: "Módulo isolado para ocultar canais de voz vazios e mostrar quando houver membro.",
     icon: Mic2,
     items: ["Delay", "Categorias", "Permissões", "Exceções"]
+  },
+  "anti-disconnect": {
+    title: "Anti Disconnect",
+    description: "Detecta desconexao indevida por audit log e reconecta automaticamente o membro na call original.",
+    icon: ShieldAlert,
+    items: ["Cargos autorizados", "Cargos protegidos", "Auto reconexao", "Logs de abuso"]
   },
   "auto-unmute": {
     title: "Auto Desmutar",
@@ -1494,6 +1510,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
   const [workingBackupId, setWorkingBackupId] = useState<string | null>(null);
   const [selectedBackup, setSelectedBackup] = useState<ServerBackupSnapshot | null>(null);
   const [selectedParts, setSelectedParts] = useState<ServerBackupRestorePart[]>(serverBackupParts.map((part) => part.id));
+  const [restoreMode, setRestoreMode] = useState<ServerBackupRestoreMode>("merge");
   const [preview, setPreview] = useState<ServerBackupRestorePreview | null>(null);
   const [confirmation, setConfirmation] = useState("");
   const [sendBackupId, setSendBackupId] = useState("");
@@ -1588,7 +1605,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
     setConfirmation("");
     setWorkingBackupId(backup.id);
     try {
-      setPreview(await previewServerBackupRestore(botId, guild.id, backup.id, selectedParts));
+      setPreview(await previewServerBackupRestore(botId, guild.id, backup.id, selectedParts, null, restoreMode));
     } catch (error) {
       setMessage(readResponseMessage(error) ?? "Nao foi possivel gerar a previa.");
     } finally {
@@ -1601,7 +1618,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
     setWorkingBackupId(selectedBackup.id);
     setMessage(null);
     try {
-      await restoreServerBackup(botId, guild.id, selectedBackup.id, selectedParts, confirmation);
+      await restoreServerBackup(botId, guild.id, selectedBackup.id, selectedParts, confirmation, null, restoreMode);
       setMessage("Restauracao iniciada e registrada no historico.");
       setSelectedBackup(null);
       setPreview(null);
@@ -1621,7 +1638,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
     setWorkingBackupId(sendBackupId);
     setMessage(null);
     try {
-      setSendPreview(await previewServerBackupRestore(botId, guild.id, sendBackupId, selectedParts, targetGuildId.trim()));
+      setSendPreview(await previewServerBackupRestore(botId, guild.id, sendBackupId, selectedParts, targetGuildId.trim(), restoreMode));
     } catch (error) {
       setMessage(readResponseMessage(error) ?? "Nao foi possivel validar o servidor de destino.");
     } finally {
@@ -1634,7 +1651,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
     setWorkingBackupId(sendBackupId);
     setMessage(null);
     try {
-      await restoreServerBackup(botId, guild.id, sendBackupId, selectedParts, sendConfirmation, targetGuildId.trim());
+      await restoreServerBackup(botId, guild.id, sendBackupId, selectedParts, sendConfirmation, targetGuildId.trim(), restoreMode);
       setMessage(`Backup enviado para restauracao no servidor ${targetGuildId.trim()}.`);
       setSendPreview(null);
       setSendConfirmation("");
@@ -1750,6 +1767,15 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
           <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
             Antes de restaurar, o sistema valida se o bot esta no servidor destino, se este bot/cliente pode gerenciar esse servidor, se voce tem permissao nele e se o bot possui permissoes para criar cargos, canais, categorias e sobrescritas.
           </div>
+          <AdvancedSelectField
+            disabled={!canManage}
+            label="Modo de restauracao"
+            onChange={(value) => { setRestoreMode(value as ServerBackupRestoreMode); setSendPreview(null); setSendConfirmation(""); }}
+            options={[{ label: "Restaurar por cima sem apagar", value: "merge" }, { label: "Limpar servidor antes de restaurar", value: "clear" }]}
+            placeholder="Selecione"
+            value={restoreMode}
+          />
+          {restoreMode === "clear" ? <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-4 text-sm font-semibold text-red-100">Modo limpar ativo: canais e cargos que o bot conseguir gerenciar no servidor destino serao removidos antes da restauracao.</div> : null}
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {serverBackupParts.map((part) => <AdvancedToggleField checked={selectedParts.includes(part.id)} disabled={!canManage} key={`send-${part.id}`} label={part.label} onChange={(checked) => togglePart(part.id, checked)} />)}
           </div>
@@ -1780,6 +1806,15 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
             <CardDescription>Escolha as partes, gere a previa e digite CONFIRMAR para executar.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <AdvancedSelectField
+              disabled={!canManage}
+              label="Modo de restauracao"
+              onChange={(value) => { setRestoreMode(value as ServerBackupRestoreMode); setPreview(null); setConfirmation(""); }}
+              options={[{ label: "Restaurar por cima sem apagar", value: "merge" }, { label: "Limpar servidor antes de restaurar", value: "clear" }]}
+              placeholder="Selecione"
+              value={restoreMode}
+            />
+            {restoreMode === "clear" ? <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-4 text-sm font-semibold text-red-100">Modo limpar ativo: canais e cargos que o bot conseguir gerenciar neste servidor serao removidos antes da restauracao.</div> : null}
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {serverBackupParts.map((part) => <AdvancedToggleField checked={selectedParts.includes(part.id)} disabled={!canManage} key={part.id} label={part.label} onChange={(checked) => togglePart(part.id, checked)} />)}
             </div>
@@ -2081,6 +2116,18 @@ function AdvancedModuleFields({
     );
   }
 
+  if (moduleId === "anti-disconnect") {
+    return (
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <AdvancedTextField disabled={disabled} label="IDs dos cargos autorizados" onChange={(value) => onChange({ allowedRoleIds: splitIds(value) })} placeholder="Cargos que podem desconectar" value={arrayConfig(config.allowedRoleIds)} />
+        <AdvancedTextField disabled={disabled} label="IDs dos cargos protegidos" onChange={(value) => onChange({ protectedRoleIds: splitIds(value) })} placeholder="Vazio protege todos" value={arrayConfig(config.protectedRoleIds)} />
+        <AdvancedSelectField disabled={disabled} label="Canal de logs" onChange={(value) => onChange({ logChannelId: value || null })} options={textChannelOptions} placeholder="Sem logs dedicado" value={stringConfig(config.logChannelId)} />
+        <AdvancedNumberField disabled={disabled} label="Delay da reconexao (ms)" max={5000} min={250} onChange={(value) => onChange({ reconnectDelayMs: value })} value={numberConfig(config.reconnectDelayMs, 800)} />
+        <AdvancedNumberField disabled={disabled} label="Cooldown anti-loop (segundos)" max={60} min={1} onChange={(value) => onChange({ cooldownSeconds: value })} value={numberConfig(config.cooldownSeconds, 5)} />
+      </div>
+    );
+  }
+
   if (moduleId === "music") {
     return (
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -2175,6 +2222,10 @@ function defaultAdvancedModuleConfig(moduleId: string, config: Record<string, un
 
   if (moduleId === "auto-unmute") {
     return { antiSpamSeconds: 10, delaySeconds: 0, enabled: false, requiredRoleId: null, voiceChannelId: null, ...config };
+  }
+
+  if (moduleId === "anti-disconnect") {
+    return { allowedRoleIds: [], cooldownSeconds: 5, enabled: false, logChannelId: null, protectedRoleIds: [], reconnectDelayMs: 800, ...config };
   }
 
   if (moduleId === "music") {

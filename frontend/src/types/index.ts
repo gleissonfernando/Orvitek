@@ -221,6 +221,7 @@ export type EmojiCloneRemoteEmoji = {
 
 export type ServerBackupFrequency = "6h" | "12h" | "daily" | "weekly" | "monthly";
 export type ServerBackupRestorePart = "roles" | "channels" | "permissions" | "emojis" | "settings" | "panels";
+export type ServerBackupRestoreMode = "merge" | "clear";
 
 export type ServerBackupSettings = {
   autoEnabled: boolean;
@@ -257,6 +258,7 @@ export type ServerBackupRestorePreview = {
   backupId: string;
   canRestore: boolean;
   missingPermissions: string[];
+  mode: ServerBackupRestoreMode;
   parts: ServerBackupRestorePart[];
   sourceGuildId: string;
   summary: {
@@ -278,7 +280,7 @@ export type ServerBackupRestoreJob = {
   createdAt: string;
   createdBy: string | null;
   guildId: string;
-  options: ServerBackupRestorePart[];
+  options: Array<ServerBackupRestorePart | ServerBackupRestoreMode>;
   preview: ServerBackupRestorePreview;
   result: unknown;
   sourceGuildId?: string | null;
