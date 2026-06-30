@@ -1496,6 +1496,10 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
   const [selectedParts, setSelectedParts] = useState<ServerBackupRestorePart[]>(serverBackupParts.map((part) => part.id));
   const [preview, setPreview] = useState<ServerBackupRestorePreview | null>(null);
   const [confirmation, setConfirmation] = useState("");
+  const [sendBackupId, setSendBackupId] = useState("");
+  const [targetGuildId, setTargetGuildId] = useState("");
+  const [sendPreview, setSendPreview] = useState<ServerBackupRestorePreview | null>(null);
+  const [sendConfirmation, setSendConfirmation] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
   const settings = dashboard?.settings;
@@ -1610,6 +1614,38 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
     }
   }
 
+  async function previewSendRestore() {
+    if (!botId || !guild || !sendBackupId || !targetGuildId) return;
+    setSendPreview(null);
+    setSendConfirmation("");
+    setWorkingBackupId(sendBackupId);
+    setMessage(null);
+    try {
+      setSendPreview(await previewServerBackupRestore(botId, guild.id, sendBackupId, selectedParts, targetGuildId.trim()));
+    } catch (error) {
+      setMessage(readResponseMessage(error) ?? "Nao foi possivel validar o servidor de destino.");
+    } finally {
+      setWorkingBackupId(null);
+    }
+  }
+
+  async function confirmSendRestore() {
+    if (!botId || !guild || !sendBackupId || !targetGuildId || sendConfirmation !== "CONFIRMAR") return;
+    setWorkingBackupId(sendBackupId);
+    setMessage(null);
+    try {
+      await restoreServerBackup(botId, guild.id, sendBackupId, selectedParts, sendConfirmation, targetGuildId.trim());
+      setMessage(`Backup enviado para restauracao no servidor ${targetGuildId.trim()}.`);
+      setSendPreview(null);
+      setSendConfirmation("");
+      await load();
+    } catch (error) {
+      setMessage(readResponseMessage(error) ?? "Nao foi possivel restaurar no servidor de destino.");
+    } finally {
+      setWorkingBackupId(null);
+    }
+  }
+
   function togglePart(part: ServerBackupRestorePart, checked: boolean) {
     setSelectedParts((current) => checked ? [...new Set([...current, part])] : current.filter((item) => item !== part));
   }
@@ -1693,6 +1729,50 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Enviar Backup para Outro Servidor</CardTitle>
+          <CardDescription>Selecione um backup salvo, informe o ID do servidor de destino e confirme antes de alterar canais, cargos e permissoes.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
+            <label className="grid gap-2 rounded-lg border border-zinc-800 bg-zinc-950/70 p-4 text-sm">
+              <span className="font-semibold text-white">Backup salvo</span>
+              <select className="h-10 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none focus:border-purple-500/60" disabled={!canManage} onChange={(event) => { setSendBackupId(event.target.value); setSendPreview(null); setSendConfirmation(""); }} value={sendBackupId}>
+                <option value="">Selecione um backup</option>
+                {(dashboard?.backups ?? []).map((backup) => (
+                  <option key={backup.id} value={backup.id}>{backup.guildName} - {formatDate(backup.createdAt)} - {backup.counts.roles} cargos / {backup.counts.channels} canais</option>
+                ))}
+              </select>
+            </label>
+            <AdvancedTextField disabled={!canManage} label="ID do servidor de destino" onChange={(value) => { setTargetGuildId(value); setSendPreview(null); setSendConfirmation(""); }} placeholder="Ex: 123456789012345678" value={targetGuildId} />
+          </div>
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
+            Antes de restaurar, o sistema valida se o bot esta no servidor destino, se este bot/cliente pode gerenciar esse servidor, se voce tem permissao nele e se o bot possui permissoes para criar cargos, canais, categorias e sobrescritas.
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {serverBackupParts.map((part) => <AdvancedToggleField checked={selectedParts.includes(part.id)} disabled={!canManage} key={`send-${part.id}`} label={part.label} onChange={(checked) => togglePart(part.id, checked)} />)}
+          </div>
+          <Button disabled={!canManage || !sendBackupId || !targetGuildId || workingBackupId === sendBackupId} onClick={() => void previewSendRestore()} variant="secondary">
+            {workingBackupId === sendBackupId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            Ver previa do destino
+          </Button>
+          {sendPreview ? (
+            <div className="rounded-lg border border-zinc-800 bg-black/40 p-4 text-sm text-zinc-300">
+              <p className="font-semibold text-white">Origem {sendPreview.sourceGuildId} para destino {sendPreview.targetGuildId}</p>
+              <p className="mt-2">Serao restaurados: {sendPreview.summary.roles} cargos, {sendPreview.summary.categories} categorias, {sendPreview.summary.channels} canais, {sendPreview.summary.emojis} emojis e {sendPreview.summary.settings} configuracoes.</p>
+              {sendPreview.missingPermissions.length ? <p className="mt-2 text-red-300">Permissoes faltando: {sendPreview.missingPermissions.join(", ")}</p> : <p className="mt-2 text-emerald-300">Destino validado para restauracao.</p>}
+              {sendPreview.warnings.map((warning) => <p className="mt-1 text-amber-300" key={warning}>{warning}</p>)}
+            </div>
+          ) : null}
+          <AdvancedTextField disabled={!canManage || sendPreview?.canRestore === false} label="Confirmacao para servidor destino" onChange={setSendConfirmation} placeholder="Digite CONFIRMAR" value={sendConfirmation} />
+          <Button disabled={!canManage || !sendPreview?.canRestore || sendConfirmation !== "CONFIRMAR" || workingBackupId === sendBackupId} onClick={() => void confirmSendRestore()} variant="destructive">
+            {workingBackupId === sendBackupId ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}
+            Confirmar envio/restauracao
+          </Button>
+        </CardContent>
+      </Card>
+
       {selectedBackup ? (
         <Card>
           <CardHeader>
@@ -1726,7 +1806,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
           {(dashboard?.restoreJobs ?? []).length ? dashboard!.restoreJobs.map((job) => (
             <div className="flex flex-col gap-1 rounded-lg border border-zinc-800 bg-zinc-950/70 p-3 text-sm sm:flex-row sm:items-center sm:justify-between" key={job.id}>
               <span className="font-semibold text-white">{job.status}</span>
-              <span className="text-zinc-500">{formatDate(job.createdAt)} - {job.options.join(", ")}</span>
+              <span className="text-zinc-500">{formatDate(job.createdAt)} - {(job.sourceGuildId || job.guildId) === (job.targetGuildId || job.guildId) ? job.guildId : `${job.sourceGuildId || job.guildId} para ${job.targetGuildId || job.guildId}`} - {job.options.join(", ")}</span>
             </div>
           )) : <p className="text-sm text-zinc-500">Nenhuma restauracao registrada.</p>}
         </CardContent>

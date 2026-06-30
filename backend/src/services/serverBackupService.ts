@@ -43,6 +43,7 @@ export type RestorePreview = {
   canRestore: boolean;
   missingPermissions: string[];
   parts: RestorePart[];
+  sourceGuildId: string;
   summary: {
     categories: number;
     channels: number;
@@ -50,6 +51,7 @@ export type RestorePreview = {
     roles: number;
     settings: number;
   };
+  targetGuildId: string;
   warnings: string[];
 };
 
@@ -71,7 +73,7 @@ export async function getServerBackupDashboard(botId: string, guildId: string) {
   const [settings, backups, restoreJobs] = await Promise.all([
     getServerBackupSettings(botId, guildId),
     serverBackupSnapshots.find({ botId, guildId }).sort({ createdAt: -1 }).limit(50).toArray(),
-    serverBackupRestoreJobs.find({ botId, guildId }).sort({ createdAt: -1 }).limit(20).toArray()
+    serverBackupRestoreJobs.find({ botId, $or: [{ guildId }, { sourceGuildId: guildId }, { targetGuildId: guildId }] }).sort({ createdAt: -1 }).limit(20).toArray()
   ]);
   return {
     settings,
@@ -218,9 +220,10 @@ export async function deleteServerBackup(botId: string, guildId: string, backupI
   await createLog({ botId, guildId, userId: actorId, type: "server-backup.deleted", message: "Backup apagado.", metadata: { backupId } }).catch(() => null);
 }
 
-export async function previewServerBackupRestore(input: { botId: string; botToken: string; guildId: string; backupId: string; parts: RestorePart[] }) {
+export async function previewServerBackupRestore(input: { botId: string; botToken: string; guildId: string; backupId: string; parts: RestorePart[]; targetGuildId?: string | null }) {
   const backup = await getSnapshotOrThrow(input.botId, input.guildId, input.backupId);
-  const validation = await validateRestorePermissions(input.botToken, input.guildId);
+  const targetGuildId = input.targetGuildId || input.guildId;
+  const validation = await validateRestorePermissions(input.botToken, targetGuildId);
   const snapshot = backup.snapshot as any;
   const roles = Array.isArray(snapshot.roles) ? snapshot.roles.filter((role: any) => role.name !== "@everyone") : [];
   const channels = Array.isArray(snapshot.channels) ? snapshot.channels : [];
@@ -230,6 +233,7 @@ export async function previewServerBackupRestore(input: { botId: string; botToke
     canRestore: validation.missingPermissions.length === 0,
     missingPermissions: validation.missingPermissions,
     parts: normalizeRestoreParts(input.parts),
+    sourceGuildId: input.guildId,
     summary: {
       categories: channels.filter((channel: any) => channel.type === 4).length,
       channels: channels.filter((channel: any) => channel.type !== 4).length,
@@ -237,14 +241,16 @@ export async function previewServerBackupRestore(input: { botId: string; botToke
       roles: roles.length,
       settings: Object.keys(snapshot.internalSettings ?? {}).length
     },
+    targetGuildId,
     warnings: validation.warnings
   };
   return preview;
 }
 
-export async function restoreServerBackup(input: { actorId: string | null; botId: string; botToken: string; guildId: string; backupId: string; parts: RestorePart[] }) {
+export async function restoreServerBackup(input: { actorId: string | null; botId: string; botToken: string; guildId: string; backupId: string; parts: RestorePart[]; targetGuildId?: string | null }) {
   const backup = await getSnapshotOrThrow(input.botId, input.guildId, input.backupId);
   const preview = await previewServerBackupRestore(input);
+  const targetGuildId = preview.targetGuildId;
   if (!preview.canRestore) throw Object.assign(new Error(`Permissoes insuficientes: ${preview.missingPermissions.join(", ")}`), { statusCode: 400 });
   const now = new Date();
   const { serverBackupRestoreJobs } = await getMongoCollections();
@@ -255,19 +261,25 @@ export async function restoreServerBackup(input: { actorId: string | null; botId
     completedAt: null,
     createdAt: now,
     createdBy: input.actorId,
-    guildId: input.guildId,
+    guildId: targetGuildId,
     options: preview.parts,
     preview,
     result: null,
+    sourceGuildId: input.guildId,
     status: "running",
+    targetGuildId,
     updatedAt: now
   };
   await serverBackupRestoreJobs.insertOne(job);
 
-  const result = await executeRestore(input.botToken, input.guildId, backup.snapshot as any, preview.parts);
+  const result = await executeRestore(input.botToken, targetGuildId, backup.snapshot as any, preview.parts);
   const status = result.errors.length ? (result.completedSteps.length ? "partial" : "failed") : "completed";
   await serverBackupRestoreJobs.updateOne({ _id: job._id }, { $set: { completedAt: new Date(), result, status, updatedAt: new Date() } });
-  await createLog({ botId: input.botId, guildId: input.guildId, userId: input.actorId, type: status === "completed" ? "server-backup.restored" : "server-backup.restore_partial", message: `Restauracao finalizada com status ${status}.`, metadata: { backupId: input.backupId, result } }).catch(() => null);
+  const metadata = { backupId: input.backupId, result, sourceGuildId: input.guildId, targetGuildId };
+  await createLog({ botId: input.botId, guildId: targetGuildId, userId: input.actorId, type: status === "completed" ? "server-backup.restored" : "server-backup.restore_partial", message: `Restauracao finalizada com status ${status}. Origem ${input.guildId}, destino ${targetGuildId}.`, metadata }).catch(() => null);
+  if (targetGuildId !== input.guildId) {
+    await createLog({ botId: input.botId, guildId: input.guildId, userId: input.actorId, type: "server-backup.sent_to_guild", message: `Backup enviado para restauracao no servidor ${targetGuildId} com status ${status}.`, metadata }).catch(() => null);
+  }
   return { ...job, completedAt: new Date().toISOString(), result, status, updatedAt: new Date().toISOString() };
 }
 

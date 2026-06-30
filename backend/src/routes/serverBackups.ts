@@ -2,7 +2,7 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
-import { canReadDevBotModule, canUseDevBotModule, getDevBotToken } from "../services/devBotService";
+import { canManageDevBotGuild, canReadDevBotModule, canUseDevBotModule, getDevBotToken } from "../services/devBotService";
 import { areGuildRoles, userHasAnyGuildRole } from "../services/discordOptionsService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
 import {
@@ -33,7 +33,8 @@ const settingsSchema = z.object({
 
 const restoreSchema = z.object({
   confirmation: z.string().optional(),
-  parts: z.array(restorePartSchema).max(6).default(["roles", "channels", "permissions", "emojis", "settings", "panels"])
+  parts: z.array(restorePartSchema).max(6).default(["roles", "channels", "permissions", "emojis", "settings", "panels"]),
+  targetGuildId: optionalSnowflakeSchema
 });
 
 export const serverBackupsRouter = Router();
@@ -119,14 +120,21 @@ serverBackupsRouter.post("/:guildId/backups/:backupId/preview", async (req, res,
     if (!scope || !(await canReadDevBotModule(scope.user, scope.botId, scope.guildId, MODULE_ID))) {
       return res.status(403).json({ message: "Sem permissao para visualizar restauracao." });
     }
+    const targetGuildId = input.targetGuildId || scope.guildId;
+    const botToken = await readBotToken(scope.botId);
+    const targetValidation = await validateBackupTargetGuild(scope, targetGuildId, botToken);
+    if (!targetValidation.ok) {
+      return res.status(targetValidation.status).json({ message: targetValidation.message });
+    }
 
     return res.json({
       preview: await previewServerBackupRestore({
         backupId,
         botId: scope.botId,
-        botToken: await readBotToken(scope.botId),
+        botToken,
         guildId: scope.guildId,
-        parts: input.parts
+        parts: input.parts,
+        targetGuildId
       })
     });
   } catch (error) {
@@ -145,15 +153,22 @@ serverBackupsRouter.post("/:guildId/backups/:backupId/restore", async (req, res,
     if (!scope || !(await canManageServerBackup(scope))) {
       return res.status(403).json({ message: "Sem permissao para restaurar backup." });
     }
+    const targetGuildId = input.targetGuildId || scope.guildId;
+    const botToken = await readBotToken(scope.botId);
+    const targetValidation = await validateBackupTargetGuild(scope, targetGuildId, botToken);
+    if (!targetValidation.ok) {
+      return res.status(targetValidation.status).json({ message: targetValidation.message });
+    }
 
     return res.json({
       job: await restoreServerBackup({
         actorId: scope.user.discordId ?? scope.user.id,
         backupId,
         botId: scope.botId,
-        botToken: await readBotToken(scope.botId),
+        botToken,
         guildId: scope.guildId,
-        parts: input.parts
+        parts: input.parts,
+        targetGuildId
       })
     });
   } catch (error) {
@@ -185,4 +200,32 @@ async function canManageServerBackup(scope: { botId: string; guildId: string; us
   }
 
   return userHasAnyGuildRole(scope.guildId, scope.user.discordId, settings.authorizedRoleIds, await readBotToken(scope.botId));
+}
+
+async function validateBackupTargetGuild(scope: { botId: string; guildId: string; user: AuthSessionUser }, targetGuildId: string, botToken: string) {
+  if (!(await canManageDevBotGuild(scope.user, scope.botId, targetGuildId))) {
+    return { ok: false as const, status: 403, message: "Voce nao tem permissao para gerenciar o servidor de destino neste bot." };
+  }
+
+  if (!(await canManageServerBackup({ ...scope, guildId: targetGuildId }))) {
+    return { ok: false as const, status: 403, message: "Backup Completo nao foi liberado para voce no servidor de destino." };
+  }
+
+  const botInTarget = await discordBotCanReadGuild(botToken, targetGuildId);
+  if (!botInTarget) {
+    return { ok: false as const, status: 400, message: "O bot nao esta presente no servidor de destino ou nao consegue acessa-lo." };
+  }
+
+  return { ok: true as const, status: 200, message: null };
+}
+
+async function discordBotCanReadGuild(botToken: string, guildId: string) {
+  try {
+    const response = await fetch(`https://discord.com/api/v10/guilds/${guildId}`, {
+      headers: { Authorization: `Bot ${botToken}` }
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }

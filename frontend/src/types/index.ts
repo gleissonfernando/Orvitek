@@ -258,6 +258,7 @@ export type ServerBackupRestorePreview = {
   canRestore: boolean;
   missingPermissions: string[];
   parts: ServerBackupRestorePart[];
+  sourceGuildId: string;
   summary: {
     categories: number;
     channels: number;
@@ -265,6 +266,7 @@ export type ServerBackupRestorePreview = {
     roles: number;
     settings: number;
   };
+  targetGuildId: string;
   warnings: string[];
 };
 
@@ -279,7 +281,9 @@ export type ServerBackupRestoreJob = {
   options: ServerBackupRestorePart[];
   preview: ServerBackupRestorePreview;
   result: unknown;
+  sourceGuildId?: string | null;
   status: "pending" | "running" | "completed" | "failed" | "partial";
+  targetGuildId?: string | null;
   updatedAt: string;
 };
 

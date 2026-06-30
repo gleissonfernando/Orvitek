@@ -338,7 +338,9 @@ export type MongoServerBackupRestoreJob = {
   options: string[];
   preview: Record<string, unknown>;
   result: Record<string, unknown> | null;
+  sourceGuildId?: string | null;
   status: "pending" | "running" | "completed" | "failed" | "partial";
+  targetGuildId?: string | null;
   updatedAt: Date;
 };
 
