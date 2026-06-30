@@ -42,7 +42,7 @@ const IDs = {
 } as const;
 
 const emptyTimers = new Map<string, NodeJS.Timeout>();
-const EMPTY_DELETE_AFTER_MS = 60_000;
+const configuredAutoDeleteTimers = new Map<string, NodeJS.Timeout>();
 let started = false;
 
 export function startTemporaryVoiceService(client: Client<true>, context: BotContext) {
@@ -440,8 +440,11 @@ async function ownedCall(interaction: Interaction & { guildId: string | null }, 
 export async function handleTemporaryVoiceStateUpdate(oldState: VoiceState, newState: VoiceState, context: BotContext) {
   if (!isBotModuleEnabled("temporary-voice")) return;
 
+  const settings = await context.api.getTemporaryVoiceSettings(newState.guild.id).catch(() => null);
+
   if (newState.channelId) {
     cancelEmpty(newState.channelId);
+    cancelConfiguredAutoDelete(newState.channelId);
     const call = await context.api.getTemporaryCallByChannel(newState.guild.id, newState.channelId).catch(() => null);
 
     if (call) {
@@ -459,6 +462,11 @@ export async function handleTemporaryVoiceStateUpdate(oldState: VoiceState, newS
 
   if (oldState.channelId && oldState.channelId !== newState.channelId) {
     const call = await context.api.getTemporaryCallByChannel(oldState.guild.id, oldState.channelId).catch(() => null);
+
+    if (settings?.enabled) {
+      const configuredChannel = oldState.guild.channels.cache.get(oldState.channelId);
+      await inspectConfiguredAutoDelete(configuredChannel, context, settings);
+    }
 
     if (call) {
       const channel = oldState.guild.channels.cache.get(call.channelId);
@@ -484,6 +492,7 @@ export async function handleTemporaryVoiceStateUpdate(oldState: VoiceState, newS
 export async function handleTemporaryCallChannelDelete(channel: Channel, context: BotContext) {
   if (!("guild" in channel) || !isBotModuleEnabled("temporary-voice")) return;
 
+  cancelConfiguredAutoDelete(channel.id);
   const call = await context.api.getTemporaryCallByChannel(channel.guild.id, channel.id).catch(() => null);
 
   if (call) {
@@ -512,7 +521,7 @@ async function inspectEmpty(raw: Channel | undefined, context: BotContext, call:
     await context.api.updateTemporaryCall(call.guildId, call.id, { emptySince: new Date(emptySince).toISOString() });
   }
 
-  const delay = Math.max(0, EMPTY_DELETE_AFTER_MS - (Date.now() - emptySince));
+  const delay = Math.max(0, settings.emptyDeleteMinutes * 60_000 - (Date.now() - emptySince));
   const timer = setTimeout(() => void deleteEmpty(raw, context, call, settings), delay);
   timer.unref();
   emptyTimers.set(call.channelId, timer);
@@ -572,6 +581,16 @@ function cancelEmpty(channelId: string) {
   emptyTimers.delete(channelId);
 }
 
+function cancelConfiguredAutoDelete(channelId: string) {
+  const timer = configuredAutoDeleteTimers.get(channelId);
+
+  if (timer) {
+    clearTimeout(timer);
+  }
+
+  configuredAutoDeleteTimers.delete(channelId);
+}
+
 function voiceMemberCount(guild: Guild, channelId: string) {
   return guild.voiceStates.cache.filter((state) => state.channelId === channelId).size;
 }
@@ -598,6 +617,74 @@ async function reconcileAll(client: Client<true>, context: BotContext) {
 
       await inspectEmpty(channel, context, call);
     }
+
+    for (const channelId of settings.autoDeleteChannelIds) {
+      const channel = await guild.channels.fetch(channelId).catch(() => null);
+      await inspectConfiguredAutoDelete(channel, context, settings);
+    }
+  }
+}
+
+async function inspectConfiguredAutoDelete(raw: Channel | null | undefined, context: BotContext, settings: TemporaryVoiceSettings) {
+  if (!raw || raw.type !== ChannelType.GuildVoice || !settings.autoDeleteChannelIds.includes(raw.id)) {
+    return;
+  }
+
+  if (voiceMemberCount(raw.guild, raw.id) > 0) {
+    cancelConfiguredAutoDelete(raw.id);
+    return;
+  }
+
+  if (configuredAutoDeleteTimers.has(raw.id)) {
+    return;
+  }
+
+  const delay = Math.max(1, settings.emptyDeleteMinutes) * 60_000;
+  const timer = setTimeout(() => void deleteConfiguredAutoDeleteChannel(raw, context, settings), delay);
+  timer.unref();
+  configuredAutoDeleteTimers.set(raw.id, timer);
+}
+
+async function deleteConfiguredAutoDeleteChannel(channel: VoiceChannel, context: BotContext, settings: TemporaryVoiceSettings) {
+  configuredAutoDeleteTimers.delete(channel.id);
+
+  const fresh = await channel.guild.channels.fetch(channel.id).catch(() => null);
+
+  if (!fresh || fresh.type !== ChannelType.GuildVoice || !settings.autoDeleteChannelIds.includes(fresh.id)) {
+    return;
+  }
+
+  if (voiceMemberCount(fresh.guild, fresh.id) > 0) {
+    return;
+  }
+
+  const channelName = fresh.name;
+  await fresh.delete("Canal de voz configurado para exclusao automatica quando vazio");
+  await context.api.postLog({
+    guildId: settings.guildId,
+    message: `Call selecionada deletada automaticamente: ${channelName}.`,
+    metadata: {
+      channelId: channel.id,
+      channelName
+    },
+    type: "voice.auto_delete_channel",
+    userId: context.client.user?.id ?? "system"
+  }).catch(() => null);
+
+  if (!settings.logChannelId) return;
+
+  const logChannel = await channel.guild.channels.fetch(settings.logChannelId).catch(() => null);
+
+  if (logChannel?.isTextBased() && logChannel.isSendable()) {
+    await logChannel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xef4444)
+          .setTitle("Call deletada automaticamente")
+          .setDescription(`A call **${channelName}** foi apagada porque ficou vazia.`)
+          .setTimestamp()
+      ]
+    }).catch(() => null);
   }
 }
 

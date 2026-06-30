@@ -2229,6 +2229,7 @@ function AdvancedModuleFields({
         <AdvancedSelectField disabled={disabled} label="Canal de logs" onChange={(value) => onChange({ logChannelId: value || null })} options={textChannelOptions} placeholder="Sem logs" value={stringConfig(config.logChannelId)} />
         <AdvancedNumberField disabled={disabled} label="Limite padrão de usuários" max={99} min={1} onChange={(value) => onChange({ defaultUserLimit: value })} value={numberConfig(config.defaultUserLimit, 10)} />
         <AdvancedNumberField disabled={disabled} label="Excluir vazia após (minutos)" max={1440} min={1} onChange={(value) => onChange({ emptyDeleteMinutes: value })} value={numberConfig(config.emptyDeleteMinutes, 1)} />
+        <AdvancedMultiSelectField disabled={disabled} label="Calls apagadas automaticamente" onChange={(values) => onChange({ autoDeleteChannelIds: values })} options={voiceChannelOptions} values={arrayValueConfig(config.autoDeleteChannelIds)} />
       </div>
     );
   }
@@ -2371,6 +2372,38 @@ function AdvancedSelectField({ disabled, label, onChange, options, placeholder, 
   );
 }
 
+function AdvancedMultiSelectField({ disabled, label, onChange, options, values }: { disabled: boolean; label: string; onChange: (values: string[]) => void; options: Array<{ label: string; value: string }>; values: string[] }) {
+  const selected = new Set(values);
+
+  function toggle(value: string, checked: boolean) {
+    const next = new Set(selected);
+
+    if (checked) {
+      next.add(value);
+    } else {
+      next.delete(value);
+    }
+
+    onChange([...next]);
+  }
+
+  return (
+    <div className="grid gap-2 rounded-lg border border-zinc-800 bg-zinc-950/70 p-4 text-sm sm:col-span-2 xl:col-span-3">
+      <span className="font-semibold text-white">{label}</span>
+      <div className="grid max-h-52 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
+        {options.length ? options.map((option) => (
+          <label className="flex min-w-0 items-center gap-2 rounded-md border border-zinc-800 bg-black px-3 py-2 text-zinc-200" key={option.value}>
+            <input checked={selected.has(option.value)} className="h-4 w-4 accent-purple-500" disabled={disabled} onChange={(event) => toggle(option.value, event.target.checked)} type="checkbox" />
+            <span className="truncate">{option.label}</span>
+          </label>
+        )) : (
+          <span className="text-sm text-zinc-500">Nenhum canal de voz encontrado.</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AdvancedToggleField({ checked, disabled, label, onChange }: { checked: boolean; disabled: boolean; label: string; onChange: (checked: boolean) => void }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950/70 p-4 text-sm">
@@ -2420,7 +2453,7 @@ function tagVerificationStatusFields(config: Record<string, unknown>) {
 
 function defaultAdvancedModuleConfig(moduleId: string, config: Record<string, unknown>) {
   if (moduleId === "temporary-voice") {
-    return { enabled: false, panelChannelId: null, panelMessageId: null, categoryId: null, defaultUserLimit: 10, emptyDeleteMinutes: 1, logChannelId: null, ...config };
+    return { enabled: false, panelChannelId: null, panelMessageId: null, categoryId: null, defaultUserLimit: 10, emptyDeleteMinutes: 1, logChannelId: null, autoDeleteChannelIds: [], ...config };
   }
   if (moduleId === "tag-verification") {
     return {
@@ -2486,6 +2519,10 @@ function numberConfig(value: unknown, fallback: number) {
 
 function arrayConfig(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").join(", ") : "";
+}
+
+function arrayValueConfig(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
 function splitIds(value: string) {

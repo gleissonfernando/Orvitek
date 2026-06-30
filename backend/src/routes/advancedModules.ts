@@ -113,7 +113,8 @@ const temporaryVoiceConfigSchema = z.object({
   categoryId: snowflakeSchema.nullable().default(null),
   defaultUserLimit: z.coerce.number().int().min(1).max(99).default(10),
   emptyDeleteMinutes: z.coerce.number().int().min(1).max(1440).default(1),
-  logChannelId: snowflakeSchema.nullable().default(null)
+  logChannelId: snowflakeSchema.nullable().default(null),
+  autoDeleteChannelIds: z.array(snowflakeSchema).max(100).default([])
 });
 const tagVerificationConfigSchema = z.object({
   enabled: z.boolean().default(false),

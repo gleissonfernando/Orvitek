@@ -5,6 +5,7 @@ import { getBotGuildModuleConfig, updateBotGuildModuleConfig } from "./devBotSer
 export type TemporaryVoiceSettings = {
   botId: string; guildId: string; enabled: boolean; panelChannelId: string | null; panelMessageId: string | null;
   categoryId: string | null; defaultUserLimit: number; emptyDeleteMinutes: number; logChannelId: string | null;
+  autoDeleteChannelIds: string[];
 };
 
 export async function getTemporaryVoiceSettings(botId: string, guildId: string): Promise<TemporaryVoiceSettings> {
@@ -15,7 +16,8 @@ export async function getTemporaryVoiceSettings(botId: string, guildId: string):
     panelChannelId: id(config.panelChannelId), panelMessageId: id(config.panelMessageId), categoryId: id(config.categoryId),
     defaultUserLimit: integer(config.defaultUserLimit, 1, 99, 10),
     emptyDeleteMinutes: integer(config.emptyDeleteMinutes, 1, 1440, 1),
-    logChannelId: id(config.logChannelId)
+    logChannelId: id(config.logChannelId),
+    autoDeleteChannelIds: ids(config.autoDeleteChannelIds)
   };
 }
 
