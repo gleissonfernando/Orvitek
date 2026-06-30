@@ -130,6 +130,7 @@ import type {
   SelfBotProtectionSettings,
   SocialNotification,
   Ticket,
+  TicketPanelOption,
   XAccount
 } from "../types";
 
@@ -2440,6 +2441,13 @@ function SettingsView({
           panelId="ticket"
           panelLabel="Ticket"
         />
+        <TicketPanelConfigurator
+          botId={botId}
+          canManage={canManageModule("tickets")}
+          guild={guild}
+          onSettingsChange={onSettingsChange}
+          settings={settings}
+        />
       </div>
     );
   }
@@ -2468,6 +2476,296 @@ function SettingsView({
   }
 
   return <div className="space-y-5">{blocks}</div>;
+}
+
+function TicketPanelConfigurator({
+  botId,
+  canManage,
+  guild,
+  onSettingsChange,
+  settings
+}: {
+  botId?: string | null;
+  canManage: boolean;
+  guild: DashboardGuild | null;
+  onSettingsChange: (settings: GuildSettings) => void;
+  settings: GuildSettings | null;
+}) {
+  const [draft, setDraft] = useState(() => ticketPanelDraft(settings));
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [applicationEmojis, setApplicationEmojis] = useState<ApplicationEmojiItem[]>([]);
+  const disabled = !guild || !settings || !canManage || saving;
+
+  useEffect(() => {
+    setDraft(ticketPanelDraft(settings));
+  }, [
+    settings?.guildId,
+    settings?.ticketPanelTitle,
+    settings?.ticketPanelDescription,
+    settings?.ticketPanelInfoText,
+    settings?.ticketPanelFooterText,
+    settings?.ticketPanelColor,
+    settings?.ticketPanelPlaceholder,
+    JSON.stringify(settings?.ticketPanelOptions ?? [])
+  ]);
+
+  useEffect(() => {
+    if (!botId) {
+      setApplicationEmojis([]);
+      return;
+    }
+
+    let active = true;
+    getApplicationEmojis(botId, { sort: "name" })
+      .then((page) => {
+        if (active) setApplicationEmojis(page.items);
+      })
+      .catch(() => {
+        if (active) setApplicationEmojis([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [botId]);
+
+  function updateOption(index: number, patch: Partial<TicketPanelOption>) {
+    setDraft((current) => ({
+      ...current,
+      ticketPanelOptions: current.ticketPanelOptions.map((option, optionIndex) => (
+        optionIndex === index ? normalizeTicketOptionDraft({ ...option, ...patch }, index) : option
+      ))
+    }));
+  }
+
+  function addOption() {
+    setDraft((current) => ({
+      ...current,
+      ticketPanelOptions: [
+        ...current.ticketPanelOptions,
+        {
+          description: "Descreva este atendimento.",
+          emoji: "🎫",
+          enabled: true,
+          label: `Atendimento ${current.ticketPanelOptions.length + 1}`,
+          value: `atendimento-${current.ticketPanelOptions.length + 1}`
+        }
+      ].slice(0, 25)
+    }));
+  }
+
+  function removeOption(index: number) {
+    setDraft((current) => {
+      const nextOptions = current.ticketPanelOptions.filter((_, optionIndex) => optionIndex !== index);
+      return {
+        ...current,
+        ticketPanelOptions: nextOptions.length ? nextOptions : ticketPanelDraft(null).ticketPanelOptions
+      };
+    });
+  }
+
+  async function save() {
+    if (!guild || !settings || disabled) return;
+
+    const previous = settings;
+    const payload = {
+      ...draft,
+      ticketPanelOptions: draft.ticketPanelOptions.map(normalizeTicketOptionDraft)
+    };
+
+    setSaving(true);
+    setStatus(null);
+    setError(null);
+    onSettingsChange({ ...settings, ...payload });
+
+    try {
+      const saved = await patchGuildSettings(guild.id, payload, botId);
+      onSettingsChange(saved);
+      setStatus("Painel de ticket salvo.");
+    } catch {
+      onSettingsChange(previous);
+      setError("Nao foi possivel salvar o painel de ticket.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card className="border-purple-500/10 bg-zinc-950/70">
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2"><TicketIcon className="h-5 w-5 text-purple-300" /> Painel visual do ticket</CardTitle>
+            <CardDescription>Texto, cor, menu e emojis que aparecem no painel publicado pelo bot.</CardDescription>
+          </div>
+          <Button disabled={disabled} onClick={() => void save()} size="sm" type="button">
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+            Salvar
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error ? <div className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</div> : null}
+        {status ? <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{status}</div> : null}
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <TicketField disabled={disabled} label="Titulo" onChange={(value) => setDraft((current) => ({ ...current, ticketPanelTitle: value }))} value={draft.ticketPanelTitle ?? ""} />
+          <TicketField disabled={disabled} label="Placeholder do menu" onChange={(value) => setDraft((current) => ({ ...current, ticketPanelPlaceholder: value }))} value={draft.ticketPanelPlaceholder ?? ""} />
+          <TicketField disabled={disabled} label="Cor neon" onChange={(value) => setDraft((current) => ({ ...current, ticketPanelColor: value }))} type="color" value={draft.ticketPanelColor} />
+          <TicketField disabled={disabled} label="Rodape" onChange={(value) => setDraft((current) => ({ ...current, ticketPanelFooterText: value }))} value={draft.ticketPanelFooterText ?? ""} />
+        </div>
+
+        <TicketArea disabled={disabled} label="Descricao principal" onChange={(value) => setDraft((current) => ({ ...current, ticketPanelDescription: value }))} value={draft.ticketPanelDescription ?? ""} />
+        <TicketArea disabled={disabled} label="Informacoes abaixo da descricao" onChange={(value) => setDraft((current) => ({ ...current, ticketPanelInfoText: value }))} value={draft.ticketPanelInfoText ?? ""} />
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-white">Opcoes do menu</p>
+              <p className="text-xs text-zinc-500">Use emoji comum ou escolha um emoji da aplicacao do bot.</p>
+            </div>
+            <Button disabled={disabled || draft.ticketPanelOptions.length >= 25} onClick={addOption} size="sm" type="button" variant="outline">Adicionar</Button>
+          </div>
+
+          {draft.ticketPanelOptions.map((option, index) => (
+            <div className="grid gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-3 lg:grid-cols-[1fr_1fr_120px_160px_auto]" key={`${option.value}-${index}`}>
+              <TicketField disabled={disabled} label="Nome" onChange={(value) => updateOption(index, { label: value, value: slugTicketOption(value, index) })} value={option.label} />
+              <TicketField disabled={disabled} label="Descricao" onChange={(value) => updateOption(index, { description: value })} value={option.description ?? ""} />
+              <TicketField disabled={disabled} label="Emoji" onChange={(value) => updateOption(index, { emoji: value })} value={option.emoji ?? ""} />
+              <label className="block text-xs font-medium text-zinc-400">
+                Emoji da Dashboard
+                <select
+                  className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100 outline-none disabled:opacity-60"
+                  disabled={disabled || !applicationEmojis.length}
+                  onChange={(event) => event.target.value && updateOption(index, { emoji: event.target.value })}
+                  value=""
+                >
+                  <option value="">Selecionar</option>
+                  {applicationEmojis.map((emoji) => (
+                    <option key={emoji.id} value={`<${emoji.animated ? "a" : ""}:${emoji.originalName}:${emoji.applicationEmojiId}>`}>
+                      {emoji.originalName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-end gap-2">
+                <label className="flex h-10 items-center gap-2 rounded-md border border-zinc-800 px-3 text-xs text-zinc-300">
+                  <input checked={option.enabled} disabled={disabled} onChange={(event) => updateOption(index, { enabled: event.target.checked })} type="checkbox" />
+                  Ativa
+                </label>
+                <Button disabled={disabled || draft.ticketPanelOptions.length <= 1} onClick={() => removeOption(index)} size="icon" title="Remover opcao" type="button" variant="outline">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+type TicketPanelDraft = Pick<
+  GuildSettings,
+  | "ticketPanelTitle"
+  | "ticketPanelDescription"
+  | "ticketPanelInfoText"
+  | "ticketPanelFooterText"
+  | "ticketPanelColor"
+  | "ticketPanelPlaceholder"
+  | "ticketPanelOptions"
+>;
+
+function ticketPanelDraft(settings: GuildSettings | null): TicketPanelDraft {
+  return {
+    ticketPanelTitle: settings?.ticketPanelTitle ?? "Central de Suporte",
+    ticketPanelDescription: settings?.ticketPanelDescription ?? "Precisa de ajuda? Abra um ticket e nossa equipe ira atende-lo em breve.",
+    ticketPanelInfoText: settings?.ticketPanelInfoText ?? "Horario de atendimento: Seg-Sex, 9h-18h\nDescreva seu problema com detalhes para um atendimento mais rapido.",
+    ticketPanelFooterText: settings?.ticketPanelFooterText ?? "",
+    ticketPanelColor: settings?.ticketPanelColor ?? "#7c3aed",
+    ticketPanelPlaceholder: settings?.ticketPanelPlaceholder ?? "Selecione o tipo de atendimento",
+    ticketPanelOptions: (settings?.ticketPanelOptions?.length ? settings.ticketPanelOptions : [{
+      description: "Abrir um atendimento com a equipe.",
+      emoji: "🎫",
+      enabled: true,
+      label: "Suporte",
+      value: "suporte"
+    }]).map(normalizeTicketOptionDraft)
+  };
+}
+
+function normalizeTicketOptionDraft(option: TicketPanelOption, index: number): TicketPanelOption {
+  const label = option.label.trim() || `Atendimento ${index + 1}`;
+  return {
+    description: option.description?.trim() || null,
+    emoji: option.emoji?.trim() || null,
+    enabled: option.enabled !== false,
+    label,
+    value: option.value?.trim() || slugTicketOption(label, index)
+  };
+}
+
+function slugTicketOption(value: string, index: number) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80) || `opcao-${index + 1}`;
+}
+
+function TicketField({
+  disabled,
+  label,
+  onChange,
+  type = "text",
+  value
+}: {
+  disabled: boolean;
+  label: string;
+  onChange: (value: string) => void;
+  type?: "color" | "text";
+  value: string;
+}) {
+  return (
+    <label className="block text-xs font-medium text-zinc-400">
+      {label}
+      <input
+        className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-500/50 disabled:opacity-60"
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        type={type}
+        value={value}
+      />
+    </label>
+  );
+}
+
+function TicketArea({
+  disabled,
+  label,
+  onChange,
+  value
+}: {
+  disabled: boolean;
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <label className="block text-xs font-medium text-zinc-400">
+      {label}
+      <textarea
+        className="mt-1 min-h-24 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 py-2 text-sm text-zinc-100 outline-none transition focus:border-purple-500/50 disabled:opacity-60"
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      />
+    </label>
+  );
 }
 
 function CloningView({

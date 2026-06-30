@@ -39,6 +39,14 @@ export type GuildSettingsDto = {
   boosterRoleId: string | null;
   ticketEnabled: boolean;
   ticketCategoryId: string | null;
+  ticketPanelImage: PanelImageSettingsDto | null;
+  ticketPanelTitle: string | null;
+  ticketPanelDescription: string | null;
+  ticketPanelInfoText: string | null;
+  ticketPanelFooterText: string | null;
+  ticketPanelColor: string;
+  ticketPanelPlaceholder: string | null;
+  ticketPanelOptions: TicketPanelOptionDto[];
   logChannelId: string | null;
   discordLogsEnabled: boolean;
   siteLogsEnabled: boolean;
@@ -73,6 +81,14 @@ export type GuildSettingsDto = {
   verificationRoleIds: string[];
   dashboardRolePermissions: Record<string, DashboardAccessLevel>;
   dashboardUserPermissions: Record<string, DashboardAccessLevel>;
+};
+
+export type TicketPanelOptionDto = {
+  description: string | null;
+  emoji: string | null;
+  enabled: boolean;
+  label: string;
+  value: string;
 };
 
 export const LOG_CATEGORIES = [
@@ -164,6 +180,22 @@ const DEFAULT_RULES_MESSAGE = [
   "Use os canais corretos e siga as orientacoes da equipe."
 ].join("\n");
 const DEFAULT_RULES_BUTTON_LABEL = "Li e aceito";
+const DEFAULT_TICKET_PANEL_TITLE = "Central de Suporte";
+const DEFAULT_TICKET_PANEL_DESCRIPTION = "Precisa de ajuda? Abra um ticket e nossa equipe ira atende-lo em breve.";
+const DEFAULT_TICKET_PANEL_INFO_TEXT = [
+  "Horario de atendimento: Seg-Sex, 9h-18h",
+  "Descreva seu problema com detalhes para um atendimento mais rapido."
+].join("\n");
+const DEFAULT_TICKET_PANEL_PLACEHOLDER = "Selecione o tipo de atendimento";
+const DEFAULT_TICKET_PANEL_OPTIONS: TicketPanelOptionDto[] = [
+  {
+    description: "Abrir um atendimento com a equipe.",
+    emoji: "🎫",
+    enabled: true,
+    label: "Suporte",
+    value: "suporte"
+  }
+];
 
 export function defaultSettings(guildId: string, botId: string | null = null): GuildSettingsDto {
   return {
@@ -199,6 +231,14 @@ export function defaultSettings(guildId: string, botId: string | null = null): G
     boosterRoleId: null,
     ticketEnabled: true,
     ticketCategoryId: null,
+    ticketPanelImage: null,
+    ticketPanelTitle: DEFAULT_TICKET_PANEL_TITLE,
+    ticketPanelDescription: DEFAULT_TICKET_PANEL_DESCRIPTION,
+    ticketPanelInfoText: DEFAULT_TICKET_PANEL_INFO_TEXT,
+    ticketPanelFooterText: "",
+    ticketPanelColor: "#7c3aed",
+    ticketPanelPlaceholder: DEFAULT_TICKET_PANEL_PLACEHOLDER,
+    ticketPanelOptions: DEFAULT_TICKET_PANEL_OPTIONS.map((option) => ({ ...option })),
     logChannelId: null,
     discordLogsEnabled: false,
     siteLogsEnabled: true,
@@ -443,6 +483,13 @@ export async function updateGuildSettings(guildId: string, input: Partial<GuildS
           boosterRoleId: next.boosterRoleId,
           ticketEnabled: next.ticketEnabled,
           ticketCategoryId: next.ticketCategoryId,
+          ticketPanelTitle: next.ticketPanelTitle,
+          ticketPanelDescription: next.ticketPanelDescription,
+          ticketPanelInfoText: next.ticketPanelInfoText,
+          ticketPanelFooterText: next.ticketPanelFooterText,
+          ticketPanelColor: next.ticketPanelColor,
+          ticketPanelPlaceholder: next.ticketPanelPlaceholder,
+          ticketPanelOptions: next.ticketPanelOptions,
           logChannelId: next.logChannelId,
           discordLogsEnabled: next.discordLogsEnabled,
           siteLogsEnabled: next.siteLogsEnabled,
@@ -605,6 +652,14 @@ function toDto(settings: MongoGuildSettings): GuildSettingsDto {
     boosterRoleId: settings.boosterRoleId,
     ticketEnabled: settings.ticketEnabled,
     ticketCategoryId: settings.ticketCategoryId,
+    ticketPanelImage: null,
+    ticketPanelTitle: normalizePanelText(settings.ticketPanelTitle) || defaults.ticketPanelTitle,
+    ticketPanelDescription: normalizePanelMessage(settings.ticketPanelDescription) || defaults.ticketPanelDescription,
+    ticketPanelInfoText: normalizePanelText(settings.ticketPanelInfoText) || defaults.ticketPanelInfoText,
+    ticketPanelFooterText: normalizePanelText(settings.ticketPanelFooterText),
+    ticketPanelColor: normalizeTicketPanelColor(settings.ticketPanelColor),
+    ticketPanelPlaceholder: normalizePanelText(settings.ticketPanelPlaceholder) || defaults.ticketPanelPlaceholder,
+    ticketPanelOptions: normalizeTicketPanelOptions(settings.ticketPanelOptions),
     logChannelId: settings.logChannelId,
     discordLogsEnabled: settings.discordLogsEnabled ?? Boolean(settings.logChannelId),
     siteLogsEnabled: settings.siteLogsEnabled ?? defaults.siteLogsEnabled,
@@ -667,19 +722,22 @@ async function withPanelImageSettings(settings: GuildSettingsDto): Promise<Guild
     return {
       ...settings,
       leavePanelImage: null,
+      ticketPanelImage: null,
       welcomePanelImage: null
     };
   }
 
   try {
-    const [welcomePanelImage, leavePanelImage] = await Promise.all([
+    const [welcomePanelImage, leavePanelImage, ticketPanelImage] = await Promise.all([
       getPanelImageSettings(settings.guildId, settings.botId, "welcome"),
-      getPanelImageSettings(settings.guildId, settings.botId, "leave")
+      getPanelImageSettings(settings.guildId, settings.botId, "leave"),
+      getPanelImageSettings(settings.guildId, settings.botId, "ticket")
     ]);
 
     return {
       ...settings,
       leavePanelImage: leavePanelImage.imageEnabled ? leavePanelImage : null,
+      ticketPanelImage: ticketPanelImage.imageEnabled ? ticketPanelImage : null,
       welcomePanelImage: welcomePanelImage.imageEnabled ? welcomePanelImage : null
     };
   } catch (error) {
@@ -687,6 +745,7 @@ async function withPanelImageSettings(settings: GuildSettingsDto): Promise<Guild
     return {
       ...settings,
       leavePanelImage: null,
+      ticketPanelImage: null,
       welcomePanelImage: null
     };
   }
@@ -842,6 +901,48 @@ function normalizePanelText(value: string | null | undefined) {
 function normalizePanelColor(value: string | null | undefined) {
   const normalized = value?.trim();
   return normalized && /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : DEFAULT_PANEL_COLOR;
+}
+
+function normalizeTicketPanelColor(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized && /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : "#7c3aed";
+}
+
+function normalizeTicketPanelOptions(value: unknown): TicketPanelOptionDto[] {
+  if (!Array.isArray(value)) {
+    return DEFAULT_TICKET_PANEL_OPTIONS.map((option) => ({ ...option }));
+  }
+
+  const seen = new Set<string>();
+  const options = value
+    .map((item): TicketPanelOptionDto | null => {
+      if (!item || typeof item !== "object") return null;
+      const record = item as Record<string, unknown>;
+      const label = String(record.label ?? "").trim().slice(0, 80);
+      const fallbackValue = label.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const valueText = String(record.value ?? fallbackValue).trim().slice(0, 80);
+      const value = valueText || fallbackValue || `opcao-${seen.size + 1}`;
+
+      if (!label || seen.has(value)) return null;
+      seen.add(value);
+
+      return {
+        description: normalizeNullableText(record.description, 100),
+        emoji: normalizeNullableText(record.emoji, 80),
+        enabled: record.enabled !== false,
+        label,
+        value
+      };
+    })
+    .filter((item): item is TicketPanelOptionDto => Boolean(item))
+    .slice(0, 25);
+
+  return options.length ? options : DEFAULT_TICKET_PANEL_OPTIONS.map((option) => ({ ...option }));
+}
+
+function normalizeNullableText(value: unknown, maxLength: number) {
+  const normalized = typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+  return normalized || null;
 }
 
 function normalizeBotId(botId: string | null | undefined) {

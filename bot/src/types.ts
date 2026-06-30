@@ -56,6 +56,14 @@ export type GuildSettings = {
   boosterRoleId: string | null;
   ticketEnabled: boolean;
   ticketCategoryId: string | null;
+  ticketPanelImage: PanelImageSettings | null;
+  ticketPanelTitle: string | null;
+  ticketPanelDescription: string | null;
+  ticketPanelInfoText: string | null;
+  ticketPanelFooterText: string | null;
+  ticketPanelColor: string;
+  ticketPanelPlaceholder: string | null;
+  ticketPanelOptions: TicketPanelOption[];
   logChannelId: string | null;
   discordLogsEnabled: boolean;
   siteLogsEnabled: boolean;
@@ -88,6 +96,14 @@ export type GuildSettings = {
   verificationEnabled: boolean;
   verificationRoleId: string | null;
   verificationRoleIds: string[];
+};
+
+export type TicketPanelOption = {
+  description: string | null;
+  emoji: string | null;
+  enabled: boolean;
+  label: string;
+  value: string;
 };
 
 export type LogCategory =
