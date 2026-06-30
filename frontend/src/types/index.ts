@@ -1556,6 +1556,9 @@ export type OrvitechSaleStatus = "pending" | "paid" | "cancelled" | "refunded";
 
 export type OrvitechSalesPaymentProvider = {
   id: string;
+  gatewayId: string;
+  ownerUserId: string;
+  storeId: string;
   enabled: boolean;
   label: string;
   provider: OrvitechPaymentProviderType;
@@ -1564,6 +1567,7 @@ export type OrvitechSalesPaymentProvider = {
   instructions: string | null;
   secretConfigured: boolean;
   secretMasked: string | null;
+  webhookSecretConfigured: boolean;
   updatedAt: string;
 };
 
@@ -1571,6 +1575,7 @@ export type OrvitechSalesSettings = {
   id: string;
   botId: string;
   guildId: string;
+  storeId: string;
   enabled: boolean;
   ownerUserId: string;
   publicUrl: string;
@@ -1639,9 +1644,11 @@ export type OrvitechSalesDashboard = {
   settings: OrvitechSalesSettings;
   stats: {
     activePlans: number;
+    customers: number;
     paidSales: number;
     pendingSales: number;
     revenueCents: number;
+    subscriptions: number;
     salesThisMonth: number;
     totalSales: number;
   };
@@ -1653,7 +1660,6 @@ export type SaveOrvitechSalesSettingsPayload = Partial<Pick<
   | "customerRoleId"
   | "enabled"
   | "logChannelId"
-  | "ownerUserId"
   | "panelColor"
   | "panelDescription"
   | "panelImageUrl"
@@ -1673,6 +1679,7 @@ export type SaveOrvitechPaymentProviderPayload = {
   provider: OrvitechPaymentProviderType;
   publicKey?: string | null;
   secret?: string | null;
+  webhookSecret?: string | null;
   webhookUrl?: string | null;
 };
 

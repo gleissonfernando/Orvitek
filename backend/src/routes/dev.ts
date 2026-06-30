@@ -46,7 +46,7 @@ import {
 } from "../services/maintenanceService";
 import {
   deleteOrvitechPaymentProvider,
-  deleteOrvitechSalesPlan,
+  deleteScopedOrvitechSalesPlan,
   getOrvitechSalesDashboard,
   ORVITECH_SALES_MODULE_ID,
   saveOrvitechPaymentProvider,
@@ -116,7 +116,6 @@ const orvitechSalesSettingsSchema = z.object({
   customerRoleId: z.string().regex(/^\d{5,32}$/).nullable().optional(),
   enabled: z.boolean().optional(),
   logChannelId: z.string().regex(/^\d{5,32}$/).nullable().optional(),
-  ownerUserId: z.string().regex(/^\d{5,32}$/).optional(),
   panelColor: z.string().min(4).max(24).optional(),
   panelDescription: z.string().min(1).max(1200).optional(),
   panelImageUrl: z.string().url().max(2048).nullable().optional().or(z.literal("")),
@@ -136,6 +135,7 @@ const orvitechPaymentProviderSchema = z.object({
   provider: z.enum(["manual", "pix", "mercadopago", "stripe", "paypal", "custom"]),
   publicKey: z.string().max(512).nullable().optional().or(z.literal("")),
   secret: z.string().max(2048).nullable().optional().or(z.literal("")),
+  webhookSecret: z.string().max(2048).nullable().optional().or(z.literal("")),
   webhookUrl: z.string().url().max(2048).nullable().optional().or(z.literal(""))
 });
 
@@ -881,7 +881,7 @@ devRouter.get("/bots/:botId/guilds/:guildId/orvitech-sales", async (req, res, ne
       });
     }
 
-    return res.json(await getOrvitechSalesDashboard(req.params.botId, req.params.guildId));
+    return res.json(await getOrvitechSalesDashboard(req.params.botId, req.params.guildId, auth.user.discordId));
   } catch (error) {
     return next(error);
   }
@@ -933,6 +933,7 @@ devRouter.post("/bots/:botId/guilds/:guildId/orvitech-sales/providers", async (r
       instructions: input.instructions === "" ? null : input.instructions,
       publicKey: input.publicKey === "" ? null : input.publicKey,
       secret: input.secret === "" ? null : input.secret,
+      webhookSecret: input.webhookSecret === "" ? null : input.webhookSecret,
       webhookUrl: input.webhookUrl === "" ? null : input.webhookUrl
     }, auth.user.discordId);
 
@@ -1042,7 +1043,7 @@ devRouter.delete("/bots/:botId/guilds/:guildId/orvitech-sales/plans/:planId", as
       });
     }
 
-    const deleted = await deleteOrvitechSalesPlan(req.params.botId, req.params.guildId, req.params.planId);
+    const deleted = await deleteScopedOrvitechSalesPlan(req.params.botId, req.params.guildId, req.params.planId, auth.user.discordId);
 
     if (!deleted) {
       return res.status(404).json({

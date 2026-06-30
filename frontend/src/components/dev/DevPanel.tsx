@@ -1501,6 +1501,7 @@ function DevInput({
   label,
   onChange,
   placeholder,
+  readOnly = false,
   type = "text",
   value
 }: {
@@ -1509,6 +1510,7 @@ function DevInput({
   label: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  readOnly?: boolean;
   type?: string;
   value: string;
 }) {
@@ -1521,6 +1523,7 @@ function DevInput({
         inputMode={inputMode}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
+        readOnly={readOnly}
         type={type}
         value={value}
       />
@@ -2070,7 +2073,6 @@ const defaultSalesSettingsForm: SaveOrvitechSalesSettingsPayload = {
   customerRoleId: null,
   enabled: false,
   logChannelId: null,
-  ownerUserId: "1492325134550302952",
   panelColor: "#7c3aed",
   panelDescription: "Planos, liberacoes e pagamentos do bot OrviTech.",
   panelImageUrl: null,
@@ -2089,6 +2091,7 @@ const defaultProviderForm: SaveOrvitechPaymentProviderPayload = {
   provider: "manual",
   publicKey: "",
   secret: "",
+  webhookSecret: "",
   webhookUrl: ""
 };
 
@@ -2343,11 +2346,11 @@ function OrvitechSalesWorkspace({
         </CardHeader>
         <CardContent className="grid gap-3 p-5 pt-0 sm:grid-cols-2 lg:grid-cols-6 sm:p-6 sm:pt-0">
           <SalesMetric label="Receita paga" value={formatMoney(stats?.revenueCents ?? 0, dashboard?.settings.currency ?? "BRL")} />
-          <SalesMetric label="Vendas" value={String(stats?.totalSales ?? 0)} />
+          <SalesMetric label="Clientes" value={String(stats?.customers ?? 0)} />
           <SalesMetric label="Pagas" value={String(stats?.paidSales ?? 0)} />
           <SalesMetric label="Pendentes" value={String(stats?.pendingSales ?? 0)} />
           <SalesMetric label="Planos ativos" value={String(stats?.activePlans ?? 0)} />
-          <SalesMetric label="Este mes" value={String(stats?.salesThisMonth ?? 0)} />
+          <SalesMetric label="Assinaturas" value={String(stats?.subscriptions ?? 0)} />
         </CardContent>
       </Card>
 
@@ -2392,7 +2395,7 @@ function OrvitechSalesWorkspace({
               <div className="grid gap-3 sm:grid-cols-2">
                 <DevInput label="Titulo do painel" onChange={(value) => setSettingsForm((current) => ({ ...current, panelTitle: value }))} value={settingsForm.panelTitle ?? ""} />
                 <DevInput label="URL publica" onChange={(value) => setSettingsForm((current) => ({ ...current, publicUrl: value }))} value={settingsForm.publicUrl ?? ""} />
-                <DevInput label="ID dono/bot principal" onChange={(value) => setSettingsForm((current) => ({ ...current, ownerUserId: value.replace(/\D/g, "") }))} value={settingsForm.ownerUserId ?? ""} />
+                <DevInput label="Store ID" onChange={() => undefined} readOnly value={dashboard?.settings.storeId ?? ""} />
                 <DevInput label="Cor do painel" onChange={(value) => setSettingsForm((current) => ({ ...current, panelColor: value }))} value={settingsForm.panelColor ?? ""} />
                 <DevInput label="Canal de vendas" onChange={(value) => setSettingsForm((current) => ({ ...current, saleChannelId: value.replace(/\D/g, "") || null }))} value={settingsForm.saleChannelId ?? ""} />
                 <DevInput label="Canal de logs" onChange={(value) => setSettingsForm((current) => ({ ...current, logChannelId: value.replace(/\D/g, "") || null }))} value={settingsForm.logChannelId ?? ""} />
@@ -2455,6 +2458,7 @@ function OrvitechSalesWorkspace({
                   <DevInput label="Chave publica" onChange={(value) => setProviderForm((current) => ({ ...current, publicKey: value }))} value={providerForm.publicKey ?? ""} />
                   <DevInput label="Segredo/API token" onChange={(value) => setProviderForm((current) => ({ ...current, secret: value }))} value={providerForm.secret ?? ""} />
                   <DevInput label="Webhook" onChange={(value) => setProviderForm((current) => ({ ...current, webhookUrl: value }))} value={providerForm.webhookUrl ?? ""} />
+                  <DevInput label="Segredo webhook" onChange={(value) => setProviderForm((current) => ({ ...current, webhookSecret: value }))} value={providerForm.webhookSecret ?? ""} />
                   <DevInput label="Instrucoes" onChange={(value) => setProviderForm((current) => ({ ...current, instructions: value }))} value={providerForm.instructions ?? ""} />
                 </div>
                 <Button disabled={saving === "provider"} onClick={() => void handleSaveProvider()}>
@@ -2467,7 +2471,7 @@ function OrvitechSalesWorkspace({
                       <CreditCard className="h-4 w-4 text-purple-200" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-bold text-white">{provider.label}</p>
-                        <p className="truncate text-xs font-medium text-zinc-400">{provider.provider} {provider.secretConfigured ? "· segredo configurado" : ""}</p>
+                        <p className="truncate text-xs font-medium text-zinc-400">{provider.provider} · gateway {provider.gatewayId} {provider.secretConfigured ? "· segredo configurado" : ""}</p>
                       </div>
                       <Badge variant={provider.enabled ? "success" : "muted"}>{provider.enabled ? "Ativo" : "Off"}</Badge>
                       <Button disabled={saving === provider.id} onClick={() => void handleDeleteProvider(provider)} size="icon" variant="destructive">
@@ -2590,7 +2594,6 @@ function settingsToForm(settings: OrvitechSalesDashboard["settings"]): SaveOrvit
     customerRoleId: settings.customerRoleId,
     enabled: settings.enabled,
     logChannelId: settings.logChannelId,
-    ownerUserId: settings.ownerUserId,
     panelColor: settings.panelColor,
     panelDescription: settings.panelDescription,
     panelImageUrl: settings.panelImageUrl,

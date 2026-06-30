@@ -864,11 +864,15 @@ export type MongoApplicationEmojiSettings = {
 
 export type MongoOrvitechSalesPaymentProvider = {
   id: string;
+  gatewayId: string;
+  ownerUserId: string;
+  storeId: string;
   enabled: boolean;
   label: string;
   provider: "manual" | "pix" | "mercadopago" | "stripe" | "paypal" | "custom";
   publicKey: string | null;
   secretEncrypted: string | null;
+  webhookSecretEncrypted?: string | null;
   webhookUrl: string | null;
   instructions: string | null;
   updatedAt: Date;
@@ -878,6 +882,7 @@ export type MongoOrvitechSalesSettings = {
   _id: string;
   botId: string;
   guildId: string;
+  storeId: string;
   enabled: boolean;
   ownerUserId: string;
   publicUrl: string;
@@ -903,6 +908,8 @@ export type MongoOrvitechSalesPlan = {
   _id: string;
   botId: string;
   guildId: string;
+  ownerUserId: string;
+  storeId: string;
   name: string;
   description: string | null;
   priceCents: number;
@@ -923,12 +930,16 @@ export type MongoOrvitechSale = {
   _id: string;
   botId: string;
   guildId: string;
+  ownerUserId: string;
+  storeId: string;
   planId: string | null;
   planName: string;
+  customerId: string;
   buyerId: string;
   buyerName: string | null;
   amountCents: number;
   currency: "BRL" | "USD" | "EUR";
+  paymentGatewayId: string | null;
   paymentProviderId: string | null;
   paymentProviderLabel: string | null;
   externalReference: string | null;
@@ -940,6 +951,50 @@ export type MongoOrvitechSale = {
   updatedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
+};
+
+export type MongoOrvitechCustomer = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  ownerUserId: string;
+  storeId: string;
+  discordId: string | null;
+  name: string | null;
+  email: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoOrvitechSubscription = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  ownerUserId: string;
+  storeId: string;
+  customerId: string;
+  planId: string;
+  saleId: string;
+  status: "active" | "cancelled" | "expired";
+  startsAt: Date;
+  expiresAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoOrvitechWebhookLog = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  ownerUserId: string;
+  storeId: string;
+  paymentGatewayId: string;
+  eventId: string | null;
+  eventType: string;
+  signatureValid: boolean;
+  processed: boolean;
+  saleId: string | null;
+  createdAt: Date;
 };
 
 export type MongoMissionToolsFeatureId =
@@ -1595,6 +1650,9 @@ export async function getMongoCollections() {
     orvitechSalesSettings: db.collection<MongoOrvitechSalesSettings>("orvitech_sales_settings"),
     orvitechSalesPlans: db.collection<MongoOrvitechSalesPlan>("orvitech_sales_plans"),
     orvitechSales: db.collection<MongoOrvitechSale>("orvitech_sales"),
+    orvitechCustomers: db.collection<MongoOrvitechCustomer>("orvitech_customers"),
+    orvitechSubscriptions: db.collection<MongoOrvitechSubscription>("orvitech_subscriptions"),
+    orvitechWebhookLogs: db.collection<MongoOrvitechWebhookLog>("orvitech_webhook_logs"),
     missionToolsSettings: db.collection<MongoMissionToolsSettings>("mission_tools_settings"),
     missionToolsUsers: db.collection<MongoMissionToolsUserPanel>("mission_tools_users"),
     missionToolsTokens: db.collection<MongoMissionToolsToken>("mission_tools_tokens"),
@@ -2184,14 +2242,18 @@ async function ensureMissionToolsIndexes(db: Db) {
 async function ensureOrvitechSalesIndexes(db: Db) {
   await Promise.all([
     db.collection<MongoOrvitechSalesSettings>("orvitech_sales_settings").createIndex(
-      { botId: 1, guildId: 1 },
+      { ownerUserId: 1, botId: 1, guildId: 1 },
       { unique: true }
     ),
-    db.collection<MongoOrvitechSalesSettings>("orvitech_sales_settings").createIndex({ botId: 1, enabled: 1, updatedAt: -1 }),
-    db.collection<MongoOrvitechSalesPlan>("orvitech_sales_plans").createIndex({ botId: 1, guildId: 1, enabled: 1, updatedAt: -1 }),
-    db.collection<MongoOrvitechSale>("orvitech_sales").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
-    db.collection<MongoOrvitechSale>("orvitech_sales").createIndex({ botId: 1, status: 1, createdAt: -1 }),
-    db.collection<MongoOrvitechSale>("orvitech_sales").createIndex({ botId: 1, buyerId: 1, createdAt: -1 })
+    db.collection<MongoOrvitechSalesSettings>("orvitech_sales_settings").createIndex({ storeId: 1 }, { unique: true }),
+    db.collection<MongoOrvitechSalesSettings>("orvitech_sales_settings").createIndex({ ownerUserId: 1, enabled: 1, updatedAt: -1 }),
+    db.collection<MongoOrvitechSalesPlan>("orvitech_sales_plans").createIndex({ ownerUserId: 1, storeId: 1, enabled: 1, updatedAt: -1 }),
+    db.collection<MongoOrvitechSale>("orvitech_sales").createIndex({ ownerUserId: 1, storeId: 1, createdAt: -1 }),
+    db.collection<MongoOrvitechSale>("orvitech_sales").createIndex({ ownerUserId: 1, storeId: 1, status: 1, createdAt: -1 }),
+    db.collection<MongoOrvitechSale>("orvitech_sales").createIndex({ ownerUserId: 1, storeId: 1, buyerId: 1, createdAt: -1 }),
+    db.collection<MongoOrvitechCustomer>("orvitech_customers").createIndex({ ownerUserId: 1, storeId: 1, discordId: 1 }),
+    db.collection<MongoOrvitechSubscription>("orvitech_subscriptions").createIndex({ ownerUserId: 1, storeId: 1, customerId: 1, status: 1 }),
+    db.collection<MongoOrvitechWebhookLog>("orvitech_webhook_logs").createIndex({ ownerUserId: 1, storeId: 1, createdAt: -1 })
   ]);
 }
 
