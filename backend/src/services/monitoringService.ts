@@ -8,6 +8,7 @@ type RouteMetric = {
 
 const startedAt = new Date();
 const routeMetrics = new Map<string, RouteMetric>();
+const MAX_ROUTE_METRICS = 500;
 
 export function recordHttpRequest(input: {
   durationMs: number;
@@ -30,6 +31,10 @@ export function recordHttpRequest(input: {
   }
 
   routeMetrics.set(key, metric);
+
+  if (routeMetrics.size > MAX_ROUTE_METRICS) {
+    pruneRouteMetrics();
+  }
 }
 
 export function metricsSnapshot() {
@@ -60,6 +65,18 @@ export function metricsSnapshot() {
     },
     routes
   };
+}
+
+function pruneRouteMetrics() {
+  const retained = [...routeMetrics.entries()]
+    .sort((left, right) => right[1].requests - left[1].requests)
+    .slice(0, MAX_ROUTE_METRICS);
+
+  routeMetrics.clear();
+
+  for (const [route, metric] of retained) {
+    routeMetrics.set(route, metric);
+  }
 }
 
 function normalizePath(path: string) {
