@@ -423,6 +423,20 @@ const moduleCatalog: ModuleDefinition[] = [
     view: "fivem"
   },
   {
+    id: "fivem-orders",
+    title: "Encomendas FiveM",
+    description: "Controle separado para pedidos, fila, producao, entrega e historico de encomendas.",
+    icon: Boxes,
+    view: "fivem-orders"
+  },
+  {
+    id: "fivem-goals",
+    title: "Metas FiveM",
+    description: "Controle separado de metas por membro, canais individuais, fotos e registros via Components V2.",
+    icon: ListChecks,
+    view: "fivem-goals"
+  },
+  {
     id: "verification",
     title: "Usuarios",
     description: "Define quais usuários podem entrar e configurar este painel.",
@@ -489,6 +503,8 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   "mission-tools": "mission-tools",
   logs: "logs",
   fivem: "fivem",
+  "fivem-orders": "fivem-orders",
+  "fivem-goals": "fivem-goals",
   "voice-recorder": "voice-recorder",
   music: "music",
   "self-bot-protection": "safe-bot",
@@ -1130,6 +1146,27 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             enabledModules={enabledModules}
             fivemModules={fivemModules}
             guild={selectedGuild}
+            mode="general"
+          />
+        ) : null}
+        {activeView === "fivem-orders" ? (
+          <FivemView
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "fivem-orders", canManageDashboard)}
+            enabledModules={enabledModules}
+            fivemModules={fivemModules}
+            guild={selectedGuild}
+            mode="orders"
+          />
+        ) : null}
+        {activeView === "fivem-goals" ? (
+          <FivemView
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "fivem-goals", canManageDashboard)}
+            enabledModules={enabledModules}
+            fivemModules={fivemModules}
+            guild={selectedGuild}
+            mode="goals"
           />
         ) : null}
         {activeView === "settings" ? (
@@ -2088,15 +2125,17 @@ function FivemView({
   canManage,
   enabledModules,
   fivemModules,
-  guild
+  guild,
+  mode = "general"
 }: {
   botId?: string | null;
   canManage: boolean;
   enabledModules: string[];
   fivemModules: FivemModuleDefinition[];
   guild: DashboardGuild | null;
+  mode?: "general" | "orders" | "goals";
 }) {
-  const modules = fivemUserModules(enabledModules, fivemModules);
+  const modules = fivemUserModules(enabledModules, fivemModules, mode);
 
   if (!modules.length) {
     return (
@@ -2109,9 +2148,24 @@ function FivemView({
   }
   const absencesEnabled = enabledModules.includes("fivem-absences") || enabledModules.includes("fivem-fac");
   const goalsEnabled = enabledModules.includes("fivem-goals");
+  const ordersEnabled = enabledModules.includes("fivem-orders");
 
   return (
     <div className="space-y-5">
+      <Card className="border-emerald-500/10 bg-zinc-950/75">
+        <CardHeader>
+          <CardTitle>{mode === "goals" ? "Sistema de Metas FiveM" : mode === "orders" ? "Sistema de Encomendas FiveM" : "Central FiveM"}</CardTitle>
+          <CardDescription>{fivemModeDescription(mode)}</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-3">
+          {fivemModeSteps(mode).map((step) => (
+            <div className="rounded-lg border border-zinc-800 bg-black/40 p-3" key={step.title}>
+              <p className="text-sm font-semibold text-white">{step.title}</p>
+              <p className="mt-1 text-xs leading-5 text-zinc-400">{step.description}</p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {modules.map((module) => (
           <Card className="border-zinc-800 bg-zinc-950/75" key={module.id}>
@@ -2127,9 +2181,47 @@ function FivemView({
           </Card>
         ))}
       </div>
-      {absencesEnabled ? <FacAbsencePanel botId={botId} canManage={canManage} guild={guild} /> : null}
-      {goalsEnabled ? <FivemGoalsPanel botId={botId} canManage={canManage} guild={guild} /> : null}
+      {mode === "general" && absencesEnabled ? <FacAbsencePanel botId={botId} canManage={canManage} guild={guild} /> : null}
+      {mode === "goals" && goalsEnabled ? <FivemGoalsPanel botId={botId} canManage={canManage} guild={guild} /> : null}
+      {mode === "orders" && ordersEnabled ? <FivemOrdersPanel canManage={canManage} guild={guild} /> : null}
     </div>
+  );
+}
+
+function FivemOrdersPanel({ canManage, guild }: { canManage: boolean; guild: DashboardGuild | null }) {
+  return (
+    <Card className="border-emerald-500/10 bg-zinc-950/75">
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2"><Boxes className="h-5 w-5 text-emerald-300" /> Encomendas FiveM</CardTitle>
+            <CardDescription>Menu independente para pedidos RP. Este painel nao altera metas e nao depende da tela geral do FiveM.</CardDescription>
+          </div>
+          <Badge variant={canManage ? "success" : "muted"}>{canManage ? "Liberado" : "Somente leitura"}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!guild ? (
+          <div className="rounded-lg border border-zinc-800 bg-black/40 p-4 text-sm text-zinc-400">Selecione um servidor para configurar as encomendas.</div>
+        ) : null}
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-lg border border-zinc-800 bg-black/40 p-4">
+            <p className="font-semibold text-white">Como deve funcionar</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">O cliente abre o painel de encomendas, escolhe o tipo de pedido, informa quantidade e observacao. A equipe recebe a encomenda em uma fila separada, muda o status para em producao, pronto, entregue ou cancelado, e tudo fica registrado nos logs.</p>
+          </div>
+          <div className="rounded-lg border border-zinc-800 bg-black/40 p-4">
+            <p className="font-semibold text-white">O que fica separado</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">Produtos, cargos autorizados, canal do painel, canal de logs, status das encomendas e historico devem pertencer somente a este bot e a este servidor. Nenhuma encomenda deve aparecer dentro do sistema de metas.</p>
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard icon={Boxes} label="Fila" value="Separada" />
+          <MetricCard icon={Users} label="Equipe" value="Por cargo" />
+          <MetricCard icon={ScrollText} label="Logs" value="Obrigatorio" />
+          <MetricCard icon={CheckCircle2} label="Status" value="Pedido a entrega" />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -2284,7 +2376,43 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
   );
 }
 
-function fivemUserModules(enabledModules: string[], fivemModules: FivemModuleDefinition[]) {
+function fivemModeDescription(mode: "general" | "orders" | "goals") {
+  if (mode === "goals") {
+    return "Metas e registros por membro ficam em um fluxo proprio: cadastro aprovado cria canal individual, o membro envia foto/quantidade e a lideranca acompanha tudo por historico.";
+  }
+
+  if (mode === "orders") {
+    return "Encomendas ficam em um fluxo proprio: pedido, fila, producao, entrega, cancelamento e logs. Nao mistura com metas, ausencias ou financeiro.";
+  }
+
+  return "Central dos modulos FiveM liberados para este bot. Metas e Encomendas tambem possuem menus proprios quando liberados.";
+}
+
+function fivemModeSteps(mode: "general" | "orders" | "goals") {
+  if (mode === "goals") {
+    return [
+      { title: "1. Cadastro aprovado", description: "O sistema usa o cadastro manual/FiveM para identificar o membro e criar ou localizar o canal individual." },
+      { title: "2. Registro da meta", description: "O membro envia item, quantidade, foto e campos configurados no modal Components V2." },
+      { title: "3. Acompanhamento", description: "A dashboard mostra registros, usuarios, metas do dia e logs do servidor." }
+    ];
+  }
+
+  if (mode === "orders") {
+    return [
+      { title: "1. Pedido", description: "O cliente escolhe o produto ou tipo de encomenda e envia quantidade, prioridade e observacao." },
+      { title: "2. Fila da equipe", description: "A staff acompanha pedidos pendentes, em producao, prontos, entregues e cancelados." },
+      { title: "3. Logs e historico", description: "Cada mudanca de status deve gerar registro isolado para este bot e servidor." }
+    ];
+  }
+
+  return [
+    { title: "Modulos liberados", description: "Somente os sistemas autorizados na Dashboard DEV aparecem para o cliente." },
+    { title: "Escopo isolado", description: "As configuracoes ficam vinculadas ao bot selecionado e ao servidor atual." },
+    { title: "Menus dedicados", description: "Metas e Encomendas aparecem separados para evitar confusao operacional." }
+  ];
+}
+
+function fivemUserModules(enabledModules: string[], fivemModules: FivemModuleDefinition[], mode: "general" | "orders" | "goals" = "general") {
   const fallbackCatalog: FivemModuleDefinition[] = [
     { builtIn: true, description: "Controle de membros, cargos e operacao das faccoes.", id: "fivem-factions", permissions: "Admin FiveM", title: "Faccoes" },
     { builtIn: true, description: "Gestao operacional de corporacoes e equipes.", id: "fivem-corporations", permissions: "Admin FiveM", title: "Corporacoes" },
@@ -2299,6 +2427,11 @@ function fivemUserModules(enabledModules: string[], fivemModules: FivemModuleDef
 
   return catalog
     .filter((module) => enabled.has(module.id))
+    .filter((module) => {
+      if (mode === "orders") return module.id === "fivem-orders";
+      if (mode === "goals") return module.id === "fivem-goals";
+      return module.id !== "fivem-orders" && module.id !== "fivem-goals";
+    })
     .map((module) => ({
       description: module.description,
       icon: fivemIconForModule(module.id),
@@ -2390,6 +2523,7 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
       "fivem-orders",
       "fivem-ammo",
       "fivem-finance",
+      "fivem-goals",
       "fivem-fac"
     ].includes(moduleId);
   }

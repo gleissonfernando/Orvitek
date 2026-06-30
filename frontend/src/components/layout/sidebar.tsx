@@ -65,6 +65,8 @@ export type ViewId =
   | "permissions"
   | "logs"
   | "fivem"
+  | "fivem-orders"
+  | "fivem-goals"
   | "notifications"
   | "entry-leave"
   | "auto-roles"
@@ -110,7 +112,9 @@ const navItems: NavItem[] = [
   { id: "first-lady", label: "Primeira Dama", icon: UserPlus, moduleId: "first-lady" },
   { id: "permissions", label: "Usuarios", icon: Users, moduleId: "verification" },
   { id: "logs", label: "Logs e Notificações", icon: ScrollText, moduleId: "logs" },
-  { id: "fivem", label: "FiveM", icon: Building2, moduleIds: ["fivem", "fivem-factions", "fivem-corporations", "fivem-absences", "fivem-orders", "fivem-ammo", "fivem-finance", "fivem-goals", "fivem-fac"] },
+  { id: "fivem", label: "FiveM Geral", icon: Building2, moduleIds: ["fivem", "fivem-factions", "fivem-corporations", "fivem-absences", "fivem-ammo", "fivem-finance", "fivem-fac"] },
+  { id: "fivem-orders", label: "Encomendas", icon: Archive, moduleId: "fivem-orders" },
+  { id: "fivem-goals", label: "Metas", icon: ListChecks, moduleId: "fivem-goals" },
   { id: "entry-leave", label: "Entrada/Saida", icon: UserPlus, moduleIds: ["welcome", "leave"] },
   { id: "auto-roles", label: "Cargos automaticos", icon: Users, moduleId: "roles" },
   { id: "media-library", label: "Emojis & Sons", icon: Archive, moduleId: "emoji-cloner" },
