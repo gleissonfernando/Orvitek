@@ -2142,7 +2142,11 @@ function OrvitechSalesWorkspace({
   }, [bot.id, bot.mainGuildId, guildOptions]);
 
   useEffect(() => {
-    if (!guildId) return;
+    if (!enabled || !guildId) {
+      setDashboard(null);
+      setLoading(false);
+      return;
+    }
 
     let cancelled = false;
     setLoading(true);
@@ -2169,7 +2173,7 @@ function OrvitechSalesWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [bot.id, guildId]);
+  }, [bot.id, enabled, guildId]);
 
   async function refreshDashboard() {
     if (!guildId) return;
@@ -2353,7 +2357,25 @@ function OrvitechSalesWorkspace({
         </div>
       ) : null}
 
-      {loading ? (
+      {!enabled ? (
+        <Card className="border-amber-400/25 bg-amber-500/[0.08] hover:translate-y-0">
+          <CardContent className="flex min-h-44 flex-col items-center justify-center gap-4 p-6 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-amber-400/30 bg-amber-500/15 text-amber-100">
+              <LockKeyhole className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-base font-bold text-white">Sistema de vendas bloqueado neste bot</p>
+              <p className="mt-1 max-w-xl text-sm font-medium text-zinc-300">
+                Libere o modulo OrviTech - Sistema de Vendas para o bot selecionado antes de configurar planos, pagamentos e vendas.
+              </p>
+            </div>
+            <Button onClick={onEnable}>
+              <Power className="h-4 w-4" />
+              Liberar para este bot
+            </Button>
+          </CardContent>
+        </Card>
+      ) : loading ? (
         <Card className="border-zinc-800 bg-zinc-950/80 hover:translate-y-0">
           <CardContent className="flex min-h-48 items-center justify-center p-6">
             <Loader2 className="h-7 w-7 animate-spin text-zinc-400" />
