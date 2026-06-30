@@ -145,6 +145,7 @@ export async function listEmojiLibrary(input: {
 export async function createEmojiLibraryZip(input: {
   botId: string;
   guildId?: string | null;
+  signal?: AbortSignal;
   userId: string;
 }) {
   const { emojiLibrary } = await getMongoCollections();
@@ -162,11 +163,8 @@ export async function createEmojiLibraryZip(input: {
     .sort({ importedAt: -1 })
     .limit(500)
     .toArray();
-  const files: Array<{ name: string; data: Buffer }> = [];
-
-  for (const item of items) {
-    const extension = item.animated ? "gif" : "png";
-    const fileName = safeFileName(`${item.name || item.originalEmojiId}.${extension}`);
+  const usedNames = new Set<string>();
+  const results = await mapWithConcurrency(items, 8, async (item) => {
     const localPath = item.localFilePath ? path.resolve(item.localFilePath) : null;
     let data: Buffer | null = null;
 
@@ -179,18 +177,66 @@ export async function createEmojiLibraryZip(input: {
     }
 
     if (!data && /^https?:\/\//i.test(item.url)) {
-      data = await fetchEmojiBuffer(item.url).catch(() => null);
+      data = await fetchEmojiBuffer(item.url, input.signal).catch(() => null);
     }
 
-    if (data?.length) {
-      files.push({ name: fileName, data });
+    if (input.signal?.aborted) throw new DOMException("Download cancelado", "AbortError");
+
+    if (!data?.length) {
+      console.warn(`[emoji-download] Emoji indisponivel: ${item.name || item.originalEmojiId}`);
+      return null;
+    }
+
+    const extension = detectEmojiExtension(data, item.animated);
+    const fileName = uniqueFileName(safeFileName(`${item.name || item.originalEmojiId}.${extension}`), usedNames);
+    return { name: `emojis/${fileName}`, data };
+  });
+  const files = results.filter((file): file is NonNullable<typeof file> => file !== null);
+
+  return {
+    buffer: createStoredZip([{ name: "emojis/", data: Buffer.alloc(0) }, ...files]),
+    count: files.length,
+    failed: items.length - files.length,
+    total: items.length
+  };
+}
+
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>) {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await mapper(items[index]!);
     }
   }
 
-  return {
-    buffer: createStoredZip(files),
-    count: files.length
-  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+  return results;
+}
+
+function uniqueFileName(fileName: string, usedNames: Set<string>) {
+  let candidate = fileName;
+  const dot = fileName.lastIndexOf(".");
+  const base = dot > 0 ? fileName.slice(0, dot) : fileName;
+  const extension = dot > 0 ? fileName.slice(dot) : "";
+  let suffix = 2;
+
+  while (usedNames.has(candidate.toLowerCase())) {
+    candidate = `${base}_${suffix}${extension}`;
+    suffix += 1;
+  }
+
+  usedNames.add(candidate.toLowerCase());
+  return candidate;
+}
+
+function detectEmojiExtension(data: Buffer, animated: boolean) {
+  if (data.subarray(0, 6).toString("ascii").startsWith("GIF")) return "gif";
+  if (data.length >= 12 && data.subarray(0, 4).toString("ascii") === "RIFF" && data.subarray(8, 12).toString("ascii") === "WEBP") return "webp";
+  if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) return "jpg";
+  return animated ? "gif" : "png";
 }
 
 async function upsertEmojiLibraryItems(job: MongoEmojiCloneJob, items: RecordEmojiCloneJobInput["items"]) {
@@ -310,8 +356,8 @@ async function persistEmojiFile(guildId: string, item: RecordEmojiCloneJobInput[
   return filePath;
 }
 
-async function fetchEmojiBuffer(url: string) {
-  const response = await fetch(url);
+async function fetchEmojiBuffer(url: string, signal?: AbortSignal) {
+  const response = await fetch(url, { signal });
 
   if (!response.ok) {
     throw new Error("Nao foi possivel baixar emoji.");

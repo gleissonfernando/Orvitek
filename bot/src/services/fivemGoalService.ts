@@ -273,8 +273,9 @@ async function submitGoalModal(interaction: ModalSubmitInteraction, context: Bot
     label: field.label,
     value: interaction.fields.getTextInputValue(field.id) || "-"
   }));
-  const quantityField = fields.find((field) => /quantidade|qtd|euro|valor/i.test(field.id));
-  const quantity = quantityField ? Number(quantityField.value.replace(/[^\d.,-]/g, "").replace(",", ".")) : null;
+  const valueField = fields.find((field) => /giro|euro|dinheiro|valor|money/i.test(`${field.id} ${field.label}`))
+    ?? fields.find((field) => /quantidade|qtd/i.test(`${field.id} ${field.label}`));
+  const quantity = valueField ? parseGoalNumericValue(valueField.value) : null;
 
   await context.api.createFivemGoalEntry({
     channelId: interaction.channelId ?? "",
@@ -336,6 +337,31 @@ function cleanupPendingImages() {
   for (const [token, item] of pendingImages) {
     if (item.expiresAt < now) pendingImages.delete(token);
   }
+}
+
+function parseGoalNumericValue(value: string) {
+  const normalized = value.trim().replace(/[^\d.,-]/g, "");
+  if (!normalized || normalized === "-") return null;
+  const negative = normalized.startsWith("-");
+  const unsigned = normalized.replace(/-/g, "");
+  const comma = unsigned.lastIndexOf(",");
+  const dot = unsigned.lastIndexOf(".");
+  let numeric: string;
+
+  if (comma >= 0 && dot >= 0) {
+    const decimalSeparator = comma > dot ? "," : ".";
+    const thousandsSeparator = decimalSeparator === "," ? "." : ",";
+    numeric = unsigned.split(thousandsSeparator).join("").replace(decimalSeparator, ".");
+  } else if (/^\d{1,3}([.,]\d{3})+$/.test(unsigned)) {
+    numeric = unsigned.replace(/[.,]/g, "");
+  } else if (comma >= 0) {
+    numeric = unsigned.replace(/\./g, "").replace(",", ".");
+  } else {
+    numeric = unsigned.replace(/,/g, "");
+  }
+
+  const parsed = Number(`${negative ? "-" : ""}${numeric}`);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
 function renderChannelName(template: string, username: string, userId: string) {

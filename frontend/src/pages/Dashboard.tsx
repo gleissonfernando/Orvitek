@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, memo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import { motion } from "framer-motion";
 import {
   Activity,
@@ -46,6 +46,7 @@ import { DashboardLayout } from "../components/layout/dashboard-layout";
 import type { ViewId } from "../components/layout/sidebar";
 import { ClipsPanel } from "../components/clips/ClipsPanel";
 import { FacAbsencePanel } from "../components/fivem/FacAbsencePanel";
+import { FivemOrdersManager } from "../components/fivem/FivemOrdersPanel";
 import { GiveawayPanel } from "../components/giveaway/GiveawayPanel";
 import { LogsSettingsPanel } from "../components/LogsSettingsPanel";
 import { MissionToolsPanel } from "../components/mission-tools/MissionToolsPanel";
@@ -69,13 +70,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { Switch } from "../components/ui/switch";
 import { createDashboardSocket } from "../lib/socket";
 import {
-  applicationEmojiDownloadUrl,
+  downloadEmojiZip,
   cloneEmojiToGuild,
   cloneSelectedEmojiCloneBotToken,
   createFivemGoalConfig,
   deleteFivemGoalConfig,
   deleteFivemHierarchyPanel,
-  emojiLibraryDownloadUrl,
   fetchEmojiCloneBotTokenEmojis,
   getAdvancedModuleConfig,
   getApplicationEmojiSettings,
@@ -103,6 +103,7 @@ import {
   patchGuildSettings,
   publishFivemGoalPanel,
   publishFivemHierarchyPanel,
+  publishManualRegistrationPanel,
   publishRulesPanel,
   refreshApplicationEmojis,
   removeAllApplicationEmojis,
@@ -142,6 +143,7 @@ import type {
   FivemGoalEntry,
   FivemGoalField,
   FivemGoalItem,
+  FivemGoalReport,
   FivemGoalSubmission,
   FivemHierarchyPanel as FivemHierarchyPanelType,
   FivemGoalSettings,
@@ -159,7 +161,9 @@ import type {
   LogEntry,
   LogCategory,
   ManualRegistrationField,
+  ManualRegistrationLog,
   ManualRegistrationSettings,
+  ManualRegistrationSetRole,
   ManualRegistrationSubmission,
   SelfBotProtectionSettings,
   ServerBackupDashboard,
@@ -531,8 +535,10 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   "mission-tools": "mission-tools",
   logs: "logs",
   fivem: "fivem",
+  "fivem-hierarchy": "fivem-hierarchy",
   "fivem-orders": "fivem-orders",
   "fivem-goals": "fivem-goals",
+  "manual-registration": "manual-registration",
   "voice-recorder": "voice-recorder",
   music: "music",
   "self-bot-protection": "safe-bot",
@@ -1179,6 +1185,13 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             mode="general"
           />
         ) : null}
+        {activeView === "fivem-hierarchy" ? (
+          <FivemHierarchyPanel
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "fivem-hierarchy", canManageDashboard)}
+            guild={selectedGuild}
+          />
+        ) : null}
         {activeView === "fivem-orders" ? (
           <FivemView
             botId={activeBotId}
@@ -1197,6 +1210,14 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             fivemModules={fivemModules}
             guild={selectedGuild}
             mode="goals"
+          />
+        ) : null}
+        {activeView === "manual-registration" ? (
+          <ManualRegistrationPanel
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "manual-registration", canManageDashboard)}
+            goalsEnabled={enabledModules.includes("fivem-goals")}
+            guild={selectedGuild}
           />
         ) : null}
         {activeView === "settings" ? (
@@ -2568,7 +2589,6 @@ function FivemView({
   }
   const absencesEnabled = enabledModules.includes("fivem-absences") || enabledModules.includes("fivem-fac");
   const goalsEnabled = enabledModules.includes("fivem-goals");
-  const hierarchyEnabled = enabledModules.includes("fivem-hierarchy");
   const ordersEnabled = enabledModules.includes("fivem-orders");
 
   return (
@@ -2603,47 +2623,9 @@ function FivemView({
         ))}
       </div>
       {mode === "general" && absencesEnabled ? <FacAbsencePanel botId={botId} canManage={canManage} guild={guild} /> : null}
-      {mode === "general" && hierarchyEnabled ? <FivemHierarchyPanel botId={botId} canManage={canManage} guild={guild} /> : null}
       {mode === "goals" && goalsEnabled ? <FivemGoalsPanel botId={botId} canManage={canManage} guild={guild} /> : null}
-      {mode === "orders" && ordersEnabled ? <FivemOrdersPanel canManage={canManage} guild={guild} /> : null}
+      {mode === "orders" && ordersEnabled ? <FivemOrdersManager botId={botId} canManage={canManage} guild={guild} /> : null}
     </div>
-  );
-}
-
-function FivemOrdersPanel({ canManage, guild }: { canManage: boolean; guild: DashboardGuild | null }) {
-  return (
-    <Card className="border-emerald-500/10 bg-zinc-950/75">
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2"><Boxes className="h-5 w-5 text-emerald-300" /> Encomendas FiveM</CardTitle>
-            <CardDescription>Menu independente para pedidos RP. Este painel nao altera metas e nao depende da tela geral do FiveM.</CardDescription>
-          </div>
-          <Badge variant={canManage ? "success" : "muted"}>{canManage ? "Liberado" : "Somente leitura"}</Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {!guild ? (
-          <div className="rounded-lg border border-zinc-800 bg-black/40 p-4 text-sm text-zinc-400">Selecione um servidor para configurar as encomendas.</div>
-        ) : null}
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-lg border border-zinc-800 bg-black/40 p-4">
-            <p className="font-semibold text-white">Como deve funcionar</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">O cliente abre o painel de encomendas, escolhe o tipo de pedido, informa quantidade e observacao. A equipe recebe a encomenda em uma fila separada, muda o status para em producao, pronto, entregue ou cancelado, e tudo fica registrado nos logs.</p>
-          </div>
-          <div className="rounded-lg border border-zinc-800 bg-black/40 p-4">
-            <p className="font-semibold text-white">O que fica separado</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">Produtos, cargos autorizados, canal do painel, canal de logs, status das encomendas e historico devem pertencer somente a este bot e a este servidor. Nenhuma encomenda deve aparecer dentro do sistema de metas.</p>
-          </div>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard icon={Boxes} label="Fila" value="Separada" />
-          <MetricCard icon={Users} label="Equipe" value="Por cargo" />
-          <MetricCard icon={ScrollText} label="Logs" value="Obrigatorio" />
-          <MetricCard icon={CheckCircle2} label="Status" value="Pedido a entrega" />
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -2859,6 +2841,7 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
   const [entries, setEntries] = useState<FivemGoalEntry[]>([]);
   const [configs, setConfigs] = useState<FivemGoalConfig[]>([]);
   const [submissions, setSubmissions] = useState<FivemGoalSubmission[]>([]);
+  const [report, setReport] = useState<FivemGoalReport | null>(null);
   const [draft, setDraft] = useState<FivemGoalConfig | null>(null);
   const [goalFilter, setGoalFilter] = useState("all");
   const [goalSearch, setGoalSearch] = useState("");
@@ -2881,6 +2864,7 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
         setEntries(dashboard.entries);
         setConfigs(dashboard.configs ?? []);
         setSubmissions(dashboard.submissions ?? []);
+        setReport(dashboard.report ?? null);
         setDraft((dashboard.configs ?? [])[0] ?? null);
         setChannels(options.channels);
         setCategories((options.categories ?? []).map((category) => ({ ...category, parentId: null, type: "text" as const })));
@@ -2894,6 +2878,27 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
       });
     return () => {
       active = false;
+    };
+  }, [botId, guild?.id]);
+
+  useEffect(() => {
+    if (!guild) return;
+    const socket = createDashboardSocket();
+    const refreshReport = (payload: { botId?: string | null; guildId: string }) => {
+      if (payload.guildId !== guild.id || (payload.botId ?? null) !== (botId ?? null)) return;
+      void getFivemGoals(guild.id, botId).then((dashboard) => {
+        setSettings(dashboard.settings);
+        setEntries(dashboard.entries);
+        setConfigs(dashboard.configs ?? []);
+        setSubmissions(dashboard.submissions ?? []);
+        setReport(dashboard.report ?? null);
+        setDraft((current) => (dashboard.configs ?? []).find((config) => config.id === current?.id) ?? current);
+      }).catch(() => null);
+    };
+    socket.on("fivem:goals:updated", refreshReport);
+    return () => {
+      socket.off("fivem:goals:updated", refreshReport);
+      socket.disconnect();
     };
   }, [botId, guild?.id]);
 
@@ -3052,6 +3057,59 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
               <MetricCard icon={Clock3} label="Pendentes" value={String(submissions.filter((entry) => entry.status === "pending").length)} />
               <MetricCard icon={CalendarClock} label="Hoje" value={String(entries.filter((entry) => new Date(entry.createdAt).toDateString() === new Date().toDateString()).length)} />
             </div>
+            {report ? (
+              <section className="border-y border-zinc-800 py-4">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">Relatorio automatico da semana</p>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {new Date(report.periodStart).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} ate {new Date(new Date(report.periodEnd).getTime() - 1).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+                      {` - ${report.totalRecords} registros`}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-zinc-500">Total oficial aprovado</p>
+                    <p className="text-xl font-semibold text-emerald-300">{formatGoalCurrency(report.totalApprovedValue)}</p>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                  <MetricCard icon={Users} label="Pagadores" value={String(report.participantCount)} />
+                  <MetricCard icon={CheckCircle2} label="Aprovadas" value={String(report.approvedCount)} />
+                  <MetricCard icon={Clock3} label="Pendentes" value={`${report.pendingCount} (${formatGoalCurrency(report.totalPendingValue)})`} />
+                  <MetricCard icon={XCircle} label="Reprovadas" value={String(report.refusedCount)} />
+                </div>
+                {report.types.length ? (
+                  <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-zinc-900 pt-3 text-sm">
+                    {report.types.map((type) => (
+                      <div className="flex items-center gap-2" key={type.metaId}>
+                        <span className="text-zinc-500">{type.name}</span>
+                        <span className="font-semibold text-zinc-200">{formatGoalCurrency(type.totalApprovedValue)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {report.members.length ? (
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="w-full min-w-[620px] text-left text-sm">
+                      <thead className="border-b border-zinc-800 text-xs text-zinc-500">
+                        <tr><th className="pb-2 font-medium">Ranking</th><th className="pb-2 font-medium">Usuario</th><th className="pb-2 font-medium">Aprovadas</th><th className="pb-2 font-medium">Pendentes</th><th className="pb-2 text-right font-medium">Total aprovado</th></tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-900">
+                        {report.members.slice(0, 20).map((member, index) => (
+                          <tr key={member.userId}>
+                            <td className="py-2 text-zinc-500">{index + 1}o</td>
+                            <td className="py-2 font-medium text-zinc-200">{member.userId}</td>
+                            <td className="py-2 text-emerald-300">{member.approvedCount}</td>
+                            <td className="py-2 text-amber-300">{member.pendingCount}</td>
+                            <td className="py-2 text-right font-semibold text-white">{formatGoalCurrency(member.totalApprovedValue)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : <p className="mt-4 text-sm text-zinc-500">Nenhuma meta registrada nesta semana.</p>}
+              </section>
+            ) : null}
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -3176,6 +3234,10 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
               <RoleSelect disabled={!canManage} label="Cargo que pode visualizar" onChange={(value) => patch({ viewRoleId: value || null })} roles={roles} value={settings.viewRoleId ?? ""} />
               <RoleSelect disabled={!canManage} label="Cargo administrador" onChange={(value) => patch({ managerRoleId: value || null })} roles={roles} value={settings.managerRoleId ?? ""} />
             </div>
+            <label className="flex items-center gap-3 border-y border-zinc-800 py-3 text-sm text-zinc-300">
+              <input checked={settings.autoCreateWithManualRegistration} disabled={!canManage} onChange={(event) => patch({ autoCreateWithManualRegistration: event.target.checked })} type="checkbox" />
+              <span><strong className="block text-white">Vincular Pedido de Set com Metas</strong><span className="text-xs text-zinc-500">Ao aprovar um set, cria ou localiza automaticamente o canal individual de meta do membro.</span></span>
+            </label>
             <div className="rounded-lg border border-emerald-500/15 bg-emerald-500/[0.04] p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -3279,7 +3341,7 @@ function fivemModeDescription(mode: "general" | "orders" | "goals") {
     return "Encomendas ficam em um fluxo proprio: pedido, fila, producao, entrega, cancelamento e logs. Nao mistura com metas, ausencias ou financeiro.";
   }
 
-  return "Central dos modulos FiveM liberados para este bot. Metas e Encomendas tambem possuem menus proprios quando liberados.";
+  return "Central dos modulos FiveM liberados para este bot. Hierarquia, Metas e Encomendas possuem menus proprios quando liberados.";
 }
 
 function fivemModeSteps(mode: "general" | "orders" | "goals") {
@@ -3302,7 +3364,7 @@ function fivemModeSteps(mode: "general" | "orders" | "goals") {
   return [
     { title: "Modulos liberados", description: "Somente os sistemas autorizados na Dashboard DEV aparecem para o cliente." },
     { title: "Escopo isolado", description: "As configuracoes ficam vinculadas ao bot selecionado e ao servidor atual." },
-    { title: "Menus dedicados", description: "Metas e Encomendas aparecem separados para evitar confusao operacional." }
+    { title: "Menus dedicados", description: "Hierarquia, Metas e Encomendas aparecem separados para evitar confusao operacional." }
   ];
 }
 
@@ -3325,7 +3387,7 @@ function fivemUserModules(enabledModules: string[], fivemModules: FivemModuleDef
     .filter((module) => {
       if (mode === "orders") return module.id === "fivem-orders";
       if (mode === "goals") return module.id === "fivem-goals";
-      return module.id !== "fivem-orders" && module.id !== "fivem-goals";
+      return module.id !== "fivem-orders" && module.id !== "fivem-goals" && module.id !== "fivem-hierarchy";
     })
     .map((module) => ({
       description: module.description,
@@ -4125,17 +4187,6 @@ function SettingsView({
     );
   }
 
-  if (enabledModules.includes("manual-registration")) {
-    blocks.push(
-      <ManualRegistrationPanel
-        botId={botId}
-        canManage={canManageModule("manual-registration")}
-        guild={guild}
-        key="manual-registration"
-      />
-    );
-  }
-
   if (enabledModules.includes("network")) {
     blocks.push(
       <div className="space-y-4" key="network">
@@ -4165,14 +4216,17 @@ function SettingsView({
 function ManualRegistrationPanel({
   botId,
   canManage,
+  goalsEnabled,
   guild
 }: {
   botId?: string | null;
   canManage: boolean;
+  goalsEnabled: boolean;
   guild: DashboardGuild | null;
 }) {
   const [settings, setSettings] = useState<ManualRegistrationSettings | null>(null);
   const [submissions, setSubmissions] = useState<ManualRegistrationSubmission[]>([]);
+  const [registrationLogs, setRegistrationLogs] = useState<ManualRegistrationLog[]>([]);
   const [channels, setChannels] = useState<GuildChannelOption[]>([]);
   const [roles, setRoles] = useState<GuildRoleOption[]>([]);
   const [loading, setLoading] = useState(false);
@@ -4199,6 +4253,7 @@ function ManualRegistrationPanel({
         if (!active) return;
         setSettings(dashboard.settings);
         setSubmissions(dashboard.submissions);
+        setRegistrationLogs(dashboard.logs ?? []);
         setChannels(options.channels);
         setRoles(options.roles);
       })
@@ -4211,6 +4266,24 @@ function ManualRegistrationPanel({
 
     return () => {
       active = false;
+    };
+  }, [botId, guild?.id]);
+
+  useEffect(() => {
+    if (!guild) return;
+    const socket = createDashboardSocket();
+    const refresh = (payload: { botId?: string | null; guildId: string }) => {
+      if (payload.guildId !== guild.id || (payload.botId ?? null) !== (botId ?? null)) return;
+      void getManualRegistrationDashboard(guild.id, botId).then((dashboard) => {
+        setSettings(dashboard.settings);
+        setSubmissions(dashboard.submissions);
+        setRegistrationLogs(dashboard.logs ?? []);
+      }).catch(() => null);
+    };
+    socket.on("manual-registration:updated", refresh);
+    return () => {
+      socket.off("manual-registration:updated", refresh);
+      socket.disconnect();
     };
   }, [botId, guild?.id]);
 
@@ -4251,6 +4324,18 @@ function ManualRegistrationPanel({
     } : current);
   }
 
+  function patchSetRole(index: number, patch: Partial<ManualRegistrationSetRole>) {
+    setSettings((current) => current ? { ...current, setRoles: current.setRoles.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item) } : current);
+  }
+
+  function addSetRole() {
+    setSettings((current) => current ? { ...current, setRoles: [...current.setRoles, { description: "", emoji: "", enabled: true, id: `set-${current.setRoles.length + 1}`, name: `Set ${current.setRoles.length + 1}`, order: current.setRoles.length + 1, requestable: true, roleId: "" }] } : current);
+  }
+
+  function removeSetRole(index: number) {
+    setSettings((current) => current ? { ...current, setRoles: current.setRoles.filter((_, itemIndex) => itemIndex !== index) } : current);
+  }
+
   async function save() {
     if (!guild || !settings || !canManage) return;
     setSaving(true);
@@ -4260,16 +4345,32 @@ function ManualRegistrationPanel({
     try {
       const saved = await saveManualRegistrationSettings(guild.id, settings, botId);
       setSettings(saved);
-      setMessage("Cadastro manual salvo.");
+      setMessage("Pedido de Set salvo.");
     } catch {
-      setError("Nao foi possivel salvar o cadastro manual.");
+      setError("Nao foi possivel salvar o Pedido de Set.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function publishSetPanel() {
+    if (!guild || !settings || !canManage) return;
+    setSaving(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const saved = await saveManualRegistrationSettings(guild.id, settings, botId);
+      setSettings(await publishManualRegistrationPanel(guild.id, botId));
+      setMessage(`Painel solicitado para o bot${saved.panelChannelId ? ` em <#${saved.panelChannelId}>` : ""}.`);
+    } catch {
+      setError("Nao foi possivel publicar o painel. Confira o canal, o modulo e se o bot esta online.");
     } finally {
       setSaving(false);
     }
   }
 
   if (!guild) {
-    return <EmptyState icon={ListChecks} title="Selecione um servidor para configurar o Cadastro Manual" />;
+    return <EmptyState icon={ListChecks} title="Selecione um servidor para configurar o Pedido de Set" />;
   }
 
   return (
@@ -4277,20 +4378,32 @@ function ManualRegistrationPanel({
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle className="flex items-center gap-2"><ListChecks className="h-5 w-5 text-purple-300" /> Cadastro Manual</CardTitle>
-            <CardDescription>Painel, modal e aprovacoes em Discord Components V2.</CardDescription>
+            <CardTitle className="flex items-center gap-2"><ListChecks className="h-5 w-5 text-purple-300" /> Sistema de Pedido de Set</CardTitle>
+            <CardDescription>Painel, sets solicitaveis, modal, aprovacao, cargos e logs em Components V2.</CardDescription>
           </div>
-          <Button disabled={!canManage || !settings || saving || loading} onClick={() => void save()} size="sm" type="button">
-            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-            Salvar
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={!canManage || !settings?.enabled || !settings.panelChannelId || saving || loading} onClick={() => void publishSetPanel()} size="sm" type="button" variant="outline"><Upload className="mr-2 h-4 w-4" />Enviar painel</Button>
+            <Button disabled={!canManage || !settings || saving || loading} onClick={() => void save()} size="sm" type="button">
+              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+              Salvar
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? <div className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</div> : null}
         {message ? <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{message}</div> : null}
+        <div className={`border-l-2 px-3 py-2 text-sm ${goalsEnabled ? "border-emerald-400 bg-emerald-500/[0.05] text-emerald-100" : "border-amber-400 bg-amber-500/[0.06] text-amber-100"}`}>
+          {goalsEnabled ? "Integracao com Metas disponivel. O vinculo automatico e controlado no menu Metas." : "O Pedido de Set funciona normalmente, mas o modulo Metas precisa ser liberado na Build DEV para criar canais de meta apos a aprovacao."}
+        </div>
         {loading || !settings ? <div className="h-40 animate-pulse rounded-lg border border-zinc-800 bg-zinc-900/60" /> : (
           <>
+            <div className="grid gap-3 sm:grid-cols-4">
+              <MetricCard icon={ListChecks} label="Pedidos" value={String(submissions.length)} />
+              <MetricCard icon={Clock3} label="Pendentes" value={String(submissions.filter((item) => item.status === "pending").length)} />
+              <MetricCard icon={CheckCircle2} label="Aprovados" value={String(submissions.filter((item) => item.status === "approved").length)} />
+              <MetricCard icon={XCircle} label="Recusados" value={String(submissions.filter((item) => item.status === "rejected").length)} />
+            </div>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="block text-xs font-medium text-zinc-400">Ativo
                 <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchSettings({ enabled: event.target.value === "true" })} value={String(settings.enabled)}>
@@ -4303,12 +4416,25 @@ function ManualRegistrationPanel({
               <TicketField disabled={!canManage} label="Emoji" onChange={(value) => patchSettings({ emoji: value })} value={settings.emoji ?? ""} />
               <TicketField disabled={!canManage} label="Cor" onChange={(value) => patchSettings({ color: value })} type="color" value={settings.color} />
               <TicketField disabled={!canManage} label="Thumbnail URL" onChange={(value) => patchSettings({ thumbnailUrl: value })} value={settings.thumbnailUrl ?? ""} />
+              <label className="block text-xs font-medium text-zinc-400">Canal do painel
+                <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchSettings({ panelChannelId: event.target.value || null })} value={settings.panelChannelId ?? ""}>
+                  <option value="">Selecionar canal</option>
+                  {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+                </select>
+              </label>
               <label className="block text-xs font-medium text-zinc-400">Canal de aprovação
                 <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchSettings({ approvalChannelId: event.target.value || null })} value={settings.approvalChannelId ?? ""}>
                   <option value="">Selecionar canal</option>
                   {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
                 </select>
               </label>
+              <label className="block text-xs font-medium text-zinc-400">Canal de logs
+                <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchSettings({ logChannelId: event.target.value || null })} value={settings.logChannelId ?? ""}>
+                  <option value="">Sem canal de logs</option>
+                  {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+                </select>
+              </label>
+              <TicketField disabled={!canManage} label="Cooldown em minutos" onChange={(value) => patchSettings({ cooldownMinutes: Math.max(0, Number(value) || 0) })} value={String(settings.cooldownMinutes)} />
               <label className="block text-xs font-medium text-zinc-400">Banner
                 <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchSettings({ bannerPosition: event.target.value as ManualRegistrationSettings["bannerPosition"] })} value={settings.bannerPosition}>
                   <option value="top">Superior</option>
@@ -4323,9 +4449,42 @@ function ManualRegistrationPanel({
             <div className="grid gap-3 md:grid-cols-2">
               <MultiRoleSelect disabled={!canManage} label="Cargos ao aprovar" onChange={(values) => patchSettings({ autoRoleIds: values })} roles={roles} values={settings.autoRoleIds} />
               <MultiRoleSelect disabled={!canManage} label="Cargos para remover" onChange={(values) => patchSettings({ removeRoleIds: values })} roles={roles} values={settings.removeRoleIds} />
+              <MultiRoleSelect disabled={!canManage} label="Cargos da staff" onChange={(values) => patchSettings({ staffRoleIds: values })} roles={roles} values={settings.staffRoleIds} />
+              <MultiRoleSelect disabled={!canManage} label="Cargos aprovadores" onChange={(values) => patchSettings({ approverRoleIds: values })} roles={roles} values={settings.approverRoleIds} />
             </div>
 
-            <PanelImageSettings botId={botId} canManage={canManage} guildId={guild.id} panelId="manual-registration" panelLabel="Cadastro Manual" />
+            <div className="grid gap-2 md:grid-cols-4">
+              <label className="flex items-center gap-2 rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-300"><input checked={settings.allowOnlyOneRequest} disabled={!canManage} onChange={(event) => patchSettings({ allowOnlyOneRequest: event.target.checked })} type="checkbox" />Somente um set aprovado</label>
+              <label className="flex items-center gap-2 rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-300"><input checked={settings.allowResubmit} disabled={!canManage} onChange={(event) => patchSettings({ allowResubmit: event.target.checked })} type="checkbox" />Permitir apos recusa</label>
+              <label className="flex items-center gap-2 rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-300"><input checked={settings.dmNotifications} disabled={!canManage} onChange={(event) => patchSettings({ dmNotifications: event.target.checked })} type="checkbox" />Notificar por DM</label>
+              <label className="flex items-center gap-2 rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-300"><input checked={settings.automaticApproval} disabled={!canManage} onChange={(event) => patchSettings({ automaticApproval: event.target.checked })} type="checkbox" />Aprovacao automatica</label>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <TicketArea disabled={!canManage} label="Mensagem de pedido enviado" onChange={(value) => patchSettings({ successMessage: value })} value={settings.successMessage} />
+              <TicketArea disabled={!canManage} label="Mensagem de aprovacao" onChange={(value) => patchSettings({ approvalMessage: value })} value={settings.approvalMessage} />
+              <TicketArea disabled={!canManage} label="Mensagem de recusa" onChange={(value) => patchSettings({ rejectionMessage: value })} value={settings.rejectionMessage} />
+            </div>
+
+            <PanelImageSettings botId={botId} canManage={canManage} guildId={guild.id} panelId="manual-registration" panelLabel="Pedido de Set" />
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div><p className="text-sm font-semibold text-white">Cargos e sets disponiveis</p><p className="text-xs text-zinc-500">Cada opcao vincula o pedido a um cargo real do Discord.</p></div>
+                <Button disabled={!canManage || settings.setRoles.length >= 25} onClick={addSetRole} size="sm" type="button" variant="outline">Adicionar set</Button>
+              </div>
+              {settings.setRoles.map((item, index) => (
+                <div className="grid gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-3 lg:grid-cols-[80px_1fr_1fr_1fr_110px_90px_auto]" key={`${item.id}-${index}`}>
+                  <TicketField disabled={!canManage} label="Emoji" onChange={(value) => patchSetRole(index, { emoji: value })} value={item.emoji ?? ""} />
+                  <TicketField disabled={!canManage} label="Nome" onChange={(value) => patchSetRole(index, { id: slugTicketOption(value, index), name: value })} value={item.name} />
+                  <RoleSelect disabled={!canManage} label="Cargo vinculado" onChange={(value) => patchSetRole(index, { roleId: value })} roles={roles} value={item.roleId} />
+                  <TicketField disabled={!canManage} label="Descricao" onChange={(value) => patchSetRole(index, { description: value })} value={item.description ?? ""} />
+                  <div className="flex flex-col justify-end text-xs text-zinc-500"><span>Entregues</span><span className="mt-2 text-sm font-semibold text-zinc-200">{submissions.filter((submission) => submission.status === "approved" && submission.requestedRoleId === item.roleId).length}</span></div>
+                  <label className="flex flex-col justify-end gap-1 text-xs text-zinc-300"><span className="flex items-center gap-2"><input checked={item.enabled} disabled={!canManage} onChange={(event) => patchSetRole(index, { enabled: event.target.checked })} type="checkbox" />Ativo</span><span className="flex items-center gap-2"><input checked={item.requestable} disabled={!canManage} onChange={(event) => patchSetRole(index, { requestable: event.target.checked })} type="checkbox" />Solicitavel</span></label>
+                  <div className="flex items-end"><Button disabled={!canManage} onClick={() => removeSetRole(index)} size="icon" title="Remover set" type="button" variant="outline"><Trash2 className="h-4 w-4" /></Button></div>
+                </div>
+              ))}
+            </div>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
@@ -4366,6 +4525,13 @@ function ManualRegistrationPanel({
                   <Badge variant={submission.status === "approved" ? "success" : submission.status === "rejected" ? "danger" : "muted"}>{submission.status}</Badge>
                 </div>
               ))}
+            </div>
+            <div className="space-y-2 border-t border-zinc-800 pt-4">
+              <p className="text-sm font-semibold text-white">Logs recentes</p>
+              {registrationLogs.slice(0, 8).map((log) => (
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs" key={log.id}><span className="text-zinc-300">{log.action}</span><span className="text-zinc-500">{new Date(log.createdAt).toLocaleString("pt-BR")}</span></div>
+              ))}
+              {!registrationLogs.length ? <p className="text-sm text-zinc-500">Nenhuma acao registrada.</p> : null}
             </div>
           </>
         )}
@@ -4859,6 +5025,8 @@ function ApplicationEmojisView({
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  const downloadAbortRef = useRef<AbortController | null>(null);
   const [progress, setProgress] = useState({
     current: 0,
     failed: 0,
@@ -5023,6 +5191,36 @@ function ApplicationEmojisView({
     }
   }
 
+  async function handleDownload() {
+    if (!botId) return;
+
+    if (downloadAbortRef.current) {
+      downloadAbortRef.current.abort();
+      return;
+    }
+
+    const controller = new AbortController();
+    downloadAbortRef.current = controller;
+    setDownloadProgress(0);
+    setMessage("Preparando o arquivo ZIP...");
+
+    try {
+      const result = await downloadEmojiZip("application", botId, sourceGuildId || null, {
+        onProgress: setDownloadProgress,
+        signal: controller.signal
+      });
+      saveBrowserDownload(result.blob, "emojis.zip");
+      setMessage(`Download concluido: ${result.count} emoji(s) baixado(s), ${result.failed} falha(s).`);
+    } catch (error) {
+      setMessage(controller.signal.aborted
+        ? "Download cancelado."
+        : readErrorMessage(error, "Nao foi possivel baixar os emojis. Tente novamente."));
+    } finally {
+      downloadAbortRef.current = null;
+      setDownloadProgress(null);
+    }
+  }
+
   async function handleToggleAutoSync(checked: boolean) {
     if (!botId || !sourceGuildId || !canManage) return;
 
@@ -5070,10 +5268,9 @@ function ApplicationEmojisView({
               <Button disabled={loading || syncing} onClick={() => void refreshList()} size="sm" type="button" variant="outline">
                 Atualizar Lista
               </Button>
-              <Button asChild disabled={!items.length} size="sm" variant="outline">
-                <a href={applicationEmojiDownloadUrl(botId, sourceGuildId || null)} rel="noreferrer">
-                  Exportar ZIP
-                </a>
+              <Button disabled={!items.length} onClick={() => void handleDownload()} size="sm" type="button" variant="outline">
+                {downloadProgress !== null ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {downloadProgress !== null ? `Cancelar (${downloadProgress || "..."}%)` : "Baixar Emojis"}
               </Button>
               <Button disabled={!canManage || loading || syncing || !items.length} onClick={() => void handleRemoveAll()} size="sm" type="button" variant="destructive">
                 <Trash2 className="mr-2 h-4 w-4" />
@@ -5127,6 +5324,11 @@ function ApplicationEmojisView({
               <span>Erros: {progress.failed}</span>
             </div>
             {message ? <p className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-200">{message}</p> : null}
+            {downloadProgress !== null ? (
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-900" aria-label="Progresso do download">
+                <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${downloadProgress || 5}%` }} />
+              </div>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-2 lg:flex-row">
@@ -5190,6 +5392,18 @@ function ApplicationEmojiRow({ item }: { item: ApplicationEmojiItem }) {
       <span className="text-xs text-zinc-400">{item.size ? formatBytes(item.size) : "Remoto"}</span>
     </div>
   );
+}
+
+function saveBrowserDownload(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
 function EntryLeaveManager({
@@ -5798,6 +6012,8 @@ function EmojiCloneSettingsPanel({
   const [libraryType, setLibraryType] = useState<"all" | "true" | "false">("all");
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [resendingId, setResendingId] = useState<string | null>(null);
+  const [libraryDownloadProgress, setLibraryDownloadProgress] = useState<number | null>(null);
+  const libraryDownloadAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!guild) {
@@ -6079,6 +6295,36 @@ function EmojiCloneSettingsPanel({
 
     if (items) {
       setLibrary(items);
+    }
+  }
+
+  async function handleLibraryDownload() {
+    if (!botId) return;
+
+    if (libraryDownloadAbortRef.current) {
+      libraryDownloadAbortRef.current.abort();
+      return;
+    }
+
+    const controller = new AbortController();
+    libraryDownloadAbortRef.current = controller;
+    setLibraryDownloadProgress(0);
+    setCloneMessage("Preparando o arquivo ZIP...");
+
+    try {
+      const result = await downloadEmojiZip("library", botId, destinationGuildId || guild?.id, {
+        onProgress: setLibraryDownloadProgress,
+        signal: controller.signal
+      });
+      saveBrowserDownload(result.blob, "emojis.zip");
+      setCloneMessage(`Download concluido: ${result.count} emoji(s) baixado(s), ${result.failed} falha(s).`);
+    } catch (error) {
+      setCloneMessage(controller.signal.aborted
+        ? "Download cancelado."
+        : readErrorMessage(error, "Nao foi possivel baixar os emojis. Tente novamente."));
+    } finally {
+      libraryDownloadAbortRef.current = null;
+      setLibraryDownloadProgress(null);
     }
   }
 
@@ -6506,14 +6752,18 @@ function EmojiCloneSettingsPanel({
                 {libraryLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               </Button>
               {botId ? (
-                <Button asChild disabled={!library.length} size="sm" variant="outline">
-                  <a href={emojiLibraryDownloadUrl(botId, destinationGuildId || guild?.id)} rel="noreferrer">
-                    Baixar Todos
-                  </a>
+                <Button disabled={!library.length} onClick={() => void handleLibraryDownload()} size="sm" type="button" variant="outline">
+                  {libraryDownloadProgress !== null ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {libraryDownloadProgress !== null ? `Cancelar (${libraryDownloadProgress || "..."}%)` : "Baixar Emojis"}
                 </Button>
               ) : null}
             </div>
           </div>
+          {libraryDownloadProgress !== null ? (
+            <div className="h-2 overflow-hidden rounded-full bg-zinc-900" aria-label="Progresso do download">
+              <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${libraryDownloadProgress || 5}%` }} />
+            </div>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {library.length ? library.map((item) => {
               const sourceGuild = guilds.find((entry) => entry.id === item.sourceGuildId);
@@ -7571,7 +7821,15 @@ function isViewAllowed(view: ViewId, enabledModules: string[]) {
   }
 
   if (view === "fivem") {
-    return enabledModules.some((moduleId) => moduleId === "fivem" || moduleId.startsWith("fivem-"));
+    return enabledModules.some((moduleId) => [
+      "fivem",
+      "fivem-factions",
+      "fivem-corporations",
+      "fivem-absences",
+      "fivem-ammo",
+      "fivem-finance",
+      "fivem-fac"
+    ].includes(moduleId));
   }
 
   const requiredModule = viewModuleIds[view];
@@ -7642,6 +7900,10 @@ function mergeDashboardGuilds(guilds: DashboardMeGuild[], fallbackGuilds: Dashbo
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat("pt-BR").format(value);
+}
+
+function formatGoalCurrency(value: number) {
+  return new Intl.NumberFormat("pt-BR", { currency: "BRL", style: "currency" }).format(value);
 }
 
 function formatDate(value: string) {

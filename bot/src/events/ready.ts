@@ -10,6 +10,7 @@ import { startClipsMonitor } from "../services/clipsMonitor";
 import { startDiscordLogDelivery } from "../services/discordLogDeliveryService";
 import { startFivemFacService } from "../services/fivemFacService";
 import { startFivemGoalService } from "../services/fivemGoalService";
+import { startFivemOrderService } from "../services/fivemOrderService";
 import { startFivemHierarchyService } from "../services/fivemHierarchyService";
 import { startGiveawayService } from "../services/giveawayService";
 import { startGuildSettingsCache } from "../services/guildSettingsCache";
@@ -17,6 +18,7 @@ import { startImageAntiSpamService } from "../services/imageAntiSpamService";
 import { startKickNotificationMonitor } from "../services/kickNotificationMonitor";
 import { startMaintenanceService } from "../services/maintenanceService";
 import { startMissionToolsService } from "../services/missionToolsService";
+import { startManualRegistrationService } from "../services/manualRegistrationService";
 import {
   disableUnreleasedSafeBotChannels,
   ensureSafeBotSetup,
@@ -153,8 +155,12 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   if (isBotModuleEnabled("fivem-goals")) {
     startFivemGoalService(client, context);
   }
+  if (isBotModuleEnabled("fivem-orders")) startFivemOrderService(client, context);
   if (isBotModuleEnabled("fivem-hierarchy")) {
     startFivemHierarchyService(client, context);
+  }
+  if (isBotModuleEnabled("manual-registration")) {
+    startManualRegistrationService(client, context);
   }
   if (isBotModuleEnabled("image-anti-spam") && !isSelfBotModuleEnabled()) {
     startImageAntiSpamService(context);

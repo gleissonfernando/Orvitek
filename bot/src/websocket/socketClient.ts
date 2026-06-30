@@ -67,6 +67,12 @@ export type FivemGoalPanelPublishEvent = {
   guildId: string;
   settings?: unknown;
 };
+export type FivemOrderPanelPublishEvent = { botId?: string | null; guildId: string };
+
+export type ManualRegistrationPanelPublishEvent = {
+  botId?: string | null;
+  guildId: string;
+};
 
 export type FivemHierarchyPanelUpdateEvent = {
   action: "publish" | "update";
@@ -200,6 +206,8 @@ export class BotSocketClient {
   private fivemFacSettingsHandler: ((payload: FivemFacSettingsEvent) => void) | null = null;
   private fivemFacPanelPublishHandler: ((payload: FivemFacPanelPublishEvent) => void) | null = null;
   private fivemGoalPanelPublishHandler: ((payload: FivemGoalPanelPublishEvent) => void) | null = null;
+  private fivemOrderPanelPublishHandler: ((payload: FivemOrderPanelPublishEvent) => void) | null = null;
+  private manualRegistrationPanelPublishHandler: ((payload: ManualRegistrationPanelPublishEvent) => void) | null = null;
   private fivemHierarchyPanelUpdateHandler: ((payload: FivemHierarchyPanelUpdateEvent) => void) | null = null;
   private fivemFacAbsenceUpdateHandler: ((payload: FivemFacAbsenceUpdateEvent) => void) | null = null;
   private missionToolsSettingsHandler: ((payload: MissionToolsSettingsEvent) => void) | null = null;
@@ -293,6 +301,11 @@ export class BotSocketClient {
 
     if (this.fivemGoalPanelPublishHandler) {
       this.socket.on("fivem:goals:panel_publish", this.fivemGoalPanelPublishHandler);
+    }
+    if (this.fivemOrderPanelPublishHandler) this.socket.on("fivem:orders:panel_publish", this.fivemOrderPanelPublishHandler);
+
+    if (this.manualRegistrationPanelPublishHandler) {
+      this.socket.on("manual-registration:panel_publish", this.manualRegistrationPanelPublishHandler);
     }
 
     if (this.fivemHierarchyPanelUpdateHandler) {
@@ -447,6 +460,17 @@ export class BotSocketClient {
     this.fivemGoalPanelPublishHandler = handler;
     this.socket?.off("fivem:goals:panel_publish");
     this.socket?.on("fivem:goals:panel_publish", handler);
+  }
+  onFivemOrderPanelPublish(handler: (payload: FivemOrderPanelPublishEvent) => void) {
+    this.fivemOrderPanelPublishHandler = handler;
+    this.socket?.off("fivem:orders:panel_publish");
+    this.socket?.on("fivem:orders:panel_publish", handler);
+  }
+
+  onManualRegistrationPanelPublish(handler: (payload: ManualRegistrationPanelPublishEvent) => void) {
+    this.manualRegistrationPanelPublishHandler = handler;
+    this.socket?.off("manual-registration:panel_publish");
+    this.socket?.on("manual-registration:panel_publish", handler);
   }
 
   onFivemHierarchyPanelUpdate(handler: (payload: FivemHierarchyPanelUpdateEvent) => void) {

@@ -14,6 +14,7 @@ import { handleTemporaryVoiceInteraction } from "../services/temporaryVoiceServi
 import { handleTicketPanelInteraction } from "../services/ticketPanelService";
 import { handleManualRegistrationInteraction } from "../services/manualRegistrationService";
 import { handleFivemGoalInteraction } from "../services/fivemGoalService";
+import { handleFivemOrderInteraction } from "../services/fivemOrderService";
 import { handleFivemHierarchyInteraction } from "../services/fivemHierarchyService";
 
 export async function handleInteractionCreate(interaction: Interaction, context: BotContext) {
@@ -82,6 +83,7 @@ async function dispatchInteractionCreate(interaction: Interaction, context: BotC
   if (await handleFivemGoalInteraction(interaction, context)) {
     return;
   }
+  if (await handleFivemOrderInteraction(interaction, context)) return;
 
   if (await handleFivemHierarchyInteraction(interaction, context)) {
     return;

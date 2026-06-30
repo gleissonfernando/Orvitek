@@ -60,7 +60,8 @@ app.use(
 app.use(
   cors({
     origin: corsOrigin,
-    credentials: true
+    credentials: true,
+    exposedHeaders: ["Content-Disposition", "Content-Length", "X-Emoji-Count", "X-Emoji-Failed", "X-Emoji-Total"]
   })
 );
 app.use(cookieParser());

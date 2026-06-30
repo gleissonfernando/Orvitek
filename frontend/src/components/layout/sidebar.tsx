@@ -10,6 +10,7 @@ import {
   Film,
   Gift,
   Hash,
+  ListTree,
   ListChecks,
   LockKeyhole,
   Mic2,
@@ -67,8 +68,10 @@ export type ViewId =
   | "permissions"
   | "logs"
   | "fivem"
+  | "fivem-hierarchy"
   | "fivem-orders"
   | "fivem-goals"
+  | "manual-registration"
   | "notifications"
   | "entry-leave"
   | "auto-roles"
@@ -116,14 +119,16 @@ const navItems: NavItem[] = [
   { id: "first-lady", label: "Primeira Dama", icon: UserPlus, moduleId: "first-lady" },
   { id: "permissions", label: "Usuarios", icon: Users, moduleId: "verification" },
   { id: "logs", label: "Logs e Notificações", icon: ScrollText, moduleId: "logs" },
-  { id: "fivem", label: "FiveM Geral", icon: Building2, moduleIds: ["fivem", "fivem-factions", "fivem-corporations", "fivem-absences", "fivem-ammo", "fivem-finance", "fivem-hierarchy", "fivem-fac"] },
-  { id: "fivem-orders", label: "Encomendas", icon: Archive, moduleId: "fivem-orders" },
+  { id: "fivem", label: "FiveM Geral", icon: Building2, moduleIds: ["fivem", "fivem-factions", "fivem-corporations", "fivem-absences", "fivem-ammo", "fivem-finance", "fivem-fac"] },
+  { id: "fivem-hierarchy", label: "Hierarquia", icon: ListTree, moduleId: "fivem-hierarchy" },
+  { id: "fivem-orders", label: "Encomendas RP", icon: Archive, moduleId: "fivem-orders" },
   { id: "fivem-goals", label: "Metas", icon: ListChecks, moduleId: "fivem-goals" },
+  { id: "manual-registration", label: "Pedido de Set", icon: ListChecks, moduleId: "manual-registration" },
   { id: "entry-leave", label: "Entrada/Saida", icon: UserPlus, moduleIds: ["welcome", "leave"] },
   { id: "auto-roles", label: "Cargos automaticos", icon: Users, moduleId: "roles" },
   { id: "media-library", label: "Emojis & Sons", icon: Archive, moduleId: "emoji-cloner" },
   { id: "server-cloner", label: "Clonagem", icon: SmilePlus, moduleIds: ["emoji-cloner", "server-cloner"] },
-  { id: "settings", label: "Configurações", icon: Settings, moduleIds: ["tickets", "manual-registration", "avisos", "network", "server-generator"] }
+  { id: "settings", label: "Configurações", icon: Settings, moduleIds: ["tickets", "avisos", "network", "server-generator"] }
 ];
 
 type SidebarProps = {

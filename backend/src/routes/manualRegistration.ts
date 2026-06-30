@@ -3,14 +3,18 @@ import type { Request } from "express";
 import { z } from "zod";
 import { isBotRequest, requireAuthOrBot, requireBot } from "../middleware/auth";
 import { canReadDashboardGuild, canManageDashboardGuild } from "../services/dashboardGuildAccessService";
-import { canReadDevBotModule, canUseDevBotModule } from "../services/devBotService";
+import { authorizeBotRuntimeModule, canReadDevBotModule, canUseDevBotModule } from "../services/devBotService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
 import {
   createManualRegistrationSubmission,
+  getLatestManualRegistrationSubmission,
   getManualRegistrationSettings,
+  listManualRegistrationLogs,
   listManualRegistrationSubmissions,
+  requestManualRegistrationPanelPublish,
   saveManualRegistrationSettings,
   updateManualRegistrationSubmissionMessage,
+  updateManualRegistrationSubmissionRole,
   updateManualRegistrationSubmissionStatus
 } from "../services/manualRegistrationService";
 
@@ -31,16 +35,39 @@ const fieldSchema = z.object({
 
 const settingsSchema = z.object({
   approvalChannelId: optionalSnowflakeSchema,
+  allowOnlyOneRequest: z.boolean().optional(),
+  allowResubmit: z.boolean().optional(),
+  approvalMessage: z.string().max(500).optional(),
+  approverRoleIds: z.array(snowflakeSchema).max(20).optional(),
+  automaticApproval: z.boolean().optional(),
   autoRoleIds: z.array(snowflakeSchema).max(20).optional(),
   bannerPosition: z.enum(["top", "bottom", "none"]).optional(),
   color: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
   description: z.string().max(1200).nullable().optional(),
+  cooldownMinutes: z.coerce.number().int().min(0).max(10080).optional(),
+  dmNotifications: z.boolean().optional(),
   enabled: z.boolean().optional(),
   emoji: z.string().max(80).nullable().optional(),
   fields: z.array(fieldSchema).max(25).optional(),
   footerText: z.string().max(180).nullable().optional(),
+  logChannelId: optionalSnowflakeSchema,
   name: z.string().max(80).optional(),
+  panelChannelId: optionalSnowflakeSchema,
+  panelMessageId: optionalSnowflakeSchema,
+  rejectionMessage: z.string().max(500).optional(),
   removeRoleIds: z.array(snowflakeSchema).max(20).optional(),
+  setRoles: z.array(z.object({
+    description: z.string().max(200).nullable().optional(),
+    emoji: z.string().max(80).nullable().optional(),
+    enabled: z.boolean(),
+    id: z.string().max(80),
+    name: z.string().min(1).max(80),
+    order: z.coerce.number().int().min(0).max(1000),
+    requestable: z.boolean(),
+    roleId: z.union([snowflakeSchema, z.literal("")])
+  })).max(25).optional(),
+  staffRoleIds: z.array(snowflakeSchema).max(20).optional(),
+  successMessage: z.string().max(500).optional(),
   thumbnailUrl: z.string().max(2048).nullable().optional(),
   title: z.string().max(120).optional()
 });
@@ -53,6 +80,7 @@ const submissionSchema = z.object({
   })).max(25),
   guildId: snowflakeSchema,
   messageId: optionalSnowflakeSchema,
+  requestedRoleId: optionalSnowflakeSchema,
   userAvatar: z.string().max(2048).nullable().optional(),
   userId: snowflakeSchema,
   username: z.string().max(120)
@@ -64,8 +92,11 @@ const messageSchema = z.object({
 
 const statusSchema = z.object({
   actorId: snowflakeSchema,
+  guildId: snowflakeSchema,
+  rejectionReason: z.string().max(800).nullable().optional(),
   status: z.enum(["approved", "rejected"])
 });
+const roleUpdateSchema = z.object({ actorId: snowflakeSchema, guildId: snowflakeSchema, requestedRoleId: snowflakeSchema });
 
 export const manualRegistrationRouter = Router();
 
@@ -76,12 +107,15 @@ manualRegistrationRouter.get("/:guildId/settings", async (req, res, next) => {
     const guildId = snowflakeSchema.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
 
+    if (isBotRequest(req)) await assertRuntimeModule(botId, guildId);
+
     if (!isBotRequest(req) && !(await canReadScopedGuild(req, guildId, botId))) {
       return res.status(403).json({ message: "Servidor nao encontrado ou modulo nao liberado." });
     }
 
     return res.json({
       settings: await getManualRegistrationSettings(guildId, botId),
+      logs: isBotRequest(req) ? [] : await listManualRegistrationLogs(guildId, botId),
       submissions: isBotRequest(req) ? [] : await listManualRegistrationSubmissions(guildId, botId)
     });
   } catch (error) {
@@ -100,8 +134,19 @@ manualRegistrationRouter.put("/:guildId/settings", async (req, res, next) => {
     }
 
     return res.json({
-      settings: await saveManualRegistrationSettings(guildId, botId, input, res.locals.dashboardAuth.user.discordId)
+      settings: await saveManualRegistrationSettings(guildId, botId, normalizeSettingsInput(input), res.locals.dashboardAuth.user.discordId)
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+manualRegistrationRouter.post("/:guildId/panel", async (req, res, next) => {
+  try {
+    const guildId = snowflakeSchema.parse(req.params.guildId);
+    const botId = await resolveRequestBotId(req);
+    if (!botId || isBotRequest(req) || !(await canManageScopedGuild(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para publicar o Pedido de Set." });
+    return res.json({ settings: await requestManualRegistrationPanelPublish(guildId, botId, res.locals.dashboardAuth.user.discordId) });
   } catch (error) {
     return next(error);
   }
@@ -111,6 +156,7 @@ manualRegistrationRouter.post("/bot/submissions", requireBot, async (req, res, n
   try {
     const input = submissionSchema.parse(req.body);
     const botId = await resolveRequestBotId(req);
+    await assertRuntimeModule(botId, input.guildId);
     const settings = await getManualRegistrationSettings(input.guildId, botId);
 
     if (!settings.enabled) {
@@ -120,6 +166,18 @@ manualRegistrationRouter.post("/bot/submissions", requireBot, async (req, res, n
     return res.status(201).json({
       submission: await createManualRegistrationSubmission({ ...input, botId })
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+manualRegistrationRouter.get("/bot/:guildId/users/:userId/submission", requireBot, async (req, res, next) => {
+  try {
+    const guildId = snowflakeSchema.parse(req.params.guildId);
+    const userId = snowflakeSchema.parse(req.params.userId);
+    const botId = await resolveRequestBotId(req);
+    await assertRuntimeModule(botId, guildId);
+    return res.json({ submission: await getLatestManualRegistrationSubmission(guildId, userId, botId) });
   } catch (error) {
     return next(error);
   }
@@ -142,9 +200,34 @@ manualRegistrationRouter.patch("/bot/submissions/:id/status", requireBot, async 
     const id = z.string().min(1).parse(req.params.id);
     const input = statusSchema.parse(req.body);
     const botId = await resolveRequestBotId(req);
+    await assertRuntimeModule(botId, input.guildId);
     return res.json({
       submission: await updateManualRegistrationSubmissionStatus({ ...input, id, botId })
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+manualRegistrationRouter.patch("/bot/submissions/:id/role", requireBot, async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id);
+    const input = roleUpdateSchema.parse(req.body);
+    const botId = await resolveRequestBotId(req);
+    await assertRuntimeModule(botId, input.guildId);
+    return res.json({ submission: await updateManualRegistrationSubmissionRole({ ...input, botId, id }) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+manualRegistrationRouter.put("/bot/:guildId/settings", requireBot, async (req, res, next) => {
+  try {
+    const guildId = snowflakeSchema.parse(req.params.guildId);
+    const input = settingsSchema.parse(req.body);
+    const botId = await resolveRequestBotId(req);
+    await assertRuntimeModule(botId, guildId);
+    return res.json({ settings: await saveManualRegistrationSettings(guildId, botId, normalizeSettingsInput(input), null) });
   } catch (error) {
     return next(error);
   }
@@ -164,4 +247,16 @@ async function canManageScopedGuild(req: Request, guildId: string, botId: string
   }
 
   return canManageDashboardGuild(req.res?.locals.dashboardAuth.user, guildId);
+}
+
+async function assertRuntimeModule(botId: string | null, guildId: string) {
+  const access = await authorizeBotRuntimeModule({ botId, guildId, moduleId: MODULE_ID });
+  if (!access.allowed) throw Object.assign(new Error(access.reason), { statusCode: 403 });
+}
+
+function normalizeSettingsInput(input: z.infer<typeof settingsSchema>) {
+  return {
+    ...input,
+    setRoles: input.setRoles?.map((item) => ({ ...item, description: item.description ?? null, emoji: item.emoji ?? null }))
+  };
 }

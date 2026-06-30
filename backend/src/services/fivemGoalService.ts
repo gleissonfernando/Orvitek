@@ -9,7 +9,7 @@ import {
   type MongoFivemGoalSubmission,
   type MongoFivemGoalUserChannel
 } from "../database/mongo";
-import { devBotRealtimeRoom, emitRealtimeToRoom } from "../realtime/events";
+import { dashboardLogRealtimeRoom, devBotRealtimeRoom, emitRealtimeToRoom } from "../realtime/events";
 
 export const FIVEM_GOALS_MODULE_ID = "fivem-goals";
 
@@ -148,6 +148,33 @@ export type FivemGoalLogDto = {
   userId: string | null;
 };
 
+export type FivemGoalReportDto = {
+  approvedCount: number;
+  members: Array<{
+    approvedCount: number;
+    pendingCount: number;
+    refusedCount: number;
+    totalApprovedValue: number;
+    totalPendingValue: number;
+    userId: string;
+  }>;
+  participantCount: number;
+  pendingCount: number;
+  periodEnd: string;
+  periodStart: string;
+  refusedCount: number;
+  totalApprovedValue: number;
+  totalPendingValue: number;
+  totalRecords: number;
+  types: Array<{
+    approvedCount: number;
+    metaId: string;
+    name: string;
+    totalApprovedValue: number;
+    type: string;
+  }>;
+};
+
 const DEFAULT_FIELDS: FivemGoalFieldDto[] = [
   { id: "euro_sujo", label: "Euro Sujo", maxLength: 80, minLength: 1, placeholder: "Ex: 100000", required: true, style: "short" },
   { id: "itens", label: "Itens", maxLength: 300, minLength: 1, placeholder: "Ex: 5 Diamantes", required: true, style: "short" },
@@ -256,8 +283,88 @@ export async function getFivemGoalDashboard(guildId: string, botId?: string | nu
     configs,
     entries: await listFivemGoalEntries(guildId, botId),
     logs: await listFivemGoalLogs(guildId, botId),
+    report: await getCurrentWeekFivemGoalReport(guildId, botId, configs),
     settings,
     submissions: await listFivemGoalSubmissions(guildId, botId)
+  };
+}
+
+export async function getCurrentWeekFivemGoalReport(
+  guildId: string,
+  botId?: string | null,
+  knownConfigs?: FivemGoalConfigDto[]
+): Promise<FivemGoalReportDto> {
+  const normalizedBotId = normalizeBotId(botId);
+  const { start, end } = currentSaoPauloWeek();
+  const { fivemGoalSubmissions } = await getMongoCollections();
+  const [rows, configs] = await Promise.all([
+    fivemGoalSubmissions.find({
+      ...scopeQuery(guildId, normalizedBotId),
+      createdAt: { $gte: start, $lt: end }
+    }).sort({ createdAt: -1 }).limit(5000).toArray(),
+    knownConfigs ? Promise.resolve(knownConfigs) : listFivemGoalConfigs(guildId, normalizedBotId, true)
+  ]);
+  const configsById = new Map(configs.map((config) => [config.id, config]));
+  const members = new Map<string, FivemGoalReportDto["members"][number]>();
+  const types = new Map<string, FivemGoalReportDto["types"][number]>();
+  let approvedCount = 0;
+  let pendingCount = 0;
+  let refusedCount = 0;
+  let totalApprovedValue = 0;
+  let totalPendingValue = 0;
+  const approvedParticipants = new Set<string>();
+
+  for (const row of rows) {
+    const value = resolveGoalSubmissionValue(row);
+    const member = members.get(row.userId) ?? {
+      approvedCount: 0,
+      pendingCount: 0,
+      refusedCount: 0,
+      totalApprovedValue: 0,
+      totalPendingValue: 0,
+      userId: row.userId
+    };
+    if (row.status === "approved") {
+      approvedCount += 1;
+      approvedParticipants.add(row.userId);
+      totalApprovedValue += value;
+      member.approvedCount += 1;
+      member.totalApprovedValue += value;
+      const config = configsById.get(row.metaId);
+      const type = types.get(row.metaId) ?? {
+        approvedCount: 0,
+        metaId: row.metaId,
+        name: config?.name ?? "Meta removida",
+        totalApprovedValue: 0,
+        type: config?.type ?? "personalizada"
+      };
+      type.approvedCount += 1;
+      type.totalApprovedValue += value;
+      types.set(row.metaId, type);
+    } else if (row.status === "pending") {
+      pendingCount += 1;
+      totalPendingValue += value;
+      member.pendingCount += 1;
+      member.totalPendingValue += value;
+    } else {
+      refusedCount += 1;
+      member.refusedCount += 1;
+    }
+    members.set(row.userId, member);
+  }
+
+  return {
+    approvedCount,
+    members: [...members.values()].sort((a, b) => b.totalApprovedValue - a.totalApprovedValue || a.userId.localeCompare(b.userId)),
+    participantCount: approvedParticipants.size,
+    pendingCount,
+    periodEnd: end.toISOString(),
+    periodStart: start.toISOString(),
+    refusedCount,
+    totalApprovedValue,
+    totalPendingValue,
+    totalRecords: rows.length,
+    types: [...types.values()].sort((a, b) => b.totalApprovedValue - a.totalApprovedValue)
   };
 }
 
@@ -455,6 +562,10 @@ export async function createFivemGoalSubmission(input: {
   const { fivemGoalSubmissions } = await getMongoCollections();
   await fivemGoalSubmissions.insertOne(doc);
   await writeFivemGoalLog({ action: status === "approved" ? "submission.auto_approved" : "submission.created", botId: normalizedBotId, details: { proofUrl: doc.proofUrl, value: doc.value }, guildId: input.guildId, metaId: meta.id, userId: input.userId });
+  emitRealtimeToRoom(dashboardLogRealtimeRoom(input.guildId, normalizedBotId), "fivem:goals:updated", {
+    botId: normalizedBotId,
+    guildId: input.guildId
+  });
   return toSubmissionDto(doc);
 }
 
@@ -482,6 +593,7 @@ export async function moderateFivemGoalSubmission(guildId: string, botId: string
   );
   if (!row) return null;
   await writeFivemGoalLog({ action: status === "approved" ? "submission.approved" : "submission.refused", botId: normalizedBotId, details: { refusalReason: update.refusalReason ?? null, value: row.value }, guildId, metaId: row.metaId, userId: actorId });
+  emitRealtimeToRoom(dashboardLogRealtimeRoom(guildId, normalizedBotId), "fivem:goals:updated", { botId: normalizedBotId, guildId });
   return toSubmissionDto(row);
 }
 
@@ -742,6 +854,50 @@ function normalizeResetConfig(value: FivemGoalConfigDto["resetConfig"] | undefin
 function normalizeTargetValue(value: number | null | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value)) return 1;
   return Math.max(1, Math.trunc(value));
+}
+
+function resolveGoalSubmissionValue(row: MongoFivemGoalSubmission) {
+  const valueField = row.fields.find((field) => /giro|euro|dinheiro|valor|money/i.test(`${field.id} ${field.label}`))
+    ?? row.fields.find((field) => /quantidade|qtd/i.test(`${field.id} ${field.label}`));
+  const parsedFieldValue = valueField ? parseGoalNumericValue(valueField.value) : null;
+  if (parsedFieldValue !== null) return parsedFieldValue;
+  return Number.isFinite(row.value) ? Math.max(0, row.value) : 0;
+}
+
+function parseGoalNumericValue(value: string) {
+  const normalized = value.trim().replace(/[^\d.,-]/g, "");
+  if (!normalized || normalized === "-") return null;
+  const negative = normalized.startsWith("-");
+  const unsigned = normalized.replace(/-/g, "");
+  const comma = unsigned.lastIndexOf(",");
+  const dot = unsigned.lastIndexOf(".");
+  let numeric: string;
+
+  if (comma >= 0 && dot >= 0) {
+    const decimalSeparator = comma > dot ? "," : ".";
+    const thousandsSeparator = decimalSeparator === "," ? "." : ",";
+    numeric = unsigned.split(thousandsSeparator).join("").replace(decimalSeparator, ".");
+  } else if (/^\d{1,3}([.,]\d{3})+$/.test(unsigned)) {
+    numeric = unsigned.replace(/[.,]/g, "");
+  } else if (comma >= 0) {
+    numeric = unsigned.replace(/\./g, "").replace(",", ".");
+  } else {
+    numeric = unsigned.replace(/,/g, "");
+  }
+
+  const parsed = Number(`${negative ? "-" : ""}${numeric}`);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function currentSaoPauloWeek(now = new Date()) {
+  const saoPauloOffsetMs = -3 * 60 * 60 * 1000;
+  const local = new Date(now.getTime() + saoPauloOffsetMs);
+  const daysSinceMonday = (local.getUTCDay() + 6) % 7;
+  local.setUTCDate(local.getUTCDate() - daysSinceMonday);
+  local.setUTCHours(0, 0, 0, 0);
+  const start = new Date(local.getTime() - saoPauloOffsetMs);
+  const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+  return { end, start };
 }
 
 function scopeQuery(guildId: string, botId: string | null) {

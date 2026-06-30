@@ -711,21 +711,46 @@ export type ManualRegistrationField = {
   style: "short" | "paragraph";
 };
 
+export type ManualRegistrationSetRole = {
+  description: string | null;
+  emoji: string | null;
+  enabled: boolean;
+  id: string;
+  name: string;
+  order: number;
+  requestable: boolean;
+  roleId: string;
+};
+
 export type ManualRegistrationSettings = {
   approvalChannelId: string | null;
+  allowOnlyOneRequest: boolean;
+  allowResubmit: boolean;
+  approvalMessage: string;
+  approverRoleIds: string[];
+  automaticApproval: boolean;
   autoRoleIds: string[];
   bannerPosition: "top" | "bottom" | "none";
   botId: string | null;
   color: string;
   description: string | null;
+  cooldownMinutes: number;
+  dmNotifications: boolean;
   enabled: boolean;
   emoji: string | null;
   fields: ManualRegistrationField[];
   footerText: string | null;
   guildId: string;
+  logChannelId: string | null;
   name: string;
+  panelChannelId: string | null;
+  panelMessageId: string | null;
   panelImage: PanelImageSettings | null;
+  rejectionMessage: string;
   removeRoleIds: string[];
+  setRoles: ManualRegistrationSetRole[];
+  staffRoleIds: string[];
+  successMessage: string;
   thumbnailUrl: string | null;
   title: string;
   updatedAt: string | null;
@@ -742,6 +767,8 @@ export type ManualRegistrationSubmission = {
   messageId: string | null;
   rejectedAt: string | null;
   rejectedBy: string | null;
+  rejectionReason: string | null;
+  requestedRoleId: string | null;
   status: "pending" | "approved" | "rejected";
   updatedAt: string;
   userAvatar: string | null;
@@ -749,7 +776,20 @@ export type ManualRegistrationSubmission = {
   username: string;
 };
 
+export type ManualRegistrationLog = {
+  action: string;
+  botId: string | null;
+  createdAt: string;
+  data: Record<string, unknown>;
+  executorId: string | null;
+  guildId: string;
+  id: string;
+  submissionId: string | null;
+  targetUserId: string | null;
+};
+
 export type ManualRegistrationDashboard = {
+  logs: ManualRegistrationLog[];
   settings: ManualRegistrationSettings;
   submissions: ManualRegistrationSubmission[];
 };
@@ -877,10 +917,65 @@ export type FivemGoalLog = {
   userId: string | null;
 };
 
+export type FivemGoalReport = {
+  approvedCount: number;
+  members: Array<{
+    approvedCount: number;
+    pendingCount: number;
+    refusedCount: number;
+    totalApprovedValue: number;
+    totalPendingValue: number;
+    userId: string;
+  }>;
+  participantCount: number;
+  pendingCount: number;
+  periodEnd: string;
+  periodStart: string;
+  refusedCount: number;
+  totalApprovedValue: number;
+  totalPendingValue: number;
+  totalRecords: number;
+  types: Array<{
+    approvedCount: number;
+    metaId: string;
+    name: string;
+    totalApprovedValue: number;
+    type: string;
+  }>;
+};
+
+export type FivemOrderStatus = "open" | "pending_approval" | "approved" | "in_production" | "ready" | "delivered" | "cancelled" | "rejected";
+export type FivemOrderSettings = {
+  adminRoleIds: string[]; allowAnonymous: boolean; allowAttachments: boolean; allowCustomNotes: boolean; approvalChannelId: string | null; approvalRequired: boolean;
+  botId: string | null; cancelRoleIds: string[]; color: string; createRoleIds: string[]; deliveryChannelId: string | null; enabled: boolean; errorMessage: string;
+  finishRoleIds: string[]; footerText: string | null; guildId: string; logChannelId: string | null; maxOpenHours: number; orderCancelledMessage: string;
+  orderCreatedMessage: string; orderDeliveredMessage: string; panelChannelId: string | null; panelDescription: string; panelImage: PanelImageSettings | null;
+  panelMessageId: string | null; panelTitle: string; updatedAt: string | null;
+};
+export type FivemOrderProduct = {
+  active: boolean; allowCustomQuantity: boolean; allowNotes: boolean; botId: string | null; category: string; cost: number; createdAt: string;
+  description: string | null; emoji: string | null; factionPercentage: number; featured: boolean; guildId: string; id: string; minimumStock: number;
+  name: string; order: number; price: number; sellerPercentage: number; stock: number | null; type: "standard" | "washing" | "ammo" | "weapon";
+  updatedAt: string; useStock: boolean;
+};
+export type FivemOrder = {
+  botId: string | null; category: string; clientName: string; costTotal: number; createdAt: string; expectedDelivery: string | null; finalValue: number;
+  grossValue: number; guildId: string; history: Array<{ actorId: string | null; at: string; from: FivemOrderStatus | null; note: string | null; to: FivemOrderStatus }>;
+  id: string; notes: string | null; orderNumber: number; productId: string; productName: string; profit: number; proofUrl: string | null; quantity: number;
+  responsibleId: string | null; sourceId: string | null; status: FivemOrderStatus; unitPrice: number; updatedAt: string; userId: string;
+};
+export type FivemOrderLog = { action: string; actorId: string | null; botId: string | null; createdAt: string; data: Record<string, unknown>; guildId: string; id: string; orderId: string | null; productId: string | null };
+export type FivemOrderDashboard = {
+  logs: FivemOrderLog[]; orders: FivemOrder[]; products: FivemOrderProduct[];
+  report: { cancelled: number; delivered: number; open: number; productTotals: Array<{ name: string; productId: string; quantity: number; total: number }>; production: number; totalProfit: number; totalRevenue: number };
+  settings: FivemOrderSettings;
+};
+
 export type FivemGoalDashboard = {
   configs: FivemGoalConfig[];
   entries: FivemGoalEntry[];
   logs: FivemGoalLog[];
+  report: FivemGoalReport;
   settings: FivemGoalSettings;
   submissions: FivemGoalSubmission[];
 };

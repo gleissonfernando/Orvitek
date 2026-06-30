@@ -63,34 +63,52 @@ export type ManualRegistrationField = {
 
 export type ManualRegistrationSettings = {
   approvalChannelId: string | null;
+  allowOnlyOneRequest: boolean;
+  allowResubmit: boolean;
+  approvalMessage: string;
+  approverRoleIds: string[];
+  automaticApproval: boolean;
   autoRoleIds: string[];
   bannerPosition: "top" | "bottom" | "none";
   botId: string | null;
   color: string;
   description: string | null;
+  cooldownMinutes: number;
+  dmNotifications: boolean;
   enabled: boolean;
   emoji: string | null;
   fields: ManualRegistrationField[];
   footerText: string | null;
   guildId: string;
+  logChannelId: string | null;
   name: string;
+  panelChannelId: string | null;
+  panelMessageId: string | null;
   panelImage: {
     imageEnabled: boolean;
     imageUrl: string;
   } | null;
+  rejectionMessage: string;
   removeRoleIds: string[];
+  setRoles: Array<{ description: string | null; emoji: string | null; enabled: boolean; id: string; name: string; order: number; requestable: boolean; roleId: string }>;
+  staffRoleIds: string[];
+  successMessage: string;
   thumbnailUrl: string | null;
   title: string;
   updatedAt: string | null;
 };
 
 export type ManualRegistrationSubmission = {
+  createdAt: string;
   id: string;
   guildId: string;
   userId: string;
   username: string;
   status: "pending" | "approved" | "rejected";
   fields: Array<{ id: string; label: string; value: string }>;
+  messageId: string | null;
+  rejectionReason: string | null;
+  requestedRoleId: string | null;
 };
 
 export type FivemGoalField = {
@@ -148,6 +166,25 @@ export type FivemGoalConfig = {
   targetValue: number;
   type: string;
   viewerRoleIds: string[];
+};
+
+export type FivemOrderStatus = "open" | "pending_approval" | "approved" | "in_production" | "ready" | "delivered" | "cancelled" | "rejected";
+export type FivemOrderSettings = {
+  adminRoleIds: string[]; allowAnonymous: boolean; allowAttachments: boolean; allowCustomNotes: boolean; approvalChannelId: string | null; approvalRequired: boolean;
+  cancelRoleIds: string[]; color: string; createRoleIds: string[]; deliveryChannelId: string | null; enabled: boolean; errorMessage: string; finishRoleIds: string[];
+  footerText: string | null; guildId: string; logChannelId: string | null; maxOpenHours: number; orderCancelledMessage: string; orderCreatedMessage: string;
+  orderDeliveredMessage: string; panelChannelId: string | null; panelDescription: string; panelMessageId: string | null; panelTitle: string;
+  panelImage: { imageEnabled: boolean; imageUrl: string } | null;
+};
+export type FivemOrderProduct = {
+  active: boolean; allowCustomQuantity: boolean; allowNotes: boolean; category: string; cost: number; description: string | null; emoji: string | null;
+  factionPercentage: number; featured: boolean; id: string; minimumStock: number; name: string; order: number; price: number; sellerPercentage: number;
+  stock: number | null; type: "standard" | "washing" | "ammo" | "weapon"; useStock: boolean;
+};
+export type FivemOrder = {
+  category: string; clientName: string; costTotal: number; createdAt: string; expectedDelivery: string | null; finalValue: number; grossValue: number; id: string;
+  notes: string | null; orderNumber: number; productId: string; productName: string; profit: number; proofUrl: string | null; quantity: number;
+  responsibleId: string | null; status: FivemOrderStatus; unitPrice: number; userId: string;
 };
 
 export type FivemGoalUserChannel = {
@@ -1190,6 +1227,7 @@ export class ApiClient {
     fields: Array<{ id: string; label: string; value: string }>;
     guildId: string;
     messageId?: string | null;
+    requestedRoleId?: string | null;
     userAvatar?: string | null;
     userId: string;
     username: string;
@@ -1198,13 +1236,28 @@ export class ApiClient {
     return data.submission;
   }
 
+  async getLatestManualRegistrationSubmission(guildId: string, userId: string) {
+    const { data } = await this.http.get<{ submission: ManualRegistrationSubmission | null }>(`/manual-registration/bot/${guildId}/users/${userId}/submission`);
+    return data.submission;
+  }
+
   async updateManualRegistrationSubmissionMessage(id: string, messageId: string | null) {
     await this.http.patch(`/manual-registration/bot/submissions/${id}/message`, { messageId });
   }
 
-  async updateManualRegistrationSubmissionStatus(id: string, status: "approved" | "rejected", actorId: string) {
-    const { data } = await this.http.patch<{ submission: ManualRegistrationSubmission }>(`/manual-registration/bot/submissions/${id}/status`, { actorId, status });
+  async reviewManualRegistrationSubmission(input: { actorId: string; guildId: string; id: string; rejectionReason?: string | null; status: "approved" | "rejected" }) {
+    const { data } = await this.http.patch<{ submission: ManualRegistrationSubmission }>(`/manual-registration/bot/submissions/${input.id}/status`, input);
     return data.submission;
+  }
+
+  async updateManualRegistrationSubmissionRole(input: { actorId: string; guildId: string; id: string; requestedRoleId: string }) {
+    const { data } = await this.http.patch<{ submission: ManualRegistrationSubmission }>(`/manual-registration/bot/submissions/${input.id}/role`, input);
+    return data.submission;
+  }
+
+  async saveManualRegistrationSettings(guildId: string, input: Partial<ManualRegistrationSettings>) {
+    const { data } = await this.http.put<{ settings: ManualRegistrationSettings }>(`/manual-registration/bot/${guildId}/settings`, input);
+    return data.settings;
   }
 
   async recordGlobalBlacklistSafeBotInfraction(input: {
@@ -1224,6 +1277,45 @@ export class ApiClient {
   async getFivemGoalSettings(guildId: string) {
     const { data } = await this.http.get<{ configs?: FivemGoalConfig[]; settings: FivemGoalSettings }>(`/fivem/bot/goals/${guildId}`);
     return { ...data.settings, configs: data.configs ?? [] };
+  }
+
+  async getFivemOrderRuntime(guildId: string) {
+    const { data } = await this.http.get<{ products: FivemOrderProduct[]; settings: FivemOrderSettings }>(`/fivem-orders/bot/${guildId}/runtime`);
+    return data;
+  }
+
+  async createFivemOrder(input: { clientName: string; expectedDelivery?: string | null; grossValue?: number | null; guildId: string; notes?: string | null; productId: string; proofUrl?: string | null; quantity: number; sourceId?: string | null; userId: string }) {
+    const { data } = await this.http.post<{ order: FivemOrder }>("/fivem-orders/bot/orders", input);
+    return data.order;
+  }
+
+  async getFivemOrder(guildId: string, orderNumber: number, userId?: string | null) {
+    const { data } = await this.http.get<{ order: FivemOrder | null }>(`/fivem-orders/bot/${guildId}/orders/${orderNumber}`, { params: userId ? { userId } : undefined });
+    return data.order;
+  }
+
+  async updateFivemOrderStatus(input: { actorId: string; guildId: string; note?: string | null; orderId: string; status: FivemOrderStatus }) {
+    const { data } = await this.http.patch<{ order: FivemOrder }>(`/fivem-orders/bot/orders/${input.orderId}/status`, input);
+    return data.order;
+  }
+
+  async createFivemOrderProduct(guildId: string, input: Partial<FivemOrderProduct> & { actorId: string }) {
+    const { data } = await this.http.post<{ product: FivemOrderProduct }>(`/fivem-orders/bot/${guildId}/products`, input);
+    return data.product;
+  }
+
+  async updateFivemOrderProduct(guildId: string, productId: string, input: Partial<FivemOrderProduct> & { actorId: string }) {
+    const { data } = await this.http.patch<{ product: FivemOrderProduct }>(`/fivem-orders/bot/${guildId}/products/${productId}`, input);
+    return data.product;
+  }
+
+  async deleteFivemOrderProduct(guildId: string, productId: string, actorId: string) {
+    await this.http.delete(`/fivem-orders/bot/${guildId}/products/${productId}`, { params: { actorId } });
+  }
+
+  async updateFivemOrderPanelState(guildId: string, messageId: string | null) {
+    const { data } = await this.http.put<{ settings: FivemOrderSettings }>(`/fivem-orders/bot/${guildId}/panel-state`, { messageId });
+    return data.settings;
   }
 
   async getFivemGoalChannelByChannel(channelId: string) {

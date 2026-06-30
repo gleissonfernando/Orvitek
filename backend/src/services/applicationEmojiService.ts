@@ -354,6 +354,7 @@ export async function handleApplicationEmojiGuildEvent(input: {
 export async function createApplicationEmojiZip(input: {
   botId: string;
   guildId?: string | null;
+  signal?: AbortSignal;
 }) {
   const { applicationEmojiItems } = await getMongoCollections();
   const query: Record<string, unknown> = { botId: input.botId };
@@ -363,23 +364,66 @@ export async function createApplicationEmojiZip(input: {
   }
 
   const items = await applicationEmojiItems.find(query).sort({ syncedAt: -1 }).limit(2000).toArray();
-  const files: Array<{ name: string; data: Buffer }> = [];
-
-  for (const item of items) {
-    const data = await fetchEmojiBuffer(item.url).catch(() => null);
-    if (!data) continue;
-    const folder = item.animated ? "Emojis/GIF" : "Emojis/PNG";
-    const extension = item.animated ? "gif" : "png";
-    files.push({
+  const usedNames = new Set<string>();
+  const results = await mapWithConcurrency(items, 8, async (item) => {
+    const data = await fetchEmojiBuffer(item.url, input.signal).catch(() => null);
+    if (input.signal?.aborted) throw new DOMException("Download cancelado", "AbortError");
+    if (!data?.length) {
+      console.warn(`[emoji-download] Emoji indisponivel: ${item.applicationName}`);
+      return null;
+    }
+    const extension = detectEmojiExtension(data, item.animated);
+    return {
       data,
-      name: `${folder}/${safeFileName(`${item.applicationName}.${extension}`)}`
-    });
-  }
+      name: `emojis/${uniqueFileName(safeFileName(`${item.applicationName}.${extension}`), usedNames)}`
+    };
+  });
+  const files = results.filter((file): file is NonNullable<typeof file> => file !== null);
 
   return {
-    buffer: createStoredZip(files),
-    count: files.length
+    buffer: createStoredZip([{ name: "emojis/", data: Buffer.alloc(0) }, ...files]),
+    count: files.length,
+    failed: items.length - files.length,
+    total: items.length
   };
+}
+
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>) {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await mapper(items[index]!);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+  return results;
+}
+
+function uniqueFileName(fileName: string, usedNames: Set<string>) {
+  let candidate = fileName;
+  const dot = fileName.lastIndexOf(".");
+  const base = dot > 0 ? fileName.slice(0, dot) : fileName;
+  const extension = dot > 0 ? fileName.slice(dot) : "";
+  let suffix = 2;
+
+  while (usedNames.has(candidate.toLowerCase())) {
+    candidate = `${base}_${suffix}${extension}`;
+    suffix += 1;
+  }
+
+  usedNames.add(candidate.toLowerCase());
+  return candidate;
+}
+
+function detectEmojiExtension(data: Buffer, animated: boolean) {
+  if (data.subarray(0, 6).toString("ascii").startsWith("GIF")) return "gif";
+  if (data.length >= 12 && data.subarray(0, 4).toString("ascii") === "RIFF" && data.subarray(8, 12).toString("ascii") === "WEBP") return "webp";
+  if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) return "jpg";
+  return animated ? "gif" : "png";
 }
 
 async function resolveBotAndToken(botId: string) {
@@ -505,8 +549,8 @@ async function downloadEmoji(url: string) {
   return { buffer, contentType };
 }
 
-async function fetchEmojiBuffer(url: string) {
-  const response = await fetch(url);
+async function fetchEmojiBuffer(url: string, signal?: AbortSignal) {
+  const response = await fetch(url, { signal });
   if (!response.ok) return null;
   return Buffer.from(await response.arrayBuffer());
 }

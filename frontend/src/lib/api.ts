@@ -31,6 +31,10 @@ import type {
   FivemHierarchyDashboard,
   FivemHierarchyPanel,
   FivemModuleDefinition,
+  FivemOrderDashboard,
+  FivemOrderProduct,
+  FivemOrderSettings,
+  FivemOrderStatus,
   Giveaway,
   GiveawayDiagnostics,
   GiveawayEntryResult,
@@ -441,6 +445,31 @@ export function emojiLibraryDownloadUrl(botId: string, guildId?: string | null) 
   return `${API_URL}/emoji-cloner/library/download?${params.toString()}`;
 }
 
+export async function downloadEmojiZip(
+  source: "application" | "library",
+  botId: string,
+  guildId: string | null | undefined,
+  options: { onProgress?: (percent: number) => void; signal?: AbortSignal } = {}
+) {
+  const response = await api.get<Blob>(`/emoji-cloner/${source}/download`, {
+    params: { ...botParams(botId), ...(guildId ? { guildId } : {}) },
+    onDownloadProgress: (event) => {
+      const percent = event.total ? Math.round((event.loaded / event.total) * 100) : 0;
+      options.onProgress?.(percent);
+    },
+    responseType: "blob",
+    signal: options.signal,
+    timeout: 120_000
+  });
+
+  return {
+    blob: response.data,
+    count: Number(response.headers["x-emoji-count"] ?? 0),
+    failed: Number(response.headers["x-emoji-failed"] ?? 0),
+    total: Number(response.headers["x-emoji-total"] ?? 0)
+  };
+}
+
 export async function resendEmojiFromLibrary(botId: string, emojiId: string, payload: { guildId: string; name?: string }) {
   const { data } = await api.post<{ duplicate?: boolean; emoji: { id: string; name: string; animated?: boolean } }>(
     `/emoji-cloner/library/${encodeURIComponent(emojiId)}/resend`,
@@ -762,6 +791,11 @@ export async function saveManualRegistrationSettings(guildId: string, payload: P
   const { data } = await api.put<{ settings: ManualRegistrationSettings }>(`/manual-registration/${guildId}/settings`, payload, {
     params: botId ? { botId } : undefined
   });
+  return data.settings;
+}
+
+export async function publishManualRegistrationPanel(guildId: string, botId?: string | null) {
+  const { data } = await api.post<{ settings: ManualRegistrationSettings }>(`/manual-registration/${guildId}/panel`, undefined, { params: botId ? { botId } : undefined });
   return data.settings;
 }
 
@@ -1354,6 +1388,29 @@ export async function getFivemGoals(guildId: string, botId?: string | null) {
     params: botId ? { botId } : undefined
   });
   return data;
+}
+
+export async function getFivemOrders(guildId: string, botId?: string | null) {
+  const { data } = await api.get<FivemOrderDashboard>(`/fivem-orders/${guildId}`, { params: botId ? { botId } : undefined });
+  return data;
+}
+export async function saveFivemOrderSettings(guildId: string, payload: Partial<FivemOrderSettings>, botId?: string | null) {
+  const { data } = await api.put<{ settings: FivemOrderSettings }>(`/fivem-orders/${guildId}/settings`, payload, { params: botId ? { botId } : undefined }); return data.settings;
+}
+export async function publishFivemOrderPanel(guildId: string, botId?: string | null) {
+  const { data } = await api.post<{ settings: FivemOrderSettings }>(`/fivem-orders/${guildId}/panel`, undefined, { params: botId ? { botId } : undefined }); return data.settings;
+}
+export async function createFivemOrderProduct(guildId: string, payload: Partial<FivemOrderProduct>, botId?: string | null) {
+  const { data } = await api.post<{ product: FivemOrderProduct }>(`/fivem-orders/${guildId}/products`, payload, { params: botId ? { botId } : undefined }); return data.product;
+}
+export async function updateFivemOrderProduct(guildId: string, productId: string, payload: Partial<FivemOrderProduct>, botId?: string | null) {
+  const { data } = await api.patch<{ product: FivemOrderProduct }>(`/fivem-orders/${guildId}/products/${encodeURIComponent(productId)}`, payload, { params: botId ? { botId } : undefined }); return data.product;
+}
+export async function deleteFivemOrderProduct(guildId: string, productId: string, botId?: string | null) {
+  await api.delete(`/fivem-orders/${guildId}/products/${encodeURIComponent(productId)}`, { params: botId ? { botId } : undefined });
+}
+export async function updateFivemOrderStatus(guildId: string, orderId: string, status: FivemOrderStatus, botId?: string | null) {
+  const { data } = await api.patch<{ order: import("../types").FivemOrder }>(`/fivem-orders/${guildId}/orders/${encodeURIComponent(orderId)}/status`, { status }, { params: botId ? { botId } : undefined }); return data.order;
 }
 
 export async function saveFivemGoalSettings(guildId: string, payload: Partial<FivemGoalSettings>, botId?: string | null) {

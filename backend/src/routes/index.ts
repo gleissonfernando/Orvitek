@@ -18,6 +18,7 @@ import { kickNotificationsRouter, kickWebhookRouter } from "./kickNotifications"
 import { livesRouter } from "./lives";
 import { logsRouter } from "./logs";
 import { manualRegistrationRouter } from "./manualRegistration";
+import { fivemOrdersRouter } from "./fivemOrders";
 import { missionToolsRouter } from "./missionTools";
 import { orvitechSalesRouter } from "./orvitechSales";
 import { mediaRouter } from "./media";
@@ -67,6 +68,7 @@ apiRouter.use("/temporary-voice", temporaryVoiceRouter);
 apiRouter.use("/voice-recorder", voiceRecorderRouter);
 apiRouter.use("/logs", logsRouter);
 apiRouter.use("/manual-registration", manualRegistrationRouter);
+apiRouter.use("/fivem-orders", fivemOrdersRouter);
 apiRouter.use("/self-bot-protection", selfBotProtectionRouter);
 apiRouter.use("/server-backups", serverBackupsRouter);
 apiRouter.use("/settings", settingsRouter);

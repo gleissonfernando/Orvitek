@@ -333,6 +333,10 @@ emojiClonerRouter.delete("/application", requireAuth, async (req, res, next) => 
 });
 
 emojiClonerRouter.get("/application/download", requireAuth, async (req, res, next) => {
+  const controller = new AbortController();
+  res.once("close", () => {
+    if (!res.writableEnded) controller.abort();
+  });
   try {
     const botId = await resolveRequestBotId(req);
     const guildId = typeof req.query.guildId === "string" ? req.query.guildId : null;
@@ -343,12 +347,16 @@ emojiClonerRouter.get("/application/download", requireAuth, async (req, res, nex
 
     const zip = await createApplicationEmojiZip({
       botId,
-      guildId
+      guildId,
+      signal: controller.signal
     });
 
     res.setHeader("Content-Type", "application/zip");
-    res.setHeader("Content-Disposition", "attachment; filename=\"application-emojis.zip\"");
+    res.setHeader("Content-Disposition", "attachment; filename=\"emojis.zip\"");
     res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Emoji-Count", String(zip.count));
+    res.setHeader("X-Emoji-Failed", String(zip.failed));
+    res.setHeader("X-Emoji-Total", String(zip.total));
     return res.send(zip.buffer);
   } catch (error) {
     return next(error);
@@ -420,6 +428,10 @@ emojiClonerRouter.get("/library", requireAuth, async (req, res, next) => {
 });
 
 emojiClonerRouter.get("/library/download", requireAuth, async (req, res, next) => {
+  const controller = new AbortController();
+  res.once("close", () => {
+    if (!res.writableEnded) controller.abort();
+  });
   try {
     const botId = await resolveRequestBotId(req);
     const user = res.locals.dashboardAuth.user;
@@ -432,14 +444,18 @@ emojiClonerRouter.get("/library/download", requireAuth, async (req, res, next) =
     const zip = await createEmojiLibraryZip({
       botId,
       guildId,
+      signal: controller.signal,
       userId: user.discordId
     });
 
-    await createEmojiCloneLog(botId, guildId ?? "global", user.discordId, "emoji_clone.download", `Download realizado: ${zip.count} emoji(s).`).catch(() => undefined);
+    await createEmojiCloneLog(botId, guildId ?? "global", user.discordId, "emoji_clone.download", `Download realizado: ${zip.count} emoji(s), ${zip.failed} falha(s).`).catch(() => undefined);
 
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", "attachment; filename=\"emojis.zip\"");
     res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Emoji-Count", String(zip.count));
+    res.setHeader("X-Emoji-Failed", String(zip.failed));
+    res.setHeader("X-Emoji-Total", String(zip.total));
     return res.send(zip.buffer);
   } catch (error) {
     return next(error);

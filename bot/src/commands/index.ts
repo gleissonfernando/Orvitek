@@ -5,8 +5,9 @@ import { clearCommand } from "./clear";
 import { deleteServeCommand } from "./deleteServe";
 import { emojiClonerCommand } from "./emojiCloner";
 import { gravarCommand } from "./gravar";
+import { fivemOrdersCommand } from "./fivemOrders";
 import { hierarchyCommand } from "../services/fivemHierarchyService";
-import { manualRegistrationCommand } from "./manualRegistration";
+import { legacyManualRegistrationCommand, manualRegistrationCommand } from "./manualRegistration";
 import { missionPanelCommand } from "./missionPanel";
 import { musicCommands } from "./music";
 import { pingCommand } from "./ping";
@@ -26,8 +27,10 @@ export function createCommandCollection() {
     deleteServeCommand,
     emojiClonerCommand,
     gravarCommand,
+    fivemOrdersCommand,
     hierarchyCommand,
     manualRegistrationCommand,
+    legacyManualRegistrationCommand,
     missionPanelCommand,
     ...musicCommands,
     ticketCommand,
