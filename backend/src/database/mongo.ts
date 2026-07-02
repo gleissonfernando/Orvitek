@@ -180,6 +180,7 @@ export type MongoManualRegistrationSettings = {
   guildId: string;
   logChannelId?: string | null;
   name: string;
+  panelCategoryId?: string | null;
   panelChannelId?: string | null;
   panelMessageId?: string | null;
   rejectionMessage?: string | null;

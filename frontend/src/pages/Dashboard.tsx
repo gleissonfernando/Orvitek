@@ -77,6 +77,7 @@ import {
   cloneEmojiToGuild,
   cloneSelectedEmojiCloneBotToken,
   createFivemGoalConfig,
+  deleteManualRegistrationSubmission,
   deleteFivemGoalConfig,
   deleteGuildChannels,
   deleteFivemHierarchyPanel,
@@ -155,6 +156,7 @@ import type {
   GlobalBlacklistHistory,
   GlobalBlacklistSafeBotSettings,
   GuildChannelOption,
+  GuildCategoryOption,
   GuildRoleOption,
   GuildSettings,
   GuildVoiceChannelOption,
@@ -4528,6 +4530,7 @@ function ManualRegistrationPanel({
   const [submissions, setSubmissions] = useState<ManualRegistrationSubmission[]>([]);
   const [registrationLogs, setRegistrationLogs] = useState<ManualRegistrationLog[]>([]);
   const [channels, setChannels] = useState<GuildChannelOption[]>([]);
+  const [categories, setCategories] = useState<GuildCategoryOption[]>([]);
   const [roles, setRoles] = useState<GuildRoleOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -4555,6 +4558,7 @@ function ManualRegistrationPanel({
         setSubmissions(dashboard.submissions);
         setRegistrationLogs(dashboard.logs ?? []);
         setChannels(options.channels);
+        setCategories(options.categories ?? []);
         setRoles(options.roles);
       })
       .catch(() => {
@@ -4670,6 +4674,22 @@ function ManualRegistrationPanel({
     }
   }
 
+  async function removeSubmission(submission: ManualRegistrationSubmission) {
+    if (!guild || !canManage || !window.confirm(`Excluir o cadastro de ${submission.username}?`)) return;
+    setSaving(true);
+    setMessage(null);
+    setError(null);
+    try {
+      await deleteManualRegistrationSubmission(guild.id, submission.id, botId);
+      setSubmissions((current) => current.filter((item) => item.id !== submission.id));
+      setMessage("Cadastro excluido.");
+    } catch {
+      setError("Nao foi possivel excluir o cadastro.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (!guild) {
     return <EmptyState icon={ListChecks} title="Selecione um servidor para configurar o Pedido de Set" />;
   }
@@ -4683,7 +4703,7 @@ function ManualRegistrationPanel({
             <CardDescription>Painel, sets solicitaveis, modal, aprovacao, cargos e logs em Components V2.</CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button disabled={!canManage || !settings?.enabled || !settings.panelChannelId || saving || loading} onClick={() => void publishSetPanel()} size="sm" type="button" variant="outline"><Upload className="mr-2 h-4 w-4" />Enviar painel</Button>
+            <Button disabled={!canManage || !settings?.enabled || (!settings.panelChannelId && !settings.panelCategoryId) || saving || loading} onClick={() => void publishSetPanel()} size="sm" type="button" variant="outline"><Upload className="mr-2 h-4 w-4" />Enviar painel</Button>
             <Button disabled={!canManage || !settings || saving || loading} onClick={() => void save()} size="sm" type="button">
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
               Salvar
@@ -4721,6 +4741,12 @@ function ManualRegistrationPanel({
                 <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchSettings({ panelChannelId: event.target.value || null })} value={settings.panelChannelId ?? ""}>
                   <option value="">Selecionar canal</option>
                   {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+                </select>
+              </label>
+              <label className="block text-xs font-medium text-zinc-400">Categoria do Pedido de Set
+                <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchSettings({ panelCategoryId: event.target.value || null })} value={settings.panelCategoryId ?? ""}>
+                  <option value="">Sem criacao automatica</option>
+                  {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
                 </select>
               </label>
               <label className="block text-xs font-medium text-zinc-400">Canal de aprovação
@@ -4823,13 +4849,20 @@ function ManualRegistrationPanel({
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm font-semibold text-white">Ultimas solicitacoes</p>
-              {submissions.slice(0, 5).map((submission) => (
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 px-3 py-2 text-sm" key={submission.id}>
-                  <span className="truncate text-zinc-300">{submission.username} ({submission.userId})</span>
-                  <Badge variant={submission.status === "approved" ? "success" : submission.status === "rejected" ? "danger" : "muted"}>{submission.status}</Badge>
+              <p className="text-sm font-semibold text-white">Cadastros recebidos</p>
+              {submissions.map((submission) => (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-800 px-3 py-3 text-sm" key={submission.id}>
+                  <div className="min-w-0">
+                    <p className="truncate text-zinc-200">{submission.username} ({submission.userId})</p>
+                    <p className="mt-1 text-xs text-zinc-500">{submission.fields.map((field) => `${field.label}: ${field.value}`).join(" | ")}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={submission.status === "approved" ? "success" : submission.status === "rejected" ? "danger" : "muted"}>{submission.status}</Badge>
+                    <Button disabled={!canManage || saving} onClick={() => void removeSubmission(submission)} size="icon" title="Excluir cadastro" type="button" variant="outline"><Trash2 className="h-4 w-4" /></Button>
+                  </div>
                 </div>
               ))}
+              {!submissions.length ? <p className="text-sm text-zinc-500">Nenhum cadastro recebido.</p> : null}
             </div>
             <div className="space-y-2 border-t border-zinc-800 pt-4">
               <p className="text-sm font-semibold text-white">Logs recentes</p>

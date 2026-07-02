@@ -2,6 +2,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  ChannelType,
   MessageFlags,
   ModalBuilder,
   PermissionFlagsBits,
@@ -41,9 +42,7 @@ export async function publishManualRegistrationPanel(interaction: ChatInputComma
     await interaction.reply({ content: "O Pedido de Set esta desativado na dashboard.", ephemeral: true });
     return;
   }
-  const configured = settings.panelChannelId
-    ? await interaction.guild.channels.fetch(settings.panelChannelId).catch(() => null)
-    : null;
+  const configured = await resolveOrCreatePanelChannel(interaction.guild, settings);
   const channel = configured?.isSendable() ? configured : interaction.channel?.isSendable() ? interaction.channel : null;
   if (!channel) {
     await interaction.reply({ content: "Configure um canal valido para o painel.", ephemeral: true });
@@ -56,13 +55,27 @@ export async function publishManualRegistrationPanel(interaction: ChatInputComma
 
 async function publishConfiguredPanel(guild: Guild, context: BotContext) {
   const settings = await context.api.getManualRegistrationSettings(guild.id);
-  if (!settings.enabled || !settings.panelChannelId) return;
-  const channel = await guild.channels.fetch(settings.panelChannelId).catch(() => null);
+  if (!settings.enabled || (!settings.panelChannelId && !settings.panelCategoryId)) return;
+  const channel = await resolveOrCreatePanelChannel(guild, settings);
   if (!channel?.isSendable()) return;
   let message = settings.panelMessageId && "messages" in channel ? await channel.messages.fetch(settings.panelMessageId).catch(() => null) : null;
   if (message) await message.edit(createPanelPayload(settings));
   else message = await channel.send(createPanelPayload(settings));
-  await context.api.saveManualRegistrationSettings(guild.id, { panelMessageId: message.id });
+  await context.api.saveManualRegistrationSettings(guild.id, { panelChannelId: channel.id, panelMessageId: message.id });
+}
+
+async function resolveOrCreatePanelChannel(guild: Guild, settings: ManualRegistrationSettings) {
+  const configured = settings.panelChannelId ? await guild.channels.fetch(settings.panelChannelId).catch(() => null) : null;
+  if (configured?.isSendable()) return configured;
+  if (!settings.panelCategoryId) return null;
+  const category = await guild.channels.fetch(settings.panelCategoryId).catch(() => null);
+  if (category?.type !== ChannelType.GuildCategory) return null;
+  return guild.channels.create({
+    name: "pedido-set",
+    parent: category.id,
+    reason: "Canal automatico do sistema de Pedido de Set",
+    type: ChannelType.GuildText
+  }).catch(() => null);
 }
 
 export async function showManualRegistrationQuickConfig(interaction: ChatInputCommandInteraction) {

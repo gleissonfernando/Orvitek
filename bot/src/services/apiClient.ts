@@ -83,6 +83,7 @@ export type ManualRegistrationSettings = {
   guildId: string;
   logChannelId: string | null;
   name: string;
+  panelCategoryId: string | null;
   panelChannelId: string | null;
   panelMessageId: string | null;
   panelImage: {

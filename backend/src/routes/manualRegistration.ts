@@ -7,6 +7,7 @@ import { authorizeBotRuntimeModule, canReadDevBotModule, canUseDevBotModule } fr
 import { resolveRequestBotId } from "../services/requestBotScopeService";
 import {
   createManualRegistrationSubmission,
+  deleteManualRegistrationSubmission,
   getLatestManualRegistrationSubmission,
   getManualRegistrationSettings,
   listManualRegistrationLogs,
@@ -53,6 +54,7 @@ const settingsSchema = z.object({
   footerText: z.string().max(180).nullable().optional(),
   logChannelId: optionalSnowflakeSchema,
   name: z.string().max(80).optional(),
+  panelCategoryId: optionalSnowflakeSchema,
   panelChannelId: optionalSnowflakeSchema,
   panelMessageId: optionalSnowflakeSchema,
   rejectionMessage: z.string().max(500).optional(),
@@ -148,6 +150,21 @@ manualRegistrationRouter.post("/:guildId/panel", async (req, res, next) => {
     const botId = await resolveRequestBotId(req);
     if (!botId || isBotRequest(req) || !(await canManageScopedGuild(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para publicar o Pedido de Set." });
     return res.json({ settings: await requestManualRegistrationPanelPublish(guildId, botId, res.locals.dashboardAuth.user.discordId) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+manualRegistrationRouter.delete("/:guildId/submissions/:id", async (req, res, next) => {
+  try {
+    const guildId = snowflakeSchema.parse(req.params.guildId);
+    const id = z.string().min(1).parse(req.params.id);
+    const botId = await resolveRequestBotId(req);
+    if (isBotRequest(req) || !(await canManageScopedGuild(req, guildId, botId))) {
+      return res.status(403).json({ message: "Sem permissao para excluir este cadastro." });
+    }
+    await deleteManualRegistrationSubmission(guildId, botId, id, res.locals.dashboardAuth.user.discordId);
+    return res.json({ ok: true });
   } catch (error) {
     return next(error);
   }

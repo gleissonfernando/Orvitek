@@ -47,6 +47,7 @@ export type ManualRegistrationSettingsDto = {
   guildId: string;
   logChannelId: string | null;
   name: string;
+  panelCategoryId: string | null;
   panelChannelId: string | null;
   panelMessageId: string | null;
   panelImage: PanelImageSettingsDto | null;
@@ -124,6 +125,7 @@ export function defaultManualRegistrationSettings(guildId: string, botId: string
     guildId,
     logChannelId: null,
     name: "Pedido de Set",
+    panelCategoryId: null,
     panelChannelId: null,
     panelMessageId: null,
     panelImage: null,
@@ -205,8 +207,8 @@ export async function saveManualRegistrationSettings(
 export async function requestManualRegistrationPanelPublish(guildId: string, botId: string, actorId: string | null) {
   const settings = await getManualRegistrationSettings(guildId, botId);
   if (!settings.enabled) throw Object.assign(new Error("Ative o Pedido de Set antes de publicar o painel."), { statusCode: 400 });
-  if (!settings.panelChannelId) throw Object.assign(new Error("Configure o canal do painel de Pedido de Set."), { statusCode: 400 });
-  await writeManualRegistrationLog({ action: "panel.publish_requested", botId, data: { channelId: settings.panelChannelId }, executorId: actorId, guildId, submissionId: null, targetUserId: null });
+  if (!settings.panelChannelId && !settings.panelCategoryId) throw Object.assign(new Error("Configure o canal ou a categoria do painel de Pedido de Set."), { statusCode: 400 });
+  await writeManualRegistrationLog({ action: "panel.publish_requested", botId, data: { categoryId: settings.panelCategoryId, channelId: settings.panelChannelId }, executorId: actorId, guildId, submissionId: null, targetUserId: null });
   emitRealtimeToRoom(devBotRealtimeRoom(botId), "manual-registration:panel_publish", { botId, guildId });
   return settings;
 }
@@ -333,6 +335,15 @@ export async function listManualRegistrationSubmissions(guildId: string, botId?:
   return rows.map(toSubmissionDto);
 }
 
+export async function deleteManualRegistrationSubmission(guildId: string, botId: string | null, id: string, actorId: string | null) {
+  const normalizedBotId = normalizeBotId(botId);
+  const { manualRegistrationSubmissions } = await getMongoCollections();
+  const deleted = await manualRegistrationSubmissions.findOneAndDelete({ _id: id, ...scopeQuery(guildId, normalizedBotId) });
+  if (!deleted) throw Object.assign(new Error("Cadastro nao encontrado."), { statusCode: 404 });
+  await writeManualRegistrationLog({ action: "submission.deleted", botId: normalizedBotId, data: { status: deleted.status }, executorId: actorId, guildId, submissionId: id, targetUserId: deleted.userId });
+  emitManualRegistrationUpdated(guildId, normalizedBotId);
+}
+
 export async function getLatestManualRegistrationSubmission(guildId: string, userId: string, botId?: string | null) {
   const { manualRegistrationSubmissions } = await getMongoCollections();
   const row = await manualRegistrationSubmissions.findOne({ ...scopeQuery(guildId, normalizeBotId(botId)), userId }, { sort: { createdAt: -1 } });
@@ -365,6 +376,7 @@ function normalizeSettings(settings: ManualRegistrationSettingsDto): ManualRegis
     footerText: normalizeText(settings.footerText, 180),
     logChannelId: normalizeSnowflake(settings.logChannelId),
     name: normalizeText(settings.name, 80) || "Pedido de Set",
+    panelCategoryId: normalizeSnowflake(settings.panelCategoryId),
     panelChannelId: normalizeSnowflake(settings.panelChannelId),
     panelMessageId: normalizeSnowflake(settings.panelMessageId),
     panelImage: settings.panelImage ?? null,
@@ -434,6 +446,7 @@ function toSettingsDto(settings: MongoManualRegistrationSettings): ManualRegistr
     guildId: settings.guildId,
     logChannelId: settings.logChannelId ?? null,
     name: settings.name,
+    panelCategoryId: settings.panelCategoryId ?? null,
     panelChannelId: settings.panelChannelId ?? null,
     panelMessageId: settings.panelMessageId ?? null,
     panelImage: null,

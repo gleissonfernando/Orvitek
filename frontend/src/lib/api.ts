@@ -819,6 +819,12 @@ export async function publishManualRegistrationPanel(guildId: string, botId?: st
   return data.settings;
 }
 
+export async function deleteManualRegistrationSubmission(guildId: string, submissionId: string, botId?: string | null) {
+  await api.delete(`/manual-registration/${guildId}/submissions/${submissionId}`, {
+    params: botId ? { botId } : undefined
+  });
+}
+
 export async function getSocialNotifications(
   guildId: string,
   botId?: string | null,
