@@ -1413,6 +1413,15 @@ export async function publishFivemOrderPanel(guildId: string, botId?: string | n
 export async function createFivemOrderProduct(guildId: string, payload: Partial<FivemOrderProduct>, botId?: string | null) {
   const { data } = await api.post<{ product: FivemOrderProduct }>(`/fivem-orders/${guildId}/products`, payload, { params: botId ? { botId } : undefined }); return data.product;
 }
+export async function createFivemOrderFamily(guildId: string, payload: Omit<import("../types").FivemOrderFamily, "botId" | "createdAt" | "guildId" | "id" | "updatedAt">, botId?: string | null) {
+  const { data } = await api.post<{ family: import("../types").FivemOrderFamily }>(`/fivem-orders/${guildId}/families`, payload, { params: botId ? { botId } : undefined }); return data.family;
+}
+export async function updateFivemOrderFamily(guildId: string, familyId: string, payload: Partial<import("../types").FivemOrderFamily>, botId?: string | null) {
+  const { data } = await api.patch<{ family: import("../types").FivemOrderFamily }>(`/fivem-orders/${guildId}/families/${encodeURIComponent(familyId)}`, payload, { params: botId ? { botId } : undefined }); return data.family;
+}
+export async function deleteFivemOrderFamily(guildId: string, familyId: string, botId?: string | null) {
+  await api.delete(`/fivem-orders/${guildId}/families/${encodeURIComponent(familyId)}`, { params: botId ? { botId } : undefined });
+}
 export async function updateFivemOrderProduct(guildId: string, productId: string, payload: Partial<FivemOrderProduct>, botId?: string | null) {
   const { data } = await api.patch<{ product: FivemOrderProduct }>(`/fivem-orders/${guildId}/products/${encodeURIComponent(productId)}`, payload, { params: botId ? { botId } : undefined }); return data.product;
 }

@@ -5,17 +5,21 @@ import { canManageDashboardGuild, canReadDashboardGuild } from "../services/dash
 import { authorizeBotRuntimeModule, canReadDevBotModule, canUseDevBotModule } from "../services/devBotService";
 import {
   createFivemOrder,
+  createFivemOrderFamily,
   createFivemOrderProduct,
   deleteFivemOrderProduct,
+  deleteFivemOrderFamily,
   FIVEM_ORDERS_MODULE_ID,
   getFivemOrderByNumber,
   getFivemOrderDashboard,
   getFivemOrderSettings,
   listFivemOrderProducts,
+  listFivemOrderFamilies,
   listFivemOrders,
   requestFivemOrderPanelPublish,
   saveFivemOrderSettings,
   updateFivemOrderProduct,
+  updateFivemOrderFamily,
   updateFivemOrderStatus
 } from "../services/fivemOrderService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
@@ -25,23 +29,24 @@ const optionalSnowflake = z.union([snowflake, z.literal(""), z.null()]).optional
 const statusSchema = z.enum(["open", "pending_approval", "approved", "in_production", "ready", "delivered", "cancelled", "rejected"]);
 const settingsSchema = z.object({
   adminRoleIds: z.array(snowflake).max(100).optional(), allowAnonymous: z.boolean().optional(), allowAttachments: z.boolean().optional(), allowCustomNotes: z.boolean().optional(),
-  approvalChannelId: optionalSnowflake, approvalRequired: z.boolean().optional(), cancelRoleIds: z.array(snowflake).max(100).optional(), color: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
+  approvalChannelId: optionalSnowflake, approvalRequired: z.boolean().optional(), approveRoleIds: z.array(snowflake).max(100).optional(), cancelRoleIds: z.array(snowflake).max(100).optional(), color: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
   createRoleIds: z.array(snowflake).max(100).optional(), deliveryChannelId: optionalSnowflake, enabled: z.boolean().optional(), errorMessage: z.string().max(500).optional(),
-  finishRoleIds: z.array(snowflake).max(100).optional(), footerText: z.string().max(200).nullable().optional(), logChannelId: optionalSnowflake, maxOpenHours: z.coerce.number().min(1).max(8760).optional(),
+  editValueRoleIds: z.array(snowflake).max(100).optional(), enabledOrderModules: z.array(z.enum(["washing", "ammo", "drug", "weapon", "custom"])).max(5).optional(), finishRoleIds: z.array(snowflake).max(100).optional(), footerText: z.string().max(200).nullable().optional(), logChannelId: optionalSnowflake, maxOpenHours: z.coerce.number().min(1).max(8760).optional(),
   orderCancelledMessage: z.string().max(500).optional(), orderCreatedMessage: z.string().max(500).optional(), orderDeliveredMessage: z.string().max(500).optional(),
   panelChannelId: optionalSnowflake, panelDescription: z.string().max(1500).optional(), panelMessageId: optionalSnowflake, panelTitle: z.string().max(120).optional()
 });
 const productSchema = z.object({
   active: z.boolean().optional(), allowCustomQuantity: z.boolean().optional(), allowNotes: z.boolean().optional(), category: z.string().max(80).optional(),
   cost: z.coerce.number().min(0).max(1_000_000_000_000).optional(), description: z.string().max(500).nullable().optional(), emoji: z.string().max(80).nullable().optional(),
-  factionPercentage: z.coerce.number().min(0).max(100).optional(), featured: z.boolean().optional(), minimumStock: z.coerce.number().min(0).max(1_000_000_000).optional(),
+  defaultQuantity: z.coerce.number().int().min(1).max(1_000_000).optional(), factionPercentage: z.coerce.number().min(0).max(100).optional(), featured: z.boolean().optional(), maximumQuantity: z.coerce.number().int().min(1).max(1_000_000).optional(), minimumQuantity: z.coerce.number().int().min(1).max(1_000_000).optional(), minimumStock: z.coerce.number().min(0).max(1_000_000_000).optional(),
   washingPercentages: z.array(z.coerce.number().min(0).max(100)).max(25).optional(),
   name: z.string().min(1).max(100).optional(), order: z.coerce.number().int().min(0).max(10000).optional(), price: z.coerce.number().min(0).max(1_000_000_000_000).optional(),
-  sellerPercentage: z.coerce.number().min(0).max(100).optional(), stock: z.coerce.number().min(0).max(1_000_000_000).nullable().optional(), type: z.enum(["standard", "washing", "ammo", "weapon"]).optional(), useStock: z.boolean().optional()
+  sellerPercentage: z.coerce.number().min(0).max(100).optional(), stock: z.coerce.number().min(0).max(1_000_000_000).nullable().optional(), type: z.enum(["standard", "washing", "ammo", "drug", "weapon", "custom"]).optional(), useStock: z.boolean().optional()
 });
+const familySchema = z.object({ active: z.boolean().optional(), logChannelId: optionalSnowflake, name: z.string().min(1).max(100), notes: z.string().max(1000).nullable().optional(), responsibleId: snowflake, roleId: snowflake });
 const createOrderSchema = z.object({
   clientName: z.string().min(1).max(120), expectedDelivery: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(), grossValue: z.coerce.number().min(0).max(1_000_000_000_000).nullable().optional(),
-  guildId: snowflake, notes: z.string().max(1000).nullable().optional(), productId: z.string().min(1).max(80), proofUrl: z.string().max(2048).nullable().optional(),
+  familyId: z.string().min(1).max(80), guildId: snowflake, notes: z.string().max(1000).nullable().optional(), productId: z.string().min(1).max(80), proofUrl: z.string().max(2048).nullable().optional(),
   quantity: z.coerce.number().min(1).max(1_000_000), sourceId: z.string().max(120).nullable().optional(), userId: snowflake,
   washingPercentage: z.coerce.number().min(0).max(100).nullable().optional()
 });
@@ -72,6 +77,16 @@ fivemOrdersRouter.post("/:guildId/products", async (req, res, next) => {
     if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para criar produtos." });
     return res.status(201).json({ product: await createFivemOrderProduct(guildId, botId, input, res.locals.dashboardAuth.user.discordId) });
   } catch (error) { return next(error); }
+});
+
+fivemOrdersRouter.post("/:guildId/families", async (req, res, next) => {
+  try { const guildId = snowflake.parse(req.params.guildId); const botId = await resolveRequestBotId(req); const input = familySchema.parse(req.body); if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para criar familias." }); return res.status(201).json({ family: await createFivemOrderFamily(guildId, botId, input, res.locals.dashboardAuth.user.discordId) }); } catch (error) { return next(error); }
+});
+fivemOrdersRouter.patch("/:guildId/families/:familyId", async (req, res, next) => {
+  try { const guildId = snowflake.parse(req.params.guildId); const familyId = z.string().min(1).max(80).parse(req.params.familyId); const botId = await resolveRequestBotId(req); const input = familySchema.partial().parse(req.body); if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para editar familias." }); const family = await updateFivemOrderFamily(guildId, botId, familyId, input, res.locals.dashboardAuth.user.discordId); if (!family) return res.status(404).json({ message: "Familia nao encontrada." }); return res.json({ family }); } catch (error) { return next(error); }
+});
+fivemOrdersRouter.delete("/:guildId/families/:familyId", async (req, res, next) => {
+  try { const guildId = snowflake.parse(req.params.guildId); const familyId = z.string().min(1).max(80).parse(req.params.familyId); const botId = await resolveRequestBotId(req); if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para excluir familias." }); const family = await deleteFivemOrderFamily(guildId, botId, familyId, res.locals.dashboardAuth.user.discordId); if (!family) return res.status(404).json({ message: "Familia nao encontrada." }); return res.json({ family }); } catch (error) { return next(error); }
 });
 
 fivemOrdersRouter.patch("/:guildId/products/:productId", async (req, res, next) => {
@@ -110,7 +125,7 @@ fivemOrdersRouter.post("/:guildId/panel", async (req, res, next) => {
 });
 
 fivemOrdersRouter.get("/bot/:guildId/runtime", requireBot, async (req, res, next) => {
-  try { const guildId = snowflake.parse(req.params.guildId); const botId = await resolveRequestBotId(req); await assertRuntime(botId, guildId); return res.json({ products: await listFivemOrderProducts(guildId, botId, true), settings: await getFivemOrderSettings(guildId, botId) }); } catch (error) { return next(error); }
+  try { const guildId = snowflake.parse(req.params.guildId); const botId = await resolveRequestBotId(req); await assertRuntime(botId, guildId); return res.json({ families: await listFivemOrderFamilies(guildId, botId, true), products: await listFivemOrderProducts(guildId, botId, true), settings: await getFivemOrderSettings(guildId, botId) }); } catch (error) { return next(error); }
 });
 fivemOrdersRouter.get("/bot/:guildId/orders/:orderNumber", requireBot, async (req, res, next) => {
   try { const guildId = snowflake.parse(req.params.guildId); const orderNumber = z.coerce.number().int().min(1).parse(req.params.orderNumber); const userId = req.query.userId ? snowflake.parse(req.query.userId) : null; const botId = await resolveRequestBotId(req); await assertRuntime(botId, guildId); return res.json({ order: await getFivemOrderByNumber(guildId, botId, orderNumber, userId) }); } catch (error) { return next(error); }

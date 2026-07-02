@@ -40,7 +40,7 @@ export async function showFivemOrderCreate(interaction: ChatInputCommandInteract
   if (!interaction.guild) return;
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
   if (!(await canCreate(interaction.guild, interaction.user.id, runtime.settings))) return interaction.reply({ content: "Voce nao possui permissao para criar encomendas.", ephemeral: true });
-  await replyWithProductSelect(interaction, runtime.products, null);
+  await replyWithFamilySelect(interaction, runtime.families, "all");
 }
 
 export async function showFivemOrderStatus(interaction: ChatInputCommandInteraction, context: BotContext, orderNumber: number) {
@@ -69,11 +69,15 @@ export async function showFivemOrderReport(interaction: ChatInputCommandInteract
 export async function handleFivemOrderInteraction(interaction: Interaction, context: BotContext) {
   if (!("customId" in interaction) || !interaction.customId.startsWith(`${PREFIX}:`)) return false;
   if (interaction.isStringSelectMenu() && interaction.customId === `${PREFIX}:category`) { await selectCategory(interaction, context); return true; }
+  if (interaction.isStringSelectMenu() && interaction.customId === `${PREFIX}:type`) { await selectOrderType(interaction, context); return true; }
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${PREFIX}:family:`)) { await selectFamily(interaction, context); return true; }
   if (interaction.isButton() && interaction.customId === `${PREFIX}:create`) { await startCreate(interaction, context); return true; }
-  if (interaction.isStringSelectMenu() && interaction.customId === `${PREFIX}:product`) { await showOrderModal(interaction, context); return true; }
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${PREFIX}:product:`)) { await showOrderModal(interaction, context); return true; }
   if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${PREFIX}:washing_percentage:`)) { await showWashingModal(interaction, context); return true; }
   if (interaction.isModalSubmit() && interaction.customId.startsWith(`${PREFIX}:modal:`)) { await submitOrder(interaction, context); return true; }
   if (interaction.isButton() && interaction.customId === `${PREFIX}:status`) { await showStatusModal(interaction); return true; }
+  if (interaction.isButton() && interaction.customId === `${PREFIX}:families`) { await showFamilies(interaction, context); return true; }
+  if (interaction.isButton() && interaction.customId === `${PREFIX}:help`) { await showOrderHelp(interaction); return true; }
   if (interaction.isModalSubmit() && interaction.customId === `${PREFIX}:status_modal`) { await submitStatusLookup(interaction, context); return true; }
   if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:action:`)) { await updateOrderFromButton(interaction, context); return true; }
   return false;
@@ -99,7 +103,9 @@ function createMainPanel(settings: FivemOrderSettings, products: FivemOrderProdu
   if (categories.length) rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(`${PREFIX}:category`).setPlaceholder("Selecione uma categoria").addOptions(categories.map((category) => ({ label: category.slice(0, 100), value: category.slice(0, 100) })))));
   rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(`${PREFIX}:create`).setLabel("Criar Encomenda").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`${PREFIX}:status`).setLabel("Ver Status").setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId(`${PREFIX}:status`).setLabel("Ver Encomenda").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`${PREFIX}:families`).setLabel("Ver Familias").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`${PREFIX}:help`).setLabel("Como Funciona").setStyle(ButtonStyle.Secondary)
   ));
   const imageUrl = resolveImageUrl(settings.panelImage?.imageUrl ?? null);
   const containerComponents: Array<Record<string, unknown>> = [];
@@ -116,51 +122,81 @@ async function selectCategory(interaction: StringSelectMenuInteraction, context:
   if (!interaction.guild) return;
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
   if (!(await canCreate(interaction.guild, interaction.user.id, runtime.settings))) return interaction.reply({ content: "Voce nao possui permissao para criar encomendas.", ephemeral: true });
-  await replyWithProductSelect(interaction, runtime.products, interaction.values[0] ?? null);
+  await replyWithFamilySelect(interaction, runtime.families, "all");
 }
 
 async function startCreate(interaction: ButtonInteraction, context: BotContext) {
   if (!interaction.guild) return;
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
   if (!(await canCreate(interaction.guild, interaction.user.id, runtime.settings))) return interaction.reply({ content: "Voce nao possui permissao para criar encomendas.", ephemeral: true });
-  await replyWithProductSelect(interaction, runtime.products, null);
+  const enabled = new Set(runtime.settings.enabledOrderModules ?? ["washing", "ammo", "drug", "weapon", "custom"]);
+  const types = [{ label: "Lavagem", value: "washing" }, { label: "Municao", value: "ammo" }, { label: "Drogas", value: "drug" }, { label: "Armas", value: "weapon" }, { label: "Itens personalizados", value: "custom" }].filter((item) => enabled.has(item.value as never) && runtime.products.some((product) => normalizeProductModule(product.type) === item.value));
+  if (!types.length) return interaction.reply({ content: "Nenhum modulo possui itens ativos. Configure os modulos na dashboard.", ephemeral: true });
+  const select = new StringSelectMenuBuilder().setCustomId(`${PREFIX}:type`).setPlaceholder("Escolha o tipo de encomenda").addOptions(types);
+  await interaction.reply({ components: [{ type: 17, accent_color: 0x22c55e, components: [{ type: 10, content: "## Criar Encomenda\nPrimeiro escolha o tipo. Depois selecione a familia e o item." }] }, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)], flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
 }
 
-async function replyWithProductSelect(interaction: ButtonInteraction | StringSelectMenuInteraction | ChatInputCommandInteraction, products: FivemOrderProduct[], category: string | null) {
+async function replyWithFamilySelect(interaction: ButtonInteraction | StringSelectMenuInteraction | ChatInputCommandInteraction, families: Awaited<ReturnType<BotContext["api"]["getFivemOrderRuntime"]>>["families"], type: string) {
+  if (!families.length) return interaction.reply({ content: "Nenhuma familia ativa foi cadastrada. Configure as familias na dashboard.", ephemeral: true });
+  const select = new StringSelectMenuBuilder().setCustomId(`${PREFIX}:family:${type}`).setPlaceholder("Escolha a familia").addOptions(families.slice(0, 25).map((family) => ({ label: family.name.slice(0, 100), value: family.id, description: family.notes?.slice(0, 100) || "Familia ativa" })));
+  return interaction.reply({ components: [{ type: 17, accent_color: 0x22c55e, components: [{ type: 10, content: "## Escolha a familia\nToda encomenda deve ficar vinculada a uma familia cadastrada." }] }, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)], flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
+}
+
+async function selectOrderType(interaction: StringSelectMenuInteraction, context: BotContext) {
+  if (!interaction.guild) return;
+  const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
+  await replyWithFamilySelect(interaction, runtime.families, interaction.values[0] ?? "custom");
+}
+
+async function selectFamily(interaction: StringSelectMenuInteraction, context: BotContext) {
+  if (!interaction.guild) return;
+  const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
+  const familyId = interaction.values[0] ?? "";
+  const type = interaction.customId.split(":")[2] ?? "all";
+  if (!runtime.families.some((family) => family.id === familyId)) return interaction.reply({ content: "Familia indisponivel.", ephemeral: true });
+  await replyWithProductSelect(interaction, runtime.products.filter((product) => type === "all" || normalizeProductModule(product.type) === type), null, familyId);
+}
+
+async function showFamilies(interaction: ButtonInteraction, context: BotContext) { if (!interaction.guild) return; const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id); await interaction.reply({ content: runtime.families.length ? runtime.families.map((family) => `• **${family.name}** - <@&${family.roleId}>`).join("\n").slice(0, 1900) : "Nenhuma familia cadastrada.", ephemeral: true }); }
+async function showOrderHelp(interaction: ButtonInteraction) { await interaction.reply({ content: "**Como criar uma encomenda**\n1. Escolha o tipo.\n2. Selecione a familia.\n3. Escolha o item.\n4. Informe quantidade/valor no modal.\n5. Confirme e acompanhe pelo numero ENC.", ephemeral: true }); }
+
+async function replyWithProductSelect(interaction: ButtonInteraction | StringSelectMenuInteraction | ChatInputCommandInteraction, products: FivemOrderProduct[], category: string | null, familyId: string) {
   const filtered = products.filter((item) => !category || item.category === category).slice(0, 25);
   if (!filtered.length) return interaction.reply({ content: "Nenhum produto disponivel nesta categoria.", ephemeral: true });
-  const select = new StringSelectMenuBuilder().setCustomId(`${PREFIX}:product`).setPlaceholder("Escolha o produto").addOptions(filtered.map((item) => ({ label: item.name.slice(0, 100), value: item.id, description: `${item.category} - ${formatMoney(item.price)}`.slice(0, 100), emoji: item.emoji || undefined })));
+  const select = new StringSelectMenuBuilder().setCustomId(`${PREFIX}:product:${familyId}`).setPlaceholder("Escolha o produto").addOptions(filtered.map((item) => ({ label: item.name.slice(0, 100), value: item.id, description: `${item.category} - ${formatMoney(item.price)}`.slice(0, 100), emoji: item.emoji || undefined })));
   return interaction.reply({ components: [{ type: 17, accent_color: 0x22c55e, components: [{ type: 10, content: `## Escolha o produto${category ? `\nCategoria: **${category}**` : ""}` }] }, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)], flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
 }
 
 async function showOrderModal(interaction: StringSelectMenuInteraction, context: BotContext) {
   if (!interaction.guild) return;
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
+  const familyId = interaction.customId.split(":")[2] ?? "";
+  if (!runtime.families.some((family) => family.id === familyId)) return interaction.reply({ content: "Familia indisponivel.", ephemeral: true });
   const product = runtime.products.find((item) => item.id === interaction.values[0]);
   if (!product) return interaction.reply({ content: "Produto indisponivel.", ephemeral: true });
   if (product.type === "washing") {
     const percentages = product.washingPercentages?.length ? product.washingPercentages : [product.factionPercentage];
-    const select = new StringSelectMenuBuilder().setCustomId(`${PREFIX}:washing_percentage:${product.id}`).setPlaceholder("Selecione a porcentagem da lavagem").addOptions(percentages.slice(0, 25).map((percentage) => ({ label: `${percentage}%`, value: String(percentage), description: `A familia recebe ${100 - percentage}% do valor entregue` })));
+    const select = new StringSelectMenuBuilder().setCustomId(`${PREFIX}:washing_percentage:${product.id}:${familyId}`).setPlaceholder("Selecione a porcentagem da lavagem").addOptions(percentages.slice(0, 25).map((percentage) => ({ label: `${percentage}%`, value: String(percentage), description: `A familia recebe ${100 - percentage}% do valor entregue` })));
     return interaction.reply({ content: "Selecione a porcentagem configurada para esta lavagem.", components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)], ephemeral: true });
   }
-  await openOrderModal(interaction, product, null, runtime.settings);
+  await openOrderModal(interaction, product, familyId, null, runtime.settings);
 }
 
 async function showWashingModal(interaction: StringSelectMenuInteraction, context: BotContext) {
   if (!interaction.guild) return;
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
   const productId = interaction.customId.split(":")[2] ?? "";
+  const familyId = interaction.customId.split(":")[3] ?? "";
   const product = runtime.products.find((item) => item.id === productId && item.type === "washing");
   if (!product) return interaction.reply({ content: "Lavagem indisponivel.", ephemeral: true });
   const percentage = Number(interaction.values[0]);
   const allowed = product.washingPercentages?.length ? product.washingPercentages : [product.factionPercentage];
   if (!allowed.includes(percentage)) return interaction.reply({ content: "Percentual nao permitido.", ephemeral: true });
-  await openOrderModal(interaction, product, percentage, runtime.settings);
+  await openOrderModal(interaction, product, familyId, percentage, runtime.settings);
 }
 
-async function openOrderModal(interaction: StringSelectMenuInteraction, product: FivemOrderProduct, washingPercentage: number | null, settings: FivemOrderSettings) {
-  const modal = new ModalBuilder().setCustomId(`${PREFIX}:modal:${product.id}${washingPercentage === null ? "" : `:${washingPercentage}`}`).setTitle(`Encomenda - ${product.name}`.slice(0, 45));
-  modal.addComponents(inputRow("client", product.type === "washing" ? "Nome da familia" : "Cliente/familia", product.type === "washing" ? "Nome da familia" : "Nome do cliente", true));
+async function openOrderModal(interaction: StringSelectMenuInteraction, product: FivemOrderProduct, familyId: string, washingPercentage: number | null, settings: FivemOrderSettings) {
+  const modal = new ModalBuilder().setCustomId(`${PREFIX}:modal:${product.id}:${familyId}${washingPercentage === null ? "" : `:${washingPercentage}`}`).setTitle(`Encomenda - ${product.name}`.slice(0, 45));
   modal.addComponents(inputRow("quantity", product.type === "washing" ? "Valor entregue pela familia" : "Quantidade", product.type === "washing" ? "Ex: 100000" : "Ex: 10", true));
   if (product.type === "washing") return interaction.showModal(modal);
   if (product.allowNotes) modal.addComponents(inputRow("notes", "Observacao", "Detalhes adicionais", false, true));
@@ -177,13 +213,16 @@ async function submitOrder(interaction: ModalSubmitInteraction, context: BotCont
   await interaction.deferReply({ ephemeral: true });
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
   const productId = interaction.customId.split(":")[2] ?? "";
-  const washingPercentage = interaction.customId.split(":")[3] ? Number(interaction.customId.split(":")[3]) : null;
+  const familyId = interaction.customId.split(":")[3] ?? "";
+  const washingPercentage = interaction.customId.split(":")[4] ? Number(interaction.customId.split(":")[4]) : null;
   const product = runtime.products.find((item) => item.id === productId);
   if (!product) return interaction.editReply("Produto indisponivel.");
   const numeric = parseBrazilianNumber(interaction.fields.getTextInputValue("quantity"));
   if (numeric === null || numeric <= 0) return interaction.editReply("Informe uma quantidade ou valor valido.");
   const readOptional = (id: string) => interaction.fields.fields.has(id) ? interaction.fields.getTextInputValue(id).trim() || null : null;
-  const order = await context.api.createFivemOrder({ clientName: interaction.fields.getTextInputValue("client"), expectedDelivery: readOptional("delivery"), grossValue: product.type === "washing" ? numeric : null, guildId: interaction.guild.id, notes: readOptional("notes"), productId, proofUrl: readOptional("proof"), quantity: product.type === "washing" ? 1 : numeric, sourceId: interaction.id, userId: interaction.user.id, washingPercentage });
+  const family = runtime.families.find((item) => item.id === familyId);
+  if (!family) return interaction.editReply("Familia indisponivel.");
+  const order = await context.api.createFivemOrder({ clientName: family.name, expectedDelivery: readOptional("delivery"), familyId, grossValue: product.type === "washing" ? numeric : null, guildId: interaction.guild.id, notes: readOptional("notes"), productId, proofUrl: readOptional("proof"), quantity: product.type === "washing" ? 1 : numeric, sourceId: interaction.id, userId: interaction.user.id, washingPercentage });
   const reviewChannelId = runtime.settings.approvalChannelId ?? runtime.settings.logChannelId;
   const reviewChannel = reviewChannelId ? await interaction.guild.channels.fetch(reviewChannelId).catch(() => null) : null;
   if (reviewChannel?.isSendable()) await reviewChannel.send(createOrderAdminPanel(runtime.settings, order)).catch(() => null);
@@ -225,7 +264,7 @@ function createOrderAdminPanel(settings: FivemOrderSettings, order: FivemOrder) 
   return {
     allowedMentions: { parse: [] as never[] },
     components: [
-      { type: 17, accent_color: parseColor(settings.color), components: [{ type: 10, content: `# Encomenda #${String(order.orderNumber).padStart(5, "0")}\nUsuario: <@${order.userId}>\nCliente: **${order.clientName}**\nProduto: **${order.productName}** (${order.category})\nQuantidade: **${order.quantity}**${order.washingPercentage !== null && order.washingPercentage !== undefined ? `\nValor entregue: **${formatMoney(order.grossValue)}**\nPercentual: **${order.washingPercentage}%**\nValor para familia: **${formatMoney(order.finalValue)}**` : `\nValor: **${formatMoney(order.finalValue)}**`}\nLucro: **${formatMoney(order.profit)}**\nStatus: **${statusLabel(order.status)}**${order.notes ? `\nObservacao: ${order.notes}` : ""}${order.proofUrl ? `\nComprovante: ${order.proofUrl}` : ""}` }] },
+      { type: 17, accent_color: parseColor(settings.color), components: [{ type: 10, content: `# Encomenda ENC-${String(order.orderNumber).padStart(4, "0")}\nUsuario: <@${order.userId}>\nFamilia: **${order.familyName}**\nProduto: **${order.productName}** (${order.category})\nQuantidade: **${order.quantity}**${order.washingPercentage !== null && order.washingPercentage !== undefined ? `\nValor entregue: **${formatMoney(order.grossValue)}**\nPercentual: **${order.washingPercentage}%**\nValor para familia: **${formatMoney(order.finalValue)}**` : `\nValor: **${formatMoney(order.finalValue)}**`}\nLucro: **${formatMoney(order.profit)}**\nStatus: **${statusLabel(order.status)}**${order.notes ? `\nObservacao: ${order.notes}` : ""}${order.proofUrl ? `\nComprovante: ${order.proofUrl}` : ""}` }] },
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(`${PREFIX}:action:approved:${order.id}`).setLabel("Aprovar").setStyle(ButtonStyle.Success).setDisabled(terminal || order.status !== "pending_approval"),
         new ButtonBuilder().setCustomId(`${PREFIX}:action:in_production:${order.id}`).setLabel("Produzir").setStyle(ButtonStyle.Primary).setDisabled(terminal || !["open", "approved"].includes(order.status)),
@@ -256,8 +295,9 @@ async function canManage(guild: Guild, userId: string, settings: FivemOrderSetti
   return member.roles.cache.some((role) => roles.includes(role.id));
 }
 function inputRow(id: string, label: string, placeholder: string, required: boolean, paragraph = false) { return new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId(id).setLabel(label.slice(0, 45)).setPlaceholder(placeholder).setRequired(required).setStyle(paragraph ? TextInputStyle.Paragraph : TextInputStyle.Short)); }
-function orderSummary(order: FivemOrder) { return `**Encomenda #${String(order.orderNumber).padStart(5, "0")}**\nProduto: ${order.productName}\nCliente: ${order.clientName}${order.washingPercentage !== null && order.washingPercentage !== undefined ? `\nValor entregue: ${formatMoney(order.grossValue)}\nPercentual: ${order.washingPercentage}%\nValor para familia: ${formatMoney(order.finalValue)}` : `\nValor: ${formatMoney(order.finalValue)}`}\nStatus: ${statusLabel(order.status)}\nCriada: <t:${Math.floor(new Date(order.createdAt).getTime() / 1000)}:F>`; }
+function orderSummary(order: FivemOrder) { return `**Encomenda ENC-${String(order.orderNumber).padStart(4, "0")}**\nFamilia: ${order.familyName}\nProduto: ${order.productName}${order.washingPercentage !== null && order.washingPercentage !== undefined ? `\nValor entregue: ${formatMoney(order.grossValue)}\nPercentual: ${order.washingPercentage}%\nValor para familia: ${formatMoney(order.finalValue)}` : `\nValor: ${formatMoney(order.finalValue)}`}\nStatus: ${statusLabel(order.status)}\nCriada: <t:${Math.floor(new Date(order.createdAt).getTime() / 1000)}:F>`; }
 function statusLabel(status: FivemOrderStatus) { return ({ open: "Aberta", pending_approval: "Aguardando aprovacao", approved: "Aprovada", in_production: "Em producao", ready: "Pronta", delivered: "Entregue", cancelled: "Cancelada", rejected: "Recusada" } as const)[status]; }
+function normalizeProductModule(type: FivemOrderProduct["type"]) { return type === "standard" ? "custom" : type; }
 function formatMoney(value: number) { return new Intl.NumberFormat("pt-BR", { currency: "BRL", style: "currency" }).format(value); }
 function parseColor(value: string) { return Number.parseInt(value.replace("#", ""), 16) || 0x22c55e; }
 function parseBrazilianNumber(value: string) { const raw = value.trim().replace(/[^\d.,-]/g, ""); if (!raw) return null; const comma = raw.lastIndexOf(","); const dot = raw.lastIndexOf("."); let normalized = raw; if (comma >= 0 && dot >= 0) normalized = comma > dot ? raw.replace(/\./g, "").replace(",", ".") : raw.replace(/,/g, ""); else if (/^\d{1,3}([.,]\d{3})+$/.test(raw)) normalized = raw.replace(/[.,]/g, ""); else if (comma >= 0) normalized = raw.replace(",", "."); const number = Number(normalized); return Number.isFinite(number) ? number : null; }

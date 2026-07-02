@@ -171,18 +171,19 @@ export type FivemGoalConfig = {
 export type FivemOrderStatus = "open" | "pending_approval" | "approved" | "in_production" | "ready" | "delivered" | "cancelled" | "rejected";
 export type FivemOrderSettings = {
   adminRoleIds: string[]; allowAnonymous: boolean; allowAttachments: boolean; allowCustomNotes: boolean; approvalChannelId: string | null; approvalRequired: boolean;
-  cancelRoleIds: string[]; color: string; createRoleIds: string[]; deliveryChannelId: string | null; enabled: boolean; errorMessage: string; finishRoleIds: string[];
+  cancelRoleIds: string[]; color: string; createRoleIds: string[]; deliveryChannelId: string | null; enabled: boolean; enabledOrderModules: Array<"washing" | "ammo" | "drug" | "weapon" | "custom">; errorMessage: string; finishRoleIds: string[];
   footerText: string | null; guildId: string; logChannelId: string | null; maxOpenHours: number; orderCancelledMessage: string; orderCreatedMessage: string;
   orderDeliveredMessage: string; panelChannelId: string | null; panelDescription: string; panelMessageId: string | null; panelTitle: string;
   panelImage: { imageEnabled: boolean; imageUrl: string } | null;
 };
+export type FivemOrderFamily = { active: boolean; id: string; logChannelId: string | null; name: string; notes: string | null; responsibleId: string; roleId: string };
 export type FivemOrderProduct = {
   active: boolean; allowCustomQuantity: boolean; allowNotes: boolean; category: string; cost: number; description: string | null; emoji: string | null;
   factionPercentage: number; washingPercentages?: number[]; featured: boolean; id: string; minimumStock: number; name: string; order: number; price: number; sellerPercentage: number;
-  stock: number | null; type: "standard" | "washing" | "ammo" | "weapon"; useStock: boolean;
+  defaultQuantity: number; maximumQuantity: number; minimumQuantity: number; stock: number | null; type: "standard" | "washing" | "ammo" | "drug" | "weapon" | "custom"; useStock: boolean;
 };
 export type FivemOrder = {
-  category: string; clientName: string; costTotal: number; createdAt: string; expectedDelivery: string | null; finalValue: number; grossValue: number; id: string;
+  category: string; clientName: string; costTotal: number; createdAt: string; expectedDelivery: string | null; familyId: string; familyName: string; finalValue: number; grossValue: number; id: string;
   notes: string | null; orderNumber: number; productId: string; productName: string; profit: number; proofUrl: string | null; quantity: number;
   responsibleId: string | null; status: FivemOrderStatus; unitPrice: number; userId: string; washingPercentage?: number | null;
 };
@@ -1281,11 +1282,11 @@ export class ApiClient {
   }
 
   async getFivemOrderRuntime(guildId: string) {
-    const { data } = await this.http.get<{ products: FivemOrderProduct[]; settings: FivemOrderSettings }>(`/fivem-orders/bot/${guildId}/runtime`);
+    const { data } = await this.http.get<{ families: FivemOrderFamily[]; products: FivemOrderProduct[]; settings: FivemOrderSettings }>(`/fivem-orders/bot/${guildId}/runtime`);
     return data;
   }
 
-  async createFivemOrder(input: { clientName: string; expectedDelivery?: string | null; grossValue?: number | null; guildId: string; notes?: string | null; productId: string; proofUrl?: string | null; quantity: number; sourceId?: string | null; userId: string; washingPercentage?: number | null }) {
+  async createFivemOrder(input: { clientName: string; expectedDelivery?: string | null; familyId: string; grossValue?: number | null; guildId: string; notes?: string | null; productId: string; proofUrl?: string | null; quantity: number; sourceId?: string | null; userId: string; washingPercentage?: number | null }) {
     const { data } = await this.http.post<{ order: FivemOrder }>("/fivem-orders/bot/orders", input);
     return data.order;
   }

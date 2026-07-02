@@ -370,6 +370,7 @@ export type MongoFivemOrderSettings = {
   allowCustomNotes: boolean;
   approvalChannelId: string | null;
   approvalRequired: boolean;
+  approveRoleIds: string[];
   botId: string | null;
   cancelRoleIds: string[];
   color: string;
@@ -378,10 +379,12 @@ export type MongoFivemOrderSettings = {
   enabled: boolean;
   errorMessage: string;
   finishRoleIds: string[];
+  editValueRoleIds: string[];
   footerText: string | null;
   guildId: string;
   logChannelId: string | null;
   maxOpenHours: number;
+  enabledOrderModules: Array<"washing" | "ammo" | "drug" | "weapon" | "custom">;
   orderCancelledMessage: string;
   orderCreatedMessage: string;
   orderDeliveredMessage: string;
@@ -391,6 +394,20 @@ export type MongoFivemOrderSettings = {
   panelTitle: string;
   updatedAt: Date;
   updatedBy?: string | null;
+};
+
+export type MongoFivemOrderFamily = {
+  _id: string;
+  active: boolean;
+  botId: string | null;
+  createdAt: Date;
+  guildId: string;
+  logChannelId: string | null;
+  name: string;
+  notes: string | null;
+  responsibleId: string;
+  roleId: string;
+  updatedAt: Date;
 };
 
 export type MongoFivemOrderProduct = {
@@ -409,12 +426,15 @@ export type MongoFivemOrderProduct = {
   featured: boolean;
   guildId: string;
   minimumStock: number;
+  defaultQuantity: number;
+  minimumQuantity: number;
+  maximumQuantity: number;
   name: string;
   order: number;
   price: number;
   sellerPercentage: number;
   stock: number | null;
-  type: "standard" | "washing" | "ammo" | "weapon";
+  type: "standard" | "washing" | "ammo" | "drug" | "weapon" | "custom";
   updatedAt: Date;
   useStock: boolean;
 };
@@ -429,6 +449,8 @@ export type MongoFivemOrder = {
   costTotal: number;
   createdAt: Date;
   expectedDelivery: string | null;
+  familyId: string;
+  familyName: string;
   finalValue: number;
   grossValue: number;
   washingPercentage?: number | null;
@@ -2223,6 +2245,7 @@ export async function getMongoCollections() {
     fivemGoalSubmissions: db.collection<MongoFivemGoalSubmission>("fivem_goal_submissions"),
     fivemGoalLogs: db.collection<MongoFivemGoalLog>("fivem_goal_logs"),
     fivemOrderSettings: db.collection<MongoFivemOrderSettings>("fivem_order_settings"),
+    fivemOrderFamilies: db.collection<MongoFivemOrderFamily>("fivem_order_families"),
     fivemOrderProducts: db.collection<MongoFivemOrderProduct>("fivem_order_products"),
     fivemOrders: db.collection<MongoFivemOrder>("fivem_orders"),
     fivemOrderLogs: db.collection<MongoFivemOrderLog>("fivem_order_logs"),
@@ -2372,6 +2395,7 @@ async function createMongoIndexes(db: Db) {
     db.collection<MongoFivemGoalSubmission>("fivem_goal_submissions").createIndex({ botId: 1, guildId: 1, status: 1, createdAt: -1 }),
     db.collection<MongoFivemGoalLog>("fivem_goal_logs").createIndex({ botId: 1, guildId: 1, metaId: 1, createdAt: -1 }),
     db.collection<MongoFivemOrderSettings>("fivem_order_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    db.collection<MongoFivemOrderFamily>("fivem_order_families").createIndex({ botId: 1, guildId: 1, name: 1 }, { unique: true }),
     db.collection<MongoFivemOrderProduct>("fivem_order_products").createIndex({ botId: 1, guildId: 1, order: 1 }),
     db.collection<MongoFivemOrder>("fivem_orders").createIndex({ botId: 1, guildId: 1, orderNumber: -1 }, { unique: true }),
     db.collection<MongoFivemOrder>("fivem_orders").createIndex({ botId: 1, guildId: 1, status: 1, createdAt: -1 }),
