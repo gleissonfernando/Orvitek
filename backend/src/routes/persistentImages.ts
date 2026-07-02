@@ -15,12 +15,42 @@ persistentImagesRouter.get("/:imageId", async (req, res, next) => {
       return res.status(404).json({ message: "Imagem nao encontrada." });
     }
 
+    const buffer = toImageBuffer(image.buffer);
+
+    if (!buffer.length) {
+      return res.status(404).json({ message: "Arquivo da imagem vazio ou invalido." });
+    }
+
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    res.setHeader("Content-Length", String(image.size));
+    res.setHeader("Content-Length", String(buffer.length));
     res.setHeader("Content-Type", image.mimeType);
     res.setHeader("X-Content-Type-Options", "nosniff");
-    return res.send(image.buffer);
+    return res.end(buffer);
   } catch (error) {
     return next(error);
   }
 });
+
+function toImageBuffer(value: unknown) {
+  if (Buffer.isBuffer(value)) {
+    return value;
+  }
+
+  if (value instanceof Uint8Array) {
+    return Buffer.from(value);
+  }
+
+  if (value && typeof value === "object" && "buffer" in value) {
+    const nested = (value as { buffer?: unknown }).buffer;
+
+    if (Buffer.isBuffer(nested)) {
+      return nested;
+    }
+
+    if (nested instanceof Uint8Array || Array.isArray(nested)) {
+      return Buffer.from(nested);
+    }
+  }
+
+  return Buffer.alloc(0);
+}

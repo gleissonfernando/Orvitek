@@ -386,9 +386,9 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
                     </p>
                   </div>
                   {draft.imageEnabled && draft.imageUrl && draft.imagePosition === "thumbnail" ? (
-                    <img alt="" className="h-20 w-20 shrink-0 rounded-md border border-zinc-800 object-cover" src={draft.imageUrl} />
+                    <img alt="" className="h-20 w-20 shrink-0 rounded-md border border-zinc-800 object-cover" src={dashboardImageUrl(draft.imageUrl)} />
                   ) : null}
-                  {draft.imageEnabled && draft.imageUrl && draft.imagePosition === "side" ? <img alt="" className="h-28 w-36 shrink-0 rounded-md border border-zinc-800 object-cover" src={draft.imageUrl} /> : null}
+                  {draft.imageEnabled && draft.imageUrl && draft.imagePosition === "side" ? <img alt="" className="h-28 w-36 shrink-0 rounded-md border border-zinc-800 object-cover" src={dashboardImageUrl(draft.imageUrl)} /> : null}
                 </div>
                 {draft.imageEnabled && draft.imageUrl && ["below_title", "below_text"].includes(draft.imagePosition) ? (
                   <PreviewImage alt={selectedPanel.label} imageUrl={draft.imageUrl} style={previewStyle} />
@@ -406,7 +406,7 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
                 ) : null}
                 {draft.imageEnabled && draft.imageUrl && draft.imagePosition === "footer" ? (
                   <div className="mt-4 flex items-center gap-2 border-t border-zinc-900 pt-3 text-xs text-zinc-500">
-                    <img alt="" className="h-5 w-5 rounded-full object-cover" src={draft.imageUrl} />
+                    <img alt="" className="h-5 w-5 rounded-full object-cover" src={dashboardImageUrl(draft.imageUrl)} />
                     Rodape do painel
                   </div>
                 ) : null}
@@ -510,10 +510,23 @@ function PreviewImage({
     <img
       alt={alt}
       className="mt-4 rounded-md border border-zinc-800 object-cover"
-      src={imageUrl}
+      src={dashboardImageUrl(imageUrl)}
       style={style}
     />
   );
+}
+
+function dashboardImageUrl(imageUrl: string) {
+  try {
+    const url = new URL(imageUrl);
+    if (url.pathname.startsWith("/api/persistent-images/")) {
+      return `${url.pathname}${url.search}`;
+    }
+  } catch {
+    // Relative URLs are already safe for the current dashboard origin.
+  }
+
+  return imageUrl;
 }
 
 function defaultSettings(guildId: string, botId: string, panelId: string): PanelImageSettingsDto {
