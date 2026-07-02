@@ -884,30 +884,40 @@ async function notifyAbsenceUser(guild: Guild, absence: FivemFacAbsence, message
 }
 
 function buildPanelPayload(settings: FivemFacSettings) {
+  const panelComponents: Array<Record<string, unknown>> = [
+    {
+      type: 10,
+      content: [
+        `# ${settings.messages.panelTitle || "🕒 Sistema de Ausência"}`,
+        settings.messages.panelDescription || "Clique no botão abaixo para solicitar sua ausência. Informe a data de início, data de retorno e o motivo. Sua solicitação será enviada para análise da staff.",
+        "",
+        "**Status:** sistema ativo",
+        "**Análise:** a staff irá revisar sua solicitação.",
+        "**Retorno:** o cargo de ausência será removido automaticamente quando a ausência acabar."
+      ].join("\n")
+    }
+  ];
+  if (settings.panelVisual.enabledSections.image && settings.panelVisual.imageUrl && settings.panelVisual.imagePosition !== "none") {
+    panelComponents.push({ type: 12, items: [{ media: { url: settings.panelVisual.imageUrl } }] });
+  }
   return {
-    allowedMentions: {
-      parse: []
-    },
-    embeds: [
-      new EmbedBuilder()
-        .setColor(0x2b2d31)
-        .setTitle("📅 Solicitar Ausência")
-        .setDescription("Informe a data de retorno e o motivo da sua ausência.")
-        .setTimestamp(new Date())
-    ],
+    allowedMentions: { parse: [] as never[] },
     components: [
+      { type: 17, accent_color: panelColor(settings.panelVisual.panelColor), components: panelComponents },
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId(REQUEST_BUTTON_ID)
           .setLabel("Solicitar Ausência")
-          .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-          .setCustomId(MINE_BUTTON_ID)
-          .setLabel("Minhas Ausências")
-          .setStyle(ButtonStyle.Secondary)
+          .setStyle(ButtonStyle.Primary)
       )
-    ]
+    ],
+    flags: MessageFlags.IsComponentsV2 as const
   };
+}
+
+function panelColor(value: string | null | undefined) {
+  const normalized = value?.trim().replace(/^#/, "");
+  return normalized && /^[0-9a-f]{6}$/i.test(normalized) ? Number.parseInt(normalized, 16) : 0x8b5cf6;
 }
 
 function buildAbsenceEmbed(absence: FivemFacAbsence) {

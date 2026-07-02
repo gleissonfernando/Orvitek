@@ -5,6 +5,7 @@ import {
   AtSign,
   Bot,
   Building2,
+  CalendarClock,
   CircleDollarSign,
   ChevronLeft,
   ChevronRight,
@@ -70,6 +71,7 @@ export type ViewId =
   | "permissions"
   | "logs"
   | "fivem"
+  | "fivem-absence"
   | "fivem-hierarchy"
   | "fivem-orders"
   | "fivem-washing"
@@ -127,7 +129,8 @@ const navItems: NavItem[] = [
   { id: "first-lady", label: "Primeira Dama", icon: UserPlus, moduleId: "first-lady" },
   { id: "permissions", label: "Usuarios", icon: Users, moduleId: "verification" },
   { id: "logs", label: "Logs e Notificações", icon: ScrollText, moduleId: "logs" },
-  { id: "fivem", label: "FiveM Geral", icon: Building2, moduleIds: ["fivem", "fivem-factions", "fivem-corporations", "fivem-absences", "fivem-ammo", "fivem-finance", "fivem-fac"] },
+  { id: "fivem", label: "FiveM Geral", icon: Building2, moduleIds: ["fivem", "fivem-factions", "fivem-corporations", "fivem-ammo", "fivem-finance"] },
+  { id: "fivem-absence", label: "Ausência", icon: CalendarClock, moduleIds: ["fivem-absences", "fivem-fac"] },
   { id: "fivem-hierarchy", label: "Hierarquia", icon: ListTree, moduleId: "fivem-hierarchy" },
   { id: "fivem-orders", label: "Encomendas RP", icon: Archive, moduleId: "fivem-orders" },
   { id: "fivem-washing", label: "Sistema de Lavagem", icon: CircleDollarSign, moduleId: "fivem-washing" },

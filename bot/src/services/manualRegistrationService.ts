@@ -464,9 +464,7 @@ function createPanelPayload(settings: ManualRegistrationSettings) {
     components: [
       { type: 17, accent_color: parseColor(settings.color), components },
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`${PREFIX}:start`).setEmoji("📝").setLabel("Solicitar Set").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(`${PREFIX}:status`).setEmoji("🔎").setLabel("Meu Status").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`${PREFIX}:help`).setEmoji("❔").setLabel("Como funciona").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId(`${PREFIX}:start`).setEmoji("📝").setLabel("Solicitar Set").setStyle(ButtonStyle.Primary)
       )
     ],
     flags: MessageFlags.IsComponentsV2 as const
