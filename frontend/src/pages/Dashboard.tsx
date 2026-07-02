@@ -4175,7 +4175,12 @@ function DeleteChannelsPanel({
   botId?: string | null;
   guild: DashboardGuild | null;
 }) {
-  const [options, setOptions] = useState<{ categories: Array<{ id: string; name: string }>; voiceChannels: GuildVoiceChannelOption[] }>({ categories: [], voiceChannels: [] });
+  const [options, setOptions] = useState<{
+    categories: Array<{ id: string; name: string }>;
+    channels: GuildChannelOption[];
+    roles: GuildRoleOption[];
+    voiceChannels: GuildVoiceChannelOption[];
+  }>({ categories: [], channels: [], roles: [], voiceChannels: [] });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -4187,10 +4192,15 @@ function DeleteChannelsPanel({
     setMessage(null);
     try {
       const result = await getGuildLiveOptions(guild.id, botId, true);
-      setOptions({ categories: result.categories ?? [], voiceChannels: result.voiceChannels ?? [] });
+      setOptions({
+        categories: result.categories ?? [],
+        channels: result.channels,
+        roles: result.roles,
+        voiceChannels: result.voiceChannels ?? []
+      });
       setSelectedIds([]);
     } catch (error) {
-      setMessage(readResponseMessage(error) ?? "Nao foi possivel carregar as calls e categorias.");
+      setMessage(readResponseMessage(error) ?? "Nao foi possivel carregar os canais e cargos.");
     } finally {
       setLoading(false);
     }
@@ -4215,19 +4225,21 @@ function DeleteChannelsPanel({
 
   async function handleDelete() {
     if (!guild || !selectedIds.length) return;
-    const confirmed = window.confirm(`Apagar permanentemente ${selectedIds.length} call(s) e/ou categoria(s) selecionada(s)? Esta acao nao pode ser desfeita.`);
+    const selectedRoleIds = selectedIds.filter((id) => options.roles.some((role) => role.id === id));
+    const selectedChannelIds = selectedIds.filter((id) => !selectedRoleIds.includes(id));
+    const confirmed = window.confirm(`Apagar permanentemente ${selectedChannelIds.length} canal(is) e ${selectedRoleIds.length} cargo(s)? Esta acao nao pode ser desfeita.`);
     if (!confirmed) return;
 
     setDeleting(true);
     setMessage(null);
     try {
-      const result = await deleteGuildChannels(guild.id, selectedIds, botId);
+      const result = await deleteGuildChannels(guild.id, selectedChannelIds, selectedRoleIds, botId);
       setMessage(result.failed.length
         ? `${result.deleted.length} removido(s). ${result.failed.length} falharam por permissao ou limite do Discord.`
-        : `${result.deleted.length} canal(is) removido(s) com sucesso.`);
+        : `${result.deleted.length} item(ns) removido(s) com sucesso.`);
       await loadChannels();
     } catch (error) {
-      setMessage(readResponseMessage(error) ?? "Nao foi possivel apagar os canais selecionados.");
+      setMessage(readResponseMessage(error) ?? "Nao foi possivel apagar os itens selecionados.");
     } finally {
       setDeleting(false);
     }
@@ -4238,17 +4250,20 @@ function DeleteChannelsPanel({
   }
 
   const categoryIds = options.categories.map((channel) => channel.id);
+  const textIds = options.channels.map((channel) => channel.id);
   const voiceIds = options.voiceChannels.map((channel) => channel.id);
+  const deletableRoles = options.roles.filter((role) => role.id !== guild.id);
+  const roleIds = deletableRoles.filter((role) => role.assignable).map((role) => role.id);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Trash2 className="h-5 w-5 text-red-300" />Apagar calls e categorias</CardTitle>
-        <CardDescription>Selecione quantas calls, palcos e categorias quiser remover do servidor {guild.name}.</CardDescription>
+        <CardTitle className="flex items-center gap-2"><Trash2 className="h-5 w-5 text-red-300" />Selecionar e apagar estrutura</CardTitle>
+        <CardDescription>Selecione quantos canais, calls, categorias e cargos quiser remover do servidor {guild.name}.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="rounded-lg border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-          A exclusao e permanente. O bot precisa da permissao Gerenciar Canais. Apagar uma categoria nao apaga automaticamente os canais que nao foram selecionados.
+          A exclusao e permanente. O bot precisa de Gerenciar Canais e Gerenciar Cargos. Cargos acima do bot ficam bloqueados para selecao.
         </div>
 
         <div className="flex flex-wrap gap-3">
@@ -4263,6 +4278,15 @@ function DeleteChannelsPanel({
         {message ? <p className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-200">{message}</p> : null}
 
         <div className="grid gap-5 lg:grid-cols-2">
+          <ChannelDeleteGroup
+            channelIds={textIds}
+            emptyLabel="Nenhum canal de texto encontrado."
+            items={options.channels.map((channel) => ({ id: channel.id, label: channel.name, detail: channel.type === "announcement" ? "Anuncios" : "Texto" }))}
+            onToggle={toggleChannel}
+            onToggleAll={() => toggleGroup(textIds)}
+            selectedIds={selectedIds}
+            title="Canais de texto"
+          />
           <ChannelDeleteGroup
             channelIds={voiceIds}
             emptyLabel="Nenhuma call encontrada."
@@ -4281,6 +4305,20 @@ function DeleteChannelsPanel({
             selectedIds={selectedIds}
             title="Categorias"
           />
+          <ChannelDeleteGroup
+            channelIds={roleIds}
+            emptyLabel="Nenhum cargo encontrado."
+            items={deletableRoles.map((role) => ({
+              disabled: !role.assignable,
+              id: role.id,
+              label: role.name,
+              detail: role.assignable ? "Cargo" : "Acima do bot"
+            }))}
+            onToggle={toggleChannel}
+            onToggleAll={() => toggleGroup(roleIds)}
+            selectedIds={selectedIds}
+            title="Cargos"
+          />
         </div>
       </CardContent>
     </Card>
@@ -4298,7 +4336,7 @@ function ChannelDeleteGroup({
 }: {
   channelIds: string[];
   emptyLabel: string;
-  items: Array<{ id: string; label: string; detail: string }>;
+  items: Array<{ id: string; label: string; detail: string; disabled?: boolean }>;
   onToggle: (id: string) => void;
   onToggleAll: () => void;
   selectedIds: string[];
@@ -4313,8 +4351,8 @@ function ChannelDeleteGroup({
       </div>
       <div className="discord-scrollbar max-h-96 space-y-2 overflow-y-auto pr-1">
         {items.length ? items.map((item) => (
-          <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-zinc-800 px-3 py-2 transition hover:border-zinc-700 hover:bg-zinc-900" key={item.id}>
-            <input checked={selectedIds.includes(item.id)} className="h-4 w-4 accent-red-500" onChange={() => onToggle(item.id)} type="checkbox" />
+          <label className={`flex items-center gap-3 rounded-lg border border-zinc-800 px-3 py-2 transition ${item.disabled ? "cursor-not-allowed opacity-45" : "cursor-pointer hover:border-zinc-700 hover:bg-zinc-900"}`} key={item.id}>
+            <input checked={selectedIds.includes(item.id)} className="h-4 w-4 accent-red-500" disabled={item.disabled} onChange={() => onToggle(item.id)} type="checkbox" />
             <span className="min-w-0 flex-1 truncate text-sm text-zinc-100">{item.label}</span>
             <span className="text-xs text-zinc-500">{item.detail}</span>
           </label>

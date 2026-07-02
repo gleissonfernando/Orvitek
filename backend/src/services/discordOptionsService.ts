@@ -82,9 +82,11 @@ export type GuildLiveOptionsDto = {
   voiceChannels: GuildVoiceChannelOptionDto[];
 };
 
-export type DeleteGuildChannelsResultDto = {
-  deleted: Array<{ id: string; name: string; type: "category" | "voice" | "stage" }>;
-  failed: Array<{ id: string; name: string; reason: string; type: "category" | "voice" | "stage" }>;
+type DeletableGuildStructureType = "announcement" | "category" | "role" | "stage" | "text" | "voice";
+
+export type DeleteGuildStructureResultDto = {
+  deleted: Array<{ id: string; name: string; type: DeletableGuildStructureType }>;
+  failed: Array<{ id: string; name: string; reason: string; type: DeletableGuildStructureType }>;
 };
 
 export type GuildMemberOptionDto = {
@@ -208,37 +210,57 @@ export async function getGuildLiveOptions(
   return request;
 }
 
-export async function deleteGuildVoiceChannelsAndCategories(
+export async function deleteGuildStructure(
   guildId: string,
   channelIds: string[],
+  roleIds: string[],
   botToken?: string | null
-): Promise<DeleteGuildChannelsResultDto> {
+): Promise<DeleteGuildStructureResultDto> {
   const token = botToken || env.DISCORD_BOT_TOKEN;
 
   if (!token) {
     throw new Error("Token do bot nao configurado.");
   }
 
-  const requestedIds = [...new Set(channelIds)];
-  const guildChannels = await discordFetch<DiscordChannel[]>(`/guilds/${guildId}/channels`, token);
+  const requestedChannelIds = [...new Set(channelIds)];
+  const requestedRoleIds = [...new Set(roleIds)];
+  const [guildChannels, guildRoles] = await Promise.all([
+    discordFetch<DiscordChannel[]>(`/guilds/${guildId}/channels`, token),
+    discordFetch<DiscordRole[]>(`/guilds/${guildId}/roles`, token)
+  ]);
   const allowedChannels = new Map(
     guildChannels
-      .filter((channel) => channel.type === 2 || channel.type === 4 || channel.type === 13)
+      .filter((channel) => TEXT_CHANNEL_TYPES.has(channel.type) || VOICE_CHANNEL_TYPES.has(channel.type) || channel.type === 4)
       .map((channel) => [channel.id, channel] as const)
   );
+  const allowedRoles = new Map(
+    guildRoles
+      .filter((role) => role.id !== guildId && !role.managed)
+      .map((role) => [role.id, role] as const)
+  );
 
-  const invalidIds = requestedIds.filter((channelId) => !allowedChannels.has(channelId));
-  if (invalidIds.length) {
-    throw Object.assign(new Error("A selecao contem canais invalidos ou que nao pertencem a este servidor."), { statusCode: 400 });
+  if (
+    requestedChannelIds.some((channelId) => !allowedChannels.has(channelId))
+    || requestedRoleIds.some((roleId) => !allowedRoles.has(roleId))
+  ) {
+    throw Object.assign(new Error("A selecao contem canais ou cargos invalidos para este servidor."), { statusCode: 400 });
   }
 
-  const orderedChannels = requestedIds
+  const orderedChannels = requestedChannelIds
     .map((channelId) => allowedChannels.get(channelId)!)
     .sort((left, right) => Number(left.type === 4) - Number(right.type === 4));
-  const result: DeleteGuildChannelsResultDto = { deleted: [], failed: [] };
+  const result: DeleteGuildStructureResultDto = { deleted: [], failed: [] };
 
   for (const channel of orderedChannels) {
-    const type = channel.type === 4 ? "category" : channel.type === 13 ? "stage" : "voice";
+    const type: DeletableGuildStructureType = channel.type === 4
+      ? "category"
+      : channel.type === 13
+        ? "stage"
+        : channel.type === 2
+          ? "voice"
+          : channel.type === 5
+            ? "announcement"
+            : "text";
     try {
       await discordDelete(`/channels/${channel.id}`, token, "Removido pela dashboard");
       result.deleted.push({ id: channel.id, name: channel.name, type });
@@ -248,6 +270,21 @@ export async function deleteGuildVoiceChannelsAndCategories(
         name: channel.name,
         reason: error instanceof Error ? error.message : "Falha desconhecida.",
         type
+      });
+    }
+  }
+
+  for (const roleId of requestedRoleIds) {
+    const role = allowedRoles.get(roleId)!;
+    try {
+      await discordDelete(`/guilds/${guildId}/roles/${role.id}`, token, "Removido pela dashboard");
+      result.deleted.push({ id: role.id, name: role.name, type: "role" });
+    } catch (error) {
+      result.failed.push({
+        id: role.id,
+        name: role.name,
+        reason: error instanceof Error ? error.message : "Falha desconhecida.",
+        type: "role"
       });
     }
   }
@@ -762,7 +799,7 @@ async function discordDelete(path: string, token: string, reason: string, attemp
   if (!response.ok) {
     throw new DiscordApiRequestError(
       response.status === 403
-        ? "O bot nao tem permissao para apagar este canal."
+        ? "O bot nao tem permissao ou hierarquia para apagar este item."
         : `Discord API respondeu ${response.status}.`,
       response.status
     );

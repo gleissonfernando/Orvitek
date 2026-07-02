@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   SmilePlus,
   SlidersHorizontal,
+  Trash2,
   Search,
   Server,
   UserMinus,
@@ -132,7 +133,7 @@ const navItems: NavItem[] = [
   { id: "auto-roles", label: "Cargos automaticos", icon: Users, moduleId: "roles" },
   { id: "media-library", label: "Emojis & Sons", icon: Archive, moduleId: "emoji-cloner" },
   { id: "server-cloner", label: "Clonagem", icon: SmilePlus, moduleIds: ["emoji-cloner", "server-cloner"] },
-  { id: "delete-channels", label: "Apagar canais", icon: UserMinus },
+  { id: "delete-channels", label: "Canais e cargos", icon: Trash2 },
   { id: "settings", label: "Configurações", icon: Settings, moduleIds: ["tickets", "avisos", "network", "server-generator"] }
 ];
 
