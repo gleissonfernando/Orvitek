@@ -36,6 +36,7 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Switch } from "../ui/switch";
+import { FivemResourceMultiSelect, FivemResourceSelect } from "./FivemResourceSelect";
 
 type FacAbsencePanelProps = {
   botId?: string | null;
@@ -409,25 +410,9 @@ function SelectField({
   options: Array<{ label: string; value: string }>;
   value: string | null;
 }) {
-  return (
-    <label className="space-y-2">
-      <span className="flex items-center gap-2 text-sm font-medium text-zinc-200">
-        <Icon className="h-4 w-4 text-zinc-500" />
-        {label}
-      </span>
-      <select
-        className="social-input h-12"
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value || null)}
-        value={value ?? ""}
-      >
-        <option value="">Não selecionado</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>{option.label}</option>
-        ))}
-      </select>
-    </label>
-  );
+  void Icon;
+  const prefix = options[0]?.label.startsWith("#") ? "#" : "@";
+  return <FivemResourceSelect disabled={disabled} label={label} onChange={onChange} options={options.map((option) => ({ id: option.value, name: option.label.replace(/^[@#]/, "") }))} placeholder="Não selecionado" prefix={prefix} value={value} />;
 }
 
 function RoleChecklist({
@@ -443,32 +428,13 @@ function RoleChecklist({
   roles: GuildRoleOption[];
   selectedRoleIds: string[];
 }) {
-  const selected = new Set(selectedRoleIds);
-
-  return (
-    <div className="space-y-2">
-      <p className="flex items-center gap-2 text-sm font-medium text-zinc-200">
-        <UserCheck className="h-4 w-4 text-zinc-500" />
-        {label}
-      </p>
-      <div className="grid max-h-48 gap-2 overflow-y-auto rounded-lg border border-zinc-900 bg-zinc-950/70 p-3 sm:grid-cols-2">
-        {roles.length ? roles.map((role) => (
-          <label className="flex min-h-9 items-center gap-2 rounded-md px-2 text-sm text-zinc-300 hover:bg-zinc-900" key={role.id}>
-            <input
-              checked={selected.has(role.id)}
-              disabled={disabled}
-              onChange={() => onToggle(role.id)}
-              type="checkbox"
-            />
-            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: role.color ? `#${role.color.toString(16).padStart(6, "0")}` : "#71717a" }} />
-            <span className="min-w-0 flex-1 truncate">{role.name}</span>
-          </label>
-        )) : (
-          <span className="px-2 py-3 text-sm text-zinc-500">Nenhum cargo disponivel.</span>
-        )}
-      </div>
-    </div>
-  );
+  void UserCheck;
+  return <FivemResourceMultiSelect disabled={disabled} label={label} onChange={(nextValues) => {
+    const changedIds = new Set([...selectedRoleIds, ...nextValues]);
+    changedIds.forEach((roleId) => {
+      if (selectedRoleIds.includes(roleId) !== nextValues.includes(roleId)) onToggle(roleId);
+    });
+  }} options={roles.map((role) => ({ color: role.color, disabled: role.managed, id: role.id, name: role.name }))} prefix="@" values={selectedRoleIds} />;
 }
 
 function TextField({ disabled, label, onChange, value }: { disabled: boolean; label: string; onChange: (value: string) => void; value: string }) {

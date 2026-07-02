@@ -47,6 +47,7 @@ import type { ViewId } from "../components/layout/sidebar";
 import { ClipsPanel } from "../components/clips/ClipsPanel";
 import { FacAbsencePanel } from "../components/fivem/FacAbsencePanel";
 import { FivemOrdersManager } from "../components/fivem/FivemOrdersPanel";
+import { FivemResourceMultiSelect, FivemResourceSelect } from "../components/fivem/FivemResourceSelect";
 import { GiveawayPanel } from "../components/giveaway/GiveawayPanel";
 import { LogsSettingsPanel } from "../components/LogsSettingsPanel";
 import { MissionToolsPanel } from "../components/mission-tools/MissionToolsPanel";
@@ -2794,18 +2795,8 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
               <div className="grid gap-3 md:grid-cols-2">
                 <TicketField disabled={!canManage} label="Nome interno" onChange={(value) => patchDraft({ name: value })} value={draft.name} />
                 <TicketField disabled={!canManage} label="Titulo do painel" onChange={(value) => patchDraft({ title: value })} value={draft.title} />
-                <label className="block text-xs font-medium text-zinc-400">Canal do painel
-                  <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchDraft({ panelChannelId: event.target.value || null })} value={draft.panelChannelId ?? ""}>
-                    <option value="">Selecione</option>
-                    {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
-                  </select>
-                </label>
-                <label className="block text-xs font-medium text-zinc-400">Canal de logs
-                  <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchDraft({ logChannelId: event.target.value || null })} value={draft.logChannelId ?? ""}>
-                    <option value="">Sem logs</option>
-                    {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
-                  </select>
-                </label>
+                <FivemChannelSelect channels={channels} disabled={!canManage} label="Canal do painel" onChange={(value) => patchDraft({ panelChannelId: value })} placeholder="Selecione" value={draft.panelChannelId} />
+                <FivemChannelSelect channels={channels} disabled={!canManage} label="Canal de logs" onChange={(value) => patchDraft({ logChannelId: value })} placeholder="Sem logs" value={draft.logChannelId} />
                 <TicketField disabled={!canManage} label="Cor" onChange={(value) => patchDraft({ color: value })} type="color" value={draft.color} />
                 <label className="block text-xs font-medium text-zinc-400">Imagem
                   <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchDraft({ imagePosition: event.target.value as FivemHierarchyPanelType["imagePosition"] })} value={draft.imagePosition}>
@@ -3225,18 +3216,8 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
                       </select>
                     </label>
                   </div>
-                  <label className="block text-xs font-medium text-zinc-400">Canal do painel
-                    <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchDraft({ panelChannelId: event.target.value || null })} value={draft.panelChannelId ?? ""}>
-                      <option value="">Sem painel</option>
-                      {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
-                    </select>
-                  </label>
-                  <label className="block text-xs font-medium text-zinc-400">Canal de logs
-                    <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchDraft({ logChannelId: event.target.value || null })} value={draft.logChannelId ?? ""}>
-                      <option value="">Sem logs</option>
-                      {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
-                    </select>
-                  </label>
+                  <FivemChannelSelect channels={channels} disabled={!canManage} label="Canal do painel" onChange={(value) => patchDraft({ panelChannelId: value })} placeholder="Sem painel" value={draft.panelChannelId} />
+                  <FivemChannelSelect channels={channels} disabled={!canManage} label="Canal de logs" onChange={(value) => patchDraft({ logChannelId: value })} placeholder="Sem logs" value={draft.logChannelId} />
                   <MultiRoleSelect disabled={!canManage} label="Cargos participantes" onChange={(value) => patchDraft({ participantRoleIds: value })} roles={roles} values={draft.participantRoleIds} />
                   <MultiRoleSelect disabled={!canManage} label="Cargos administradores" onChange={(value) => patchDraft({ managerRoleIds: value })} roles={roles} values={draft.managerRoleIds} />
                   <MultiRoleSelect disabled={!canManage} label="Cargos aprovadores" onChange={(value) => patchDraft({ approverRoleIds: value })} roles={roles} values={draft.approverRoleIds} />
@@ -3262,18 +3243,8 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
                 </select>
               </label>
               <TicketField disabled={!canManage} label="Modelo do nome do canal" onChange={(value) => patch({ channelNameTemplate: value })} value={settings.channelNameTemplate} />
-              <label className="block text-xs font-medium text-zinc-400">Categoria dos canais
-                <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patch({ categoryId: event.target.value || null })} value={settings.categoryId ?? ""}>
-                  <option value="">Sem categoria</option>
-                  {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                </select>
-              </label>
-              <label className="block text-xs font-medium text-zinc-400">Canal de logs
-                <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patch({ logChannelId: event.target.value || null })} value={settings.logChannelId ?? ""}>
-                  <option value="">Sem logs</option>
-                  {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
-                </select>
-              </label>
+              <FivemChannelSelect channels={categories} disabled={!canManage} label="Categoria dos canais" onChange={(value) => patch({ categoryId: value })} placeholder="Sem categoria" prefix="" value={settings.categoryId} />
+              <FivemChannelSelect channels={channels} disabled={!canManage} label="Canal de logs" onChange={(value) => patch({ logChannelId: value })} placeholder="Sem logs" value={settings.logChannelId} />
               <RoleSelect disabled={!canManage} label="Cargo que pode visualizar" onChange={(value) => patch({ viewRoleId: value || null })} roles={roles} value={settings.viewRoleId ?? ""} />
               <RoleSelect disabled={!canManage} label="Cargo administrador" onChange={(value) => patch({ managerRoleId: value || null })} roles={roles} value={settings.managerRoleId ?? ""} />
             </div>
@@ -3303,12 +3274,7 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
                       <option value="false">Desativado</option>
                     </select>
                   </label>
-                  <label className="block text-xs font-medium text-zinc-400">Canal do painel
-                    <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patch({ requestPanelChannelId: event.target.value || null })} value={settings.requestPanelChannelId ?? ""}>
-                      <option value="">Selecione um canal</option>
-                      {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
-                    </select>
-                  </label>
+                  <FivemChannelSelect channels={channels} disabled={!canManage} label="Canal do painel" onChange={(value) => patch({ requestPanelChannelId: value })} placeholder="Selecione um canal" value={settings.requestPanelChannelId} />
                   <TicketField disabled={!canManage} label="Titulo do painel" onChange={(value) => patch({ requestPanelTitle: value })} value={settings.requestPanelTitle} />
                   <label className="flex items-end gap-2 text-xs text-zinc-300">
                     <span className="flex h-10 items-center gap-2 rounded-md border border-zinc-800 px-3">
@@ -5107,22 +5073,7 @@ function MultiRoleSelect({
   roles: GuildRoleOption[];
   values: string[];
 }) {
-  return (
-    <label className="block text-xs font-medium text-zinc-400">
-      {label}
-      <select
-        className="mt-1 min-h-28 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 py-2 text-sm text-zinc-100"
-        disabled={disabled}
-        multiple
-        onChange={(event) => onChange(Array.from(event.currentTarget.selectedOptions).map((option) => option.value))}
-        value={values}
-      >
-        {roles.map((role) => (
-          <option key={role.id} value={role.id}>{role.name}</option>
-        ))}
-      </select>
-    </label>
-  );
+  return <FivemResourceMultiSelect disabled={disabled} label={label} onChange={onChange} options={roles.map((role) => ({ color: role.color, disabled: role.managed, id: role.id, name: role.name }))} prefix="@" values={values} />;
 }
 
 function RoleSelect({
@@ -5138,22 +5089,19 @@ function RoleSelect({
   roles: GuildRoleOption[];
   value: string;
 }) {
-  return (
-    <label className="block text-xs font-medium text-zinc-400">
-      {label}
-      <select
-        className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100"
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        value={value}
-      >
-        <option value="">Nenhum</option>
-        {roles.map((role) => (
-          <option key={role.id} value={role.id}>{role.name}</option>
-        ))}
-      </select>
-    </label>
-  );
+  return <FivemResourceSelect disabled={disabled} label={label} onChange={(nextValue) => onChange(nextValue ?? "")} options={roles.map((role) => ({ color: role.color, disabled: role.managed, id: role.id, name: role.name }))} placeholder="Nenhum" prefix="@" value={value || null} />;
+}
+
+function FivemChannelSelect({ channels, disabled, label, onChange, placeholder, prefix = "#", value }: {
+  channels: GuildChannelOption[];
+  disabled: boolean;
+  label: string;
+  onChange: (value: string | null) => void;
+  placeholder: string;
+  prefix?: string;
+  value: string | null;
+}) {
+  return <FivemResourceSelect disabled={disabled} label={label} onChange={onChange} options={channels.map((channel) => ({ id: channel.id, name: channel.name }))} placeholder={placeholder} prefix={prefix} value={value} />;
 }
 
 function CloningView({
