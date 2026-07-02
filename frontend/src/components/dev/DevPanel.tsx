@@ -6,6 +6,7 @@ import {
     Circle,
     Copy,
     CreditCard,
+    Database,
     ExternalLink,
     Eye,
     EyeOff,
@@ -39,20 +40,27 @@ import {
     createDevBot,
     createOrvitechProduct,
     createOrvitechSale,
+    cleanupLegacyDatabaseMaintenance,
     createOrvitechSalesPlan,
     deleteDevBot,
+    deleteDatabaseMaintenanceUserLinks,
     deleteOrvitechProduct,
     deleteOrvitechPaymentProvider,
     deleteOrvitechSalesPlan,
     getBotGuildConfig,
+    getDatabaseMaintenanceModules,
+    getDatabaseMaintenanceUserLinks,
     getDevBots,
     getDevModules,
     getGuildLiveOptions,
     getOrvitechSalesDashboard,
+    resetDatabaseMaintenanceModule,
+    resetDatabaseMaintenanceServer,
     duplicateOrvitechProduct,
     restartDevBot,
     saveOrvitechPaymentProvider,
     saveOrvitechSalesSettings,
+    searchDatabaseMaintenanceUsers,
     startAllDevBots,
     stopAllDevBots,
     stopDevBot,
@@ -70,6 +78,10 @@ import type {
     CreateDevBotPayload,
     DashboardBot,
     DashboardMeGuild,
+    DatabaseMaintenanceActionResult,
+    DatabaseMaintenanceLinksResult,
+    DatabaseMaintenanceModuleOption,
+    DatabaseMaintenanceUser,
     DevBot,
     DevBotStatus,
     DevModuleDefinition,
@@ -157,6 +169,7 @@ const emptyForm: CreateDevBotPayload = {
 type BotMenuId =
   | "overview"
   | "favorites"
+  | "database-maintenance"
   | "settings"
   | "moderation"
   | "tickets"
@@ -613,6 +626,7 @@ export function DevPanel({
     }
 
     const visibleMenuIds = new Set<BotMenuId>([
+      "database-maintenance",
       "favorites",
       "overview",
       ...flattenBotMenuItems(moduleDashboardCategories(modules)).map((item) => item.id)
@@ -1796,6 +1810,8 @@ function BotModuleWorkspace({
     ? modules
     : activeMenuId === "favorites"
       ? favoriteModules
+      : activeMenuId === "database-maintenance"
+        ? []
       : activeCategory
         ? modulesForMenu(activeCategory, modules, true)
         : modules;
@@ -1912,6 +1928,14 @@ function BotModuleWorkspace({
                 onClick={() => onSelectMenu("favorites")}
                 total={favoriteModules.length}
               />
+              <BotMenuCategoryButton
+                active={activeMenuId === "database-maintenance"}
+                count={0}
+                icon={Database}
+                label="Manutencao do Banco"
+                onClick={() => onSelectMenu("database-maintenance")}
+                total={0}
+              />
               {categories.map((item) => (
                 <BotMenuCategoryButton
                   active={activeMenuId === item.id}
@@ -1954,7 +1978,11 @@ function BotModuleWorkspace({
               />
             ) : null}
 
-            {filteredModules.length ? (
+            {activeMenuId === "database-maintenance" && !normalizedQuery ? (
+              <DatabaseMaintenancePanel bot={bot} guilds={guilds} />
+            ) : null}
+
+            {activeMenuId === "database-maintenance" && !normalizedQuery ? null : filteredModules.length ? (
               <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
                 {filteredModules.map((module, index) => (
                   <ModuleDashboardCard
@@ -1976,6 +2004,297 @@ function BotModuleWorkspace({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function DatabaseMaintenancePanel({ bot, guilds }: { bot: DevBot; guilds: DashboardMeGuild[] }) {
+  const [guildId, setGuildId] = useState(bot.mainGuildId);
+  const [query, setQuery] = useState("");
+  const [users, setUsers] = useState<DatabaseMaintenanceUser[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [links, setLinks] = useState<DatabaseMaintenanceLinksResult | null>(null);
+  const [modules, setModules] = useState<DatabaseMaintenanceModuleOption[]>([]);
+  const [selectedModule, setSelectedModule] = useState("manual-registration");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [moduleConfirmation, setModuleConfirmation] = useState("");
+  const [serverConfirmation, setServerConfirmation] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [lastResult, setLastResult] = useState<DatabaseMaintenanceActionResult | null>(null);
+  const visibleGuilds = guilds.length ? guilds : [{ id: bot.mainGuildId, name: bot.mainGuildName || bot.mainGuildId } as DashboardMeGuild];
+
+  useEffect(() => {
+    let mounted = true;
+    getDatabaseMaintenanceModules()
+      .then((items) => {
+        if (!mounted) return;
+        setModules(items);
+        setSelectedModule((current) => current || items[0]?.id || "manual-registration");
+      })
+      .catch(() => {
+        if (mounted) setMessage("Nao foi possivel carregar os modulos de manutencao.");
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    setLinks(null);
+    setUsers([]);
+    setSelectedUserId("");
+    setDeleteConfirmation("");
+  }, [guildId, bot.id]);
+
+  async function searchUsers() {
+    setBusy("search");
+    setMessage(null);
+    setLastResult(null);
+    try {
+      const result = await searchDatabaseMaintenanceUsers(bot.id, guildId, query.trim());
+      setUsers(result);
+      if (!result.length) setMessage("Nenhum usuario encontrado nesse escopo.");
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Falha ao buscar usuarios.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function inspectUser(userId: string) {
+    setBusy(`inspect:${userId}`);
+    setMessage(null);
+    setLastResult(null);
+    try {
+      const result = await getDatabaseMaintenanceUserLinks(bot.id, guildId, userId);
+      setSelectedUserId(userId);
+      setLinks(result);
+      setDeleteConfirmation("");
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Falha ao buscar vinculos do usuario.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function deleteUser() {
+    if (!selectedUserId) return;
+    setBusy("delete-user");
+    setMessage(null);
+    setLastResult(null);
+    try {
+      const result = await deleteDatabaseMaintenanceUserLinks(bot.id, guildId, selectedUserId, deleteConfirmation.trim());
+      setLastResult(result);
+      setMessage(`Usuario limpo: ${result.deletedTotal} registro(s) removido(s).`);
+      await inspectUser(selectedUserId);
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Falha ao excluir vinculos do usuario.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function cleanupLegacy() {
+    setBusy("cleanup-legacy");
+    setMessage(null);
+    setLastResult(null);
+    try {
+      const result = await cleanupLegacyDatabaseMaintenance(bot.id, guildId);
+      setLastResult(result);
+      setMessage(`Limpeza antiga concluida: ${result.deletedTotal} registro(s) removido(s).`);
+      if (selectedUserId) await inspectUser(selectedUserId);
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Falha ao limpar sistema antigo.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function resetModule() {
+    setBusy("reset-module");
+    setMessage(null);
+    setLastResult(null);
+    try {
+      const result = await resetDatabaseMaintenanceModule(bot.id, guildId, selectedModule, moduleConfirmation.trim());
+      setLastResult(result);
+      setMessage(`Modulo zerado: ${result.deletedTotal} registro(s) removido(s).`);
+      setModuleConfirmation("");
+      if (selectedUserId) await inspectUser(selectedUserId);
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Falha ao zerar modulo.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function resetServer() {
+    setBusy("reset-server");
+    setMessage(null);
+    setLastResult(null);
+    try {
+      const result = await resetDatabaseMaintenanceServer(bot.id, guildId, serverConfirmation.trim());
+      setLastResult(result);
+      setMessage(`Servidor limpo neste bot: ${result.deletedTotal} registro(s) removido(s).`);
+      setServerConfirmation("");
+      setLinks(null);
+      setUsers([]);
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Falha ao limpar servidor.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-4 text-sm font-medium text-red-100">
+        Todas as acoes sao isoladas por <span className="font-mono">{guildId}</span> e bot <span className="font-mono">{bot.id}</span>. Use apenas depois de revisar os vinculos encontrados.
+      </div>
+
+      {message ? (
+        <div className="rounded-lg border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-sm font-semibold text-white">
+          {message}
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <Card className="border-zinc-800 bg-black/35">
+          <CardHeader className="p-4">
+            <CardTitle className="flex items-center gap-2 text-white"><Search className="h-4 w-4" /> Buscar cadastro</CardTitle>
+            <CardDescription>Busque por ID do Discord, nome ou liste recentes do servidor.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 p-4 pt-0">
+            <label className="block text-xs font-semibold uppercase text-zinc-400">Servidor</label>
+            <select className="h-10 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-white" onChange={(event) => setGuildId(event.target.value)} value={guildId}>
+              {visibleGuilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name || guild.id}</option>)}
+              {!visibleGuilds.some((guild) => guild.id === bot.mainGuildId) ? <option value={bot.mainGuildId}>{bot.mainGuildName || bot.mainGuildId}</option> : null}
+            </select>
+            <input className="h-10 w-full rounded-lg border border-zinc-800 bg-black px-3 font-mono text-sm text-white outline-none focus:border-purple-400" inputMode="numeric" onChange={(event) => setGuildId(event.target.value.replace(/\D/g, ""))} placeholder="Ou digite um Guild ID" value={guildId} />
+            <label className="block text-xs font-semibold uppercase text-zinc-400">ID Discord ou nome</label>
+            <div className="flex gap-2">
+              <input className="h-10 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-white outline-none focus:border-purple-400" onChange={(event) => setQuery(event.target.value)} placeholder="1234567890 ou nome" value={query} />
+              <Button disabled={busy === "search"} onClick={() => void searchUsers()} size="sm">{busy === "search" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Buscar</Button>
+            </div>
+            <div className="space-y-2">
+              {users.map((user) => (
+                <button className={`w-full rounded-lg border p-3 text-left ${selectedUserId === user.userId ? "border-purple-400 bg-purple-500/10" : "border-zinc-800 bg-zinc-950/70"}`} key={user.userId} onClick={() => void inspectUser(user.userId)} type="button">
+                  <span className="block text-sm font-semibold text-white">{user.username || "Usuario sem nome"}</span>
+                  <span className="block font-mono text-xs text-zinc-400">{user.userId}</span>
+                  <span className="mt-1 block text-xs text-zinc-500">{user.sources.join(", ")}</span>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-zinc-800 bg-black/35">
+          <CardHeader className="p-4">
+            <CardTitle className="flex items-center gap-2 text-white"><Database className="h-4 w-4" /> Vinculos encontrados</CardTitle>
+            <CardDescription>Revise os documentos antes de confirmar a exclusao.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 p-4 pt-0">
+            {links ? (
+              <>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <OverviewMetric label="Usuario" value={links.userId} />
+                  <OverviewMetric label="Registros" value={String(links.total)} />
+                  <OverviewMetric label="Canais vinculados" value={String(new Set(links.links.flatMap((item) => item.channels)).size)} />
+                </div>
+                <div className="max-h-80 space-y-2 overflow-auto pr-1">
+                  {links.links.map((link) => (
+                    <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-3" key={`${link.collection}-${link.module}`}>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-white">{link.module}</p>
+                        <Badge variant="muted">{link.count}</Badge>
+                      </div>
+                      <p className="mt-1 font-mono text-xs text-zinc-500">{link.collection}</p>
+                      {link.channels.length ? <p className="mt-1 text-xs text-yellow-200">Canais: {link.channels.join(", ")}</p> : null}
+                    </div>
+                  ))}
+                  {!links.links.length ? <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-100">Nenhum vinculo encontrado para este usuario.</p> : null}
+                </div>
+                <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-3">
+                  <label className="block text-xs font-semibold uppercase text-red-100">Confirmar exclusao digitando o ID do usuario</label>
+                  <div className="mt-2 flex gap-2">
+                    <input className="h-10 min-w-0 flex-1 rounded-lg border border-red-500/25 bg-black px-3 font-mono text-sm text-white" onChange={(event) => setDeleteConfirmation(event.target.value)} value={deleteConfirmation} />
+                    <Button disabled={busy === "delete-user" || deleteConfirmation.trim() !== selectedUserId || !links.total} onClick={() => void deleteUser()} variant="destructive">
+                      {busy === "delete-user" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Excluir vinculos
+                    </Button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex min-h-56 items-center justify-center rounded-lg border border-dashed border-zinc-700 bg-black/25 text-center text-sm text-zinc-400">
+                Selecione um usuario para visualizar todos os vinculos.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Card className="border-zinc-800 bg-black/35">
+          <CardHeader className="p-4">
+            <CardTitle className="text-white">Limpar sistema antigo</CardTitle>
+            <CardDescription>Remove testes, duplicados e registros detectavelmente orfaos.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <Button disabled={busy === "cleanup-legacy"} onClick={() => void cleanupLegacy()} variant="outline">
+              {busy === "cleanup-legacy" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Limpar sistema antigo
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-yellow-500/25 bg-yellow-500/5">
+          <CardHeader className="p-4">
+            <CardTitle className="text-white">Zerar modulo</CardTitle>
+            <CardDescription>Digite CONFIRMAR antes de zerar o modulo selecionado.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 p-4 pt-0">
+            <select className="h-10 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-white" onChange={(event) => setSelectedModule(event.target.value)} value={selectedModule}>
+              {modules.map((module) => <option key={module.id} value={module.id}>{module.label}</option>)}
+            </select>
+            <input className="h-10 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-white" onChange={(event) => setModuleConfirmation(event.target.value)} placeholder="CONFIRMAR" value={moduleConfirmation} />
+            <Button disabled={busy === "reset-module" || moduleConfirmation.trim() !== "CONFIRMAR"} onClick={() => void resetModule()} variant="destructive">
+              {busy === "reset-module" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Zerar modulo
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-red-500/25 bg-red-500/5">
+          <CardHeader className="p-4">
+            <CardTitle className="text-white">Zerar servidor inteiro</CardTitle>
+            <CardDescription>Digite o ID do servidor para apagar todos os dados deste bot nesse servidor.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 p-4 pt-0">
+            <input className="h-10 w-full rounded-lg border border-red-500/25 bg-black px-3 font-mono text-sm text-white" onChange={(event) => setServerConfirmation(event.target.value)} placeholder={guildId} value={serverConfirmation} />
+            <Button disabled={busy === "reset-server" || serverConfirmation.trim() !== guildId} onClick={() => void resetServer()} variant="destructive">
+              {busy === "reset-server" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Zerar servidor
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      {lastResult ? (
+        <Card className="border-zinc-800 bg-black/35">
+          <CardHeader className="p-4">
+            <CardTitle className="text-white">Ultimo resultado</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 p-4 pt-0">
+            <p className="text-sm text-zinc-300">{lastResult.deletedTotal} registro(s) removido(s).</p>
+            <div className="grid gap-2 md:grid-cols-2">
+              {lastResult.modules.map((module, index) => (
+                <div className="rounded border border-zinc-800 bg-zinc-950/70 p-2 text-xs text-zinc-300" key={`${module.collection}-${index}`}>
+                  <span className="font-semibold text-white">{module.module}</span> - {module.collection}: {module.deleted}
+                  {module.reason ? <span className="block text-zinc-500">{module.reason}</span> : null}
+                </div>
+              ))}
+            </div>
+            {lastResult.errors?.length ? <p className="text-sm text-red-200">Erros: {lastResult.errors.map((error) => `${error.collection}: ${error.message}`).join("; ")}</p> : null}
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
   );
 }
 

@@ -8,6 +8,7 @@ import {
 import { registerGuildCommands } from "../handlers/commandHandler";
 import { startClipsMonitor } from "../services/clipsMonitor";
 import { startDiscordLogDelivery } from "../services/discordLogDeliveryService";
+import { startDatabaseMaintenanceService } from "../services/databaseMaintenanceService";
 import { startFivemFacService } from "../services/fivemFacService";
 import { startFivemGoalService } from "../services/fivemGoalService";
 import { startFivemFinanceService } from "../services/fivemFinanceService";
@@ -113,6 +114,7 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     void handleSafeBotSettingsUpdated(settings, client, context);
   });
   startDiscordLogDelivery(context);
+  startDatabaseMaintenanceService(client, context);
   if (isBotModuleEnabled("logs")) startAutomatedLogService(client, context);
   startMaintenanceService(context);
 

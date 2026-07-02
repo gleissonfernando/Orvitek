@@ -1310,6 +1310,23 @@ export class ApiClient {
     return data.settings;
   }
 
+  async cleanupUserLinksAfterGuildLeave(guildId: string, userId: string) {
+    const { data } = await this.http.post<{
+      result: {
+        botId: string | null;
+        channelIds: string[];
+        deletedTotal: number;
+        errors: Array<{ collection: string; message: string; module: string }>;
+        guildId: string;
+        modules: Array<{ collection: string; deleted: number; module: string }>;
+        userId: string;
+      };
+    }>(`/database-maintenance/bot/guilds/${encodeURIComponent(guildId)}/member-left/${encodeURIComponent(userId)}`, undefined, {
+      timeout: 30_000
+    });
+    return data.result;
+  }
+
   async recordGlobalBlacklistSafeBotInfraction(input: {
     actionTaken?: string | null;
     actorId?: string | null;

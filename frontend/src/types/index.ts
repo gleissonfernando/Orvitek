@@ -2387,6 +2387,40 @@ export type BotGuildConfig = {
   updatedAt: string;
 };
 
+export type DatabaseMaintenanceUser = {
+  userId: string;
+  username: string | null;
+  sources: string[];
+};
+
+export type DatabaseMaintenanceLink = {
+  channels: string[];
+  collection: string;
+  count: number;
+  module: string;
+  sample: Array<Record<string, unknown>>;
+};
+
+export type DatabaseMaintenanceLinksResult = {
+  botId: string | null;
+  guildId: string;
+  links: DatabaseMaintenanceLink[];
+  total: number;
+  userId: string;
+};
+
+export type DatabaseMaintenanceActionResult = {
+  deletedTotal: number;
+  errors?: Array<{ collection: string; message: string; module: string }>;
+  modules: Array<{ collection: string; deleted: number; module: string; reason?: string }>;
+  channelIds?: string[];
+};
+
+export type DatabaseMaintenanceModuleOption = {
+  id: string;
+  label: string;
+};
+
 export type AdvancedModuleConfig = {
   botId: string;
   config: Record<string, unknown>;

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ensureGuild, getMongoCollections, type MongoManualRegistrationLog, type MongoManualRegistrationSettings, type MongoManualRegistrationSubmission } from "../database/mongo";
 import { dashboardLogRealtimeRoom, devBotRealtimeRoom, emitRealtimeToRoom } from "../realtime/events";
+import { deleteUserLinks } from "./databaseMaintenanceService";
 import { getPanelImageSettings, type PanelImageSettingsDto } from "./panelImageSettingsService";
 
 export type ManualRegistrationFieldDto = {
@@ -376,6 +377,7 @@ export async function deleteManualRegistrationSubmission(guildId: string, botId:
   const deleted = await manualRegistrationSubmissions.findOneAndDelete({ _id: id, ...scopeQuery(guildId, normalizedBotId) });
   if (!deleted) throw Object.assign(new Error("Cadastro nao encontrado."), { statusCode: 404 });
   await writeManualRegistrationLog({ action: "submission.deleted", botId: normalizedBotId, data: { status: deleted.status }, executorId: actorId, guildId, submissionId: id, targetUserId: deleted.userId });
+  await deleteUserLinks({ actorId, botId: normalizedBotId, guildId, reason: "registration_cleanup", userId: deleted.userId });
   emitManualRegistrationUpdated(guildId, normalizedBotId);
 }
 

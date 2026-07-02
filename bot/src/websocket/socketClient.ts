@@ -86,6 +86,14 @@ export type ManualRegistrationExecuteEvent = {
   username: string;
 };
 
+export type DatabaseMaintenanceDeleteChannelsEvent = {
+  botId?: string | null;
+  channelIds: string[];
+  guildId: string;
+  reason: string;
+  userId?: string | null;
+};
+
 export type FivemHierarchyPanelUpdateEvent = {
   action: "publish" | "update";
   botId?: string | null;
@@ -223,6 +231,7 @@ export class BotSocketClient {
   private fivemOrderStatusUpdatedHandler: ((payload: FivemOrderStatusUpdatedEvent) => void) | null = null;
   private manualRegistrationPanelPublishHandler: ((payload: ManualRegistrationPanelPublishEvent) => void) | null = null;
   private manualRegistrationExecuteHandler: ((payload: ManualRegistrationExecuteEvent) => void) | null = null;
+  private databaseMaintenanceDeleteChannelsHandler: ((payload: DatabaseMaintenanceDeleteChannelsEvent) => void) | null = null;
   private fivemHierarchyPanelUpdateHandler: ((payload: FivemHierarchyPanelUpdateEvent) => void) | null = null;
   private fivemFacAbsenceUpdateHandler: ((payload: FivemFacAbsenceUpdateEvent) => void) | null = null;
   private missionToolsSettingsHandler: ((payload: MissionToolsSettingsEvent) => void) | null = null;
@@ -325,6 +334,7 @@ export class BotSocketClient {
       this.socket.on("manual-registration:panel_publish", this.manualRegistrationPanelPublishHandler);
     }
     if (this.manualRegistrationExecuteHandler) this.socket.on("manual-registration:execute", this.manualRegistrationExecuteHandler);
+    if (this.databaseMaintenanceDeleteChannelsHandler) this.socket.on("database-maintenance:delete_channels", this.databaseMaintenanceDeleteChannelsHandler);
 
     if (this.fivemHierarchyPanelUpdateHandler) {
       this.socket.on("fivem:hierarchy:panel_update", this.fivemHierarchyPanelUpdateHandler);
@@ -508,6 +518,12 @@ export class BotSocketClient {
     this.manualRegistrationExecuteHandler = handler;
     this.socket?.off("manual-registration:execute");
     this.socket?.on("manual-registration:execute", handler);
+  }
+
+  onDatabaseMaintenanceDeleteChannels(handler: (payload: DatabaseMaintenanceDeleteChannelsEvent) => void) {
+    this.databaseMaintenanceDeleteChannelsHandler = handler;
+    this.socket?.off("database-maintenance:delete_channels");
+    this.socket?.on("database-maintenance:delete_channels", handler);
   }
 
   onFivemHierarchyPanelUpdate(handler: (payload: FivemHierarchyPanelUpdateEvent) => void) {

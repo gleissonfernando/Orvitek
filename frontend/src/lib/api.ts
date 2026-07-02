@@ -1711,6 +1711,62 @@ export async function getDevBots() {
   return data.bots;
 }
 
+export async function getDatabaseMaintenanceModules() {
+  const { data } = await api.get<{ modules: import("../types").DatabaseMaintenanceModuleOption[] }>("/database-maintenance/modules");
+  return data.modules;
+}
+
+export async function searchDatabaseMaintenanceUsers(botId: string, guildId: string, query: string) {
+  const { data } = await api.get<{ users: import("../types").DatabaseMaintenanceUser[] }>(
+    `/database-maintenance/dev/bots/${encodeURIComponent(botId)}/guilds/${encodeURIComponent(guildId)}/search`,
+    { params: { q: query } }
+  );
+  return data.users;
+}
+
+export async function getDatabaseMaintenanceUserLinks(botId: string, guildId: string, userId: string) {
+  const { data } = await api.get<import("../types").DatabaseMaintenanceLinksResult>(
+    `/database-maintenance/dev/bots/${encodeURIComponent(botId)}/guilds/${encodeURIComponent(guildId)}/users/${encodeURIComponent(userId)}/links`
+  );
+  return data;
+}
+
+export async function deleteDatabaseMaintenanceUserLinks(botId: string, guildId: string, userId: string, confirmation: string) {
+  const { data } = await api.post<{ result: import("../types").DatabaseMaintenanceActionResult }>(
+    `/database-maintenance/dev/bots/${encodeURIComponent(botId)}/guilds/${encodeURIComponent(guildId)}/users/delete`,
+    { confirmation, userId },
+    { timeout: 60000 }
+  );
+  return data.result;
+}
+
+export async function cleanupLegacyDatabaseMaintenance(botId: string, guildId: string) {
+  const { data } = await api.post<{ result: import("../types").DatabaseMaintenanceActionResult }>(
+    `/database-maintenance/dev/bots/${encodeURIComponent(botId)}/guilds/${encodeURIComponent(guildId)}/cleanup-legacy`,
+    undefined,
+    { timeout: 60000 }
+  );
+  return data.result;
+}
+
+export async function resetDatabaseMaintenanceModule(botId: string, guildId: string, module: string, confirmation: string) {
+  const { data } = await api.post<{ result: import("../types").DatabaseMaintenanceActionResult }>(
+    `/database-maintenance/dev/bots/${encodeURIComponent(botId)}/guilds/${encodeURIComponent(guildId)}/reset-module`,
+    { confirmation, module },
+    { timeout: 60000 }
+  );
+  return data.result;
+}
+
+export async function resetDatabaseMaintenanceServer(botId: string, guildId: string, confirmation: string) {
+  const { data } = await api.post<{ result: import("../types").DatabaseMaintenanceActionResult }>(
+    `/database-maintenance/dev/bots/${encodeURIComponent(botId)}/guilds/${encodeURIComponent(guildId)}/reset-server`,
+    { confirmation },
+    { timeout: 120000 }
+  );
+  return data.result;
+}
+
 export async function listBotGuildConfigs(botId: string) {
   const { data } = await api.get<{ configs: BotGuildConfig[] }>(`/dev/bots/${botId}/guilds`);
   return data.configs;
