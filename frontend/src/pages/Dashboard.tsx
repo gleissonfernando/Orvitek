@@ -1171,7 +1171,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
           />
         ) : null}
         {activeView === "delete-channels" ? (
-          <DeleteChannelsPanel botId={activeBotId} canManage={canManageDashboard} guild={selectedGuild} />
+          <DeleteChannelsPanel botId={activeBotId} guild={selectedGuild} />
         ) : null}
         {activeView === "media-library" ? (
           <MediaLibraryPanel
@@ -4170,11 +4170,9 @@ function RulesView({
 
 function DeleteChannelsPanel({
   botId,
-  canManage,
   guild
 }: {
   botId?: string | null;
-  canManage: boolean;
   guild: DashboardGuild | null;
 }) {
   const [options, setOptions] = useState<{ categories: Array<{ id: string; name: string }>; voiceChannels: GuildVoiceChannelOption[] }>({ categories: [], voiceChannels: [] });
@@ -4257,7 +4255,7 @@ function DeleteChannelsPanel({
           <Button disabled={loading || deleting} onClick={() => void loadChannels()} variant="secondary">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}Atualizar lista
           </Button>
-          <Button disabled={!canManage || loading || deleting || !selectedIds.length} onClick={() => void handleDelete()} variant="destructive">
+          <Button disabled={loading || deleting || !selectedIds.length} onClick={() => void handleDelete()} variant="destructive">
             {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}Apagar selecionados ({selectedIds.length})
           </Button>
         </div>

@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
-import { canManageDashboardGuild } from "../services/dashboardGuildAccessService";
-import { canManageDevBotGuild, getDevBotToken } from "../services/devBotService";
+import { canManageDashboardGuild, canReadDashboardGuild } from "../services/dashboardGuildAccessService";
+import { canAccessDevBotGuild, canManageDevBotGuild, getDevBotToken } from "../services/devBotService";
 import { createLog } from "../services/logService";
 import { deleteGuildVoiceChannelsAndCategories, getGuildLiveOptions, getGuildMemberOptions, getGuildRoleOptions } from "../services/discordOptionsService";
 import { getBotStatus } from "../services/statsService";
@@ -65,8 +65,8 @@ guildsRouter.get("/:guildId/live-options", async (req, res, next) => {
     }
 
     if (
-      !canManageDashboardGuild(res.locals.dashboardAuth.user, guildId) &&
-      !(await canManageDevBotGuild(res.locals.dashboardAuth.user, botId, guildId))
+      !canReadDashboardGuild(res.locals.dashboardAuth.user, guildId) &&
+      !(await canAccessDevBotGuild(res.locals.dashboardAuth.user, botId, guildId))
     ) {
       return res.status(403).json({
         message: "Voce nao tem permissao para configurar lives deste servidor."
@@ -91,8 +91,8 @@ guildsRouter.post("/:guildId/delete-channels", async (req, res, next) => {
     const botId = input.botId ?? null;
 
     if (
-      !canManageDashboardGuild(res.locals.dashboardAuth.user, guildId) &&
-      !(await canManageDevBotGuild(res.locals.dashboardAuth.user, botId, guildId))
+      !canReadDashboardGuild(res.locals.dashboardAuth.user, guildId) &&
+      !(await canAccessDevBotGuild(res.locals.dashboardAuth.user, botId, guildId))
     ) {
       return res.status(403).json({ message: "Voce nao tem permissao para apagar canais deste servidor." });
     }
