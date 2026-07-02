@@ -78,6 +78,7 @@ export type ManualRegistrationPanelPublishEvent = {
 };
 export type ManualRegistrationExecuteEvent = {
   botId: string;
+  goalCategoryId: string;
   guildId: string;
   requestedRoleId: string;
   submissionId: string;

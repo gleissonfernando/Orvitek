@@ -4542,6 +4542,7 @@ function ManualRegistrationPanel({
   const [memberOptions, setMemberOptions] = useState<GuildMemberOption[]>([]);
   const [selectedMemberId, setSelectedMemberId] = useState("");
   const [manualRoleId, setManualRoleId] = useState("");
+  const [goalCategoryId, setGoalCategoryId] = useState("");
   const [characterName, setCharacterName] = useState("");
   const [gameId, setGameId] = useState("");
 
@@ -4701,7 +4702,7 @@ function ManualRegistrationPanel({
   }
 
   async function registerMember() {
-    if (!guild || !selectedMemberId || !manualRoleId || !characterName.trim() || !gameId.trim()) return;
+    if (!guild || !selectedMemberId || !manualRoleId || !goalCategoryId || !characterName.trim() || !gameId.trim()) return;
     const member = memberOptions.find((item) => item.id === selectedMemberId);
     if (!member) return;
     setSaving(true);
@@ -4709,11 +4710,11 @@ function ManualRegistrationPanel({
     setError(null);
     try {
       const submission = await createManualRegistrationSubmission(guild.id, {
-        characterName: characterName.trim(), gameId: gameId.trim(), requestedRoleId: manualRoleId,
+        characterName: characterName.trim(), gameId: gameId.trim(), goalCategoryId, requestedRoleId: manualRoleId,
         userAvatar: member.avatarUrl, userId: member.id, username: member.displayName || member.username
       }, botId);
       setSubmissions((current) => [submission, ...current]);
-      setSelectedMemberId(""); setManualRoleId(""); setCharacterName(""); setGameId("");
+      setSelectedMemberId(""); setManualRoleId(""); setGoalCategoryId(""); setCharacterName(""); setGameId("");
       setMessage("Cadastro enviado ao bot. O cargo e o canal de meta serao preparados automaticamente.");
     } catch {
       setError("Nao foi possivel cadastrar o membro.");
@@ -4761,10 +4762,16 @@ function ManualRegistrationPanel({
                   </select>
                 </label>
                 <RoleSelect disabled={!canManage} label="Cargo / Set" onChange={setManualRoleId} roles={roles.filter((role) => role.assignable)} value={manualRoleId} />
+                <label className="block text-xs font-medium text-zinc-400">Categoria do canal de meta
+                  <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => setGoalCategoryId(event.target.value)} value={goalCategoryId}>
+                    <option value="">Selecionar categoria</option>
+                    {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                  </select>
+                </label>
                 <TicketField disabled={!canManage} label="Nome do personagem" onChange={setCharacterName} value={characterName} />
                 <TicketField disabled={!canManage} label="ID in-game" onChange={setGameId} value={gameId} />
               </div>
-              <Button disabled={!canManage || saving || !selectedMemberId || !manualRoleId || !characterName.trim() || !gameId.trim()} onClick={() => void registerMember()} type="button"><UserPlus className="mr-2 h-4 w-4" />Cadastrar e criar canal</Button>
+              <Button disabled={!canManage || saving || !selectedMemberId || !manualRoleId || !goalCategoryId || !characterName.trim() || !gameId.trim()} onClick={() => void registerMember()} type="button"><UserPlus className="mr-2 h-4 w-4" />Cadastrar e criar canal</Button>
             </div>
             <div className="grid gap-3 sm:grid-cols-4">
               <MetricCard icon={ListChecks} label="Pedidos" value={String(submissions.length)} />

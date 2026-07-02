@@ -104,6 +104,7 @@ const roleUpdateSchema = z.object({ actorId: snowflakeSchema, guildId: snowflake
 const dashboardRegistrationSchema = z.object({
   characterName: z.string().trim().min(2).max(80),
   gameId: z.string().trim().min(1).max(32),
+  goalCategoryId: snowflakeSchema,
   requestedRoleId: snowflakeSchema,
   userAvatar: z.string().max(2048).nullable().optional(),
   userId: snowflakeSchema,

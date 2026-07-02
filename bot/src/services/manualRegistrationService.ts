@@ -36,14 +36,14 @@ export function startManualRegistrationService(client: Client<true>, context: Bo
   });
 }
 
-async function executeDashboardRegistration(guild: Guild, context: BotContext, payload: { requestedRoleId: string; submissionId: string; userId: string; username: string }) {
+async function executeDashboardRegistration(guild: Guild, context: BotContext, payload: { goalCategoryId: string; requestedRoleId: string; submissionId: string; userId: string; username: string }) {
   try {
     const member = await guild.members.fetch(payload.userId);
     const role = await guild.roles.fetch(payload.requestedRoleId);
     if (!role?.editable) throw new Error("O cargo selecionado nao pode ser entregue pelo bot.");
     await member.roles.add(role, "Cadastro manual realizado pela dashboard");
     const saved = await context.api.reviewManualRegistrationSubmission({ actorId: guild.members.me?.id ?? member.client.user.id, guildId: guild.id, id: payload.submissionId, status: "approved" });
-    const channelId = await ensureFivemGoalChannelForUser(context, guild, payload.userId, payload.username);
+    const channelId = await ensureFivemGoalChannelForUser(context, guild, payload.userId, payload.username, payload.goalCategoryId);
     await context.api.postLog({ guildId: guild.id, message: channelId ? "Cadastro manual concluido e canal de meta criado." : "Cadastro manual concluido; canal de meta ja existente ou modulo de metas indisponivel.", metadata: { channelId, roleId: payload.requestedRoleId, submissionId: saved.id }, type: "manual-registration.dashboard_completed", userId: payload.userId }).catch(() => null);
   } catch (error) {
     await context.api.postLog({ guildId: guild.id, message: error instanceof Error ? error.message : "Falha no cadastro manual.", metadata: { submissionId: payload.submissionId }, type: "manual-registration.dashboard_failed", userId: payload.userId }).catch(() => null);

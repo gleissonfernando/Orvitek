@@ -278,6 +278,7 @@ export async function createManualRegistrationDashboardSubmission(input: {
   botId: string;
   characterName: string;
   gameId: string;
+  goalCategoryId: string;
   guildId: string;
   requestedRoleId: string;
   userAvatar?: string | null;
@@ -301,7 +302,7 @@ export async function createManualRegistrationDashboardSubmission(input: {
   await writeManualRegistrationLog({ action: "submission.manual_created", botId: input.botId, data: { requestedRoleId: input.requestedRoleId }, executorId: input.actorId, guildId: input.guildId, submissionId: submission._id, targetUserId: input.userId });
   emitManualRegistrationUpdated(input.guildId, input.botId);
   emitRealtimeToRoom(devBotRealtimeRoom(input.botId), "manual-registration:execute", {
-    botId: input.botId, guildId: input.guildId, requestedRoleId: input.requestedRoleId,
+    botId: input.botId, goalCategoryId: input.goalCategoryId, guildId: input.guildId, requestedRoleId: input.requestedRoleId,
     submissionId: submission._id, userId: input.userId, username: input.characterName
   });
   return toSubmissionDto(submission);

@@ -32,7 +32,7 @@ export function startFivemGoalService(client: Client<true>, context: BotContext)
   });
 }
 
-export async function ensureFivemGoalChannelForUser(context: BotContext, guild: Guild, userId: string, username: string) {
+export async function ensureFivemGoalChannelForUser(context: BotContext, guild: Guild, userId: string, username: string, categoryId?: string | null) {
   const settings = await context.api.getFivemGoalSettings(guild.id).catch(() => null);
   if (!settings?.enabled) return null;
 
@@ -44,7 +44,7 @@ export async function ensureFivemGoalChannelForUser(context: BotContext, guild: 
   const channelName = renderChannelName(settings.channelNameTemplate, username, userId);
   const channel = await guild.channels.create({
     name: channelName,
-    parent: settings.categoryId ?? undefined,
+    parent: categoryId ?? settings.categoryId ?? undefined,
     permissionOverwrites: [
       { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
       { id: userId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles] },
