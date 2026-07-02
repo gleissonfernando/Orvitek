@@ -148,8 +148,9 @@ async function startCreate(interaction: ButtonInteraction, context: BotContext) 
 }
 
 async function replyWithFamilySelect(interaction: ButtonInteraction | StringSelectMenuInteraction | ChatInputCommandInteraction, families: Awaited<ReturnType<BotContext["api"]["getFivemOrderRuntime"]>>["families"], type: string) {
-  if (!families.length) return interaction.reply({ content: "Nenhuma familia ativa foi cadastrada. Configure as familias na dashboard.", ephemeral: true });
-  const select = new StringSelectMenuBuilder().setCustomId(`${PREFIX}:family:${type}`).setPlaceholder("Escolha a familia").addOptions(families.slice(0, 25).map((family) => ({ label: family.name.slice(0, 100), value: family.id, description: family.notes?.slice(0, 100) || "Familia ativa" })));
+  const availableFamilies = families.filter((family) => familyMatchesOrderType(family, type));
+  if (!availableFamilies.length) return interaction.reply({ content: "Nenhuma familia ativa foi cadastrada para este tipo de encomenda. Configure as familias na dashboard.", ephemeral: true });
+  const select = new StringSelectMenuBuilder().setCustomId(`${PREFIX}:family:${type}`).setPlaceholder("Escolha a familia").addOptions(availableFamilies.slice(0, 25).map((family) => ({ label: family.name.slice(0, 100), value: family.id, description: family.notes?.slice(0, 100) || "Familia ativa" })));
   return interaction.reply({ components: [{ type: 17, accent_color: 0x22c55e, components: [{ type: 10, content: "## Escolha a familia\nToda encomenda deve ficar vinculada a uma familia cadastrada." }] }, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)], flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
 }
 
@@ -164,7 +165,7 @@ async function selectFamily(interaction: StringSelectMenuInteraction, context: B
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
   const familyId = interaction.values[0] ?? "";
   const type = interaction.customId.split(":")[2] ?? "all";
-  if (!runtime.families.some((family) => family.id === familyId)) return interaction.reply({ content: "Familia indisponivel.", ephemeral: true });
+  if (!runtime.families.some((family) => family.id === familyId && familyMatchesOrderType(family, type))) return interaction.reply({ content: "Familia indisponivel para este tipo de encomenda.", ephemeral: true });
   await replyWithProductSelect(interaction, runtime.products.filter((product) => type === "all" || normalizeProductModule(product.type) === type), null, familyId);
 }
 
@@ -616,6 +617,7 @@ function inputRow(id: string, label: string, placeholder: string, required: bool
 function orderSummary(order: FivemOrder) { return `**Encomenda ENC-${String(order.orderNumber).padStart(4, "0")}**\nFamilia: ${order.familyName}\nProduto: ${order.productName}${order.washingPercentage !== null && order.washingPercentage !== undefined ? `\nValor entregue: ${formatMoney(order.grossValue)}\nPercentual: ${order.washingPercentage}%\nValor para familia: ${formatMoney(order.finalValue)}` : `\nValor: ${formatMoney(order.finalValue)}`}\nStatus: ${statusLabel(order.status)}\nCriada: <t:${Math.floor(new Date(order.createdAt).getTime() / 1000)}:F>`; }
 function statusLabel(status: FivemOrderStatus) { return ({ open: "Aberta", pending_approval: "Aguardando aprovacao", approved: "Aprovada", in_production: "Em producao", ready: "Pronta", delivered: "Entregue", cancelled: "Cancelada", rejected: "Recusada" } as const)[status]; }
 function normalizeProductModule(type: FivemOrderProduct["type"]) { return type === "standard" ? "custom" : type; }
+function familyMatchesOrderType(family: Awaited<ReturnType<BotContext["api"]["getFivemOrderRuntime"]>>["families"][number], type: string) { return type === "all" || !family.orderModules?.length || family.orderModules.includes(type as "washing" | "ammo" | "drug" | "weapon" | "custom"); }
 function formatMoney(value: number) { return new Intl.NumberFormat("pt-BR", { currency: "BRL", style: "currency" }).format(value); }
 function parseColor(value: string) { return Number.parseInt(value.replace("#", ""), 16) || 0x22c55e; }
 function parseBrazilianNumber(value: string) { const raw = value.trim().replace(/[^\d.,-]/g, ""); if (!raw) return null; const comma = raw.lastIndexOf(","); const dot = raw.lastIndexOf("."); let normalized = raw; if (comma >= 0 && dot >= 0) normalized = comma > dot ? raw.replace(/\./g, "").replace(",", ".") : raw.replace(/,/g, ""); else if (/^\d{1,3}([.,]\d{3})+$/.test(raw)) normalized = raw.replace(/[.,]/g, ""); else if (comma >= 0) normalized = raw.replace(",", "."); const number = Number(normalized); return Number.isFinite(number) ? number : null; }

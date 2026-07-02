@@ -405,6 +405,7 @@ export type MongoFivemOrderFamily = {
   logChannelId: string | null;
   name: string;
   notes: string | null;
+  orderModules?: Array<"washing" | "ammo" | "drug" | "weapon" | "custom">;
   responsibleId: string;
   roleId: string;
   updatedAt: Date;

@@ -178,7 +178,7 @@ export type FivemOrderSettings = {
   orderDeliveredMessage: string; panelChannelId: string | null; panelDescription: string; panelMessageId: string | null; panelTitle: string;
   panelImage: { imageEnabled: boolean; imagePosition: import("./panelVisualRenderer").PanelVisualPosition; imageUrl: string; useGlobalDefault?: boolean } | null;
 };
-export type FivemOrderFamily = { active: boolean; id: string; logChannelId: string | null; name: string; notes: string | null; responsibleId: string; roleId: string };
+export type FivemOrderFamily = { active: boolean; id: string; logChannelId: string | null; name: string; notes: string | null; orderModules: Array<"washing" | "ammo" | "drug" | "weapon" | "custom">; responsibleId: string; roleId: string };
 export type FivemOrderProduct = {
   active: boolean; allowCustomQuantity: boolean; allowNotes: boolean; category: string; cost: number; description: string | null; emoji: string | null;
   factionPercentage: number; washingPercentages?: number[]; featured: boolean; id: string; minimumStock: number; name: string; order: number; price: number; sellerPercentage: number;

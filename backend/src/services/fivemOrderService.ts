@@ -183,9 +183,11 @@ export async function createFivemOrder(input: {
   }
   const product = await fivemOrderProducts.findOne({ _id: input.productId, ...scopeQuery(input.guildId, botId), active: true });
   if (!product) throw orderError("Produto indisponivel.", 404);
+  const moduleId = product.type === "standard" ? "custom" : product.type;
   const family = await fivemOrderFamilies.findOne({ _id: input.familyId, ...scopeQuery(input.guildId, botId), active: true });
   if (!family) throw orderError("Selecione uma familia ativa para criar a encomenda.", 400);
-  const moduleId = product.type === "standard" ? "custom" : product.type;
+  const familyModules = normalizeOrderModules(family.orderModules ?? []);
+  if (familyModules.length && !familyModules.includes(moduleId as "washing" | "ammo" | "drug" | "weapon" | "custom")) throw orderError("Esta familia nao atende este tipo de encomenda.", 403);
   if (!settings.enabledOrderModules.includes(moduleId as "washing" | "ammo" | "drug" | "weapon" | "custom")) throw orderError("Este modulo de encomenda esta desativado.", 403);
   const quantity = product.type === "washing" ? 1 : clampNumber(input.quantity, product.minimumQuantity ?? 1, product.maximumQuantity ?? 1_000_000, product.defaultQuantity ?? 1);
   if (product.type !== "washing" && (input.quantity < (product.minimumQuantity ?? 1) || input.quantity > (product.maximumQuantity ?? 1_000_000))) throw orderError(`A quantidade deve ficar entre ${product.minimumQuantity ?? 1} e ${product.maximumQuantity ?? 1_000_000}.`, 400);
@@ -339,7 +341,7 @@ function normalizeProduct(value: Partial<FivemOrderProductDto>, guildId: string,
 }
 
 function toSettingsDto(row: MongoFivemOrderSettings): FivemOrderSettingsDto { const { _id: _id, updatedAt, ...rest } = row; return { ...defaultFivemOrderSettings(row.guildId, row.botId), ...rest, approveRoleIds: row.approveRoleIds ?? [], editValueRoleIds: row.editValueRoleIds ?? [], enabledOrderModules: normalizeOrderModules(row.enabledOrderModules), panelImage: null, updatedAt: updatedAt?.toISOString() ?? null }; }
-function toFamilyDto(row: MongoFivemOrderFamily): FivemOrderFamilyDto { const { _id, createdAt, updatedAt, ...rest } = row; return { ...rest, createdAt: createdAt.toISOString(), id: _id, updatedAt: updatedAt.toISOString() }; }
+function toFamilyDto(row: MongoFivemOrderFamily): FivemOrderFamilyDto { const { _id, createdAt, updatedAt, ...rest } = row; return { ...rest, orderModules: normalizeOrderModules(row.orderModules ?? []), createdAt: createdAt.toISOString(), id: _id, updatedAt: updatedAt.toISOString() }; }
 async function withPanelImage(settings: FivemOrderSettingsDto) { if (!settings.botId) return settings; const image = await getPanelImageSettings(settings.guildId, settings.botId, "fivem-orders").catch(() => null); return { ...settings, panelImage: image?.imageEnabled ? image : null }; }
 function toProductDto(row: MongoFivemOrderProduct): FivemOrderProductDto { const { _id, createdAt, updatedAt, ...rest } = row; return { ...rest, createdAt: createdAt.toISOString(), id: _id, updatedAt: updatedAt.toISOString() }; }
 function toOrderDto(row: MongoFivemOrder): FivemOrderDto { const { _id, createdAt, history, updatedAt, ...rest } = row; return { ...rest, createdAt: createdAt.toISOString(), history: history.map((item) => ({ ...item, at: item.at.toISOString() })), id: _id, updatedAt: updatedAt.toISOString() }; }
@@ -355,7 +357,7 @@ function normalizeSnowflakes(values: string[] | undefined) { return [...new Set(
 function normalizeText(value: string | null | undefined, max: number) { return value?.trim().slice(0, max) || null; }
 function normalizeUrl(value: string | null | undefined) { const text = normalizeText(value, 2048); if (!text) return null; try { const url = new URL(text); return ["http:", "https:"].includes(url.protocol) ? text : null; } catch { return null; } }
 function normalizeDate(value: string | null | undefined) { return /^\d{4}-\d{2}-\d{2}$/.test(value ?? "") ? value! : null; }
-function normalizeFamily(value: Partial<FivemOrderFamilyDto>, guildId: string, botId: string | null): Omit<MongoFivemOrderFamily, "_id" | "createdAt" | "updatedAt"> { return { active: value.active !== false, botId, guildId, logChannelId: normalizeSnowflake(value.logChannelId), name: normalizeText(value.name, 100) || "Nova familia", notes: normalizeText(value.notes, 1000), responsibleId: normalizeSnowflake(value.responsibleId) ?? "", roleId: normalizeSnowflake(value.roleId) ?? "" }; }
+function normalizeFamily(value: Partial<FivemOrderFamilyDto>, guildId: string, botId: string | null): Omit<MongoFivemOrderFamily, "_id" | "createdAt" | "updatedAt"> { return { active: value.active !== false, botId, guildId, logChannelId: normalizeSnowflake(value.logChannelId), name: normalizeText(value.name, 100) || "Nova familia", notes: normalizeText(value.notes, 1000), orderModules: normalizeOrderModules(value.orderModules ?? []), responsibleId: normalizeSnowflake(value.responsibleId) ?? "", roleId: normalizeSnowflake(value.roleId) ?? "" }; }
 function normalizeOrderModules(values: FivemOrderSettingsDto["enabledOrderModules"] | undefined) { const allowed = new Set(["washing", "ammo", "drug", "weapon", "custom"]); const result = [...new Set(values ?? ["washing", "ammo", "drug", "weapon", "custom"])].filter((value): value is "washing" | "ammo" | "drug" | "weapon" | "custom" => allowed.has(value)); return result; }
 function clampNumber(value: number | null | undefined, min: number, max: number, fallback: number) { return typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback; }
 function money(value: number | null | undefined) { return roundMoney(clampNumber(value, 0, 1_000_000_000_000, 0)); }
