@@ -422,6 +422,24 @@ export type MongoFivemOrderProduct = {
   createdAt: Date;
   description: string | null;
   emoji: string | null;
+  config?: {
+    adminRoleIds?: string[];
+    allowAttachments?: boolean | null;
+    allowCustomNotes?: boolean | null;
+    approvalChannelId?: string | null;
+    approvalRequired?: boolean | null;
+    approveRoleIds?: string[];
+    cancelRoleIds?: string[];
+    color?: string | null;
+    createRoleIds?: string[];
+    deliveryChannelId?: string | null;
+    finishRoleIds?: string[];
+    footerText?: string | null;
+    logChannelId?: string | null;
+    orderCancelledMessage?: string | null;
+    orderCreatedMessage?: string | null;
+    orderDeliveredMessage?: string | null;
+  };
   factionPercentage: number;
   washingPercentages?: number[];
   featured: boolean;

@@ -202,14 +202,15 @@ export async function createFivemOrder(input: {
     const stockUpdate = await fivemOrderProducts.updateOne({ _id: product._id, ...scopeQuery(input.guildId, botId), stock: { $gte: quantity } }, { $inc: { stock: -quantity }, $set: { updatedAt: new Date() } });
     if (!stockUpdate.modifiedCount) throw orderError("Estoque insuficiente para este produto.", 409);
   }
+  const effectiveSettings = mergeProductSettings(settings, product);
   const now = new Date();
-  const status: MongoFivemOrderStatus = settings.approvalRequired ? "pending_approval" : "open";
+  const status: MongoFivemOrderStatus = effectiveSettings.approvalRequired ? "pending_approval" : "open";
   const orderNumber = await nextOrderNumber(input.guildId, botId);
   const doc: MongoFivemOrder = {
     _id: randomUUID(), botId, category: product.category, clientName: normalizeText(input.clientName, 120) || "Cliente nao informado", costTotal: totals.costTotal,
     createdAt: now, expectedDelivery: normalizeDate(input.expectedDelivery), familyId: family._id, familyName: family.name, finalValue: totals.finalValue, grossValue: totals.grossValue, guildId: input.guildId,
-    history: [{ actorId: input.userId, at: now, from: null, note: null, to: status }], notes: settings.allowCustomNotes ? normalizeText(input.notes, 1000) : null,
-    orderNumber, productId: product._id, productName: product.name, profit: totals.profit, proofUrl: settings.allowAttachments ? normalizeUrl(input.proofUrl) : null,
+    history: [{ actorId: input.userId, at: now, from: null, note: null, to: status }], notes: effectiveSettings.allowCustomNotes ? normalizeText(input.notes, 1000) : null,
+    orderNumber, productId: product._id, productName: product.name, profit: totals.profit, proofUrl: effectiveSettings.allowAttachments ? normalizeUrl(input.proofUrl) : null,
     quantity, responsibleId: null, sourceId: normalizeText(input.sourceId, 120), status, unitPrice: totals.unitPrice, updatedAt: now, userId: input.userId, washingPercentage
   };
   try {
@@ -343,11 +344,59 @@ function normalizeProduct(value: Partial<FivemOrderProductDto>, guildId: string,
   return {
     active: value.active !== false, allowCustomQuantity: value.allowCustomQuantity !== false, allowNotes: value.allowNotes !== false, botId,
     category: normalizeText(value.category, 80) || (type === "washing" ? "Lavagem" : type === "ammo" ? "Municao" : type === "weapon" ? "Armas" : "Outros"),
+    config: normalizeProductConfig(value.config),
     cost: money(value.cost), description: normalizeText(value.description, 500), emoji: normalizeText(value.emoji, 80), factionPercentage: clampNumber(value.factionPercentage, 0, 100, type === "washing" ? 20 : 0),
     defaultQuantity: clampNumber(value.defaultQuantity, 1, 1_000_000, 1), featured: value.featured === true, guildId, maximumQuantity: clampNumber(value.maximumQuantity, 1, 1_000_000, 1_000_000), minimumQuantity: clampNumber(value.minimumQuantity, 1, 1_000_000, 1), minimumStock: clampNumber(value.minimumStock, 0, 1_000_000_000, 0), name: normalizeText(value.name, 100) || "Novo produto",
     order: clampNumber(value.order, 0, 10000, 0), price: money(value.price), sellerPercentage: clampNumber(value.sellerPercentage, 0, 100, 0), stock: value.useStock ? clampNumber(value.stock, 0, 1_000_000_000, 0) : null,
     type, useStock: value.useStock === true,
     washingPercentages: normalizePercentages(value.washingPercentages, value.factionPercentage, type)
+  };
+}
+
+function normalizeProductConfig(value: MongoFivemOrderProduct["config"] | undefined): MongoFivemOrderProduct["config"] {
+  if (!value) return undefined;
+  const config = {
+    adminRoleIds: normalizeSnowflakes(value.adminRoleIds),
+    allowAttachments: value.allowAttachments ?? null,
+    allowCustomNotes: value.allowCustomNotes ?? null,
+    approvalChannelId: normalizeSnowflake(value.approvalChannelId),
+    approvalRequired: value.approvalRequired ?? null,
+    approveRoleIds: normalizeSnowflakes(value.approveRoleIds),
+    cancelRoleIds: normalizeSnowflakes(value.cancelRoleIds),
+    color: value.color && /^#[0-9a-f]{6}$/i.test(value.color) ? value.color : null,
+    createRoleIds: normalizeSnowflakes(value.createRoleIds),
+    deliveryChannelId: normalizeSnowflake(value.deliveryChannelId),
+    finishRoleIds: normalizeSnowflakes(value.finishRoleIds),
+    footerText: normalizeText(value.footerText, 200),
+    logChannelId: normalizeSnowflake(value.logChannelId),
+    orderCancelledMessage: normalizeText(value.orderCancelledMessage, 500),
+    orderCreatedMessage: normalizeText(value.orderCreatedMessage, 500),
+    orderDeliveredMessage: normalizeText(value.orderDeliveredMessage, 500)
+  };
+  return config;
+}
+
+function mergeProductSettings(settings: FivemOrderSettingsDto, product: MongoFivemOrderProduct): FivemOrderSettingsDto {
+  const config = product.config;
+  if (!config) return settings;
+  return {
+    ...settings,
+    adminRoleIds: config.adminRoleIds?.length ? config.adminRoleIds : settings.adminRoleIds,
+    allowAttachments: config.allowAttachments ?? settings.allowAttachments,
+    allowCustomNotes: config.allowCustomNotes ?? settings.allowCustomNotes,
+    approvalChannelId: config.approvalChannelId ?? settings.approvalChannelId,
+    approvalRequired: config.approvalRequired ?? settings.approvalRequired,
+    approveRoleIds: config.approveRoleIds?.length ? config.approveRoleIds : settings.approveRoleIds,
+    cancelRoleIds: config.cancelRoleIds?.length ? config.cancelRoleIds : settings.cancelRoleIds,
+    color: config.color ?? settings.color,
+    createRoleIds: config.createRoleIds?.length ? config.createRoleIds : settings.createRoleIds,
+    deliveryChannelId: config.deliveryChannelId ?? settings.deliveryChannelId,
+    finishRoleIds: config.finishRoleIds?.length ? config.finishRoleIds : settings.finishRoleIds,
+    footerText: config.footerText ?? settings.footerText,
+    logChannelId: config.logChannelId ?? settings.logChannelId,
+    orderCancelledMessage: config.orderCancelledMessage ?? settings.orderCancelledMessage,
+    orderCreatedMessage: config.orderCreatedMessage ?? settings.orderCreatedMessage,
+    orderDeliveredMessage: config.orderDeliveredMessage ?? settings.orderDeliveredMessage
   };
 }
 

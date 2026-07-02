@@ -181,6 +181,24 @@ export type FivemOrderSettings = {
 export type FivemOrderFamily = { active: boolean; id: string; logChannelId: string | null; name: string; notes: string | null; orderModules: Array<"washing" | "ammo" | "drug" | "weapon" | "custom">; responsibleId: string; roleId: string };
 export type FivemOrderProduct = {
   active: boolean; allowCustomQuantity: boolean; allowNotes: boolean; category: string; cost: number; description: string | null; emoji: string | null;
+  config?: {
+    adminRoleIds?: string[];
+    allowAttachments?: boolean | null;
+    allowCustomNotes?: boolean | null;
+    approvalChannelId?: string | null;
+    approvalRequired?: boolean | null;
+    approveRoleIds?: string[];
+    cancelRoleIds?: string[];
+    color?: string | null;
+    createRoleIds?: string[];
+    deliveryChannelId?: string | null;
+    finishRoleIds?: string[];
+    footerText?: string | null;
+    logChannelId?: string | null;
+    orderCancelledMessage?: string | null;
+    orderCreatedMessage?: string | null;
+    orderDeliveredMessage?: string | null;
+  };
   factionPercentage: number; washingPercentages?: number[]; featured: boolean; id: string; minimumStock: number; name: string; order: number; price: number; sellerPercentage: number;
   defaultQuantity: number; maximumQuantity: number; minimumQuantity: number; stock: number | null; type: "standard" | "washing" | "ammo" | "drug" | "weapon" | "custom"; useStock: boolean;
 };

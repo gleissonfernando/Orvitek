@@ -37,6 +37,24 @@ const settingsSchema = z.object({
 });
 const productSchema = z.object({
   active: z.boolean().optional(), allowCustomQuantity: z.boolean().optional(), allowNotes: z.boolean().optional(), category: z.string().max(80).optional(),
+  config: z.object({
+    adminRoleIds: z.array(snowflake).max(100).optional(),
+    allowAttachments: z.boolean().nullable().optional(),
+    allowCustomNotes: z.boolean().nullable().optional(),
+    approvalChannelId: optionalSnowflake,
+    approvalRequired: z.boolean().nullable().optional(),
+    approveRoleIds: z.array(snowflake).max(100).optional(),
+    cancelRoleIds: z.array(snowflake).max(100).optional(),
+    color: z.string().regex(/^#[0-9a-f]{6}$/i).nullable().optional(),
+    createRoleIds: z.array(snowflake).max(100).optional(),
+    deliveryChannelId: optionalSnowflake,
+    finishRoleIds: z.array(snowflake).max(100).optional(),
+    footerText: z.string().max(200).nullable().optional(),
+    logChannelId: optionalSnowflake,
+    orderCancelledMessage: z.string().max(500).nullable().optional(),
+    orderCreatedMessage: z.string().max(500).nullable().optional(),
+    orderDeliveredMessage: z.string().max(500).nullable().optional()
+  }).optional(),
   cost: z.coerce.number().min(0).max(1_000_000_000_000).optional(), description: z.string().max(500).nullable().optional(), emoji: z.string().max(80).nullable().optional(),
   defaultQuantity: z.coerce.number().int().min(1).max(1_000_000).optional(), factionPercentage: z.coerce.number().min(0).max(100).optional(), featured: z.boolean().optional(), maximumQuantity: z.coerce.number().int().min(1).max(1_000_000).optional(), minimumQuantity: z.coerce.number().int().min(1).max(1_000_000).optional(), minimumStock: z.coerce.number().min(0).max(1_000_000_000).optional(),
   washingPercentages: z.array(z.coerce.number().min(0).max(100)).max(25).optional(),

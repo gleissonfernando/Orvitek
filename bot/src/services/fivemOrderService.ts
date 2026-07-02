@@ -186,11 +186,13 @@ async function showOrderModal(interaction: StringSelectMenuInteraction, context:
   if (!runtime.families.some((family) => family.id === familyId)) return interaction.reply({ content: "Familia indisponivel.", ephemeral: true });
   const product = runtime.products.find((item) => item.id === interaction.values[0]);
   if (!product) return interaction.reply({ content: "Produto indisponivel.", ephemeral: true });
+  const effectiveSettings = productSettings(runtime.settings, product);
+  if (!(await canCreate(interaction.guild, interaction.user.id, effectiveSettings))) return interaction.reply({ content: "Voce nao possui permissao para criar este item.", ephemeral: true });
   if (product.type === "washing") {
-    await openOrderModal(interaction, product, familyId, null, runtime.settings);
+    await openOrderModal(interaction, product, familyId, null, effectiveSettings);
     return;
   }
-  await openOrderModal(interaction, product, familyId, null, runtime.settings);
+  await openOrderModal(interaction, product, familyId, null, effectiveSettings);
 }
 
 async function showWashingModal(interaction: StringSelectMenuInteraction, context: BotContext) {
@@ -203,7 +205,7 @@ async function showWashingModal(interaction: StringSelectMenuInteraction, contex
   const percentage = Number(interaction.values[0]);
   const allowed = product.washingPercentages?.length ? product.washingPercentages : [product.factionPercentage];
   if (!allowed.includes(percentage)) return interaction.reply({ content: "Percentual nao permitido.", ephemeral: true });
-  await openOrderModal(interaction, product, familyId, percentage, runtime.settings);
+  await openOrderModal(interaction, product, familyId, percentage, productSettings(runtime.settings, product));
 }
 
 async function openOrderModal(interaction: StringSelectMenuInteraction, product: FivemOrderProduct, familyId: string, washingPercentage: number | null, settings: FivemOrderSettings) {
@@ -228,17 +230,18 @@ async function submitOrder(interaction: ModalSubmitInteraction, context: BotCont
   const washingPercentage = interaction.customId.split(":")[4] ? Number(interaction.customId.split(":")[4]) : null;
   const product = runtime.products.find((item) => item.id === productId);
   if (!product) return interaction.editReply("Produto indisponivel.");
+  const effectiveSettings = productSettings(runtime.settings, product);
   const numeric = parseBrazilianNumber(interaction.fields.getTextInputValue("quantity"));
   if (numeric === null || numeric <= 0) return interaction.editReply("Informe uma quantidade ou valor valido.");
   const readOptional = (id: string) => interaction.fields.fields.has(id) ? interaction.fields.getTextInputValue(id).trim() || null : null;
   const family = runtime.families.find((item) => item.id === familyId);
   if (!family) return interaction.editReply("Familia indisponivel.");
   const order = await context.api.createFivemOrder({ clientName: family.name, expectedDelivery: readOptional("delivery"), familyId, grossValue: product.type === "washing" ? numeric : null, guildId: interaction.guild.id, notes: readOptional("notes"), productId, proofUrl: readOptional("proof"), quantity: product.type === "washing" ? 1 : numeric, sourceId: interaction.id, userId: interaction.user.id, washingPercentage });
-  const reviewChannelId = runtime.settings.approvalChannelId ?? runtime.settings.logChannelId;
+  const reviewChannelId = effectiveSettings.approvalChannelId ?? effectiveSettings.logChannelId;
   const reviewChannel = reviewChannelId ? await interaction.guild.channels.fetch(reviewChannelId).catch(() => null) : null;
-  if (reviewChannel?.isSendable()) await reviewChannel.send(createOrderAdminPanel(runtime.settings, order)).catch(() => null);
-  await sendClientOrderNotification(interaction.guild, runtime.settings, order, null);
-  await interaction.editReply(`${runtime.settings.orderCreatedMessage}\n\n${orderSummary(order)}`);
+  if (reviewChannel?.isSendable()) await reviewChannel.send(createOrderAdminPanel(effectiveSettings, order)).catch(() => null);
+  await sendClientOrderNotification(interaction.guild, effectiveSettings, order, null);
+  await interaction.editReply(`${effectiveSettings.orderCreatedMessage}\n\n${orderSummary(order)}`);
 }
 
 async function showStatusModal(interaction: ButtonInteraction) {
@@ -262,7 +265,7 @@ async function updateOrderFromButton(interaction: ButtonInteraction, context: Bo
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
   if (!(await canManage(interaction.guild, interaction.user.id, runtime.settings, status))) return interaction.editReply("Voce nao possui permissao para esta acao.");
   const saved = await context.api.updateFivemOrderStatus({ actorId: interaction.user.id, guildId: interaction.guild.id, orderId: orderId ?? "", status });
-  await interaction.message.edit(createOrderAdminPanel(runtime.settings, saved)).catch(() => null);
+  await interaction.message.edit(createOrderAdminPanel(orderSettings(runtime.settings, runtime.products, saved), saved)).catch(() => null);
   await interaction.editReply(`Encomenda #${saved.orderNumber} atualizada para ${statusLabel(saved.status)}.`);
 }
 
@@ -310,7 +313,7 @@ async function handleOrderActionButton(interaction: ButtonInteraction, context: 
     status
   });
 
-  await interaction.message.edit(createOrderAdminPanel(runtime.settings, saved)).catch(() => null);
+  await interaction.message.edit(createOrderAdminPanel(orderSettings(runtime.settings, runtime.products, saved), saved)).catch(() => null);
   await interaction.editReply(`Encomenda ENC-${String(saved.orderNumber).padStart(4, "0")} atualizada para ${statusLabel(saved.status)}.`);
 }
 
@@ -397,8 +400,9 @@ function createOrderAdminPanel(settings: FivemOrderSettings, order: FivemOrder) 
 
 async function notifyOrderStatusChange(guild: Guild, context: BotContext, order: FivemOrder, actorId: string | null) {
   const runtime = await context.api.getFivemOrderRuntime(guild.id);
-  await sendClientOrderNotification(guild, runtime.settings, order, actorId);
-  await sendStaffOrderStatusNotification(guild, runtime.settings, order, actorId);
+  const settings = orderSettings(runtime.settings, runtime.products, order);
+  await sendClientOrderNotification(guild, settings, order, actorId);
+  await sendStaffOrderStatusNotification(guild, settings, order, actorId);
 }
 
 async function sendClientOrderNotification(guild: Guild, settings: FivemOrderSettings, order: FivemOrder, actorId: string | null) {
@@ -617,6 +621,29 @@ function orderSummary(order: FivemOrder) { return `**Encomenda ENC-${String(orde
 function statusLabel(status: FivemOrderStatus) { return ({ open: "Aberta", pending_approval: "Aguardando aprovacao", approved: "Aprovada", in_production: "Em producao", ready: "Pronta", delivered: "Entregue", cancelled: "Cancelada", rejected: "Recusada" } as const)[status]; }
 function normalizeProductModule(type: FivemOrderProduct["type"]) { return type === "standard" ? "custom" : type; }
 function familyMatchesOrderType(family: Awaited<ReturnType<BotContext["api"]["getFivemOrderRuntime"]>>["families"][number], type: string) { return type === "all" || !family.orderModules?.length || family.orderModules.includes(type as "washing" | "ammo" | "drug" | "weapon" | "custom"); }
+function orderSettings(settings: FivemOrderSettings, products: FivemOrderProduct[], order: FivemOrder) { return productSettings(settings, products.find((product) => product.id === order.productId)); }
+function productSettings(settings: FivemOrderSettings, product: FivemOrderProduct | null | undefined): FivemOrderSettings {
+  const config = product?.config;
+  if (!config) return settings;
+  return {
+    ...settings,
+    adminRoleIds: config.adminRoleIds?.length ? config.adminRoleIds : settings.adminRoleIds,
+    allowAttachments: config.allowAttachments ?? settings.allowAttachments,
+    allowCustomNotes: config.allowCustomNotes ?? settings.allowCustomNotes,
+    approvalChannelId: config.approvalChannelId ?? settings.approvalChannelId,
+    approvalRequired: config.approvalRequired ?? settings.approvalRequired,
+    cancelRoleIds: config.cancelRoleIds?.length ? config.cancelRoleIds : settings.cancelRoleIds,
+    color: config.color ?? settings.color,
+    createRoleIds: config.createRoleIds?.length ? config.createRoleIds : settings.createRoleIds,
+    deliveryChannelId: config.deliveryChannelId ?? settings.deliveryChannelId,
+    finishRoleIds: config.finishRoleIds?.length ? config.finishRoleIds : settings.finishRoleIds,
+    footerText: config.footerText ?? settings.footerText,
+    logChannelId: config.logChannelId ?? settings.logChannelId,
+    orderCancelledMessage: config.orderCancelledMessage ?? settings.orderCancelledMessage,
+    orderCreatedMessage: config.orderCreatedMessage ?? settings.orderCreatedMessage,
+    orderDeliveredMessage: config.orderDeliveredMessage ?? settings.orderDeliveredMessage
+  };
+}
 function formatMoney(value: number) { return new Intl.NumberFormat("pt-BR", { currency: "BRL", style: "currency" }).format(value); }
 function parseColor(value: string) { return Number.parseInt(value.replace("#", ""), 16) || 0x22c55e; }
 function parseBrazilianNumber(value: string) { const raw = value.trim().replace(/[^\d.,-]/g, ""); if (!raw) return null; const comma = raw.lastIndexOf(","); const dot = raw.lastIndexOf("."); let normalized = raw; if (comma >= 0 && dot >= 0) normalized = comma > dot ? raw.replace(/\./g, "").replace(",", ".") : raw.replace(/,/g, ""); else if (/^\d{1,3}([.,]\d{3})+$/.test(raw)) normalized = raw.replace(/[.,]/g, ""); else if (comma >= 0) normalized = raw.replace(",", "."); const number = Number(normalized); return Number.isFinite(number) ? number : null; }

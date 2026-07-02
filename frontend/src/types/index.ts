@@ -957,6 +957,24 @@ export type FivemOrderSettings = {
 export type FivemOrderFamily = { active: boolean; botId: string | null; createdAt: string; guildId: string; id: string; logChannelId: string | null; name: string; notes: string | null; orderModules: Array<"washing" | "ammo" | "drug" | "weapon" | "custom">; responsibleId: string; roleId: string; updatedAt: string };
 export type FivemOrderProduct = {
   active: boolean; allowCustomQuantity: boolean; allowNotes: boolean; botId: string | null; category: string; cost: number; createdAt: string;
+  config?: {
+    adminRoleIds?: string[];
+    allowAttachments?: boolean | null;
+    allowCustomNotes?: boolean | null;
+    approvalChannelId?: string | null;
+    approvalRequired?: boolean | null;
+    approveRoleIds?: string[];
+    cancelRoleIds?: string[];
+    color?: string | null;
+    createRoleIds?: string[];
+    deliveryChannelId?: string | null;
+    finishRoleIds?: string[];
+    footerText?: string | null;
+    logChannelId?: string | null;
+    orderCancelledMessage?: string | null;
+    orderCreatedMessage?: string | null;
+    orderDeliveredMessage?: string | null;
+  };
   defaultQuantity: number; description: string | null; emoji: string | null; factionPercentage: number; washingPercentages?: number[]; featured: boolean; guildId: string; id: string; maximumQuantity: number; minimumQuantity: number; minimumStock: number;
   name: string; order: number; price: number; sellerPercentage: number; stock: number | null; type: "standard" | "washing" | "ammo" | "drug" | "weapon" | "custom";
   updatedAt: string; useStock: boolean;
