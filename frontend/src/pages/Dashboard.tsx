@@ -3302,7 +3302,7 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
             <div className="space-y-3">
               <p className="text-sm font-semibold text-white">Campos do modal</p>
               {settings.fields.map((field, index) => (
-                <div className="grid gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-3 md:grid-cols-[1fr_1fr_120px]" key={field.id}>
+                <div className="grid gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-3 md:grid-cols-[1fr_1fr_120px]" key={`fivem-goal-field-${index}`}>
                   <TicketField disabled={!canManage} label="Label" onChange={(value) => patchField(index, { id: slugTicketOption(value, index), label: value })} value={field.label} />
                   <TicketField disabled={!canManage} label="Placeholder" onChange={(value) => patchField(index, { placeholder: value })} value={field.placeholder ?? ""} />
                   <label className="block text-xs font-medium text-zinc-400">Tipo
@@ -3320,7 +3320,7 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
                 <Button disabled={!canManage} onClick={addItem} size="sm" type="button" variant="outline">Adicionar item</Button>
               </div>
               {settings.items.map((item, index) => (
-                <div className="grid gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-3 lg:grid-cols-[90px_1fr_1fr_100px_90px]" key={`${item.id}-${index}`}>
+                <div className="grid gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-3 lg:grid-cols-[90px_1fr_1fr_100px_90px]" key={`fivem-goal-item-${index}`}>
                   <TicketField disabled={!canManage} label="Emoji" onChange={(value) => patchItem(index, { emoji: value })} value={item.emoji ?? ""} />
                   <TicketField disabled={!canManage} label="Nome" onChange={(value) => patchItem(index, { id: slugTicketOption(value, index), name: value })} value={item.name} />
                   <TicketField disabled={!canManage} label="Categoria" onChange={(value) => patchItem(index, { category: value })} value={item.category ?? ""} />
