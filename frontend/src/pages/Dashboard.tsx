@@ -540,6 +540,10 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   "fivem-hierarchy": "fivem-hierarchy",
   "fivem-orders": "fivem-orders",
   "fivem-washing": "fivem-orders",
+  "fivem-ammo": "fivem-orders",
+  "fivem-drug": "fivem-orders",
+  "fivem-weapon": "fivem-orders",
+  "fivem-custom": "fivem-orders",
   "fivem-goals": "fivem-goals",
   "manual-registration": "manual-registration",
   "voice-recorder": "voice-recorder",
@@ -1220,6 +1224,18 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
         ) : null}
         {activeView === "fivem-washing" ? (
           <FivemOrdersManager botId={activeBotId} canManage={canManageModule(selectedBot, "fivem-orders", canManageDashboard)} guild={selectedGuild} mode="washing" />
+        ) : null}
+        {activeView === "fivem-ammo" ? (
+          <FivemOrdersManager botId={activeBotId} canManage={canManageModule(selectedBot, "fivem-orders", canManageDashboard)} guild={selectedGuild} mode="ammo" />
+        ) : null}
+        {activeView === "fivem-drug" ? (
+          <FivemOrdersManager botId={activeBotId} canManage={canManageModule(selectedBot, "fivem-orders", canManageDashboard)} guild={selectedGuild} mode="drug" />
+        ) : null}
+        {activeView === "fivem-weapon" ? (
+          <FivemOrdersManager botId={activeBotId} canManage={canManageModule(selectedBot, "fivem-orders", canManageDashboard)} guild={selectedGuild} mode="weapon" />
+        ) : null}
+        {activeView === "fivem-custom" ? (
+          <FivemOrdersManager botId={activeBotId} canManage={canManageModule(selectedBot, "fivem-orders", canManageDashboard)} guild={selectedGuild} mode="custom" />
         ) : null}
         {activeView === "fivem-goals" ? (
           <FivemView

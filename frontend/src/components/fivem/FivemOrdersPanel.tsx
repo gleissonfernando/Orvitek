@@ -10,8 +10,9 @@ import { createFivemOrderFamily, createFivemOrderProduct, deleteFivemOrderFamily
 import type { DashboardGuild, FivemOrder, FivemOrderDashboard, FivemOrderFamily, FivemOrderProduct, FivemOrderSettings, FivemOrderStatus, GuildChannelOption, GuildRoleOption } from "../../types";
 
 type Tab = "overview" | "families" | "settings" | "products" | "orders" | "reports";
+export type FivemOrdersMode = "orders" | "washing" | "ammo" | "drug" | "weapon" | "custom";
 
-export function FivemOrdersManager({ botId, canManage, guild, mode = "orders" }: { botId?: string | null; canManage: boolean; guild: DashboardGuild | null; mode?: "orders" | "washing" }) {
+export function FivemOrdersManager({ botId, canManage, guild, mode = "orders" }: { botId?: string | null; canManage: boolean; guild: DashboardGuild | null; mode?: FivemOrdersMode }) {
   const [dashboard, setDashboard] = useState<FivemOrderDashboard | null>(null);
   const [settings, setSettings] = useState<FivemOrderSettings | null>(null);
   const [channels, setChannels] = useState<GuildChannelOption[]>([]);
@@ -35,7 +36,7 @@ export function FivemOrdersManager({ botId, canManage, guild, mode = "orders" }:
     setLoading(true);
     return Promise.all([getFivemOrders(guild.id, botId), getGuildLiveOptions(guild.id, botId)]).then(([data, options]) => {
       setDashboard(data); setSettings(data.settings); setChannels(options.channels); setRoles(options.roles);
-      const products = mode === "washing" ? data.products.filter((item) => item.type === "washing") : data.products;
+      const products = data.products.filter((item) => productMatchesMode(item, mode));
       setDraft((current) => products.find((item) => item.id === current?.id) ?? products[0] ?? null);
     }).catch(() => setError("Nao foi possivel carregar o sistema de encomendas.")).finally(() => setLoading(false));
   }
@@ -49,12 +50,12 @@ export function FivemOrdersManager({ botId, canManage, guild, mode = "orders" }:
     return () => { socket.off("fivem:orders:updated", refresh); socket.disconnect(); };
   }, [botId, guild?.id]);
 
-  const washingProductIds = useMemo(() => new Set((dashboard?.products ?? []).filter((item) => item.type === "washing").map((item) => item.id)), [dashboard?.products]);
-  const visibleProducts = useMemo(() => (dashboard?.products ?? []).filter((item) => mode !== "washing" || item.type === "washing"), [dashboard?.products, mode]);
-  const visibleOrders = useMemo(() => (dashboard?.orders ?? []).filter((order) => mode !== "washing" || washingProductIds.has(order.productId)), [dashboard?.orders, mode, washingProductIds]);
+  const visibleProductIds = useMemo(() => new Set((dashboard?.products ?? []).filter((item) => productMatchesMode(item, mode)).map((item) => item.id)), [dashboard?.products, mode]);
+  const visibleProducts = useMemo(() => (dashboard?.products ?? []).filter((item) => productMatchesMode(item, mode)), [dashboard?.products, mode]);
+  const visibleOrders = useMemo(() => (dashboard?.orders ?? []).filter((order) => mode === "orders" || visibleProductIds.has(order.productId)), [dashboard?.orders, mode, visibleProductIds]);
   const filteredOrders = useMemo(() => visibleOrders.filter((order) => statusFilter === "all" || order.status === statusFilter).filter((order) => familyFilter === "all" || order.familyId === familyFilter).filter((order) => typeFilter === "all" || order.category === typeFilter).filter((order) => !minimumValueFilter || order.finalValue >= Number(minimumValueFilter)).filter((order) => !dateFilter || order.createdAt.slice(0, 10) === dateFilter).filter((order) => `${order.orderNumber} ENC-${String(order.orderNumber).padStart(4, "0")} ${order.familyName} ${order.clientName} ${order.productName} ${order.userId} ${order.responsibleId ?? ""}`.toLowerCase().includes(search.toLowerCase())), [visibleOrders, search, statusFilter, familyFilter, typeFilter, minimumValueFilter, dateFilter]);
 
-  if (!guild) return <Card><CardContent className="py-10 text-sm text-zinc-400">Selecione um servidor para configurar {mode === "washing" ? "Lavagem" : "Encomendas RP"}.</CardContent></Card>;
+  if (!guild) return <Card><CardContent className="py-10 text-sm text-zinc-400">Selecione um servidor para configurar {modeLabel(mode)}.</CardContent></Card>;
   if (loading && !dashboard) return <div className="h-64 animate-pulse border border-zinc-800 bg-zinc-950" />;
   if (!dashboard || !settings) return <Card><CardContent className="py-10 text-sm text-red-300">{error ?? "Modulo indisponivel."}</CardContent></Card>;
   const guildId = guild.id;
@@ -70,7 +71,7 @@ export function FivemOrdersManager({ botId, canManage, guild, mode = "orders" }:
   }
   function newProduct(requestedType?: FivemOrderProduct["type"]) {
     const now = new Date().toISOString();
-    const type = mode === "washing" ? "washing" : requestedType ?? "custom";
+    const type = fixedProductTypeForMode(mode) ?? requestedType ?? "custom";
     const names = { ammo: "Nova municao", custom: "Novo item", drug: "Nova droga", standard: "Novo item", washing: "Lavagem", weapon: "Nova arma" } as const;
     const categories = { ammo: "Municao", custom: "Personalizados", drug: "Drogas", standard: "Personalizados", washing: "Lavagem", weapon: "Armas" } as const;
     setDraft({ active: true, allowCustomQuantity: true, allowNotes: type !== "washing", botId: botId ?? null, category: categories[type], cost: 0, createdAt: now, defaultQuantity: 1, description: "", emoji: "", factionPercentage: type === "washing" ? 20 : 0, washingPercentages: type === "washing" ? [10, 20, 30] : [], featured: false, guildId, id: "new", maximumQuantity: 1000000, minimumQuantity: 1, minimumStock: 0, name: names[type], order: productCount + 1, price: 0, sellerPercentage: 0, stock: null, type, updatedAt: now, useStock: false });
@@ -95,7 +96,7 @@ export function FivemOrdersManager({ botId, canManage, guild, mode = "orders" }:
   return (
     <Card className="border-emerald-500/10 bg-zinc-950/75">
       <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle className="flex items-center gap-2"><Boxes className="h-5 w-5 text-emerald-300" /> {mode === "washing" ? "Sistema de Lavagem" : "Encomendas RP"}</CardTitle><CardDescription>{mode === "washing" ? "Familias, percentuais, valores recebidos, repasses e historico de lavagem." : "Produtos, calculos, estoque, producao, entregas e relatorios isolados por bot e servidor."}</CardDescription></div><div className="flex gap-2"><Button disabled={!canManage || saving || !settings.enabled || !settings.panelChannelId} onClick={() => void sendPanel()} size="sm" variant="outline"><Send className="mr-2 h-4 w-4" />Enviar painel</Button><Button disabled={!canManage || saving} onClick={() => void saveSettings()} size="sm">{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Salvar</Button></div></div>
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle className="flex items-center gap-2"><Boxes className="h-5 w-5 text-emerald-300" /> {modeTitle(mode)}</CardTitle><CardDescription>{modeDescription(mode)}</CardDescription></div><div className="flex gap-2"><Button disabled={!canManage || saving || !settings.enabled || !settings.panelChannelId} onClick={() => void sendPanel()} size="sm" variant="outline"><Send className="mr-2 h-4 w-4" />Enviar painel</Button><Button disabled={!canManage || saving} onClick={() => void saveSettings()} size="sm">{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Salvar</Button></div></div>
       </CardHeader>
       <CardContent className="space-y-5">
         {error ? <div className="border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</div> : null}{message ? <div className="border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{message}</div> : null}
@@ -103,12 +104,43 @@ export function FivemOrdersManager({ botId, canManage, guild, mode = "orders" }:
         {tab === "overview" ? <Overview dashboard={dashboard} settings={settings} /> : null}
         {tab === "families" ? <Families families={dashboard.families} channels={channels} roles={roles} draft={familyDraft} disabled={!canManage} onDraft={setFamilyDraft} onNew={() => { const now = new Date().toISOString(); setFamilyDraft({ active: true, botId: botId ?? null, createdAt: now, guildId, id: "new", logChannelId: null, name: "", notes: "", responsibleId: "", roleId: "", updatedAt: now }); }} onPatch={(value) => setFamilyDraft((current) => current ? { ...current, ...value } : current)} onSave={async () => { if (!familyDraft) return; setSaving(true); try { const payload = { active: familyDraft.active, logChannelId: familyDraft.logChannelId, name: familyDraft.name, notes: familyDraft.notes, responsibleId: familyDraft.responsibleId, roleId: familyDraft.roleId }; const saved = familyDraft.id === "new" ? await createFivemOrderFamily(guildId, payload, botId) : await updateFivemOrderFamily(guildId, familyDraft.id, payload, botId); setDashboard((current) => current ? { ...current, families: [saved, ...current.families.filter((item) => item.id !== saved.id)] } : current); setFamilyDraft(saved); setMessage("Familia salva."); } catch { setError("Nao foi possivel salvar a familia. Confira nome, responsavel e cargo."); } finally { setSaving(false); } }} onRemove={async () => { if (!familyDraft || familyDraft.id === "new" || !window.confirm("Excluir esta familia?")) return; try { await deleteFivemOrderFamily(guildId, familyDraft.id, botId); setDashboard((current) => current ? { ...current, families: current.families.filter((item) => item.id !== familyDraft.id) } : current); setFamilyDraft(null); } catch { setError("Familias com encomendas devem ser desativadas, nao excluidas."); } }} saving={saving} /> : null}
         {tab === "settings" ? <Settings settings={settings} channels={channels} roles={roles} disabled={!canManage} patch={(value) => setSettings((current) => current ? { ...current, ...value } : current)} botId={botId} guildId={guild.id} /> : null}
-        {tab === "products" ? <div className="space-y-4">{mode !== "washing" ? <div className="flex flex-wrap gap-2"><span className="w-full text-xs text-zinc-500">Criar item no modulo:</span>{(["ammo", "drug", "weapon", "custom"] as const).map((type) => <Button disabled={!canManage || !settings.enabledOrderModules.includes(type)} key={type} onClick={() => newProduct(type)} size="sm" variant="outline">{({ ammo: "Municao", drug: "Droga", weapon: "Arma", custom: "Personalizado" } as const)[type]}</Button>)}</div> : null}{draft && draft.type !== "washing" ? <div className="grid gap-3 rounded-lg border border-zinc-800 p-3 sm:grid-cols-3"><Field disabled={!canManage} label="Quantidade padrao" onChange={(value) => setDraft((current) => current ? { ...current, defaultQuantity: Number(value) || 1 } : current)} type="number" value={String(draft.defaultQuantity)} /><Field disabled={!canManage} label="Quantidade minima" onChange={(value) => setDraft((current) => current ? { ...current, minimumQuantity: Number(value) || 1 } : current)} type="number" value={String(draft.minimumQuantity)} /><Field disabled={!canManage} label="Quantidade maxima" onChange={(value) => setDraft((current) => current ? { ...current, maximumQuantity: Number(value) || 1 } : current)} type="number" value={String(draft.maximumQuantity)} /></div> : null}<Products products={visibleProducts} draft={draft} disabled={!canManage} onAdd={() => newProduct()} onDraft={setDraft} onPatch={(value) => setDraft((current) => current ? { ...current, ...value } : current)} onRemove={() => void removeProduct()} onSave={() => void saveProduct()} saving={saving} /></div> : null}
+        {tab === "products" ? <div className="space-y-4">{mode === "orders" ? <div className="flex flex-wrap gap-2"><span className="w-full text-xs text-zinc-500">Criar item no modulo:</span>{(["ammo", "drug", "weapon", "custom"] as const).map((type) => <Button disabled={!canManage || !settings.enabledOrderModules.includes(type)} key={type} onClick={() => newProduct(type)} size="sm" variant="outline">{({ ammo: "Municao", drug: "Droga", weapon: "Arma", custom: "Personalizado" } as const)[type]}</Button>)}</div> : null}{draft && draft.type !== "washing" ? <div className="grid gap-3 rounded-lg border border-zinc-800 p-3 sm:grid-cols-3"><Field disabled={!canManage} label="Quantidade padrao" onChange={(value) => setDraft((current) => current ? { ...current, defaultQuantity: Number(value) || 1 } : current)} type="number" value={String(draft.defaultQuantity)} /><Field disabled={!canManage} label="Quantidade minima" onChange={(value) => setDraft((current) => current ? { ...current, minimumQuantity: Number(value) || 1 } : current)} type="number" value={String(draft.minimumQuantity)} /><Field disabled={!canManage} label="Quantidade maxima" onChange={(value) => setDraft((current) => current ? { ...current, maximumQuantity: Number(value) || 1 } : current)} type="number" value={String(draft.maximumQuantity)} /></div> : null}<Products products={visibleProducts} draft={draft} disabled={!canManage} onAdd={() => newProduct()} onDraft={setDraft} onPatch={(value) => setDraft((current) => current ? { ...current, ...value } : current)} onRemove={() => void removeProduct()} onSave={() => void saveProduct()} saving={saving} /></div> : null}
         {tab === "orders" ? <div className="space-y-3"><div className="grid gap-2 md:grid-cols-4"><select className="h-10 border border-zinc-800 bg-black px-3 text-sm text-white" onChange={(event) => setFamilyFilter(event.target.value)} value={familyFilter}><option value="all">Todas as familias</option>{dashboard.families.map((family) => <option key={family.id} value={family.id}>{family.name}</option>)}</select><select className="h-10 border border-zinc-800 bg-black px-3 text-sm text-white" onChange={(event) => setTypeFilter(event.target.value)} value={typeFilter}><option value="all">Todos os tipos</option>{[...new Set(visibleOrders.map((order) => order.category))].map((type) => <option key={type} value={type}>{type}</option>)}</select><input className="h-10 border border-zinc-800 bg-black px-3 text-sm text-white" min="0" onChange={(event) => setMinimumValueFilter(event.target.value)} placeholder="Valor minimo" type="number" value={minimumValueFilter} /><input className="h-10 border border-zinc-800 bg-black px-3 text-sm text-white" onChange={(event) => setDateFilter(event.target.value)} type="date" value={dateFilter} /></div>{mode === "washing" ? <WashingOrders orders={filteredOrders} onChange={(order, status) => void changeStatus(order, status)} /> : <Orders orders={filteredOrders} search={search} status={statusFilter} onSearch={setSearch} onStatus={setStatusFilter} onChange={(order, status) => void changeStatus(order, status)} />}</div> : null}
         {tab === "reports" ? <Reports dashboard={{ ...dashboard, orders: visibleOrders, products: visibleProducts }} /> : null}
       </CardContent>
     </Card>
   );
+}
+
+function fixedProductTypeForMode(mode: FivemOrdersMode): FivemOrderProduct["type"] | null {
+  if (mode === "washing" || mode === "ammo" || mode === "drug" || mode === "weapon") return mode;
+  if (mode === "custom") return "custom";
+  return null;
+}
+
+function productMatchesMode(product: FivemOrderProduct, mode: FivemOrdersMode) {
+  if (mode === "orders") return true;
+  if (mode === "custom") return product.type === "custom" || product.type === "standard";
+  return product.type === mode;
+}
+
+function modeLabel(mode: FivemOrdersMode) {
+  return ({ ammo: "Munição", custom: "Personalizados", drug: "Drogas", orders: "Encomendas RP", washing: "Lavagem", weapon: "Armas" } as const)[mode];
+}
+
+function modeTitle(mode: FivemOrdersMode) {
+  return mode === "orders" ? "Encomendas RP" : `Sistema de ${modeLabel(mode)}`;
+}
+
+function modeDescription(mode: FivemOrdersMode) {
+  return ({
+    ammo: "Produtos, estoque, pedidos e entregas de munição em um menu dedicado.",
+    custom: "Itens personalizados, valores, estoque e pedidos em um menu dedicado.",
+    drug: "Produtos, estoque, pedidos e entregas de drogas em um menu dedicado.",
+    orders: "Produtos, calculos, estoque, producao, entregas e relatorios isolados por bot e servidor.",
+    washing: "Familias, percentuais, valores recebidos, repasses e historico de lavagem.",
+    weapon: "Produtos, estoque, pedidos e entregas de armas em um menu dedicado."
+  } as const)[mode];
 }
 
 function Overview({ dashboard, settings }: { dashboard: FivemOrderDashboard; settings: FivemOrderSettings }) {

@@ -73,6 +73,10 @@ export type ViewId =
   | "fivem-hierarchy"
   | "fivem-orders"
   | "fivem-washing"
+  | "fivem-ammo"
+  | "fivem-drug"
+  | "fivem-weapon"
+  | "fivem-custom"
   | "fivem-goals"
   | "manual-registration"
   | "notifications"
@@ -127,6 +131,10 @@ const navItems: NavItem[] = [
   { id: "fivem-hierarchy", label: "Hierarquia", icon: ListTree, moduleId: "fivem-hierarchy" },
   { id: "fivem-orders", label: "Encomendas RP", icon: Archive, moduleId: "fivem-orders" },
   { id: "fivem-washing", label: "Lavagem", icon: CircleDollarSign, moduleId: "fivem-orders" },
+  { id: "fivem-ammo", label: "Munição", icon: Archive, moduleId: "fivem-orders" },
+  { id: "fivem-drug", label: "Drogas", icon: Archive, moduleId: "fivem-orders" },
+  { id: "fivem-weapon", label: "Armas", icon: Archive, moduleId: "fivem-orders" },
+  { id: "fivem-custom", label: "Personalizados", icon: Archive, moduleId: "fivem-orders" },
   { id: "fivem-goals", label: "Metas", icon: ListChecks, moduleId: "fivem-goals" },
   { id: "manual-registration", label: "Pedido de Set", icon: ListChecks, moduleId: "manual-registration" },
   { id: "entry-leave", label: "Entrada/Saida", icon: UserPlus, moduleIds: ["welcome", "leave"] },
