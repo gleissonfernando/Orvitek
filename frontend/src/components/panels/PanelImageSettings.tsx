@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Image, Loader2, Save, Trash2, Upload } from "lucide-react";
-import { getPanelImageSettings, listPanelImageSettings, savePanelImageSettings, uploadPanelImage } from "../../lib/api";
+import { getPanelImageSettings, listPanelImageSettings, removePanelImage, savePanelImageSettings, uploadPanelImage } from "../../lib/api";
 import type {
   PanelImageLayoutMode,
   PanelImagePosition,
@@ -222,16 +222,24 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
     }
   }
 
-  function removeImage() {
-    void save({
-      customHeight: null,
-      customWidth: null,
-      imageEnabled: false,
-      imagePosition: "none",
-      imageSize: "medium",
-      imageUrl: "",
-      layoutMode: "embed"
-    });
+  async function removeImage() {
+    if (!guildId || !botId || disabled) return;
+    setSaving(true);
+    setStatus(null);
+    setError(null);
+    try {
+      const saved = await removePanelImage(guildId, selectedPanelId, botId);
+      setSettingsByPanel((current) => ({
+        ...current,
+        [saved.panelId]: saved
+      }));
+      setDraft(saved);
+      setStatus("Imagem removida do painel.");
+    } catch (requestError) {
+      setError(readErrorMessage(requestError, "NÃ£o foi possÃ­vel remover a imagem."));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -290,6 +298,7 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
           <div className="space-y-4">
             {selectedPanelId !== "global-default" ? <label className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-sm text-zinc-300"><span><strong className="block text-zinc-100">Usar padrão visual global</strong>Desative para personalizar somente este módulo.</span><Switch checked={draft.useGlobalDefault} disabled={disabled} onCheckedChange={(checked) => updateDraft("useGlobalDefault", checked)} /></label> : null}
             <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 text-xs leading-5 text-blue-100">Topo/banner destacam a imagem primeiro; thumbnail/lateral mantêm o texto ao lado; meio e abaixo do título dividem o conteúdo; antes dos botões destaca a ação; final e rodapé encerram o painel.</div>
+            {draft.imageInvalidReason ? <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-5 text-amber-100">{draft.imageInvalidReason}</div> : null}
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {!fixedPanel ? <label className="grid gap-2 text-sm">
                 <span className="font-medium text-zinc-200">Painel</span>

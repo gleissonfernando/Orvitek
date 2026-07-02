@@ -51,6 +51,7 @@ function isMaintenanceBypass(req: Request) {
     || path.startsWith("/api/_shardcloud/health")
     || path.startsWith("/auth")
     || path.startsWith("/api/auth")
+    || path.startsWith("/api/persistent-images")
     || path.startsWith("/dev")
     || path.startsWith("/api/dev")
     || path.startsWith("/api/bot/maintenance")

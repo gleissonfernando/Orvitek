@@ -2193,6 +2193,25 @@ export type MongoPanelImageSettings = {
   useGlobalDefault?: boolean;
 };
 
+export type MongoPersistentImage = {
+  _id: string;
+  botId: string | null;
+  buffer: Buffer;
+  createdAt: Date;
+  fileName: string;
+  guildId: string;
+  imageType: string;
+  metadata?: Record<string, unknown>;
+  mimeType: string;
+  moduleId: string;
+  originalName: string | null;
+  publicUrl: string;
+  size: number;
+  storageProvider: "mongodb";
+  uploadedAt: Date;
+  uploadedBy: string | null;
+};
+
 const globalForMongo = globalThis as unknown as {
   mongoClient?: MongoClient;
   mongoIndexes?: Promise<void>;
@@ -2320,7 +2339,8 @@ export async function getMongoCollections() {
     maintenanceState: db.collection<MongoMaintenanceState>("MaintenanceState"),
     maintenanceLogs: db.collection<MongoMaintenanceLog>("MaintenanceLog"),
     dashboardAuditLogs: db.collection<MongoDashboardAuditLog>("DashboardAuditLog"),
-    panelImageSettings: db.collection<MongoPanelImageSettings>("panel_image_settings")
+    panelImageSettings: db.collection<MongoPanelImageSettings>("panel_image_settings"),
+    persistentImages: db.collection<MongoPersistentImage>("persistent_images")
   };
 }
 
@@ -2422,6 +2442,8 @@ async function createMongoIndexes(db: Db) {
       { botId: 1, guildId: 1, panelId: 1 },
       { unique: true }
     ),
+    db.collection<MongoPersistentImage>("persistent_images").createIndex({ guildId: 1, moduleId: 1, imageType: 1, uploadedAt: -1 }),
+    db.collection<MongoPersistentImage>("persistent_images").createIndex({ createdAt: -1 }),
     ensureSocialNotificationIndexes(db),
     ensureKickApiIndexes(db),
     ensureSocialNetworkIndexes(db),

@@ -187,7 +187,7 @@ export type FivemOrderProduct = {
 export type FivemOrder = {
   category: string; clientName: string; costTotal: number; createdAt: string; expectedDelivery: string | null; familyId: string; familyName: string; finalValue: number; grossValue: number; id: string;
   notes: string | null; orderNumber: number; productId: string; productName: string; profit: number; proofUrl: string | null; quantity: number;
-  responsibleId: string | null; status: FivemOrderStatus; unitPrice: number; userId: string; washingPercentage?: number | null;
+  responsibleId: string | null; status: FivemOrderStatus; unitPrice: number; updatedAt?: string | null; userId: string; washingPercentage?: number | null;
 };
 
 export type FivemGoalUserChannel = {

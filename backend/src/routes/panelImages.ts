@@ -5,6 +5,7 @@ import { canAccessDevBotGuild, canManageDevBotGuild, canReadDevBotModule, canUse
 import {
   getPanelImageSettings,
   listPanelImageSettings,
+  removePanelImageSettings,
   savePanelImageUpload,
   savePanelImageSettings
 } from "../services/panelImageSettingsService";
@@ -105,6 +106,29 @@ panelImagesRouter.put("/:guildId/:panelId/upload", requireAuth, panelImageUpload
         buffer: req.body,
         guildId,
         mimeType,
+        panelId
+      })
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+panelImagesRouter.delete("/:guildId/:panelId/images/:imageType", requireAuth, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const panelId = panelIdSchema.parse(req.params.panelId);
+    z.enum(["panel", "banner", "thumbnail", "footer", "background", "logo"]).parse(req.params.imageType);
+    const botId = await readRequiredBotId(req);
+    const user = res.locals.dashboardAuth.user;
+
+    await assertCanManage(user, guildId, botId, moduleIdForPanel(panelId));
+
+    return res.json({
+      settings: await removePanelImageSettings({
+        actorId: user.discordId,
+        botId,
+        guildId,
         panelId
       })
     });

@@ -249,7 +249,11 @@ export async function updateFivemOrderStatus(guildId: string, botId: string | nu
   }
   await writeLog({ action: `order.${status}`, actorId, botId: normalizedBotId, data: { familyId: current.familyId, familyName: current.familyName, from: current.status, note: normalizeText(note, 500), orderNumber: current.orderNumber, orderType: current.category, to: status, totalValue: current.finalValue }, guildId, orderId, productId: current.productId });
   emitUpdated(guildId, normalizedBotId);
-  return toOrderDto(updated);
+  const dto = toOrderDto(updated);
+  if (normalizedBotId) {
+    emitRealtimeToRoom(devBotRealtimeRoom(normalizedBotId), "fivem:orders:status_updated", { actorId, botId: normalizedBotId, guildId, order: dto });
+  }
+  return dto;
 }
 
 export async function listFivemOrderLogs(guildId: string, botId?: string | null) {

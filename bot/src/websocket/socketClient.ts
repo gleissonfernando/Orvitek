@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import { io, type Socket } from "socket.io-client";
 import { currentRuntimeBotId, env } from "../config/env";
 import type { GuildSettings } from "../types";
+import type { FivemOrder } from "../services/apiClient";
 
 export type SocialPanelUpdateEvent = {
   action: "publish" | "remove" | "update";
@@ -68,6 +69,7 @@ export type FivemGoalPanelPublishEvent = {
   settings?: unknown;
 };
 export type FivemOrderPanelPublishEvent = { botId?: string | null; guildId: string };
+export type FivemOrderStatusUpdatedEvent = { actorId?: string | null; botId?: string | null; guildId: string; order: FivemOrder };
 
 export type ManualRegistrationPanelPublishEvent = {
   botId?: string | null;
@@ -207,6 +209,7 @@ export class BotSocketClient {
   private fivemFacPanelPublishHandler: ((payload: FivemFacPanelPublishEvent) => void) | null = null;
   private fivemGoalPanelPublishHandler: ((payload: FivemGoalPanelPublishEvent) => void) | null = null;
   private fivemOrderPanelPublishHandler: ((payload: FivemOrderPanelPublishEvent) => void) | null = null;
+  private fivemOrderStatusUpdatedHandler: ((payload: FivemOrderStatusUpdatedEvent) => void) | null = null;
   private manualRegistrationPanelPublishHandler: ((payload: ManualRegistrationPanelPublishEvent) => void) | null = null;
   private fivemHierarchyPanelUpdateHandler: ((payload: FivemHierarchyPanelUpdateEvent) => void) | null = null;
   private fivemFacAbsenceUpdateHandler: ((payload: FivemFacAbsenceUpdateEvent) => void) | null = null;
@@ -303,6 +306,7 @@ export class BotSocketClient {
       this.socket.on("fivem:goals:panel_publish", this.fivemGoalPanelPublishHandler);
     }
     if (this.fivemOrderPanelPublishHandler) this.socket.on("fivem:orders:panel_publish", this.fivemOrderPanelPublishHandler);
+    if (this.fivemOrderStatusUpdatedHandler) this.socket.on("fivem:orders:status_updated", this.fivemOrderStatusUpdatedHandler);
 
     if (this.manualRegistrationPanelPublishHandler) {
       this.socket.on("manual-registration:panel_publish", this.manualRegistrationPanelPublishHandler);
@@ -465,6 +469,12 @@ export class BotSocketClient {
     this.fivemOrderPanelPublishHandler = handler;
     this.socket?.off("fivem:orders:panel_publish");
     this.socket?.on("fivem:orders:panel_publish", handler);
+  }
+
+  onFivemOrderStatusUpdated(handler: (payload: FivemOrderStatusUpdatedEvent) => void) {
+    this.fivemOrderStatusUpdatedHandler = handler;
+    this.socket?.off("fivem:orders:status_updated");
+    this.socket?.on("fivem:orders:status_updated", handler);
   }
 
   onManualRegistrationPanelPublish(handler: (payload: ManualRegistrationPanelPublishEvent) => void) {

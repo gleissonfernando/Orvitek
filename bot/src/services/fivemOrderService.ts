@@ -2,10 +2,13 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  ChannelType,
+  EmbedBuilder,
   MessageFlags,
   ModalBuilder,
   PermissionFlagsBits,
   StringSelectMenuBuilder,
+  TextChannel,
   TextInputBuilder,
   TextInputStyle,
   type ButtonInteraction,
@@ -18,15 +21,23 @@ import {
 } from "discord.js";
 import type { BotContext } from "../types";
 import type { FivemOrder, FivemOrderProduct, FivemOrderSettings, FivemOrderStatus } from "./apiClient";
+import { getFreshGuildSettings } from "./guildSettingsCache";
 import { renderComponentsV2Panel } from "./panelVisualRenderer";
 
 const PREFIX = "fivem_order";
+const CLIENT_ACTION_PREFIX = "order";
 const cooldowns = new Map<string, number>();
 
 export function startFivemOrderService(client: Client<true>, context: BotContext) {
   context.socket.onFivemOrderPanelPublish((payload) => {
     const guild = client.guilds.cache.get(payload.guildId);
     if (guild) void publishConfiguredOrderPanel(guild, context);
+  });
+  context.socket.onFivemOrderStatusUpdated((payload) => {
+    const guild = client.guilds.cache.get(payload.guildId);
+    if (guild) void notifyOrderStatusChange(guild, context, payload.order, payload.actorId ?? null).catch((error) => {
+      console.warn("[fivem-orders] falha ao notificar status via socket:", error instanceof Error ? error.message : error);
+    });
   });
 }
 
@@ -67,7 +78,15 @@ export async function showFivemOrderReport(interaction: ChatInputCommandInteract
 }
 
 export async function handleFivemOrderInteraction(interaction: Interaction, context: BotContext) {
-  if (!("customId" in interaction) || !interaction.customId.startsWith(`${PREFIX}:`)) return false;
+  if (!("customId" in interaction)) return false;
+  if (interaction.customId.startsWith(`${CLIENT_ACTION_PREFIX}_`)) {
+    if (interaction.isButton()) {
+      await handleOrderActionButton(interaction, context);
+      return true;
+    }
+    return false;
+  }
+  if (!interaction.customId.startsWith(`${PREFIX}:`)) return false;
   if (interaction.isStringSelectMenu() && interaction.customId === `${PREFIX}:category`) { await selectCategory(interaction, context); return true; }
   if (interaction.isStringSelectMenu() && interaction.customId === `${PREFIX}:type`) { await selectOrderType(interaction, context); return true; }
   if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${PREFIX}:family:`)) { await selectFamily(interaction, context); return true; }
@@ -218,6 +237,7 @@ async function submitOrder(interaction: ModalSubmitInteraction, context: BotCont
   const reviewChannelId = runtime.settings.approvalChannelId ?? runtime.settings.logChannelId;
   const reviewChannel = reviewChannelId ? await interaction.guild.channels.fetch(reviewChannelId).catch(() => null) : null;
   if (reviewChannel?.isSendable()) await reviewChannel.send(createOrderAdminPanel(runtime.settings, order)).catch(() => null);
+  await sendClientOrderNotification(interaction.guild, runtime.settings, order, null);
   await interaction.editReply(`${runtime.settings.orderCreatedMessage}\n\n${orderSummary(order)}`);
 }
 
@@ -243,30 +263,336 @@ async function updateOrderFromButton(interaction: ButtonInteraction, context: Bo
   if (!(await canManage(interaction.guild, interaction.user.id, runtime.settings, status))) return interaction.editReply("Voce nao possui permissao para esta acao.");
   const saved = await context.api.updateFivemOrderStatus({ actorId: interaction.user.id, guildId: interaction.guild.id, orderId: orderId ?? "", status });
   await interaction.message.edit(createOrderAdminPanel(runtime.settings, saved)).catch(() => null);
-  if (status === "delivered" || status === "cancelled") {
-    const member = await interaction.guild.members.fetch(saved.userId).catch(() => null);
-    await member?.send(status === "delivered" ? runtime.settings.orderDeliveredMessage : runtime.settings.orderCancelledMessage).catch(() => null);
-  }
-  await sendOrderLog(interaction.guild, runtime.settings, saved, interaction.user.id);
   await interaction.editReply(`Encomenda #${saved.orderNumber} atualizada para ${statusLabel(saved.status)}.`);
+}
+
+async function handleOrderActionButton(interaction: ButtonInteraction, context: BotContext) {
+  if (!interaction.guild) return;
+  const [action, value, rawId] = parseOrderAction(interaction.customId);
+
+  if (action === "view_details") {
+    await showOrderDetailsFromButton(interaction, context, Number(value));
+    return;
+  }
+
+  if (action === "cancel") {
+    await cancelOrderFromClientButton(interaction, context, Number(value));
+    return;
+  }
+
+  if (action === "contact_staff") {
+    await contactStaffFromClientButton(interaction, context, Number(value));
+    return;
+  }
+
+  if (action === "contact_client") {
+    await contactClientFromStaffButton(interaction, context, Number(value));
+    return;
+  }
+
+  const status = actionToStatus(action, value);
+  if (!status) {
+    await interaction.reply({ content: "Acao de encomenda invalida.", ephemeral: true });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+  const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
+  if (!(await canManage(interaction.guild, interaction.user.id, runtime.settings, status))) {
+    await interaction.editReply("Voce nao possui permissao para esta acao.");
+    return;
+  }
+
+  const saved = await context.api.updateFivemOrderStatus({
+    actorId: interaction.user.id,
+    guildId: interaction.guild.id,
+    orderId: rawId ?? value,
+    status
+  });
+
+  await interaction.message.edit(createOrderAdminPanel(runtime.settings, saved)).catch(() => null);
+  await interaction.editReply(`Encomenda ENC-${String(saved.orderNumber).padStart(4, "0")} atualizada para ${statusLabel(saved.status)}.`);
+}
+
+async function showOrderDetailsFromButton(interaction: ButtonInteraction, context: BotContext, orderNumber: number) {
+  if (!interaction.guild || !Number.isInteger(orderNumber)) return interaction.reply({ content: "Encomenda invalida.", ephemeral: true });
+  await interaction.deferReply({ ephemeral: true });
+  const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
+  const scopedOrder = await context.api.getFivemOrder(interaction.guild.id, orderNumber, interaction.user.id);
+  const canSeeAll = await canManage(interaction.guild, interaction.user.id, runtime.settings, "approved");
+  const order = scopedOrder ?? (canSeeAll ? await context.api.getFivemOrder(interaction.guild.id, orderNumber) : null);
+  if (!order) return interaction.editReply("Encomenda nao encontrada ou voce nao tem permissao para ve-la.");
+  await interaction.editReply({ embeds: [createOrderEmbed(runtime.settings, order, { title: `Detalhes da encomenda ENC-${String(order.orderNumber).padStart(4, "0")}` })], components: [createClientOrderActions(order)] });
+}
+
+async function cancelOrderFromClientButton(interaction: ButtonInteraction, context: BotContext, orderNumber: number) {
+  if (!interaction.guild || !Number.isInteger(orderNumber)) return interaction.reply({ content: "Encomenda invalida.", ephemeral: true });
+  await interaction.deferReply({ ephemeral: true });
+  const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
+  const order = await context.api.getFivemOrder(interaction.guild.id, orderNumber, interaction.user.id);
+  if (!order) return interaction.editReply("Encomenda nao encontrada para este usuario.");
+  if (!["open", "pending_approval", "approved"].includes(order.status)) return interaction.editReply("Esta encomenda nao pode mais ser cancelada pelo cliente.");
+  const saved = await context.api.updateFivemOrderStatus({ actorId: interaction.user.id, guildId: interaction.guild.id, note: "Cancelada pelo cliente via Discord.", orderId: order.id, status: "cancelled" });
+  await interaction.editReply(`Encomenda ENC-${String(saved.orderNumber).padStart(4, "0")} cancelada.`);
+}
+
+async function contactStaffFromClientButton(interaction: ButtonInteraction, context: BotContext, orderNumber: number) {
+  if (!interaction.guild || !Number.isInteger(orderNumber)) return interaction.reply({ content: "Encomenda invalida.", ephemeral: true });
+  await interaction.deferReply({ ephemeral: true });
+  const order = await context.api.getFivemOrder(interaction.guild.id, orderNumber, interaction.user.id);
+  if (!order) return interaction.editReply("Encomenda nao encontrada para este usuario.");
+  const channel = await createOrderContactTicket(interaction.guild, context, order);
+  if (channel) {
+    await interaction.editReply(`Atendimento aberto para esta encomenda: <#${channel.id}>.`);
+    return;
+  }
+  const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
+  const notified = await notifyStaffContactRequest(interaction.guild, runtime.settings, order, interaction.user.id);
+  await interaction.editReply(notified ? "A equipe foi notificada para falar com voce sobre esta encomenda." : "Nao consegui abrir ticket nem localizar canal de equipe. Avise um administrador.");
+}
+
+async function contactClientFromStaffButton(interaction: ButtonInteraction, context: BotContext, orderNumber: number) {
+  if (!interaction.guild || !Number.isInteger(orderNumber)) return interaction.reply({ content: "Encomenda invalida.", ephemeral: true });
+  await interaction.deferReply({ ephemeral: true });
+  const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
+  if (!(await canManage(interaction.guild, interaction.user.id, runtime.settings, "approved"))) return interaction.editReply("Voce nao possui permissao para contatar clientes.");
+  const order = await context.api.getFivemOrder(interaction.guild.id, orderNumber);
+  if (!order) return interaction.editReply("Encomenda nao encontrada.");
+  const user = await interaction.client.users.fetch(order.userId).catch(() => null);
+  const sent = await user?.send({
+    embeds: [createOrderEmbed(runtime.settings, order, {
+      description: `Um responsavel da equipe quer falar com voce sobre a encomenda. Responsavel: <@${interaction.user.id}>.`,
+      title: `Contato solicitado - ENC-${String(order.orderNumber).padStart(4, "0")}`
+    })],
+    components: [createClientOrderActions(order)]
+  }).then(() => true).catch(() => false);
+  if (!sent) await notifyStaffContactRequest(interaction.guild, runtime.settings, order, interaction.user.id, "Nao consegui enviar DM ao cliente. Use o canal/log para combinar o contato.");
+  await interaction.editReply(sent ? "Cliente notificado por DM." : "DM fechada. Registrei o fallback no canal de equipe, se configurado.");
 }
 
 function createOrderAdminPanel(settings: FivemOrderSettings, order: FivemOrder) {
   const terminal = ["delivered", "cancelled", "rejected"].includes(order.status);
   return {
     allowedMentions: { parse: [] as never[] },
+    embeds: [createOrderEmbed(settings, order, {
+      description: "Use os botoes abaixo para conduzir a encomenda. As acoes atualizam o status real no sistema.",
+      title: `Encomenda ENC-${String(order.orderNumber).padStart(4, "0")}`
+    })],
     components: [
-      { type: 17, accent_color: parseColor(settings.color), components: [{ type: 10, content: `# Encomenda ENC-${String(order.orderNumber).padStart(4, "0")}\nUsuario: <@${order.userId}>\nFamilia: **${order.familyName}**\nProduto: **${order.productName}** (${order.category})\nQuantidade: **${order.quantity}**${order.washingPercentage !== null && order.washingPercentage !== undefined ? `\nValor entregue: **${formatMoney(order.grossValue)}**\nPercentual: **${order.washingPercentage}%**\nValor para familia: **${formatMoney(order.finalValue)}**` : `\nValor: **${formatMoney(order.finalValue)}**`}\nLucro: **${formatMoney(order.profit)}**\nStatus: **${statusLabel(order.status)}**${order.notes ? `\nObservacao: ${order.notes}` : ""}${order.proofUrl ? `\nComprovante: ${order.proofUrl}` : ""}` }] },
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`${PREFIX}:action:approved:${order.id}`).setLabel("Aprovar").setStyle(ButtonStyle.Success).setDisabled(terminal || order.status !== "pending_approval"),
-        new ButtonBuilder().setCustomId(`${PREFIX}:action:in_production:${order.id}`).setLabel("Produzir").setStyle(ButtonStyle.Primary).setDisabled(terminal || !["open", "approved"].includes(order.status)),
-        new ButtonBuilder().setCustomId(`${PREFIX}:action:ready:${order.id}`).setLabel("Pronta").setStyle(ButtonStyle.Primary).setDisabled(terminal || order.status !== "in_production"),
-        new ButtonBuilder().setCustomId(`${PREFIX}:action:delivered:${order.id}`).setLabel("Entregar").setStyle(ButtonStyle.Success).setDisabled(terminal || order.status !== "ready"),
-        new ButtonBuilder().setCustomId(`${PREFIX}:action:cancelled:${order.id}`).setLabel("Cancelar").setStyle(ButtonStyle.Danger).setDisabled(terminal)
+        new ButtonBuilder().setCustomId(`order_accept:${order.id}`).setLabel("Aceitar").setStyle(ButtonStyle.Success).setDisabled(terminal || order.status !== "pending_approval"),
+        new ButtonBuilder().setCustomId(`order_reject:${order.id}`).setLabel("Recusar").setStyle(ButtonStyle.Danger).setDisabled(terminal || !["pending_approval", "open", "approved"].includes(order.status)),
+        new ButtonBuilder().setCustomId(`order_status_in_production:${order.id}`).setLabel("Em producao").setStyle(ButtonStyle.Primary).setDisabled(terminal || !["open", "approved"].includes(order.status)),
+        new ButtonBuilder().setCustomId(`order_status_ready:${order.id}`).setLabel("Pronta").setStyle(ButtonStyle.Primary).setDisabled(terminal || order.status !== "in_production"),
+        new ButtonBuilder().setCustomId(`order_status_delivered:${order.id}`).setLabel("Entregue").setStyle(ButtonStyle.Success).setDisabled(terminal || order.status !== "ready")
+      ),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`order_view_details:${order.orderNumber}`).setLabel("Abrir pedido").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`order_contact_client:${order.orderNumber}`).setLabel("Contatar cliente").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`order_status_cancelled:${order.id}`).setLabel("Cancelar").setStyle(ButtonStyle.Danger).setDisabled(terminal)
       )
-    ],
-    flags: MessageFlags.IsComponentsV2 as const
+    ]
   };
+}
+
+async function notifyOrderStatusChange(guild: Guild, context: BotContext, order: FivemOrder, actorId: string | null) {
+  const runtime = await context.api.getFivemOrderRuntime(guild.id);
+  await sendClientOrderNotification(guild, runtime.settings, order, actorId);
+  await sendStaffOrderStatusNotification(guild, runtime.settings, order, actorId);
+}
+
+async function sendClientOrderNotification(guild: Guild, settings: FivemOrderSettings, order: FivemOrder, actorId: string | null) {
+  const user = await guild.client.users.fetch(order.userId).catch(() => null);
+  if (!user) {
+    await notifyStaffContactRequest(guild, settings, order, actorId ?? order.userId, "Nao consegui localizar o usuario para enviar DM.");
+    return false;
+  }
+
+  const sent = await user.send({
+    embeds: [createOrderEmbed(settings, order, {
+      description: clientStatusDescription(order, actorId),
+      title: clientStatusTitle(order)
+    })],
+    components: [createClientOrderActions(order)]
+  }).then(() => true).catch(() => false);
+
+  if (!sent) {
+    await notifyStaffContactRequest(guild, settings, order, actorId ?? order.userId, "Cliente com DM fechada. Notificacao privada nao entregue.");
+  }
+
+  return sent;
+}
+
+async function sendStaffOrderStatusNotification(guild: Guild, settings: FivemOrderSettings, order: FivemOrder, actorId: string | null) {
+  const channelId = settings.logChannelId ?? settings.approvalChannelId;
+  if (!channelId) return false;
+  const channel = await guild.channels.fetch(channelId).catch(() => null);
+  if (!channel?.isSendable()) return false;
+  await channel.send({
+    allowedMentions: { parse: [] },
+    embeds: [createOrderEmbed(settings, order, {
+      description: `Status alterado para **${statusLabel(order.status)}**${actorId ? ` por <@${actorId}>` : ""}.`,
+      title: `Atualizacao de encomenda ENC-${String(order.orderNumber).padStart(4, "0")}`
+    })],
+    components: createStaffNotificationActions(order)
+  }).catch(() => null);
+  return true;
+}
+
+function createOrderEmbed(settings: FivemOrderSettings, order: FivemOrder, options: { description?: string; title?: string } = {}) {
+  const embed = new EmbedBuilder()
+    .setColor(parseColor(settings.color))
+    .setTitle(options.title ?? `Encomenda ENC-${String(order.orderNumber).padStart(4, "0")}`)
+    .setDescription(options.description ?? "Detalhes da encomenda.")
+    .addFields(
+      { name: "Cliente", value: `<@${order.userId}>`, inline: true },
+      { name: "Familia", value: order.familyName || "Nao informada", inline: true },
+      { name: "Status", value: statusLabel(order.status), inline: true },
+      { name: "Produto", value: `${order.productName} (${order.category})`.slice(0, 1024), inline: true },
+      { name: "Quantidade", value: String(order.quantity), inline: true },
+      { name: "Valor", value: formatMoney(order.finalValue), inline: true }
+    )
+    .setFooter({ text: settings.footerText || "Sistema de Encomendas" })
+    .setTimestamp(new Date(order.updatedAt ?? order.createdAt));
+
+  if (order.responsibleId) embed.addFields({ name: "Responsavel", value: `<@${order.responsibleId}>`, inline: true });
+  if (order.washingPercentage !== null && order.washingPercentage !== undefined) {
+    embed.addFields(
+      { name: "Valor entregue", value: formatMoney(order.grossValue), inline: true },
+      { name: "Percentual", value: `${order.washingPercentage}%`, inline: true }
+    );
+  }
+  if (order.expectedDelivery) embed.addFields({ name: "Previsao", value: order.expectedDelivery, inline: true });
+  if (order.notes) embed.addFields({ name: "Observacao", value: order.notes.slice(0, 1024), inline: false });
+  if (order.proofUrl) embed.addFields({ name: "Comprovante", value: order.proofUrl.slice(0, 1024), inline: false });
+  return embed;
+}
+
+function createClientOrderActions(order: FivemOrder) {
+  const canCancel = ["open", "pending_approval", "approved"].includes(order.status);
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`order_contact_staff:${order.orderNumber}`).setLabel("Falar com responsavel").setStyle(ButtonStyle.Primary).setDisabled(["delivered", "cancelled", "rejected"].includes(order.status)),
+    new ButtonBuilder().setCustomId(`order_view_details:${order.orderNumber}`).setLabel("Ver detalhes do pedido").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`order_cancel:${order.orderNumber}`).setLabel("Cancelar pedido").setStyle(ButtonStyle.Danger).setDisabled(!canCancel)
+  );
+}
+
+function createStaffNotificationActions(order: FivemOrder) {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`order_view_details:${order.orderNumber}`).setLabel("Abrir pedido").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`order_status_in_production:${order.id}`).setLabel("Marcar em producao").setStyle(ButtonStyle.Primary).setDisabled(!["open", "approved"].includes(order.status)),
+      new ButtonBuilder().setCustomId(`order_status_delivered:${order.id}`).setLabel("Marcar entregue").setStyle(ButtonStyle.Success).setDisabled(order.status !== "ready"),
+      new ButtonBuilder().setCustomId(`order_contact_client:${order.orderNumber}`).setLabel("Contatar cliente").setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
+function clientStatusTitle(order: FivemOrder) {
+  const number = String(order.orderNumber).padStart(4, "0");
+  return ({
+    approved: `Encomenda ENC-${number} aceita`,
+    cancelled: `Encomenda ENC-${number} cancelada`,
+    delivered: `Encomenda ENC-${number} entregue`,
+    in_production: `Encomenda ENC-${number} em producao`,
+    open: `Encomenda ENC-${number} recebida`,
+    pending_approval: `Encomenda ENC-${number} aguardando aprovacao`,
+    ready: `Encomenda ENC-${number} pronta`,
+    rejected: `Encomenda ENC-${number} recusada`
+  } as const)[order.status];
+}
+
+function clientStatusDescription(order: FivemOrder, actorId: string | null) {
+  const responsible = order.responsibleId ?? actorId;
+  const suffix = responsible ? `\n\nResponsavel: <@${responsible}>.` : "";
+  return ({
+    approved: `Sua encomenda foi aceita pela equipe. O proximo passo e iniciar a producao.${suffix}`,
+    cancelled: "Sua encomenda foi cancelada. Se isso nao foi solicitado por voce, fale com a equipe.",
+    delivered: "Sua encomenda foi marcada como entregue. Confira os detalhes abaixo.",
+    in_production: `Sua encomenda entrou em producao. A equipe avisara quando estiver pronta.${suffix}`,
+    open: "Sua encomenda foi registrada e ja esta na fila da equipe.",
+    pending_approval: "Sua encomenda foi registrada e aguarda aprovacao da equipe.",
+    ready: `Sua encomenda esta pronta para entrega. Fale com o responsavel para combinar os detalhes.${suffix}`,
+    rejected: "Sua encomenda foi recusada pela equipe. Confira os detalhes abaixo ou fale com um responsavel."
+  } as const)[order.status];
+}
+
+function parseOrderAction(customId: string) {
+  if (customId.startsWith("order_status_")) {
+    const [head, orderId] = customId.split(":");
+    return ["status", (head ?? "").replace("order_status_", ""), orderId ?? null] as const;
+  }
+  const parts = customId.split(":");
+  return [parts[0]?.replace(/^order_/, "") ?? "", parts[1] ?? "", parts[2] ?? null] as const;
+}
+
+function actionToStatus(action: string, value: string): FivemOrderStatus | null {
+  if (action === "accept") return "approved";
+  if (action === "reject") return "rejected";
+  if (action === "status") {
+    const allowed: FivemOrderStatus[] = ["approved", "in_production", "ready", "delivered", "cancelled", "rejected"];
+    return allowed.includes(value as FivemOrderStatus) ? value as FivemOrderStatus : null;
+  }
+  return null;
+}
+
+async function createOrderContactTicket(guild: Guild, context: BotContext, order: FivemOrder) {
+  const settings = await getFreshGuildSettings(context, guild.id, guild.client.user?.id).catch(() => null);
+  if (!settings?.ticketEnabled) return null;
+  const orderRuntime = await context.api.getFivemOrderRuntime(guild.id).catch(() => null);
+  const staffRoleIds = orderRuntime?.settings.adminRoleIds ?? [];
+
+  let channel: TextChannel | null = null;
+  if (settings.ticketCategoryId && guild.members.me?.permissions.has(PermissionFlagsBits.ManageChannels)) {
+    channel = await guild.channels.create({
+      name: `ticket-enc-${String(order.orderNumber).padStart(4, "0")}-${order.userId.slice(-4)}`,
+      parent: settings.ticketCategoryId,
+      permissionOverwrites: [
+        { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+        { id: order.userId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+        { id: guild.members.me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ReadMessageHistory] },
+        ...staffRoleIds.map((roleId) => ({ id: roleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }))
+      ],
+      reason: `Contato solicitado na encomenda ENC-${String(order.orderNumber).padStart(4, "0")}`,
+      type: ChannelType.GuildText
+    }).then((created) => created as TextChannel).catch(() => null);
+  }
+
+  await context.api.createTicket({
+    channelId: channel?.id ?? null,
+    guildId: guild.id,
+    openerId: order.userId,
+    subject: `Encomenda ENC-${String(order.orderNumber).padStart(4, "0")}`
+  }).catch(() => null);
+
+  if (channel) {
+    await channel.send({
+      allowedMentions: { users: [order.userId] },
+      embeds: [createOrderEmbed({ color: settings.ticketPanelColor, footerText: settings.ticketPanelFooterText } as FivemOrderSettings, order, {
+        description: "Canal aberto para tratar esta encomenda com a equipe.",
+        title: `Atendimento da encomenda ENC-${String(order.orderNumber).padStart(4, "0")}`
+      })],
+      content: `<@${order.userId}>`
+    }).catch(() => null);
+  }
+
+  return channel;
+}
+
+async function notifyStaffContactRequest(guild: Guild, settings: FivemOrderSettings, order: FivemOrder, actorId: string, note?: string) {
+  const channelId = settings.approvalChannelId ?? settings.logChannelId;
+  if (!channelId) return false;
+  const channel = await guild.channels.fetch(channelId).catch(() => null);
+  if (!channel?.isSendable()) return false;
+  await channel.send({
+    allowedMentions: { parse: [] },
+    embeds: [createOrderEmbed(settings, order, {
+      description: `${note ?? "Cliente solicitou contato com a equipe."}\nSolicitante/responsavel: <@${actorId}>.`,
+      title: `Contato necessario - ENC-${String(order.orderNumber).padStart(4, "0")}`
+    })],
+    components: createStaffNotificationActions(order)
+  }).catch(() => null);
+  return true;
 }
 
 async function sendOrderLog(guild: Guild, settings: FivemOrderSettings, order: FivemOrder, actorId: string) {

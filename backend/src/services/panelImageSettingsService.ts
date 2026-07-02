@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import fs from "node:fs/promises";
 import path from "node:path";
 import { devBotRealtimeRoom, emitRealtimeToRoom } from "../realtime/events";
 import {
@@ -10,6 +9,14 @@ import {
   type MongoGlobalPanelImageSize,
   type MongoPanelImageSettings,
 } from "../database/mongo";
+import {
+  isLocalUploadUrl,
+  isPersistentImageUrl,
+  migrateLocalImageToPersistent,
+  removePersistentImageByUrl,
+  savePersistentImage
+} from "./persistentImageStorageService";
+import { createLog } from "./logService";
 
 export type PanelImagePosition = MongoGlobalPanelImagePosition;
 export type PanelImageSize = MongoGlobalPanelImageSize;
@@ -24,6 +31,7 @@ export type PanelImageSettingsDto = {
   imagePosition: PanelImagePosition;
   imageSize: PanelImageSize;
   imageUrl: string;
+  imageInvalidReason?: string | null;
   layoutMode: PanelImageLayoutMode;
   panelId: string;
   updatedAt: string | null;
@@ -51,13 +59,7 @@ const IMAGE_POSITIONS = new Set<PanelImagePosition>([
 ]);
 const IMAGE_SIZES = new Set<PanelImageSize>(["small", "medium", "large", "full_banner", "custom"]);
 const LAYOUT_MODES = new Set<PanelImageLayoutMode>(["embed", "components_v2"]);
-const PANEL_IMAGE_UPLOAD_DIR = path.resolve(__dirname, "../../uploads/panel-images");
-const MIME_EXTENSIONS: Record<string, string> = {
-  "image/gif": "gif",
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp"
-};
+const UPLOADS_ROOT = path.resolve(__dirname, "../../uploads");
 const DEFAULT_SETTINGS = {
   customHeight: null,
   customWidth: null,
@@ -83,11 +85,11 @@ export function defaultPanelImageSettings(guildId: string, botId: string, panelI
 export async function getPanelImageSettings(guildId: string, botId: string, panelId: string) {
   const { panelImageSettings } = await getMongoCollections();
   const settings = await panelImageSettings.findOne({ botId, guildId, panelId });
-  const own = settings ? toDto(settings) : defaultPanelImageSettings(guildId, botId, panelId);
+  const own = settings ? await toDtoWithMigration(settings) : defaultPanelImageSettings(guildId, botId, panelId);
   if (panelId === "global-default" || !own.useGlobalDefault) return own;
   const global = await panelImageSettings.findOne({ botId, guildId, panelId: "global-default" });
   if (!global) return own;
-  const inherited = toDto(global);
+  const inherited = await toDtoWithMigration(global);
   return { ...inherited, botId, guildId, panelId, updatedAt: own.updatedAt ?? inherited.updatedAt, useGlobalDefault: true };
 }
 
@@ -98,7 +100,7 @@ export async function listPanelImageSettings(guildId: string, botId: string) {
     .sort({ panelId: 1 })
     .toArray();
 
-  return settings.map(toDto);
+  return Promise.all(settings.map(toDtoWithMigration));
 }
 
 export async function savePanelImageSettings(
@@ -152,6 +154,22 @@ export async function savePanelImageSettings(
   );
 
   if (changed) emitPanelRefresh(guildId, botId, panelId);
+  if (changed && current.imageUrl !== next.imageUrl) {
+    await createLog({
+      botId,
+      guildId,
+      message: `Imagem do painel ${panelId} atualizada.`,
+      metadata: {
+        imageType: "panel",
+        moduleId: panelId,
+        newUrl: next.imageUrl || null,
+        oldUrl: current.imageUrl || null,
+        status: next.imageUrl ? "updated" : "removed"
+      },
+      type: next.imageUrl ? "panel_image.updated" : "panel_image.removed",
+      userId: actorId
+    }).catch(() => null);
+  }
 
   return getPanelImageSettings(guildId, botId, panelId);
 }
@@ -175,31 +193,50 @@ export async function savePanelImageUpload(input: {
   mimeType: string;
   panelId: string;
 }) {
-  const extension = MIME_EXTENSIONS[input.mimeType];
-
-  if (!extension) {
-    throw new Error("Formato invalido. Envie GIF, PNG, JPG ou WEBP.");
-  }
-
-  await fs.mkdir(PANEL_IMAGE_UPLOAD_DIR, { recursive: true });
-
-  const safeGuildId = input.guildId.replace(/[^a-zA-Z0-9_-]/g, "");
-  const safeBotId = input.botId.replace(/[^a-zA-Z0-9_-]/g, "");
-  const safePanelId = input.panelId.replace(/[^a-zA-Z0-9_-]/g, "");
-  const fileName = `${safeGuildId}-${safeBotId}-${safePanelId}-${Date.now()}-${randomUUID()}.${extension}`;
-  const filePath = path.join(PANEL_IMAGE_UPLOAD_DIR, fileName);
-
-  await fs.writeFile(filePath, input.buffer);
-
-  const imageUrl = `/uploads/panel-images/${fileName}`;
   const current = await getPanelImageSettings(input.guildId, input.botId, input.panelId);
+  const stored = await savePersistentImage({
+    actorId: input.actorId,
+    botId: input.botId,
+    buffer: input.buffer,
+    guildId: input.guildId,
+    imageType: "panel",
+    metadata: { panelId: input.panelId },
+    mimeType: input.mimeType,
+    moduleId: input.panelId,
+    previousUrl: current.imageUrl || null
+  });
 
   return savePanelImageSettings(input.guildId, input.botId, input.panelId, {
     imageEnabled: true,
     imagePosition: current.imagePosition === "none" ? "banner" : current.imagePosition,
     imageSize: current.imageSize,
-    imageUrl,
+    imageUrl: stored.publicUrl,
     layoutMode: current.layoutMode,
+    useGlobalDefault: false
+  }, input.actorId);
+}
+
+export async function removePanelImageSettings(input: {
+  actorId: string | null;
+  botId: string;
+  guildId: string;
+  panelId: string;
+}) {
+  const current = await getPanelImageSettings(input.guildId, input.botId, input.panelId);
+  if (current.imageUrl) {
+    await removePersistentImageByUrl({
+      actorId: input.actorId,
+      botId: input.botId,
+      guildId: input.guildId,
+      imageType: "panel",
+      moduleId: input.panelId,
+      url: current.imageUrl
+    });
+  }
+  return savePanelImageSettings(input.guildId, input.botId, input.panelId, {
+    imageEnabled: false,
+    imagePosition: "none",
+    imageUrl: "",
     useGlobalDefault: false
   }, input.actorId);
 }
@@ -241,14 +278,10 @@ function normalizeImageUrl(value: string | null | undefined) {
     return "";
   }
 
-  if (normalized.startsWith("/uploads/")) {
-    return normalized.slice(0, 2048);
-  }
-
   try {
     const url = new URL(normalized);
 
-    if (!["http:", "https:"].includes(url.protocol)) {
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
       return "";
     }
 
@@ -266,16 +299,51 @@ function clampDimension(value: number | null | undefined) {
   return Math.min(2000, Math.max(16, Math.trunc(Number(value))));
 }
 
+async function toDtoWithMigration(settings: MongoPanelImageSettings): Promise<PanelImageSettingsDto> {
+  if (settings.imageUrl && isLocalUploadUrl(settings.imageUrl)) {
+    const migrated = await migrateLocalImageToPersistent({
+      actorId: settings.updatedBy ?? settings.createdBy ?? null,
+      botId: settings.botId,
+      guildId: settings.guildId,
+      imageType: "panel",
+      localUrl: settings.imageUrl,
+      moduleId: settings.panelId,
+      uploadsRoot: UPLOADS_ROOT
+    }).catch(() => null);
+
+    if (migrated) {
+      const now = new Date();
+      const { panelImageSettings } = await getMongoCollections();
+      await panelImageSettings.updateOne(
+        { _id: settings._id },
+        { $set: { imageUrl: migrated.publicUrl, updatedAt: now } }
+      );
+      emitPanelRefresh(settings.guildId, settings.botId, settings.panelId);
+      return toDto({ ...settings, imageUrl: migrated.publicUrl, updatedAt: now });
+    }
+
+    return {
+      ...toDto(settings),
+      imageEnabled: false,
+      imageInvalidReason: "Essa imagem foi enviada antes da correcao de armazenamento persistente e nao foi encontrada no servidor. Envie novamente para que ela fique salva permanentemente.",
+      imagePosition: "none"
+    };
+  }
+
+  return toDto(settings);
+}
+
 function toDto(settings: MongoPanelImageSettings): PanelImageSettingsDto {
+  const persistentOrRemote = isPersistentImageUrl(settings.imageUrl) || /^https?:\/\//i.test(settings.imageUrl ?? "");
   return {
     botId: settings.botId,
     customHeight: settings.customHeight ?? null,
     customWidth: settings.customWidth ?? null,
     guildId: settings.guildId,
-    imageEnabled: settings.imageEnabled === true,
+    imageEnabled: settings.imageEnabled === true && persistentOrRemote,
     imagePosition: settings.imagePosition ?? DEFAULT_SETTINGS.imagePosition,
     imageSize: settings.imageSize ?? DEFAULT_SETTINGS.imageSize,
-    imageUrl: settings.imageUrl ?? "",
+    imageUrl: persistentOrRemote ? settings.imageUrl ?? "" : "",
     layoutMode: settings.layoutMode ?? DEFAULT_SETTINGS.layoutMode,
     panelId: settings.panelId,
     updatedAt: settings.updatedAt?.toISOString() ?? null,

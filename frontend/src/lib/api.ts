@@ -358,6 +358,16 @@ export async function uploadPanelImage(guildId: string, panelId: string, file: F
   return data.settings;
 }
 
+export async function removePanelImage(guildId: string, panelId: string, botId?: string | null) {
+  const { data } = await api.delete<{ settings: PanelImageSettings }>(
+    `/panel-images/${guildId}/${encodeURIComponent(panelId)}/images/panel`,
+    {
+      params: botParams(botId)
+    }
+  );
+  return data.settings;
+}
+
 export async function cloneEmojiToGuild(
   guildId: string,
   payload: { image: string; name: string; sourceLabel?: string | null },

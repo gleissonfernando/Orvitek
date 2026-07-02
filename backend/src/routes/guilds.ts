@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, raw } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
 import { canManageDashboardGuild, canReadDashboardGuild } from "../services/dashboardGuildAccessService";
@@ -6,8 +6,10 @@ import { canAccessDevBotGuild, canManageDevBotGuild, getDevBotToken } from "../s
 import { createLog } from "../services/logService";
 import { deleteGuildStructure, getGuildLiveOptions, getGuildMemberOptions, getGuildRoleOptions } from "../services/discordOptionsService";
 import { getBotStatus } from "../services/statsService";
+import { removePanelImageSettings, savePanelImageUpload } from "../services/panelImageSettingsService";
 
 export const guildsRouter = Router();
+const imageUpload = raw({ limit: "10mb", type: ["image/gif", "image/jpeg", "image/png", "image/webp"] });
 
 guildsRouter.use(requireAuth);
 
@@ -177,6 +179,61 @@ guildsRouter.get("/:guildId/member-options", async (req, res, next) => {
 
     return res.json({
       members: await getGuildMemberOptions(guildId, query, await getDevBotToken(botId))
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+guildsRouter.post("/:guildId/modules/:moduleId/images", imageUpload, async (req, res, next) => {
+  try {
+    const guildId = z.string().regex(/^\d{5,32}$/).parse(req.params.guildId);
+    const moduleId = z.string().min(2).max(80).regex(/^[a-z0-9_-]+$/i).parse(req.params.moduleId);
+    const botId = typeof req.query.botId === "string" && req.query.botId.trim() ? req.query.botId.trim() : null;
+    const mimeType = req.header("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
+
+    if (!botId) return res.status(400).json({ message: "Escolha um bot cadastrado para configurar imagens." });
+    if (!(await canManageDevBotGuild(res.locals.dashboardAuth.user, botId, guildId))) {
+      return res.status(403).json({ message: "Voce nao tem permissao para configurar imagens deste modulo." });
+    }
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ message: "Arquivo de imagem obrigatorio." });
+    }
+
+    return res.json({
+      settings: await savePanelImageUpload({
+        actorId: res.locals.dashboardAuth.user.discordId,
+        botId,
+        buffer: req.body,
+        guildId,
+        mimeType,
+        panelId: moduleId
+      })
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+guildsRouter.delete("/:guildId/modules/:moduleId/images/:imageType", async (req, res, next) => {
+  try {
+    const guildId = z.string().regex(/^\d{5,32}$/).parse(req.params.guildId);
+    const moduleId = z.string().min(2).max(80).regex(/^[a-z0-9_-]+$/i).parse(req.params.moduleId);
+    z.enum(["panel", "banner", "thumbnail", "footer", "background", "logo"]).parse(req.params.imageType);
+    const botId = typeof req.query.botId === "string" && req.query.botId.trim() ? req.query.botId.trim() : null;
+
+    if (!botId) return res.status(400).json({ message: "Escolha um bot cadastrado para configurar imagens." });
+    if (!(await canManageDevBotGuild(res.locals.dashboardAuth.user, botId, guildId))) {
+      return res.status(403).json({ message: "Voce nao tem permissao para remover imagens deste modulo." });
+    }
+
+    return res.json({
+      settings: await removePanelImageSettings({
+        actorId: res.locals.dashboardAuth.user.discordId,
+        botId,
+        guildId,
+        panelId: moduleId
+      })
     });
   } catch (error) {
     return next(error);
