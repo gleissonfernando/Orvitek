@@ -230,7 +230,7 @@ const botMenuItems: BotMenuItem[] = [
     label: "Configurações",
     description: "Ajustes gerais do bot",
     icon: Settings,
-    moduleIds: ["avisos", "mission-tools", "voice-recorder", "server-generator", "manual-registration"]
+    moduleIds: ["avisos", "mission-tools", "voice-recorder", "server-generator"]
   },
   {
     id: "moderation",
