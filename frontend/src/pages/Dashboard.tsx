@@ -77,6 +77,7 @@ import {
   cloneEmojiToGuild,
   cloneSelectedEmojiCloneBotToken,
   createFivemGoalConfig,
+  createManualRegistrationSubmission,
   deleteManualRegistrationSubmission,
   deleteFivemGoalConfig,
   deleteGuildChannels,
@@ -94,6 +95,7 @@ import {
   getFivemHierarchy,
   getGlobalBlacklistDashboard,
   getGuildLiveOptions,
+  getGuildMemberOptions,
   getGuildSettings,
   getEmojiLibrary,
   getKickNotifications,
@@ -157,6 +159,7 @@ import type {
   GlobalBlacklistSafeBotSettings,
   GuildChannelOption,
   GuildCategoryOption,
+  GuildMemberOption,
   GuildRoleOption,
   GuildSettings,
   GuildVoiceChannelOption,
@@ -4536,6 +4539,12 @@ function ManualRegistrationPanel({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [memberQuery, setMemberQuery] = useState("");
+  const [memberOptions, setMemberOptions] = useState<GuildMemberOption[]>([]);
+  const [selectedMemberId, setSelectedMemberId] = useState("");
+  const [manualRoleId, setManualRoleId] = useState("");
+  const [characterName, setCharacterName] = useState("");
+  const [gameId, setGameId] = useState("");
 
   useEffect(() => {
     if (!guild) {
@@ -4572,6 +4581,19 @@ function ManualRegistrationPanel({
       active = false;
     };
   }, [botId, guild?.id]);
+
+  useEffect(() => {
+    if (!guild || memberQuery.trim().length < 2) {
+      setMemberOptions([]);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void getGuildMemberOptions(guild.id, memberQuery.trim(), botId)
+        .then((members) => setMemberOptions(members.filter((member) => !member.bot)))
+        .catch(() => setMemberOptions([]));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [botId, guild?.id, memberQuery]);
 
   useEffect(() => {
     if (!guild) return;
@@ -4690,6 +4712,28 @@ function ManualRegistrationPanel({
     }
   }
 
+  async function registerMember() {
+    if (!guild || !selectedMemberId || !manualRoleId || !characterName.trim() || !gameId.trim()) return;
+    const member = memberOptions.find((item) => item.id === selectedMemberId);
+    if (!member) return;
+    setSaving(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const submission = await createManualRegistrationSubmission(guild.id, {
+        characterName: characterName.trim(), gameId: gameId.trim(), requestedRoleId: manualRoleId,
+        userAvatar: member.avatarUrl, userId: member.id, username: member.displayName || member.username
+      }, botId);
+      setSubmissions((current) => [submission, ...current]);
+      setMemberQuery(""); setMemberOptions([]); setSelectedMemberId(""); setManualRoleId(""); setCharacterName(""); setGameId("");
+      setMessage("Cadastro enviado ao bot. O cargo e o canal de meta serao preparados automaticamente.");
+    } catch {
+      setError("Nao foi possivel cadastrar o membro.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (!guild) {
     return <EmptyState icon={ListChecks} title="Selecione um servidor para configurar o Pedido de Set" />;
   }
@@ -4719,6 +4763,24 @@ function ManualRegistrationPanel({
         </div>
         {loading || !settings ? <div className="h-40 animate-pulse rounded-lg border border-zinc-800 bg-zinc-900/60" /> : (
           <>
+            <div className="space-y-3 rounded-lg border border-purple-500/20 bg-purple-500/[0.04] p-4">
+              <div><p className="text-sm font-semibold text-white">Cadastrar membro</p><p className="text-xs text-zinc-500">Selecione o usuario e o cargo. O bot entrega o cargo e cria o canal privado de meta se ele ainda nao existir.</p></div>
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                <label className="block text-xs font-medium text-zinc-400">Buscar usuario
+                  <input className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => { setMemberQuery(event.target.value); setSelectedMemberId(""); }} placeholder="Nome ou ID do Discord" value={memberQuery} />
+                </label>
+                <label className="block text-xs font-medium text-zinc-400">Usuario
+                  <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage || !memberOptions.length} onChange={(event) => setSelectedMemberId(event.target.value)} value={selectedMemberId}>
+                    <option value="">Selecionar usuario</option>
+                    {memberOptions.map((member) => <option key={member.id} value={member.id}>{member.displayName} ({member.id})</option>)}
+                  </select>
+                </label>
+                <RoleSelect disabled={!canManage} label="Cargo / Set" onChange={setManualRoleId} roles={roles.filter((role) => role.assignable)} value={manualRoleId} />
+                <TicketField disabled={!canManage} label="Nome do personagem" onChange={setCharacterName} value={characterName} />
+                <TicketField disabled={!canManage} label="ID in-game" onChange={setGameId} value={gameId} />
+              </div>
+              <Button disabled={!canManage || saving || !selectedMemberId || !manualRoleId || !characterName.trim() || !gameId.trim()} onClick={() => void registerMember()} type="button"><UserPlus className="mr-2 h-4 w-4" />Cadastrar e criar canal</Button>
+            </div>
             <div className="grid gap-3 sm:grid-cols-4">
               <MetricCard icon={ListChecks} label="Pedidos" value={String(submissions.length)} />
               <MetricCard icon={Clock3} label="Pendentes" value={String(submissions.filter((item) => item.status === "pending").length)} />

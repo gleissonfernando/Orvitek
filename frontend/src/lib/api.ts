@@ -60,6 +60,7 @@ import type {
   LogEntry,
   ManualRegistrationDashboard,
   ManualRegistrationSettings,
+  ManualRegistrationSubmission,
   MissionToolsResponse,
   MissionToolsSettings,
   MissionToolsUserPanel,
@@ -823,6 +824,13 @@ export async function deleteManualRegistrationSubmission(guildId: string, submis
   await api.delete(`/manual-registration/${guildId}/submissions/${submissionId}`, {
     params: botId ? { botId } : undefined
   });
+}
+
+export async function createManualRegistrationSubmission(guildId: string, payload: { characterName: string; gameId: string; requestedRoleId: string; userAvatar?: string | null; userId: string; username: string }, botId?: string | null) {
+  const { data } = await api.post<{ submission: ManualRegistrationSubmission }>(`/manual-registration/${guildId}/submissions/manual`, payload, {
+    params: botId ? { botId } : undefined
+  });
+  return data.submission;
 }
 
 export async function getSocialNotifications(

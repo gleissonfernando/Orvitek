@@ -76,6 +76,14 @@ export type ManualRegistrationPanelPublishEvent = {
   botId?: string | null;
   guildId: string;
 };
+export type ManualRegistrationExecuteEvent = {
+  botId: string;
+  guildId: string;
+  requestedRoleId: string;
+  submissionId: string;
+  userId: string;
+  username: string;
+};
 
 export type FivemHierarchyPanelUpdateEvent = {
   action: "publish" | "update";
@@ -213,6 +221,7 @@ export class BotSocketClient {
   private fivemOrderPanelPublishHandler: ((payload: FivemOrderPanelPublishEvent) => void) | null = null;
   private fivemOrderStatusUpdatedHandler: ((payload: FivemOrderStatusUpdatedEvent) => void) | null = null;
   private manualRegistrationPanelPublishHandler: ((payload: ManualRegistrationPanelPublishEvent) => void) | null = null;
+  private manualRegistrationExecuteHandler: ((payload: ManualRegistrationExecuteEvent) => void) | null = null;
   private fivemHierarchyPanelUpdateHandler: ((payload: FivemHierarchyPanelUpdateEvent) => void) | null = null;
   private fivemFacAbsenceUpdateHandler: ((payload: FivemFacAbsenceUpdateEvent) => void) | null = null;
   private missionToolsSettingsHandler: ((payload: MissionToolsSettingsEvent) => void) | null = null;
@@ -314,6 +323,7 @@ export class BotSocketClient {
     if (this.manualRegistrationPanelPublishHandler) {
       this.socket.on("manual-registration:panel_publish", this.manualRegistrationPanelPublishHandler);
     }
+    if (this.manualRegistrationExecuteHandler) this.socket.on("manual-registration:execute", this.manualRegistrationExecuteHandler);
 
     if (this.fivemHierarchyPanelUpdateHandler) {
       this.socket.on("fivem:hierarchy:panel_update", this.fivemHierarchyPanelUpdateHandler);
@@ -491,6 +501,12 @@ export class BotSocketClient {
     this.manualRegistrationPanelPublishHandler = handler;
     this.socket?.off("manual-registration:panel_publish");
     this.socket?.on("manual-registration:panel_publish", handler);
+  }
+
+  onManualRegistrationExecute(handler: (payload: ManualRegistrationExecuteEvent) => void) {
+    this.manualRegistrationExecuteHandler = handler;
+    this.socket?.off("manual-registration:execute");
+    this.socket?.on("manual-registration:execute", handler);
   }
 
   onFivemHierarchyPanelUpdate(handler: (payload: FivemHierarchyPanelUpdateEvent) => void) {

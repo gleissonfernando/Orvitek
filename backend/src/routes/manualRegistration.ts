@@ -7,6 +7,7 @@ import { authorizeBotRuntimeModule, canReadDevBotModule, canUseDevBotModule } fr
 import { resolveRequestBotId } from "../services/requestBotScopeService";
 import {
   createManualRegistrationSubmission,
+  createManualRegistrationDashboardSubmission,
   deleteManualRegistrationSubmission,
   getLatestManualRegistrationSubmission,
   getManualRegistrationSettings,
@@ -100,6 +101,14 @@ const statusSchema = z.object({
   status: z.enum(["approved", "rejected"])
 });
 const roleUpdateSchema = z.object({ actorId: snowflakeSchema, guildId: snowflakeSchema, requestedRoleId: snowflakeSchema });
+const dashboardRegistrationSchema = z.object({
+  characterName: z.string().trim().min(2).max(80),
+  gameId: z.string().trim().min(1).max(32),
+  requestedRoleId: snowflakeSchema,
+  userAvatar: z.string().max(2048).nullable().optional(),
+  userId: snowflakeSchema,
+  username: z.string().trim().min(1).max(120)
+});
 
 export const manualRegistrationRouter = Router();
 
@@ -165,6 +174,22 @@ manualRegistrationRouter.delete("/:guildId/submissions/:id", async (req, res, ne
     }
     await deleteManualRegistrationSubmission(guildId, botId, id, res.locals.dashboardAuth.user.discordId);
     return res.json({ ok: true });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+manualRegistrationRouter.post("/:guildId/submissions/manual", async (req, res, next) => {
+  try {
+    const guildId = snowflakeSchema.parse(req.params.guildId);
+    const input = dashboardRegistrationSchema.parse(req.body);
+    const botId = await resolveRequestBotId(req);
+    if (!botId || isBotRequest(req) || !(await canManageScopedGuild(req, guildId, botId))) {
+      return res.status(403).json({ message: "Sem permissao para cadastrar este membro." });
+    }
+    return res.status(201).json({
+      submission: await createManualRegistrationDashboardSubmission({ ...input, actorId: res.locals.dashboardAuth.user.discordId, botId, guildId })
+    });
   } catch (error) {
     return next(error);
   }

@@ -273,6 +273,40 @@ export async function createManualRegistrationSubmission(input: {
   return toSubmissionDto(submission);
 }
 
+export async function createManualRegistrationDashboardSubmission(input: {
+  actorId: string;
+  botId: string;
+  characterName: string;
+  gameId: string;
+  guildId: string;
+  requestedRoleId: string;
+  userAvatar?: string | null;
+  userId: string;
+  username: string;
+}) {
+  const now = new Date();
+  const submission: MongoManualRegistrationSubmission = {
+    _id: randomUUID(), approvedAt: null, approvedBy: null, botId: input.botId, createdAt: now,
+    fields: [
+      { id: "nome_personagem", label: "Nome do personagem", value: input.characterName },
+      { id: "id_fivem", label: "ID in-game", value: input.gameId }
+    ],
+    guildId: input.guildId, messageId: null, rejectedAt: null, rejectedBy: null, rejectionReason: null,
+    requestedRoleId: input.requestedRoleId, status: "pending", updatedAt: now,
+    userAvatar: input.userAvatar ?? null, userId: input.userId, username: input.username
+  };
+  const { manualRegistrationSubmissions } = await getMongoCollections();
+  await ensureGuild(input.guildId);
+  await manualRegistrationSubmissions.insertOne(submission);
+  await writeManualRegistrationLog({ action: "submission.manual_created", botId: input.botId, data: { requestedRoleId: input.requestedRoleId }, executorId: input.actorId, guildId: input.guildId, submissionId: submission._id, targetUserId: input.userId });
+  emitManualRegistrationUpdated(input.guildId, input.botId);
+  emitRealtimeToRoom(devBotRealtimeRoom(input.botId), "manual-registration:execute", {
+    botId: input.botId, guildId: input.guildId, requestedRoleId: input.requestedRoleId,
+    submissionId: submission._id, userId: input.userId, username: input.characterName
+  });
+  return toSubmissionDto(submission);
+}
+
 export async function updateManualRegistrationSubmissionMessage(id: string, botId: string | null, messageId: string | null) {
   const { manualRegistrationSubmissions } = await getMongoCollections();
   await manualRegistrationSubmissions.updateOne(
