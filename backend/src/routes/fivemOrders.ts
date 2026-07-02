@@ -157,6 +157,20 @@ fivemOrdersRouter.put("/bot/:guildId/panel-state", requireBot, async (req, res, 
   try { const guildId = snowflake.parse(req.params.guildId); const input = z.object({ messageId: optionalSnowflake }).parse(req.body); const botId = await resolveRequestBotId(req); await assertRuntime(botId, guildId); return res.json({ settings: await saveFivemOrderSettings(guildId, botId, { panelMessageId: input.messageId || null }, null) }); } catch (error) { return next(error); }
 });
 
-async function canRead(req: Request, guildId: string, botId: string | null) { return botId ? canReadDevBotModule(req.res?.locals.dashboardAuth.user, botId, guildId, FIVEM_ORDERS_MODULE_ID) : canReadDashboardGuild(req.res?.locals.dashboardAuth.user, guildId); }
-async function canManage(req: Request, guildId: string, botId: string | null) { return botId ? canUseDevBotModule(req.res?.locals.dashboardAuth.user, botId, guildId, FIVEM_ORDERS_MODULE_ID) : canManageDashboardGuild(req.res?.locals.dashboardAuth.user, guildId); }
-async function assertRuntime(botId: string | null, guildId: string) { const access = await authorizeBotRuntimeModule({ botId, guildId, moduleId: FIVEM_ORDERS_MODULE_ID }); if (!access.allowed) throw Object.assign(new Error(access.reason), { statusCode: 403 }); }
+async function canRead(req: Request, guildId: string, botId: string | null) {
+  if (!botId) return canReadDashboardGuild(req.res?.locals.dashboardAuth.user, guildId);
+  return (await canReadDevBotModule(req.res?.locals.dashboardAuth.user, botId, guildId, FIVEM_ORDERS_MODULE_ID))
+    || (await canReadDevBotModule(req.res?.locals.dashboardAuth.user, botId, guildId, "fivem-drugs"));
+}
+async function canManage(req: Request, guildId: string, botId: string | null) {
+  if (!botId) return canManageDashboardGuild(req.res?.locals.dashboardAuth.user, guildId);
+  return (await canUseDevBotModule(req.res?.locals.dashboardAuth.user, botId, guildId, FIVEM_ORDERS_MODULE_ID))
+    || (await canUseDevBotModule(req.res?.locals.dashboardAuth.user, botId, guildId, "fivem-drugs"));
+}
+async function assertRuntime(botId: string | null, guildId: string) {
+  const ordersAccess = await authorizeBotRuntimeModule({ botId, guildId, moduleId: FIVEM_ORDERS_MODULE_ID });
+  if (ordersAccess.allowed) return;
+  const drugsAccess = await authorizeBotRuntimeModule({ botId, guildId, moduleId: "fivem-drugs" });
+  if (drugsAccess.allowed) return;
+  throw Object.assign(new Error(ordersAccess.reason), { statusCode: 403 });
+}

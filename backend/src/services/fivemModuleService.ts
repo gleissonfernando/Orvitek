@@ -46,6 +46,13 @@ export const BUILTIN_FIVEM_MODULES: FivemModuleDefinition[] = [
   },
   {
     builtIn: true,
+    description: "Controle isolado de drogas, familias autorizadas, pedidos, producao, entrega, logs e historico.",
+    id: "fivem-drugs",
+    permissions: "Admin FiveM, Lideranca",
+    title: "Sistema de Drogas"
+  },
+  {
+    builtIn: true,
     description: "Estoque, retirada, distribuicao e auditoria de municoes.",
     id: "fivem-ammo",
     permissions: "Admin FiveM, Arsenal",
