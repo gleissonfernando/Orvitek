@@ -954,7 +954,7 @@ export type FivemOrderSettings = {
   orderCreatedMessage: string; orderDeliveredMessage: string; panelChannelId: string | null; panelDescription: string; panelImage: PanelImageSettings | null;
   panelMessageId: string | null; panelTitle: string; updatedAt: string | null;
 };
-export type FivemOrderFamily = { active: boolean; botId: string | null; createdAt: string; guildId: string; id: string; logChannelId: string | null; name: string; notes: string | null; orderModules: Array<"washing" | "ammo" | "drug" | "weapon" | "custom">; responsibleId: string; roleId: string; updatedAt: string };
+export type FivemOrderFamily = { active: boolean; botId: string | null; createdAt: string; guildId: string; id: string; logChannelId: string | null; name: string; notes: string | null; orderModules: Array<"washing" | "ammo" | "drug" | "weapon" | "custom">; responsibleId: string; roleId: string; type?: "pista" | "produto" | "sem_produto"; updatedAt: string };
 export type FivemOrderProduct = {
   active: boolean; allowCustomQuantity: boolean; allowNotes: boolean; botId: string | null; category: string; cost: number; createdAt: string;
   config?: {

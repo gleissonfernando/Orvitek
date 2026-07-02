@@ -408,6 +408,7 @@ export type MongoFivemOrderFamily = {
   orderModules?: Array<"washing" | "ammo" | "drug" | "weapon" | "custom">;
   responsibleId: string;
   roleId: string;
+  type?: "pista" | "produto" | "sem_produto";
   updatedAt: Date;
 };
 

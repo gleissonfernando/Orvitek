@@ -173,12 +173,12 @@ export type FivemGoalConfig = {
 export type FivemOrderStatus = "open" | "pending_approval" | "approved" | "in_production" | "ready" | "delivered" | "cancelled" | "rejected";
 export type FivemOrderSettings = {
   adminRoleIds: string[]; allowAnonymous: boolean; allowAttachments: boolean; allowCustomNotes: boolean; approvalChannelId: string | null; approvalRequired: boolean;
-  cancelRoleIds: string[]; color: string; createRoleIds: string[]; deliveryChannelId: string | null; enabled: boolean; enabledOrderModules: Array<"washing" | "ammo" | "drug" | "weapon" | "custom">; errorMessage: string; finishRoleIds: string[];
+  approveRoleIds: string[]; cancelRoleIds: string[]; color: string; createRoleIds: string[]; deliveryChannelId: string | null; enabled: boolean; enabledOrderModules: Array<"washing" | "ammo" | "drug" | "weapon" | "custom">; errorMessage: string; finishRoleIds: string[];
   footerText: string | null; guildId: string; logChannelId: string | null; maxOpenHours: number; orderCancelledMessage: string; orderCreatedMessage: string;
   orderDeliveredMessage: string; panelChannelId: string | null; panelDescription: string; panelMessageId: string | null; panelTitle: string;
   panelImage: { imageEnabled: boolean; imagePosition: import("./panelVisualRenderer").PanelVisualPosition; imageUrl: string; useGlobalDefault?: boolean } | null;
 };
-export type FivemOrderFamily = { active: boolean; id: string; logChannelId: string | null; name: string; notes: string | null; orderModules: Array<"washing" | "ammo" | "drug" | "weapon" | "custom">; responsibleId: string; roleId: string };
+export type FivemOrderFamily = { active: boolean; id: string; logChannelId: string | null; name: string; notes: string | null; orderModules: Array<"washing" | "ammo" | "drug" | "weapon" | "custom">; responsibleId: string; roleId: string; type?: "pista" | "produto" | "sem_produto" };
 export type FivemOrderProduct = {
   active: boolean; allowCustomQuantity: boolean; allowNotes: boolean; category: string; cost: number; description: string | null; emoji: string | null;
   config?: {

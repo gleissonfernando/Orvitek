@@ -103,30 +103,24 @@ export async function handleFivemOrderInteraction(interaction: Interaction, cont
 }
 
 async function publishConfiguredOrderPanel(guild: Guild, context: BotContext, fallbackChannelId?: string | null) {
-  const { products, settings } = await context.api.getFivemOrderRuntime(guild.id);
+  const { settings } = await context.api.getFivemOrderRuntime(guild.id);
   if (!settings.enabled) return null;
   const channelId = settings.panelChannelId ?? fallbackChannelId ?? null;
   if (!channelId) return null;
   const channel = await guild.channels.fetch(channelId).catch(() => null);
   if (!channel?.isSendable()) return null;
-  const payload = createMainPanel(settings, products);
+  const payload = createMainPanel(settings);
   let message = settings.panelMessageId && "messages" in channel ? await channel.messages.fetch(settings.panelMessageId).catch(() => null) : null;
   if (message) await message.edit(payload).catch(() => null); else message = await channel.send(payload);
   await context.api.updateFivemOrderPanelState(guild.id, message.id);
   return channel.id;
 }
 
-function createMainPanel(settings: FivemOrderSettings, products: FivemOrderProduct[]) {
-  const categories = [...new Set(products.map((item) => item.category))].slice(0, 25);
-  const rows: Array<ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>> = [];
-  if (categories.length) rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(`${PREFIX}:category`).setPlaceholder("Selecione uma categoria").addOptions(categories.map((category) => ({ label: category.slice(0, 100), value: category.slice(0, 100) })))));
-  rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`${PREFIX}:create`).setLabel("Criar Encomenda").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`${PREFIX}:status`).setLabel("Ver Encomenda").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`${PREFIX}:families`).setLabel("Ver Familias").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`${PREFIX}:help`).setLabel("Como Funciona").setStyle(ButtonStyle.Secondary)
-  ));
-  return renderComponentsV2Panel({ accentColor: parseColor(settings.color), actions: rows, description: settings.panelDescription, fields: [`**Produtos ativos:** ${products.length}\n**Categorias:** ${categories.join(", ") || "Nenhuma"}`, ...(settings.footerText ? [`-# ${settings.footerText}`] : [])], image: settings.panelImage, moduleId: "fivem-orders", title: settings.panelTitle });
+function createMainPanel(settings: FivemOrderSettings) {
+  const rows = [new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`${PREFIX}:create`).setLabel("Criar Encomenda").setStyle(ButtonStyle.Success)
+  )];
+  return renderComponentsV2Panel({ accentColor: parseColor(settings.color), actions: rows, description: settings.panelDescription || "Clique no botao abaixo para iniciar uma nova encomenda.", fields: [], image: settings.panelImage, moduleId: "fivem-orders", title: settings.panelTitle });
 }
 
 async function selectCategory(interaction: StringSelectMenuInteraction, context: BotContext) {
@@ -143,15 +137,19 @@ async function startCreate(interaction: ButtonInteraction, context: BotContext) 
   const enabled = new Set(runtime.settings.enabledOrderModules ?? ["washing", "ammo", "drug", "weapon", "custom"]);
   const types = [{ label: "Lavagem", value: "washing" }, { label: "Municao", value: "ammo" }, { label: "Drogas", value: "drug" }, { label: "Armas", value: "weapon" }, { label: "Itens personalizados", value: "custom" }].filter((item) => enabled.has(item.value as never) && runtime.products.some((product) => normalizeProductModule(product.type) === item.value));
   if (!types.length) return interaction.reply({ content: "Nenhum modulo possui itens ativos. Configure os modulos na dashboard.", ephemeral: true });
-  const select = new StringSelectMenuBuilder().setCustomId(`${PREFIX}:type`).setPlaceholder("Escolha o tipo de encomenda").addOptions(types);
-  await interaction.reply({ components: [{ type: 17, accent_color: 0x22c55e, components: [{ type: 10, content: "## Criar Encomenda\nPrimeiro escolha o tipo. Depois selecione a familia e o item." }] }, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)], flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
+  if (types.length === 1) {
+    await replyWithFamilySelect(interaction, runtime.families, types[0]?.value ?? "custom");
+    return;
+  }
+  const select = new StringSelectMenuBuilder().setCustomId(`${PREFIX}:type`).setPlaceholder("Qual tipo de encomenda deseja criar?").addOptions(types);
+  await interaction.reply({ components: [{ type: 17, accent_color: 0x22c55e, components: [{ type: 10, content: "## Criar Encomenda\nQual tipo de encomenda deseja criar?" }] }, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)], flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
 }
 
 async function replyWithFamilySelect(interaction: ButtonInteraction | StringSelectMenuInteraction | ChatInputCommandInteraction, families: Awaited<ReturnType<BotContext["api"]["getFivemOrderRuntime"]>>["families"], type: string) {
   const availableFamilies = families.filter((family) => familyMatchesOrderType(family, type));
   if (!availableFamilies.length) return interaction.reply({ content: "Nenhuma familia ativa foi cadastrada para este tipo de encomenda. Configure as familias na dashboard.", ephemeral: true });
   const select = new StringSelectMenuBuilder().setCustomId(`${PREFIX}:family:${type}`).setPlaceholder("Escolha a familia").addOptions(availableFamilies.slice(0, 25).map((family) => ({ label: family.name.slice(0, 100), value: family.id, description: family.notes?.slice(0, 100) || "Familia ativa" })));
-  return interaction.reply({ components: [{ type: 17, accent_color: 0x22c55e, components: [{ type: 10, content: "## Escolha a familia\nToda encomenda deve ficar vinculada a uma familia cadastrada." }] }, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)], flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
+  return interaction.reply({ components: [{ type: 17, accent_color: 0x22c55e, components: [{ type: 10, content: "## Selecione a familia responsavel pela encomenda" }] }, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)], flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
 }
 
 async function selectOrderType(interaction: StringSelectMenuInteraction, context: BotContext) {
@@ -237,11 +235,17 @@ async function submitOrder(interaction: ModalSubmitInteraction, context: BotCont
   const family = runtime.families.find((item) => item.id === familyId);
   if (!family) return interaction.editReply("Familia indisponivel.");
   const order = await context.api.createFivemOrder({ clientName: family.name, expectedDelivery: readOptional("delivery"), familyId, grossValue: product.type === "washing" ? numeric : null, guildId: interaction.guild.id, notes: readOptional("notes"), productId, proofUrl: readOptional("proof"), quantity: product.type === "washing" ? 1 : numeric, sourceId: interaction.id, userId: interaction.user.id, washingPercentage });
-  const reviewChannelId = effectiveSettings.approvalChannelId ?? effectiveSettings.logChannelId;
-  const reviewChannel = reviewChannelId ? await interaction.guild.channels.fetch(reviewChannelId).catch(() => null) : null;
-  if (reviewChannel?.isSendable()) await reviewChannel.send(createOrderAdminPanel(effectiveSettings, order)).catch(() => null);
+  const orderChannel = await createTemporaryOrderChannel(interaction.guild, effectiveSettings, family, order);
+  if (orderChannel) {
+    await orderChannel.send(createOrderAdminPanel(effectiveSettings, order, { operational: true })).catch(() => null);
+  } else {
+    const reviewChannelId = effectiveSettings.approvalChannelId ?? effectiveSettings.logChannelId;
+    const reviewChannel = reviewChannelId ? await interaction.guild.channels.fetch(reviewChannelId).catch(() => null) : null;
+    if (reviewChannel?.isSendable()) await reviewChannel.send(createOrderAdminPanel(effectiveSettings, order, { operational: true })).catch(() => null);
+  }
+  await sendOrderCreatedLog(interaction.guild, effectiveSettings, order, interaction.user.id, orderChannel?.id ?? null);
   await sendClientOrderNotification(interaction.guild, effectiveSettings, order, null);
-  await interaction.editReply(`${effectiveSettings.orderCreatedMessage}\n\n${orderSummary(order)}`);
+  await interaction.editReply(`${effectiveSettings.orderCreatedMessage}\n\n${orderChannel ? `Canal da encomenda: <#${orderChannel.id}>` : orderSummary(order)}`);
 }
 
 async function showStatusModal(interaction: ButtonInteraction) {
@@ -265,7 +269,7 @@ async function updateOrderFromButton(interaction: ButtonInteraction, context: Bo
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
   if (!(await canManage(interaction.guild, interaction.user.id, runtime.settings, status))) return interaction.editReply("Voce nao possui permissao para esta acao.");
   const saved = await context.api.updateFivemOrderStatus({ actorId: interaction.user.id, guildId: interaction.guild.id, orderId: orderId ?? "", status });
-  await interaction.message.edit(createOrderAdminPanel(orderSettings(runtime.settings, runtime.products, saved), saved)).catch(() => null);
+  await interaction.message.edit(createOrderAdminPanel(orderSettings(runtime.settings, runtime.products, saved), saved, { operational: true })).catch(() => null);
   await interaction.editReply(`Encomenda #${saved.orderNumber} atualizada para ${statusLabel(saved.status)}.`);
 }
 
@@ -293,6 +297,11 @@ async function handleOrderActionButton(interaction: ButtonInteraction, context: 
     return;
   }
 
+  if (action === "close_channel") {
+    await closeOrderChannelFromButton(interaction, context);
+    return;
+  }
+
   const status = actionToStatus(action, value);
   if (!status) {
     await interaction.reply({ content: "Acao de encomenda invalida.", ephemeral: true });
@@ -313,7 +322,7 @@ async function handleOrderActionButton(interaction: ButtonInteraction, context: 
     status
   });
 
-  await interaction.message.edit(createOrderAdminPanel(orderSettings(runtime.settings, runtime.products, saved), saved)).catch(() => null);
+  await interaction.message.edit(createOrderAdminPanel(orderSettings(runtime.settings, runtime.products, saved), saved, { operational: true })).catch(() => null);
   await interaction.editReply(`Encomenda ENC-${String(saved.orderNumber).padStart(4, "0")} atualizada para ${statusLabel(saved.status)}.`);
 }
 
@@ -373,8 +382,25 @@ async function contactClientFromStaffButton(interaction: ButtonInteraction, cont
   await interaction.editReply(sent ? "Cliente notificado por DM." : "DM fechada. Registrei o fallback no canal de equipe, se configurado.");
 }
 
-function createOrderAdminPanel(settings: FivemOrderSettings, order: FivemOrder) {
+function createOrderAdminPanel(settings: FivemOrderSettings, order: FivemOrder, options: { operational?: boolean } = {}) {
   const terminal = ["delivered", "cancelled", "rejected"].includes(order.status);
+  if (options.operational) {
+    return {
+      allowedMentions: { users: [order.userId], roles: settings.adminRoleIds },
+      embeds: [createOrderEmbed(settings, order, {
+        description: `Status: **${statusLabel(order.status)}**\nCriado por: <@${order.userId}>`,
+        title: `Nova Encomenda Criada - ENC-${String(order.orderNumber).padStart(4, "0")}`
+      })],
+      components: [
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(`order_status_in_production:${order.id}`).setLabel("Marcar em Producao").setStyle(ButtonStyle.Primary).setDisabled(terminal || order.status === "in_production"),
+          new ButtonBuilder().setCustomId(`order_status_delivered:${order.id}`).setLabel("Marcar como Entregue").setStyle(ButtonStyle.Success).setDisabled(terminal),
+          new ButtonBuilder().setCustomId(`order_status_cancelled:${order.id}`).setLabel("Cancelar Encomenda").setStyle(ButtonStyle.Danger).setDisabled(terminal),
+          new ButtonBuilder().setCustomId(`order_close_channel:${order.orderNumber}`).setLabel("Fechar Canal").setStyle(ButtonStyle.Danger)
+        )
+      ]
+    };
+  }
   return {
     allowedMentions: { parse: [] as never[] },
     embeds: [createOrderEmbed(settings, order, {
@@ -396,6 +422,54 @@ function createOrderAdminPanel(settings: FivemOrderSettings, order: FivemOrder) 
       )
     ]
   };
+}
+
+async function createTemporaryOrderChannel(guild: Guild, settings: FivemOrderSettings, family: Awaited<ReturnType<BotContext["api"]["getFivemOrderRuntime"]>>["families"][number], order: FivemOrder) {
+  if (!guild.members.me?.permissions.has(PermissionFlagsBits.ManageChannels)) return null;
+  const configuredChannel = settings.deliveryChannelId ? await guild.channels.fetch(settings.deliveryChannelId).catch(() => null) : null;
+  const parent = configuredChannel?.type === ChannelType.GuildCategory ? configuredChannel.id : configuredChannel && "parentId" in configuredChannel ? configuredChannel.parentId : null;
+  const staffRoleIds = [...new Set([...settings.adminRoleIds, ...settings.approveRoleIds, ...settings.finishRoleIds])].filter(Boolean);
+  const familyRoleId = family.roleId || null;
+  const channel = await guild.channels.create({
+    name: `encomenda-${slugChannelName(family.name)}`.slice(0, 95),
+    parent: parent ?? undefined,
+    permissionOverwrites: [
+      { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+      { id: order.userId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+      { id: guild.members.me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ReadMessageHistory] },
+      ...(familyRoleId ? [{ id: familyRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }] : []),
+      ...staffRoleIds.map((roleId) => ({ id: roleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }))
+    ],
+    reason: `Encomenda ENC-${String(order.orderNumber).padStart(4, "0")} criada por ${order.userId}`,
+    type: ChannelType.GuildText
+  }).then((created) => created as TextChannel).catch(() => null);
+  return channel;
+}
+
+async function closeOrderChannelFromButton(interaction: ButtonInteraction, context: BotContext) {
+  if (!interaction.guild) return;
+  const orderNumber = Number(interaction.customId.split(":")[1]);
+  if (!Number.isInteger(orderNumber)) {
+    await interaction.reply({ content: "Encomenda invalida.", ephemeral: true });
+    return;
+  }
+  await interaction.deferReply({ ephemeral: true });
+  const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
+  const order = await context.api.getFivemOrder(interaction.guild.id, orderNumber);
+  if (!order) {
+    await interaction.editReply("Encomenda nao encontrada.");
+    return;
+  }
+  const settings = orderSettings(runtime.settings, runtime.products, order);
+  if (!(await canManage(interaction.guild, interaction.user.id, settings, "cancelled"))) {
+    await interaction.editReply("Voce nao possui permissao para fechar este canal.");
+    return;
+  }
+  await sendOrderLog(interaction.guild, settings, order, interaction.user.id, "Canal fechado");
+  await interaction.editReply("Canal fechado.");
+  if (interaction.channel && "delete" in interaction.channel) {
+    await interaction.channel.delete(`Canal da encomenda ENC-${String(order.orderNumber).padStart(4, "0")} fechado por ${interaction.user.id}`).catch(() => null);
+  }
 }
 
 async function notifyOrderStatusChange(guild: Guild, context: BotContext, order: FivemOrder, actorId: string | null) {
@@ -454,7 +528,8 @@ function createOrderEmbed(settings: FivemOrderSettings, order: FivemOrder, optio
       { name: "Status", value: statusLabel(order.status), inline: true },
       { name: "Produto", value: `${order.productName} (${order.category})`.slice(0, 1024), inline: true },
       { name: "Quantidade", value: String(order.quantity), inline: true },
-      { name: "Valor", value: formatMoney(order.finalValue), inline: true }
+      { name: "Valor unitario", value: formatMoney(order.unitPrice), inline: true },
+      { name: "Valor total", value: formatMoney(order.finalValue), inline: true }
     )
     .setFooter({ text: settings.footerText || "Sistema de Encomendas" })
     .setTimestamp(new Date(order.updatedAt ?? order.createdAt));
@@ -599,11 +674,24 @@ async function notifyStaffContactRequest(guild: Guild, settings: FivemOrderSetti
   return true;
 }
 
-async function sendOrderLog(guild: Guild, settings: FivemOrderSettings, order: FivemOrder, actorId: string) {
+async function sendOrderCreatedLog(guild: Guild, settings: FivemOrderSettings, order: FivemOrder, actorId: string, channelId: string | null) {
   if (!settings.logChannelId) return;
   const channel = await guild.channels.fetch(settings.logChannelId).catch(() => null);
   if (!channel?.isSendable()) return;
-  await channel.send({ components: [{ type: 17, accent_color: parseColor(settings.color), components: [{ type: 10, content: `## Encomenda #${order.orderNumber} atualizada\nStatus: **${statusLabel(order.status)}**\nResponsavel: <@${actorId}>\nData: <t:${Math.floor(Date.now() / 1000)}:F>` }] }], flags: MessageFlags.IsComponentsV2 }).catch(() => null);
+  await channel.send({
+    allowedMentions: { parse: [] },
+    embeds: [createOrderEmbed(settings, order, {
+      description: `Encomenda criada por <@${actorId}>${channelId ? ` no canal <#${channelId}>` : ""}.\nSistema: **${normalizeProductModuleName(order.category)}**\nQuantidade: **${order.quantity}**\nValor calculado: **${formatMoney(order.finalValue)}**`,
+      title: `Log - Encomenda criada ENC-${String(order.orderNumber).padStart(4, "0")}`
+    })]
+  }).catch(() => null);
+}
+
+async function sendOrderLog(guild: Guild, settings: FivemOrderSettings, order: FivemOrder, actorId: string, action = "Status alterado") {
+  if (!settings.logChannelId) return;
+  const channel = await guild.channels.fetch(settings.logChannelId).catch(() => null);
+  if (!channel?.isSendable()) return;
+  await channel.send({ components: [{ type: 17, accent_color: parseColor(settings.color), components: [{ type: 10, content: `## ${action}\nEncomenda: **ENC-${String(order.orderNumber).padStart(4, "0")}**\nStatus: **${statusLabel(order.status)}**\nResponsavel: <@${actorId}>\nData: <t:${Math.floor(Date.now() / 1000)}:F>` }] }], flags: MessageFlags.IsComponentsV2 }).catch(() => null);
 }
 
 async function canCreate(guild: Guild, userId: string, settings: FivemOrderSettings) {
@@ -620,7 +708,9 @@ function inputRow(id: string, label: string, placeholder: string, required: bool
 function orderSummary(order: FivemOrder) { return `**Encomenda ENC-${String(order.orderNumber).padStart(4, "0")}**\nFamilia: ${order.familyName}\nProduto: ${order.productName}${order.washingPercentage !== null && order.washingPercentage !== undefined ? `\nValor entregue: ${formatMoney(order.grossValue)}\nPercentual: ${order.washingPercentage}%\nValor para familia: ${formatMoney(order.finalValue)}` : `\nValor: ${formatMoney(order.finalValue)}`}\nStatus: ${statusLabel(order.status)}\nCriada: <t:${Math.floor(new Date(order.createdAt).getTime() / 1000)}:F>`; }
 function statusLabel(status: FivemOrderStatus) { return ({ open: "Aberta", pending_approval: "Aguardando aprovacao", approved: "Aprovada", in_production: "Em producao", ready: "Pronta", delivered: "Entregue", cancelled: "Cancelada", rejected: "Recusada" } as const)[status]; }
 function normalizeProductModule(type: FivemOrderProduct["type"]) { return type === "standard" ? "custom" : type; }
+function normalizeProductModuleName(value: string) { return value || "Encomendas"; }
 function familyMatchesOrderType(family: Awaited<ReturnType<BotContext["api"]["getFivemOrderRuntime"]>>["families"][number], type: string) { return type === "all" || !family.orderModules?.length || family.orderModules.includes(type as "washing" | "ammo" | "drug" | "weapon" | "custom"); }
+function slugChannelName(value: string) { return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "familia"; }
 function orderSettings(settings: FivemOrderSettings, products: FivemOrderProduct[], order: FivemOrder) { return productSettings(settings, products.find((product) => product.id === order.productId)); }
 function productSettings(settings: FivemOrderSettings, product: FivemOrderProduct | null | undefined): FivemOrderSettings {
   const config = product?.config;

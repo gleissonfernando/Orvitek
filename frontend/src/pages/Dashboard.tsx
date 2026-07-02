@@ -1247,7 +1247,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
           />
         ) : null}
         {activeView === "fivem-families" ? (
-          <FivemOrdersManager botId={activeBotId} canManage={canManageModule(selectedBot, "fivem-orders", canManageDashboard) || canManageModule(selectedBot, "fivem-drugs", canManageDashboard) || canManageModule(selectedBot, "fivem-washing", canManageDashboard)} guild={selectedGuild} initialTab="families" mode="orders" />
+          <FivemOrdersManager botId={activeBotId} canManage={canManageModule(selectedBot, "fivem-orders", canManageDashboard) || canManageModule(selectedBot, "fivem-drugs", canManageDashboard) || canManageModule(selectedBot, "fivem-washing", canManageDashboard)} familyOnly guild={selectedGuild} initialTab="families" mode="orders" />
         ) : null}
         {activeView === "fivem-washing" ? (
           <FivemOrdersManager botId={activeBotId} canManage={canManageModule(selectedBot, "fivem-washing", canManageDashboard)} guild={selectedGuild} mode="washing" />

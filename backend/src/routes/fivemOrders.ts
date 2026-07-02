@@ -67,8 +67,9 @@ const familySchema = z.object({
   name: z.string().min(1).max(100),
   notes: z.string().max(1000).nullable().optional(),
   orderModules: z.array(z.enum(["washing", "ammo", "drug", "weapon", "custom"])).max(5).optional(),
-  responsibleId: snowflake,
-  roleId: snowflake
+  responsibleId: optionalSnowflake,
+  roleId: optionalSnowflake,
+  type: z.enum(["pista", "produto", "sem_produto"]).optional()
 });
 const createOrderSchema = z.object({
   clientName: z.string().min(1).max(120), expectedDelivery: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(), grossValue: z.coerce.number().min(0).max(1_000_000_000_000).nullable().optional(),

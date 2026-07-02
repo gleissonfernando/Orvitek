@@ -24,6 +24,11 @@ export type FivemOrderDto = Omit<MongoFivemOrder, "_id" | "createdAt" | "history
 };
 export type FivemOrderLogDto = Omit<MongoFivemOrderLog, "_id" | "createdAt"> & { createdAt: string; id: string };
 export type FivemOrderFamilyDto = Omit<MongoFivemOrderFamily, "_id" | "createdAt" | "updatedAt"> & { createdAt: string; id: string; updatedAt: string };
+type FivemOrderFamilyInput = Partial<Omit<FivemOrderFamilyDto, "logChannelId" | "responsibleId" | "roleId">> & {
+  logChannelId?: string | null;
+  responsibleId?: string | null;
+  roleId?: string | null;
+};
 
 export function defaultFivemOrderSettings(guildId: string, botId: string | null = null): FivemOrderSettingsDto {
   return {
@@ -66,7 +71,7 @@ export async function listFivemOrderFamilies(guildId: string, botId?: string | n
   return rows.map(toFamilyDto);
 }
 
-export async function createFivemOrderFamily(guildId: string, botId: string | null, input: Partial<FivemOrderFamilyDto>, actorId: string | null) {
+export async function createFivemOrderFamily(guildId: string, botId: string | null, input: FivemOrderFamilyInput, actorId: string | null) {
   const now = new Date();
   const doc: MongoFivemOrderFamily = { _id: randomUUID(), ...normalizeFamily(input, guildId, normalizeBotId(botId)), createdAt: now, updatedAt: now };
   const { fivemOrderFamilies } = await getMongoCollections();
@@ -76,7 +81,7 @@ export async function createFivemOrderFamily(guildId: string, botId: string | nu
   return toFamilyDto(doc);
 }
 
-export async function updateFivemOrderFamily(guildId: string, botId: string | null, familyId: string, input: Partial<FivemOrderFamilyDto>, actorId: string | null) {
+export async function updateFivemOrderFamily(guildId: string, botId: string | null, familyId: string, input: FivemOrderFamilyInput, actorId: string | null) {
   const normalizedBotId = normalizeBotId(botId);
   const { fivemOrderFamilies } = await getMongoCollections();
   const current = await fivemOrderFamilies.findOne({ _id: familyId, ...scopeQuery(guildId, normalizedBotId) });
@@ -396,7 +401,7 @@ function toLogDto(row: MongoFivemOrderLog): FivemOrderLogDto { const { _id, crea
 async function writeLog(input: Omit<MongoFivemOrderLog, "_id" | "createdAt">) { const { fivemOrderLogs } = await getMongoCollections(); await fivemOrderLogs.insertOne({ _id: randomUUID(), createdAt: new Date(), ...input, botId: normalizeBotId(input.botId) }); }
 function emitUpdated(guildId: string, botId: string | null) { emitRealtimeToRoom(dashboardLogRealtimeRoom(guildId, botId), "fivem:orders:updated", { botId, guildId }); }
 async function nextOrderNumber(guildId: string, botId: string | null) { const { fivemOrders } = await getMongoCollections(); const last = await fivemOrders.find(scopeQuery(guildId, botId)).sort({ orderNumber: -1 }).limit(1).next(); return (last?.orderNumber ?? 0) + 1; }
-function assertTransition(from: MongoFivemOrderStatus, to: MongoFivemOrderStatus) { const allowed: Record<MongoFivemOrderStatus, MongoFivemOrderStatus[]> = { open: ["approved", "in_production", "cancelled", "rejected"], pending_approval: ["approved", "cancelled", "rejected"], approved: ["in_production", "cancelled"], in_production: ["ready", "cancelled"], ready: ["delivered", "cancelled"], delivered: [], cancelled: [], rejected: [] }; if (!allowed[from].includes(to)) throw orderError(`Nao e permitido alterar de ${from} para ${to}.`, 409); }
+function assertTransition(from: MongoFivemOrderStatus, to: MongoFivemOrderStatus) { const allowed: Record<MongoFivemOrderStatus, MongoFivemOrderStatus[]> = { open: ["approved", "in_production", "delivered", "cancelled", "rejected"], pending_approval: ["approved", "in_production", "delivered", "cancelled", "rejected"], approved: ["in_production", "delivered", "cancelled"], in_production: ["ready", "delivered", "cancelled"], ready: ["delivered", "cancelled"], delivered: [], cancelled: [], rejected: [] }; if (!allowed[from].includes(to)) throw orderError(`Nao e permitido alterar de ${from} para ${to}.`, 409); }
 function scopeQuery(guildId: string, botId: string | null) { return botId ? { botId, guildId } : { guildId, $or: [{ botId: null }, { botId: { $exists: false } }] }; }
 function normalizeBotId(value: string | null | undefined) { return value?.trim() || null; }
 function normalizeSnowflake(value: string | null | undefined) { return /^\d{5,32}$/.test(value?.trim() ?? "") ? value!.trim() : null; }
@@ -404,7 +409,7 @@ function normalizeSnowflakes(values: string[] | undefined) { return [...new Set(
 function normalizeText(value: string | null | undefined, max: number) { return value?.trim().slice(0, max) || null; }
 function normalizeUrl(value: string | null | undefined) { const text = normalizeText(value, 2048); if (!text) return null; try { const url = new URL(text); return ["http:", "https:"].includes(url.protocol) ? text : null; } catch { return null; } }
 function normalizeDate(value: string | null | undefined) { return /^\d{4}-\d{2}-\d{2}$/.test(value ?? "") ? value! : null; }
-function normalizeFamily(value: Partial<FivemOrderFamilyDto>, guildId: string, botId: string | null): Omit<MongoFivemOrderFamily, "_id" | "createdAt" | "updatedAt"> { return { active: value.active !== false, botId, guildId, logChannelId: normalizeSnowflake(value.logChannelId), name: normalizeText(value.name, 100) || "Nova familia", notes: normalizeText(value.notes, 1000), orderModules: normalizeOrderModules(value.orderModules ?? []), responsibleId: normalizeSnowflake(value.responsibleId) ?? "", roleId: normalizeSnowflake(value.roleId) ?? "" }; }
+function normalizeFamily(value: FivemOrderFamilyInput, guildId: string, botId: string | null): Omit<MongoFivemOrderFamily, "_id" | "createdAt" | "updatedAt"> { return { active: value.active !== false, botId, guildId, logChannelId: normalizeSnowflake(value.logChannelId), name: normalizeText(value.name, 100) || "Nova familia", notes: normalizeText(value.notes, 1000), orderModules: normalizeOrderModules(value.orderModules ?? []), responsibleId: normalizeSnowflake(value.responsibleId) ?? "", roleId: normalizeSnowflake(value.roleId) ?? "", type: ["pista", "produto", "sem_produto"].includes(value.type ?? "") ? value.type as MongoFivemOrderFamily["type"] : "produto" }; }
 function normalizeOrderModules(values: FivemOrderSettingsDto["enabledOrderModules"] | undefined) { const allowed = new Set(["washing", "ammo", "drug", "weapon", "custom"]); const result = [...new Set(values ?? ["washing", "ammo", "drug", "weapon", "custom"])].filter((value): value is "washing" | "ammo" | "drug" | "weapon" | "custom" => allowed.has(value)); return result; }
 function clampNumber(value: number | null | undefined, min: number, max: number, fallback: number) { return typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback; }
 function money(value: number | null | undefined) { return roundMoney(clampNumber(value, 0, 1_000_000_000_000, 0)); }
