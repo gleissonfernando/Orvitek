@@ -6,6 +6,7 @@ import { handleSafeBotMessage, isSelfBotModuleEnabled } from "../services/safeBo
 import { handleSelfBotProtectionMessage } from "../services/selfBotProtectionService";
 import { handleTemporaryVoiceMessage } from "../services/temporaryVoiceService";
 import { handleFivemGoalMessage } from "../services/fivemGoalService";
+import { handleManualPaymentMessage } from "../services/manualPaymentService";
 import type { BotContext } from "../types";
 import { isBotModuleEnabled } from "../config/env";
 import { canModerateMessage } from "../services/moderationChannelPolicy";
@@ -37,6 +38,10 @@ export async function handleMessageCreate(message: Message, context: BotContext)
   }
 
   if (await handleFivemGoalMessage(message, context)) {
+    return;
+  }
+
+  if (await handleManualPaymentMessage(message, context)) {
     return;
   }
 

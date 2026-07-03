@@ -9,6 +9,7 @@ import {
   CircleDollarSign,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
   Film,
   Gift,
   Hash,
@@ -28,6 +29,7 @@ import {
   Trash2,
   Search,
   Server,
+  TableProperties,
   UserMinus,
   UserPlus,
   Users,
@@ -48,6 +50,8 @@ export type ViewId =
   | "x-monitor"
   | "moderation"
   | "rules"
+  | "manual-payments"
+  | "price-tables"
   | "mission-tools"
   | "voice-recorder"
   | "music"
@@ -109,6 +113,8 @@ const navItems: NavItem[] = [
   { id: "x-monitor", label: "X Monitor", icon: AtSign, moduleId: "x-monitor" },
   { id: "moderation", label: "Moderação", icon: Shield, moduleId: "moderation" },
   { id: "rules", label: "Regras", icon: ScrollText, moduleId: "rules" },
+  { id: "manual-payments", label: "Pagamentos", icon: CreditCard, moduleId: "manual-payments" },
+  { id: "price-tables", label: "Tabela de Precos", icon: TableProperties, moduleId: "price-tables" },
   { id: "mission-tools", label: "Mission Tools", icon: ListChecks, moduleId: "mission-tools" },
   { id: "voice-recorder", label: "Voice Recorder", icon: Mic2, moduleId: "voice-recorder" },
   { id: "music", label: "Música", icon: Music2, moduleId: "music" },

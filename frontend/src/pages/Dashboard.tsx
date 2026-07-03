@@ -12,6 +12,7 @@ import {
   ChevronRight,
   CircleDollarSign,
   Clock3,
+  CreditCard,
   Film,
   Gift,
   Globe2,
@@ -35,6 +36,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   SlidersHorizontal,
+  TableProperties,
   TicketIcon,
   Trash2,
   Upload,
@@ -56,6 +58,8 @@ import { MissionToolsPanel } from "../components/mission-tools/MissionToolsPanel
 import { MediaLibraryPanel } from "../components/media/MediaLibraryPanel";
 import { SiteAccessPanel } from "../components/moderation/SiteAccessPanel";
 import { PanelImageSettings } from "../components/panels/PanelImageSettings";
+import { ManualPaymentsPanel } from "../components/manual-payments/ManualPaymentsPanel";
+import { PriceTablesPanel } from "../components/price-tables/PriceTablesPanel";
 import { VoiceRecorderPanel } from "../components/moderation/VoiceRecorderPanel";
 import { AccountAgeSecurityPanel } from "../components/security/AccountAgeSecurityPanel";
 import { AntiBanPanel } from "../components/security/AntiBanPanel";
@@ -301,6 +305,20 @@ const moduleCatalog: ModuleDefinition[] = [
     description: "Publica um painel de regras com botao para liberar cargo aos membros.",
     icon: ScrollText,
     view: "rules"
+  },
+  {
+    id: "manual-payments",
+    title: "Pagamentos",
+    description: "Gerencia Pix manual, comprovantes, aprovacao e atendimento por canais.",
+    icon: CreditCard,
+    view: "manual-payments"
+  },
+  {
+    id: "price-tables",
+    title: "Tabela de Precos",
+    description: "Cria tabelas de precos com itens, valores, preview e publicacao no Discord.",
+    icon: TableProperties,
+    view: "price-tables"
   },
   {
     id: "mission-tools",
@@ -591,6 +609,8 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   "first-lady": "first-lady",
   moderation: "moderation",
   rules: "rules",
+  "manual-payments": "manual-payments",
+  "price-tables": "price-tables",
   "application-emojis": "emoji-cloner",
   "media-library": "emoji-cloner"
 };
@@ -1062,6 +1082,20 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             loading={settingsLoading}
             onSettingsChange={setSettings}
             settings={settings}
+          />
+        ) : null}
+        {activeView === "manual-payments" ? (
+          <ManualPaymentsPanel
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "manual-payments", canManageDashboard)}
+            guild={selectedGuild}
+          />
+        ) : null}
+        {activeView === "price-tables" ? (
+          <PriceTablesPanel
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "price-tables", canManageDashboard)}
+            guild={selectedGuild}
           />
         ) : null}
         {activeView === "mission-tools" ? (

@@ -2321,6 +2321,193 @@ export type PublicOrvitechProduct = {
   settings: Pick<OrvitechSalesSettings, "currency" | "enabled" | "panelColor" | "storeId" | "termsUrl">;
 };
 
+export type PriceTableItem = {
+  active: boolean;
+  billingText: string | null;
+  billingType: "one_time" | "monthly" | "weekly" | "custom";
+  description: string | null;
+  highlight: boolean;
+  id: string;
+  name: string;
+  order: number;
+  price: number;
+  priceText: string | null;
+};
+
+export type PriceTable = {
+  id: string;
+  botId: string;
+  buttonText: { plans: string; quote: string; support: string };
+  color: string;
+  createdAt: string;
+  createdBy: string | null;
+  currency: "BRL" | "USD" | "EUR" | "CUSTOM";
+  currencyFormat: string;
+  description: string | null;
+  discordChannelId: string | null;
+  footerText: string | null;
+  guildId: string;
+  imagePosition: "top" | "bottom" | "thumbnail" | "none";
+  imageUrl: string | null;
+  isActive: boolean;
+  items: PriceTableItem[];
+  logChannelId: string | null;
+  messageId: string | null;
+  modalText: {
+    contactLabel: string;
+    contactPlaceholder: string;
+    detailsLabel: string;
+    detailsPlaceholder: string;
+    productLabel: string;
+    productPlaceholder: string;
+    title: string;
+    userNameLabel: string;
+    userNamePlaceholder: string;
+  };
+  name: string;
+  supportCategoryId: string | null;
+  title: string;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+
+export type PriceTableRequest = {
+  id: string;
+  botId: string;
+  contact: string;
+  createdAt: string;
+  details: string;
+  guildId: string;
+  itemId: string | null;
+  itemName: string;
+  tableId: string;
+  ticketChannelId: string | null;
+  userId: string;
+  userName: string;
+};
+
+export type PriceTablesDashboard = {
+  requests: PriceTableRequest[];
+  tables: PriceTable[];
+};
+
+export type SavePriceTablePayload = Partial<Omit<
+  PriceTable,
+  "botId" | "createdAt" | "createdBy" | "guildId" | "id" | "messageId" | "updatedAt" | "updatedBy"
+>>;
+
+export type ManualPaymentService = {
+  active: boolean;
+  amount: number;
+  bannerUrl: string | null;
+  createServiceChannel: boolean;
+  customText: string | null;
+  description: string | null;
+  id: string;
+  manualApproval: boolean;
+  name: string;
+  order: number;
+  serviceType: "product" | "service" | "subscription" | "custom";
+};
+
+export type ManualPaymentSettings = {
+  id: string;
+  approveRoleIds: string[];
+  attendanceCategoryId: string | null;
+  bannerUrl: string | null;
+  botId: string;
+  color: string;
+  enabled: boolean;
+  finalizeRoleIds: string[];
+  guildId: string;
+  logChannelId: string | null;
+  logViewRoleIds: string[];
+  maxPaymentMinutes: number;
+  paymentCategoryId: string | null;
+  paymentInstructions: string;
+  pixKey: string | null;
+  pixKeyType: "cpf" | "cnpj" | "phone" | "email" | "random";
+  pixQrCodeUrl: string | null;
+  receiverBank: string | null;
+  receiverName: string | null;
+  rejectRoleIds: string[];
+  salePanelDescription: string;
+  salePanelChannelId: string | null;
+  salePanelMessageId: string | null;
+  salePanelTitle: string;
+  services: ManualPaymentService[];
+  supportPanelChannelId: string | null;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+
+export type ManualPaymentOrderStatus =
+  | "PENDING_PAYMENT"
+  | "WAITING_STAFF_APPROVAL"
+  | "APPROVED"
+  | "REJECTED"
+  | "IN_PROGRESS"
+  | "WAITING_CUSTOMER"
+  | "DELIVERED"
+  | "FINISHED"
+  | "CANCELLED_BY_CUSTOMER"
+  | "CANCELLED_BY_STAFF";
+
+export type ManualPaymentOrder = {
+  id: string;
+  amount: number;
+  approvedAt: string | null;
+  approvedBy: string | null;
+  botId: string;
+  createdAt: string;
+  finalizedAt: string | null;
+  finalizedBy: string | null;
+  guildId: string;
+  orderNumber: number;
+  paidAt: string | null;
+  paymentChannelId: string | null;
+  paymentMessageId: string | null;
+  paymentMethod: "PIX_KEY" | "PIX_QR_CODE" | null;
+  proofMessageId: string | null;
+  proofUrl: string | null;
+  rejectionReason: string | null;
+  serviceChannelId: string | null;
+  serviceId: string;
+  serviceName: string;
+  rejectedBy: string | null;
+  staffMessageId: string | null;
+  status: ManualPaymentOrderStatus;
+  updatedAt: string;
+  userId: string;
+  username: string | null;
+};
+
+export type ManualPaymentOrderLog = {
+  id: string;
+  action: string;
+  actorId: string | null;
+  botId: string;
+  channelId: string | null;
+  createdAt: string;
+  guildId: string;
+  message: string;
+  metadata: Record<string, unknown> | null;
+  newStatus: ManualPaymentOrderStatus;
+  oldStatus: ManualPaymentOrderStatus | null;
+  orderId: string;
+};
+
+export type ManualPaymentsDashboard = {
+  logs: ManualPaymentOrderLog[];
+  orders: ManualPaymentOrder[];
+  settings: ManualPaymentSettings;
+};
+
+export type SaveManualPaymentSettingsPayload = Partial<Omit<
+  ManualPaymentSettings,
+  "botId" | "guildId" | "id" | "salePanelMessageId" | "updatedAt" | "updatedBy"
+>>;
+
 export type SaveOrvitechSalesSettingsPayload = Partial<Pick<
   OrvitechSalesSettings,
   | "currency"

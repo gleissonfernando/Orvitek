@@ -58,6 +58,7 @@ import type {
   ImageAntiSpamSettings,
   LiveEvent,
   LogEntry,
+  ManualPaymentsDashboard,
   ManualRegistrationDashboard,
   ManualRegistrationSettings,
   ManualRegistrationSubmission,
@@ -72,10 +73,13 @@ import type {
   OrvitechSalesPlan,
   OrvitechSalesSettings,
   PanelImageSettings,
+  PriceTable,
+  PriceTablesDashboard,
   PublicOrvitechProduct,
   PublicKickClips,
   SaveClipsConfigPayload,
   SaveFivemFacSettingsPayload,
+  SaveManualPaymentSettingsPayload,
   SaveFivemModulePayload,
   SaveGiveawayPayload,
   SaveImageAntiSpamSettingsPayload,
@@ -86,6 +90,7 @@ import type {
   SaveOrvitechSalesPlanPayload,
   SaveOrvitechSalesSettingsPayload,
   SavePanelImageSettingsPayload,
+  SavePriceTablePayload,
   SaveSelfBotProtectionSettingsPayload,
   SaveSocialPanelPayload,
   SaveVoiceRecorderSettingsPayload,
@@ -1922,6 +1927,71 @@ export async function checkoutOrvitechProduct(
     payload
   );
   return data;
+}
+
+export async function getPriceTablesDashboard(botId: string, guildId: string) {
+  const { data } = await api.get<PriceTablesDashboard>(`/price-tables/${encodeURIComponent(guildId)}`, {
+    params: botParams(botId)
+  });
+  return data;
+}
+
+export async function createPriceTable(botId: string, guildId: string, payload: SavePriceTablePayload) {
+  const { data } = await api.post<{ table: PriceTable }>(`/price-tables/${encodeURIComponent(guildId)}`, payload, {
+    params: botParams(botId)
+  });
+  return data.table;
+}
+
+export async function updatePriceTable(botId: string, guildId: string, tableId: string, payload: SavePriceTablePayload) {
+  const { data } = await api.patch<{ table: PriceTable }>(
+    `/price-tables/${encodeURIComponent(guildId)}/${encodeURIComponent(tableId)}`,
+    payload,
+    { params: botParams(botId) }
+  );
+  return data.table;
+}
+
+export async function deletePriceTableApi(botId: string, guildId: string, tableId: string) {
+  const { data } = await api.delete<{ table: PriceTable }>(
+    `/price-tables/${encodeURIComponent(guildId)}/${encodeURIComponent(tableId)}`,
+    { params: botParams(botId) }
+  );
+  return data.table;
+}
+
+export async function publishPriceTable(botId: string, guildId: string, tableId: string) {
+  const { data } = await api.post<{ table: PriceTable }>(
+    `/price-tables/${encodeURIComponent(guildId)}/${encodeURIComponent(tableId)}/publish`,
+    undefined,
+    { params: botParams(botId), timeout: 15000 }
+  );
+  return data.table;
+}
+
+export async function getManualPaymentsDashboard(botId: string, guildId: string) {
+  const { data } = await api.get<ManualPaymentsDashboard>(`/manual-payments/${encodeURIComponent(guildId)}`, {
+    params: botParams(botId)
+  });
+  return data;
+}
+
+export async function saveManualPaymentSettings(botId: string, guildId: string, payload: SaveManualPaymentSettingsPayload) {
+  const { data } = await api.put<{ settings: ManualPaymentsDashboard["settings"] }>(
+    `/manual-payments/${encodeURIComponent(guildId)}/settings`,
+    payload,
+    { params: botParams(botId) }
+  );
+  return data.settings;
+}
+
+export async function publishManualPaymentPanel(botId: string, guildId: string) {
+  const { data } = await api.post<{ settings: ManualPaymentsDashboard["settings"] }>(
+    `/manual-payments/${encodeURIComponent(guildId)}/panel`,
+    undefined,
+    { params: botParams(botId), timeout: 15000 }
+  );
+  return data.settings;
 }
 
 export async function getAdvancedModuleConfig(botId: string, guildId: string, moduleId: string) {

@@ -17,6 +17,8 @@ import { handleFivemGoalInteraction } from "../services/fivemGoalService";
 import { handleFivemFinanceInteraction } from "../services/fivemFinanceService";
 import { handleFivemOrderInteraction } from "../services/fivemOrderService";
 import { handleFivemHierarchyInteraction } from "../services/fivemHierarchyService";
+import { handleManualPaymentInteraction } from "../services/manualPaymentService";
+import { handlePriceTableInteraction } from "../services/priceTableService";
 
 export async function handleInteractionCreate(interaction: Interaction, context: BotContext) {
   try {
@@ -88,6 +90,14 @@ async function dispatchInteractionCreate(interaction: Interaction, context: BotC
   if (await handleFivemOrderInteraction(interaction, context)) return;
 
   if (await handleFivemHierarchyInteraction(interaction, context)) {
+    return;
+  }
+
+  if (await handlePriceTableInteraction(interaction, context)) {
+    return;
+  }
+
+  if (await handleManualPaymentInteraction(interaction, context)) {
     return;
   }
 

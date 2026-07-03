@@ -1524,6 +1524,194 @@ export type MongoOrvitechSalesSettings = {
   updatedAt: Date;
 };
 
+export type MongoPriceTableItem = {
+  active: boolean;
+  billingType: "one_time" | "monthly" | "weekly" | "custom";
+  billingText: string | null;
+  description: string | null;
+  highlight: boolean;
+  id: string;
+  name: string;
+  order: number;
+  price: number;
+  priceText: string | null;
+};
+
+export type MongoPriceTableButtonText = {
+  quote: string;
+  plans: string;
+  support: string;
+};
+
+export type MongoPriceTableModalText = {
+  contactLabel: string;
+  contactPlaceholder: string;
+  detailsLabel: string;
+  detailsPlaceholder: string;
+  productLabel: string;
+  productPlaceholder: string;
+  title: string;
+  userNameLabel: string;
+  userNamePlaceholder: string;
+};
+
+export type MongoPriceTableRequest = {
+  _id: string;
+  botId: string;
+  contact: string;
+  createdAt: Date;
+  details: string;
+  guildId: string;
+  itemId: string | null;
+  itemName: string;
+  tableId: string;
+  ticketChannelId: string | null;
+  userId: string;
+  userName: string;
+};
+
+export type MongoPriceTableLog = {
+  _id: string;
+  action: string;
+  actorId: string | null;
+  botId: string;
+  createdAt: Date;
+  data: Record<string, unknown>;
+  guildId: string;
+  tableId: string | null;
+};
+
+export type MongoPriceTable = {
+  _id: string;
+  botId: string;
+  buttonText: MongoPriceTableButtonText;
+  color: string;
+  createdAt: Date;
+  createdBy: string | null;
+  currency: "BRL" | "USD" | "EUR" | "CUSTOM";
+  currencyFormat: string;
+  description: string | null;
+  discordChannelId: string | null;
+  footerText: string | null;
+  guildId: string;
+  imagePosition: "top" | "bottom" | "thumbnail" | "none";
+  imageUrl: string | null;
+  isActive: boolean;
+  items: MongoPriceTableItem[];
+  logChannelId: string | null;
+  messageId: string | null;
+  modalText: MongoPriceTableModalText;
+  name: string;
+  supportCategoryId: string | null;
+  title: string;
+  updatedAt: Date;
+  updatedBy: string | null;
+};
+
+export type MongoManualPaymentService = {
+  active: boolean;
+  amount: number;
+  bannerUrl: string | null;
+  createServiceChannel: boolean;
+  description: string | null;
+  id: string;
+  manualApproval: boolean;
+  name: string;
+  order: number;
+  serviceType: string;
+  customText: string | null;
+};
+
+export type MongoManualPaymentSettings = {
+  _id: string;
+  approveRoleIds: string[];
+  attendanceCategoryId: string | null;
+  bannerUrl: string | null;
+  botId: string;
+  color: string;
+  enabled: boolean;
+  finalizeRoleIds: string[];
+  guildId: string;
+  logChannelId: string | null;
+  logViewRoleIds: string[];
+  maxPaymentMinutes: number;
+  paymentCategoryId: string | null;
+  paymentInstructions: string;
+  pixKey: string | null;
+  pixKeyType: "cpf" | "cnpj" | "phone" | "email" | "random";
+  pixQrCodeUrl: string | null;
+  receiverBank: string | null;
+  receiverName: string | null;
+  rejectRoleIds: string[];
+  salePanelChannelId: string | null;
+  salePanelDescription: string;
+  salePanelMessageId: string | null;
+  salePanelTitle: string;
+  services: MongoManualPaymentService[];
+  supportPanelChannelId: string | null;
+  updatedAt: Date;
+  updatedBy: string | null;
+};
+
+export type MongoManualPaymentOrderStatus =
+  | "PENDING_PAYMENT"
+  | "WAITING_STAFF_APPROVAL"
+  | "APPROVED"
+  | "REJECTED"
+  | "IN_PROGRESS"
+  | "WAITING_CUSTOMER"
+  | "DELIVERED"
+  | "FINISHED"
+  | "CANCELLED_BY_CUSTOMER"
+  | "CANCELLED_BY_STAFF";
+
+export type MongoManualPaymentOrder = {
+  _id: string;
+  amount: number;
+  approvedAt: Date | null;
+  approvedBy: string | null;
+  botId: string;
+  createdAt: Date;
+  finalizedAt: Date | null;
+  finalizedBy: string | null;
+  guildId: string;
+  orderNumber: number;
+  paidAt: Date | null;
+  paymentChannelId: string | null;
+  paymentMessageId: string | null;
+  paymentMethod: "PIX_KEY" | "PIX_QR_CODE" | null;
+  proofMessageId: string | null;
+  proofUrl: string | null;
+  rejectedBy: string | null;
+  rejectionReason: string | null;
+  serviceChannelId: string | null;
+  serviceId: string;
+  serviceName: string;
+  staffMessageId: string | null;
+  status: MongoManualPaymentOrderStatus;
+  updatedAt: Date;
+  userId: string;
+  username: string | null;
+};
+
+export type MongoManualPaymentOrderLog = {
+  _id: string;
+  action: string;
+  amount: number;
+  botId: string;
+  channelId: string | null;
+  createdAt: Date;
+  guildId: string;
+  newStatus: MongoManualPaymentOrderStatus;
+  oldStatus: MongoManualPaymentOrderStatus | null;
+  orderId: string;
+  proofUrl: string | null;
+  reason: string | null;
+  serviceName: string;
+  staffId: string | null;
+  userId: string;
+};
+
 export type MongoOrvitechSalesPlan = {
   _id: string;
   botId: string;
@@ -2400,6 +2588,12 @@ export async function getMongoCollections() {
     orvitechCustomers: db.collection<MongoOrvitechCustomer>("orvitech_customers"),
     orvitechSubscriptions: db.collection<MongoOrvitechSubscription>("orvitech_subscriptions"),
     orvitechWebhookLogs: db.collection<MongoOrvitechWebhookLog>("orvitech_webhook_logs"),
+    priceTables: db.collection<MongoPriceTable>("price_tables"),
+    priceTableRequests: db.collection<MongoPriceTableRequest>("price_table_requests"),
+    priceTableLogs: db.collection<MongoPriceTableLog>("price_table_logs"),
+    manualPaymentSettings: db.collection<MongoManualPaymentSettings>("manual_payment_settings"),
+    manualPaymentOrders: db.collection<MongoManualPaymentOrder>("manual_payment_orders"),
+    manualPaymentOrderLogs: db.collection<MongoManualPaymentOrderLog>("manual_payment_order_logs"),
     missionToolsSettings: db.collection<MongoMissionToolsSettings>("mission_tools_settings"),
     missionToolsUsers: db.collection<MongoMissionToolsUserPanel>("mission_tools_users"),
     missionToolsTokens: db.collection<MongoMissionToolsToken>("mission_tools_tokens"),
@@ -2543,6 +2737,8 @@ async function createMongoIndexes(db: Db) {
     ensureVoiceRecorderIndexes(db),
     ensureEmojiCloneIndexes(db),
     ensureOrvitechSalesIndexes(db),
+    ensurePriceTableIndexes(db),
+    ensureManualPaymentIndexes(db),
     ensureMissionToolsIndexes(db),
     ensureSelfBotProtectionIndexes(db),
     ensureSafeBotWarningIndexes(db),
@@ -3057,6 +3253,31 @@ async function ensureOrvitechSalesIndexes(db: Db) {
     db.collection<MongoOrvitechCustomer>("orvitech_customers").createIndex({ ownerUserId: 1, storeId: 1, discordId: 1 }),
     db.collection<MongoOrvitechSubscription>("orvitech_subscriptions").createIndex({ ownerUserId: 1, storeId: 1, customerId: 1, status: 1 }),
     db.collection<MongoOrvitechWebhookLog>("orvitech_webhook_logs").createIndex({ ownerUserId: 1, storeId: 1, createdAt: -1 })
+  ]);
+}
+
+async function ensurePriceTableIndexes(db: Db) {
+  await Promise.all([
+    db.collection<MongoPriceTable>("price_tables").createIndex({ botId: 1, guildId: 1, updatedAt: -1 }),
+    db.collection<MongoPriceTable>("price_tables").createIndex({ botId: 1, guildId: 1, isActive: 1 }),
+    db.collection<MongoPriceTableRequest>("price_table_requests").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoPriceTableRequest>("price_table_requests").createIndex({ botId: 1, tableId: 1, createdAt: -1 }),
+    db.collection<MongoPriceTableLog>("price_table_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoPriceTableLog>("price_table_logs").createIndex({ botId: 1, tableId: 1, createdAt: -1 })
+  ]);
+}
+
+async function ensureManualPaymentIndexes(db: Db) {
+  await Promise.all([
+    db.collection<MongoManualPaymentSettings>("manual_payment_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    db.collection<MongoManualPaymentOrder>("manual_payment_orders").createIndex({ botId: 1, guildId: 1, orderNumber: 1 }, { unique: true })
+  ]);
+  await Promise.all([
+    db.collection<MongoManualPaymentOrder>("manual_payment_orders").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoManualPaymentOrder>("manual_payment_orders").createIndex({ botId: 1, guildId: 1, userId: 1, createdAt: -1 }),
+    db.collection<MongoManualPaymentOrder>("manual_payment_orders").createIndex({ botId: 1, guildId: 1, status: 1, updatedAt: -1 }),
+    db.collection<MongoManualPaymentOrderLog>("manual_payment_order_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoManualPaymentOrderLog>("manual_payment_order_logs").createIndex({ botId: 1, orderId: 1, createdAt: -1 })
   ]);
 }
 

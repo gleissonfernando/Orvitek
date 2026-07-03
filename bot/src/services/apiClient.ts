@@ -1092,6 +1092,128 @@ export type MissionToolsTokenResponse = {
   updatedAt: string;
 };
 
+export type PriceTableItem = {
+  active: boolean;
+  billingText: string | null;
+  billingType: "one_time" | "monthly" | "weekly" | "custom";
+  description: string | null;
+  highlight: boolean;
+  id: string;
+  name: string;
+  order: number;
+  price: number;
+  priceText: string | null;
+};
+
+export type PriceTable = {
+  id: string;
+  botId: string;
+  buttonText: { plans: string; quote: string; support: string };
+  color: string;
+  currency: "BRL" | "USD" | "EUR" | "CUSTOM";
+  currencyFormat: string;
+  description: string | null;
+  discordChannelId: string | null;
+  footerText: string | null;
+  guildId: string;
+  imagePosition: "top" | "bottom" | "thumbnail" | "none";
+  imageUrl: string | null;
+  isActive: boolean;
+  items: PriceTableItem[];
+  logChannelId: string | null;
+  messageId: string | null;
+  modalText: {
+    contactLabel: string;
+    contactPlaceholder: string;
+    detailsLabel: string;
+    detailsPlaceholder: string;
+    productLabel: string;
+    productPlaceholder: string;
+    title: string;
+    userNameLabel: string;
+    userNamePlaceholder: string;
+  };
+  name: string;
+  supportCategoryId: string | null;
+  title: string;
+  updatedAt: string;
+};
+
+export type ManualPaymentService = {
+  active: boolean;
+  amount: number;
+  bannerUrl: string | null;
+  createServiceChannel: boolean;
+  customText: string | null;
+  description: string | null;
+  id: string;
+  manualApproval: boolean;
+  name: string;
+  order: number;
+  serviceType: string;
+};
+
+export type ManualPaymentSettings = {
+  id: string;
+  approveRoleIds: string[];
+  attendanceCategoryId: string | null;
+  bannerUrl: string | null;
+  botId: string;
+  color: string;
+  enabled: boolean;
+  finalizeRoleIds: string[];
+  guildId: string;
+  logChannelId: string | null;
+  logViewRoleIds: string[];
+  maxPaymentMinutes: number;
+  paymentCategoryId: string | null;
+  paymentInstructions: string;
+  pixKey: string | null;
+  pixKeyType: "cpf" | "cnpj" | "phone" | "email" | "random";
+  pixQrCodeUrl: string | null;
+  receiverBank: string | null;
+  receiverName: string | null;
+  rejectRoleIds: string[];
+  salePanelChannelId: string | null;
+  salePanelDescription: string;
+  salePanelMessageId: string | null;
+  salePanelTitle: string;
+  services: ManualPaymentService[];
+  supportPanelChannelId: string | null;
+  updatedAt: string;
+};
+
+export type ManualPaymentOrderStatus = "PENDING_PAYMENT" | "WAITING_STAFF_APPROVAL" | "APPROVED" | "REJECTED" | "IN_PROGRESS" | "WAITING_CUSTOMER" | "DELIVERED" | "FINISHED" | "CANCELLED_BY_CUSTOMER" | "CANCELLED_BY_STAFF";
+
+export type ManualPaymentOrder = {
+  id: string;
+  amount: number;
+  approvedAt: string | null;
+  approvedBy: string | null;
+  botId: string;
+  createdAt: string;
+  finalizedAt: string | null;
+  finalizedBy: string | null;
+  guildId: string;
+  orderNumber: number;
+  paidAt: string | null;
+  paymentChannelId: string | null;
+  paymentMessageId: string | null;
+  paymentMethod: "PIX_KEY" | "PIX_QR_CODE" | null;
+  proofMessageId: string | null;
+  proofUrl: string | null;
+  rejectedBy: string | null;
+  rejectionReason: string | null;
+  serviceChannelId: string | null;
+  serviceId: string;
+  serviceName: string;
+  staffMessageId: string | null;
+  status: ManualPaymentOrderStatus;
+  updatedAt: string;
+  userId: string;
+  username: string | null;
+};
+
 export type BotGuildRuntimeConfig = {
   id: string;
   botId: string;
@@ -1388,6 +1510,68 @@ export class ApiClient {
   async updateFivemOrderPanelState(guildId: string, messageId: string | null) {
     const { data } = await this.http.put<{ settings: FivemOrderSettings }>(`/fivem-orders/bot/${guildId}/panel-state`, { messageId });
     return data.settings;
+  }
+
+  async getPriceTableRuntime(guildId: string, tableId: string) {
+    const { data } = await this.http.get<{ table: PriceTable }>(`/price-tables/bot/${guildId}/${tableId}/runtime`);
+    return data.table;
+  }
+
+  async updatePriceTablePanelState(guildId: string, tableId: string, messageId: string | null) {
+    const { data } = await this.http.put<{ table: PriceTable | null }>(`/price-tables/bot/${guildId}/${tableId}/panel-state`, { messageId });
+    return data.table;
+  }
+
+  async createPriceTableRequest(guildId: string, input: {
+    contact: string;
+    details: string;
+    itemId?: string | null;
+    itemName: string;
+    tableId: string;
+    ticketChannelId?: string | null;
+    userId: string;
+    userName: string;
+  }) {
+    const { data } = await this.http.post(`/price-tables/bot/${guildId}/requests`, input);
+    return data;
+  }
+
+  async getManualPaymentRuntime(guildId: string) {
+    const { data } = await this.http.get<{ orders: ManualPaymentOrder[]; settings: ManualPaymentSettings }>(`/manual-payments/bot/${guildId}/runtime`);
+    return data;
+  }
+
+  async updateManualPaymentPanelState(guildId: string, messageId: string | null) {
+    const { data } = await this.http.put<{ settings: ManualPaymentSettings }>(`/manual-payments/bot/${guildId}/panel-state`, { messageId });
+    return data.settings;
+  }
+
+  async createManualPaymentOrder(guildId: string, input: { serviceId: string; userId: string; username?: string | null }) {
+    const { data } = await this.http.post<{ order: ManualPaymentOrder }>(`/manual-payments/bot/${guildId}/orders`, input);
+    return data.order;
+  }
+
+  async getManualPaymentOrder(guildId: string, orderId: string) {
+    const { data } = await this.http.get<{ order: ManualPaymentOrder | null }>(`/manual-payments/bot/${guildId}/orders/${orderId}`);
+    return data.order;
+  }
+
+  async updateManualPaymentOrder(guildId: string, orderId: string, input: Partial<{
+    action: string;
+    channelId: string | null;
+    paymentChannelId: string | null;
+    paymentMessageId: string | null;
+    paymentMethod: "PIX_KEY" | "PIX_QR_CODE" | null;
+    proofMessageId: string | null;
+    proofUrl: string | null;
+    reason: string | null;
+    serviceChannelId: string | null;
+    staffId: string | null;
+    staffMessageId: string | null;
+    status: ManualPaymentOrderStatus;
+  }>) {
+    const { data } = await this.http.patch<{ order: ManualPaymentOrder }>(`/manual-payments/bot/${guildId}/orders/${orderId}`, input);
+    return data.order;
   }
 
   async getFivemFinanceRuntime(guildId: string) {

@@ -20,6 +20,8 @@ import { startImageAntiSpamService } from "../services/imageAntiSpamService";
 import { startKickNotificationMonitor } from "../services/kickNotificationMonitor";
 import { startMaintenanceService } from "../services/maintenanceService";
 import { startMissionToolsService } from "../services/missionToolsService";
+import { startManualPaymentService } from "../services/manualPaymentService";
+import { startPriceTableService } from "../services/priceTableService";
 import { startManualRegistrationService } from "../services/manualRegistrationService";
 import {
   disableUnreleasedSafeBotChannels,
@@ -85,6 +87,8 @@ export async function handleReady(client: Client<true>, context: BotContext) {
       startMissionToolsService(client, context);
     }
     if (!wasTemporaryVoiceEnabled && isBotModuleEnabled("temporary-voice")) startTemporaryVoiceService(client, context);
+    if (isBotModuleEnabled("manual-payments")) startManualPaymentService(client, context);
+    if (isBotModuleEnabled("price-tables")) startPriceTableService(client, context);
     if (!wereLogsEnabled && isBotModuleEnabled("logs")) startAutomatedLogService(client, context);
     if (!wasTagVerificationEnabled && isBotModuleEnabled("tag-verification")) void startTagVerificationService(client, context);
     if (wasTagVerificationEnabled && !isBotModuleEnabled("tag-verification")) stopTagVerificationService();
@@ -162,6 +166,8 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     startFivemFinanceService(client, context);
   }
   if (isBotModuleEnabled("fivem-orders") || isBotModuleEnabled("fivem-drugs") || isBotModuleEnabled("fivem-washing")) startFivemOrderService(client, context);
+  if (isBotModuleEnabled("manual-payments")) startManualPaymentService(client, context);
+  if (isBotModuleEnabled("price-tables")) startPriceTableService(client, context);
   if (isBotModuleEnabled("fivem-hierarchy")) {
     startFivemHierarchyService(client, context);
   }
@@ -263,6 +269,9 @@ async function reconcileRuntimeModules(client: Client<true>, context: BotContext
   }
   if (!wasTemporaryVoiceEnabled && isBotModuleEnabled("temporary-voice")) {
     startTemporaryVoiceService(client, context);
+  }
+  if (isBotModuleEnabled("manual-payments")) {
+    startManualPaymentService(client, context);
   }
   if (!wasTagVerificationEnabled && isBotModuleEnabled("tag-verification")) {
     await startTagVerificationService(client, context);

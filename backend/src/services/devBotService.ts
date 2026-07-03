@@ -41,6 +41,8 @@ export const DEV_MODULES = [
   { id: "kick-clips", label: "Clipes Kick" },
   { id: "giveaway", label: "Sistema de Sorteio" },
   { id: "orvitech-sales", label: "OrviTech - Sistema de Vendas" },
+  { id: "manual-payments", label: "Sistema de Pagamentos" },
+  { id: "price-tables", label: "Tabela de Precos" },
   { id: "network", label: "Rede Social dos Membros" },
   { id: "x-monitor", label: "X Monitor" },
   { id: "verification", label: "Sistema de Verificacao" },
