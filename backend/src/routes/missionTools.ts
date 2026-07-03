@@ -161,6 +161,23 @@ missionToolsRouter.get("/bot/:guildId", requireBot, async (req, res, next) => {
   }
 });
 
+missionToolsRouter.patch("/bot/:guildId/settings", requireBot, async (req, res, next) => {
+  try {
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const botId = await readRequiredBotId(req);
+    const input = settingsSchema.parse(req.body);
+
+    await assertBotMissionToolsLicense(botId);
+    await validateMissionToolsResources(guildId, botId, input);
+
+    return res.json({
+      settings: await saveMissionToolsSettings(guildId, botId, normalizeSettingsInput(input), null)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 missionToolsRouter.get("/bot/:guildId/users/:userId", requireBot, async (req, res, next) => {
   try {
     const guildId = guildIdSchema.parse(req.params.guildId);

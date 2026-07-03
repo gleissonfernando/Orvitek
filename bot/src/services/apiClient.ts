@@ -2168,6 +2168,17 @@ export class ApiClient {
     return data.settings;
   }
 
+  async saveMissionToolsSettings(guildId: string, input: Partial<Pick<
+    MissionToolsSettings,
+    "allowedRoleIds" | "enabled" | "enabledFeatures" | "logChannelId" | "managerRoleIds" | "panelChannelId"
+  >>) {
+    const { data } = await this.http.patch<{ settings: MissionToolsSettings }>(
+      `/mission-tools/bot/${guildId}/settings`,
+      input
+    );
+    return data.settings;
+  }
+
   async updateMissionToolsPanelState(input: { guildId: string; messageId?: string | null }) {
     const { data } = await this.http.post<{ settings: MissionToolsSettings }>("/mission-tools/bot/panel-state", input);
     return data.settings;

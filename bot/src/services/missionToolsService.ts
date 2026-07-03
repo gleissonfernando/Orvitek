@@ -53,6 +53,10 @@ type PanelRenderOptions = {
   voiceChannelOptions?: DiscordVoiceChannelOption[];
 };
 
+type PublishMissionToolsOptions = {
+  panelChannelId?: string | null;
+};
+
 const MODULE_ID = "mission-tools";
 const PREFIX = "mission_tools";
 const MAIN_CLEAR_VALUE = "clear";
@@ -932,15 +936,15 @@ async function fetchVoiceOptionsSafely(
   }
 }
 
-async function publishRequestedMissionToolsPanel(client: Client, context: BotContext, guildId: string) {
-  const key = panelRequestKey(guildId);
+async function publishRequestedMissionToolsPanel(client: Client, context: BotContext, guildId: string, options: PublishMissionToolsOptions = {}) {
+  const key = panelRequestKey(guildId, options.panelChannelId);
   const current = panelPublishPromises.get(key);
 
   if (current) {
     return current;
   }
 
-  const next = publishMissionToolsPanel(client, context, guildId)
+  const next = publishMissionToolsPanel(client, context, guildId, options)
     .then((settings) => {
       rememberHandledPanelRequest(settings);
       return settings;
@@ -953,16 +957,23 @@ async function publishRequestedMissionToolsPanel(client: Client, context: BotCon
   return next;
 }
 
-export async function publishConfiguredMissionToolsPanel(client: Client, context: BotContext, guildId: string) {
-  return publishRequestedMissionToolsPanel(client, context, guildId);
+export async function publishConfiguredMissionToolsPanel(client: Client, context: BotContext, guildId: string, options: PublishMissionToolsOptions = {}) {
+  return publishRequestedMissionToolsPanel(client, context, guildId, options);
 }
 
-async function publishMissionToolsPanel(client: Client, context: BotContext, guildId: string) {
+async function publishMissionToolsPanel(client: Client, context: BotContext, guildId: string, options: PublishMissionToolsOptions) {
   const guild = await client.guilds.fetch(guildId);
-  const settings = await context.api.getMissionToolsSettings(guildId);
+  let settings = await context.api.getMissionToolsSettings(guildId);
+
+  if (options.panelChannelId && (!settings.enabled || settings.panelChannelId !== options.panelChannelId)) {
+    settings = await context.api.saveMissionToolsSettings(guildId, {
+      enabled: true,
+      panelChannelId: options.panelChannelId
+    });
+  }
 
   if (!settings.enabled || !settings.panelChannelId) {
-    throw new Error("Mission Tools is disabled or has no panel channel configured.");
+    throw new Error("Mission Tools is disabled or has no panel channel configured. Use /mission-panel in the target channel or pass the channel option.");
   }
 
   const channel = await guild.channels.fetch(settings.panelChannelId);
@@ -1666,8 +1677,8 @@ function stopUserRuntimeSessions(guildId: string, userId: string) {
   richPresenceSessions.delete(key);
 }
 
-function panelRequestKey(guildId: string) {
-  return `${env.DASHBOARD_BOT_ID || "bot"}:${guildId}`;
+function panelRequestKey(guildId: string, panelChannelId?: string | null) {
+  return `${env.DASHBOARD_BOT_ID || "bot"}:${guildId}:${panelChannelId ?? "configured"}`;
 }
 
 function rememberHandledPanelRequest(settings: MissionToolsSettings) {
@@ -1808,5 +1819,5 @@ function truncate(value: string, maxLength: number) {
 }
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
+  return readRequestErrorMessage(error) ?? (error instanceof Error ? error.message : String(error));
 }
