@@ -14,6 +14,8 @@ import { startFivemGoalService } from "../services/fivemGoalService";
 import { startFivemFinanceService } from "../services/fivemFinanceService";
 import { startFivemOrderService } from "../services/fivemOrderService";
 import { startFivemHierarchyService } from "../services/fivemHierarchyService";
+import { startFivemActionService } from "../services/fivemActionService";
+import { startPolicePatrolReportService } from "../services/policePatrolReportService";
 import { startGiveawayService } from "../services/giveawayService";
 import { startGuildSettingsCache } from "../services/guildSettingsCache";
 import { startImageAntiSpamService } from "../services/imageAntiSpamService";
@@ -170,6 +172,12 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   if (isBotModuleEnabled("price-tables")) startPriceTableService(client, context);
   if (isBotModuleEnabled("fivem-hierarchy")) {
     startFivemHierarchyService(client, context);
+  }
+  if (isBotModuleEnabled("fivem-actions")) {
+    startFivemActionService(client, context);
+  }
+  if (isBotModuleEnabled("police-patrol-reports")) {
+    startPolicePatrolReportService(client, context);
   }
   if (isBotModuleEnabled("manual-registration")) {
     startManualRegistrationService(client, context);

@@ -50,6 +50,15 @@ export type MaintenanceState = {
   updatedByName: string | null;
 };
 
+export type FivemActionArchitecture = "fac" | "police";
+export type FivemActionSettings = { id: string; botId: string; guildId: string; architecture: FivemActionArchitecture; enabled: boolean; categoryId: string | null; panelChannelId: string | null; actionChannelId: string | null; reportChannelId: string | null; panelMessageId: string | null; panelTitle: string; panelDescription: string; color: string; imageUrl: string | null; imagePosition: "top" | "center" | "bottom" | "none"; lastPanelRequestedAt: string | null; updatedAt: string };
+export type FivemActionDefinition = { id: string; architecture: FivemActionArchitecture; name: string; description: string; emoji: string | null; imageUrl: string | null; color: string; maxParticipants: number; enabled: boolean; order: number };
+export type FivemActionParticipant = { userId: string; username: string; roleIds: string[]; joinedAt: string; leftAt: string | null };
+export type FivemActionSession = { id: string; botId: string; guildId: string; architecture: FivemActionArchitecture; actionId: string; actionName: string; actionDescription: string; actionEmoji: string | null; actionImageUrl: string | null; actionColor: string; openerId: string; openerName: string; channelId: string | null; messageId: string | null; status: "active" | "victory" | "defeat"; maxParticipants: number; participants: FivemActionParticipant[]; startedAt: string; finishedAt: string | null };
+export type PolicePatrolSettings = { id: string; botId: string; guildId: string; enabled: boolean; creatorRoleIds: string[]; viewerRoleIds: string[]; deleteRoleIds: string[]; supervisorRoleIds: string[]; logChannelId: string | null; temporaryCategoryId: string | null; deleteDelayMinutes: number; defaultExportFormat: "html" | "pdf" | "json" };
+export type PolicePatrolReport = { id: string; botId: string; guildId: string; officerId: string; officerName: string; authorId: string; authorName: string; patrolType: string | null; initialNotes: string | null; patrolStart: string | null; patrolEnd: string | null; durationMinutes: number | null; channelId: string | null; panelMessageId: string | null; lastAuthorMessageId: string | null; messageCount: number; attachmentCount: number; status: "draft" | "active" | "finished" | "cancelled"; createdAt: string; startedAt: string | null; finishedAt: string | null; deleteAt: string | null };
+export type PolicePatrolMessage = { id: string; discordMessageId: string; authorId: string; content: string; attachments: Array<{ id: string; name: string; url: string; contentType: string | null; size: number }>; embeds: unknown[]; stickers: Array<{ id: string; name: string; format: number }>; emojis: string[]; createdAt: string };
+
 export type ManualRegistrationField = {
   enabled: boolean;
   id: string;
@@ -2078,6 +2087,48 @@ export class ApiClient {
     const { data } = await this.http.get<{ configs: FivemFacSettings[] }>("/fivem/bot/fac/configs");
     return data.configs;
   }
+
+  async getActiveFivemActionConfigs() {
+    const { data } = await this.http.get<{ configs: FivemActionSettings[] }>("/fivem-actions/bot/configs/active");
+    return data.configs;
+  }
+
+  async getPolicePatrolSettings(guildId: string) { const { data } = await this.http.get<{ settings: PolicePatrolSettings }>(`/police-patrol-reports/bot/${guildId}/settings`); return data.settings; }
+  async createPolicePatrolReport(input: { guildId: string; officerId: string; officerName: string; authorId: string; authorName: string; patrolType?: string | null; initialNotes?: string | null }) { const { data } = await this.http.post<{ report: PolicePatrolReport }>("/police-patrol-reports/bot/reports", input); return data.report; }
+  async setPolicePatrolChannel(reportId: string, channelId: string, panelMessageId: string) { const { data } = await this.http.patch<{ report: PolicePatrolReport }>(`/police-patrol-reports/bot/reports/${reportId}/channel`, { channelId, panelMessageId }); return data.report; }
+  async startPolicePatrolReport(reportId: string, input: { actorId: string; patrolStart: string; patrolEnd: string }) { const { data } = await this.http.post<{ report: PolicePatrolReport }>(`/police-patrol-reports/bot/reports/${reportId}/start`, input); return data.report; }
+  async appendPolicePatrolMessage(reportId: string, input: Record<string, unknown>) { await this.http.post(`/police-patrol-reports/bot/reports/${reportId}/messages`, input); }
+  async finishPolicePatrolReport(reportId: string, actorId: string, deleteDelayMinutes: number) { const { data } = await this.http.post<{ report: PolicePatrolReport; messages: PolicePatrolMessage[] }>(`/police-patrol-reports/bot/reports/${reportId}/finish`, { actorId, deleteDelayMinutes }); return data; }
+  async cancelPolicePatrolReport(reportId: string, actorId: string, deleteDelayMinutes: number) { const { data } = await this.http.post<{ report: PolicePatrolReport }>(`/police-patrol-reports/bot/reports/${reportId}/cancel`, { actorId, deleteDelayMinutes }); return data.report; }
+  async getPolicePatrolReport(reportId: string) { const { data } = await this.http.get<{ report: PolicePatrolReport; messages: PolicePatrolMessage[] }>(`/police-patrol-reports/bot/reports/${reportId}`); return data; }
+  async getPolicePatrolReportByChannel(channelId: string) { const { data } = await this.http.get<{ report: PolicePatrolReport | null }>(`/police-patrol-reports/bot/reports/channel/${channelId}`); return data.report; }
+  async listPolicePatrolReports(guildId: string, officerId?: string) { const { data } = await this.http.get<{ reports: PolicePatrolReport[] }>(`/police-patrol-reports/bot/${guildId}/reports`, { params: officerId ? { officerId } : undefined }); return data.reports; }
+  async getPolicePatrolChannelsDue() { const { data } = await this.http.get<{ reports: PolicePatrolReport[] }>("/police-patrol-reports/bot/channels/due"); return data.reports; }
+  async clearPolicePatrolChannel(reportId: string) { await this.http.post(`/police-patrol-reports/bot/reports/${reportId}/channel-cleared`); }
+  async deletePolicePatrolReport(reportId: string, actorId: string) { await this.http.post(`/police-patrol-reports/bot/reports/${reportId}/delete`, { actorId }); }
+  async storePolicePatrolAttachment(reportId: string, attachmentId: string, name: string, mimeType: string, buffer: Buffer) { const safeName = name.replace(/[^\x20-\x7e]/g, "_").slice(0, 200) || `attachment-${attachmentId}`; const { data } = await this.http.put<{ file: { id: string; url: string; size: number } }>(`/police-patrol-reports/bot/reports/${reportId}/files/${attachmentId}`, buffer, { headers: { "Content-Type": mimeType || "application/octet-stream", "x-file-name": safeName }, maxBodyLength: 30 * 1024 * 1024, timeout: 30000 }); return data.file; }
+
+  async getFivemActionDashboard(guildId: string, architecture: FivemActionArchitecture) {
+    const { data } = await this.http.get<{ settings: FivemActionSettings; actions: FivemActionDefinition[] }>(`/fivem-actions/bot/${guildId}/${architecture}`);
+    return data;
+  }
+
+  async updateFivemActionPanelState(input: { guildId: string; architecture: FivemActionArchitecture; panelMessageId: string | null }) {
+    const { data } = await this.http.post<{ settings: FivemActionSettings }>("/fivem-actions/bot/panel-state", input); return data.settings;
+  }
+
+  async createFivemActionSession(input: { guildId: string; architecture: FivemActionArchitecture; actionId: string; openerId: string; openerName: string }) {
+    const { data } = await this.http.post<{ session: FivemActionSession }>("/fivem-actions/bot/sessions", input); return data.session;
+  }
+
+  async updateFivemActionSessionMessage(sessionId: string, input: { channelId: string; messageId: string }) {
+    const { data } = await this.http.patch<{ session: FivemActionSession }>(`/fivem-actions/bot/sessions/${sessionId}/message`, input); return data.session;
+  }
+
+  async getFivemActionSession(sessionId: string) { const { data } = await this.http.get<{ session: FivemActionSession }>(`/fivem-actions/bot/sessions/${sessionId}`); return data.session; }
+  async joinFivemActionSession(sessionId: string, input: { userId: string; username: string; roleIds: string[] }) { const { data } = await this.http.post<{ session: FivemActionSession }>(`/fivem-actions/bot/sessions/${sessionId}/join`, input); return data.session; }
+  async leaveFivemActionSession(sessionId: string, userId: string) { const { data } = await this.http.post<{ session: FivemActionSession }>(`/fivem-actions/bot/sessions/${sessionId}/leave`, { userId }); return data.session; }
+  async finishFivemActionSession(sessionId: string, actorId: string, result: "victory" | "defeat") { const { data } = await this.http.post<{ session: FivemActionSession }>(`/fivem-actions/bot/sessions/${sessionId}/finish`, { actorId, result }); return data.session; }
 
   async getFivemFacSettings(guildId: string) {
     const { data } = await this.http.get<{ settings: FivemFacSettings }>(`/fivem/bot/fac/${guildId}`);

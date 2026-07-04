@@ -166,6 +166,7 @@ async function assertCanManage(user: AuthSessionUser, guildId: string, botId: st
 function moduleIdForPanel(panelId: string) {
   if (panelId === "manual-registration") return "manual-registration";
   if (panelId === "fivem-orders") return "fivem-orders";
+  if (panelId.startsWith("fivem-actions-")) return "fivem-actions";
   return MODULE_ID;
 }
 

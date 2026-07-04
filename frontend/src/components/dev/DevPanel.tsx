@@ -158,6 +158,8 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "fivem-finance", label: "FiveM - Sistema Financeiro" },
   { id: "fivem-goals", label: "FiveM - Sistema de Metas" },
   { id: "fivem-hierarchy", label: "FiveM - Hierarquia FAQ" },
+  { id: "fivem-actions", label: "FiveM - Sistema de Ações" },
+  { id: "police-patrol-reports", label: "Polícia - Relatórios de Patrulhamento" },
   { id: "fivem-fac", label: "FiveM - FAC Ausencia" },
   { id: "avisos", label: "Mensagens e Personalização" }
 ];
@@ -206,6 +208,8 @@ type BotMenuId =
   | "fivem-finance"
   | "fivem-goals"
   | "fivem-hierarchy"
+  | "fivem-actions"
+  | "police-patrol-reports"
   | "fivem-production"
   | "integrations";
 
@@ -465,6 +469,20 @@ const botMenuItems: BotMenuItem[] = [
         moduleIds: ["fivem-hierarchy"]
       },
       {
+        id: "fivem-actions",
+        description: "Acoes profissionais para FAC e Policia",
+        label: "Sistema de Ações",
+        icon: Gamepad2,
+        moduleIds: ["fivem-actions"]
+      },
+      {
+        id: "police-patrol-reports",
+        label: "Relatórios Policiais",
+        description: "Relatórios profissionais de patrulhamento",
+        icon: ShieldCheck,
+        moduleIds: ["police-patrol-reports"]
+      },
+      {
         id: "fivem-production",
         label: "Producao",
         description: "Produção e corporações",
@@ -472,6 +490,13 @@ const botMenuItems: BotMenuItem[] = [
         moduleIds: ["fivem-corporations"]
       }
     ]
+  },
+  {
+    id: "police-patrol-reports",
+    label: "Policia",
+    description: "Sistemas policiais e relatorios de patrulhamento",
+    icon: ShieldCheck,
+    moduleIds: ["police-patrol-reports"]
   },
   {
     id: "integrations",
@@ -4253,6 +4278,10 @@ function modulesForMenu(item: BotMenuItem, modules: DevModuleDefinition[], inclu
     ...(includeChildren ? item.children?.flatMap((child) => child.moduleIds) ?? [] : [])
   ]);
 
+  if (item.id === "fivem") {
+    moduleIds.delete("police-patrol-reports");
+  }
+
   return modules.filter((module) => moduleIds.has(module.id));
 }
 
@@ -4262,7 +4291,9 @@ function visibleBotMenuItems(items: BotMenuItem[], modules: DevModuleDefinition[
       return [item];
     }
 
-    const children = item.children ? visibleBotMenuItems(item.children, modules, enabledModules) : undefined;
+    const children = item.children
+      ? visibleBotMenuItems(item.children, modules, enabledModules).filter((child) => item.id !== "fivem" || child.id !== "police-patrol-reports")
+      : undefined;
     const ownEnabled = modulesForMenu(item, modules).some((module) => enabledModules.includes(module.id));
 
     if (!ownEnabled && !children?.length) {
@@ -4308,6 +4339,10 @@ function moduleManagerGroups(modules: DevModuleDefinition[]) {
       }
 
       for (const child of item.children) {
+        if (item.id === "fivem" && child.id === "police-patrol-reports") {
+          continue;
+        }
+
         const childModules = modulesForIds(modules, child.moduleIds, usedModuleIds);
 
         if (childModules.length) {

@@ -1410,6 +1410,28 @@ export async function getFivemModules() {
   return data.modules;
 }
 
+export async function getFivemActions(guildId: string, architecture: import("../types").FivemActionArchitecture, botId: string) {
+  const { data } = await api.get<import("../types").FivemActionDashboard>(`/fivem-actions/${guildId}/${architecture}`, { params: botParams(botId) }); return data;
+}
+export async function saveFivemActionSettings(guildId: string, architecture: import("../types").FivemActionArchitecture, botId: string, payload: Partial<import("../types").FivemActionSettings>) {
+  const { data } = await api.patch<{ settings: import("../types").FivemActionSettings }>(`/fivem-actions/${guildId}/${architecture}/settings`, payload, { params: botParams(botId) }); return data.settings;
+}
+export async function createFivemAction(guildId: string, architecture: import("../types").FivemActionArchitecture, botId: string, payload: Partial<import("../types").FivemActionDefinition>) {
+  const { data } = await api.post<{ action: import("../types").FivemActionDefinition }>(`/fivem-actions/${guildId}/${architecture}/actions`, payload, { params: botParams(botId) }); return data.action;
+}
+export async function updateFivemAction(guildId: string, architecture: import("../types").FivemActionArchitecture, botId: string, actionId: string, payload: Partial<import("../types").FivemActionDefinition>) {
+  const { data } = await api.patch<{ action: import("../types").FivemActionDefinition }>(`/fivem-actions/${guildId}/${architecture}/actions/${actionId}`, payload, { params: botParams(botId) }); return data.action;
+}
+export async function deleteFivemAction(guildId: string, architecture: import("../types").FivemActionArchitecture, botId: string, actionId: string) {
+  await api.delete(`/fivem-actions/${guildId}/${architecture}/actions/${actionId}`, { params: botParams(botId) });
+}
+export async function publishFivemActionsPanel(guildId: string, architecture: import("../types").FivemActionArchitecture, botId: string) {
+  const { data } = await api.post<{ settings: import("../types").FivemActionSettings }>(`/fivem-actions/${guildId}/${architecture}/publish`, undefined, { params: botParams(botId) }); return data.settings;
+}
+export async function getPolicePatrolDashboard(guildId: string, botId: string) { const { data } = await api.get<import("../types").PolicePatrolDashboard>(`/police-patrol-reports/${guildId}`, { params: botParams(botId) }); return data; }
+export async function savePolicePatrolSettings(guildId: string, botId: string, payload: Partial<import("../types").PolicePatrolSettings>) { const { data } = await api.patch<{ settings: import("../types").PolicePatrolSettings }>(`/police-patrol-reports/${guildId}/settings`, payload, { params: botParams(botId) }); return data.settings; }
+export async function deletePolicePatrolReport(guildId: string, botId: string, reportId: string) { await api.delete(`/police-patrol-reports/${guildId}/reports/${reportId}`, { params: botParams(botId) }); }
+
 export async function getGlobalBlacklistDashboard(guildId: string, botId?: string | null) {
   const { data } = await api.get<GlobalBlacklistDashboard>(`/global-blacklist/${guildId}`, {
     params: botId ? { botId } : undefined

@@ -2684,6 +2684,16 @@ export type AntiBanLog = {
 
 export type DevBotStatus = "online" | "offline" | "invalid_token" | "error";
 
+export type FivemActionArchitecture = "fac" | "police";
+export type FivemActionSettings = { id: string; botId: string; guildId: string; architecture: FivemActionArchitecture; enabled: boolean; categoryId: string | null; panelChannelId: string | null; actionChannelId: string | null; reportChannelId: string | null; panelMessageId: string | null; panelTitle: string; panelDescription: string; color: string; imageUrl: string | null; imagePosition: "top" | "center" | "bottom" | "none"; lastPanelRequestedAt: string | null; createdAt: string; updatedAt: string };
+export type FivemActionDefinition = { id: string; botId: string; guildId: string; architecture: FivemActionArchitecture; name: string; description: string; emoji: string | null; imageUrl: string | null; color: string; maxParticipants: number; enabled: boolean; order: number; createdAt: string; updatedAt: string };
+export type FivemActionParticipant = { userId: string; username: string; roleIds: string[]; joinedAt: string; leftAt: string | null };
+export type FivemActionSession = { id: string; architecture: FivemActionArchitecture; actionId: string; actionName: string; actionDescription: string; actionEmoji: string | null; actionImageUrl: string | null; actionColor: string; openerId: string; openerName: string; channelId: string | null; messageId: string | null; status: "active" | "victory" | "defeat"; maxParticipants: number; participants: FivemActionParticipant[]; startedAt: string; finishedAt: string | null; createdAt: string; updatedAt: string };
+export type FivemActionDashboard = { settings: FivemActionSettings; actions: FivemActionDefinition[]; history: FivemActionSession[] };
+export type PolicePatrolSettings = { id: string; botId: string; guildId: string; enabled: boolean; creatorRoleIds: string[]; viewerRoleIds: string[]; deleteRoleIds: string[]; supervisorRoleIds: string[]; logChannelId: string | null; temporaryCategoryId: string | null; deleteDelayMinutes: number; defaultExportFormat: "html" | "pdf" | "json"; createdAt: string; updatedAt: string };
+export type PolicePatrolReport = { id: string; officerId: string; officerName: string; authorId: string; authorName: string; patrolType: string | null; initialNotes: string | null; patrolStart: string | null; patrolEnd: string | null; durationMinutes: number | null; channelId: string | null; messageCount: number; attachmentCount: number; status: "draft" | "active" | "finished" | "cancelled"; createdAt: string; finishedAt: string | null };
+export type PolicePatrolDashboard = { settings: PolicePatrolSettings; reports: PolicePatrolReport[] };
+
 export type DashboardBot = {
   id: string;
   name: string;

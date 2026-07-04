@@ -16,6 +16,7 @@ import {
   Settings,
   Shield,
   ShieldAlert,
+  ShieldCheck,
   Trash2,
   Users,
   Wrench,
@@ -56,7 +57,7 @@ type DevDashboardProps = {
   onLogout: () => void;
 };
 
-type DevView = "bots" | "connected" | "bot-menu" | "cloning" | "sales" | "fivem" | "logs" | "access" | "maintenance";
+type DevView = "bots" | "connected" | "bot-menu" | "cloning" | "sales" | "fivem" | "police" | "logs" | "access" | "maintenance";
 
 type FiveMModuleView = FivemModuleDefinition & {
   icon: LucideIcon;
@@ -176,6 +177,7 @@ export function DevDashboard({ auth, initialView = "bots", onLogout }: DevDashbo
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Badge className="border-purple-500/30 bg-purple-500/10 text-purple-100" variant="muted">Bots</Badge>
                 <Badge className="text-zinc-100" variant="muted">FiveM</Badge>
+                <Badge className="text-zinc-100" variant="muted">Policia</Badge>
                 <Badge className="text-zinc-100" variant="muted">Módulos globais</Badge>
                 <Badge className="text-zinc-100" variant="muted">Logs técnicos</Badge>
               </div>
@@ -203,6 +205,7 @@ export function DevDashboard({ auth, initialView = "bots", onLogout }: DevDashbo
             { id: "cloning" as const, label: "Clonagem" },
             { id: "sales" as const, label: "Vendas" },
             { id: "fivem" as const, label: "FiveM" },
+            { id: "police" as const, label: "Policia" },
             { id: "logs" as const, label: "Logs" },
             { id: "access" as const, label: "Acessos" },
             { id: "maintenance" as const, label: "Manutenção" }
@@ -242,6 +245,17 @@ export function DevDashboard({ auth, initialView = "bots", onLogout }: DevDashbo
             onBotUpdated={handleBotUpdated}
             selectedBotId={selectedBotId}
             onSelectBot={setSelectedBotId}
+            scope="fivem"
+          />
+        ) : null}
+
+        {activeView === "police" ? (
+          <DevFiveMManager
+            bots={profile.bots}
+            onBotUpdated={handleBotUpdated}
+            selectedBotId={selectedBotId}
+            onSelectBot={setSelectedBotId}
+            scope="police"
           />
         ) : null}
 
@@ -259,6 +273,7 @@ function devPathForView(view: DevView) {
   if (view === "cloning") return "/dev/clonagem";
   if (view === "sales") return "/dev/vendas-orvitech";
   if (view === "fivem") return "/dev/fivem";
+  if (view === "police") return "/dev/policia";
   if (view === "logs") return "/dev/logs";
   if (view === "access") return "/dev/acessos";
   if (view === "maintenance") return "/dev/maintenance";
@@ -291,6 +306,7 @@ function DevSidebar({
     { icon: Copy, id: "cloning", label: "Clonagem" },
     { icon: CreditCard, id: "sales", label: "Vendas OrviTech" },
     { icon: Building2, id: "fivem", label: "FiveM" },
+    { icon: ShieldCheck, id: "police", label: "Policia" },
     { icon: ScrollText, id: "logs", label: "Logs" },
     { icon: UserCog, id: "access", label: "Acessos DEV" },
     { icon: Wrench, id: "maintenance", label: "Manutenção" }
@@ -748,11 +764,13 @@ function DevFiveMManager({
   bots,
   onBotUpdated,
   onSelectBot,
+  scope,
   selectedBotId
 }: {
   bots: DashboardBot[];
   onBotUpdated: (bot: DashboardBot) => void;
   onSelectBot: (botId: string | null) => void;
+  scope: "fivem" | "police";
   selectedBotId: string | null;
 }) {
   const [savingModuleId, setSavingModuleId] = useState<string | null>(null);
@@ -761,7 +779,9 @@ function DevFiveMManager({
   const [loadingModules, setLoadingModules] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const selectedBot = botList.find((bot) => bot.id === selectedBotId) ?? botList[0] ?? null;
-  const viewModules = modules.map(toFiveMModuleView);
+  const viewModules = modules
+    .filter((module) => scope === "police" ? isPoliceModule(module.id) : isFiveMManagerModule(module.id))
+    .map(toFiveMModuleView);
   const enabled = new Set((selectedBot?.enabledModules ?? []).map((moduleId) => moduleId === "fivem-fac" ? "fivem-absences" : moduleId));
   const activeModuleCount = viewModules.filter((module) => enabled.has(module.id)).length;
   const stats = {
@@ -770,8 +790,53 @@ function DevFiveMManager({
     disabled: viewModules.length - activeModuleCount,
     factions: enabled.has("fivem-factions") ? 1 : 0,
     total: viewModules.length,
-    users: botList.reduce((total, bot) => total + (bot.enabledModules.some((moduleId) => moduleId === "fivem" || moduleId.startsWith("fivem-")) ? 1 : 0), 0)
+    users: botList.reduce((total, bot) => total + (bot.enabledModules.some((moduleId) => scope === "police" ? isPoliceModule(moduleId) : isFiveMManagerModule(moduleId)) ? 1 : 0), 0)
   };
+  const copy = scope === "police"
+    ? {
+      title: "Policia Manager",
+      description: "Gerencie sistemas policiais separados dos modulos FiveM.",
+      cardTitle: "Modulos de Policia",
+      cardDescription: "Sistemas policiais independentes das configuracoes gerais de RP.",
+      loading: "Carregando modulos de Policia...",
+      createPrompt: "Nome do novo modulo de Policia",
+      descriptionPrompt: "Descricao do modulo de Policia",
+      defaultDescription: "Modulo policial personalizado criado pelo desenvolvedor.",
+      permissionsPrompt: "Permissoes do modulo de Policia",
+      defaultPermissions: "Admin Policia",
+      created: "Modulo de Policia criado.",
+      createError: "Nao foi possivel criar o modulo de Policia.",
+      removeConfirm: "Remover este modulo de Policia?",
+      removed: "Modulo de Policia removido.",
+      removeError: "Nao foi possivel remover o modulo de Policia.",
+      editNamePrompt: "Nome do modulo de Policia",
+      editDescriptionPrompt: "Descricao do modulo de Policia",
+      editPermissionsPrompt: "Permissoes do modulo de Policia",
+      updated: "Modulo de Policia atualizado.",
+      updateError: "Nao foi possivel editar o modulo de Policia."
+    }
+    : {
+      title: "FiveM Manager",
+      description: "Gerencie todos os modulos, sistemas e recursos do FiveM.",
+      cardTitle: "Modulos FiveM",
+      cardDescription: "Sistemas RP independentes das configuracoes do bot Discord.",
+      loading: "Carregando modulos FiveM...",
+      createPrompt: "Nome do novo modulo FiveM",
+      descriptionPrompt: "Descricao do modulo FiveM",
+      defaultDescription: "Modulo personalizado criado pelo desenvolvedor.",
+      permissionsPrompt: "Permissoes do modulo FiveM",
+      defaultPermissions: "Admin FiveM",
+      created: "Modulo FiveM criado.",
+      createError: "Nao foi possivel criar o modulo FiveM.",
+      removeConfirm: "Remover este modulo FiveM?",
+      removed: "Modulo FiveM removido.",
+      removeError: "Nao foi possivel remover o modulo FiveM.",
+      editNamePrompt: "Nome do modulo FiveM",
+      editDescriptionPrompt: "Descricao do modulo FiveM",
+      editPermissionsPrompt: "Permissoes do modulo FiveM",
+      updated: "Modulo FiveM atualizado.",
+      updateError: "Nao foi possivel editar o modulo FiveM."
+    };
 
   useEffect(() => {
     setBotList(bots);
@@ -790,7 +855,7 @@ function DevFiveMManager({
         onSelectBot(selectedBotId ?? nextBots[0]?.id ?? null);
       })
       .catch(() => {
-        if (mounted) setMessage("Não foi possível carregar os módulos FiveM.");
+        if (mounted) setMessage(scope === "police" ? "Nao foi possivel carregar os modulos de Policia." : "Nao foi possivel carregar os modulos FiveM.");
       })
       .finally(() => {
         if (mounted) setLoadingModules(false);
@@ -805,9 +870,13 @@ function DevFiveMManager({
     if (!selectedBot) return;
 
     const normalizedModules = normalizeFiveMModules(selectedBot.enabledModules);
-    const nextModules = checked
-      ? [...new Set([...normalizedModules, "fivem", moduleId])]
-      : nextFiveMModulesAfterDisable(normalizedModules, moduleId);
+    const nextModules = scope === "police"
+      ? checked
+        ? [...new Set([...normalizedModules, moduleId])]
+        : normalizedModules.filter((currentModuleId) => currentModuleId !== moduleId)
+      : checked
+        ? [...new Set([...normalizedModules, "fivem", moduleId])]
+        : nextFiveMModulesAfterDisable(normalizedModules, moduleId);
 
     setSavingModuleId(moduleId);
     try {
@@ -820,12 +889,12 @@ function DevFiveMManager({
   }
 
   async function handleCreateModule() {
-    const name = window.prompt("Nome do novo módulo FiveM");
+    const name = window.prompt(copy.createPrompt);
     if (!name?.trim()) return;
 
-    const description = window.prompt("Descrição do módulo FiveM", "Módulo personalizado criado pelo desenvolvedor.")?.trim()
-      || "Módulo personalizado criado pelo desenvolvedor.";
-    const permissions = window.prompt("Permissões do módulo FiveM", "Admin FiveM")?.trim() || "Admin FiveM";
+    const description = window.prompt(copy.descriptionPrompt, copy.defaultDescription)?.trim()
+      || copy.defaultDescription;
+    const permissions = window.prompt(copy.permissionsPrompt, copy.defaultPermissions)?.trim() || copy.defaultPermissions;
 
     setMessage(null);
     try {
@@ -835,20 +904,22 @@ function DevFiveMManager({
         title: name.trim()
       });
       setModules((current) => [created, ...current]);
-      setMessage("Módulo FiveM criado.");
+      setMessage(copy.created);
     } catch {
-      setMessage("Não foi possível criar o módulo FiveM.");
+      setMessage(copy.createError);
     }
   }
 
   async function handleRemoveCustom(moduleId: string) {
-    if (!window.confirm("Remover este módulo FiveM?")) return;
+    if (!window.confirm(copy.removeConfirm)) return;
 
     setSavingModuleId(moduleId);
     setMessage(null);
     try {
       const nextBotModules = selectedBot && enabled.has(moduleId)
-        ? nextFiveMModulesAfterDisable(normalizeFiveMModules(selectedBot.enabledModules), moduleId)
+        ? scope === "police"
+          ? normalizeFiveMModules(selectedBot.enabledModules).filter((currentModuleId) => currentModuleId !== moduleId)
+          : nextFiveMModulesAfterDisable(normalizeFiveMModules(selectedBot.enabledModules), moduleId)
         : null;
       await deleteDevFivemModule(moduleId);
       if (selectedBot && nextBotModules) {
@@ -857,9 +928,9 @@ function DevFiveMManager({
         onBotUpdated(updated);
       }
       setModules((current) => current.filter((module) => module.id !== moduleId));
-      setMessage("Módulo FiveM removido.");
+      setMessage(copy.removed);
     } catch {
-      setMessage("Não foi possível remover o módulo FiveM.");
+      setMessage(copy.removeError);
     } finally {
       setSavingModuleId(null);
     }
@@ -869,10 +940,10 @@ function DevFiveMManager({
     const current = modules.find((module) => module.id === moduleId);
     if (!current) return;
 
-    const name = window.prompt("Nome do módulo FiveM", current.title);
+    const name = window.prompt(copy.editNamePrompt, current.title);
     if (!name?.trim()) return;
-    const description = window.prompt("Descrição do módulo FiveM", current.description)?.trim() || current.description;
-    const permissions = window.prompt("Permissões do módulo FiveM", current.permissions)?.trim() || current.permissions;
+    const description = window.prompt(copy.editDescriptionPrompt, current.description)?.trim() || current.description;
+    const permissions = window.prompt(copy.editPermissionsPrompt, current.permissions)?.trim() || current.permissions;
 
     setSavingModuleId(moduleId);
     setMessage(null);
@@ -883,9 +954,9 @@ function DevFiveMManager({
         title: name.trim()
       });
       setModules((currentModules) => currentModules.map((module) => module.id === moduleId ? updated : module));
-      setMessage("Módulo FiveM atualizado.");
+      setMessage(copy.updated);
     } catch {
-      setMessage("Não foi possível editar o módulo FiveM.");
+      setMessage(copy.updateError);
     } finally {
       setSavingModuleId(null);
     }
@@ -895,8 +966,8 @@ function DevFiveMManager({
     <div className="space-y-6">
       <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-white">FiveM Manager</h2>
-          <p className="mt-1 text-sm text-zinc-500">Gerencie todos os módulos, sistemas e recursos do FiveM.</p>
+          <h2 className="text-2xl font-semibold text-white">{copy.title}</h2>
+          <p className="mt-1 text-sm text-zinc-500">{copy.description}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <select
@@ -930,14 +1001,14 @@ function DevFiveMManager({
 
       <Card className="border-zinc-800/80 bg-zinc-950/75">
         <CardHeader className="p-5 sm:p-6">
-          <CardTitle>Módulos FiveM</CardTitle>
-          <CardDescription>Sistemas RP independentes das configurações do bot Discord.</CardDescription>
+          <CardTitle>{copy.cardTitle}</CardTitle>
+          <CardDescription>{copy.cardDescription}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 p-5 pt-0 sm:p-6 sm:pt-0 lg:grid-cols-2">
           {loadingModules ? (
             <div className="flex min-h-28 items-center justify-center rounded-lg border border-zinc-900 bg-black/35 text-sm text-zinc-500 lg:col-span-2">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Carregando módulos FiveM...
+              {copy.loading}
             </div>
           ) : viewModules.map((module) => {
             const active = enabled.has(module.id);
@@ -1016,10 +1087,19 @@ function fiveMModuleIcon(moduleId: string): LucideIcon {
     "fivem-finance": Activity,
     "fivem-washing": PackagePlus,
     "fivem-drugs": PackagePlus,
-    "fivem-orders": PackagePlus
+    "fivem-orders": PackagePlus,
+    "police-patrol-reports": ShieldCheck
   };
 
   return icons[moduleId] ?? Boxes;
+}
+
+function isPoliceModule(moduleId: string) {
+  return moduleId === "police-patrol-reports";
+}
+
+function isFiveMManagerModule(moduleId: string) {
+  return !isPoliceModule(moduleId) && (moduleId === "fivem" || moduleId.startsWith("fivem-"));
 }
 
 function TechnicalLogsPanel({ botId, guildId }: { botId: string | null; guildId: string | null }) {

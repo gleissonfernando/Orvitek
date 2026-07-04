@@ -77,6 +77,8 @@ export type ViewId =
   | "fivem"
   | "fivem-absence"
   | "fivem-hierarchy"
+  | "fivem-actions"
+  | "police-patrol-reports"
   | "fivem-orders"
   | "fivem-families"
   | "fivem-washing"
@@ -102,6 +104,16 @@ export type NavItem = {
   icon: LucideIcon;
   moduleId?: string;
   moduleIds?: string[];
+};
+
+type NavSectionId = "user" | "security" | "police" | "fivem" | "server";
+
+const navSectionLabels: Record<NavSectionId, string> = {
+  user: "Usuario",
+  security: "Seguranca",
+  police: "Policia",
+  fivem: "FiveM",
+  server: "Servidor"
 };
 
 const navItems: NavItem[] = [
@@ -140,6 +152,8 @@ const navItems: NavItem[] = [
   { id: "fivem", label: "FiveM Geral", icon: Building2, moduleIds: ["fivem", "fivem-factions", "fivem-corporations", "fivem-ammo", "fivem-finance"] },
   { id: "fivem-absence", label: "Ausência", icon: CalendarClock, moduleIds: ["fivem-absences", "fivem-fac"] },
   { id: "fivem-hierarchy", label: "Hierarquia", icon: ListTree, moduleId: "fivem-hierarchy" },
+  { id: "fivem-actions", label: "Ações FAC/Polícia", icon: Activity, moduleId: "fivem-actions" },
+  { id: "police-patrol-reports", label: "Relatórios Policiais", icon: ShieldCheck, moduleId: "police-patrol-reports" },
   { id: "fivem-orders", label: "Encomendas RP", icon: Archive, moduleId: "fivem-orders" },
   { id: "fivem-families", label: "Famílias", icon: Users, moduleIds: ["fivem-orders", "fivem-drugs", "fivem-washing"] },
   { id: "fivem-washing", label: "Sistema de Lavagem", icon: CircleDollarSign, moduleId: "fivem-washing" },
@@ -157,6 +171,55 @@ const navItems: NavItem[] = [
   { id: "delete-channels", label: "Canais e cargos", icon: Trash2 },
   { id: "settings", label: "Configurações", icon: Settings, moduleIds: ["tickets", "avisos", "network", "server-generator"] }
 ];
+
+function navSectionForItem(item: NavItem): NavSectionId {
+  if (item.id === "police-patrol-reports" || item.moduleId === "police-patrol-reports") {
+    return "police";
+  }
+
+  if (item.id.startsWith("fivem") || item.id === "manual-registration") {
+    return "fivem";
+  }
+
+  if ([
+    "moderation",
+    "self-bot-protection",
+    "security",
+    "anti-abuse",
+    "anti-ban",
+    "suspicious-servers",
+    "global-blacklist",
+    "advanced-permissions",
+    "invite-cleanup",
+    "vanity-url-protection",
+    "hide-empty-voice",
+    "anti-disconnect",
+    "auto-unmute",
+    "temporary-voice",
+    "tag-verification",
+    "bio-url-verification"
+  ].includes(item.id)) {
+    return "security";
+  }
+
+  if (["media-library", "server-cloner", "delete-channels"].includes(item.id)) {
+    return "server";
+  }
+
+  return "user";
+}
+
+function groupNavItems(items: NavItem[]) {
+  const order: NavSectionId[] = ["user", "police", "fivem", "security", "server"];
+
+  return order
+    .map((id) => ({
+      id,
+      items: items.filter((item) => navSectionForItem(item) === id),
+      label: navSectionLabels[id]
+    }))
+    .filter((section) => section.items.length > 0);
+}
 
 type SidebarProps = {
   activeView: ViewId;
@@ -330,6 +393,7 @@ function BotManagementSidebar({
     if (item.moduleId) return enabledModuleSet.has(item.moduleId);
     return Boolean(item.moduleIds?.some((moduleId) => enabledModuleSet.has(moduleId)));
   });
+  const botNavSections = groupNavItems(botNavItems);
 
   if (isCollapsed) {
     return (
@@ -431,22 +495,27 @@ function BotManagementSidebar({
         Configurações do bot
       </div>
 
-      <nav className="discord-scrollbar mt-3 flex-1 space-y-1 overflow-y-auto pb-4">
-        {botNavItems.map((item) => (
-          <button
-            className={cn(
-              "flex h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition",
-              activeView === item.id
-                ? "bg-purple-500/15 text-white ring-1 ring-purple-500/25"
-                : "text-zinc-500 hover:bg-zinc-900/80 hover:text-zinc-100"
-            )}
-            key={item.id}
-            onClick={() => onChangeView(item.id)}
-            type="button"
-          >
-            <item.icon className="h-4 w-4 shrink-0" />
-            <span className="min-w-0 flex-1 truncate">{item.label}</span>
-          </button>
+      <nav className="discord-scrollbar mt-3 flex-1 space-y-4 overflow-y-auto pb-4">
+        {botNavSections.map((section) => (
+          <div key={section.id} className="space-y-1">
+            <p className="px-3 text-[11px] font-bold uppercase tracking-[0.12em] text-zinc-600">{section.label}</p>
+            {section.items.map((item) => (
+              <button
+                className={cn(
+                  "flex h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition",
+                  activeView === item.id
+                    ? "bg-purple-500/15 text-white ring-1 ring-purple-500/25"
+                    : "text-zinc-500 hover:bg-zinc-900/80 hover:text-zinc-100"
+                )}
+                key={item.id}
+                onClick={() => onChangeView(item.id)}
+                type="button"
+              >
+                <item.icon className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+              </button>
+            ))}
+          </div>
         ))}
       </nav>
     </aside>

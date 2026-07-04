@@ -15,6 +15,7 @@ import { pingCommand } from "./ping";
 import { serverClonerCommand } from "./serverCloner";
 import { serverGeneratorCommand } from "./serverGenerator";
 import { ticketCommand } from "./ticket";
+import { policePatrolReportCommand, viewPolicePatrolReportCommand } from "./policePatrolReports";
 import type { BotCommand } from "../types";
 
 export function createCommandCollection() {
@@ -36,6 +37,8 @@ export function createCommandCollection() {
     missionPanelCommand,
     ...musicCommands,
     ticketCommand,
+    policePatrolReportCommand,
+    viewPolicePatrolReportCommand,
     serverClonerCommand,
     serverGeneratorCommand
   ].forEach((command) => {

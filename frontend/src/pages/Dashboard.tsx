@@ -49,6 +49,8 @@ import { DashboardLayout } from "../components/layout/dashboard-layout";
 import type { ViewId } from "../components/layout/sidebar";
 import { ClipsPanel } from "../components/clips/ClipsPanel";
 import { FacAbsencePanel } from "../components/fivem/FacAbsencePanel";
+import { FivemActionsPanel } from "../components/fivem/FivemActionsPanel";
+import { PolicePatrolReportsPanel } from "../components/fivem/PolicePatrolReportsPanel";
 import { FivemFinancePanel } from "../components/fivem/FivemFinancePanel";
 import { FivemOrdersManager } from "../components/fivem/FivemOrdersPanel";
 import { FivemResourceMultiSelect, FivemResourceSelect } from "../components/fivem/FivemResourceSelect";
@@ -578,6 +580,8 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   fivem: "fivem",
   "fivem-absence": "fivem-absences",
   "fivem-hierarchy": "fivem-hierarchy",
+  "fivem-actions": "fivem-actions",
+  "police-patrol-reports": "police-patrol-reports",
   "fivem-orders": "fivem-orders",
   "fivem-families": "fivem-orders",
   "fivem-washing": "fivem-washing",
@@ -1274,6 +1278,20 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
           <FivemHierarchyPanel
             botId={activeBotId}
             canManage={canManageModule(selectedBot, "fivem-hierarchy", canManageDashboard)}
+            guild={selectedGuild}
+          />
+        ) : null}
+        {activeView === "fivem-actions" ? (
+          <FivemActionsPanel
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "fivem-actions", canManageDashboard)}
+            guild={selectedGuild}
+          />
+        ) : null}
+        {activeView === "police-patrol-reports" ? (
+          <PolicePatrolReportsPanel
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "police-patrol-reports", canManageDashboard)}
             guild={selectedGuild}
           />
         ) : null}
@@ -3483,7 +3501,9 @@ function fivemUserModules(enabledModules: string[], fivemModules: FivemModuleDef
     { builtIn: true, description: "Pedidos, producao, entrega, logs e financeiro de municoes.", id: "fivem-ammo", permissions: "Admin FiveM", title: "Municoes" },
     { builtIn: true, description: "Fluxo financeiro, caixa e lancamentos RP.", id: "fivem-finance", permissions: "Admin FiveM", title: "Financeiro" },
     { builtIn: true, description: "Metas por membro com fotos e registros via Components V2.", id: "fivem-goals", permissions: "Admin FiveM", title: "Metas" },
-    { builtIn: true, description: "Painel automatico de hierarquia por cargos.", id: "fivem-hierarchy", permissions: "Admin FiveM", title: "Hierarquia FAQ" }
+    { builtIn: true, description: "Painel automatico de hierarquia por cargos.", id: "fivem-hierarchy", permissions: "Admin FiveM", title: "Hierarquia FAQ" },
+    { builtIn: true, description: "Ações profissionais separadas para FAC e Polícia.", id: "fivem-actions", permissions: "Admin FiveM", title: "Sistema de Ações" },
+    { builtIn: true, description: "Relatórios de patrulhamento exclusivos para oficiais.", id: "police-patrol-reports", permissions: "Admin Polícia", title: "Relatórios Policiais" }
   ];
   const catalog = fivemModules.length ? fivemModules : fallbackCatalog;
   const enabled = new Set(enabledModules.map((moduleId) => moduleId === "fivem-fac" ? "fivem-absences" : moduleId));
@@ -3593,6 +3613,8 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
       "fivem-finance",
       "fivem-goals",
       "fivem-hierarchy",
+      "fivem-actions",
+      "police-patrol-reports",
       "fivem-fac"
     ].includes(moduleId);
   }

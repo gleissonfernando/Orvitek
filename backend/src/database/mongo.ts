@@ -1193,6 +1193,109 @@ export type MongoFivemModule = {
   updatedAt: Date;
 };
 
+export type MongoFivemActionArchitecture = "fac" | "police";
+export type MongoFivemActionImagePosition = "top" | "center" | "bottom" | "none";
+
+export type MongoFivemActionSettings = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  architecture: MongoFivemActionArchitecture;
+  enabled: boolean;
+  categoryId: string | null;
+  panelChannelId: string | null;
+  actionChannelId: string | null;
+  reportChannelId: string | null;
+  panelMessageId: string | null;
+  panelTitle: string;
+  panelDescription: string;
+  color: string;
+  imageUrl: string | null;
+  imagePosition: MongoFivemActionImagePosition;
+  lastPanelRequestedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  updatedBy: string | null;
+};
+
+export type MongoFivemActionDefinition = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  architecture: MongoFivemActionArchitecture;
+  name: string;
+  description: string;
+  emoji: string | null;
+  imageUrl: string | null;
+  color: string;
+  maxParticipants: number;
+  enabled: boolean;
+  order: number;
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string | null;
+};
+
+export type MongoFivemActionParticipant = {
+  userId: string;
+  username: string;
+  roleIds: string[];
+  joinedAt: Date;
+  leftAt: Date | null;
+};
+
+export type MongoFivemActionSession = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  architecture: MongoFivemActionArchitecture;
+  actionId: string;
+  actionName: string;
+  actionDescription: string;
+  actionEmoji: string | null;
+  actionImageUrl: string | null;
+  actionColor: string;
+  openerId: string;
+  openerName: string;
+  channelId: string | null;
+  messageId: string | null;
+  status: "active" | "victory" | "defeat";
+  maxParticipants: number;
+  participants: MongoFivemActionParticipant[];
+  startedAt: Date;
+  finishedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoPolicePatrolSettings = {
+  _id: string; botId: string; guildId: string; enabled: boolean;
+  creatorRoleIds: string[]; viewerRoleIds: string[]; deleteRoleIds: string[]; supervisorRoleIds: string[];
+  logChannelId: string | null; temporaryCategoryId: string | null; deleteDelayMinutes: number;
+  defaultExportFormat: "html" | "pdf" | "json"; createdAt: Date; updatedAt: Date; updatedBy: string | null;
+};
+
+export type MongoPolicePatrolReport = {
+  _id: string; botId: string; guildId: string; officerId: string; officerName: string; authorId: string; authorName: string;
+  openKey?: string;
+  patrolType: string | null; initialNotes: string | null; patrolStart: string | null; patrolEnd: string | null; durationMinutes: number | null;
+  channelId: string | null; panelMessageId: string | null; lastAuthorMessageId: string | null;
+  messageCount: number; attachmentCount: number; status: "draft" | "active" | "finished" | "cancelled";
+  createdAt: Date; startedAt: Date | null; finishedAt: Date | null; cancelledAt: Date | null; deleteAt: Date | null; updatedAt: Date;
+};
+
+export type MongoPolicePatrolMessage = {
+  _id: string; reportId: string; botId: string; guildId: string; discordMessageId: string; authorId: string;
+  content: string; attachments: Array<{ id: string; name: string; url: string; contentType: string | null; size: number }>;
+  embeds: unknown[]; stickers: Array<{ id: string; name: string; format: number }>;
+  emojis: string[]; createdAt: Date;
+};
+
+export type MongoPolicePatrolAudit = {
+  _id: string; reportId: string; botId: string; guildId: string; actorId: string | null; action: string; metadata: Record<string, unknown>; createdAt: Date;
+};
+export type MongoPolicePatrolFile = { _id: string; reportId: string; botId: string; guildId: string; discordAttachmentId: string; name: string; mimeType: string; size: number; buffer: Buffer; createdAt: Date };
+
 export type MongoImageAntiSpamSettings = {
   _id: string;
   botId: string;
@@ -2564,6 +2667,14 @@ export async function getMongoCollections() {
     giveawayPlatformAccounts: db.collection<MongoGiveawayPlatformAccount>("giveaway_platform_accounts"),
     giveawayKickEvents: db.collection<MongoGiveawayKickEvent>("giveaway_kick_events"),
     fivemModules: db.collection<MongoFivemModule>("fivem_modules"),
+    fivemActionSettings: db.collection<MongoFivemActionSettings>("fivem_action_settings"),
+    fivemActionDefinitions: db.collection<MongoFivemActionDefinition>("fivem_action_definitions"),
+    fivemActionSessions: db.collection<MongoFivemActionSession>("fivem_action_sessions"),
+    policePatrolSettings: db.collection<MongoPolicePatrolSettings>("police_patrol_settings"),
+    policePatrolReports: db.collection<MongoPolicePatrolReport>("police_patrol_reports"),
+    policePatrolMessages: db.collection<MongoPolicePatrolMessage>("police_patrol_messages"),
+    policePatrolAudits: db.collection<MongoPolicePatrolAudit>("police_patrol_audits"),
+    policePatrolFiles: db.collection<MongoPolicePatrolFile>("police_patrol_files"),
     fivemFacSettings: db.collection<MongoFivemFacSettings>("fivem_fac_settings"),
     fivemFacAbsences: db.collection<MongoFivemFacAbsence>("fivem_fac_absences"),
     imageAntiSpamSettings: db.collection<MongoImageAntiSpamSettings>("image_anti_spam_settings"),
@@ -3112,7 +3223,20 @@ async function ensureGiveawayIndexes(db: Db) {
 async function ensureFivemModuleIndexes(db: Db) {
   await Promise.all([
     db.collection<MongoFivemModule>("fivem_modules").createIndex({ builtIn: 1, createdAt: -1 }),
-    db.collection<MongoFivemModule>("fivem_modules").createIndex({ title: 1 })
+    db.collection<MongoFivemModule>("fivem_modules").createIndex({ title: 1 }),
+    db.collection<MongoFivemActionSettings>("fivem_action_settings").createIndex({ botId: 1, guildId: 1, architecture: 1 }, { unique: true }),
+    db.collection<MongoFivemActionDefinition>("fivem_action_definitions").createIndex({ botId: 1, guildId: 1, architecture: 1, order: 1 }),
+    db.collection<MongoFivemActionSession>("fivem_action_sessions").createIndex({ botId: 1, guildId: 1, architecture: 1, createdAt: -1 }),
+    db.collection<MongoFivemActionSession>("fivem_action_sessions").createIndex({ botId: 1, guildId: 1, status: 1 }),
+    db.collection<MongoPolicePatrolSettings>("police_patrol_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    db.collection<MongoPolicePatrolReport>("police_patrol_reports").createIndex({ botId: 1, guildId: 1, officerId: 1, createdAt: -1 }),
+    db.collection<MongoPolicePatrolReport>("police_patrol_reports").createIndex({ openKey: 1 }, { unique: true, partialFilterExpression: { openKey: { $type: "string" } } }),
+    db.collection<MongoPolicePatrolReport>("police_patrol_reports").createIndex({ botId: 1, channelId: 1, status: 1 }),
+    db.collection<MongoPolicePatrolMessage>("police_patrol_messages").createIndex({ reportId: 1, createdAt: 1 }),
+    db.collection<MongoPolicePatrolMessage>("police_patrol_messages").createIndex({ botId: 1, discordMessageId: 1 }, { unique: true }),
+    db.collection<MongoPolicePatrolAudit>("police_patrol_audits").createIndex({ reportId: 1, createdAt: 1 }),
+    db.collection<MongoPolicePatrolFile>("police_patrol_files").createIndex({ botId: 1, discordAttachmentId: 1 }, { unique: true }),
+    db.collection<MongoPolicePatrolFile>("police_patrol_files").createIndex({ reportId: 1, createdAt: 1 })
   ]);
 }
 
