@@ -173,7 +173,12 @@ const navItems: NavItem[] = [
 ];
 
 function navSectionForItem(item: NavItem): NavSectionId {
-  if (item.id === "police-patrol-reports" || item.moduleId === "police-patrol-reports") {
+  if (
+    item.id === "fivem-hierarchy"
+    || item.id === "police-patrol-reports"
+    || item.moduleId === "fivem-hierarchy"
+    || item.moduleId === "police-patrol-reports"
+  ) {
     return "police";
   }
 

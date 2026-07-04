@@ -81,10 +81,10 @@ export const BUILTIN_FIVEM_MODULES: FivemModuleDefinition[] = [
   },
   {
     builtIn: true,
-    description: "Painel FAQ de hierarquia atualizado automaticamente pelos cargos do Discord.",
+    description: "Painel de hierarquia policial atualizado automaticamente pelos cargos do Discord.",
     id: "fivem-hierarchy",
-    permissions: "Admin FiveM, Lideranca",
-    title: "Hierarquia FAQ"
+    permissions: "Admin Policia, Lideranca",
+    title: "Hierarquia Policial"
   }
 ];
 

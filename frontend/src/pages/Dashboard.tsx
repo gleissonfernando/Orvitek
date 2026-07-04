@@ -1023,8 +1023,9 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             botId={activeBotId}
             canManage={canManageDashboard}
             guildId={selectedGuild?.id ?? null}
-            panelId={activeView === "settings" || activeView === "overview" ? "global-default" : visualPanelIdForView(activeView)}
-            panelLabel={activeView === "settings" || activeView === "overview" ? "Padrão visual global" : `Configuração Visual do Painel — ${activeView}`}
+            panelId={policePanelImageSlotsForView(activeView) ? undefined : activeView === "settings" || activeView === "overview" ? "global-default" : visualPanelIdForView(activeView)}
+            panelLabel={policePanelImageSlotsForView(activeView) ? "Policia" : activeView === "settings" || activeView === "overview" ? "Padrão visual global" : `Configuração Visual do Painel — ${activeView}`}
+            panelSlots={policePanelImageSlotsForView(activeView) ?? undefined}
           />
         ) : null}
 
@@ -2881,7 +2882,7 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 text-emerald-300" /> Hierarquia FAQ FiveM</CardTitle>
+            <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 text-emerald-300" /> Hierarquia Policial</CardTitle>
             <CardDescription>Painel fixo com membros agrupados por cargos, atualizado automaticamente quando a hierarquia muda.</CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -2978,7 +2979,7 @@ function createEmptyHierarchyPanel(guildId: string, botId?: string | null): Five
     name: "Hierarquia FAQ",
     panelChannelId: null,
     panelMessageId: null,
-    title: "Hierarquia FAQ FiveM",
+    title: "Hierarquia Policial",
     updatedAt: now
   };
 }
@@ -3463,7 +3464,7 @@ function fivemModeDescription(mode: "general" | "orders" | "goals") {
     return "Encomendas ficam em um fluxo proprio: pedido, fila, producao, entrega, cancelamento e logs. Nao mistura com metas, ausencias ou financeiro.";
   }
 
-  return "Central dos modulos FiveM liberados para este bot. Hierarquia, Metas e Encomendas possuem menus proprios quando liberados.";
+  return "Central dos modulos FiveM liberados para este bot. Metas e Encomendas possuem menus proprios quando liberados; Hierarquia fica na area Policia.";
 }
 
 function fivemModeSteps(mode: "general" | "orders" | "goals") {
@@ -3501,7 +3502,7 @@ function fivemUserModules(enabledModules: string[], fivemModules: FivemModuleDef
     { builtIn: true, description: "Pedidos, producao, entrega, logs e financeiro de municoes.", id: "fivem-ammo", permissions: "Admin FiveM", title: "Municoes" },
     { builtIn: true, description: "Fluxo financeiro, caixa e lancamentos RP.", id: "fivem-finance", permissions: "Admin FiveM", title: "Financeiro" },
     { builtIn: true, description: "Metas por membro com fotos e registros via Components V2.", id: "fivem-goals", permissions: "Admin FiveM", title: "Metas" },
-    { builtIn: true, description: "Painel automatico de hierarquia por cargos.", id: "fivem-hierarchy", permissions: "Admin FiveM", title: "Hierarquia FAQ" },
+    { builtIn: true, description: "Painel automatico de hierarquia policial por cargos.", id: "fivem-hierarchy", permissions: "Admin Policia", title: "Hierarquia Policial" },
     { builtIn: true, description: "Ações profissionais separadas para FAC e Polícia.", id: "fivem-actions", permissions: "Admin FiveM", title: "Sistema de Ações" },
     { builtIn: true, description: "Relatórios de patrulhamento exclusivos para oficiais.", id: "police-patrol-reports", permissions: "Admin Polícia", title: "Relatórios Policiais" }
   ];
@@ -8232,6 +8233,21 @@ function visualPanelIdForView(view: ViewId) {
     "server-cloner": "server-cloner"
   };
   return aliases[view] ?? view;
+}
+
+function policePanelImageSlotsForView(view: ViewId) {
+  if (view !== "fivem-hierarchy" && view !== "police-patrol-reports") {
+    return null;
+  }
+
+  const basePanelId = visualPanelIdForView(view);
+  const label = view === "fivem-hierarchy" ? "Hierarquia" : "Relatorios";
+
+  return [
+    { id: basePanelId, label: `${label} - Banner 1` },
+    { id: `${basePanelId}-banner-2`, label: `${label} - Banner 2` },
+    { id: `${basePanelId}-banner-3`, label: `${label} - Banner 3` }
+  ];
 }
 
 function isViewAllowed(view: ViewId, enabledModules: string[]) {

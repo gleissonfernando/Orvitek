@@ -159,7 +159,7 @@ function normalizePanelInput(input: Partial<FivemHierarchyPanelDto>, guildId: st
     logChannelId: normalizeSnowflake(input.logChannelId),
     name: normalizeText(input.name, 100) ?? "Hierarquia FAQ",
     panelChannelId: normalizeSnowflake(input.panelChannelId),
-    title: normalizeText(input.title, 120) ?? "Hierarquia FAQ FiveM"
+    title: normalizeText(input.title, 120) ?? "Hierarquia Policial"
   };
 }
 

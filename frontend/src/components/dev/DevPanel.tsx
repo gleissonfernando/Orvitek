@@ -157,7 +157,7 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "fivem-ammo", label: "FiveM - Sistema de Municoes" },
   { id: "fivem-finance", label: "FiveM - Sistema Financeiro" },
   { id: "fivem-goals", label: "FiveM - Sistema de Metas" },
-  { id: "fivem-hierarchy", label: "FiveM - Hierarquia FAQ" },
+  { id: "fivem-hierarchy", label: "Policia - Hierarquia" },
   { id: "fivem-actions", label: "FiveM - Sistema de Ações" },
   { id: "police-patrol-reports", label: "Polícia - Relatórios de Patrulhamento" },
   { id: "fivem-fac", label: "FiveM - FAC Ausencia" },
@@ -494,9 +494,9 @@ const botMenuItems: BotMenuItem[] = [
   {
     id: "police-patrol-reports",
     label: "Policia",
-    description: "Sistemas policiais e relatorios de patrulhamento",
+    description: "Hierarquia policial e relatorios de patrulhamento",
     icon: ShieldCheck,
-    moduleIds: ["police-patrol-reports"]
+    moduleIds: ["fivem-hierarchy", "police-patrol-reports"]
   },
   {
     id: "integrations",
@@ -4279,6 +4279,7 @@ function modulesForMenu(item: BotMenuItem, modules: DevModuleDefinition[], inclu
   ]);
 
   if (item.id === "fivem") {
+    moduleIds.delete("fivem-hierarchy");
     moduleIds.delete("police-patrol-reports");
   }
 
@@ -4292,7 +4293,7 @@ function visibleBotMenuItems(items: BotMenuItem[], modules: DevModuleDefinition[
     }
 
     const children = item.children
-      ? visibleBotMenuItems(item.children, modules, enabledModules).filter((child) => item.id !== "fivem" || child.id !== "police-patrol-reports")
+      ? visibleBotMenuItems(item.children, modules, enabledModules).filter((child) => item.id !== "fivem" || !["fivem-hierarchy", "police-patrol-reports"].includes(child.id))
       : undefined;
     const ownEnabled = modulesForMenu(item, modules).some((module) => enabledModules.includes(module.id));
 
@@ -4339,7 +4340,7 @@ function moduleManagerGroups(modules: DevModuleDefinition[]) {
       }
 
       for (const child of item.children) {
-        if (item.id === "fivem" && child.id === "police-patrol-reports") {
+        if (item.id === "fivem" && ["fivem-hierarchy", "police-patrol-reports"].includes(child.id)) {
           continue;
         }
 

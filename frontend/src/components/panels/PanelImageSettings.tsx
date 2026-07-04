@@ -18,6 +18,7 @@ type PanelImageSettingsProps = {
   guildId?: string | null;
   panelId?: string;
   panelLabel?: string;
+  panelSlots?: PanelDefinition[];
 };
 
 type PanelDefinition = {
@@ -66,26 +67,33 @@ const layoutOptions: Array<{ label: string; value: PanelImageLayoutMode }> = [
 
 const advancedPositions = new Set<PanelImagePosition>(["top", "below_title", "middle", "bottom", "before_buttons", "below_text", "above_buttons"]);
 
-export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLabel }: PanelImageSettingsProps) {
+export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLabel, panelSlots }: PanelImageSettingsProps) {
+  const multiSlotMode = Boolean(panelSlots?.length);
+  const fixedPanels = panelSlots?.length ? panelSlots.slice(0, 3) : panelId ? [{ id: panelId, label: panelLabel ?? panelLabelForId(panelId) }] : null;
+  const panelChoices = fixedPanels ?? PANELS;
+  const requestedPanelId = fixedPanels?.[0]?.id ?? panelId ?? PANELS[0]?.id ?? "welcome";
+  const panelSlotsKey = fixedPanels?.map((panel) => panel.id).join("|") ?? "";
   const [settingsByPanel, setSettingsByPanel] = useState<Record<string, PanelImageSettingsDto>>({});
-  const [selectedPanelId, setSelectedPanelId] = useState(panelId ?? PANELS[0]?.id ?? "welcome");
-  const [draft, setDraft] = useState<PanelImageSettingsDto>(() => defaultSettings("", "", selectedPanelId));
+  const [selectedPanelId, setSelectedPanelId] = useState(requestedPanelId);
+  const [draft, setDraft] = useState<PanelImageSettingsDto>(() => defaultSettings("", "", requestedPanelId));
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const fixedPanel = panelId ? { id: panelId, label: panelLabel ?? panelLabelForId(panelId) } : null;
-  const selectedPanel = fixedPanel ?? PANELS.find((panel) => panel.id === selectedPanelId) ?? PANELS[0]!;
+  const fixedPanel = fixedPanels?.length === 1 ? fixedPanels[0] : null;
+  const selectedPanel = panelChoices.find((panel) => panel.id === selectedPanelId) ?? panelChoices[0]!;
   const disabled = !canManage || !guildId || !botId || loading || saving || uploading;
   const effectiveLayoutMode = advancedPositions.has(draft.imagePosition) ? "components_v2" : draft.layoutMode;
   const previewStyle = previewImageStyle(draft.imageSize, draft.customWidth, draft.customHeight);
 
   useEffect(() => {
-    if (panelId && panelId !== selectedPanelId) {
+    if (fixedPanels?.length && !fixedPanels.some((panel) => panel.id === selectedPanelId)) {
+      setSelectedPanelId(fixedPanels[0]!.id);
+    } else if (panelId && panelId !== selectedPanelId && !fixedPanels?.length) {
       setSelectedPanelId(panelId);
     }
-  }, [panelId, selectedPanelId]);
+  }, [panelId, panelSlotsKey, selectedPanelId]);
 
   useEffect(() => {
     if (!guildId || !botId) {
@@ -98,8 +106,10 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
 
     setLoading(true);
     setError(null);
-    const request = panelId
-      ? getPanelImageSettings(guildId, panelId, botId).then((item) => [item])
+    const request = fixedPanels
+      ? Promise.all(fixedPanels.map((panel) => getPanelImageSettings(guildId, panel.id, botId)))
+      : panelId
+        ? getPanelImageSettings(guildId, panelId, botId).then((item) => [item])
       : listPanelImageSettings(guildId, botId);
 
     request.then((items) => {
@@ -120,14 +130,15 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
     return () => {
       active = false;
     };
-  }, [botId, guildId]);
+  }, [botId, guildId, panelId, panelSlotsKey]);
 
   function updateImageUrl(value: string) {
     setDraft((current) => ({
       ...current,
       imageEnabled: value.trim() ? true : current.imageEnabled,
       imagePosition: value.trim() && current.imagePosition === "none" ? "banner" : current.imagePosition,
-      imageUrl: value
+      imageUrl: value,
+      useGlobalDefault: value.trim() && selectedPanelId !== "global-default" ? false : current.useGlobalDefault
     }));
   }
 
@@ -251,8 +262,8 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
               <Image className="h-5 w-5 text-zinc-300" />
             </div>
             <div>
-              <CardTitle>{fixedPanel ? `Imagem do painel: ${selectedPanel.label}` : "Imagens dos painéis"}</CardTitle>
-              <CardDescription>{fixedPanel ? "Configure a imagem deste painel." : `${savedCount} painel(is) com imagem configurada.`}</CardDescription>
+              <CardTitle>{multiSlotMode ? `Banners do painel: ${panelLabel ?? selectedPanel.label}` : fixedPanel ? `Imagem do painel: ${selectedPanel.label}` : "Imagens dos painéis"}</CardTitle>
+              <CardDescription>{multiSlotMode ? `Configure ate ${panelChoices.length} banner(s) deste painel.` : fixedPanel ? "Configure a imagem deste painel." : `${savedCount} painel(is) com imagem configurada.`}</CardDescription>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -269,7 +280,7 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
         <div className={fixedPanel ? "grid gap-4" : "grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]"}>
           {!fixedPanel ? (
             <aside className="max-h-[420px] space-y-2 overflow-y-auto rounded-lg border border-zinc-900 bg-zinc-950/70 p-2">
-              {PANELS.map((panel) => {
+              {panelChoices.map((panel) => {
                 const selected = panel.id === selectedPanelId;
                 const configured = settingsByPanel[panel.id]?.imageEnabled;
 
@@ -308,7 +319,7 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
                   onChange={(event) => setSelectedPanelId(event.target.value)}
                   value={selectedPanelId}
                 >
-                  {PANELS.map((panel) => (
+                  {panelChoices.map((panel) => (
                     <option key={panel.id} value={panel.id}>{panel.label}</option>
                   ))}
                 </select>

@@ -176,14 +176,19 @@ export async function savePanelImageSettings(
 
 function emitPanelRefresh(guildId: string, botId: string, panelId: string) {
   const events: Record<string, string> = {
+    "fivem-hierarchy": "fivem:hierarchy:panel_update",
     "fivem-orders": "fivem:orders:panel_publish",
     "fivem-finance": "fivem:finance:panel_publish",
     "fivem-general": "fivem:fac:panel_publish",
     "manual-registration": "manual-registration:panel_publish",
     "mission-tools": "mission-tools:panel_publish"
   };
-  const event = events[panelId];
+  const event = events[refreshPanelId(panelId)];
   if (event) emitRealtimeToRoom(devBotRealtimeRoom(botId), event, { botId, guildId });
+}
+
+function refreshPanelId(panelId: string) {
+  return panelId.replace(/-banner-[23]$/i, "");
 }
 
 export async function savePanelImageUpload(input: {
