@@ -151,7 +151,7 @@ function orvitechProductRouteFromPath(path: string) {
   };
 }
 
-function devViewFromPath(path: string): "bots" | "connected" | "bot-menu" | "cloning" | "sales" | "fivem" | "police" | "logs" | "access" | "maintenance" {
+function devViewFromPath(path: string): "bots" | "connected" | "bot-menu" | "cloning" | "sales" | "discloud" | "fivem" | "police" | "logs" | "access" | "maintenance" {
   if (path.startsWith("/dev/bots-conectados")) {
     return "connected";
   }
@@ -166,6 +166,10 @@ function devViewFromPath(path: string): "bots" | "connected" | "bot-menu" | "clo
 
   if (path.startsWith("/dev/vendas-orvitech")) {
     return "sales";
+  }
+
+  if (path.startsWith("/dev/discloud")) {
+    return "discloud";
   }
 
   if (path.startsWith("/dev/fivem")) {

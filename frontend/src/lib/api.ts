@@ -22,6 +22,9 @@ import type {
   DevAccessEntry,
   DevAccessRole,
   DevBot,
+  DiscloudConsoleResult,
+  DiscloudLogsResponse,
+  DiscloudMonitoringResponse,
   DevModuleDefinition,
   FivemFacAbsence,
   FivemFacResponse,
@@ -1738,6 +1741,39 @@ export async function getDevModules() {
 export async function getDevBots() {
   const { data } = await api.get<{ bots: DevBot[] }>("/dev/bots");
   return data.bots;
+}
+
+export async function getDiscloudMonitoring(refresh = false) {
+  const { data } = await api.get<DiscloudMonitoringResponse>("/dev/discloud/monitoring", {
+    params: refresh ? { refresh: "1" } : undefined,
+    timeout: 20000
+  });
+  return data;
+}
+
+export async function getDiscloudBotLogs(botId: string) {
+  const { data } = await api.get<{ logs: DiscloudLogsResponse }>(`/dev/discloud/bots/${encodeURIComponent(botId)}/logs`, {
+    timeout: 20000
+  });
+  return data.logs;
+}
+
+export async function runDiscloudBotAction(botId: string, action: "start" | "stop" | "restart" | "redeploy") {
+  const { data } = await api.post<DiscloudMonitoringResponse>(`/dev/discloud/bots/${encodeURIComponent(botId)}/actions`, {
+    action
+  }, {
+    timeout: 30000
+  });
+  return data;
+}
+
+export async function runDiscloudConsoleCommand(botId: string, command: string) {
+  const { data } = await api.post<{ result: DiscloudConsoleResult }>(`/dev/discloud/bots/${encodeURIComponent(botId)}/console`, {
+    command
+  }, {
+    timeout: 30000
+  });
+  return data.result;
 }
 
 export async function getDatabaseMaintenanceModules() {

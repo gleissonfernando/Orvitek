@@ -22,7 +22,15 @@ import {
   Wrench,
   UserCog,
   Bell,
-  CreditCard
+  CreditCard,
+  Cpu,
+  Download,
+  HardDrive,
+  Play,
+  RefreshCw,
+  Square,
+  Terminal,
+  Wifi
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DevPanel, type DevDashboardSection } from "../components/dev/DevPanel";
@@ -38,18 +46,22 @@ import {
   getDashboardMe,
   getDevAccessEntries,
   getDevBots,
+  getDiscloudBotLogs,
+  getDiscloudMonitoring,
   getDevFivemModules,
   getMaintenanceState,
   getLogs,
   sendMaintenanceAlert,
   saveDevAccessEntry,
   setMaintenanceMode,
+  runDiscloudBotAction,
+  runDiscloudConsoleCommand,
   updateDevBotModules,
   updateDevFivemModule
 } from "../lib/api";
 import { createDashboardSocket } from "../lib/socket";
 import { dashboardUrl } from "../lib/urls";
-import type { AuthResponse, DashboardBot, DashboardMeResponse, DevAccessEntry, DevAccessRole, DevBot, FivemModuleDefinition, LogEntry, MaintenanceState } from "../types";
+import type { AuthResponse, DashboardBot, DashboardMeResponse, DevAccessEntry, DevAccessRole, DevBot, DiscloudBotSnapshot, DiscloudHistoryEvent, DiscloudLogsResponse, DiscloudMonitoringResponse, FivemModuleDefinition, LogEntry, MaintenanceState } from "../types";
 
 type DevDashboardProps = {
   auth: AuthResponse;
@@ -57,7 +69,7 @@ type DevDashboardProps = {
   onLogout: () => void;
 };
 
-type DevView = "bots" | "connected" | "bot-menu" | "cloning" | "sales" | "fivem" | "police" | "logs" | "access" | "maintenance";
+type DevView = "bots" | "connected" | "bot-menu" | "cloning" | "sales" | "discloud" | "fivem" | "police" | "logs" | "access" | "maintenance";
 
 type FiveMModuleView = FivemModuleDefinition & {
   icon: LucideIcon;
@@ -204,6 +216,7 @@ export function DevDashboard({ auth, initialView = "bots", onLogout }: DevDashbo
             { id: "bot-menu" as const, label: "Menu do Bot" },
             { id: "cloning" as const, label: "Clonagem" },
             { id: "sales" as const, label: "Vendas" },
+            { id: "discloud" as const, label: "DisCloud" },
             { id: "fivem" as const, label: "FiveM" },
             { id: "police" as const, label: "Policia" },
             { id: "logs" as const, label: "Logs" },
@@ -259,6 +272,7 @@ export function DevDashboard({ auth, initialView = "bots", onLogout }: DevDashbo
           />
         ) : null}
 
+        {activeView === "discloud" ? <DiscloudMonitoringPanel /> : null}
         {activeView === "logs" ? <TechnicalLogsPanel botId={selectedBotId} guildId={selectedGuildId} /> : null}
         {activeView === "access" ? <DevAccessPanel /> : null}
         {activeView === "maintenance" ? <MaintenancePanel /> : null}
@@ -272,6 +286,7 @@ function devPathForView(view: DevView) {
   if (view === "bot-menu") return "/dev/menu-do-bot";
   if (view === "cloning") return "/dev/clonagem";
   if (view === "sales") return "/dev/vendas-orvitech";
+  if (view === "discloud") return "/dev/discloud";
   if (view === "fivem") return "/dev/fivem";
   if (view === "police") return "/dev/policia";
   if (view === "logs") return "/dev/logs";
@@ -305,6 +320,7 @@ function DevSidebar({
     { icon: Settings, id: "bot-menu", label: "Menu do Bot" },
     { icon: Copy, id: "cloning", label: "Clonagem" },
     { icon: CreditCard, id: "sales", label: "Vendas OrviTech" },
+    { icon: Activity, id: "discloud", label: "Monitoramento DisCloud" },
     { icon: Building2, id: "fivem", label: "FiveM" },
     { icon: ShieldCheck, id: "police", label: "Policia" },
     { icon: ScrollText, id: "logs", label: "Logs" },
@@ -394,6 +410,332 @@ function DevUserCard({ canViewDev, user }: { canViewDev: boolean; user: AuthResp
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function DiscloudMonitoringPanel() {
+  const [data, setData] = useState<DiscloudMonitoringResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
+  const [logs, setLogs] = useState<DiscloudLogsResponse | null>(null);
+  const [logsQuery, setLogsQuery] = useState("");
+  const [consoleCommand, setConsoleCommand] = useState("");
+  const [consoleOutput, setConsoleOutput] = useState("");
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const selectedBot = data?.bots.find((bot) => bot.botId === selectedBotId) ?? data?.bots[0] ?? null;
+  const totals = {
+    apps: data?.bots.length ?? 0,
+    alerts: data?.bots.reduce((total, bot) => total + bot.alerts.length, 0) ?? 0,
+    offline: data?.bots.filter((bot) => bot.status === "offline").length ?? 0,
+    online: data?.bots.filter((bot) => bot.status === "online").length ?? 0
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    let timer: number | undefined;
+
+    async function load(refresh = false) {
+      try {
+        const nextData = await getDiscloudMonitoring(refresh);
+        if (!mounted) return;
+        setData(nextData);
+        setSelectedBotId((current) => current ?? nextData.bots[0]?.botId ?? null);
+        setMessage(nextData.configured ? null : "DISCLOUD_TOKEN nao configurado no backend.");
+      } catch (error) {
+        if (mounted) setMessage(readRequestMessage(error) ?? "Nao foi possivel consultar a DisCloud.");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    void load(true);
+    timer = window.setInterval(() => void load(), 5000);
+
+    return () => {
+      mounted = false;
+      if (timer) window.clearInterval(timer);
+    };
+  }, []);
+
+  async function loadLogs(botId = selectedBot?.botId) {
+    if (!botId) return;
+    setBusyAction(`logs:${botId}`);
+    setMessage(null);
+
+    try {
+      setLogs(await getDiscloudBotLogs(botId));
+      setSelectedBotId(botId);
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Nao foi possivel carregar logs da DisCloud.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleAction(bot: DiscloudBotSnapshot, action: "start" | "stop" | "restart" | "redeploy") {
+    const labels = {
+      redeploy: "fazer redeploy",
+      restart: "reiniciar",
+      start: "iniciar",
+      stop: "parar"
+    };
+
+    if (!window.confirm(`Confirmar ${labels[action]} em ${bot.appName}?`)) {
+      return;
+    }
+
+    setBusyAction(`${action}:${bot.botId}`);
+    setMessage(null);
+
+    try {
+      const nextData = await runDiscloudBotAction(bot.botId, action);
+      setData(nextData);
+      setMessage(`Acao ${labels[action]} enviada.`);
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "A acao nao foi concluida.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleConsoleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedBot || !consoleCommand.trim()) return;
+
+    setBusyAction(`console:${selectedBot.botId}`);
+    setMessage(null);
+
+    try {
+      const result = await runDiscloudConsoleCommand(selectedBot.botId, consoleCommand.trim());
+      setConsoleOutput([result.stdout, result.stderr].filter(Boolean).join("\n") || "Comando executado sem saida.");
+      setConsoleCommand("");
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Nao foi possivel executar o comando.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  const filteredLogs = (logs?.full || logs?.small || "")
+    .split(/\r?\n/)
+    .filter((line) => !logsQuery.trim() || line.toLowerCase().includes(logsQuery.trim().toLowerCase()))
+    .slice(-600)
+    .join("\n");
+
+  return (
+    <div className="space-y-6">
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-semibold text-white">Monitoramento da DisCloud</h2>
+          <p className="mt-1 text-sm text-zinc-400">Status, recursos, logs e controles das aplicacoes hospedadas.</p>
+        </div>
+        <Button disabled={loading} onClick={() => void getDiscloudMonitoring(true).then(setData)} variant="outline">
+          <RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+          Atualizar
+        </Button>
+      </section>
+
+      {message ? <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm font-semibold text-zinc-100">{message}</div> : null}
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <DiscloudStat icon={Activity} label="Apps" value={String(totals.apps)} />
+        <DiscloudStat icon={Play} label="Online" value={String(totals.online)} />
+        <DiscloudStat icon={Square} label="Offline" value={String(totals.offline)} />
+        <DiscloudStat icon={Bell} label="Alertas" value={String(totals.alerts)} />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        {loading ? (
+          Array.from({ length: 4 }).map((_, index) => <div className="h-72 animate-pulse rounded-lg border border-zinc-800 bg-zinc-950/70" key={index} />)
+        ) : data?.bots.length ? data.bots.map((bot) => (
+          <DiscloudBotCard
+            bot={bot}
+            busyAction={busyAction}
+            key={bot.botId}
+            onAction={handleAction}
+            onLogs={loadLogs}
+            onSelect={setSelectedBotId}
+            selected={selectedBot?.botId === bot.botId}
+          />
+        )) : (
+          <Card className="border-dashed border-zinc-800 bg-zinc-950/75 xl:col-span-2">
+            <CardContent className="flex min-h-44 items-center justify-center p-8 text-sm font-semibold text-zinc-400">
+              Nenhuma aplicacao DisCloud vinculada aos bots cadastrados.
+            </CardContent>
+          </Card>
+        )}
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+        <Card className="border-zinc-800/80 bg-zinc-950/80">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><ScrollText className="h-5 w-5" />Logs</CardTitle>
+            <CardDescription>{selectedBot ? `${selectedBot.appName} (${selectedBot.appId})` : "Selecione uma aplicacao"}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+              <input className="h-10 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-white outline-none" onChange={(event) => setLogsQuery(event.target.value)} placeholder="Buscar nos logs" value={logsQuery} />
+              <Button disabled={!selectedBot || busyAction?.startsWith("logs:")} onClick={() => void loadLogs()} variant="outline"><RefreshCw className="h-4 w-4" />Logs</Button>
+              <Button disabled={!filteredLogs} onClick={() => downloadText("discloud-logs.txt", filteredLogs)} variant="outline"><Download className="h-4 w-4" />Baixar</Button>
+            </div>
+            <pre className="max-h-[420px] min-h-[260px] overflow-auto rounded-lg border border-zinc-900 bg-black p-4 font-mono text-xs leading-5 text-emerald-100">{filteredLogs || "Sem logs carregados."}</pre>
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={!filteredLogs} onClick={() => void navigator.clipboard?.writeText(filteredLogs)} size="sm" variant="outline"><Copy className="h-4 w-4" />Copiar</Button>
+              <Button disabled={!logs} onClick={() => setLogs(null)} size="sm" variant="outline">Limpar tela</Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-zinc-800/80 bg-zinc-950/80">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Terminal className="h-5 w-5" />Console</CardTitle>
+            <CardDescription>{selectedBot ? selectedBot.appName : "Selecione uma aplicacao"}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <form className="flex gap-2" onSubmit={(event) => void handleConsoleSubmit(event)}>
+              <input className="h-10 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-white outline-none" onChange={(event) => setConsoleCommand(event.target.value)} placeholder="Comando" value={consoleCommand} />
+              <Button disabled={!selectedBot || busyAction?.startsWith("console:")} type="submit">Enviar</Button>
+            </form>
+            <pre className="max-h-[260px] min-h-[180px] overflow-auto rounded-lg border border-zinc-900 bg-black p-4 font-mono text-xs leading-5 text-zinc-100">{consoleOutput || "Sem saida."}</pre>
+          </CardContent>
+        </Card>
+      </section>
+
+      <Card className="border-zinc-800/80 bg-zinc-950/80">
+        <CardHeader>
+          <CardTitle>Histórico</CardTitle>
+          <CardDescription>Eventos recentes persistidos no banco.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {(data?.history ?? []).map((event) => <DiscloudHistoryRow event={event} key={event.id} />)}
+          {data?.history.length === 0 ? <p className="text-sm text-zinc-400">Sem eventos registrados.</p> : null}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function DiscloudBotCard({
+  bot,
+  busyAction,
+  onAction,
+  onLogs,
+  onSelect,
+  selected
+}: {
+  bot: DiscloudBotSnapshot;
+  busyAction: string | null;
+  onAction: (bot: DiscloudBotSnapshot, action: "start" | "stop" | "restart" | "redeploy") => void;
+  onLogs: (botId: string) => void;
+  onSelect: (botId: string) => void;
+  selected: boolean;
+}) {
+  return (
+    <Card className={`border-zinc-800/80 bg-zinc-950/80 transition duration-300 ${selected ? "ring-1 ring-purple-400/40" : ""}`}>
+      <CardContent className="space-y-4 p-5">
+        <div className="flex items-start gap-3">
+          <Avatar className="h-12 w-12 rounded-xl border border-zinc-700" fallback={bot.botName} src={bot.botAvatarUrl} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="truncate text-base font-bold text-white">{bot.botName}</h3>
+              <DiscloudStatusBadge status={bot.status} />
+            </div>
+            <p className="truncate text-xs font-semibold text-zinc-300">{bot.appName}</p>
+            <p className="truncate font-mono text-[11px] text-zinc-500">App {bot.appId}</p>
+          </div>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          <DiscloudMetric icon={Cpu} label="CPU" value={percentLabel(bot.cpuUsagePercent)} />
+          <DiscloudMetric icon={Activity} label="RAM" value={`${mbLabel(bot.memoryUsedMb)} / ${mbLabel(bot.memoryTotalMb)}`} percent={bot.memoryUsagePercent} />
+          <DiscloudMetric icon={HardDrive} label="Disco" value={`${mbLabel(bot.diskUsedMb)} / ${mbLabel(bot.diskTotalMb)}`} percent={bot.diskUsagePercent} />
+          <DiscloudMetric icon={Wifi} label="Rede" value={`${bot.networkDown ?? "0"} / ${bot.networkUp ?? "0"}`} />
+        </div>
+
+        <div className="grid gap-2 text-xs text-zinc-300 sm:grid-cols-2">
+          <span>Uptime: {bot.uptime ?? "-"}</span>
+          <span>Node: {bot.nodeVersion ?? "-"}</span>
+          <span>API ping: {bot.apiPingMs ?? "-"}ms</span>
+          <span>Deploy: {bot.lastDeployAt ? formatDate(bot.lastDeployAt) : "-"}</span>
+        </div>
+
+        {bot.alerts.length ? (
+          <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-3 text-xs font-semibold text-red-100">
+            {bot.alerts.join(" ")}
+          </div>
+        ) : null}
+
+        <div className="flex flex-wrap gap-2">
+          <Button disabled={Boolean(busyAction)} onClick={() => onAction(bot, "start")} size="sm"><Play className="h-4 w-4" />Iniciar</Button>
+          <Button disabled={Boolean(busyAction)} onClick={() => onAction(bot, "stop")} size="sm" variant="outline"><Square className="h-4 w-4" />Parar</Button>
+          <Button disabled={Boolean(busyAction)} onClick={() => onAction(bot, "restart")} size="sm" variant="outline"><RefreshCw className="h-4 w-4" />Reiniciar</Button>
+          <Button disabled={Boolean(busyAction)} onClick={() => onAction(bot, "redeploy")} size="sm" variant="outline">Redeploy</Button>
+          <Button disabled={Boolean(busyAction)} onClick={() => { onSelect(bot.botId); onLogs(bot.botId); }} size="sm" variant="outline"><ScrollText className="h-4 w-4" />Logs</Button>
+          <Button onClick={() => onSelect(bot.botId)} size="sm" variant="outline"><Terminal className="h-4 w-4" />Console</Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DiscloudMetric({ icon: Icon, label, percent, value }: { icon: LucideIcon; label: string; percent?: number | null; value: string }) {
+  return (
+    <div className="rounded-lg border border-zinc-900 bg-black/35 p-3">
+      <div className="flex items-center gap-2">
+        <Icon className="h-4 w-4 text-purple-200" />
+        <span className="text-xs font-bold uppercase text-zinc-400">{label}</span>
+      </div>
+      <p className="mt-2 truncate text-sm font-bold text-white">{value}</p>
+      {percent !== undefined ? (
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-800">
+          <div className="h-full rounded-full bg-purple-400" style={{ width: `${Math.max(0, Math.min(100, percent ?? 0))}%` }} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DiscloudStat({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+  return (
+    <Card className="border-zinc-800/80 bg-zinc-950/75">
+      <CardContent className="p-4">
+        <Icon className="h-5 w-5 text-purple-200" />
+        <p className="mt-3 text-xs font-bold uppercase text-zinc-400">{label}</p>
+        <p className="mt-1 text-2xl font-bold text-white">{value}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DiscloudStatusBadge({ status }: { status: DiscloudBotSnapshot["status"] }) {
+  const config = {
+    deploy: ["Deploy", "bg-blue-400"],
+    maintenance: ["Manutenção", "bg-violet-400"],
+    offline: ["Offline", "bg-red-400"],
+    online: ["Online", "bg-emerald-400"],
+    restarting: ["Reiniciando", "bg-yellow-400"],
+    suspended: ["Suspenso", "bg-zinc-500"],
+    unknown: ["Desconhecido", "bg-zinc-500"]
+  }[status];
+
+  return (
+    <Badge variant={status === "online" ? "success" : status === "offline" ? "danger" : "muted"}>
+      <span className={`h-2 w-2 rounded-full ${config[1]}`} />
+      {config[0]}
+    </Badge>
+  );
+}
+
+function DiscloudHistoryRow({ event }: { event: DiscloudHistoryEvent }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-lg border border-zinc-900 bg-black/35 p-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-white">{event.message}</p>
+        <p className="font-mono text-xs text-zinc-500">{event.event} · {event.appId}</p>
+      </div>
+      <span className="shrink-0 text-xs text-zinc-400">{formatDate(event.createdAt)}</span>
+    </div>
   );
 }
 
@@ -1178,6 +1520,26 @@ function formatDate(value: string) {
     dateStyle: "short",
     timeStyle: "short"
   }).format(new Date(value));
+}
+
+function percentLabel(value: number | null) {
+  return value === null ? "-" : `${Math.round(value)}%`;
+}
+
+function mbLabel(value: number | null) {
+  return value === null ? "-" : `${Math.round(value)} MB`;
+}
+
+function downloadText(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 function readRequestMessage(error: unknown) {

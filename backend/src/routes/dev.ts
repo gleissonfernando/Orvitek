@@ -51,6 +51,12 @@ import {
   upsertDevPermission
 } from "../services/devPermissionService";
 import {
+  getDiscloudLogsForBot,
+  getDiscloudMonitoring,
+  runDiscloudBotAction,
+  runDiscloudConsoleCommand
+} from "../services/discloudMonitoringService";
+import {
   deleteOrvitechPaymentProvider,
   deleteOrvitechProduct,
   deleteScopedOrvitechSalesPlan,
@@ -225,6 +231,14 @@ const devAccessSchema = z.object({
   userId: z.string().regex(/^\d{5,32}$/)
 });
 
+const discloudActionSchema = z.object({
+  action: z.enum(["start", "stop", "restart", "redeploy"])
+});
+
+const discloudConsoleSchema = z.object({
+  command: z.string().min(1).max(300)
+});
+
 export const devRouter = Router();
 
 devRouter.use(requireDevAccess);
@@ -233,6 +247,44 @@ devRouter.get("/modules", (_req, res) => {
   return res.json({
     modules: DEV_MODULES
   });
+});
+
+devRouter.get("/discloud/monitoring", async (req, res, next) => {
+  try {
+    return res.json(await getDiscloudMonitoring(req.query.refresh === "1"));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.get("/discloud/bots/:botId/logs", async (req, res, next) => {
+  try {
+    return res.json({
+      logs: await getDiscloudLogsForBot(req.params.botId)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.post("/discloud/bots/:botId/actions", async (req, res, next) => {
+  try {
+    const input = discloudActionSchema.parse(req.body ?? {});
+    return res.json(await runDiscloudBotAction(req.params.botId, input.action));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.post("/discloud/bots/:botId/console", async (req, res, next) => {
+  try {
+    const input = discloudConsoleSchema.parse(req.body ?? {});
+    return res.json({
+      result: await runDiscloudConsoleCommand(req.params.botId, input.command)
+    });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 devRouter.get("/access", async (_req, res, next) => {

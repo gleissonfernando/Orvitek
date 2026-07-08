@@ -2800,6 +2800,68 @@ export type DevBot = {
   updatedAt: string;
 };
 
+export type DiscloudBotStatus = "online" | "offline" | "restarting" | "deploy" | "suspended" | "maintenance" | "unknown";
+
+export type DiscloudBotSnapshot = {
+  botId: string;
+  botName: string;
+  botAvatarUrl: string | null;
+  clientId: string;
+  appId: string;
+  appName: string;
+  status: DiscloudBotStatus;
+  region: string | null;
+  plan: string | null;
+  uptime: string | null;
+  onlineSince: string | null;
+  lastStartedAt: string | null;
+  nodeVersion: string | null;
+  memoryUsedMb: number | null;
+  memoryTotalMb: number | null;
+  memoryUsagePercent: number | null;
+  cpuUsagePercent: number | null;
+  diskUsedMb: number | null;
+  diskTotalMb: number | null;
+  diskUsagePercent: number | null;
+  networkDown: string | null;
+  networkUp: string | null;
+  requestCount: number | null;
+  apiPingMs: number | null;
+  botPingMs: number | null;
+  lastDeployAt: string | null;
+  lastSyncAt: string;
+  alerts: string[];
+  rawStatus: string | null;
+};
+
+export type DiscloudHistoryEvent = {
+  id: string;
+  appId: string;
+  botId: string | null;
+  event: string;
+  message: string;
+  createdAt: string;
+};
+
+export type DiscloudMonitoringResponse = {
+  configured: boolean;
+  bots: DiscloudBotSnapshot[];
+  history: DiscloudHistoryEvent[];
+  updatedAt: string;
+};
+
+export type DiscloudLogsResponse = {
+  full: string;
+  small: string;
+  updatedAt: string;
+};
+
+export type DiscloudConsoleResult = {
+  online: boolean;
+  stderr: string;
+  stdout: string;
+};
+
 export type MaintenanceLog = {
   id: string;
   action: "enabled" | "disabled" | "manual_alert";
