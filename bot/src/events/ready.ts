@@ -132,6 +132,7 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   context.socket.onDmBarSettingsUpdated((payload) => {
     if (!runtimeBotId || !payload.botId || payload.botId === runtimeBotId) {
       clearDmBarConfigCache(payload.guildId);
+      void syncVisibleGuildCommands(client, context, "dm_bar_settings_update");
     }
   });
   startDiscordLogDelivery(context);
@@ -260,7 +261,7 @@ async function syncVisibleGuildCommandsNow(client: Client<true>, context: BotCon
 
   for (const commandGuildId of commandGuildIds) {
     try {
-      await registerGuildCommands(commands, client.user.id, commandGuildId);
+      await registerGuildCommands(commands, client.user.id, commandGuildId, context);
       console.log(`[bot] comandos sincronizados no servidor ${commandGuildId} (${reason}): ${commandNames}`);
     } catch (error) {
       console.warn(`[bot] falha ao sincronizar comandos no servidor ${commandGuildId} (${reason}):`, error instanceof Error ? error.message : error);
