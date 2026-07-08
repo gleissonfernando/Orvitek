@@ -8,6 +8,7 @@ import {
   ChannelType,
   ModalSubmitInteraction,
   ModalBuilder,
+  MessageFlags,
   PermissionFlagsBits,
   RoleSelectMenuBuilder,
   StringSelectMenuBuilder,
@@ -194,19 +195,25 @@ async function handlePublicReportSelect(interaction: StringSelectMenuInteraction
 
   await interaction.reply({
     components: [
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`${PUBLIC_PREFIX}:id:${selectedCategoryId}:identified`)
-          .setLabel("Denuncia Identificada")
-          .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-          .setCustomId(`${PUBLIC_PREFIX}:id:${selectedCategoryId}:anonymous`)
-          .setLabel("Denuncia Anonima")
-          .setStyle(ButtonStyle.Secondary)
-      )
+      {
+        type: 17,
+        accent_color: parseColor(report.panelColor),
+        components: [
+          { type: 10, content: `# ${category.emoji ?? "🛡️"} ${category.name}\nEscolha a modalidade da denúncia. A modalidade anônima protege a identidade no canal operacional, mantendo auditoria real apenas nos logs autorizados.` },
+          new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`${PUBLIC_PREFIX}:id:${selectedCategoryId}:identified`)
+              .setLabel("Denuncia Identificada")
+              .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+              .setCustomId(`${PUBLIC_PREFIX}:id:${selectedCategoryId}:anonymous`)
+              .setLabel("Denuncia Anonima")
+              .setStyle(ButtonStyle.Secondary)
+          )
+        ]
+      }
     ],
-    content: `Voce selecionou **${category.name}**. Escolha como deseja abrir a denuncia:`,
-    ephemeral: true
+    flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
   });
 }
 
@@ -437,11 +444,11 @@ function createAdminPayload(settings: GuildSettings, section: string) {
   return renderComponentsV2Panel({
     accentColor: parseColor(report.panelColor),
     actions: sectionActions(section, report),
-    description: "Configure o Sistema de Denuncias IAB/Corregedoria diretamente pelo Discord. As alteracoes sao salvas na mesma configuracao usada pela dashboard.",
+    description: "IAB Config. Configure cargos, categorias, logs, banners, órgãos e publicação do painel. As alterações são salvas na mesma configuração usada pela dashboard.",
     fields,
     image: null,
     moduleId: "iab-admin",
-    title: `${report.panelEmoji ?? "IAB"} ${report.name || "Sistema de Denuncias"}`
+    title: `${report.panelEmoji ?? "🛡️"} IAB Config`
   });
 }
 
@@ -454,9 +461,9 @@ function sectionActions(section: string, report: ReportSystemSettings) {
         .addOptions([
           option("overview", "Resumo"),
           option("panel", "Painel de denuncias"),
-          option("channels", "Canais"),
-          option("roles", "Cargos"),
-          option("categories", "Tipos de denuncia"),
+          option("channels", "Cargos e categorias"),
+          option("roles", "Cargos responsaveis"),
+          option("categories", "Orgaos"),
           option("anonymity", "Anonimato"),
           option("permissions", "Permissoes"),
           option("status", "Status"),
@@ -482,7 +489,7 @@ function sectionActions(section: string, report: ReportSystemSettings) {
 }
 
 function sectionText(section: string, report: ReportSystemSettings) {
-  if (section === "channels") return "Selecione canais e categoria usando os menus abaixo.";
+  if (section === "channels") return "Configure categoria temporaria, canais de logs, transcript e auditoria.";
   if (section === "roles") return "Defina cargos administrativos e operacionais. Administradores do Discord sempre podem acessar.";
   if (section === "categories") return report.categories.map((item) => `${item.enabled ? "ON" : "OFF"} ${item.emoji ?? ""} **${item.name}**`).join("\n");
   if (section === "anonymity") return `Denuncias anonimas: **${report.allowAnonymousReports ? "sim" : "nao"}**\nRespostas anonimas da equipe: **${report.allowAnonymousStaffReplies ? "sim" : "nao"}**`;

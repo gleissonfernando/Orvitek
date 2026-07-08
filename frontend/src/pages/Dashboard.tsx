@@ -169,9 +169,11 @@ import type {
   GuildChannelOption,
   GuildCategoryOption,
   GuildMemberOption,
+  GuildLiveOptions,
   GuildRoleOption,
   GuildSettings,
   GuildVoiceChannelOption,
+  ReportSystemCategory,
   EmojiCloneRemoteEmoji,
   EmojiLibraryItem,
   KickNotification,
@@ -529,6 +531,13 @@ const moduleCatalog: ModuleDefinition[] = [
     view: "police-dm"
   },
   {
+    id: "police-iab",
+    title: "Denuncias Corregedoria",
+    description: "Painel IAB com denuncias anonimas, orgaos, logs e auditoria policial.",
+    icon: ShieldAlert,
+    view: "police-iab"
+  },
+  {
     id: "fivem-orders",
     title: "Encomendas FiveM",
     description: "Controle separado para pedidos, fila, producao, entrega e historico de encomendas.",
@@ -631,6 +640,7 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   "police-patrol-reports": "police-patrol-reports",
   "police-hidden-channel": "police-hidden-channel",
   "police-dm": "police-dm",
+  "police-iab": "police-iab",
   "fivem-orders": "fivem-orders",
   "fivem-families": "fivem-orders",
   "fivem-washing": "fivem-washing",
@@ -1374,6 +1384,16 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             botId={activeBotId}
             canManage={canManageModule(selectedBot, "police-dm", canManageDashboard)}
             guild={selectedGuild}
+          />
+        ) : null}
+        {activeView === "police-iab" ? (
+          <PoliceIabPanel
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "police-iab", canManageDashboard)}
+            guild={selectedGuild}
+            loading={settingsLoading}
+            onSettingsChange={setSettings}
+            settings={settings}
           />
         ) : null}
         {activeView === "fivem-orders" ? (
@@ -3588,7 +3608,8 @@ function fivemUserModules(enabledModules: string[], fivemModules: FivemModuleDef
     { builtIn: true, description: "Operacoes policiais com painel, participantes e relatorios separados.", id: "police-actions", permissions: "Admin Policia", title: "Acoes Policiais" },
     { builtIn: true, description: "Relatórios de patrulhamento exclusivos para oficiais.", id: "police-patrol-reports", permissions: "Admin Polícia", title: "Relatórios Policiais" },
     { builtIn: true, description: "Canal anonimo policial com logs administrativos.", id: "police-hidden-channel", permissions: "Admin Polícia", title: "Canal Oculto" },
-    { builtIn: true, description: "Envio de mensagens privadas com painel visual e logs.", id: "police-dm", permissions: "Admin Polícia", title: "Barra DM" }
+    { builtIn: true, description: "Envio de mensagens privadas com painel visual e logs.", id: "police-dm", permissions: "Admin Polícia", title: "Barra DM" },
+    { builtIn: true, description: "Denuncias anonimas/identificadas com orgaos, logs e auditoria.", id: "police-iab", permissions: "Admin Polícia", title: "Denuncias Corregedoria" }
   ];
   const catalog = fivemModules.length ? fivemModules : fallbackCatalog;
   const enabled = new Set(enabledModules.map((moduleId) => moduleId === "fivem-fac" ? "fivem-absences" : moduleId));
@@ -3598,7 +3619,7 @@ function fivemUserModules(enabledModules: string[], fivemModules: FivemModuleDef
     .filter((module) => {
       if (mode === "orders") return module.id === "fivem-orders";
       if (mode === "goals") return module.id === "fivem-goals";
-      return module.id !== "fivem-orders" && module.id !== "fivem-goals" && module.id !== "fivem-hierarchy" && module.id !== "fivem-absences" && module.id !== "police-absences" && module.id !== "police-actions" && module.id !== "police-patrol-reports" && module.id !== "police-hidden-channel" && module.id !== "police-dm";
+      return module.id !== "fivem-orders" && module.id !== "fivem-goals" && module.id !== "fivem-hierarchy" && module.id !== "fivem-absences" && module.id !== "police-absences" && module.id !== "police-actions" && module.id !== "police-patrol-reports" && module.id !== "police-hidden-channel" && module.id !== "police-dm" && module.id !== "police-iab";
     })
     .map((module) => ({
       description: module.description,
@@ -3624,7 +3645,8 @@ function fivemIconForModule(moduleId: string) {
     "police-absences": CalendarClock,
     "police-actions": Activity,
     "police-hidden-channel": EyeOff,
-    "police-dm": UserPlus
+    "police-dm": UserPlus,
+    "police-iab": ShieldAlert
   };
 
   return icons[moduleId] ?? Boxes;
@@ -3706,6 +3728,7 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
       "fivem-actions",
       "police-absences",
       "police-actions",
+      "police-iab",
       "police-patrol-reports",
       "police-hidden-channel",
       "police-dm",
@@ -5273,6 +5296,260 @@ function TicketPanelConfigurator({
       </CardContent>
     </Card>
   );
+}
+
+function PoliceIabPanel({
+  botId,
+  canManage,
+  guild,
+  loading,
+  onSettingsChange,
+  settings
+}: {
+  botId?: string | null;
+  canManage: boolean;
+  guild: DashboardGuild | null;
+  loading: boolean;
+  onSettingsChange: (settings: GuildSettings) => void;
+  settings: GuildSettings | null;
+}) {
+  const [draft, setDraft] = useState<GuildSettings["reportSystem"] | null>(settings?.reportSystem ?? null);
+  const [options, setOptions] = useState<GuildLiveOptions>({ categories: [], channels: [], roles: [], voiceChannels: [] });
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const disabled = !guild || !settings || !draft || !canManage || saving;
+
+  useEffect(() => {
+    setDraft(settings?.reportSystem ?? null);
+  }, [settings?.guildId, JSON.stringify(settings?.reportSystem ?? null)]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    if (!guild) {
+      setOptions({ categories: [], channels: [], roles: [], voiceChannels: [] });
+      return;
+    }
+
+    getGuildLiveOptions(guild.id, botId)
+      .then((data) => {
+        if (mounted) setOptions({ ...data, categories: data.categories ?? [], voiceChannels: data.voiceChannels ?? [] });
+      })
+      .catch(() => {
+        if (mounted) setMessage("Nao foi possivel carregar canais e cargos do servidor.");
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [botId, guild]);
+
+  function patch(patchValue: Partial<GuildSettings["reportSystem"]>) {
+    setDraft((current) => current ? { ...current, ...patchValue } : current);
+  }
+
+  function patchCategory(index: number, patchValue: Partial<ReportSystemCategory>) {
+    setDraft((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        categories: current.categories.map((category, categoryIndex) => (
+          categoryIndex === index ? normalizeReportCategory({ ...category, ...patchValue }, index) : category
+        ))
+      };
+    });
+  }
+
+  function addCategory() {
+    setDraft((current) => {
+      if (!current) return current;
+      const index = current.categories.length;
+      return {
+        ...current,
+        categories: [
+          ...current.categories,
+          normalizeReportCategory({
+            channelOrCategoryId: null,
+            color: "#dc2626",
+            description: "Novo orgao de atendimento.",
+            emoji: "🛡️",
+            enabled: true,
+            id: `orgao-${index + 1}`,
+            name: `Orgao ${index + 1}`,
+            order: index + 1
+          }, index)
+        ].slice(0, 25)
+      };
+    });
+  }
+
+  function removeCategory(index: number) {
+    setDraft((current) => {
+      if (!current) return current;
+      const nextCategories = current.categories.filter((_, categoryIndex) => categoryIndex !== index);
+      return { ...current, categories: nextCategories.length ? nextCategories.map(normalizeReportCategory) : current.categories };
+    });
+  }
+
+  async function save(nextEnabled?: boolean) {
+    if (!guild || !settings || !draft || disabled && nextEnabled === undefined) return;
+
+    const previous = settings;
+    const payload = {
+      ...draft,
+      enabled: nextEnabled ?? draft.enabled,
+      categories: draft.categories.map(normalizeReportCategory)
+    };
+
+    setSaving(true);
+    setMessage(null);
+    onSettingsChange({ ...settings, reportSystem: payload });
+
+    try {
+      const saved = await patchGuildSettings(guild.id, { reportSystem: payload }, botId);
+      onSettingsChange(saved);
+      setMessage("Denuncias Corregedoria salvas.");
+    } catch (error) {
+      onSettingsChange(previous);
+      setMessage(readResponseMessage(error) ?? "Nao foi possivel salvar Denuncias Corregedoria.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading || !draft) {
+    return (
+      <Card>
+        <CardContent className="flex min-h-40 items-center justify-center gap-3 p-6 text-sm font-medium text-zinc-300">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Carregando Denuncias Corregedoria...
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const channels = options.channels;
+  const categories = options.categories ?? [];
+  const channelAndCategoryOptions = [
+    ...categories.map((category) => ({ id: category.id, name: category.name })),
+    ...channels.map((channel) => ({ id: channel.id, name: channel.name }))
+  ];
+
+  return (
+    <div className="space-y-4">
+      {message ? (
+        <div className="rounded-lg border border-[#FFEA70]/25 bg-[#FFD500]/10 px-4 py-3 text-sm font-semibold text-white">
+          {message}
+        </div>
+      ) : null}
+
+      <Card className="border-red-500/10 bg-zinc-950/70">
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2"><ShieldAlert className="h-5 w-5 text-red-300" /> Denuncias Corregedoria</CardTitle>
+              <CardDescription>Configura o painel IAB, orgaos, anonimato, logs e cargos autorizados.</CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex h-9 items-center gap-2 rounded-md border border-zinc-800 px-3 text-xs text-zinc-300">
+                <Switch checked={draft.enabled} disabled={!canManage || saving || !guild || !settings} onCheckedChange={(checked) => void save(checked)} />
+                {draft.enabled ? "Ativo" : "Inativo"}
+              </label>
+              <Button disabled={disabled} onClick={() => void save()} size="sm" type="button">
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                Salvar
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid gap-3 md:grid-cols-2">
+            <TicketField disabled={disabled} label="Nome interno" onChange={(value) => patch({ name: value })} value={draft.name} />
+            <TicketField disabled={disabled} label="Titulo publico" onChange={(value) => patch({ panelTitle: value })} value={draft.panelTitle} />
+            <TicketField disabled={disabled} label="Placeholder do menu" onChange={(value) => patch({ panelPlaceholder: value })} value={draft.panelPlaceholder} />
+            <TicketField disabled={disabled} label="Cor do painel" onChange={(value) => patch({ panelColor: value })} type="color" value={draft.panelColor} />
+            <TicketField disabled={disabled} label="Botao de abertura" onChange={(value) => patch({ buttonText: value })} value={draft.buttonText} />
+            <TicketField disabled={disabled} label="Rodape" onChange={(value) => patch({ footerText: value })} value={draft.footerText ?? ""} />
+          </div>
+
+          <TicketArea disabled={disabled} label="Descricao do painel" onChange={(value) => patch({ panelDescription: value })} value={draft.panelDescription} />
+          <TicketArea disabled={disabled} label="Mensagem apos abrir denuncia" onChange={(value) => patch({ openMessage: value })} value={draft.openMessage} />
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <FivemChannelSelect channels={channels} disabled={disabled} label="Canal do painel" onChange={(value) => patch({ panelChannelId: value })} placeholder="Selecionar canal" value={draft.panelChannelId} />
+            <FivemResourceSelect disabled={disabled} label="Categoria temporaria dos tickets" onChange={(value) => patch({ categoryId: value })} options={categories.map((category) => ({ id: category.id, name: category.name }))} placeholder="Selecionar categoria" prefix="📁" value={draft.categoryId} />
+            <FivemChannelSelect channels={channels} disabled={disabled} label="Canal de logs" onChange={(value) => patch({ logChannelId: value })} placeholder="Selecionar canal" value={draft.logChannelId} />
+            <FivemChannelSelect channels={channels} disabled={disabled} label="Canal de transcripts" onChange={(value) => patch({ transcriptChannelId: value })} placeholder="Selecionar canal" value={draft.transcriptChannelId} />
+            <FivemChannelSelect channels={channels} disabled={disabled} label="Canal de auditoria" onChange={(value) => patch({ auditChannelId: value })} placeholder="Selecionar canal" value={draft.auditChannelId} />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <MultiRoleSelect disabled={disabled} label="Cargos administradores" onChange={(values) => patch({ adminRoleIds: values })} roles={options.roles} values={draft.adminRoleIds} />
+            <MultiRoleSelect disabled={disabled} label="Cargos que visualizam tickets" onChange={(values) => patch({ viewRoleIds: values })} roles={options.roles} values={draft.viewRoleIds} />
+            <MultiRoleSelect disabled={disabled} label="Cargos que respondem" onChange={(values) => patch({ replyRoleIds: values })} roles={options.roles} values={draft.replyRoleIds} />
+            <MultiRoleSelect disabled={disabled} label="Cargos mencionados" onChange={(values) => patch({ mentionRoleIds: values })} roles={options.roles} values={draft.mentionRoleIds} />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-200">
+              Permitir denuncia anonima
+              <Switch checked={draft.allowAnonymousReports} disabled={disabled} onCheckedChange={(checked) => patch({ allowAnonymousReports: checked })} />
+            </label>
+            <label className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-200">
+              Resposta anonima da equipe
+              <Switch checked={draft.allowAnonymousStaffReplies} disabled={disabled} onCheckedChange={(checked) => patch({ allowAnonymousStaffReplies: checked })} />
+            </label>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-red-500/10 bg-zinc-950/70">
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Orgaos e setores</CardTitle>
+              <CardDescription>Cada opcao aparece no menu publico e pode apontar para um canal/categoria propria.</CardDescription>
+            </div>
+            <Button disabled={disabled || draft.categories.length >= 25} onClick={addCategory} size="sm" type="button" variant="outline">Adicionar orgao</Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {draft.categories.map((category, index) => (
+            <div className="grid gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-3 xl:grid-cols-[90px_1fr_1fr_1fr_120px_auto] " key={`${category.id}-${index}`}>
+              <TicketField disabled={disabled} label="Emoji" onChange={(value) => patchCategory(index, { emoji: value })} value={category.emoji ?? ""} />
+              <TicketField disabled={disabled} label="Nome" onChange={(value) => patchCategory(index, { id: slugTicketOption(value, index), name: value })} value={category.name} />
+              <TicketField disabled={disabled} label="Descricao" onChange={(value) => patchCategory(index, { description: value })} value={category.description ?? ""} />
+              <FivemResourceSelect disabled={disabled} label="Canal/categoria" onChange={(value) => patchCategory(index, { channelOrCategoryId: value })} options={channelAndCategoryOptions} placeholder="Padrao do sistema" value={category.channelOrCategoryId} />
+              <TicketField disabled={disabled} label="Cor" onChange={(value) => patchCategory(index, { color: value })} type="color" value={category.color} />
+              <div className="flex items-end gap-2">
+                <label className="flex h-10 items-center gap-2 rounded-md border border-zinc-800 px-3 text-xs text-zinc-300">
+                  <input checked={category.enabled} disabled={disabled} onChange={(event) => patchCategory(index, { enabled: event.target.checked })} type="checkbox" />
+                  Ativo
+                </label>
+                <Button disabled={disabled || draft.categories.length <= 1} onClick={() => removeCategory(index)} size="icon" title="Remover orgao" type="button" variant="outline">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function normalizeReportCategory(category: ReportSystemCategory, index: number): ReportSystemCategory {
+  const name = category.name.trim() || `Orgao ${index + 1}`;
+  return {
+    channelOrCategoryId: category.channelOrCategoryId || null,
+    color: category.color || "#dc2626",
+    description: category.description?.trim() || null,
+    emoji: category.emoji?.trim() || null,
+    enabled: category.enabled !== false,
+    id: category.id?.trim() || slugTicketOption(name, index),
+    name,
+    order: Number(category.order) || index + 1
+  };
 }
 
 type TicketPanelDraft = Pick<

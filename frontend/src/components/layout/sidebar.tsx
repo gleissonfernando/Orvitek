@@ -81,6 +81,7 @@ export type ViewId =
   | "fivem-actions"
   | "police-absence"
   | "police-actions"
+  | "police-iab"
   | "police-patrol-reports"
   | "police-hidden-channel"
   | "police-dm"
@@ -160,6 +161,7 @@ const navItems: NavItem[] = [
   { id: "fivem-actions", label: "Ações FAC", icon: Activity, moduleId: "fivem-actions" },
   { id: "police-absence", label: "Ausencia Policial", icon: CalendarClock, moduleId: "police-absences" },
   { id: "police-actions", label: "Acoes Policiais", icon: Activity, moduleId: "police-actions" },
+  { id: "police-iab", label: "Denúncias Corregedoria", icon: ShieldAlert, moduleId: "police-iab" },
   { id: "police-patrol-reports", label: "Relatórios Policiais", icon: ShieldCheck, moduleId: "police-patrol-reports" },
   { id: "police-hidden-channel", label: "Canal Oculto", icon: EyeOff, moduleId: "police-hidden-channel" },
   { id: "police-dm", label: "Barra DM", icon: UserPlus, moduleId: "police-dm" },
@@ -186,12 +188,14 @@ function navSectionForItem(item: NavItem): NavSectionId {
     item.id === "fivem-hierarchy"
     || item.id === "police-absence"
     || item.id === "police-actions"
+    || item.id === "police-iab"
     || item.id === "police-patrol-reports"
     || item.id === "police-hidden-channel"
     || item.id === "police-dm"
     || item.moduleId === "fivem-hierarchy"
     || item.moduleId === "police-absences"
     || item.moduleId === "police-actions"
+    || item.moduleId === "police-iab"
     || item.moduleId === "police-patrol-reports"
     || item.moduleId === "police-hidden-channel"
     || item.moduleId === "police-dm"

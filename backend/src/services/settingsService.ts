@@ -279,12 +279,15 @@ const DEFAULT_TICKET_PANEL_OPTIONS: TicketPanelOptionDto[] = [
 const REPORT_BUTTON_KEYS: ReportSystemButtonKey[] = ["claim", "reply", "status", "requestEvidence", "addMember", "removeMember", "transcript", "close", "reopen", "delete"];
 const REPORT_LOG_KEYS: ReportSystemLogKey[] = ["opened", "closed", "replies", "statusChanged", "messagesDeleted", "anonymous", "admin"];
 const DEFAULT_REPORT_CATEGORIES: ReportSystemCategoryDto[] = [
-  { channelOrCategoryId: null, color: "#dc2626", description: "Denuncias contra oficiais.", emoji: "👮", enabled: true, id: "oficial", name: "Contra Oficial", order: 1 },
-  { channelOrCategoryId: null, color: "#991b1b", description: "Denuncias contra alto comando.", emoji: "⭐", enabled: true, id: "alto-comando", name: "Contra Alto Comando", order: 2 },
-  { channelOrCategoryId: null, color: "#7f1d1d", description: "Denuncias contra corregedoria.", emoji: "🛡️", enabled: true, id: "corregedoria", name: "Contra Corregedoria", order: 3 },
-  { channelOrCategoryId: null, color: "#b91c1c", description: "Denuncias contra conselho.", emoji: "⚖️", enabled: true, id: "conselho", name: "Contra Conselho", order: 4 },
-  { channelOrCategoryId: null, color: "#ef4444", description: "Denuncias contra unidade.", emoji: "🏢", enabled: true, id: "unidade", name: "Contra Unidade", order: 5 },
-  { channelOrCategoryId: null, color: "#f97316", description: "Outros assuntos da corregedoria.", emoji: "📌", enabled: true, id: "outros", name: "Outros Assuntos", order: 6 }
+  { channelOrCategoryId: null, color: "#dc2626", description: "Painel principal de denuncias da IAB.", emoji: "🛡️", enabled: true, id: "denuncias-iab", name: "Denúncias IAB", order: 1 },
+  { channelOrCategoryId: null, color: "#991b1b", description: "Casos envolvendo alto comando.", emoji: "⭐", enabled: true, id: "denuncia-alto-comando", name: "Denúncia de Alto Comando", order: 2 },
+  { channelOrCategoryId: null, color: "#ef4444", description: "Denuncias contra policiais.", emoji: "👮", enabled: true, id: "denuncia-policiais", name: "Denúncia de Policiais", order: 3 },
+  { channelOrCategoryId: null, color: "#7f1d1d", description: "Demandas da corregedoria.", emoji: "⚖️", enabled: true, id: "corregedoria", name: "Corregedoria", order: 4 },
+  { channelOrCategoryId: null, color: "#b91c1c", description: "Assuntos internos e auditoria.", emoji: "📁", enabled: true, id: "assuntos-internos", name: "Assuntos Internos", order: 5 },
+  { channelOrCategoryId: null, color: "#dc2626", description: "Investigacoes internas da IAB.", emoji: "🔎", enabled: true, id: "iab", name: "IAB", order: 6 },
+  { channelOrCategoryId: null, color: "#7f1d1d", description: "Casos contra integrantes da IAB.", emoji: "🏛️", enabled: true, id: "conselho", name: "Conselho", order: 7 },
+  { channelOrCategoryId: null, color: "#111827", description: "Competencia exclusiva do High Command.", emoji: "⭐", enabled: true, id: "high-command", name: "High Command", order: 8 },
+  { channelOrCategoryId: null, color: "#0f172a", description: "Casos contra High Command.", emoji: "🎖️", enabled: true, id: "comissario", name: "Comissário", order: 9 }
 ];
 const DEFAULT_REPORT_STATUSES: ReportSystemStatusDto[] = [
   { color: "#22c55e", id: "aberta", name: "Aberta", order: 1 },
@@ -1063,20 +1066,20 @@ function defaultReportSystemSettings(): ReportSystemSettingsDto {
     closeRoleIds: [],
     createRoleIds: [],
     enabled: true,
-    footerText: "IAB / Corregedoria",
+    footerText: "Denúncias IAB • Sigilo institucional • Auditoria autorizada",
     imageUrl: null,
     infoMessage: "Este sistema garante total confidencialidade aos denunciantes. Caso escolha o modo anonimo, sua identidade permanecera oculta para todos os participantes do atendimento. As denuncias serao analisadas exclusivamente pela equipe autorizada.",
     logChannelId: null,
     logs: Object.fromEntries(REPORT_LOG_KEYS.map((key) => [key, true])) as Record<ReportSystemLogKey, boolean>,
     mentionRoleIds: [],
     name: "IAB",
-    openMessage: "Sua denuncia foi aberta. Envie as informacoes solicitadas e aguarde a equipe autorizada.",
+    openMessage: "Sua denúncia foi aberta. Envie as informações, provas e aguarde a equipe autorizada.",
     panelChannelId: null,
     panelColor: "#dc2626",
-    panelDescription: "Selecione abaixo o tipo de denuncia e informe os detalhes com seguranca.",
+    panelDescription: "Selecione o órgão competente para abrir uma denúncia ou intimação com segurança. Denúncias anônimas preservam a identidade no canal operacional; logs autorizados mantêm auditoria real.",
     panelEmoji: "🛡️",
-    panelPlaceholder: "Selecione o tipo de denuncia",
-    panelTitle: "Sistema de Denuncias",
+    panelPlaceholder: "Selecione o órgão competente",
+    panelTitle: "Denúncias IAB",
     permissionRoleIds: [],
     reopenRoleIds: [],
     replyRoleIds: [],
