@@ -1178,6 +1178,7 @@ function DevFiveMManager({
   async function handleToggle(moduleId: string, checked: boolean) {
     if (!selectedBot) return;
 
+    const previousBot = selectedBot;
     const normalizedModules = normalizeFiveMModules(selectedBot.enabledModules);
     const nextModules = scope === "police"
       ? checked
@@ -1186,12 +1187,24 @@ function DevFiveMManager({
       : checked
         ? [...new Set([...normalizedModules, "fivem", moduleId])]
         : nextFiveMModulesAfterDisable(normalizedModules, moduleId);
+    const optimisticBot = {
+      ...selectedBot,
+      enabledModules: nextModules
+    };
 
     setSavingModuleId(moduleId);
+    setMessage(null);
+    setBotList((current) => current.map((bot) => bot.id === optimisticBot.id ? optimisticBot : bot));
+    onBotUpdated(optimisticBot);
+
     try {
       const updated = await updateDevBotModules(selectedBot.id, nextModules);
       setBotList((current) => current.map((bot) => bot.id === updated.id ? updated : bot));
       onBotUpdated(updated);
+    } catch {
+      setBotList((current) => current.map((bot) => bot.id === previousBot.id ? previousBot : bot));
+      onBotUpdated(previousBot);
+      setMessage("Nao foi possivel salvar a ativacao do modulo.");
     } finally {
       setSavingModuleId(null);
     }
