@@ -14,6 +14,7 @@ export function DmBarPanel({ botId, canManage, guild }: { botId?: string | null;
   const [roles, setRoles] = useState<GuildRoleOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   async function load() {
@@ -47,38 +48,42 @@ export function DmBarPanel({ botId, canManage, guild }: { botId?: string | null;
   if (loading || !data) return <Empty loading text="Carregando Barra DM..." />;
 
   const config = data.config;
-  const patch = (next: Partial<DmBarConfig>) => setData((current) => current ? { ...current, config: { ...current.config, ...next } } : current);
+  const patch = (next: Partial<DmBarConfig>) => {
+    setDirty(true);
+    setData((current) => current ? { ...current, config: { ...current.config, ...next } } : current);
+  };
 
   async function save() {
     setSaving(true); setMessage(null);
-    try { const next = await saveDmBarConfig(guild!.id, botId!, config); setData((current) => current ? { ...current, config: next } : current); setMessage("Configurações salvas com sucesso."); }
+    try { const next = await saveDmBarConfig(guild!.id, botId!, config); setData((current) => current ? { ...current, config: next } : current); setDirty(false); setMessage("Configurações salvas com sucesso."); }
     catch (error) { setMessage(readMessage(error)); }
     finally { setSaving(false); }
   }
   async function reset() {
     if (!confirm("Restaurar padrão da Barra DM?")) return;
     setSaving(true);
-    try { const next = await resetDmBarConfig(guild!.id, botId!); setData((current) => current ? { ...current, config: next } : current); }
+    try { const next = await resetDmBarConfig(guild!.id, botId!); setData((current) => current ? { ...current, config: next } : current); setDirty(false); }
     catch (error) { setMessage(readMessage(error)); }
     finally { setSaving(false); }
   }
   async function upload(kind: "main" | "footer", file: File | null) {
     if (!file) return;
     setSaving(true); setMessage(null);
-    try { const next = await uploadDmBarImage(guild!.id, botId!, kind, file); setData((current) => current ? { ...current, config: next } : current); setMessage("Imagem enviada."); }
+    try { const next = await uploadDmBarImage(guild!.id, botId!, kind, file); setData((current) => current ? { ...current, config: next } : current); setDirty(false); setMessage("Imagem enviada."); }
     catch (error) { setMessage(readMessage(error)); }
     finally { setSaving(false); }
   }
   async function removeImage(kind: "main" | "footer") {
     setSaving(true);
-    try { const next = await removeDmBarImage(guild!.id, botId!, kind); setData((current) => current ? { ...current, config: next } : current); }
+    try { const next = await removeDmBarImage(guild!.id, botId!, kind); setData((current) => current ? { ...current, config: next } : current); setDirty(false); }
     catch (error) { setMessage(readMessage(error)); }
     finally { setSaving(false); }
   }
 
   return <div className="space-y-5">
-    <Card><CardHeader><CardTitle className="flex items-center gap-2"><Send className="h-5 w-5 text-emerald-300" />Barra DM</CardTitle><CardDescription>Envio de mensagens privadas com painel visual, permissões, imagens e logs.</CardDescription></CardHeader></Card>
+    <Card><CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle className="flex items-center gap-2"><Send className="h-5 w-5 text-emerald-300" />Barra DM</CardTitle><CardDescription>Envio de mensagens privadas com painel visual, permissões, imagens e logs.</CardDescription></div><Button disabled={!canManage || saving || !dirty} onClick={() => void save()} size="sm">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}Salvar alterações</Button></div></CardHeader></Card>
     {message ? <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-white">{message}</div> : null}
+    {dirty ? <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">Existem alterações não salvas. Clique em Salvar alterações para aplicar no bot.</div> : null}
     <div className="grid gap-3 sm:grid-cols-5">
       <Metric label="Status" value={config.enabled ? "Ativo" : "Desativado"} />
       <Metric label="Servidor" value={guild.name} />

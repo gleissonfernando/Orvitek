@@ -5,8 +5,6 @@ import {
   MessageFlags,
   ModalBuilder,
   PermissionFlagsBits,
-  ApplicationCommandPermissionType,
-  Routes,
   SlashCommandBuilder,
   TextInputBuilder,
   TextInputStyle,
@@ -35,9 +33,6 @@ export const dmBarCommand: BotCommand = {
   moduleId: MODULE_ID,
   async execute(interaction, context) {
     await openDmBar(interaction, context);
-  },
-  async syncPermissions({ applicationCommandId, applicationId, context, guildId }) {
-    await syncDmBarCommandPermissions(context, applicationId, guildId, applicationCommandId);
   }
 };
 
@@ -186,18 +181,6 @@ function canUse(member: GuildMember, userId: string, config: DmBarConfig) {
   if (config.allowAdmins && member.permissions.has(PermissionFlagsBits.Administrator)) return true;
   if (config.allowedUserIds.includes(userId)) return true;
   return config.allowedRoleIds.some((roleId) => member.roles.cache.has(roleId));
-}
-async function syncDmBarCommandPermissions(context: BotContext, applicationId: string, guildId: string, applicationCommandId: string) {
-  const config = await getConfig(context, guildId).catch(() => null);
-  const permissions = [
-    { id: guildId, type: ApplicationCommandPermissionType.Role, permission: false },
-    ...((config?.enabled ? config.allowedRoleIds : []).slice(0, 80).map((roleId) => ({ id: roleId, type: ApplicationCommandPermissionType.Role, permission: true }))),
-    ...((config?.enabled ? config.allowedUserIds : []).slice(0, 19).map((userId) => ({ id: userId, type: ApplicationCommandPermissionType.User, permission: true })))
-  ];
-
-  await context.client.rest.put(Routes.applicationCommandPermissions(applicationId, guildId, applicationCommandId), {
-    body: { permissions }
-  });
 }
 function consumeCooldown(guildId: string, userId: string, seconds: number) {
   if (seconds <= 0) return 0;

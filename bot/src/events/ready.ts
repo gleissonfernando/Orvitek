@@ -261,7 +261,7 @@ async function syncVisibleGuildCommandsNow(client: Client<true>, context: BotCon
 
   for (const commandGuildId of commandGuildIds) {
     try {
-      await registerGuildCommands(commands, client.user.id, commandGuildId, context);
+      await registerGuildCommands(commands, client.user.id, commandGuildId);
       console.log(`[bot] comandos sincronizados no servidor ${commandGuildId} (${reason}): ${commandNames}`);
     } catch (error) {
       console.warn(`[bot] falha ao sincronizar comandos no servidor ${commandGuildId} (${reason}):`, error instanceof Error ? error.message : error);

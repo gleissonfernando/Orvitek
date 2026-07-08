@@ -117,6 +117,7 @@ import {
   getTickets,
   getXMonitor,
   patchGuildSettings,
+  publishReportSystemPanel,
   publishFivemGoalPanel,
   publishFivemHierarchyPanel,
   publishManualRegistrationPanel,
@@ -5316,8 +5317,9 @@ function PoliceIabPanel({
   const [draft, setDraft] = useState<GuildSettings["reportSystem"] | null>(settings?.reportSystem ?? null);
   const [options, setOptions] = useState<GuildLiveOptions>({ categories: [], channels: [], roles: [], voiceChannels: [] });
   const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const disabled = !guild || !settings || !draft || !canManage || saving;
+  const disabled = !guild || !settings || !draft || !canManage || saving || publishing;
 
   useEffect(() => {
     setDraft(settings?.reportSystem ?? null);
@@ -5417,6 +5419,29 @@ function PoliceIabPanel({
     }
   }
 
+  async function publishPanel() {
+    if (!guild || !settings || !draft || disabled) return;
+
+    setPublishing(true);
+    setMessage(null);
+
+    try {
+      const payload = {
+        ...draft,
+        categories: draft.categories.map(normalizeReportCategory)
+      };
+      const saved = await patchGuildSettings(guild.id, { reportSystem: payload }, botId);
+      onSettingsChange(saved);
+      const published = await publishReportSystemPanel(guild.id, botId);
+      onSettingsChange(published);
+      setMessage("Painel Denuncias Corregedoria publicado no Discord.");
+    } catch (error) {
+      setMessage(readResponseMessage(error) ?? "Nao foi possivel publicar o painel. Confira canal e permissoes do bot.");
+    } finally {
+      setPublishing(false);
+    }
+  }
+
   if (loading || !draft) {
     return (
       <Card>
@@ -5458,6 +5483,10 @@ function PoliceIabPanel({
               <Button disabled={disabled} onClick={() => void save()} size="sm" type="button">
                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
                 Salvar
+              </Button>
+              <Button disabled={disabled || !draft.enabled || !draft.panelChannelId} onClick={() => void publishPanel()} size="sm" type="button" variant="outline">
+                {publishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                Salvar e publicar
               </Button>
             </div>
           </div>

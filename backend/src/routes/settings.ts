@@ -18,6 +18,7 @@ import {
   updateGuildSettings
 } from "../services/settingsService";
 import { publishRulesPanelToDiscord } from "../services/rulesPanelService";
+import { publishReportSystemPanelToDiscord } from "../services/reportSystemPanelService";
 import { getSelfBotProtectionSettings, saveSelfBotProtectionSettings } from "../services/selfBotProtectionService";
 import { saveLeaveImage, saveWelcomeImage, sendLeavePanelToDiscord, sendWelcomePanelToDiscord } from "../services/welcomePanelService";
 import {
@@ -675,6 +676,54 @@ settingsRouter.post("/:guildId/rules-panel", requireAuth, async (req, res, next)
 
     const settings = await getGuildSettings(guildId, botId);
     const messageId = await publishRulesPanelToDiscord(settings, await getDevBotToken(botId));
+    const updatedSettings = await getGuildSettings(guildId, botId);
+
+    emitRealtime("settings:updated", updatedSettings);
+
+    return res.json({
+      messageId,
+      settings: updatedSettings
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      return res.status(400).json({
+        message: error.message
+      });
+    }
+
+    return next(error);
+  }
+});
+
+settingsRouter.post("/:guildId/report-system-panel", requireAuth, async (req, res, next) => {
+  try {
+    const { guildId } = req.params;
+    const botId = await resolveRequestBotId(req);
+
+    if (!guildId) {
+      return res.status(400).json({
+        message: "guildId obrigatorio."
+      });
+    }
+
+    if (!(await canManageSettings(req, res, guildId, botId))) {
+      return res.status(403).json({
+        message: "Voce nao tem permissao para configurar este servidor."
+      });
+    }
+
+    const canManageReportSystem =
+      await canManageModule(req, res, guildId, botId, "police-iab")
+      || await canManageModule(req, res, guildId, botId, "tickets");
+
+    if (!canManageReportSystem) {
+      return res.status(403).json({
+        message: "O modulo Denuncias Corregedoria nao foi liberado para este bot."
+      });
+    }
+
+    const settings = await getGuildSettings(guildId, botId);
+    const messageId = await publishReportSystemPanelToDiscord(settings, await getDevBotToken(botId));
     const updatedSettings = await getGuildSettings(guildId, botId);
 
     emitRealtime("settings:updated", updatedSettings);
