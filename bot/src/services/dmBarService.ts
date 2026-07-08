@@ -150,17 +150,16 @@ function dmPayload(config: DmBarConfig, author: User, target: User, title: strin
   const vars = variables(author, target, guildName, message, title, observation);
   const components: unknown[] = [];
   const mainImage = config.mainImageUrl ? resolvePanelImageUrl(config.mainImageUrl) : null;
-  const footerIcon = config.footerIconUrl ? resolvePanelImageUrl(config.footerIconUrl) : null;
   const pushImage = () => { if (mainImage) components.push({ type: 12, items: [{ media: { url: mainImage }, description: applyVars(config.titleTemplate, vars) }] }); };
   if (mainImage && config.imagePosition === "top") pushImage();
-  components.push({ type: 10, content: `# ${applyVars(config.titleTemplate || title, vars)}\n${applyVars(config.descriptionTemplate, vars)}`.slice(0, 3900) });
+  components.push({ type: 10, content: `# ${applyVars(config.titleTemplate || title, vars)}\n${applyVars(stripSenderLines(config.descriptionTemplate), vars)}`.slice(0, 3900) });
   if (mainImage && (config.imagePosition === "middle" || config.imagePosition === "gallery" || config.imagePosition === "thumbnail")) pushImage();
   if (observation) components.push({ type: 10, content: `**Observação:**\n${observation}` });
   if (mainImage && config.imagePosition === "bottom") pushImage();
   if (config.footerEnabled) {
     components.push({ type: 14 });
-    const footer = applyVars(config.footerText, vars);
-    components.push(footerIcon ? { type: 9, components: [{ type: 10, content: footer }], accessory: { type: 11, media: { url: footerIcon }, description: "Rodapé" } } : { type: 10, content: footer });
+    const footer = applyVars(stripSenderLines(config.footerText), vars);
+    components.push({ type: 10, content: `${config.emoji} ${footer}`.slice(0, 900) });
   }
   return { allowedMentions: config.allowMentions ? undefined : { parse: [] as never[] }, components: [{ type: 17, accent_color: color(config.accentColor), components }], flags: MessageFlags.IsComponentsV2 as const };
 }
@@ -204,6 +203,14 @@ async function sendLogChannel(interaction: ButtonInteraction, config: DmBarConfi
 function variables(author: User, target: User, guildName: string, message: string, title: string, observation: string) {
   const now = new Date();
   return { "{usuario}": `<@${target.id}>`, "{usuario_nome}": target.username, "{usuario_nick}": target.username, "{autor}": `<@${author.id}>`, "{autor_nome}": author.username, "{servidor}": guildName, "{data}": now.toLocaleDateString("pt-BR"), "{hora}": now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }), "{id_usuario}": target.id, "{id_autor}": author.id, "{mensagem}": message, "{titulo}": title, "{observacao}": observation };
+}
+function stripSenderLines(text: string) {
+  return text
+    .split(/\r?\n/)
+    .filter((line) => !/\{autor(?:_nome)?\}|\{id_autor\}|enviado\s+por/i.test(line))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 function applyVars(text: string, vars: Record<string, string>) { return Object.entries(vars).reduce((value, [key, replacement]) => value.replaceAll(key, replacement), text); }
 function sanitize(value: string, max: number) { return value.replace(/@everyone/gi, "@\u200beveryone").replace(/@here/gi, "@\u200bhere").trim().slice(0, max); }
