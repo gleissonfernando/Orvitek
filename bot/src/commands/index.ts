@@ -17,6 +17,7 @@ import { serverGeneratorCommand } from "./serverGenerator";
 import { ticketCommand } from "./ticket";
 import { iabCommand, sistemaCommand } from "./reportSystem";
 import { policePatrolReportCommand, viewPolicePatrolReportCommand } from "./policePatrolReports";
+import { policeHiddenChannelCommand } from "../services/policeHiddenChannelService";
 import type { BotCommand } from "../types";
 
 export function createCommandCollection() {
@@ -40,6 +41,7 @@ export function createCommandCollection() {
     ticketCommand,
     policePatrolReportCommand,
     viewPolicePatrolReportCommand,
+    policeHiddenChannelCommand,
     sistemaCommand,
     iabCommand,
     serverClonerCommand,

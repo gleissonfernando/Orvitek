@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  EyeOff,
   Film,
   Gift,
   Hash,
@@ -81,6 +82,7 @@ export type ViewId =
   | "police-absence"
   | "police-actions"
   | "police-patrol-reports"
+  | "police-hidden-channel"
   | "fivem-orders"
   | "fivem-families"
   | "fivem-washing"
@@ -158,6 +160,7 @@ const navItems: NavItem[] = [
   { id: "police-absence", label: "Ausencia Policial", icon: CalendarClock, moduleId: "police-absences" },
   { id: "police-actions", label: "Acoes Policiais", icon: Activity, moduleId: "police-actions" },
   { id: "police-patrol-reports", label: "Relatórios Policiais", icon: ShieldCheck, moduleId: "police-patrol-reports" },
+  { id: "police-hidden-channel", label: "Canal Oculto", icon: EyeOff, moduleId: "police-hidden-channel" },
   { id: "fivem-orders", label: "Encomendas RP", icon: Archive, moduleId: "fivem-orders" },
   { id: "fivem-families", label: "Famílias", icon: Users, moduleIds: ["fivem-orders", "fivem-drugs", "fivem-washing"] },
   { id: "fivem-washing", label: "Sistema de Lavagem", icon: CircleDollarSign, moduleId: "fivem-washing" },
@@ -182,10 +185,12 @@ function navSectionForItem(item: NavItem): NavSectionId {
     || item.id === "police-absence"
     || item.id === "police-actions"
     || item.id === "police-patrol-reports"
+    || item.id === "police-hidden-channel"
     || item.moduleId === "fivem-hierarchy"
     || item.moduleId === "police-absences"
     || item.moduleId === "police-actions"
     || item.moduleId === "police-patrol-reports"
+    || item.moduleId === "police-hidden-channel"
   ) {
     return "police";
   }

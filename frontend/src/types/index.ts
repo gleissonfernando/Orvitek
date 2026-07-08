@@ -2748,6 +2748,9 @@ export type FivemActionDashboard = { settings: FivemActionSettings; actions: Fiv
 export type PolicePatrolSettings = { id: string; botId: string; guildId: string; enabled: boolean; creatorRoleIds: string[]; viewerRoleIds: string[]; deleteRoleIds: string[]; supervisorRoleIds: string[]; logChannelId: string | null; temporaryCategoryId: string | null; deleteDelayMinutes: number; defaultExportFormat: "html" | "pdf" | "json"; createdAt: string; updatedAt: string };
 export type PolicePatrolReport = { id: string; officerId: string; officerName: string; authorId: string; authorName: string; patrolType: string | null; initialNotes: string | null; patrolStart: string | null; patrolEnd: string | null; durationMinutes: number | null; channelId: string | null; messageCount: number; attachmentCount: number; status: "draft" | "active" | "finished" | "cancelled"; createdAt: string; finishedAt: string | null };
 export type PolicePatrolDashboard = { settings: PolicePatrolSettings; reports: PolicePatrolReport[] };
+export type PoliceHiddenChannelSettings = { id: string; botId: string; guildId: string; enabled: boolean; channelId: string | null; allowedRoleId: string | null; logChannelId: string | null; createdBy: string | null; createdAt: string; updatedBy: string | null; updatedAt: string };
+export type PoliceHiddenChannelLog = { id: string; botId: string; guildId: string; channelId: string; logChannelId: string | null; originalMessageId: string; relayedMessageId: string | null; authorId: string; authorTag: string; content: string; attachmentUrls: string[]; stickerIds: string[]; embedCount: number; status: "relayed" | "failed"; errorMessage: string | null; createdAt: string };
+export type PoliceHiddenChannelDashboard = { settings: PoliceHiddenChannelSettings; logs: PoliceHiddenChannelLog[] };
 
 export type DashboardBot = {
   id: string;

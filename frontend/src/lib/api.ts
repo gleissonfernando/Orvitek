@@ -1435,6 +1435,9 @@ export async function publishFivemActionsPanel(guildId: string, architecture: im
 export async function getPolicePatrolDashboard(guildId: string, botId: string) { const { data } = await api.get<import("../types").PolicePatrolDashboard>(`/police-patrol-reports/${guildId}`, { params: botParams(botId) }); return data; }
 export async function savePolicePatrolSettings(guildId: string, botId: string, payload: Partial<import("../types").PolicePatrolSettings>) { const { data } = await api.patch<{ settings: import("../types").PolicePatrolSettings }>(`/police-patrol-reports/${guildId}/settings`, payload, { params: botParams(botId) }); return data.settings; }
 export async function deletePolicePatrolReport(guildId: string, botId: string, reportId: string) { await api.delete(`/police-patrol-reports/${guildId}/reports/${reportId}`, { params: botParams(botId) }); }
+export async function getPoliceHiddenChannelDashboard(guildId: string, botId: string) { const { data } = await api.get<import("../types").PoliceHiddenChannelDashboard>(`/police-hidden-channel/${guildId}`, { params: botParams(botId) }); return data; }
+export async function savePoliceHiddenChannelSettings(guildId: string, botId: string, payload: Partial<import("../types").PoliceHiddenChannelSettings>) { const { data } = await api.patch<{ settings: import("../types").PoliceHiddenChannelSettings }>(`/police-hidden-channel/${guildId}/settings`, payload, { params: botParams(botId) }); return data.settings; }
+export async function removePoliceHiddenChannelSettings(guildId: string, botId: string) { const { data } = await api.delete<{ settings: import("../types").PoliceHiddenChannelSettings }>(`/police-hidden-channel/${guildId}/settings`, { params: botParams(botId) }); return data.settings; }
 
 export async function getGlobalBlacklistDashboard(guildId: string, botId?: string | null) {
   const { data } = await api.get<GlobalBlacklistDashboard>(`/global-blacklist/${guildId}`, {

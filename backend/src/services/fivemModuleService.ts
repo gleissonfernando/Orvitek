@@ -137,6 +137,13 @@ export const BUILTIN_FIVEM_MODULES: FivemModuleDefinition[] = [
   },
   {
     builtIn: true,
+    description: "Canal anonimo para comunicacoes policiais com auditoria administrativa completa.",
+    id: "police-hidden-channel",
+    permissions: "Admin Policia, Investigacao",
+    title: "Canal Oculto"
+  },
+  {
+    builtIn: true,
     description: "Atendimento por DM policial com registro, encaminhamento e historico.",
     id: "police-dm",
     permissions: "Admin Policia, Atendimento",

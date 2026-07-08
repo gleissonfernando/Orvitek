@@ -96,6 +96,7 @@ export const DEV_MODULES = [
   { id: "police-daf-roster", label: "Policia - Escalacao DAF" },
   { id: "police-courses", label: "Policia - Cursos Policiais" },
   { id: "police-patrol-reports", label: "Policia - Relatorios de Patrulhamento" },
+  { id: "police-hidden-channel", label: "Policia - Canal Oculto" },
   { id: "police-dm", label: "Policia - DM Policial" },
   { id: "police-subpoenas", label: "Policia - Intimacao" },
   { id: "police-open-duty", label: "Policia - Ponto Aberto" },

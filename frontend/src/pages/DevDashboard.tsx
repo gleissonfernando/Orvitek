@@ -27,6 +27,7 @@ import {
   CreditCard,
   Cpu,
   Download,
+  EyeOff,
   HardDrive,
   Play,
   RefreshCw,
@@ -1459,6 +1460,7 @@ function fiveMModuleIcon(moduleId: string): LucideIcon {
     "police-daf-roster": CalendarClock,
     "police-courses": ScrollText,
     "police-patrol-reports": ShieldCheck,
+    "police-hidden-channel": EyeOff,
     "police-dm": Bell,
     "police-subpoenas": ScrollText,
     "police-open-duty": Activity

@@ -1297,6 +1297,39 @@ export type MongoPolicePatrolAudit = {
 };
 export type MongoPolicePatrolFile = { _id: string; reportId: string; botId: string; guildId: string; discordAttachmentId: string; name: string; mimeType: string; size: number; buffer: Buffer; createdAt: Date };
 
+export type MongoPoliceHiddenChannelSettings = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  channelId: string | null;
+  allowedRoleId: string | null;
+  logChannelId: string | null;
+  createdBy: string | null;
+  createdAt: Date;
+  updatedBy: string | null;
+  updatedAt: Date;
+};
+
+export type MongoPoliceHiddenChannelLog = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  channelId: string;
+  logChannelId: string | null;
+  originalMessageId: string;
+  relayedMessageId: string | null;
+  authorId: string;
+  authorTag: string;
+  content: string;
+  attachmentUrls: string[];
+  stickerIds: string[];
+  embedCount: number;
+  status: "relayed" | "failed";
+  errorMessage: string | null;
+  createdAt: Date;
+};
+
 export type MongoImageAntiSpamSettings = {
   _id: string;
   botId: string;
@@ -2676,6 +2709,8 @@ export async function getMongoCollections() {
     policePatrolMessages: db.collection<MongoPolicePatrolMessage>("police_patrol_messages"),
     policePatrolAudits: db.collection<MongoPolicePatrolAudit>("police_patrol_audits"),
     policePatrolFiles: db.collection<MongoPolicePatrolFile>("police_patrol_files"),
+    policeHiddenChannelSettings: db.collection<MongoPoliceHiddenChannelSettings>("police_hidden_channel_settings"),
+    policeHiddenChannelLogs: db.collection<MongoPoliceHiddenChannelLog>("police_hidden_channel_logs"),
     fivemFacSettings: db.collection<MongoFivemFacSettings>("fivem_fac_settings"),
     fivemFacAbsences: db.collection<MongoFivemFacAbsence>("fivem_fac_absences"),
     imageAntiSpamSettings: db.collection<MongoImageAntiSpamSettings>("image_anti_spam_settings"),
@@ -3237,7 +3272,11 @@ async function ensureFivemModuleIndexes(db: Db) {
     db.collection<MongoPolicePatrolMessage>("police_patrol_messages").createIndex({ botId: 1, discordMessageId: 1 }, { unique: true }),
     db.collection<MongoPolicePatrolAudit>("police_patrol_audits").createIndex({ reportId: 1, createdAt: 1 }),
     db.collection<MongoPolicePatrolFile>("police_patrol_files").createIndex({ botId: 1, discordAttachmentId: 1 }, { unique: true }),
-    db.collection<MongoPolicePatrolFile>("police_patrol_files").createIndex({ reportId: 1, createdAt: 1 })
+    db.collection<MongoPolicePatrolFile>("police_patrol_files").createIndex({ reportId: 1, createdAt: 1 }),
+    db.collection<MongoPoliceHiddenChannelSettings>("police_hidden_channel_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    db.collection<MongoPoliceHiddenChannelSettings>("police_hidden_channel_settings").createIndex({ botId: 1, guildId: 1, channelId: 1 }),
+    db.collection<MongoPoliceHiddenChannelLog>("police_hidden_channel_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoPoliceHiddenChannelLog>("police_hidden_channel_logs").createIndex({ botId: 1, originalMessageId: 1 }, { unique: true })
   ]);
 }
 

@@ -13,6 +13,7 @@ import {
   CircleDollarSign,
   Clock3,
   CreditCard,
+  EyeOff,
   Film,
   Gift,
   Globe2,
@@ -51,6 +52,7 @@ import { ClipsPanel } from "../components/clips/ClipsPanel";
 import { FacAbsencePanel } from "../components/fivem/FacAbsencePanel";
 import { FivemActionsPanel } from "../components/fivem/FivemActionsPanel";
 import { PolicePatrolReportsPanel } from "../components/fivem/PolicePatrolReportsPanel";
+import { PoliceHiddenChannelPanel } from "../components/fivem/PoliceHiddenChannelPanel";
 import { FivemFinancePanel } from "../components/fivem/FivemFinancePanel";
 import { FivemOrdersManager } from "../components/fivem/FivemOrdersPanel";
 import { FivemResourceMultiSelect, FivemResourceSelect } from "../components/fivem/FivemResourceSelect";
@@ -512,6 +514,13 @@ const moduleCatalog: ModuleDefinition[] = [
     view: "police-patrol-reports"
   },
   {
+    id: "police-hidden-channel",
+    title: "Canal Oculto",
+    description: "Canal anonimo policial com retransmissao pelo bot e logs administrativos.",
+    icon: EyeOff,
+    view: "police-hidden-channel"
+  },
+  {
     id: "fivem-orders",
     title: "Encomendas FiveM",
     description: "Controle separado para pedidos, fila, producao, entrega e historico de encomendas.",
@@ -612,6 +621,7 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   "police-absence": "police-absences",
   "police-actions": "police-actions",
   "police-patrol-reports": "police-patrol-reports",
+  "police-hidden-channel": "police-hidden-channel",
   "fivem-orders": "fivem-orders",
   "fivem-families": "fivem-orders",
   "fivem-washing": "fivem-washing",
@@ -1340,6 +1350,13 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
           <PolicePatrolReportsPanel
             botId={activeBotId}
             canManage={canManageModule(selectedBot, "police-patrol-reports", canManageDashboard)}
+            guild={selectedGuild}
+          />
+        ) : null}
+        {activeView === "police-hidden-channel" ? (
+          <PoliceHiddenChannelPanel
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "police-hidden-channel", canManageDashboard)}
             guild={selectedGuild}
           />
         ) : null}
@@ -3553,7 +3570,8 @@ function fivemUserModules(enabledModules: string[], fivemModules: FivemModuleDef
     { builtIn: true, description: "Acoes profissionais da FAC com painel, participantes e relatorios separados.", id: "fivem-actions", permissions: "Admin FiveM", title: "Acoes FAC" },
     { builtIn: true, description: "Solicitacoes e aprovacao de ausencias para oficiais.", id: "police-absences", permissions: "Admin Policia", title: "Ausencia Policial" },
     { builtIn: true, description: "Operacoes policiais com painel, participantes e relatorios separados.", id: "police-actions", permissions: "Admin Policia", title: "Acoes Policiais" },
-    { builtIn: true, description: "Relatórios de patrulhamento exclusivos para oficiais.", id: "police-patrol-reports", permissions: "Admin Polícia", title: "Relatórios Policiais" }
+    { builtIn: true, description: "Relatórios de patrulhamento exclusivos para oficiais.", id: "police-patrol-reports", permissions: "Admin Polícia", title: "Relatórios Policiais" },
+    { builtIn: true, description: "Canal anonimo policial com logs administrativos.", id: "police-hidden-channel", permissions: "Admin Polícia", title: "Canal Oculto" }
   ];
   const catalog = fivemModules.length ? fivemModules : fallbackCatalog;
   const enabled = new Set(enabledModules.map((moduleId) => moduleId === "fivem-fac" ? "fivem-absences" : moduleId));
@@ -3563,7 +3581,7 @@ function fivemUserModules(enabledModules: string[], fivemModules: FivemModuleDef
     .filter((module) => {
       if (mode === "orders") return module.id === "fivem-orders";
       if (mode === "goals") return module.id === "fivem-goals";
-      return module.id !== "fivem-orders" && module.id !== "fivem-goals" && module.id !== "fivem-hierarchy" && module.id !== "fivem-absences" && module.id !== "police-absences" && module.id !== "police-actions" && module.id !== "police-patrol-reports";
+      return module.id !== "fivem-orders" && module.id !== "fivem-goals" && module.id !== "fivem-hierarchy" && module.id !== "fivem-absences" && module.id !== "police-absences" && module.id !== "police-actions" && module.id !== "police-patrol-reports" && module.id !== "police-hidden-channel";
     })
     .map((module) => ({
       description: module.description,
@@ -3587,7 +3605,8 @@ function fivemIconForModule(moduleId: string) {
     "fivem-hierarchy": Users,
     "fivem-orders": ListChecks,
     "police-absences": CalendarClock,
-    "police-actions": Activity
+    "police-actions": Activity,
+    "police-hidden-channel": EyeOff
   };
 
   return icons[moduleId] ?? Boxes;
@@ -3670,6 +3689,7 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
       "police-absences",
       "police-actions",
       "police-patrol-reports",
+      "police-hidden-channel",
       "fivem-fac"
     ].includes(moduleId);
   }

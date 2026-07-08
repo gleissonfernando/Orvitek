@@ -16,6 +16,7 @@ import { startFivemOrderService } from "../services/fivemOrderService";
 import { startFivemHierarchyService } from "../services/fivemHierarchyService";
 import { startFivemActionService } from "../services/fivemActionService";
 import { startPolicePatrolReportService } from "../services/policePatrolReportService";
+import { clearPoliceHiddenChannelSettingsCache } from "../services/policeHiddenChannelService";
 import { startGiveawayService } from "../services/giveawayService";
 import { startGuildSettingsCache } from "../services/guildSettingsCache";
 import { startImageAntiSpamService } from "../services/imageAntiSpamService";
@@ -121,6 +122,11 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   startGuildSettingsCache(context);
   context.socket.onSettingsUpdated((settings) => {
     void handleSafeBotSettingsUpdated(settings, client, context);
+  });
+  context.socket.onPoliceHiddenChannelSettingsUpdated((payload) => {
+    if (!runtimeBotId || !payload.botId || payload.botId === runtimeBotId) {
+      clearPoliceHiddenChannelSettingsCache(payload.guildId);
+    }
   });
   startDiscordLogDelivery(context);
   startDatabaseMaintenanceService(client, context);

@@ -110,6 +110,11 @@ export type FivemFacAbsenceUpdateEvent = {
   guildId: string;
 };
 
+export type PoliceHiddenChannelSettingsEvent = {
+  botId?: string | null;
+  guildId: string;
+};
+
 export type MissionToolsSettingsEvent = {
   botId?: string | null;
   guildId: string;
@@ -238,6 +243,7 @@ export class BotSocketClient {
   private databaseMaintenanceDeleteChannelsHandler: ((payload: DatabaseMaintenanceDeleteChannelsEvent) => void) | null = null;
   private fivemHierarchyPanelUpdateHandler: ((payload: FivemHierarchyPanelUpdateEvent) => void) | null = null;
   private fivemFacAbsenceUpdateHandler: ((payload: FivemFacAbsenceUpdateEvent) => void) | null = null;
+  private policeHiddenChannelSettingsHandler: ((payload: PoliceHiddenChannelSettingsEvent) => void) | null = null;
   private missionToolsSettingsHandler: ((payload: MissionToolsSettingsEvent) => void) | null = null;
   private missionToolsPanelPublishHandler: ((payload: MissionToolsPanelPublishEvent) => void) | null = null;
   private missionToolsUserUpdateHandler: ((payload: MissionToolsUserUpdateEvent) => void) | null = null;
@@ -348,6 +354,10 @@ export class BotSocketClient {
 
     if (this.fivemFacAbsenceUpdateHandler) {
       this.socket.on("fivem:fac:absence_updated", this.fivemFacAbsenceUpdateHandler);
+    }
+
+    if (this.policeHiddenChannelSettingsHandler) {
+      this.socket.on("police-hidden-channel:settings_updated", this.policeHiddenChannelSettingsHandler);
     }
 
     if (this.missionToolsSettingsHandler) {
@@ -554,6 +564,12 @@ export class BotSocketClient {
     this.fivemFacAbsenceUpdateHandler = handler;
     this.socket?.off("fivem:fac:absence_updated");
     this.socket?.on("fivem:fac:absence_updated", handler);
+  }
+
+  onPoliceHiddenChannelSettingsUpdated(handler: (payload: PoliceHiddenChannelSettingsEvent) => void) {
+    this.policeHiddenChannelSettingsHandler = handler;
+    this.socket?.off("police-hidden-channel:settings_updated");
+    this.socket?.on("police-hidden-channel:settings_updated", handler);
   }
 
   onMissionToolsSettingsUpdated(handler: (payload: MissionToolsSettingsEvent) => void) {
