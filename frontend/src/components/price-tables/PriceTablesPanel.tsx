@@ -163,7 +163,7 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
         <CardContent className="space-y-3">
           <Button className="w-full" disabled={!canManage || saving} onClick={() => void createNewTable()} type="button"><Plus className="mr-2 h-4 w-4" />Criar nova tabela</Button>
           {tables.map((table) => (
-            <button className={`w-full rounded-lg border p-3 text-left text-sm ${selectedId === table.id ? "border-purple-500/50 bg-purple-500/10 text-white" : "border-zinc-800 bg-zinc-950 text-zinc-400"}`} key={table.id} onClick={() => selectTable(table)} type="button">
+            <button className={`w-full rounded-lg border p-3 text-left text-sm ${selectedId === table.id ? "border-[#FFD500]/50 bg-[#FFD500]/10 text-white" : "border-zinc-800 bg-zinc-950 text-zinc-400"}`} key={table.id} onClick={() => selectTable(table)} type="button">
               <span className="block truncate font-semibold">{table.name}</span>
               <span className="mt-1 block text-xs">{table.isActive ? "Ativa" : "Inativa"} · {table.items.length} item(s)</span>
             </button>
@@ -186,7 +186,7 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
                 <Field label="Canal Discord" value={draft.discordChannelId ?? ""} onChange={(value) => patch({ discordChannelId: value || null })} disabled={!canManage} />
                 <Field label="Categoria atendimento" value={draft.supportCategoryId ?? ""} onChange={(value) => patch({ supportCategoryId: value || null })} disabled={!canManage} />
                 <Field label="URL do banner" value={draft.imageUrl ?? ""} onChange={(value) => patch({ imageUrl: value || null })} disabled={!canManage} />
-                <Field label="Cor destaque" value={draft.color ?? "#7c3aed"} onChange={(value) => patch({ color: value })} disabled={!canManage} />
+                <Field label="Cor destaque" value={draft.color ?? "#FFD500"} onChange={(value) => patch({ color: value })} disabled={!canManage} />
               </div>
               <Textarea label="Descricao" value={draft.description ?? ""} onChange={(value) => patch({ description: value })} disabled={!canManage} />
               <Textarea label="Observacoes" value={draft.footerText ?? ""} onChange={(value) => patch({ footerText: value })} disabled={!canManage} />
@@ -250,7 +250,7 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
                   </div>
                   <div className="space-y-2">
                     {preview.items.filter((item) => item.active).sort((a, b) => a.order - b.order).map((item) => (
-                      <div className={`rounded-lg border p-3 ${item.highlight ? "border-purple-500/40 bg-purple-500/10" : "border-zinc-800 bg-zinc-900/60"}`} key={item.id}>
+                      <div className={`rounded-lg border p-3 ${item.highlight ? "border-[#FFD500]/40 bg-[#FFD500]/10" : "border-zinc-800 bg-zinc-900/60"}`} key={item.id}>
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="text-sm font-semibold text-white">{item.name}</p>
@@ -279,15 +279,15 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
 }
 
 function Field({ disabled, label, onChange, type = "text", value }: { disabled?: boolean; label: string; onChange: (value: string) => void; type?: string; value: string }) {
-  return <label className="block text-xs font-medium text-zinc-500">{label}<input className="mt-1 h-10 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none focus:border-purple-500/50" disabled={disabled} onChange={(event) => onChange(event.target.value)} type={type} value={value} /></label>;
+  return <label className="block text-xs font-medium text-zinc-500">{label}<input className="mt-1 h-10 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none focus:border-[#FFD500]/50" disabled={disabled} onChange={(event) => onChange(event.target.value)} type={type} value={value} /></label>;
 }
 
 function Textarea({ disabled, label, onChange, value }: { disabled?: boolean; label: string; onChange: (value: string) => void; value: string }) {
-  return <label className="block text-xs font-medium text-zinc-500">{label}<textarea className="mt-1 min-h-24 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-purple-500/50" disabled={disabled} onChange={(event) => onChange(event.target.value)} value={value} /></label>;
+  return <label className="block text-xs font-medium text-zinc-500">{label}<textarea className="mt-1 min-h-24 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-[#FFD500]/50" disabled={disabled} onChange={(event) => onChange(event.target.value)} value={value} /></label>;
 }
 
 function Select({ disabled, label, onChange, options, value }: { disabled?: boolean; label: string; onChange: (value: string) => void; options: string[]; value: string }) {
-  return <label className="block text-xs font-medium text-zinc-500">{label}<select className="mt-1 h-10 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none focus:border-purple-500/50" disabled={disabled} onChange={(event) => onChange(event.target.value)} value={value}>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>;
+  return <label className="block text-xs font-medium text-zinc-500">{label}<select className="mt-1 h-10 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none focus:border-[#FFD500]/50" disabled={disabled} onChange={(event) => onChange(event.target.value)} value={value}>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>;
 }
 
 function Toggle({ checked, disabled, label, onChange }: { checked: boolean; disabled?: boolean; label: string; onChange: (checked: boolean) => void }) {
@@ -295,7 +295,7 @@ function Toggle({ checked, disabled, label, onChange }: { checked: boolean; disa
 }
 
 function IconButton({ disabled, icon: Icon, onClick }: { disabled?: boolean; icon: typeof ArrowUp; onClick: () => void }) {
-  return <button className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-800 text-zinc-400 transition hover:border-purple-500/40 hover:text-white disabled:opacity-50" disabled={disabled} onClick={onClick} type="button"><Icon className="h-4 w-4" /></button>;
+  return <button className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-800 text-zinc-400 transition hover:border-[#FFD500]/40 hover:text-white disabled:opacity-50" disabled={disabled} onClick={onClick} type="button"><Icon className="h-4 w-4" /></button>;
 }
 
 function toPayload(table: PriceTable): SavePriceTablePayload {

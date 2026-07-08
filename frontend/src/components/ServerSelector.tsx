@@ -21,7 +21,7 @@ export function ServerSelector({ guilds, loading = false, onSelectGuild, selecte
       <label className="relative block">
         <span className="sr-only">Selecionar servidor</span>
         <select
-          className="h-14 w-full appearance-none rounded-lg border border-purple-500/25 bg-zinc-950 px-14 pr-10 text-sm font-medium text-zinc-100 outline-none transition duration-300 hover:border-purple-400/45 focus:border-purple-400"
+          className="h-14 w-full appearance-none rounded-lg border border-[#FFD500]/25 bg-zinc-950 px-14 pr-10 text-sm font-medium text-zinc-100 outline-none transition duration-300 hover:border-[#FFEA70]/45 focus:border-[#FFEA70]"
           onChange={(event) => onSelectGuild(event.target.value)}
           value={selectedGuildId ?? ""}
         >
@@ -40,7 +40,7 @@ export function ServerSelector({ guilds, loading = false, onSelectGuild, selecte
   }
 
   return (
-    <div className="flex h-14 min-w-0 items-center gap-3 rounded-lg border border-purple-500/25 bg-zinc-950 px-3 transition duration-300 hover:border-purple-400/45">
+    <div className="flex h-14 min-w-0 items-center gap-3 rounded-lg border border-[#FFD500]/25 bg-zinc-950 px-3 transition duration-300 hover:border-[#FFEA70]/45">
       <GuildAvatar guild={selectedGuild} />
       <div className="min-w-0">
         <p className="text-xs text-zinc-500">Servidor</p>
@@ -61,7 +61,7 @@ function GuildAvatar({ guild }: { guild: DashboardMeGuild | null }) {
 
   return (
     <Avatar
-      className="h-9 w-9 rounded-full border border-purple-400/60 shadow-[0_0_16px_rgba(168,85,247,0.25)]"
+      className="h-9 w-9 rounded-full border border-[#FFEA70]/60 shadow-[0_0_16px_rgba(255,234,112,0.25)]"
       fallback={guild.name}
       src={guild.iconUrl}
     />

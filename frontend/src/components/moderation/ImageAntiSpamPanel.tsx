@@ -256,7 +256,7 @@ export function ImageAntiSpamPanel({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <ImageOff className="h-5 w-5 text-purple-300" />
+                <ImageOff className="h-5 w-5 text-[#FFEA70]" />
                 Anti-Spam de Imagens
               </CardTitle>
               <CardDescription>
@@ -331,7 +331,7 @@ export function ImageAntiSpamPanel({
           <label className="grid gap-2 text-sm">
             <span className="font-medium text-zinc-200">Canal de logs e punições</span>
             <select
-              className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-500/60"
+              className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-[#FFD500]/60"
               disabled={!canManage}
               onChange={(event) => updateSetting("logChannelId", event.target.value || null)}
               value={settings.logChannelId ?? ""}
@@ -454,7 +454,7 @@ function ContextSelect({
         {label}
       </p>
       <select
-        className="mt-2 h-10 w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 text-sm font-medium text-zinc-100 outline-none focus:border-purple-500/60"
+        className="mt-2 h-10 w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 text-sm font-medium text-zinc-100 outline-none focus:border-[#FFD500]/60"
         onChange={(event) => onChange(event.target.value)}
         value={value ?? ""}
       >
@@ -485,7 +485,7 @@ function NumberField({
     <label className="grid gap-2 text-sm">
       <span className="font-medium text-zinc-200">{label}</span>
       <input
-        className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-500/60"
+        className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-[#FFD500]/60"
         disabled={disabled}
         max={max}
         min={min}

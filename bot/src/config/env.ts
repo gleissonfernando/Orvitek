@@ -115,6 +115,7 @@ const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("production"),
     DISCORD_BOT_TOKEN: z.string().default(""),
+    DISCORD_CLIENT_ID: z.string().default(""),
     DASHBOARD_BOT_ID: z.string().optional().default(""),
     DASHBOARD_GUILD_IDS: z.string().optional().default(""),
     BOT_MAIN_GUILD_ID: z.string().optional().default(""),

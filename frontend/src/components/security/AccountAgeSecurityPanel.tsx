@@ -177,7 +177,7 @@ export function AccountAgeSecurityPanel({
                 Minimo de dias da conta
               </span>
               <input
-                className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-500/60"
+                className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-[#FFD500]/60"
                 disabled={disabled}
                 max={3650}
                 min={0}
@@ -193,7 +193,7 @@ export function AccountAgeSecurityPanel({
                 Canal de logs
               </span>
               <select
-                className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-500/60"
+                className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-[#FFD500]/60"
                 disabled={disabled}
                 onChange={(event) => updateDraft("accountAgeLogChannelId", event.target.value || null)}
                 value={draft.accountAgeLogChannelId ?? ""}

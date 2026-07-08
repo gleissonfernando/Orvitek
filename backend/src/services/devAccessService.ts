@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { isDashboardDevUserId } from "../config/devOwner";
 import { requireAuth } from "../middleware/auth";
 import type { AuthSessionUser } from "../types/session";
+import { recordAccessAttempt } from "./accessAuditService";
 import { canAccessDevDashboard } from "./devPermissionService";
 import type { DashboardAuth } from "./tokenService";
 
@@ -19,11 +20,25 @@ export function requireDevAccess(req: Request, res: Response, next: NextFunction
 
     void (async () => {
       if (!(await canAccessDevPanel(auth?.user))) {
+        await recordAccessAttempt(req, {
+          action: "dev.api.denied",
+          userId: auth?.user.discordId ?? null,
+          username: auth?.user.username ?? null,
+          result: "denied",
+          reason: "Usuario sem permissao DEV."
+        });
         return res.status(403).json({
-          message: "Somente usuarios Dev podem cadastrar e gerenciar bots."
+          message: "Acesso negado."
         });
       }
 
+      await recordAccessAttempt(req, {
+        action: "dev.api.allowed",
+        userId: auth?.user.discordId ?? null,
+        username: auth?.user.username ?? null,
+        result: "allowed",
+        reason: "Usuario DEV autenticado."
+      });
       return next();
     })().catch(next);
   });

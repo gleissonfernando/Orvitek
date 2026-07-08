@@ -173,21 +173,21 @@ export function DevDashboard({ auth, initialView = "bots", onLogout }: DevDashbo
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(124,58,237,0.14),transparent_34%),linear-gradient(180deg,#050506,#08080b_48%,#050505)] text-white lg:pl-72">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(255,213,0,0.14),transparent_34%),linear-gradient(180deg,#050506,#08080b_48%,#050505)] text-white lg:pl-72">
       <DevSidebar
         activeView={activeView}
         onChangeView={handleChangeView}
       />
-      <header className="sticky top-0 z-20 border-b border-purple-500/15 bg-[#050505]/88 px-4 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.35)] backdrop-blur-xl lg:px-8">
+      <header className="sticky top-0 z-20 border-b border-[#FFD500]/15 bg-[#050505]/88 px-4 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.35)] backdrop-blur-xl lg:px-8">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-purple-400/45 bg-purple-500/15 text-purple-100 shadow-[0_0_34px_rgba(124,58,237,0.28)]">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#FFEA70]/45 bg-[#FFD500]/15 text-[#FFEA70] shadow-[0_0_34px_rgba(255,213,0,0.28)]">
               <Code2 className="h-5 w-5" />
             </div>
             <div className="min-w-0">
               <h1 className="truncate text-2xl font-bold text-white">Painel DEV</h1>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Badge className="border-purple-500/30 bg-purple-500/10 text-purple-100" variant="muted">Bots</Badge>
+                <Badge className="border-[#FFD500]/30 bg-[#FFD500]/10 text-[#FFEA70]" variant="muted">Bots</Badge>
                 <Badge className="text-zinc-100" variant="muted">FiveM</Badge>
                 <Badge className="text-zinc-100" variant="muted">Policia</Badge>
                 <Badge className="text-zinc-100" variant="muted">Módulos globais</Badge>
@@ -329,9 +329,9 @@ function DevSidebar({
   ];
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-purple-500/15 bg-[#08080b]/96 px-4 py-4 shadow-[22px_0_70px_rgba(0,0,0,0.48)] backdrop-blur-xl lg:flex">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-[#FFD500]/15 bg-[#08080b]/96 px-4 py-4 shadow-[22px_0_70px_rgba(0,0,0,0.48)] backdrop-blur-xl lg:flex">
       <div className="mb-5 flex h-12 items-center gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-purple-400/40 bg-purple-500/15 text-purple-100 shadow-[0_0_30px_rgba(124,58,237,0.24)]">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#FFEA70]/40 bg-[#FFD500]/15 text-[#FFEA70] shadow-[0_0_30px_rgba(255,213,0,0.24)]">
           <Code2 className="h-5 w-5" />
         </div>
         <div className="min-w-0">
@@ -346,13 +346,13 @@ function DevSidebar({
               className={[
                 "group flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-semibold transition duration-300",
                 activeView === item.id
-                  ? "bg-purple-500/20 text-white ring-1 ring-purple-400/35 shadow-[0_0_24px_rgba(124,58,237,0.16)]"
-                  : "text-zinc-300 hover:bg-purple-500/10 hover:text-white hover:shadow-[0_0_22px_rgba(124,58,237,0.12)]"
+                  ? "bg-[#FFD500]/20 text-white ring-1 ring-[#FFEA70]/35 shadow-[0_0_24px_rgba(255,213,0,0.16)]"
+                  : "text-zinc-300 hover:bg-[#FFD500]/10 hover:text-white hover:shadow-[0_0_22px_rgba(255,213,0,0.12)]"
               ].join(" ")}
               onClick={() => onChangeView(item.id)}
               type="button"
             >
-              <item.icon className="h-4 w-4 text-purple-200 transition group-hover:text-white" />
+              <item.icon className="h-4 w-4 text-[#FFEA70] transition group-hover:text-white" />
               {item.label}
             </button>
 
@@ -366,13 +366,13 @@ function DevSidebar({
 function DevHeaderUser({ onLogout, user }: { onLogout: () => void; user: AuthResponse["user"] }) {
   return (
     <button
-      className="group flex min-w-0 items-center gap-3 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-left shadow-[0_16px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl transition duration-300 hover:border-purple-400/35 hover:bg-purple-500/10 hover:shadow-[0_0_34px_rgba(124,58,237,0.18)]"
+      className="group flex min-w-0 items-center gap-3 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-left shadow-[0_16px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl transition duration-300 hover:border-[#FFEA70]/35 hover:bg-[#FFD500]/10 hover:shadow-[0_0_34px_rgba(255,213,0,0.18)]"
       onClick={onLogout}
       title="Sair"
       type="button"
     >
       <div className="relative shrink-0">
-        <Avatar className="h-10 w-10 rounded-full border border-purple-300/40 sm:h-11 sm:w-11" fallback={user.globalName || user.username} src={user.avatarUrl ?? user.avatar} />
+        <Avatar className="h-10 w-10 rounded-full border border-[#FFEA70]/40 sm:h-11 sm:w-11" fallback={user.globalName || user.username} src={user.avatarUrl ?? user.avatar} />
         <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-[#111114] bg-emerald-400" />
       </div>
       <div className="min-w-0">
@@ -387,9 +387,9 @@ function DevUserCard({ canViewDev, user }: { canViewDev: boolean; user: AuthResp
   const banner = (user as AuthResponse["user"] & { bannerUrl?: string | null }).bannerUrl;
 
   return (
-    <Card className="overflow-hidden border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.92),rgba(12,12,16,0.96))] shadow-[0_0_45px_rgba(124,58,237,0.10)] hover:translate-y-0">
+    <Card className="overflow-hidden border-[#FFD500]/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.92),rgba(12,12,16,0.96))] shadow-[0_0_45px_rgba(255,213,0,0.10)] hover:translate-y-0">
       <div
-        className="h-16 border-b border-purple-500/15 bg-[radial-gradient(circle_at_20%_10%,rgba(124,58,237,0.42),transparent_34%),linear-gradient(135deg,rgba(88,101,242,0.38),rgba(9,9,11,0.2))]"
+        className="h-16 border-b border-[#FFD500]/15 bg-[radial-gradient(circle_at_20%_10%,rgba(255,213,0,0.42),transparent_34%),linear-gradient(135deg,rgba(88,101,242,0.38),rgba(9,9,11,0.2))]"
         style={banner ? { backgroundImage: `url(${banner})` } : undefined}
       />
       <CardContent className="-mt-8 flex flex-col gap-4 p-4 pt-0 sm:flex-row sm:items-end sm:justify-between">
@@ -398,7 +398,7 @@ function DevUserCard({ canViewDev, user }: { canViewDev: boolean; user: AuthResp
           <div className="min-w-0 pb-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="truncate text-lg font-bold text-white">{user.globalName || user.username}</h2>
-              {canViewDev ? <Badge className="border-purple-400/40 bg-purple-500/15 text-purple-100" variant="muted">Administrador DEV</Badge> : null}
+              {canViewDev ? <Badge className="border-[#FFEA70]/40 bg-[#FFD500]/15 text-[#FFEA70]" variant="muted">Administrador DEV</Badge> : null}
             </div>
             <p className="truncate text-sm font-semibold text-zinc-200">@{user.username}</p>
             <p className="truncate font-mono text-xs text-zinc-400">Discord ID: {user.discordId}</p>
@@ -632,7 +632,7 @@ function DiscloudBotCard({
   selected: boolean;
 }) {
   return (
-    <Card className={`border-zinc-800/80 bg-zinc-950/80 transition duration-300 ${selected ? "ring-1 ring-purple-400/40" : ""}`}>
+    <Card className={`border-zinc-800/80 bg-zinc-950/80 transition duration-300 ${selected ? "ring-1 ring-[#FFEA70]/40" : ""}`}>
       <CardContent className="space-y-4 p-5">
         <div className="flex items-start gap-3">
           <Avatar className="h-12 w-12 rounded-xl border border-zinc-700" fallback={bot.botName} src={bot.botAvatarUrl} />
@@ -683,13 +683,13 @@ function DiscloudMetric({ icon: Icon, label, percent, value }: { icon: LucideIco
   return (
     <div className="rounded-lg border border-zinc-900 bg-black/35 p-3">
       <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-purple-200" />
+        <Icon className="h-4 w-4 text-[#FFEA70]" />
         <span className="text-xs font-bold uppercase text-zinc-400">{label}</span>
       </div>
       <p className="mt-2 truncate text-sm font-bold text-white">{value}</p>
       {percent !== undefined ? (
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-800">
-          <div className="h-full rounded-full bg-purple-400" style={{ width: `${Math.max(0, Math.min(100, percent ?? 0))}%` }} />
+          <div className="h-full rounded-full bg-[#FFEA70]" style={{ width: `${Math.max(0, Math.min(100, percent ?? 0))}%` }} />
         </div>
       ) : null}
     </div>
@@ -700,7 +700,7 @@ function DiscloudStat({ icon: Icon, label, value }: { icon: LucideIcon; label: s
   return (
     <Card className="border-zinc-800/80 bg-zinc-950/75">
       <CardContent className="p-4">
-        <Icon className="h-5 w-5 text-purple-200" />
+        <Icon className="h-5 w-5 text-[#FFEA70]" />
         <p className="mt-3 text-xs font-bold uppercase text-zinc-400">{label}</p>
         <p className="mt-1 text-2xl font-bold text-white">{value}</p>
       </CardContent>
@@ -806,10 +806,10 @@ function DevAccessPanel() {
   }
 
   return (
-    <Card className="border-purple-500/20 bg-[#0b0b10]/90">
+    <Card className="border-[#FFD500]/20 bg-[#0b0b10]/90">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <UserCog className="h-5 w-5 text-purple-200" />
+          <UserCog className="h-5 w-5 text-[#FFEA70]" />
           Acessos DEV
         </CardTitle>
         <CardDescription>Cadastre contas Discord autorizadas a entrar no painel DEV.</CardDescription>
@@ -819,13 +819,13 @@ function DevAccessPanel() {
 
         <form className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_auto]" onSubmit={(event) => void handleSubmit(event)}>
           <input
-            className="h-10 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-white outline-none transition focus:border-purple-400"
+            className="h-10 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-white outline-none transition focus:border-[#FFEA70]"
             onChange={(event) => setUserId(event.target.value)}
             placeholder="Discord ID do usuario"
             value={userId}
           />
           <select
-            className="h-10 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-white outline-none transition focus:border-purple-400"
+            className="h-10 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-white outline-none transition focus:border-[#FFEA70]"
             onChange={(event) => setRole(event.target.value as DevAccessRole)}
             value={role}
           >
@@ -940,8 +940,8 @@ function MaintenancePanel() {
 
   return (
     <div className="space-y-6">
-      <Card className="overflow-hidden border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.92),rgba(8,8,12,0.96))] shadow-[0_0_48px_rgba(124,58,237,0.12)] hover:translate-y-0">
-        <CardHeader className="border-b border-purple-500/15 p-5 sm:p-6">
+      <Card className="overflow-hidden border-[#FFD500]/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.92),rgba(8,8,12,0.96))] shadow-[0_0_48px_rgba(255,213,0,0.12)] hover:translate-y-0">
+        <CardHeader className="border-b border-[#FFD500]/15 p-5 sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-3">
               <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border ${
@@ -975,13 +975,13 @@ function MaintenancePanel() {
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-        <Card className="border-purple-500/20 bg-zinc-950/80 hover:translate-y-0">
+        <Card className="border-[#FFD500]/20 bg-zinc-950/80 hover:translate-y-0">
           <CardHeader>
             <CardTitle className="text-white">Controle e alerta</CardTitle>
             <CardDescription className="font-medium text-zinc-300">Envie novamente o aviso para os canais configurados pelos bots.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button className="h-11 w-full bg-purple-600 text-white hover:bg-purple-500" disabled={alerting} onClick={() => void handleAlert()}>
+            <Button className="h-11 w-full bg-[#E5C000] text-white hover:bg-[#FFD500]" disabled={alerting} onClick={() => void handleAlert()}>
               {alerting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
               Enviar alerta manual
             </Button>
@@ -990,7 +990,7 @@ function MaintenancePanel() {
               <p className="mt-1 text-sm font-medium text-zinc-300">{maintenance?.updatedByName ?? "Nenhum registro"}</p>
               <p className="mt-1 font-mono text-xs text-zinc-400">{maintenance?.updatedById ?? "sem-id"}</p>
             </div>
-            <div className="rounded-lg border border-purple-500/20 bg-purple-500/[0.07] p-4 text-sm font-semibold leading-6 text-zinc-100">
+            <div className="rounded-lg border border-[#FFD500]/20 bg-[#FFD500]/[0.07] p-4 text-sm font-semibold leading-6 text-zinc-100">
               ❌ Sistema em manutenção<br />
               Os bots estão em manutenção no momento.<br />
               Aguarde a nossa equipe finalizar a manutenção para realizar novamente.
@@ -998,7 +998,7 @@ function MaintenancePanel() {
           </CardContent>
         </Card>
 
-        <Card className="border-purple-500/20 bg-zinc-950/80 hover:translate-y-0">
+        <Card className="border-[#FFD500]/20 bg-zinc-950/80 hover:translate-y-0">
           <CardHeader>
             <CardTitle className="text-white">Logs de manutenção</CardTitle>
             <CardDescription className="font-medium text-zinc-300">Histórico de ativações, desativações e alertas manuais.</CardDescription>
@@ -1028,7 +1028,7 @@ function MaintenancePanel() {
         </Card>
       </div>
 
-      <Card className="border-purple-500/20 bg-zinc-950/80 hover:translate-y-0">
+      <Card className="border-[#FFD500]/20 bg-zinc-950/80 hover:translate-y-0">
         <CardHeader>
           <CardTitle className="text-white">Status em tempo real dos bots</CardTitle>
           <CardDescription className="font-medium text-zinc-300">Bots afetados pelo modo de manutenção global.</CardDescription>
@@ -1081,7 +1081,7 @@ function MaintenancePanel() {
 
 function MaintenanceMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-purple-500/15 bg-black/35 p-4">
+    <div className="rounded-lg border border-[#FFD500]/15 bg-black/35 p-4">
       <p className="text-xs font-bold uppercase text-zinc-300">{label}</p>
       <p className="mt-2 truncate text-lg font-bold text-white">{value}</p>
     </div>

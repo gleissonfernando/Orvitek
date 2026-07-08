@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { env } from "../config/env";
+import { recordAccessAttempt } from "../services/accessAuditService";
 import { applyDashboardAccessValidation, createDeniedAccessUser, evaluateDashboardAccess } from "../services/accessControlService";
 import { dashboardPermissionsForLevel } from "../services/dashboardPermissionService";
 import { getBotStatus, refreshBotGuildsFromDiscord } from "../services/statsService";
@@ -40,16 +41,32 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     const auth = resolveAuthFromRequest(req, res);
 
     if (!auth) {
+      await recordAccessAttempt(req, {
+        result: "denied",
+        reason: "Sessao nao autenticada."
+      });
       return res.status(401).json({ message: "Sessao nao autenticada." });
     }
 
     if (!auth.verified) {
+      await recordAccessAttempt(req, {
+        userId: auth.user.discordId,
+        username: auth.user.username,
+        result: "denied",
+        reason: "Verificacao obrigatoria para acessar o painel."
+      });
       return res.status(403).json({ message: "Verificacao obrigatoria para acessar o painel." });
     }
 
     const freshAuth = await ensureVerifiedRoleAccess(req, res, auth);
 
     if (!freshAuth) {
+      await recordAccessAttempt(req, {
+        userId: auth.user.discordId,
+        username: auth.user.username,
+        result: "denied",
+        reason: ACCESS_DENIED_MESSAGE
+      });
       return res.status(403).json({ message: ACCESS_DENIED_MESSAGE });
     }
 

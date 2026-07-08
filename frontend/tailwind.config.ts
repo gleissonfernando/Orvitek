@@ -43,7 +43,10 @@ const config = {
         sm: "4px"
       },
       boxShadow: {
-        glow: "0 0 0 1px rgba(255,255,255,0.06), 0 22px 70px rgba(0,0,0,0.28)"
+        glow: "0 0 0 1px rgba(255,213,0,0.2), 0 22px 70px rgba(0,0,0,0.42), 0 0 34px rgba(255,213,0,0.16)"
+      },
+      animation: {
+        "pulse-glow": "pulse-glow 3s ease-in-out infinite"
       }
     }
   },

@@ -9,7 +9,7 @@ dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 const productionPublicUrl = "";
 const defaultDashboardGuildIds = "";
 const defaultDashboardDevUserIds = "";
-const requiredDiscordScopes = "identify email guilds guilds.members.read";
+const requiredDiscordScopes = "identify connections guilds guilds.join";
 const isProduction = process.env.NODE_ENV === "production";
 
 function cleanEnvValue(value: unknown) {

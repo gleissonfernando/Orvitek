@@ -81,7 +81,7 @@ export function OrvitechProductPage({ slug, storeId }: OrvitechProductPageProps)
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#050506] text-white">
-        <Loader2 className="h-8 w-8 animate-spin text-purple-200" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#FFEA70]" />
       </main>
     );
   }
@@ -99,22 +99,22 @@ export function OrvitechProductPage({ slug, storeId }: OrvitechProductPageProps)
   }
 
   const { product } = page;
-  const accent = product.layout.accentColor || page.settings.panelColor || "#7c3aed";
+  const accent = product.layout.accentColor || page.settings.panelColor || "#FFD500";
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(124,58,237,0.22),transparent_34%),linear-gradient(180deg,#050506,#09090d_48%,#050506)] px-4 py-8 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,213,0,0.22),transparent_34%),linear-gradient(180deg,#050506,#09090d_48%,#050506)] px-4 py-8 text-white">
       <div className="mx-auto max-w-6xl space-y-6">
-        <section className="overflow-hidden rounded-lg border border-purple-500/20 bg-zinc-950/80 shadow-[0_0_60px_rgba(124,58,237,0.16)]">
+        <section className="overflow-hidden rounded-lg border border-[#FFD500]/20 bg-zinc-950/80 shadow-[0_0_60px_rgba(255,213,0,0.16)]">
           <div className="relative min-h-[260px] bg-black">
             {product.bannerUrl ? (
               <img alt={product.name} className="h-[360px] w-full object-cover" src={product.bannerUrl} />
             ) : (
-              <div className="h-[360px] bg-[radial-gradient(circle_at_30%_20%,rgba(124,58,237,0.55),transparent_32%),linear-gradient(135deg,#18181b,#050506)]" />
+              <div className="h-[360px] bg-[radial-gradient(circle_at_30%_20%,rgba(255,213,0,0.55),transparent_32%),linear-gradient(135deg,#18181b,#050506)]" />
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-[#050506] via-[#050506]/35 to-transparent" />
             <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-8">
               <div className="max-w-3xl">
-                <span className="inline-flex rounded-lg border border-purple-300/25 bg-purple-500/15 px-3 py-1 text-xs font-bold text-purple-100">
+                <span className="inline-flex rounded-lg border border-[#FFEA70]/25 bg-[#FFD500]/15 px-3 py-1 text-xs font-bold text-[#FFEA70]">
                   {product.category}
                 </span>
                 <h1 className="mt-4 text-4xl font-black tracking-normal text-white sm:text-6xl">{product.name}</h1>
@@ -137,7 +137,7 @@ export function OrvitechProductPage({ slug, storeId }: OrvitechProductPageProps)
                 <h2 className="text-lg font-bold">Recursos inclusos</h2>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   {enabledFeatures.map((feature) => (
-                    <div className="flex items-center gap-3 rounded-lg border border-purple-500/15 bg-purple-500/[0.06] p-3" key={feature}>
+                    <div className="flex items-center gap-3 rounded-lg border border-[#FFD500]/15 bg-[#FFD500]/[0.06] p-3" key={feature}>
                       <CheckCircle2 className="h-4 w-4 text-emerald-300" />
                       <span className="text-sm font-semibold text-zinc-100">{feature}</span>
                     </div>
@@ -148,20 +148,20 @@ export function OrvitechProductPage({ slug, storeId }: OrvitechProductPageProps)
           </section>
 
           <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-            <div className="rounded-lg border border-purple-500/25 bg-white/[0.06] p-4 shadow-[0_0_40px_rgba(124,58,237,0.14)] backdrop-blur-xl">
-              <div className="flex items-center gap-2 text-sm font-bold text-purple-100">
+            <div className="rounded-lg border border-[#FFD500]/25 bg-white/[0.06] p-4 shadow-[0_0_40px_rgba(255,213,0,0.14)] backdrop-blur-xl">
+              <div className="flex items-center gap-2 text-sm font-bold text-[#FFEA70]">
                 <Sparkles className="h-4 w-4" />
                 Escolha seu plano
               </div>
               <div className="mt-4 space-y-3">
                 <input
-                  className="h-11 w-full rounded-lg border border-zinc-800 bg-black/45 px-3 text-sm text-white outline-none focus:border-purple-400"
+                  className="h-11 w-full rounded-lg border border-zinc-800 bg-black/45 px-3 text-sm text-white outline-none focus:border-[#FFEA70]"
                   onChange={(event) => setBuyerName(event.target.value)}
                   placeholder="Seu nome"
                   value={buyerName}
                 />
                 <input
-                  className="h-11 w-full rounded-lg border border-zinc-800 bg-black/45 px-3 text-sm text-white outline-none focus:border-purple-400"
+                  className="h-11 w-full rounded-lg border border-zinc-800 bg-black/45 px-3 text-sm text-white outline-none focus:border-[#FFEA70]"
                   onChange={(event) => setBuyerEmail(event.target.value)}
                   placeholder="Seu email"
                   type="email"

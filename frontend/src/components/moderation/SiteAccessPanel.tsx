@@ -372,7 +372,7 @@ export function SiteAccessPanel({
                         className={[
                           "flex w-full min-w-0 items-center gap-3 rounded-lg border px-3 py-2 text-left transition",
                           selected
-                            ? "border-purple-400/50 bg-purple-500/10 text-white"
+                            ? "border-[#FFEA70]/50 bg-[#FFD500]/10 text-white"
                             : "border-zinc-900 bg-black text-zinc-300 hover:border-zinc-700 hover:text-white"
                         ].join(" ")}
                         key={userId}

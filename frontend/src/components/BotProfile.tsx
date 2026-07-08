@@ -13,7 +13,7 @@ type BotProfileProps = {
 export function BotProfile({ bot, loading = false, selectedGuild }: BotProfileProps) {
   if (loading) {
     return (
-      <Card className="border-purple-500/20">
+      <Card className="border-[#FFD500]/20">
         <CardContent className="flex items-center gap-4 p-5">
           <div className="h-14 w-14 animate-pulse rounded-full bg-zinc-800" />
           <div className="min-w-0 flex-1 space-y-2">
@@ -29,7 +29,7 @@ export function BotProfile({ bot, loading = false, selectedGuild }: BotProfilePr
   const botName = bot?.username ?? "Bot Discord";
 
   return (
-    <Card className="border-purple-500/20 bg-zinc-950/75">
+    <Card className="border-[#FFD500]/20 bg-zinc-950/75">
       <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
         <div className="flex min-w-0 items-center gap-4">
           <Avatar

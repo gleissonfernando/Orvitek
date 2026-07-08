@@ -577,7 +577,7 @@ export function DevPanel({
     ? [
         {
           icon: Bot,
-          iconClassName: "border-purple-500/25 bg-purple-500/10 text-purple-200",
+          iconClassName: "border-[#FFD500]/25 bg-[#FFD500]/10 text-[#FFEA70]",
           label: "Bot selecionado",
           value: selectedBot.name
         },
@@ -605,7 +605,7 @@ export function DevPanel({
     : [
         {
           icon: Bot,
-          iconClassName: "border-purple-500/25 bg-purple-500/10 text-purple-200",
+          iconClassName: "border-[#FFD500]/25 bg-[#FFD500]/10 text-[#FFEA70]",
           label: "Bots cadastrados",
           value: String(stats.total)
         },
@@ -920,7 +920,7 @@ export function DevPanel({
       <div className="space-y-7">
         <BotGlobalSelect bots={bots} selectedBotId={selectedBotId} onSelectBot={handleSelectBotId} />
         {message ? (
-          <div className="rounded-lg border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-sm font-semibold text-white shadow-[0_0_28px_rgba(124,58,237,0.12)]">
+          <div className="rounded-lg border border-[#FFEA70]/25 bg-[#FFD500]/10 px-4 py-3 text-sm font-semibold text-white shadow-[0_0_28px_rgba(255,213,0,0.12)]">
             {message}
           </div>
         ) : null}
@@ -934,7 +934,7 @@ export function DevPanel({
             onToggle={(moduleId, checked) => void handleToggleModule(selectedBot, moduleId, checked)}
           />
         ) : (
-          <Card className="border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(124,58,237,0.08)]">
+          <Card className="border-[#FFD500]/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(255,213,0,0.08)]">
             <CardContent className="flex min-h-40 items-center justify-center p-6 text-center text-sm font-medium text-zinc-300">
               Selecione um bot para abrir o Menu do Bot.
             </CardContent>
@@ -949,7 +949,7 @@ export function DevPanel({
       <div className="space-y-7">
         <BotGlobalSelect bots={bots} selectedBotId={selectedBotId} onSelectBot={handleSelectBotId} />
         {message ? (
-          <div className="rounded-lg border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-sm font-semibold text-white shadow-[0_0_28px_rgba(124,58,237,0.12)]">
+          <div className="rounded-lg border border-[#FFEA70]/25 bg-[#FFD500]/10 px-4 py-3 text-sm font-semibold text-white shadow-[0_0_28px_rgba(255,213,0,0.12)]">
             {message}
           </div>
         ) : null}
@@ -961,7 +961,7 @@ export function DevPanel({
             onEnable={() => void handleToggleModule(selectedBot, "server-cloner", true)}
           />
         ) : (
-          <Card className="border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(124,58,237,0.08)]">
+          <Card className="border-[#FFD500]/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(255,213,0,0.08)]">
             <CardContent className="flex min-h-40 items-center justify-center p-6 text-center text-sm font-medium text-zinc-300">
               Selecione um bot para abrir a Clonagem de Servidor.
             </CardContent>
@@ -976,7 +976,7 @@ export function DevPanel({
       <div className="space-y-7">
         <BotGlobalSelect bots={bots} selectedBotId={selectedBotId} onSelectBot={handleSelectBotId} />
         {message ? (
-          <div className="rounded-lg border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-sm font-semibold text-white shadow-[0_0_28px_rgba(124,58,237,0.12)]">
+          <div className="rounded-lg border border-[#FFEA70]/25 bg-[#FFD500]/10 px-4 py-3 text-sm font-semibold text-white shadow-[0_0_28px_rgba(255,213,0,0.12)]">
             {message}
           </div>
         ) : null}
@@ -988,7 +988,7 @@ export function DevPanel({
             onEnable={() => void handleToggleModule(selectedBot, "orvitech-sales", true)}
           />
         ) : (
-          <Card className="border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(124,58,237,0.08)]">
+          <Card className="border-[#FFD500]/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(255,213,0,0.08)]">
             <CardContent className="flex min-h-40 items-center justify-center p-6 text-center text-sm font-medium text-zinc-300">
               Selecione um bot para abrir as vendas OrviTech.
             </CardContent>
@@ -1015,16 +1015,16 @@ export function DevPanel({
       </section>
 
       {message ? (
-        <div className="rounded-lg border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-sm font-semibold text-white shadow-[0_0_28px_rgba(124,58,237,0.12)]">
+        <div className="rounded-lg border border-[#FFEA70]/25 bg-[#FFD500]/10 px-4 py-3 text-sm font-semibold text-white shadow-[0_0_28px_rgba(255,213,0,0.12)]">
           {message}
         </div>
       ) : null}
 
       <section className="grid items-stretch gap-6 lg:grid-cols-[minmax(320px,0.95fr)_minmax(0,1.05fr)]">
-        <Card className="flex h-full flex-col border-purple-500/25 bg-[linear-gradient(135deg,rgba(24,24,27,0.92),rgba(7,7,10,0.96))] shadow-[0_0_42px_rgba(124,58,237,0.10)] backdrop-blur-xl hover:translate-y-0">
-          <CardHeader className="border-b border-purple-500/15 p-5 sm:p-6">
+        <Card className="flex h-full flex-col border-[#FFD500]/25 bg-[linear-gradient(135deg,rgba(24,24,27,0.92),rgba(7,7,10,0.96))] shadow-[0_0_42px_rgba(255,213,0,0.10)] backdrop-blur-xl hover:translate-y-0">
+          <CardHeader className="border-b border-[#FFD500]/15 p-5 sm:p-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-purple-600 text-white shadow-[0_12px_30px_rgba(124,58,237,0.34)]">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#E5C000] text-white shadow-[0_12px_30px_rgba(255,213,0,0.34)]">
                 <Bot className="h-5 w-5" />
               </div>
               <div>
@@ -1055,7 +1055,7 @@ export function DevPanel({
               value={form.mainGuildId}
             />
 
-            <div className="flex flex-col gap-3 rounded-lg border border-purple-500/15 bg-white/[0.05] p-4 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-3 rounded-lg border border-[#FFD500]/15 bg-white/[0.05] p-4 sm:flex-row sm:items-center">
               <Avatar
                 className="h-10 w-10 rounded-full border border-zinc-800"
                 fallback={user?.globalName || user?.username || "Discord"}
@@ -1071,7 +1071,7 @@ export function DevPanel({
             </div>
 
             <Button
-              className="h-12 w-full bg-purple-600 text-white shadow-[0_14px_34px_rgba(124,58,237,0.30)] hover:bg-purple-500"
+              className="h-12 w-full bg-[#E5C000] text-white shadow-[0_14px_34px_rgba(255,213,0,0.30)] hover:bg-[#FFD500]"
               disabled={saving || form.token.trim().length < 10 || !/^\d{5,32}$/.test(form.mainGuildId)}
               onClick={handleCreateBot}
             >
@@ -1103,7 +1103,7 @@ export function DevPanel({
             updatingToken={updatingTokenBotId === selectedBot.id}
           />
         ) : (
-          <Card className="flex h-full min-h-[420px] border-dashed border-purple-500/20 bg-zinc-950/60 hover:translate-y-0">
+          <Card className="flex h-full min-h-[420px] border-dashed border-[#FFD500]/20 bg-zinc-950/60 hover:translate-y-0">
             <CardContent className="flex flex-1 flex-col items-center justify-center p-8 text-center">
               <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-lg border border-zinc-800 bg-black">
                 <Bot className="h-7 w-7 text-zinc-500" />
@@ -1118,7 +1118,7 @@ export function DevPanel({
       {activeDashboardSection ? (
         <div className="min-w-0">
           {activeDashboardSection === "connected" ? (
-            <Card className="border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(124,58,237,0.08)]">
+            <Card className="border-[#FFD500]/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(255,213,0,0.08)]">
               <CardHeader className="p-5 sm:p-6">
                 <CardTitle className="text-white">Bots conectados</CardTitle>
                 <CardDescription className="font-medium text-zinc-300">{bots.length} bot{bots.length === 1 ? "" : "s"} nesta hospedagem.</CardDescription>
@@ -1139,8 +1139,8 @@ export function DevPanel({
                       <div
                         className={`flex flex-col gap-3 rounded-lg border p-3.5 transition duration-200 sm:flex-row sm:items-center sm:justify-between ${
                           selectedBot?.id === bot.id
-                            ? "border-purple-400/50 bg-purple-500/10 shadow-[0_0_24px_rgba(124,58,237,0.16)]"
-                            : "border-zinc-800 bg-black/35 hover:border-purple-500/25 hover:bg-zinc-950/80 hover:shadow-[0_0_24px_rgba(124,58,237,0.10)]"
+                            ? "border-[#FFEA70]/50 bg-[#FFD500]/10 shadow-[0_0_24px_rgba(255,213,0,0.16)]"
+                            : "border-zinc-800 bg-black/35 hover:border-[#FFD500]/25 hover:bg-zinc-950/80 hover:shadow-[0_0_24px_rgba(255,213,0,0.10)]"
                         }`}
                         key={bot.id}
                       >
@@ -1208,7 +1208,7 @@ export function DevPanel({
               onToggle={(moduleId, checked) => void handleToggleModule(selectedBot, moduleId, checked)}
             />
           ) : (
-            <Card className="border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(124,58,237,0.08)]">
+            <Card className="border-[#FFD500]/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(255,213,0,0.08)]">
               <CardContent className="flex min-h-40 items-center justify-center p-6 text-center text-sm font-medium text-zinc-300">
                 Selecione um bot para abrir o Menu do Bot.
               </CardContent>
@@ -1389,8 +1389,8 @@ function ConnectedBotPanel({
   }
 
   return (
-    <Card className="flex h-full min-h-[420px] flex-col overflow-hidden border-purple-500/25 bg-[linear-gradient(135deg,rgba(24,24,27,0.92),rgba(7,7,10,0.96))] shadow-[0_0_44px_rgba(124,58,237,0.10)] backdrop-blur-xl hover:translate-y-0">
-      <div className="h-20 shrink-0 border-b border-purple-500/25 bg-[linear-gradient(135deg,rgba(124,58,237,0.36),rgba(16,185,129,0.08),rgba(9,9,11,0.15))]" />
+    <Card className="flex h-full min-h-[420px] flex-col overflow-hidden border-[#FFD500]/25 bg-[linear-gradient(135deg,rgba(24,24,27,0.92),rgba(7,7,10,0.96))] shadow-[0_0_44px_rgba(255,213,0,0.10)] backdrop-blur-xl hover:translate-y-0">
+      <div className="h-20 shrink-0 border-b border-[#FFD500]/25 bg-[linear-gradient(135deg,rgba(255,213,0,0.36),rgba(16,185,129,0.08),rgba(9,9,11,0.15))]" />
       <CardContent className="-mt-8 flex flex-1 flex-col gap-5 p-5 pt-0 sm:p-6 sm:pt-0">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex min-w-0 items-end gap-3">
@@ -1410,7 +1410,7 @@ function ConnectedBotPanel({
           <Badge variant="muted">{bot.guildIds.length} servidor{bot.guildIds.length === 1 ? "" : "es"}</Badge>
         </div>
 
-        <div className="grid gap-px overflow-hidden rounded-lg border border-purple-500/15 bg-purple-500/15 sm:grid-cols-2">
+        <div className="grid gap-px overflow-hidden rounded-lg border border-[#FFD500]/15 bg-[#FFD500]/15 sm:grid-cols-2">
           <BotDetail icon={Hash} label="Client / Application ID" value={bot.clientId} />
           <BotDetail icon={CalendarDays} label="Criado em" value={bot.botCreatedAt ? formatDate(bot.botCreatedAt) : "Não informado"} />
           <BotDetail icon={Server} label="Servidor" value={guildName} />
@@ -1465,10 +1465,10 @@ function ConnectedBotPanel({
           ) : null}
         </div>
 
-        <div className="rounded-lg border border-purple-500/25 bg-purple-500/[0.08] p-4">
+        <div className="rounded-lg border border-[#FFD500]/25 bg-[#FFD500]/[0.08] p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
-              <p className="text-xs font-bold uppercase text-purple-100">URL da Dashboard</p>
+              <p className="text-xs font-bold uppercase text-[#FFEA70]">URL da Dashboard</p>
               <p className="mt-1 break-all font-mono text-sm text-zinc-100">{botDashboardUrl}</p>
               <p className={`mt-2 text-xs text-emerald-300 transition duration-300 ${copiedDashboardUrl ? "opacity-100" : "opacity-0"}`}>
                 URL copiada com sucesso.
@@ -1487,7 +1487,7 @@ function ConnectedBotPanel({
           </div>
         </div>
 
-        <div className="mt-auto flex flex-wrap gap-2 border-t border-purple-500/15 pt-4">
+        <div className="mt-auto flex flex-wrap gap-2 border-t border-[#FFD500]/15 pt-4">
           <Button onClick={onOpenDashboard} size="sm">
             <LayoutDashboard className="h-4 w-4" />
             Dashboard
@@ -1535,7 +1535,7 @@ function BotChannelPreview({
   const hiddenVoiceCount = Math.max(0, voiceChannels.length - visibleVoiceChannels.length);
 
   return (
-    <div className="rounded-lg border border-purple-500/15 bg-black/30 p-4">
+    <div className="rounded-lg border border-[#FFD500]/15 bg-black/30 p-4">
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-bold text-white">Canais do Discord</p>
@@ -1607,7 +1607,7 @@ function ChannelGroup({
             </span>
           ))}
           {hiddenCount ? (
-            <span className="rounded-md border border-purple-500/20 bg-purple-500/[0.08] px-2.5 py-1 text-xs font-semibold text-purple-100">
+            <span className="rounded-md border border-[#FFD500]/20 bg-[#FFD500]/[0.08] px-2.5 py-1 text-xs font-semibold text-[#FFEA70]">
               +{hiddenCount}
             </span>
           ) : null}
@@ -1643,7 +1643,7 @@ function BotDetail({
 
 function AutomaticField({ label }: { label: string }) {
   return (
-    <span className="flex min-h-10 items-center gap-2 rounded-md border border-purple-500/15 bg-white/[0.04] px-3 py-2">
+    <span className="flex min-h-10 items-center gap-2 rounded-md border border-[#FFD500]/15 bg-white/[0.04] px-3 py-2">
       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
       {label}
     </span>
@@ -1662,7 +1662,7 @@ function DevStatCard({
   value: string;
 }) {
   return (
-    <Card className="h-full border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.88),rgba(9,9,11,0.96))] shadow-[0_0_36px_rgba(124,58,237,0.07)] hover:translate-y-0">
+    <Card className="h-full border-[#FFD500]/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.88),rgba(9,9,11,0.96))] shadow-[0_0_36px_rgba(255,213,0,0.07)] hover:translate-y-0">
       <CardContent className="flex min-h-[116px] items-center gap-4 p-5">
         <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border ${iconClassName}`}>
           <Icon className="h-5 w-5" />
@@ -1700,7 +1700,7 @@ function DevInput({
       <span className="text-sm font-semibold text-white">{label}</span>
       <input
         autoComplete={autoComplete}
-        className="social-input h-12 border-purple-500/20 bg-black/55 font-medium text-white placeholder:text-zinc-500 focus:border-purple-400/70"
+        className="social-input h-12 border-[#FFD500]/20 bg-black/55 font-medium text-white placeholder:text-zinc-500 focus:border-[#FFEA70]/70"
         inputMode={inputMode}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
@@ -1736,13 +1736,13 @@ function ProtectedTokenInput({
   return (
     <label className="block space-y-2">
       <span className="flex items-center gap-2 text-sm font-semibold text-white">
-        <LockKeyhole className="h-4 w-4 text-purple-200" />
+        <LockKeyhole className="h-4 w-4 text-[#FFEA70]" />
         {label}
       </span>
       <div className="group relative">
         <input
           autoComplete="new-password"
-          className="social-input h-12 border-purple-500/20 bg-black/55 pr-14 font-mono font-semibold text-white placeholder:text-zinc-500 focus:border-purple-400/70"
+          className="social-input h-12 border-[#FFD500]/20 bg-black/55 pr-14 font-mono font-semibold text-white placeholder:text-zinc-500 focus:border-[#FFEA70]/70"
           onChange={(event) => onChange(event.target.value)}
           placeholder="••••••••••••••••••••••••"
           spellCheck={false}
@@ -1797,7 +1797,7 @@ function BotGlobalSelect({
   }, [bots, query]);
 
   return (
-    <Card className={`relative overflow-visible border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(124,58,237,0.08)] hover:translate-y-0 ${open ? "z-[120]" : "z-0"}`}>
+    <Card className={`relative overflow-visible border-[#FFD500]/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(255,213,0,0.08)] hover:translate-y-0 ${open ? "z-[120]" : "z-0"}`}>
       <CardContent className="overflow-visible p-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
@@ -1806,7 +1806,7 @@ function BotGlobalSelect({
         </div>
         <div className="relative w-full lg:w-[420px]">
           <button
-            className="flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border border-purple-500/20 bg-black/55 px-3 py-2 text-left shadow-inner transition duration-300 hover:border-purple-400/40 hover:bg-purple-500/10"
+            className="flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border border-[#FFD500]/20 bg-black/55 px-3 py-2 text-left shadow-inner transition duration-300 hover:border-[#FFEA70]/40 hover:bg-[#FFD500]/10"
             onClick={() => setOpen((current) => !current)}
             type="button"
           >
@@ -1824,9 +1824,9 @@ function BotGlobalSelect({
           </button>
 
           {open ? (
-            <div className="absolute right-0 top-16 z-[9999] w-full overflow-hidden rounded-xl border border-purple-500/25 bg-[#101014] shadow-[0_24px_80px_rgba(0,0,0,0.75)] backdrop-blur-xl">
+            <div className="absolute right-0 top-16 z-[9999] w-full overflow-hidden rounded-xl border border-[#FFD500]/25 bg-[#101014] shadow-[0_24px_80px_rgba(0,0,0,0.75)] backdrop-blur-xl">
               <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2">
-                <Search className="h-4 w-4 text-purple-200" />
+                <Search className="h-4 w-4 text-[#FFEA70]" />
                 <input
                   className="h-10 min-w-0 flex-1 bg-transparent text-sm font-medium text-white outline-none placeholder:text-zinc-500"
                   onChange={(event) => setQuery(event.target.value)}
@@ -1850,7 +1850,7 @@ function BotGlobalSelect({
                   <button
                     className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition duration-200 ${
                       selectedBotId === bot.id
-                        ? "bg-purple-500/15 ring-1 ring-purple-400/25"
+                        ? "bg-[#FFD500]/15 ring-1 ring-[#FFEA70]/25"
                         : "hover:bg-zinc-900/85"
                     }`}
                     key={bot.id}
@@ -1961,12 +1961,12 @@ function BotModuleWorkspace({
   }
 
   return (
-    <Card className="overflow-hidden border-purple-500/20 bg-[linear-gradient(135deg,rgba(18,18,22,0.94),rgba(7,7,10,0.98))] shadow-[0_0_54px_rgba(124,58,237,0.12)] hover:translate-y-0" id="dev-bot-module-settings">
-      <CardHeader className="border-b border-purple-500/15 p-5 sm:p-6">
+    <Card className="overflow-hidden border-[#FFD500]/20 bg-[linear-gradient(135deg,rgba(18,18,22,0.94),rgba(7,7,10,0.98))] shadow-[0_0_54px_rgba(255,213,0,0.12)] hover:translate-y-0" id="dev-bot-module-settings">
+      <CardHeader className="border-b border-[#FFD500]/15 p-5 sm:p-6">
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] xl:items-start">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge className="border-purple-500/30 bg-purple-500/10 text-purple-100" variant="muted">Bot Menu</Badge>
+              <Badge className="border-[#FFD500]/30 bg-[#FFD500]/10 text-[#FFEA70]" variant="muted">Bot Menu</Badge>
               <Badge variant={bot.status === "online" ? "success" : bot.status === "error" || bot.status === "invalid_token" ? "danger" : "muted"}>
                 {statusLabel(bot.status)}
               </Badge>
@@ -1980,7 +1980,7 @@ function BotModuleWorkspace({
             <label className="relative block">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
               <input
-                className="h-12 w-full rounded-lg border border-purple-500/20 bg-black/45 pl-10 pr-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 focus:border-purple-400 focus:shadow-[0_0_24px_rgba(124,58,237,0.18)]"
+                className="h-12 w-full rounded-lg border border-[#FFD500]/20 bg-black/45 pl-10 pr-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 focus:border-[#FFEA70] focus:shadow-[0_0_24px_rgba(255,213,0,0.18)]"
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Pesquisar módulo..."
                 value={query}
@@ -2005,9 +2005,9 @@ function BotModuleWorkspace({
         </section>
 
         <div className="grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="min-w-0 rounded-lg border border-purple-500/15 bg-black/35 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur">
+          <aside className="min-w-0 rounded-lg border border-[#FFD500]/15 bg-black/35 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur">
             <div className="mb-3 flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-950/70 p-3">
-              <Avatar className="h-10 w-10 rounded-lg border border-purple-500/25" fallback={bot.name} src={bot.avatarUrl} />
+              <Avatar className="h-10 w-10 rounded-lg border border-[#FFD500]/25" fallback={bot.name} src={bot.avatarUrl} />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-white">{bot.name}</p>
                 <p className="truncate text-xs font-medium text-zinc-500">Dashboard DEV</p>
@@ -2053,7 +2053,7 @@ function BotModuleWorkspace({
           </aside>
 
           <section className="min-w-0 space-y-4">
-            <div className="rounded-lg border border-purple-500/15 bg-black/25 p-4 backdrop-blur">
+            <div className="rounded-lg border border-[#FFD500]/15 bg-black/25 p-4 backdrop-blur">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h3 className="text-base font-bold text-white">
@@ -2254,7 +2254,7 @@ function DatabaseMaintenancePanel({ bot, guilds }: { bot: DevBot; guilds: Dashbo
       </div>
 
       {message ? (
-        <div className="rounded-lg border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-sm font-semibold text-white">
+        <div className="rounded-lg border border-[#FFEA70]/25 bg-[#FFD500]/10 px-4 py-3 text-sm font-semibold text-white">
           {message}
         </div>
       ) : null}
@@ -2271,15 +2271,15 @@ function DatabaseMaintenancePanel({ bot, guilds }: { bot: DevBot; guilds: Dashbo
               {visibleGuilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name || guild.id}</option>)}
               {!visibleGuilds.some((guild) => guild.id === bot.mainGuildId) ? <option value={bot.mainGuildId}>{bot.mainGuildName || bot.mainGuildId}</option> : null}
             </select>
-            <input className="h-10 w-full rounded-lg border border-zinc-800 bg-black px-3 font-mono text-sm text-white outline-none focus:border-purple-400" inputMode="numeric" onChange={(event) => setGuildId(event.target.value.replace(/\D/g, ""))} placeholder="Ou digite um Guild ID" value={guildId} />
+            <input className="h-10 w-full rounded-lg border border-zinc-800 bg-black px-3 font-mono text-sm text-white outline-none focus:border-[#FFEA70]" inputMode="numeric" onChange={(event) => setGuildId(event.target.value.replace(/\D/g, ""))} placeholder="Ou digite um Guild ID" value={guildId} />
             <label className="block text-xs font-semibold uppercase text-zinc-400">ID Discord ou nome</label>
             <div className="flex gap-2">
-              <input className="h-10 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-white outline-none focus:border-purple-400" onChange={(event) => setQuery(event.target.value)} placeholder="1234567890 ou nome" value={query} />
+              <input className="h-10 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-white outline-none focus:border-[#FFEA70]" onChange={(event) => setQuery(event.target.value)} placeholder="1234567890 ou nome" value={query} />
               <Button disabled={busy === "search"} onClick={() => void searchUsers()} size="sm">{busy === "search" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Buscar</Button>
             </div>
             <div className="space-y-2">
               {users.map((user) => (
-                <button className={`w-full rounded-lg border p-3 text-left ${selectedUserId === user.userId ? "border-purple-400 bg-purple-500/10" : "border-zinc-800 bg-zinc-950/70"}`} key={user.userId} onClick={() => void inspectUser(user.userId)} type="button">
+                <button className={`w-full rounded-lg border p-3 text-left ${selectedUserId === user.userId ? "border-[#FFEA70] bg-[#FFD500]/10" : "border-zinc-800 bg-zinc-950/70"}`} key={user.userId} onClick={() => void inspectUser(user.userId)} type="button">
                   <span className="block text-sm font-semibold text-white">{user.username || "Usuario sem nome"}</span>
                   <span className="block font-mono text-xs text-zinc-400">{user.userId}</span>
                   <span className="mt-1 block text-xs text-zinc-500">{user.sources.join(", ")}</span>
@@ -2413,18 +2413,18 @@ function BotMenuStatCard({
 }) {
   const toneClass = {
     muted: "border-zinc-700 bg-zinc-900 text-zinc-300",
-    purple: "border-purple-500/30 bg-purple-500/10 text-purple-200",
+    purple: "border-[#FFD500]/30 bg-[#FFD500]/10 text-[#FFEA70]",
     success: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
     warning: "border-yellow-500/30 bg-yellow-500/10 text-yellow-200"
   }[tone];
 
   return (
-    <div className="group rounded-lg border border-zinc-800/90 bg-zinc-950/70 p-4 shadow-[0_16px_38px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-0.5 hover:border-purple-500/35 hover:bg-zinc-950 hover:shadow-[0_0_28px_rgba(124,58,237,0.10)]">
+    <div className="group rounded-lg border border-zinc-800/90 bg-zinc-950/70 p-4 shadow-[0_16px_38px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-0.5 hover:border-[#FFD500]/35 hover:bg-zinc-950 hover:shadow-[0_0_28px_rgba(255,213,0,0.10)]">
       <div className="flex items-center justify-between gap-3">
         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${toneClass}`}>
           <Icon className="h-5 w-5" />
         </div>
-        <span className="h-2 w-2 rounded-full bg-purple-400 opacity-50 transition group-hover:opacity-100" />
+        <span className="h-2 w-2 rounded-full bg-[#FFEA70] opacity-50 transition group-hover:opacity-100" />
       </div>
       <p className="mt-4 text-2xl font-bold text-white">{value}</p>
       <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">{label}</p>
@@ -2452,14 +2452,14 @@ function BotMenuCategoryButton({
       className={[
         "group flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-semibold transition duration-300",
         active
-          ? "bg-purple-500/18 text-white ring-1 ring-purple-400/30 shadow-[0_0_22px_rgba(124,58,237,0.13)]"
+          ? "bg-[#FFD500]/18 text-white ring-1 ring-[#FFEA70]/30 shadow-[0_0_22px_rgba(255,213,0,0.13)]"
           : "text-zinc-400 hover:bg-zinc-900/80 hover:text-white"
       ].join(" ")}
       onClick={onClick}
       title={`${label}: ${count}/${total} ativos`}
       type="button"
     >
-      <span className={["flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition", active ? "border-purple-400/30 bg-purple-500/15 text-purple-100" : "border-zinc-800 bg-black/30 text-zinc-500 group-hover:text-purple-200"].join(" ")}>
+      <span className={["flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition", active ? "border-[#FFEA70]/30 bg-[#FFD500]/15 text-[#FFEA70]" : "border-zinc-800 bg-black/30 text-zinc-500 group-hover:text-[#FFEA70]"].join(" ")}>
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
@@ -2490,13 +2490,13 @@ function ModuleDashboardCard({
 
   return (
     <div
-      className="group relative min-h-[184px] overflow-hidden rounded-lg border border-zinc-800/95 bg-zinc-950/75 p-4 shadow-[0_18px_44px_rgba(0,0,0,0.24)] backdrop-blur transition duration-300 hover:-translate-y-1 hover:scale-[1.015] hover:border-purple-500/45 hover:bg-zinc-950 hover:shadow-[0_0_34px_rgba(124,58,237,0.14)]"
+      className="group relative min-h-[184px] overflow-hidden rounded-lg border border-zinc-800/95 bg-zinc-950/75 p-4 shadow-[0_18px_44px_rgba(0,0,0,0.24)] backdrop-blur transition duration-300 hover:-translate-y-1 hover:scale-[1.015] hover:border-[#FFD500]/45 hover:bg-zinc-950 hover:shadow-[0_0_34px_rgba(255,213,0,0.14)]"
       style={{ animation: `bot-card-in 280ms ease-out ${Math.min(index, 10) * 22}ms both` }}
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-purple-400/50 to-transparent opacity-0 transition group-hover:opacity-100" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#FFEA70]/50 to-transparent opacity-0 transition group-hover:opacity-100" />
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-purple-500/25 bg-purple-500/10 text-purple-100 shadow-[0_0_24px_rgba(124,58,237,0.10)]">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#FFD500]/25 bg-[#FFD500]/10 text-[#FFEA70] shadow-[0_0_24px_rgba(255,213,0,0.10)]">
             <Icon className="h-5 w-5" />
           </div>
           <div className="min-w-0">
@@ -2527,7 +2527,7 @@ function ModuleDashboardCard({
 
       <div className="mt-4 flex items-center gap-2">
         <button
-          className="flex h-9 min-w-0 flex-1 items-center justify-center gap-2 overflow-hidden rounded-lg border border-purple-500/25 bg-purple-500/10 px-3 text-xs font-bold text-purple-100 transition hover:border-purple-400/45 hover:bg-purple-500/18"
+          className="flex h-9 min-w-0 flex-1 items-center justify-center gap-2 overflow-hidden rounded-lg border border-[#FFD500]/25 bg-[#FFD500]/10 px-3 text-xs font-bold text-[#FFEA70] transition hover:border-[#FFEA70]/45 hover:bg-[#FFD500]/18"
           onClick={() => onToggle(module.id, !enabled)}
           title="Configurar rapidamente"
           type="button"
@@ -2536,7 +2536,7 @@ function ModuleDashboardCard({
           Configurar
         </button>
         <button
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-black/20 text-zinc-500 transition hover:border-purple-500/35 hover:text-white"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-black/20 text-zinc-500 transition hover:border-[#FFD500]/35 hover:text-white"
           title={`Modulo: ${module.id}`}
           type="button"
         >
@@ -2559,7 +2559,7 @@ const defaultSalesSettingsForm: SaveOrvitechSalesSettingsPayload = {
   customerRoleId: null,
   enabled: false,
   logChannelId: null,
-  panelColor: "#7c3aed",
+  panelColor: "#FFD500",
   panelDescription: "Planos, liberacoes e pagamentos do bot OrviTech.",
   panelImageUrl: null,
   panelTitle: "OrviTech Bot",
@@ -2625,7 +2625,7 @@ const defaultProductForm: SaveOrvitechProductPayload = {
   fullDescription: "",
   howItWorks: "",
   layout: {
-    accentColor: "#7c3aed",
+    accentColor: "#FFD500",
     glassEffect: true,
     theme: "dark"
   },
@@ -2634,7 +2634,7 @@ const defaultProductForm: SaveOrvitechProductPayload = {
   plans: {
     monthly: {
       benefits: ["Hospedagem inclusa", "Atualizacoes", "Suporte", "Liberacao automatica"],
-      buttonColor: "#7c3aed",
+      buttonColor: "#FFD500",
       buttonText: "Mensal",
       description: "Hospedagem inclusa. Pagamento recorrente.",
       enabled: true,
@@ -2951,12 +2951,12 @@ function OrvitechSalesWorkspace({
 
   return (
     <div className="space-y-6">
-      <Card className="border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.92),rgba(8,8,12,0.96))] shadow-[0_0_44px_rgba(124,58,237,0.10)] hover:translate-y-0">
+      <Card className="border-[#FFD500]/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.92),rgba(8,8,12,0.96))] shadow-[0_0_44px_rgba(255,213,0,0.10)] hover:translate-y-0">
         <CardHeader className="p-5 sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
               <CardTitle className="flex items-center gap-2 text-white">
-                <CreditCard className="h-5 w-5 text-purple-200" />
+                <CreditCard className="h-5 w-5 text-[#FFEA70]" />
                 Vendas OrviTech
               </CardTitle>
               <CardDescription className="mt-2 font-medium text-zinc-300">
@@ -2993,7 +2993,7 @@ function OrvitechSalesWorkspace({
       </Card>
 
       {message ? (
-        <div className="rounded-lg border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-sm font-semibold text-white">
+        <div className="rounded-lg border border-[#FFEA70]/25 bg-[#FFD500]/10 px-4 py-3 text-sm font-semibold text-white">
           {message}
         </div>
       ) : null}
@@ -3045,7 +3045,7 @@ function OrvitechSalesWorkspace({
               <label className="block">
                 <span className="mb-2 block text-xs font-bold uppercase text-zinc-400">Descricao</span>
                 <textarea
-                  className="min-h-24 w-full rounded-lg border border-zinc-800 bg-black/40 px-3 py-2 text-sm font-medium text-white outline-none transition focus:border-purple-400/60"
+                  className="min-h-24 w-full rounded-lg border border-zinc-800 bg-black/40 px-3 py-2 text-sm font-medium text-white outline-none transition focus:border-[#FFEA70]/60"
                   onChange={(event) => setSettingsForm((current) => ({ ...current, panelDescription: event.target.value }))}
                   value={settingsForm.panelDescription ?? ""}
                 />
@@ -3106,7 +3106,7 @@ function OrvitechSalesWorkspace({
                 <div className="grid gap-2">
                   {dashboard?.settings.paymentProviders.map((provider) => (
                     <div className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-black/35 p-3" key={provider.id}>
-                      <CreditCard className="h-4 w-4 text-purple-200" />
+                      <CreditCard className="h-4 w-4 text-[#FFEA70]" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-bold text-white">{provider.label}</p>
                         <p className="truncate text-xs font-medium text-zinc-400">{provider.provider} · gateway {provider.gatewayId} {provider.secretConfigured ? "· segredo configurado" : ""}</p>
@@ -3122,7 +3122,7 @@ function OrvitechSalesWorkspace({
             </Card>
           </div>
 
-          <Card className="border-purple-500/20 bg-zinc-950/80 hover:translate-y-0 xl:col-span-2">
+          <Card className="border-[#FFD500]/20 bg-zinc-950/80 hover:translate-y-0 xl:col-span-2">
             <CardHeader>
               <CardTitle className="text-white">Produtos</CardTitle>
               <CardDescription>Paginas de venda com banner, planos mensal/vitalicio, beneficios e checkout vinculado ao gateway da loja.</CardDescription>
@@ -3145,7 +3145,7 @@ function OrvitechSalesWorkspace({
                     </div>
                     <input
                       accept="image/gif,image/jpeg,image/png,image/webp"
-                      className="max-w-full text-sm text-zinc-300 file:mr-3 file:rounded-lg file:border-0 file:bg-purple-600 file:px-3 file:py-2 file:text-sm file:font-bold file:text-white"
+                      className="max-w-full text-sm text-zinc-300 file:mr-3 file:rounded-lg file:border-0 file:bg-[#E5C000] file:px-3 file:py-2 file:text-sm file:font-bold file:text-white"
                       disabled={!editingProductId || saving === "product-banner"}
                       onChange={(event) => void handleUploadProductBanner(event.target.files?.[0] ?? null)}
                       type="file"
@@ -3214,7 +3214,7 @@ function OrvitechSalesWorkspace({
               </div>
 
               <div className="space-y-3">
-                <div className="overflow-hidden rounded-lg border border-purple-500/20 bg-black/35">
+                <div className="overflow-hidden rounded-lg border border-[#FFD500]/20 bg-black/35">
                   <div className="aspect-[16/9] bg-zinc-900">
                     {productForm.bannerUrl ? <img alt="Preview" className="h-full w-full object-cover" src={productForm.bannerUrl} /> : null}
                   </div>
@@ -3354,7 +3354,7 @@ function OrvitechSalesWorkspace({
 
 function SalesMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-purple-500/15 bg-black/35 p-4">
+    <div className="rounded-lg border border-[#FFD500]/15 bg-black/35 p-4">
       <p className="truncate text-xs font-bold uppercase text-zinc-400">{label}</p>
       <p className="mt-2 truncate text-base font-bold text-white">{value}</p>
     </div>
@@ -3366,7 +3366,7 @@ function ProductTextArea({ label, onChange, value }: { label: string; onChange: 
     <label className="block">
       <span className="mb-2 block text-xs font-bold uppercase text-zinc-400">{label}</span>
       <textarea
-        className="min-h-28 w-full rounded-lg border border-zinc-800 bg-black/40 px-3 py-2 text-sm font-medium text-white outline-none transition focus:border-purple-400/60"
+        className="min-h-28 w-full rounded-lg border border-zinc-800 bg-black/40 px-3 py-2 text-sm font-medium text-white outline-none transition focus:border-[#FFEA70]/60"
         onChange={(event) => onChange(event.target.value)}
         value={value}
       />
@@ -3395,7 +3395,7 @@ function ProductPlanEditor({
   }
 
   return (
-    <div className="rounded-lg border border-purple-500/15 bg-purple-500/[0.06] p-4">
+    <div className="rounded-lg border border-[#FFD500]/15 bg-[#FFD500]/[0.06] p-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-bold text-white">{title}</p>
         <Switch checked={plan.enabled} onCheckedChange={(checked) => updatePlan("enabled", checked)} />
@@ -3698,12 +3698,12 @@ function ServerCloneDevWorkspace({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-purple-500/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.12),rgba(9,9,11,0.92))] shadow-[0_0_30px_rgba(124,58,237,0.10)]">
-      <div className="border-b border-purple-500/15 p-4">
+    <div className="overflow-hidden rounded-lg border border-[#FFD500]/20 bg-[linear-gradient(135deg,rgba(255,213,0,0.12),rgba(9,9,11,0.92))] shadow-[0_0_30px_rgba(255,213,0,0.10)]">
+      <div className="border-b border-[#FFD500]/15 p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge className="border-purple-500/30 bg-purple-500/10 text-purple-100" variant="muted">Clonagem DEV</Badge>
+              <Badge className="border-[#FFD500]/30 bg-[#FFD500]/10 text-[#FFEA70]" variant="muted">Clonagem DEV</Badge>
               <Badge variant={enabled ? "success" : "muted"}>{enabled ? "Modulo liberado" : "Modulo desativado"}</Badge>
             </div>
             <h3 className="mt-3 text-lg font-bold text-white">Direcionamento de servidor</h3>
@@ -3712,7 +3712,7 @@ function ServerCloneDevWorkspace({
             </p>
           </div>
           <button
-            className="flex h-10 items-center justify-center gap-2 rounded-lg border border-purple-500/30 bg-purple-600 px-4 text-sm font-bold text-white shadow-[0_12px_28px_rgba(124,58,237,0.28)] transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex h-10 items-center justify-center gap-2 rounded-lg border border-[#FFD500]/30 bg-[#E5C000] px-4 text-sm font-bold text-white shadow-[0_12px_28px_rgba(255,213,0,0.28)] transition hover:bg-[#FFD500] disabled:cursor-not-allowed disabled:opacity-60"
             disabled={saving || loadingConfig}
             onClick={() => void handleSavePlan()}
             type="button"
@@ -3744,14 +3744,14 @@ function ServerCloneDevWorkspace({
             <label className="block">
               <span className="text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">Adicionar destino por ID</span>
               <input
-                className="mt-2 h-11 w-full rounded-lg border border-zinc-800 bg-black/35 px-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 focus:border-purple-400"
+                className="mt-2 h-11 w-full rounded-lg border border-zinc-800 bg-black/35 px-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 focus:border-[#FFEA70]"
                 onChange={(event) => updateForm("destinationGuildInput", event.target.value)}
                 placeholder="Cole o ID do servidor que vai receber a clonagem"
                 value={form.destinationGuildInput}
               />
             </label>
             <button
-              className="h-11 rounded-lg border border-purple-500/25 bg-purple-500/10 px-4 text-sm font-bold text-purple-100 transition hover:border-purple-400/45 hover:bg-purple-500/18"
+              className="h-11 rounded-lg border border-[#FFD500]/25 bg-[#FFD500]/10 px-4 text-sm font-bold text-[#FFEA70] transition hover:border-[#FFEA70]/45 hover:bg-[#FFD500]/18"
               onClick={applyManualDestination}
               type="button"
             >
@@ -3770,8 +3770,8 @@ function ServerCloneDevWorkspace({
                     className={[
                       "rounded-lg border px-3 py-2 text-xs font-bold transition",
                       active
-                        ? "border-purple-400/45 bg-purple-500/15 text-purple-100 shadow-[0_0_18px_rgba(124,58,237,0.12)]"
-                        : "border-zinc-800 bg-zinc-950/70 text-zinc-400 hover:border-purple-500/30 hover:text-white"
+                        ? "border-[#FFEA70]/45 bg-[#FFD500]/15 text-[#FFEA70] shadow-[0_0_18px_rgba(255,213,0,0.12)]"
+                        : "border-zinc-800 bg-zinc-950/70 text-zinc-400 hover:border-[#FFD500]/30 hover:text-white"
                     ].join(" ")}
                     key={part.id}
                     onClick={() => toggleClonePart(part.id)}
@@ -3787,7 +3787,7 @@ function ServerCloneDevWorkspace({
           <label className="block">
             <span className="text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">Renomear servidor clonado</span>
             <input
-              className="mt-2 h-11 w-full rounded-lg border border-zinc-800 bg-black/35 px-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 focus:border-purple-400"
+              className="mt-2 h-11 w-full rounded-lg border border-zinc-800 bg-black/35 px-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 focus:border-[#FFEA70]"
               onChange={(event) => updateForm("renameServer", event.target.value)}
               placeholder="Opcional: novo nome do servidor de destino"
               value={form.renameServer}
@@ -3811,7 +3811,7 @@ function ServerCloneDevWorkspace({
         </div>
 
         <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-4">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-purple-500/25 bg-purple-500/10 text-purple-100">
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#FFD500]/25 bg-[#FFD500]/10 text-[#FFEA70]">
             <Sparkles className="h-5 w-5" />
           </div>
           <p className="mt-4 text-sm font-bold text-white">Como o bot vai usar</p>
@@ -3831,7 +3831,7 @@ function ServerCloneDevWorkspace({
             </p>
           ) : null}
           {message ? (
-            <div className="mt-4 rounded-lg border border-purple-500/25 bg-purple-500/10 px-3 py-2 text-xs font-semibold text-purple-100">
+            <div className="mt-4 rounded-lg border border-[#FFD500]/25 bg-[#FFD500]/10 px-3 py-2 text-xs font-semibold text-[#FFEA70]">
               {message}
             </div>
           ) : null}
@@ -3860,7 +3860,7 @@ function CloneSelect({
     <label className="block">
       <span className="text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">{label}</span>
       <select
-        className="mt-2 h-11 w-full rounded-lg border border-zinc-800 bg-black/35 px-3 text-sm font-semibold text-white outline-none transition focus:border-purple-400"
+        className="mt-2 h-11 w-full rounded-lg border border-zinc-800 bg-black/35 px-3 text-sm font-semibold text-white outline-none transition focus:border-[#FFEA70]"
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >
@@ -3889,7 +3889,7 @@ function CloneTextarea({
     <label className="block">
       <span className="text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">{label}</span>
       <textarea
-        className="mt-2 min-h-[94px] w-full resize-y rounded-lg border border-zinc-800 bg-black/35 px-3 py-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 focus:border-purple-400"
+        className="mt-2 min-h-[94px] w-full resize-y rounded-lg border border-zinc-800 bg-black/35 px-3 py-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 focus:border-[#FFEA70]"
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         value={value}
@@ -3978,8 +3978,8 @@ function BotMenuButton({
       <button
         className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold transition duration-300 ${
           active
-            ? "bg-purple-500/20 text-white ring-1 ring-purple-400/25 shadow-[0_0_20px_rgba(124,58,237,0.12)]"
-            : "text-zinc-300 hover:bg-purple-500/10 hover:text-white hover:shadow-[0_0_18px_rgba(124,58,237,0.10)]"
+            ? "bg-[#FFD500]/20 text-white ring-1 ring-[#FFEA70]/25 shadow-[0_0_20px_rgba(255,213,0,0.12)]"
+            : "text-zinc-300 hover:bg-[#FFD500]/10 hover:text-white hover:shadow-[0_0_18px_rgba(255,213,0,0.10)]"
         }`}
         onClick={() => onSelectMenu(item.id)}
         type="button"
@@ -3989,7 +3989,7 @@ function BotMenuButton({
         {total ? <span className="text-xs font-semibold text-zinc-300">{count}/{total}</span> : null}
       </button>
       {item.children && active ? (
-        <div className="ml-5 mt-1 space-y-1 border-l border-purple-500/15 pl-2">
+        <div className="ml-5 mt-1 space-y-1 border-l border-[#FFD500]/15 pl-2">
           {item.children.map((child) => {
             const childActive = activeMenuId === child.id;
             const childModules = modulesForMenu(child, modules);
@@ -3998,7 +3998,7 @@ function BotMenuButton({
             return (
               <button
                 className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${
-                  childActive ? "bg-purple-500/15 text-white" : "text-zinc-300 hover:bg-zinc-900/80 hover:text-white"
+                  childActive ? "bg-[#FFD500]/15 text-white" : "text-zinc-300 hover:bg-zinc-900/80 hover:text-white"
                 }`}
                 key={child.id}
                 onClick={() => onSelectMenu(child.id)}
@@ -4055,7 +4055,7 @@ function ModuleManager({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-lg border border-purple-500/25 bg-purple-500/[0.08] p-4">
+      <div className="rounded-lg border border-[#FFD500]/25 bg-[#FFD500]/[0.08] p-4">
         <p className="text-sm font-bold text-white">Gerenciador de módulos por bot</p>
         <p className="mt-1 text-xs font-medium text-zinc-300">
           Ativar aqui libera o módulo somente para o bot selecionado e faz a área aparecer no menu lateral dele.
@@ -4076,7 +4076,7 @@ function ModuleManager({
 
 function OverviewMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-purple-500/15 bg-zinc-950/80 p-4">
+    <div className="rounded-lg border border-[#FFD500]/15 bg-zinc-950/80 p-4">
       <p className="text-xs font-bold uppercase text-zinc-300">{label}</p>
       <p className="mt-2 truncate text-sm font-bold text-white">{value}</p>
     </div>
@@ -4097,7 +4097,7 @@ function EmptyBotMenuCategory({ label }: { label: string }) {
 function BotSelectMenuManager({ bot }: { bot: DevBot }) {
   return (
     <div className="space-y-4">
-      <Card className="border-purple-500/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(124,58,237,0.08)]">
+      <Card className="border-[#FFD500]/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(255,213,0,0.08)]">
         <CardHeader className="p-5 sm:p-6">
           <CardTitle className="text-white">Menus de Seleção</CardTitle>
           <CardDescription className="font-medium text-zinc-300">Gerenciamento de select menus do Discord para o bot {bot.name}.</CardDescription>
@@ -4163,7 +4163,7 @@ function ModuleSwitchSection({
 
           return (
             <div
-              className="flex min-h-[74px] items-center gap-4 rounded-lg border border-zinc-800 bg-black/40 px-4 py-3 transition duration-200 hover:border-purple-500/25 hover:bg-zinc-950/80 hover:shadow-[0_0_20px_rgba(124,58,237,0.08)]"
+              className="flex min-h-[74px] items-center gap-4 rounded-lg border border-zinc-800 bg-black/40 px-4 py-3 transition duration-200 hover:border-[#FFD500]/25 hover:bg-zinc-950/80 hover:shadow-[0_0_20px_rgba(255,213,0,0.08)]"
               key={module.id}
             >
               <div className="min-w-0 flex-1">

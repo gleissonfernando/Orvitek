@@ -289,7 +289,7 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
                     className={[
                       "flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border px-3 text-left text-sm transition",
                       selected
-                        ? "border-purple-400/50 bg-purple-500/10 text-white"
+                        ? "border-[#FFEA70]/50 bg-[#FFD500]/10 text-white"
                         : "border-zinc-900 bg-black text-zinc-300 hover:border-zinc-700 hover:text-white"
                     ].join(" ")}
                     key={panel.id}
@@ -314,7 +314,7 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
               {!fixedPanel ? <label className="grid gap-2 text-sm">
                 <span className="font-medium text-zinc-200">Painel</span>
                 <select
-                  className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-500/60"
+                  className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-[#FFD500]/60"
                   disabled={disabled}
                   onChange={(event) => setSelectedPanelId(event.target.value)}
                   value={selectedPanelId}
@@ -344,7 +344,7 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
                     />
                   </label>
                   <input
-                    className="min-h-11 flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-purple-500/60"
+                    className="min-h-11 flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-[#FFD500]/60"
                     disabled={disabled}
                     onChange={(event) => updateImageUrl(event.target.value)}
                     placeholder="Cole uma URL HTTPS ou envie um arquivo"
@@ -468,7 +468,7 @@ function SelectField({
     <label className="grid gap-2 text-sm">
       <span className="font-medium text-zinc-200">{label}</span>
       <select
-        className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-500/60"
+        className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-[#FFD500]/60"
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         value={value}
@@ -496,7 +496,7 @@ function NumberField({
     <label className="grid gap-2 text-sm">
       <span className="font-medium text-zinc-200">{label}</span>
       <input
-        className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-500/60"
+        className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-[#FFD500]/60"
         disabled={disabled}
         max={2000}
         min={16}

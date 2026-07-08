@@ -163,7 +163,7 @@ const emptySettings: SelfBotProtectionSettings = {
   logChannelId: null,
   punishmentLogChannelId: null,
   logWebhookUrl: null,
-  embedColor: "#7c3aed",
+  embedColor: "#FFD500",
   punishmentSequence: ["delete_message", "log"],
   punishmentSteps: defaultPunishmentSteps(),
   addRoleId: null,
@@ -572,7 +572,7 @@ export function SelfBotProtectionPanel({
                 Cor da embed
               </span>
               <input
-                className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-500/60"
+                className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-[#FFD500]/60"
                 disabled={disabled}
                 onChange={(event) => updateSetting("embedColor", event.target.value)}
                 type="color"
@@ -778,7 +778,7 @@ function ContextSelect({
         {label}
       </p>
       <select
-        className="mt-2 h-10 w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 text-sm font-medium text-zinc-100 outline-none focus:border-purple-500/60"
+        className="mt-2 h-10 w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 text-sm font-medium text-zinc-100 outline-none focus:border-[#FFD500]/60"
         onChange={(event) => onChange(event.target.value)}
         value={value ?? ""}
       >
@@ -857,7 +857,7 @@ function SelectField({
         {label}
       </span>
       <select
-        className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-500/60"
+        className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-[#FFD500]/60"
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         value={value}
@@ -914,7 +914,7 @@ function PunishmentStepEditor({
         <label className="grid gap-2 text-sm">
           <span className="font-medium text-zinc-200">Próxima ação</span>
           <select
-            className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-500/60"
+            className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-[#FFD500]/60"
             disabled={disabled}
             onChange={(event) => onChange({ proximaAcao: event.target.value ? event.target.value as SelfBotPunishmentAction : null })}
             value={step.proximaAcao ?? ""}
@@ -972,7 +972,7 @@ function RoleSelect({
     <label className="grid gap-2 text-sm">
       <span className="font-medium text-zinc-200">{label}</span>
       <select
-        className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-500/60"
+        className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-[#FFD500]/60"
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         value={value}
@@ -1052,7 +1052,7 @@ function NumberField({
     <label className="grid gap-2 text-sm">
       <span className="font-medium text-zinc-200">{label}</span>
       <input
-        className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-500/60"
+        className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-[#FFD500]/60"
         disabled={disabled}
         max={max}
         min={min}
@@ -1079,7 +1079,7 @@ function TextListField({
     <label className="grid gap-2 text-sm">
       <span className="font-medium text-zinc-200">{label}</span>
       <textarea
-        className="min-h-36 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none transition focus:border-purple-500/60"
+        className="min-h-36 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none transition focus:border-[#FFD500]/60"
         disabled={disabled}
         onChange={(event) => onChange(event.target.value.split("\n").map((item) => item.trim()).filter(Boolean))}
         value={value.join("\n")}
@@ -1128,7 +1128,7 @@ function DailyBars({ stats }: { stats: SelfBotProtectionStats }) {
           <span className="text-xs text-zinc-500">{item.label}</span>
           <div className="h-2 overflow-hidden rounded-full bg-zinc-900">
             <div
-              className="h-full rounded-full bg-purple-400"
+              className="h-full rounded-full bg-[#FFEA70]"
               style={{ width: `${Math.max(6, (item.value / max) * 100)}%` }}
             />
           </div>

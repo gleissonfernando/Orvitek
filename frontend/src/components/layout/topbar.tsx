@@ -15,18 +15,18 @@ type TopbarProps = {
 
 export function Topbar({ dashboardUser, user, guilds, selectedGuildId, onOpenMenu, onSelectGuild, onLogout }: TopbarProps) {
   return (
-    <header className="sticky top-0 z-20 border-b border-zinc-900 bg-[#050505]/90 px-4 py-3 backdrop-blur lg:px-8">
+    <header className="sticky top-0 z-20 border-b border-[#FFD500]/15 bg-[#050505]/90 px-4 py-3 backdrop-blur lg:px-8">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <button
             aria-label="Abrir menu"
-            className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950 text-zinc-200 transition duration-300 hover:bg-zinc-900 hover:text-white lg:hidden"
+            className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#FFD500]/20 bg-zinc-950 text-zinc-200 transition duration-300 hover:bg-[#FFD500]/10 hover:text-[#FFEA70] lg:hidden"
             onClick={onOpenMenu}
             type="button"
           >
             <Menu className="h-5 w-5" />
           </button>
-          <div className="hidden h-10 w-10 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950 text-white sm:flex lg:hidden">
+          <div className="hidden h-10 w-10 items-center justify-center rounded-lg border border-[#FFD500]/20 bg-zinc-950 text-[#FFEA70] sm:flex lg:hidden">
             <Bot className="h-5 w-5" />
           </div>
           <div className="min-w-0">
@@ -40,7 +40,7 @@ export function Topbar({ dashboardUser, user, guilds, selectedGuildId, onOpenMen
         <div className="flex min-w-0 items-center gap-3">
           {guilds.length > 1 ? (
             <select
-              className="h-10 max-w-[46vw] rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition duration-300 focus:border-zinc-600 md:max-w-64"
+              className="h-10 max-w-[46vw] rounded-lg border border-[#FFD500]/20 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition duration-300 focus:border-[#FFD500]/60 md:max-w-64"
               onChange={(event) => onSelectGuild(event.target.value)}
               value={selectedGuildId ?? ""}
             >
@@ -51,7 +51,7 @@ export function Topbar({ dashboardUser, user, guilds, selectedGuildId, onOpenMen
               ))}
             </select>
           ) : (
-            <div className="hidden h-10 max-w-[46vw] items-center rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm font-medium text-zinc-100 md:flex md:max-w-64">
+            <div className="hidden h-10 max-w-[46vw] items-center rounded-lg border border-[#FFD500]/20 bg-zinc-950 px-3 text-sm font-medium text-zinc-100 md:flex md:max-w-64">
               <span className="truncate">{guilds[0]?.name ?? "Servidor configurado"}</span>
             </div>
           )}

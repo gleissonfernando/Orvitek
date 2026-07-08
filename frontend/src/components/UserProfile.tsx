@@ -17,9 +17,9 @@ export function UserProfile({ compact = false, dashboardUser, onLogout, user }: 
 
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <div className="flex min-w-0 items-center gap-2 rounded-lg border border-purple-500/25 bg-zinc-950/95 px-2 py-1.5 shadow-[0_0_24px_rgba(124,58,237,0.12)] transition duration-300 hover:border-purple-400/45 hover:bg-zinc-900">
+      <div className="flex min-w-0 items-center gap-2 rounded-lg border border-[#FFD500]/25 bg-zinc-950/95 px-2 py-1.5 shadow-[0_0_24px_rgba(255,213,0,0.12)] transition duration-300 hover:border-[#FFD500]/45 hover:bg-zinc-900">
         <Avatar
-          className="h-10 w-10 rounded-full border border-purple-400/70 shadow-[0_0_18px_rgba(168,85,247,0.42)]"
+          className="h-10 w-10 rounded-full border border-[#FFD500]/70 shadow-[0_0_18px_rgba(255,213,0,0.35)]"
           fallback={displayName}
           src={avatarUrl}
         />

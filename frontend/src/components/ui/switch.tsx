@@ -14,7 +14,7 @@ export function Switch({ checked, onCheckedChange, className, ...props }: Switch
       aria-checked={checked}
       className={cn(
         "relative h-6 w-11 rounded-full border border-border transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        checked ? "bg-white" : "bg-zinc-800",
+        checked ? "border-[#FFD500] bg-[#FFD500]" : "bg-zinc-800",
         className
       )}
       onClick={() => onCheckedChange(!checked)}

@@ -287,12 +287,23 @@ export function emojiClonePanelPayload(ephemeral = false) {
 }
 
 function emojiClonePanelLinks() {
-  const origin = env.FRONTEND_URL || "https://discord.com/oauth2/authorize?client_id=1492325134550302952&permissions=8&integration_type=0&scope=bot";
+  const origin = env.FRONTEND_URL || "https://orvitek-bots.discloud.app";
+  const addBotUrl = buildDiscordBotInviteUrl(env.DISCORD_CLIENT_ID);
 
   return {
-    addBotUrl: `${origin}/dev/bots`,
+    addBotUrl,
     howToUrl: `${origin}/dashboard`
   };
+}
+
+function buildDiscordBotInviteUrl(clientId: string) {
+  const id = clientId.trim();
+
+  if (!/^\d{5,32}$/.test(id)) {
+    return "https://discord.com/oauth2/authorize?permissions=8&integration_type=0&scope=bot+applications.commands";
+  }
+
+  return `https://discord.com/oauth2/authorize?client_id=${id}&permissions=8&integration_type=0&scope=bot+applications.commands`;
 }
 
 async function runCloneJob(job: CloneJob, interaction: Interaction, context: BotContext) {

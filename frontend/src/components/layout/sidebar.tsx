@@ -296,7 +296,7 @@ export function Sidebar({
         )}
       >
         <div className="mb-5 flex h-12 items-center justify-center">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-purple-500/30 bg-purple-500/15 text-purple-100 shadow-[0_0_30px_rgba(168,85,247,0.18)]">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#FFD500]/35 bg-[#FFD500]/10 text-[#FFEA70] shadow-[0_0_30px_rgba(255,213,0,0.2)]">
             <Bot className="h-6 w-6" />
           </div>
 
@@ -313,8 +313,8 @@ export function Sidebar({
         <nav className="discord-scrollbar flex-1 space-y-2 overflow-y-auto pb-4">
           <button
             className={cn(
-              "group flex h-12 w-12 items-center justify-center rounded-2xl text-zinc-400 transition duration-300 hover:rounded-xl hover:bg-purple-500/15 hover:text-white",
-              selectedBot ? "bg-purple-500/20 text-white ring-1 ring-purple-500/25" : "bg-zinc-900/70"
+              "group flex h-12 w-12 items-center justify-center rounded-2xl text-zinc-400 transition duration-300 hover:rounded-xl hover:bg-[#FFD500]/15 hover:text-[#FFEA70]",
+              selectedBot ? "bg-[#FFD500]/20 text-[#FFEA70] ring-1 ring-[#FFD500]/30" : "bg-zinc-900/70"
             )}
             onClick={() => {
               if (isSecondaryCollapsed) {
@@ -334,7 +334,7 @@ export function Sidebar({
               className={cn(
                 "group flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-medium transition duration-300 hover:rounded-xl",
                 activeView === item.id
-                  ? "bg-purple-500/20 text-white ring-1 ring-purple-500/25"
+                  ? "bg-[#FFD500]/20 text-[#FFEA70] ring-1 ring-[#FFD500]/30"
                   : "bg-zinc-900/60 text-zinc-500 hover:bg-zinc-900 hover:text-zinc-100"
               )}
               onClick={() => handleChangeView(item.id)}
@@ -424,14 +424,14 @@ function BotManagementSidebar({
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-20 z-40 flex w-80 flex-col border-r border-purple-500/15 bg-[#0b0b0e]/95 px-4 py-4 shadow-[24px_0_80px_rgba(0,0,0,0.45)] backdrop-blur-xl transition duration-300 lg:z-30",
+        "fixed inset-y-0 left-20 z-40 flex w-80 flex-col border-r border-[#FFD500]/20 bg-[#0b0b0b]/95 px-4 py-4 shadow-[24px_0_80px_rgba(0,0,0,0.45)] backdrop-blur-xl transition duration-300 lg:z-30",
         isMainOpen ? "translate-x-0" : "-translate-x-[26rem] lg:translate-x-0"
       )}
     >
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className="relative">
-            <Avatar className="h-12 w-12 rounded-2xl border border-purple-500/30" fallback={selectedBot?.name ?? "Bot"} src={selectedBot?.avatarUrl} />
+            <Avatar className="h-12 w-12 rounded-2xl border border-[#FFD500]/35" fallback={selectedBot?.name ?? "Bot"} src={selectedBot?.avatarUrl} />
             <span className={cn("absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-[#0b0b0e]", botOnline ? "bg-emerald-400" : "bg-zinc-600")} />
           </div>
           <div className="min-w-0">
@@ -453,7 +453,7 @@ function BotManagementSidebar({
 
       <div className="relative">
         <button
-          className="flex h-12 w-full items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950/80 px-3 text-left transition hover:border-purple-500/30"
+          className="flex h-12 w-full items-center justify-between gap-3 rounded-lg border border-[#FFD500]/20 bg-zinc-950/80 px-3 text-left transition hover:border-[#FFD500]/40"
           onClick={() => setSelectOpen((current) => !current)}
           type="button"
         >
@@ -462,7 +462,7 @@ function BotManagementSidebar({
         </button>
 
         {selectOpen ? (
-          <div className="absolute left-0 right-0 top-14 z-50 overflow-hidden rounded-lg border border-purple-500/20 bg-[#101013] shadow-2xl">
+          <div className="absolute left-0 right-0 top-14 z-50 overflow-hidden rounded-lg border border-[#FFD500]/25 bg-[#101013] shadow-2xl">
             <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2">
               <Search className="h-4 w-4 text-zinc-500" />
               <input
@@ -477,7 +477,7 @@ function BotManagementSidebar({
                 <button
                   className={cn(
                     "flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition hover:bg-zinc-900",
-                    selectedBot?.id === bot.id ? "bg-purple-500/15 ring-1 ring-purple-500/20" : ""
+                    selectedBot?.id === bot.id ? "bg-[#FFD500]/15 ring-1 ring-[#FFD500]/25" : ""
                   )}
                   key={bot.id}
                   onClick={() => {
@@ -517,7 +517,7 @@ function BotManagementSidebar({
                 className={cn(
                   "flex h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition",
                   activeView === item.id
-                    ? "bg-purple-500/15 text-white ring-1 ring-purple-500/25"
+                    ? "bg-[#FFD500]/15 text-[#FFEA70] ring-1 ring-[#FFD500]/25"
                     : "text-zinc-500 hover:bg-zinc-900/80 hover:text-zinc-100"
                 )}
                 key={item.id}

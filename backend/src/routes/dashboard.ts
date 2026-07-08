@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
+import { recordAccessAttempt } from "../services/accessAuditService";
 import { canManageDashboardGuild } from "../services/dashboardGuildAccessService";
 import { fetchBotProfile } from "../services/botProfileService";
 import { canAccessDevPanel } from "../services/devAccessService";
@@ -89,10 +90,26 @@ dashboardRouter.get("/:slug", async (req, res, next) => {
     const bot = await getAccessibleDashboardBotBySlug(auth.user, input.slug);
 
     if (!bot) {
-      return res.status(404).json({
-        message: "Acesso negado. Voce nao tem permissao para acessar esta dashboard."
+      await recordAccessAttempt(req, {
+        userId: auth.user.discordId,
+        username: auth.user.username,
+        dashboardSlug: input.slug,
+        result: "denied",
+        reason: "Dashboard nao pertence ao usuario autenticado."
+      });
+      return res.status(403).json({
+        message: "Acesso negado."
       });
     }
+
+    await recordAccessAttempt(req, {
+      userId: auth.user.discordId,
+      username: auth.user.username,
+      dashboardSlug: input.slug,
+      botId: bot.id,
+      result: "allowed",
+      reason: "Dashboard liberada para o usuario autenticado."
+    });
 
     const scopedGuilds = scopedBotDashboardGuilds(auth.user, bot);
     const selectedGuildId = auth.user.selectedGuildId && scopedGuilds.some((guild) => guild.id === auth.user.selectedGuildId)
@@ -130,8 +147,16 @@ dashboardRouter.patch("/selected-guild", async (req, res, next) => {
     const botId = typeof req.body?.botId === "string" && req.body.botId.trim() ? req.body.botId.trim() : null;
 
     if (!canManageDashboardGuild(auth.user, input.selectedGuildId) && !(await canAccessDevBotGuild(auth.user, botId, input.selectedGuildId))) {
+      await recordAccessAttempt(req, {
+        userId: auth.user.discordId,
+        username: auth.user.username,
+        botId,
+        guildId: input.selectedGuildId,
+        result: "denied",
+        reason: "Servidor nao pertence ao escopo autorizado do usuario."
+      });
       return res.status(403).json({
-        message: "Voce nao tem permissao para configurar este servidor."
+        message: "Acesso negado."
       });
     }
 

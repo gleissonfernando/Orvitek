@@ -1904,7 +1904,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
 
   return (
     <div className="space-y-4">
-      {message ? <div className="rounded-lg border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-sm font-semibold text-white">{message}</div> : null}
+      {message ? <div className="rounded-lg border border-[#FFEA70]/25 bg-[#FFD500]/10 px-4 py-3 text-sm font-semibold text-white">{message}</div> : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard icon={Server} label="Backups salvos" value={String(dashboard?.backups.length ?? 0)} />
@@ -1982,7 +1982,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
             <label className="grid gap-2 rounded-lg border border-zinc-800 bg-zinc-950/70 p-4 text-sm">
               <span className="font-semibold text-white">Backup salvo</span>
-              <select className="h-10 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none focus:border-purple-500/60" disabled={!canManage} onChange={(event) => { setSendBackupId(event.target.value); setSendPreview(null); setSendConfirmation(""); }} value={sendBackupId}>
+              <select className="h-10 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none focus:border-[#FFD500]/60" disabled={!canManage} onChange={(event) => { setSendBackupId(event.target.value); setSendPreview(null); setSendConfirmation(""); }} value={sendBackupId}>
                 <option value="">Selecione um backup</option>
                 {(dashboard?.backups ?? []).map((backup) => (
                   <option key={backup.id} value={backup.id}>{backup.guildName} - {formatDate(backup.createdAt)} - {backup.counts.roles} cargos / {backup.counts.channels} canais</option>
@@ -2089,7 +2089,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
                   </p>
                 ) : null}
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-800" aria-label={`Progresso ${job.progress ?? result?.progressPercent ?? 0}%`}>
-                  <div className="h-full bg-purple-500 transition-[width] duration-300" style={{ width: `${Math.max(0, Math.min(100, job.progress ?? result?.progressPercent ?? 0))}%` }} />
+                  <div className="h-full bg-[#FFD500] transition-[width] duration-300" style={{ width: `${Math.max(0, Math.min(100, job.progress ?? result?.progressPercent ?? 0))}%` }} />
                 </div>
                 <p className="mt-1 text-right text-xs text-zinc-500">{job.progress ?? result?.progressPercent ?? 0}%</p>
                 {result?.progress?.length ? (
@@ -2317,7 +2317,7 @@ function AdvancedSecurityModulePanel({
   return (
     <div className="space-y-4">
       {message ? (
-        <div className="rounded-lg border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-sm font-semibold text-white">
+        <div className="rounded-lg border border-[#FFEA70]/25 bg-[#FFD500]/10 px-4 py-3 text-sm font-semibold text-white">
           {message}
         </div>
       ) : null}
@@ -2326,7 +2326,7 @@ function AdvancedSecurityModulePanel({
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-purple-500/25 bg-purple-500/10 text-purple-200">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#FFD500]/25 bg-[#FFD500]/10 text-[#FFEA70]">
                 <Icon className="h-5 w-5" />
               </div>
               <div className="min-w-0">
@@ -2373,7 +2373,7 @@ function AdvancedSecurityModulePanel({
           </div>
           {moduleId === "tag-verification" ? <TagVerificationStatus config={config} /> : null}
           {moduleFooter ? (
-            <p className="rounded-lg border border-purple-500/20 bg-purple-500/[0.08] px-4 py-3 text-xs font-semibold text-zinc-300">
+            <p className="rounded-lg border border-[#FFD500]/20 bg-[#FFD500]/[0.08] px-4 py-3 text-xs font-semibold text-zinc-300">
               {moduleFooter}
             </p>
           ) : null}
@@ -2523,7 +2523,7 @@ function AdvancedTextField({ disabled, label, onChange, placeholder, value }: { 
   return (
     <label className="grid gap-2 rounded-lg border border-zinc-800 bg-zinc-950/70 p-4 text-sm">
       <span className="font-semibold text-white">{label}</span>
-      <input className="h-10 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none focus:border-purple-500/60" disabled={disabled} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} value={value} />
+      <input className="h-10 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none focus:border-[#FFD500]/60" disabled={disabled} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} value={value} />
     </label>
   );
 }
@@ -2538,7 +2538,7 @@ function AdvancedNumberField({ disabled, label, max, min, onChange, value }: { d
   return (
     <label className="grid gap-2 rounded-lg border border-zinc-800 bg-zinc-950/70 p-4 text-sm">
       <span className="font-semibold text-white">{label}</span>
-      <input className="h-10 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none focus:border-purple-500/60" disabled={disabled} max={max} min={min} onChange={(event) => handleChange(event.target.value)} type="number" value={value} />
+      <input className="h-10 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none focus:border-[#FFD500]/60" disabled={disabled} max={max} min={min} onChange={(event) => handleChange(event.target.value)} type="number" value={value} />
     </label>
   );
 }
@@ -2547,7 +2547,7 @@ function AdvancedSelectField({ disabled, label, onChange, options, placeholder, 
   return (
     <label className="grid gap-2 rounded-lg border border-zinc-800 bg-zinc-950/70 p-4 text-sm">
       <span className="font-semibold text-white">{label}</span>
-      <select className="h-10 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none focus:border-purple-500/60" disabled={disabled} onChange={(event) => onChange(event.target.value)} value={value}>
+      <select className="h-10 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none focus:border-[#FFD500]/60" disabled={disabled} onChange={(event) => onChange(event.target.value)} value={value}>
         <option value="">{placeholder}</option>
         {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
@@ -2576,7 +2576,7 @@ function AdvancedMultiSelectField({ disabled, label, onChange, options, values }
       <div className="grid max-h-52 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
         {options.length ? options.map((option) => (
           <label className="flex min-w-0 items-center gap-2 rounded-md border border-zinc-800 bg-black px-3 py-2 text-zinc-200" key={option.value}>
-            <input checked={selected.has(option.value)} className="h-4 w-4 accent-purple-500" disabled={disabled} onChange={(event) => toggle(option.value, event.target.checked)} type="checkbox" />
+            <input checked={selected.has(option.value)} className="h-4 w-4 accent-[#FFD500]" disabled={disabled} onChange={(event) => toggle(option.value, event.target.checked)} type="checkbox" />
             <span className="truncate">{option.label}</span>
           </label>
         )) : (
@@ -2609,7 +2609,7 @@ function TagVerificationStatus({ config }: { config: Record<string, unknown> }) 
     <div className="border-t border-zinc-800 pt-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {metrics.map(([label, value]) => (
-          <div className="min-w-0 border-l-2 border-purple-500/40 px-3" key={label}>
+          <div className="min-w-0 border-l-2 border-[#FFD500]/40 px-3" key={label}>
             <span className="block text-xs font-medium text-zinc-500">{label}</span>
             <span className="mt-1 block break-words text-sm font-semibold text-zinc-100">{value}</span>
           </div>
@@ -3093,7 +3093,7 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
   }
 
   function addItem() {
-    setSettings((current) => current ? { ...current, items: [...current.items, { category: "Geral", color: "#7c3aed", emoji: "📦", enabled: true, id: `item-${current.items.length + 1}`, name: `Item ${current.items.length + 1}`, order: current.items.length + 1 }] } : current);
+    setSettings((current) => current ? { ...current, items: [...current.items, { category: "Geral", color: "#FFD500", emoji: "📦", enabled: true, id: `item-${current.items.length + 1}`, name: `Item ${current.items.length + 1}`, order: current.items.length + 1 }] } : current);
   }
 
   async function save() {
@@ -3464,7 +3464,7 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
                   <TicketField disabled={!canManage} label="Emoji" onChange={(value) => patchItem(index, { emoji: value })} value={item.emoji ?? ""} />
                   <TicketField disabled={!canManage} label="Nome" onChange={(value) => patchItem(index, { id: slugTicketOption(value, index), name: value })} value={item.name} />
                   <TicketField disabled={!canManage} label="Categoria" onChange={(value) => patchItem(index, { category: value })} value={item.category ?? ""} />
-                  <TicketField disabled={!canManage} label="Cor" onChange={(value) => patchItem(index, { color: value })} type="color" value={item.color ?? "#7c3aed"} />
+                  <TicketField disabled={!canManage} label="Cor" onChange={(value) => patchItem(index, { color: value })} type="color" value={item.color ?? "#FFD500"} />
                   <label className="flex items-end gap-2 text-xs text-zinc-300"><span className="flex h-10 items-center gap-2 rounded-md border border-zinc-800 px-3"><input checked={item.enabled} disabled={!canManage} onChange={(event) => patchItem(index, { enabled: event.target.checked })} type="checkbox" />Ativo</span></label>
                 </div>
               ))}
@@ -3699,16 +3699,16 @@ function UserDashboardHeader({
 
   return (
     <section className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
-      <Card className="border-purple-500/20 bg-[#0b0b0b]">
+      <Card className="border-[#FFD500]/20 bg-[#0b0b0b]">
         <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
             <Avatar
-              className="h-12 w-12 rounded-lg border border-purple-500/45"
+              className="h-12 w-12 rounded-lg border border-[#FFD500]/45"
               fallback={bot?.name ?? "Bot"}
               src={bot?.avatarUrl ?? null}
             />
             <div className="min-w-0">
-              <p className="text-xs font-medium uppercase text-purple-300">Bot selecionado</p>
+              <p className="text-xs font-medium uppercase text-[#FFEA70]">Bot selecionado</p>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <h1 className="truncate text-xl font-semibold text-white">{bot?.name ?? "Nenhum bot selecionado"}</h1>
                 <Badge variant={status.online ? "success" : "muted"}>
@@ -3935,7 +3935,7 @@ function ModuleCard({
     <Card className="overflow-hidden">
       <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-purple-500/25 bg-purple-500/10 text-purple-200">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#FFD500]/25 bg-[#FFD500]/10 text-[#FFEA70]">
             <Icon className="h-5 w-5" />
           </div>
           <div className="min-w-0">
@@ -4179,7 +4179,7 @@ function RulesView({
   return (
     <div className="space-y-4">
       {message ? (
-        <div className="rounded-lg border border-purple-400/25 bg-purple-500/10 px-4 py-3 text-sm font-semibold text-white">
+        <div className="rounded-lg border border-[#FFEA70]/25 bg-[#FFD500]/10 px-4 py-3 text-sm font-semibold text-white">
           {message}
         </div>
       ) : null}
@@ -4211,7 +4211,7 @@ function RulesView({
             <label className="space-y-2">
               <span className="text-sm font-medium text-zinc-100">Canal</span>
               <select
-                className="h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none transition focus:border-purple-500"
+                className="h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none transition focus:border-[#FFD500]"
                 disabled={!canManage}
                 onChange={(event) => setDraft((current) => ({ ...current, rulesChannelId: event.target.value }))}
                 value={draft.rulesChannelId}
@@ -4225,7 +4225,7 @@ function RulesView({
             <label className="space-y-2">
               <span className="text-sm font-medium text-zinc-100">Cargo liberado</span>
               <select
-                className="h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none transition focus:border-purple-500"
+                className="h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none transition focus:border-[#FFD500]"
                 disabled={!canManage}
                 onChange={(event) => setDraft((current) => ({ ...current, rulesRoleId: event.target.value }))}
                 value={draft.rulesRoleId}
@@ -4242,7 +4242,7 @@ function RulesView({
             <label className="space-y-2">
               <span className="text-sm font-medium text-zinc-100">Titulo</span>
               <input
-                className="h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none transition focus:border-purple-500"
+                className="h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none transition focus:border-[#FFD500]"
                 disabled={!canManage}
                 maxLength={120}
                 onChange={(event) => setDraft((current) => ({ ...current, rulesTitle: event.target.value }))}
@@ -4252,7 +4252,7 @@ function RulesView({
             <label className="space-y-2">
               <span className="text-sm font-medium text-zinc-100">Cor</span>
               <input
-                className="h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none transition focus:border-purple-500"
+                className="h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none transition focus:border-[#FFD500]"
                 disabled={!canManage}
                 onChange={(event) => setDraft((current) => ({ ...current, rulesColor: event.target.value }))}
                 type="color"
@@ -4264,7 +4264,7 @@ function RulesView({
           <label className="space-y-2">
             <span className="text-sm font-medium text-zinc-100">Regras</span>
             <textarea
-              className="min-h-44 w-full resize-y rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-purple-500"
+              className="min-h-44 w-full resize-y rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-[#FFD500]"
               disabled={!canManage}
               maxLength={1800}
               onChange={(event) => setDraft((current) => ({ ...current, rulesMessage: event.target.value }))}
@@ -4276,7 +4276,7 @@ function RulesView({
           <label className="space-y-2">
             <span className="text-sm font-medium text-zinc-100">Texto do botao</span>
             <input
-              className="h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none transition focus:border-purple-500"
+              className="h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none transition focus:border-[#FFD500]"
               disabled={!canManage}
               maxLength={80}
               onChange={(event) => setDraft((current) => ({ ...current, rulesButtonLabel: event.target.value }))}
@@ -4822,11 +4822,11 @@ function ManualRegistrationPanel({
   }
 
   return (
-    <Card className="border-purple-500/10 bg-zinc-950/70">
+    <Card className="border-[#FFD500]/10 bg-zinc-950/70">
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle className="flex items-center gap-2"><ListChecks className="h-5 w-5 text-purple-300" /> Sistema de Pedido de Set</CardTitle>
+            <CardTitle className="flex items-center gap-2"><ListChecks className="h-5 w-5 text-[#FFEA70]" /> Sistema de Pedido de Set</CardTitle>
             <CardDescription>Painel, sets solicitaveis, modal, aprovacao, cargos e logs em Components V2.</CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -4846,7 +4846,7 @@ function ManualRegistrationPanel({
         </div>
         {loading || !settings ? <div className="h-40 animate-pulse rounded-lg border border-zinc-800 bg-zinc-900/60" /> : (
           <>
-            <div className="space-y-3 rounded-lg border border-purple-500/20 bg-purple-500/[0.04] p-4">
+            <div className="space-y-3 rounded-lg border border-[#FFD500]/20 bg-[#FFD500]/[0.04] p-4">
               <div><p className="text-sm font-semibold text-white">Cadastrar membro</p><p className="text-xs text-zinc-500">Os usuarios do Discord sao carregados automaticamente. Selecione o membro e o cargo para criar o canal privado de meta.</p></div>
               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
                 <label className="block text-xs font-medium text-zinc-400">Usuario
@@ -5141,11 +5141,11 @@ function TicketPanelConfigurator({
   }
 
   return (
-    <Card className="border-purple-500/10 bg-zinc-950/70">
+    <Card className="border-[#FFD500]/10 bg-zinc-950/70">
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle className="flex items-center gap-2"><TicketIcon className="h-5 w-5 text-purple-300" /> Painel visual do ticket</CardTitle>
+            <CardTitle className="flex items-center gap-2"><TicketIcon className="h-5 w-5 text-[#FFEA70]" /> Painel visual do ticket</CardTitle>
             <CardDescription>Texto, cor, menu e emojis que aparecem no painel publicado pelo bot.</CardDescription>
           </div>
           <Button disabled={disabled} onClick={() => void save()} size="sm" type="button">
@@ -5232,7 +5232,7 @@ function ticketPanelDraft(settings: GuildSettings | null): TicketPanelDraft {
     ticketPanelDescription: settings?.ticketPanelDescription ?? "Precisa de ajuda? Abra um ticket e nossa equipe ira atende-lo em breve.",
     ticketPanelInfoText: settings?.ticketPanelInfoText ?? "Horario de atendimento: Seg-Sex, 9h-18h\nDescreva seu problema com detalhes para um atendimento mais rapido.",
     ticketPanelFooterText: settings?.ticketPanelFooterText ?? "",
-    ticketPanelColor: settings?.ticketPanelColor ?? "#7c3aed",
+    ticketPanelColor: settings?.ticketPanelColor ?? "#FFD500",
     ticketPanelPlaceholder: settings?.ticketPanelPlaceholder ?? "Selecione o tipo de atendimento",
     ticketPanelOptions: (settings?.ticketPanelOptions?.length ? settings.ticketPanelOptions : [{
       description: "Abrir um atendimento com a equipe.",
@@ -5282,7 +5282,7 @@ function TicketField({
     <label className="block text-xs font-medium text-zinc-400">
       {label}
       <input
-        className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-500/50 disabled:opacity-60"
+        className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100 outline-none transition focus:border-[#FFD500]/50 disabled:opacity-60"
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         type={type}
@@ -5307,7 +5307,7 @@ function TicketArea({
     <label className="block text-xs font-medium text-zinc-400">
       {label}
       <textarea
-        className="mt-1 min-h-24 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 py-2 text-sm text-zinc-100 outline-none transition focus:border-purple-500/50 disabled:opacity-60"
+        className="mt-1 min-h-24 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 py-2 text-sm text-zinc-100 outline-none transition focus:border-[#FFD500]/50 disabled:opacity-60"
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         value={value}
@@ -5783,7 +5783,7 @@ function ApplicationEmojisView({
               <p className="text-xs text-zinc-500">{progress.current} / {progress.total || 0} Emojis</p>
             </div>
             <div className="h-3 overflow-hidden rounded-full bg-zinc-900">
-              <div className="h-full rounded-full bg-purple-500 transition-all" style={{ width: `${percent}%` }} />
+              <div className="h-full rounded-full bg-[#FFD500] transition-all" style={{ width: `${percent}%` }} />
             </div>
             <div className="mt-3 grid gap-2 text-xs text-zinc-400 sm:grid-cols-4">
               <span>Enviados: {progress.sent}</span>
@@ -6214,7 +6214,7 @@ function ServerClonerView({
               <label className="block">
                 <span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Adicionar destino por ID</span>
                 <input
-                  className="mt-2 h-11 w-full rounded-lg border border-zinc-800 bg-black/35 px-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 focus:border-purple-400"
+                  className="mt-2 h-11 w-full rounded-lg border border-zinc-800 bg-black/35 px-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 focus:border-[#FFEA70]"
                   disabled={!canManage}
                   onChange={(event) => updateForm("destinationGuildInput", event.target.value)}
                   placeholder="Cole o ID do servidor que vai receber a clonagem"
@@ -6236,7 +6236,7 @@ function ServerClonerView({
                     <button
                       className={[
                         "rounded-lg border px-3 py-2 text-xs font-semibold transition",
-                        active ? "border-purple-400/40 bg-purple-500/15 text-purple-100" : "border-zinc-800 bg-black/30 text-zinc-400 hover:text-white"
+                        active ? "border-[#FFEA70]/40 bg-[#FFD500]/15 text-[#FFEA70]" : "border-zinc-800 bg-black/30 text-zinc-400 hover:text-white"
                       ].join(" ")}
                       key={part.id}
                       onClick={() => togglePart(part.id)}
@@ -6252,7 +6252,7 @@ function ServerClonerView({
             <label className="block">
               <span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Renomear destino depois da clonagem</span>
               <input
-                className="mt-2 h-11 w-full rounded-lg border border-zinc-800 bg-black/35 px-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 focus:border-purple-400"
+                className="mt-2 h-11 w-full rounded-lg border border-zinc-800 bg-black/35 px-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 focus:border-[#FFEA70]"
                 disabled={!canManage}
                 onChange={(event) => updateForm("renameServer", event.target.value)}
                 placeholder="Opcional"
@@ -6290,12 +6290,12 @@ function ServerClonerView({
               </p>
             ) : null}
             {message ? (
-              <div className="mt-4 rounded-lg border border-purple-500/25 bg-purple-500/10 px-3 py-2 text-xs font-semibold text-purple-100">
+              <div className="mt-4 rounded-lg border border-[#FFD500]/25 bg-[#FFD500]/10 px-3 py-2 text-xs font-semibold text-[#FFEA70]">
                 {message}
               </div>
             ) : null}
             <Button
-              className="mt-4 w-full gap-2 bg-purple-600 text-white hover:bg-purple-500"
+              className="mt-4 w-full gap-2 bg-[#E5C000] text-white hover:bg-[#FFD500]"
               disabled={!canManage || saving || loading}
               onClick={() => void savePlan()}
             >
@@ -6328,7 +6328,7 @@ function ServerCloneSelect({
     <label className="block">
       <span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">{label}</span>
       <select
-        className="mt-2 h-11 w-full rounded-lg border border-zinc-800 bg-black/35 px-3 text-sm font-semibold text-white outline-none transition focus:border-purple-400"
+        className="mt-2 h-11 w-full rounded-lg border border-zinc-800 bg-black/35 px-3 text-sm font-semibold text-white outline-none transition focus:border-[#FFEA70]"
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >
@@ -6357,7 +6357,7 @@ function ServerCloneTextarea({
     <label className="block">
       <span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">{label}</span>
       <textarea
-        className="mt-2 min-h-[92px] w-full resize-y rounded-lg border border-zinc-800 bg-black/35 px-3 py-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 focus:border-purple-400"
+        className="mt-2 min-h-[92px] w-full resize-y rounded-lg border border-zinc-800 bg-black/35 px-3 py-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 focus:border-[#FFEA70]"
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         value={value}
@@ -7013,7 +7013,7 @@ function EmojiCloneSettingsPanel({
           <div className="space-y-4 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 text-purple-200">
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 text-[#FFEA70]">
                   <LockKeyhole className="h-5 w-5" />
                 </span>
                 <div>
@@ -7049,7 +7049,7 @@ function EmojiCloneSettingsPanel({
                 </select>
               </div>
             </div>
-            <div className="space-y-3 rounded-lg border border-purple-500/20 bg-purple-500/5 p-3">
+            <div className="space-y-3 rounded-lg border border-[#FFD500]/20 bg-[#FFD500]/5 p-3">
               <div>
                 <p className="text-sm font-semibold text-white">Clonagem por Token de Bot</p>
                 <p className="text-xs text-zinc-500">Valida o bot, busca emojis reais e processa a clonagem em fila com limite gradual.</p>
@@ -7114,7 +7114,7 @@ function EmojiCloneSettingsPanel({
                 <div className="grid gap-2 sm:grid-cols-3">
                   {fakeEmojis.map((emoji) => (
                     <button
-                      className={["flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition", emoji.selected ? "border-purple-500/50 bg-purple-500/10" : "border-zinc-800 bg-zinc-950"].join(" ")}
+                      className={["flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition", emoji.selected ? "border-[#FFD500]/50 bg-[#FFD500]/10" : "border-zinc-800 bg-zinc-950"].join(" ")}
                       key={emoji.id}
                       onClick={() => setFakeEmojis((current) => current.map((item) => item.id === emoji.id ? { ...item, selected: !item.selected } : item))}
                       type="button"
@@ -7137,10 +7137,10 @@ function EmojiCloneSettingsPanel({
                 <p className="text-sm font-semibold text-white">Progresso</p>
                 <p className="text-xs text-zinc-500">Validação, criação e retorno do Discord.</p>
               </div>
-              {cloneStatus === "running" ? <Loader2 className="h-5 w-5 animate-spin text-purple-300" /> : cloneStatus === "success" ? <CheckCircle2 className="h-5 w-5 text-emerald-300" /> : cloneStatus === "error" ? <XCircle className="h-5 w-5 text-red-300" /> : <Clock3 className="h-5 w-5 text-zinc-500" />}
+              {cloneStatus === "running" ? <Loader2 className="h-5 w-5 animate-spin text-[#FFEA70]" /> : cloneStatus === "success" ? <CheckCircle2 className="h-5 w-5 text-emerald-300" /> : cloneStatus === "error" ? <XCircle className="h-5 w-5 text-red-300" /> : <Clock3 className="h-5 w-5 text-zinc-500" />}
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-zinc-900">
-              <div className="h-full rounded-full bg-purple-500 transition-all" style={{ width: `${cloneProgress}%` }} />
+              <div className="h-full rounded-full bg-[#FFD500] transition-all" style={{ width: `${cloneProgress}%` }} />
             </div>
             <p className="text-right text-xs font-medium text-zinc-400">{cloneProgress}%</p>
             {cloneMessage ? <p className={["rounded-lg border px-3 py-2 text-sm", cloneStatus === "error" ? "border-red-500/20 bg-red-500/10 text-red-200" : cloneStatus === "success" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200" : "border-zinc-800 bg-zinc-900 text-zinc-300"].join(" ")}>{cloneMessage}</p> : null}
@@ -7175,7 +7175,7 @@ function EmojiCloneSettingsPanel({
           <div className="grid max-h-72 gap-2 overflow-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
             {destinationGuilds.map((item) => (
               <button
-                className={["flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition", destinationGuildId === item.id ? "border-purple-500/50 bg-purple-500/10" : "border-zinc-800 bg-zinc-950 hover:border-zinc-700"].join(" ")}
+                className={["flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition", destinationGuildId === item.id ? "border-[#FFD500]/50 bg-[#FFD500]/10" : "border-zinc-800 bg-zinc-950 hover:border-zinc-700"].join(" ")}
                 disabled={disabled}
                 key={item.id}
                 onClick={() => setDestinationGuildId(item.id)}
@@ -7371,7 +7371,7 @@ function EmojiCloneSettingsPanel({
                 <button
                   className={[
                     "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition",
-                    checked ? "border-purple-500/40 bg-purple-500/10" : "border-zinc-800 bg-zinc-950/60 hover:border-zinc-700"
+                    checked ? "border-[#FFD500]/40 bg-[#FFD500]/10" : "border-zinc-800 bg-zinc-950/60 hover:border-zinc-700"
                   ].join(" ")}
                   disabled={disabled}
                   key={bot.id}
@@ -7630,14 +7630,14 @@ function NotificationsView({
           const options = field.key === "ticketCategoryId" ? categories : channels;
 
           return (
-            <Card className="border-purple-500/10 bg-zinc-950/70" key={field.key}>
+            <Card className="border-[#FFD500]/10 bg-zinc-950/70" key={field.key}>
               <CardContent className="space-y-3 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h3 className="text-sm font-semibold text-white">{field.label}</h3>
                     <p className="mt-1 text-xs leading-5 text-zinc-500">{field.description}</p>
                   </div>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin text-purple-300" /> : null}
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin text-[#FFEA70]" /> : null}
                   {saved ? <CheckCircle2 className="h-4 w-4 text-emerald-300" /> : null}
                 </div>
 
@@ -7645,7 +7645,7 @@ function NotificationsView({
                   <div className="h-11 animate-pulse rounded-lg border border-zinc-800 bg-zinc-900/70" />
                 ) : (
                   <select
-                    className="h-11 w-full rounded-lg border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100 outline-none transition focus:border-purple-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="h-11 w-full rounded-lg border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100 outline-none transition focus:border-[#FFD500]/50 disabled:cursor-not-allowed disabled:opacity-60"
                     disabled={!settings || !canManage || saving}
                     onChange={(event) => void handleChannelChange(field.key, event.target.value)}
                     value={value}

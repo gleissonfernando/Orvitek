@@ -1,12 +1,13 @@
 import {
   ActionRowBuilder,
+  ButtonInteraction,
   ButtonBuilder,
   ButtonStyle,
   ChannelSelectMenuInteraction,
   ChannelSelectMenuBuilder,
   ChannelType,
-  ModalBuilder,
   ModalSubmitInteraction,
+  ModalBuilder,
   PermissionFlagsBits,
   RoleSelectMenuBuilder,
   StringSelectMenuBuilder,
@@ -15,6 +16,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
   type ChatInputCommandInteraction,
+  type Guild,
   type GuildMember,
   type Interaction,
   type MessageCreateOptions,
@@ -26,6 +28,9 @@ import { renderComponentsV2Panel } from "./panelVisualRenderer";
 
 const PREFIX = "iab_admin";
 const PANEL_SELECT_ID = "iab_report_select";
+const PUBLIC_PREFIX = "iab";
+const LEGACY_IDENTIFIED_BUTTON_ID = "iab_denuncia_identificada";
+const LEGACY_ANONYMOUS_BUTTON_ID = "iab_denuncia_anonima";
 const BUTTON_LABELS: Record<ReportSystemButtonKey, string> = {
   addMember: "Adicionar membro",
   claim: "Assumir denuncia",
@@ -78,7 +83,12 @@ export async function handleReportSystemInteraction(interaction: Interaction, co
   if (!interaction.guild || !interaction.isRepliable()) return false;
 
   if (interaction.isStringSelectMenu() && interaction.customId === PANEL_SELECT_ID) {
-    await interaction.reply({ content: "O fluxo de abertura da denuncia sera iniciado por este painel. Configure o sistema em /sistema.", ephemeral: true });
+    await handlePublicReportSelect(interaction, context);
+    return true;
+  }
+
+  if ("customId" in interaction && isPublicReportCustomId(String(interaction.customId))) {
+    await handlePublicReportInteraction(interaction, context);
     return true;
   }
 
@@ -154,6 +164,264 @@ export async function handleReportSystemInteraction(interaction: Interaction, co
   }
 
   return false;
+}
+
+async function handlePublicReportSelect(interaction: StringSelectMenuInteraction, context: BotContext) {
+  if (!interaction.guild) {
+    await safeReply(interaction, "Use este painel dentro de um servidor.");
+    return;
+  }
+
+  const selectedCategoryId = interaction.values[0] ?? "";
+  const settings = await getFreshGuildSettings(context, interaction.guild.id, interaction.client.user?.id);
+  const report = settings.reportSystem;
+  const category = report.categories.find((item) => item.enabled && item.id === selectedCategoryId);
+
+  if (!report.enabled || !category) {
+    await safeReply(interaction, "Esta opcao de denuncia nao esta mais disponivel.");
+    return;
+  }
+
+  if (!canCreateReport(interaction.member as GuildMember | null, report)) {
+    await safeReply(interaction, "Voce nao tem permissao para abrir denuncias neste servidor.");
+    return;
+  }
+
+  if (!report.allowAnonymousReports) {
+    await interaction.showModal(createPublicReportModal(selectedCategoryId, "identified", category.name));
+    return;
+  }
+
+  await interaction.reply({
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`${PUBLIC_PREFIX}:id:${selectedCategoryId}:identified`)
+          .setLabel("Denuncia Identificada")
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId(`${PUBLIC_PREFIX}:id:${selectedCategoryId}:anonymous`)
+          .setLabel("Denuncia Anonima")
+          .setStyle(ButtonStyle.Secondary)
+      )
+    ],
+    content: `Voce selecionou **${category.name}**. Escolha como deseja abrir a denuncia:`,
+    ephemeral: true
+  });
+}
+
+async function handlePublicReportInteraction(interaction: Interaction, context: BotContext) {
+  if (!("customId" in interaction)) return;
+
+  const customId = String(interaction.customId);
+
+  if (interaction.isButton()) {
+    await handlePublicReportButton(interaction, context, customId);
+    return;
+  }
+
+  if (interaction.isModalSubmit() && customId.startsWith(`${PUBLIC_PREFIX}:m:`)) {
+    await submitPublicReport(interaction, context);
+  }
+}
+
+async function handlePublicReportButton(interaction: ButtonInteraction, context: BotContext, customId: string) {
+  if (customId === LEGACY_IDENTIFIED_BUTTON_ID || customId === LEGACY_ANONYMOUS_BUTTON_ID) {
+    const settings = await getFreshGuildSettings(context, interaction.guildId!, interaction.client.user?.id);
+    const category = settings.reportSystem.categories.find((item) => item.enabled);
+    if (!category) {
+      await safeReply(interaction, "Nenhum tipo de denuncia ativo foi encontrado. Avise a equipe para revisar o painel.");
+      return;
+    }
+    const mode = customId === LEGACY_ANONYMOUS_BUTTON_ID ? "anonymous" : "identified";
+    await interaction.showModal(createPublicReportModal(category.id, mode, category.name));
+    return;
+  }
+
+  const [, action, categoryId, mode] = customId.split(":");
+  if (action === "id") {
+    const settings = await getFreshGuildSettings(context, interaction.guildId!, interaction.client.user?.id);
+    const category = settings.reportSystem.categories.find((item) => item.enabled && item.id === categoryId);
+    if (!category) {
+      await safeReply(interaction, "Este tipo de denuncia nao esta mais disponivel.");
+      return;
+    }
+    await interaction.showModal(createPublicReportModal(category.id, mode === "anonymous" ? "anonymous" : "identified", category.name));
+    return;
+  }
+
+  if (action === "ack") {
+    await safeReply(interaction, "Acao registrada. Use o canal da denuncia para continuar o atendimento.");
+    return;
+  }
+
+  await safeReply(interaction, "Esta acao da denuncia nao esta disponivel no momento.");
+}
+
+function createPublicReportModal(categoryId: string, mode: "anonymous" | "identified", categoryName: string) {
+  return new ModalBuilder()
+    .setCustomId(`${PUBLIC_PREFIX}:m:${categoryId}:${mode}`)
+    .setTitle(mode === "anonymous" ? "Denuncia anonima" : "Denuncia identificada")
+    .addComponents(
+      inputRow("summary", "Resumo da denuncia", categoryName, TextInputStyle.Short, 120),
+      inputRow("reported", "Denunciado(s) ou envolvidos", "", TextInputStyle.Short, 180, false),
+      inputRow("description", "Descreva o ocorrido", "", TextInputStyle.Paragraph, 1800),
+      inputRow("evidence", "Provas / links / observacoes", "", TextInputStyle.Paragraph, 1000, false)
+    );
+}
+
+async function submitPublicReport(interaction: ModalSubmitInteraction, context: BotContext) {
+  await interaction.deferReply({ ephemeral: true });
+
+  const [, , categoryId, modeValue] = interaction.customId.split(":");
+  const mode = modeValue === "anonymous" ? "anonymous" : "identified";
+  const settings = await getFreshGuildSettings(context, interaction.guildId!, interaction.client.user?.id);
+  const report = settings.reportSystem;
+  const category = report.categories.find((item) => item.enabled && item.id === categoryId);
+
+  if (!report.enabled || !category) {
+    await interaction.editReply("Este tipo de denuncia nao esta mais disponivel.");
+    return;
+  }
+
+  if (mode === "anonymous" && !report.allowAnonymousReports) {
+    await interaction.editReply("Denuncias anonimas estao desativadas neste servidor.");
+    return;
+  }
+
+  if (!canCreateReport(interaction.member as GuildMember | null, report)) {
+    await interaction.editReply("Voce nao tem permissao para abrir denuncias neste servidor.");
+    return;
+  }
+
+  const summary = fieldValue(interaction, "summary") || category.name;
+  const reported = fieldValue(interaction, "reported") || "Nao informado";
+  const description = fieldValue(interaction, "description");
+  const evidence = fieldValue(interaction, "evidence") || "Nao informado";
+  if (!description) {
+    await interaction.editReply("A descricao da denuncia e obrigatoria.");
+    return;
+  }
+
+  const channel = await createReportChannel(interaction.guild!, settings, {
+    categoryName: category.name,
+    mode,
+    openerId: interaction.user.id,
+    summary
+  });
+
+  if (!channel) {
+    await interaction.editReply("Nao consegui criar o canal da denuncia. Verifique categoria/permissoes do bot e tente novamente.");
+    return;
+  }
+
+  await channel.send(createOpenedReportPayload(settings, {
+    categoryName: category.name,
+    description,
+    evidence,
+    mode,
+    openerId: interaction.user.id,
+    reported,
+    summary
+  }));
+
+  await sendReportLog(interaction.guild!, settings, {
+    categoryName: category.name,
+    channelId: channel.id,
+    mode,
+    openerId: interaction.user.id,
+    summary
+  });
+
+  await interaction.editReply(
+    mode === "anonymous"
+      ? "Sua denuncia anonima foi enviada para a equipe autorizada."
+      : `Sua denuncia foi aberta: <#${channel.id}>`
+  );
+}
+
+async function createReportChannel(guild: Guild, settings: GuildSettings, input: { categoryName: string; mode: "anonymous" | "identified"; openerId: string; summary: string }) {
+  if (!guild.members.me?.permissions.has(PermissionFlagsBits.ManageChannels)) {
+    return null;
+  }
+
+  const report = settings.reportSystem;
+  const staffRoleIds = [...new Set([...report.viewRoleIds, ...report.replyRoleIds, ...report.closeRoleIds, ...report.reopenRoleIds, ...report.adminRoleIds])];
+  const overwrites = [
+    { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+    { id: guild.members.me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ReadMessageHistory] },
+    ...staffRoleIds.map((id) => ({ id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }))
+  ];
+
+  if (input.mode === "identified") {
+    overwrites.push({ id: input.openerId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ReadMessageHistory] });
+  }
+
+  const channelName = `denuncia-${input.mode === "anonymous" ? "anonima" : "id"}-${slug(input.categoryName)}-${input.openerId.slice(-4)}`.slice(0, 90);
+  return guild.channels.create({
+    name: channelName,
+    parent: report.categoryId ?? undefined,
+    permissionOverwrites: overwrites,
+    reason: `Denuncia ${input.mode} aberta por ${input.openerId}: ${input.summary}`,
+    type: ChannelType.GuildText
+  });
+}
+
+function createOpenedReportPayload(settings: GuildSettings, input: { categoryName: string; description: string; evidence: string; mode: "anonymous" | "identified"; openerId: string; reported: string; summary: string }): MessageCreateOptions {
+  const report = settings.reportSystem;
+  const reporterLabel = input.mode === "anonymous" ? report.anonymousReporterName : `<@${input.openerId}>`;
+  const actions = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:ack:claim`).setLabel(BUTTON_LABELS.claim).setStyle(ButtonStyle.Primary).setDisabled(!report.buttons.claim),
+    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:ack:status`).setLabel(BUTTON_LABELS.status).setStyle(ButtonStyle.Secondary).setDisabled(!report.buttons.status),
+    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:ack:close`).setLabel(BUTTON_LABELS.close).setStyle(ButtonStyle.Danger).setDisabled(!report.buttons.close)
+  );
+
+  return renderComponentsV2Panel({
+    accentColor: parseColor(input.mode === "anonymous" ? report.anonymousEmbedColor : report.panelColor),
+    actions: [actions],
+    description: report.openMessage,
+    fields: [
+      `**Tipo:** ${input.categoryName}\n**Modo:** ${input.mode === "anonymous" ? "Anonima" : "Identificada"}\n**Denunciante:** ${reporterLabel}`,
+      `**Resumo:** ${input.summary}\n**Envolvidos:** ${input.reported}`,
+      `**Descricao**\n${input.description}`,
+      `**Provas / observacoes**\n${input.evidence}`
+    ],
+    image: null,
+    moduleId: "iab-report",
+    title: `${report.panelEmoji ?? "IAB"} Nova denuncia`
+  });
+}
+
+async function sendReportLog(guild: Guild, settings: GuildSettings, input: { categoryName: string; channelId: string; mode: "anonymous" | "identified"; openerId: string; summary: string }) {
+  const report = settings.reportSystem;
+  if (!report.logChannelId || !report.logs.opened) return;
+  const channel = await guild.channels.fetch(report.logChannelId).catch(() => null);
+  if (!channel?.isSendable()) return;
+  await channel.send({
+    content: `Nova denuncia ${input.mode === "anonymous" ? "anonima" : "identificada"} em <#${input.channelId}> | Tipo: **${input.categoryName}** | Resumo: **${input.summary}**${input.mode === "identified" ? ` | Autor: <@${input.openerId}>` : ""}`
+  }).catch(() => null);
+}
+
+function canCreateReport(member: GuildMember | null, report: ReportSystemSettings) {
+  if (!member) return false;
+  if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+  if (!report.permissionRoleIds.length && !report.createRoleIds.length) return true;
+  return [...report.permissionRoleIds, ...report.createRoleIds].some((roleId) => member.roles.cache.has(roleId));
+}
+
+function isPublicReportCustomId(customId: string) {
+  return customId.startsWith(`${PUBLIC_PREFIX}:`) || customId === LEGACY_IDENTIFIED_BUTTON_ID || customId === LEGACY_ANONYMOUS_BUTTON_ID;
+}
+
+async function safeReply(interaction: Interaction, content: string) {
+  if (!interaction.isRepliable()) return;
+  const payload = { content, ephemeral: true };
+  if (interaction.replied || interaction.deferred) await interaction.followUp(payload).catch(() => null);
+  else await interaction.reply(payload).catch(() => null);
+}
+
+function fieldValue(interaction: ModalSubmitInteraction, id: string) {
+  return interaction.fields.getTextInputValue(id).trim();
 }
 
 function createAdminPayload(settings: GuildSettings, section: string) {

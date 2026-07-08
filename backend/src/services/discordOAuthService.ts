@@ -4,6 +4,7 @@ import { getDiscordAvatarUrl } from "./discordAssetService";
 import type { DiscordGuild } from "./guildService";
 
 const DISCORD_API = "https://discord.com/api/v10";
+const DISCORD_OAUTH_AUTHORIZE_URL = "https://discord.com/oauth2/authorize";
 
 export type DiscordUser = {
   id: string;
@@ -38,11 +39,10 @@ export function buildDiscordAuthUrl(state: string) {
     redirect_uri: env.DISCORD_OAUTH_REDIRECT_URI,
     response_type: "code",
     scope: env.DISCORD_SCOPES,
-    state,
-    prompt: "consent"
+    state
   });
 
-  return `${DISCORD_API}/oauth2/authorize?${params}`;
+  return `${DISCORD_OAUTH_AUTHORIZE_URL}?${params}`;
 }
 
 export async function exchangeDiscordCode(code: string) {

@@ -17,6 +17,9 @@ import { apiRouter } from "./routes";
 import { authRouter } from "./routes/auth";
 import { healthRouter } from "./routes/health";
 import { kickWebhookPublicRouter } from "./routes/kickNotifications";
+import { recordAccessAttempt } from "./services/accessAuditService";
+import { canAccessDevPanel } from "./services/devAccessService";
+import { resolveAuthFromRequest } from "./services/tokenService";
 
 export const app = express();
 const frontendDistPath = path.resolve(__dirname, "../../frontend/dist");
@@ -86,6 +89,35 @@ app.use("/api", apiRouter);
 
 if (fs.existsSync(frontendIndexPath)) {
   app.use(express.static(frontendDistPath));
+  app.get(["/dev", "/dev/*"], async (req, res, next) => {
+    try {
+      const auth = resolveAuthFromRequest(req, res);
+
+      if (!auth?.verified || !(await canAccessDevPanel(auth.user))) {
+        await recordAccessAttempt(req, {
+          action: "dev.access.denied",
+          userId: auth?.user.discordId ?? null,
+          username: auth?.user.username ?? null,
+          result: "denied",
+          reason: auth ? "Usuario autenticado sem permissao DEV." : "Sessao nao autenticada."
+        });
+
+        return res.status(403).send("Acesso negado.");
+      }
+
+      await recordAccessAttempt(req, {
+        action: "dev.access.allowed",
+        userId: auth.user.discordId,
+        username: auth.user.username,
+        result: "allowed",
+        reason: "Usuario DEV autenticado."
+      });
+
+      return res.sendFile(frontendIndexPath);
+    } catch (error) {
+      return next(error);
+    }
+  });
   app.get("*", (_req, res) => {
     res.sendFile(frontendIndexPath);
   });

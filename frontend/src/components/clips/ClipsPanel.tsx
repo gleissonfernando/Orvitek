@@ -490,7 +490,7 @@ export function ClipsPanel({ botId, canManage, guild, platform = "twitch", refre
               {preview ? (
                 <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-900 bg-zinc-950/75 p-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <Avatar className="h-11 w-11 rounded-full border border-purple-500/35" fallback={preview.displayName} src={preview.avatar} />
+                    <Avatar className="h-11 w-11 rounded-full border border-[#FFD500]/35" fallback={preview.displayName} src={preview.avatar} />
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-white">{preview.displayName}</p>
                       <p className="truncate text-xs text-zinc-500">@{preview.username}</p>
