@@ -1330,6 +1330,50 @@ export type MongoPoliceHiddenChannelLog = {
   createdAt: Date;
 };
 
+export type MongoDmBarConfig = {
+  _id: string;
+  accentColor: string;
+  allowAdmins: boolean;
+  allowedRoleIds: string[];
+  allowedUserIds: string[];
+  allowMentions: boolean;
+  botId: string;
+  cooldownSeconds: number;
+  createdAt: Date;
+  descriptionTemplate: string;
+  enabled: boolean;
+  emoji: string;
+  footerEnabled: boolean;
+  footerIconUrl: string | null;
+  footerText: string;
+  guildId: string;
+  imagePosition: "top" | "middle" | "bottom" | "gallery" | "thumbnail" | "none";
+  logChannelId: string | null;
+  logsEnabled: boolean;
+  mainImageUrl: string | null;
+  showDate: boolean;
+  showSender: boolean;
+  showServer: boolean;
+  showTargetId: boolean;
+  signature: string;
+  titleTemplate: string;
+  updatedAt: Date;
+  updatedBy: string | null;
+};
+
+export type MongoDmBarLog = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  senderId: string;
+  targetId: string | null;
+  title: string;
+  message: string;
+  status: "sent" | "failed" | "denied" | "cancelled" | "test";
+  errorReason: string | null;
+  sentAt: Date;
+};
+
 export type MongoImageAntiSpamSettings = {
   _id: string;
   botId: string;
@@ -2711,6 +2755,8 @@ export async function getMongoCollections() {
     policePatrolFiles: db.collection<MongoPolicePatrolFile>("police_patrol_files"),
     policeHiddenChannelSettings: db.collection<MongoPoliceHiddenChannelSettings>("police_hidden_channel_settings"),
     policeHiddenChannelLogs: db.collection<MongoPoliceHiddenChannelLog>("police_hidden_channel_logs"),
+    dmBarConfigs: db.collection<MongoDmBarConfig>("dm_bar_configs"),
+    dmBarLogs: db.collection<MongoDmBarLog>("dm_bar_logs"),
     fivemFacSettings: db.collection<MongoFivemFacSettings>("fivem_fac_settings"),
     fivemFacAbsences: db.collection<MongoFivemFacAbsence>("fivem_fac_absences"),
     imageAntiSpamSettings: db.collection<MongoImageAntiSpamSettings>("image_anti_spam_settings"),
@@ -3276,7 +3322,10 @@ async function ensureFivemModuleIndexes(db: Db) {
     db.collection<MongoPoliceHiddenChannelSettings>("police_hidden_channel_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
     db.collection<MongoPoliceHiddenChannelSettings>("police_hidden_channel_settings").createIndex({ botId: 1, guildId: 1, channelId: 1 }),
     db.collection<MongoPoliceHiddenChannelLog>("police_hidden_channel_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
-    db.collection<MongoPoliceHiddenChannelLog>("police_hidden_channel_logs").createIndex({ botId: 1, originalMessageId: 1 }, { unique: true })
+    db.collection<MongoPoliceHiddenChannelLog>("police_hidden_channel_logs").createIndex({ botId: 1, originalMessageId: 1 }, { unique: true }),
+    db.collection<MongoDmBarConfig>("dm_bar_configs").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    db.collection<MongoDmBarLog>("dm_bar_logs").createIndex({ botId: 1, guildId: 1, sentAt: -1 }),
+    db.collection<MongoDmBarLog>("dm_bar_logs").createIndex({ botId: 1, senderId: 1, sentAt: -1 })
   ]);
 }
 

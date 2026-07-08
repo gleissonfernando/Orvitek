@@ -114,6 +114,10 @@ export type PoliceHiddenChannelSettingsEvent = {
   botId?: string | null;
   guildId: string;
 };
+export type DmBarSettingsEvent = {
+  botId?: string | null;
+  guildId: string;
+};
 
 export type MissionToolsSettingsEvent = {
   botId?: string | null;
@@ -244,6 +248,7 @@ export class BotSocketClient {
   private fivemHierarchyPanelUpdateHandler: ((payload: FivemHierarchyPanelUpdateEvent) => void) | null = null;
   private fivemFacAbsenceUpdateHandler: ((payload: FivemFacAbsenceUpdateEvent) => void) | null = null;
   private policeHiddenChannelSettingsHandler: ((payload: PoliceHiddenChannelSettingsEvent) => void) | null = null;
+  private dmBarSettingsHandler: ((payload: DmBarSettingsEvent) => void) | null = null;
   private missionToolsSettingsHandler: ((payload: MissionToolsSettingsEvent) => void) | null = null;
   private missionToolsPanelPublishHandler: ((payload: MissionToolsPanelPublishEvent) => void) | null = null;
   private missionToolsUserUpdateHandler: ((payload: MissionToolsUserUpdateEvent) => void) | null = null;
@@ -358,6 +363,9 @@ export class BotSocketClient {
 
     if (this.policeHiddenChannelSettingsHandler) {
       this.socket.on("police-hidden-channel:settings_updated", this.policeHiddenChannelSettingsHandler);
+    }
+    if (this.dmBarSettingsHandler) {
+      this.socket.on("dm-bar:settings_updated", this.dmBarSettingsHandler);
     }
 
     if (this.missionToolsSettingsHandler) {
@@ -570,6 +578,12 @@ export class BotSocketClient {
     this.policeHiddenChannelSettingsHandler = handler;
     this.socket?.off("police-hidden-channel:settings_updated");
     this.socket?.on("police-hidden-channel:settings_updated", handler);
+  }
+
+  onDmBarSettingsUpdated(handler: (payload: DmBarSettingsEvent) => void) {
+    this.dmBarSettingsHandler = handler;
+    this.socket?.off("dm-bar:settings_updated");
+    this.socket?.on("dm-bar:settings_updated", handler);
   }
 
   onMissionToolsSettingsUpdated(handler: (payload: MissionToolsSettingsEvent) => void) {
