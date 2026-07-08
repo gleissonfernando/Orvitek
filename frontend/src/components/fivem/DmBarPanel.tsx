@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ImageIcon, Loader2, RefreshCw, Save, Send, Trash2 } from "lucide-react";
 import { getDmBarDashboard, getGuildLiveOptions, removeDmBarImage, resetDmBarConfig, saveDmBarConfig, uploadDmBarImage } from "../../lib/api";
 import { createDashboardSocket } from "../../lib/socket";
@@ -16,6 +16,7 @@ export function DmBarPanel({ botId, canManage, guild }: { botId?: string | null;
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function load() {
     if (!botId || !guild) return;
@@ -42,6 +43,10 @@ export function DmBarPanel({ botId, canManage, guild }: { botId?: string | null;
     return () => { socket.off("dm-bar:settings_updated", refresh); socket.off("dm-bar:log_created", refresh); socket.disconnect(); };
   }, [botId, guild?.id]);
 
+  useEffect(() => () => {
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+  }, []);
+
   const lastLog = useMemo(() => data?.logs.find((log) => log.status === "sent" || log.status === "test") ?? null, [data]);
 
   if (!botId || !guild) return <Empty text="Selecione um bot e servidor para configurar a Barra DM." />;
@@ -49,11 +54,30 @@ export function DmBarPanel({ botId, canManage, guild }: { botId?: string | null;
 
   const config = data.config;
   const patch = (next: Partial<DmBarConfig>) => {
+    const nextConfig = { ...config, ...next };
     setDirty(true);
-    setData((current) => current ? { ...current, config: { ...current.config, ...next } } : current);
+    setData((current) => current ? { ...current, config: nextConfig } : current);
+    scheduleAutosave(nextConfig);
   };
 
+  function scheduleAutosave(nextConfig: DmBarConfig) {
+    if (!canManage || !botId || !guild) return;
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = setTimeout(() => {
+      setSaving(true);
+      void saveDmBarConfig(guild.id, botId, nextConfig)
+        .then((saved) => {
+          setData((current) => current ? { ...current, config: saved } : current);
+          setDirty(false);
+          setMessage("Configurações salvas automaticamente.");
+        })
+        .catch((error) => setMessage(readMessage(error)))
+        .finally(() => setSaving(false));
+    }, 900);
+  }
+
   async function save() {
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     setSaving(true); setMessage(null);
     try { const next = await saveDmBarConfig(guild!.id, botId!, config); setData((current) => current ? { ...current, config: next } : current); setDirty(false); setMessage("Configurações salvas com sucesso."); }
     catch (error) { setMessage(readMessage(error)); }
