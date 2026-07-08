@@ -1433,14 +1433,21 @@ function fiveMModuleIcon(moduleId: string): LucideIcon {
     "fivem-hierarchy": Users,
     "police-absences": CalendarClock,
     "police-actions": Activity,
-    "police-patrol-reports": ShieldCheck
+    "police-iab": ShieldAlert,
+    "police-hr": UserCog,
+    "police-daf-roster": CalendarClock,
+    "police-courses": ScrollText,
+    "police-patrol-reports": ShieldCheck,
+    "police-dm": Bell,
+    "police-subpoenas": ScrollText,
+    "police-open-duty": Activity
   };
 
   return icons[moduleId] ?? Boxes;
 }
 
 function isPoliceModule(moduleId: string) {
-  return moduleId === "fivem-hierarchy" || moduleId === "police-absences" || moduleId === "police-actions" || moduleId === "police-patrol-reports";
+  return moduleId === "fivem-hierarchy" || moduleId.startsWith("police-");
 }
 
 function isFiveMManagerModule(moduleId: string) {

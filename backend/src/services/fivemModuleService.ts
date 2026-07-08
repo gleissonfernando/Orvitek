@@ -102,10 +102,59 @@ export const BUILTIN_FIVEM_MODULES: FivemModuleDefinition[] = [
   },
   {
     builtIn: true,
+    description: "Canal de denuncias IAB com triagem, auditoria e acompanhamento pela equipe policial.",
+    id: "police-iab",
+    permissions: "Admin Policia, Corregedoria",
+    title: "Denuncia IAB"
+  },
+  {
+    builtIn: true,
+    description: "Gestao de efetivo, recrutamento, desligamentos e movimentacoes internas da policia.",
+    id: "police-hr",
+    permissions: "Admin Policia, RH",
+    title: "RH Policial"
+  },
+  {
+    builtIn: true,
+    description: "Escalas DAF, plantoes, equipes e disponibilidade operacional.",
+    id: "police-daf-roster",
+    permissions: "Admin Policia, DAF",
+    title: "Escalacao DAF"
+  },
+  {
+    builtIn: true,
+    description: "Cursos, matriculas, aprovacoes e historico de capacitacao policial.",
+    id: "police-courses",
+    permissions: "Admin Policia, Instrutor",
+    title: "Cursos Policiais"
+  },
+  {
+    builtIn: true,
     description: "Relatorios de patrulhamento exclusivos para oficiais, com anexos, auditoria e historico.",
     id: "police-patrol-reports",
     permissions: "Admin Policia, Supervisor",
     title: "Relatorios Policiais"
+  },
+  {
+    builtIn: true,
+    description: "Atendimento por DM policial com registro, encaminhamento e historico.",
+    id: "police-dm",
+    permissions: "Admin Policia, Atendimento",
+    title: "DM Policial"
+  },
+  {
+    builtIn: true,
+    description: "Intimacoes, notificacoes, prazos e comprovantes de comparecimento.",
+    id: "police-subpoenas",
+    permissions: "Admin Policia, Investigacao",
+    title: "Intimacao"
+  },
+  {
+    builtIn: true,
+    description: "Ponto aberto, entrada e saida de servico, tempo ativo e auditoria de escala.",
+    id: "police-open-duty",
+    permissions: "Admin Policia, Supervisor",
+    title: "Ponto Aberto"
   }
 ];
 

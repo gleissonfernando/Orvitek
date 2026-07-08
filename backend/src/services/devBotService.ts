@@ -91,7 +91,14 @@ export const DEV_MODULES = [
   { id: "fivem-actions", label: "FiveM - Acoes FAC" },
   { id: "police-absences", label: "Policia - Sistema de Ausencias" },
   { id: "police-actions", label: "Policia - Acoes" },
-  { id: "police-patrol-reports", label: "Polícia - Relatórios de Patrulhamento" },
+  { id: "police-iab", label: "Policia - Denuncia IAB" },
+  { id: "police-hr", label: "Policia - RH Policial" },
+  { id: "police-daf-roster", label: "Policia - Escalacao DAF" },
+  { id: "police-courses", label: "Policia - Cursos Policiais" },
+  { id: "police-patrol-reports", label: "Policia - Relatorios de Patrulhamento" },
+  { id: "police-dm", label: "Policia - DM Policial" },
+  { id: "police-subpoenas", label: "Policia - Intimacao" },
+  { id: "police-open-duty", label: "Policia - Ponto Aberto" },
   { id: "fivem-fac", label: "FiveM - FAC Ausencia" },
   { id: "avisos", label: "Mensagens e Personalizacao" }
 ] as const;
