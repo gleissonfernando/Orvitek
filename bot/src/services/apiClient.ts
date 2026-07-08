@@ -40,6 +40,19 @@ export type BotRuntimeModules = {
   status: "online" | "offline" | "invalid_token" | "error";
 };
 
+export type BotRuntimeStatusInput = {
+  botGuilds?: Array<{
+    id: string;
+    name: string;
+  }>;
+  botProfile?: {
+    avatarUrl?: string | null;
+    id: string;
+    username: string;
+  };
+  online: boolean;
+};
+
 export type MaintenanceState = {
   active: boolean;
   activatedAt: string | null;
@@ -1312,6 +1325,17 @@ export class ApiClient {
 
   async getRuntimeModules() {
     const { data } = await this.http.get<BotRuntimeModules>("/bot/runtime/modules");
+    return data;
+  }
+
+  async reportRuntimeStatus(input: BotRuntimeStatusInput) {
+    const { data } = await this.http.post<{ botId: string; status: BotRuntimeModules["status"] }>(
+      "/bot/runtime/status",
+      input,
+      {
+        timeout: 8_000
+      }
+    );
     return data;
   }
 

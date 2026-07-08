@@ -2,7 +2,15 @@ import { Router } from "express";
 import { z } from "zod";
 import { requireBot } from "../middleware/auth";
 import { authorizeBotCommand } from "../services/botCommandAuthorizationService";
-import { authorizeBotRuntimeModule, getBotGuildConfig, getBotApiPermissions, updateBotGuildModuleRuntimeStatus } from "../services/devBotService";
+import {
+  authorizeBotRuntimeModule,
+  getBotGuildConfig,
+  getBotApiPermissions,
+  syncDevBotGuilds,
+  syncDevBotProfile,
+  updateBotGuildModuleRuntimeStatus,
+  updateDevBotRuntimeStatus
+} from "../services/devBotService";
 import { getMaintenanceState } from "../services/maintenanceService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
 
@@ -12,6 +20,18 @@ const commandAuthorizationSchema = z.object({
   userId: z.string().nullable().optional()
 });
 const guildIdSchema = z.string().regex(/^\d{5,32}$/);
+const runtimeStatusSchema = z.object({
+  botGuilds: z.array(z.object({
+    id: z.string().regex(/^\d{5,32}$/),
+    name: z.string().min(1).max(100)
+  })).max(250).optional(),
+  botProfile: z.object({
+    avatarUrl: z.string().url().nullable().optional(),
+    id: z.string().regex(/^\d{5,32}$/),
+    username: z.string().min(1).max(100)
+  }).optional(),
+  online: z.boolean()
+});
 const tagVerificationStatusSchema = z.object({
   lastCheckAt: z.string().datetime(),
   nextCheckAt: z.string().datetime().nullable(),
@@ -53,6 +73,41 @@ botDevApiRouter.get("/runtime/modules", async (req, res, next) => {
       checkedAt: new Date().toISOString(),
       enabledModules: permissions.enabledModules,
       status: permissions.status
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+botDevApiRouter.post("/runtime/status", async (req, res, next) => {
+  try {
+    const botId = await resolveRequestBotId(req);
+
+    if (!botId) {
+      return res.status(400).json({
+        message: "Bot nao identificado na requisicao runtime."
+      });
+    }
+
+    const input = runtimeStatusSchema.parse(req.body ?? {});
+
+    if (input.botProfile) {
+      await syncDevBotProfile(botId, input.botProfile);
+    }
+
+    if (input.botGuilds) {
+      await syncDevBotGuilds(botId, input.botGuilds);
+    }
+
+    const bot = await updateDevBotRuntimeStatus(
+      botId,
+      input.online ? "online" : "offline",
+      input.online ? "Bot conectado ao Discord." : "Bot offline."
+    );
+
+    return res.json({
+      botId,
+      status: bot?.status ?? (input.online ? "online" : "offline")
     });
   } catch (error) {
     return next(error);

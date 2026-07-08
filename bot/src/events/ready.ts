@@ -44,6 +44,7 @@ import { startXMonitor } from "../services/xMonitor";
 import type { BotContext } from "../types";
 
 let lastRuntimeModuleSignature = "";
+let lastRuntimeStatusWarningAt = 0;
 
 export async function handleReady(client: Client<true>, context: BotContext) {
   console.log(`[bot] conectado como ${client.user.tag}`);
@@ -204,9 +205,11 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   }
   context.socket.connect(client);
   context.socket.emitStatus(client, true);
+  void reportRuntimeStatus(context, client, true);
 
   const interval = setInterval(() => {
     context.socket.emitStatus(client, true);
+    void reportRuntimeStatus(context, client, true);
   }, 30_000);
 
   interval.unref();
@@ -233,6 +236,32 @@ function csv(value: string) {
 
 function unique(values: string[]) {
   return [...new Set(values.filter(Boolean))];
+}
+
+async function reportRuntimeStatus(context: BotContext, client: Client, online: boolean) {
+  try {
+    await context.api.reportRuntimeStatus({
+      botGuilds: client.guilds.cache.map((guild) => ({
+        id: guild.id,
+        name: guild.name
+      })),
+      botProfile: client.user
+        ? {
+            avatarUrl: client.user.displayAvatarURL({ size: 256 }),
+            id: client.user.id,
+            username: client.user.username
+          }
+        : undefined,
+      online
+    });
+  } catch (error) {
+    const now = Date.now();
+
+    if (now - lastRuntimeStatusWarningAt > 60_000) {
+      lastRuntimeStatusWarningAt = now;
+      console.warn("[bot] nao foi possivel sincronizar status runtime:", error instanceof Error ? error.message : error);
+    }
+  }
 }
 
 async function loadRuntimeAccess(context: BotContext) {

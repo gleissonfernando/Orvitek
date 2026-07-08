@@ -1348,6 +1348,22 @@ export async function getDevBotToken(botId: string | null | undefined) {
 
 export async function updateDevBotRuntimeStatus(botId: string, status: MongoDevBotStatus, statusMessage: string) {
   const { devBots } = await getMongoCollections();
+  const safeStatusMessage = maskSensitiveText(statusMessage);
+  const current = await devBots.findOne(
+    {
+      _id: botId
+    },
+    {
+      projection: {
+        status: 1,
+        statusMessage: 1
+      }
+    }
+  );
+
+  if (current?.status === status && current.statusMessage === safeStatusMessage) {
+    return getDevBot(botId);
+  }
 
   await devBots.updateOne(
     {
@@ -1356,7 +1372,7 @@ export async function updateDevBotRuntimeStatus(botId: string, status: MongoDevB
     {
       $set: {
         status,
-        statusMessage: maskSensitiveText(statusMessage),
+        statusMessage: safeStatusMessage,
         updatedAt: new Date()
       }
     }
