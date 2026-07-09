@@ -188,6 +188,13 @@ function emitPanelRefresh(guildId: string, botId: string, panelId: string) {
     "manual-registration": "manual-registration:panel_publish",
     "mission-tools": "mission-tools:panel_publish"
   };
+  if (panelId === "global-default") {
+    for (const event of new Set(Object.values(events))) {
+      emitRealtimeToRoom(devBotRealtimeRoom(botId), event, { botId, guildId });
+    }
+    return;
+  }
+
   const event = events[refreshPanelId(panelId)];
   if (event) emitRealtimeToRoom(devBotRealtimeRoom(botId), event, { botId, guildId });
 }

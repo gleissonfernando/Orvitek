@@ -67,6 +67,17 @@ export async function publishManualRegistrationPanel(interaction: ChatInputComma
     await interaction.reply({ content: "Configure um canal valido para o painel.", ephemeral: true });
     return;
   }
+  if (settings.panelMessageId && "messages" in channel) {
+    const message = await channel.messages.fetch(settings.panelMessageId).catch(() => null);
+    if (!message) {
+      await interaction.reply({ content: "A mensagem salva do painel nao foi encontrada. Limpe o ID salvo ou remova o painel antigo antes de publicar outro.", ephemeral: true });
+      return;
+    }
+    await message.edit(createPanelPayload(settings));
+    await context.api.saveManualRegistrationSettings(interaction.guild.id, { panelChannelId: channel.id, panelMessageId: message.id });
+    await interaction.reply({ content: `Painel de Pedido de Set atualizado em <#${channel.id}>.`, ephemeral: true });
+    return;
+  }
   const message = await channel.send(createPanelPayload(settings));
   await context.api.saveManualRegistrationSettings(interaction.guild.id, { panelChannelId: channel.id, panelMessageId: message.id });
   await interaction.reply({ content: `Painel de Pedido de Set publicado em <#${channel.id}>.`, ephemeral: true });
@@ -77,9 +88,13 @@ async function publishConfiguredPanel(guild: Guild, context: BotContext) {
   if (!settings.enabled || (!settings.panelChannelId && !settings.panelCategoryId)) return;
   const channel = await resolveOrCreatePanelChannel(guild, settings);
   if (!channel?.isSendable()) return;
-  let message = settings.panelMessageId && "messages" in channel ? await channel.messages.fetch(settings.panelMessageId).catch(() => null) : null;
-  if (message) await message.edit(createPanelPayload(settings));
-  else message = await channel.send(createPanelPayload(settings));
+  if (settings.panelMessageId && "messages" in channel) {
+    const message = await channel.messages.fetch(settings.panelMessageId).catch(() => null);
+    if (!message) return;
+    await message.edit(createPanelPayload(settings));
+    return;
+  }
+  const message = await channel.send(createPanelPayload(settings));
   await context.api.saveManualRegistrationSettings(guild.id, { panelChannelId: channel.id, panelMessageId: message.id });
 }
 

@@ -172,16 +172,13 @@ async function publishGoalRequestPanel(guild: Guild, context: BotContext) {
   const channel = await guild.channels.fetch(settings.requestPanelChannelId).catch(() => null);
   if (!channel || !("send" in channel) || !("messages" in channel)) return;
   const payload = createGoalRequestPanelPayload(settings.requestPanelTitle, settings.requestPanelDescription);
-  let message = settings.requestPanelMessageId
-    ? await channel.messages.fetch(settings.requestPanelMessageId).catch(() => null)
-    : null;
-  if (message) {
-    await message.edit(payload).catch(async () => {
-      message = await channel.send(payload).catch(() => null);
-    });
-  } else {
-    message = await channel.send(payload).catch(() => null);
+  if (settings.requestPanelMessageId) {
+    const message = await channel.messages.fetch(settings.requestPanelMessageId).catch(() => null);
+    if (!message) return;
+    await message.edit(payload).catch(() => null);
+    return;
   }
+  const message = await channel.send(payload).catch(() => null);
   if (message) {
     await context.api.updateFivemGoalPanelState({ guildId: guild.id, messageId: message.id }).catch(() => null);
   }

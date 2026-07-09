@@ -67,8 +67,13 @@ async function publishMainPanel(client: Client, context: BotContext, config: Fiv
   const contentComponents: any[] = imagePosition === "top" && media.length ? [...media, intro, tutorial] : imagePosition === "center" && media.length ? [intro, ...media, tutorial] : [intro, tutorial, ...media];
   const navigation = enabled.length > 25 ? [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${PREFIX}:page:${config.architecture}|1`).setLabel("Mais ações").setEmoji("➡️").setStyle(ButtonStyle.Secondary))] : [];
   const payload = { components: [{ type: 17, accent_color: parseColor(config.color), components: [...contentComponents, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select), ...navigation] }], flags: MessageFlags.IsComponentsV2 as const };
-  let message = config.panelMessageId ? await channel.messages.fetch(config.panelMessageId).catch(() => null) : null;
-  if (message) await message.edit(payload); else message = await channel.send(payload);
+  if (config.panelMessageId) {
+    const message = await channel.messages.fetch(config.panelMessageId).catch(() => null);
+    if (!message) return;
+    await message.edit(payload);
+    return;
+  }
+  const message = await channel.send(payload);
   await context.api.updateFivemActionPanelState({ guildId: config.guildId, architecture: config.architecture, panelMessageId: message.id });
 }
 

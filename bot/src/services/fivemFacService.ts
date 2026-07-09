@@ -695,25 +695,24 @@ async function publishFivemFacPanel(client: Client, context: BotContext, guildId
 
   const payload = buildPanelPayload(settings);
   let messageId: string | null = settings.panelMessageId ?? null;
-  let messageUpdated = false;
 
   if (settings.panelMessageId) {
     const oldMessage = await channel.messages.fetch(settings.panelMessageId).catch(() => null);
 
-    if (oldMessage) {
-      await oldMessage.edit(payload);
-      if (oldMessage.pinned) {
-        await oldMessage.unpin("Painel FAC nao e mais fixado automaticamente.").catch(() => null);
-      }
-      messageId = oldMessage.id;
-      messageUpdated = true;
+    if (!oldMessage) {
+      return settings;
     }
+
+    await oldMessage.edit(payload);
+    if (oldMessage.pinned) {
+      await oldMessage.unpin("Painel FAC nao e mais fixado automaticamente.").catch(() => null);
+    }
+    console.log(`[fivem-fac] painel atualizado em ${guild.name}.`);
+    return settings;
   }
 
-  if (!messageUpdated) {
-    const message = await channel.send(payload);
-    messageId = message.id;
-  }
+  const message = await channel.send(payload);
+  messageId = message.id;
 
   if (messageId !== settings.panelMessageId) {
     const saved = await context.api.updateFivemFacPanelState({

@@ -67,8 +67,13 @@ async function publishConfiguredFinancePanel(guild: Guild, context: BotContext, 
   const channel = await guild.channels.fetch(channelId).catch(() => null);
   if (!channel?.isSendable()) return null;
   const payload = createMainPanel(settings, buildReport((await context.api.getFivemFinanceRuntime(guild.id)).transactions).balance);
-  let message = settings.panelMessageId && "messages" in channel ? await channel.messages.fetch(settings.panelMessageId).catch(() => null) : null;
-  if (message) await message.edit(payload).catch(() => null); else message = await channel.send(payload);
+  if (settings.panelMessageId && "messages" in channel) {
+    const message = await channel.messages.fetch(settings.panelMessageId).catch(() => null);
+    if (!message) return null;
+    await message.edit(payload);
+    return channel.id;
+  }
+  const message = await channel.send(payload);
   await context.api.updateFivemFinancePanelState(guild.id, message.id);
   return channel.id;
 }

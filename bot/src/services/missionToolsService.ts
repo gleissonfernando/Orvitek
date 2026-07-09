@@ -990,22 +990,19 @@ async function publishMissionToolsPanel(client: Client, context: BotContext, gui
   if (settings.panelMessageId) {
     const oldMessage = await channel.messages.fetch(settings.panelMessageId).catch(() => null);
 
-    if (oldMessage) {
-      if (oldMessage.flags.has(MessageFlags.IsComponentsV2)) {
-        const edited = await oldMessage.edit(payload);
-        await pinPanelMessage(edited, "Mission Tools");
-        messageId = edited.id;
-      } else {
-        await oldMessage.delete().catch(() => null);
-      }
+    if (!oldMessage) {
+      return settings;
     }
+
+    const edited = await oldMessage.edit(payload);
+    await pinPanelMessage(edited, "Mission Tools");
+    console.log(`[mission-tools] panel updated in ${guild.name}.`);
+    return settings;
   }
 
-  if (!messageId) {
-    const message = await channel.send(payload);
-    await pinPanelMessage(message, "Mission Tools");
-    messageId = message.id;
-  }
+  const message = await channel.send(payload);
+  await pinPanelMessage(message, "Mission Tools");
+  messageId = message.id;
 
   const saved = await context.api.updateMissionToolsPanelState({
     guildId,

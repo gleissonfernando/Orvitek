@@ -77,8 +77,13 @@ async function publishManualPaymentPanel(guild: Guild, context: BotContext, fall
   const channel = await guild.channels.fetch(channelId).catch(() => null);
   if (!channel?.isSendable()) return null;
   const payload = createSalesPanel(settings);
-  let message = settings.salePanelMessageId && "messages" in channel ? await channel.messages.fetch(settings.salePanelMessageId).catch(() => null) : null;
-  if (message) await message.edit(payload).catch(() => null); else message = await channel.send(payload);
+  if (settings.salePanelMessageId && "messages" in channel) {
+    const message = await channel.messages.fetch(settings.salePanelMessageId).catch(() => null);
+    if (!message) return null;
+    await message.edit(payload);
+    return channel.id;
+  }
+  const message = await channel.send(payload);
   await context.api.updateManualPaymentPanelState(guild.id, message.id);
   return channel.id;
 }
