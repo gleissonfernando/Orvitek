@@ -107,6 +107,16 @@ function envUrl(name: string, fallback: string) {
   );
 }
 
+function envOptionalUrl(name: string) {
+  return z.preprocess(
+    (value) => cleanEnvValue(value) ?? "",
+    z
+      .string()
+      .refine((value) => value === "" || isValidUrl(value), `${name} precisa ser uma URL valida.`)
+      .transform((value) => (value ? normalizeUrl(value) : ""))
+  );
+}
+
 function envBoolean(defaultValue: boolean) {
   return z
     .string()
@@ -177,6 +187,8 @@ const envSchema = z
     BOT_API_TOKEN: internalBotToken(),
     MASTER_TRANSCRIPT_PASSWORD: z.string().default("NPD Lua Bennett"),
     MASTER_TRANSCRIPT_PASSWORD_HASH: z.string().optional().default(""),
+    TRANSCRIPT_BASE_URL: envOptionalUrl("TRANSCRIPT_BASE_URL"),
+    TRANSCRIPT_PORT: z.coerce.number().int().min(1).max(65535).optional(),
     DISCORD_BOT_TOKEN: z.string().default(""),
     DISCORD_CLIENT_ID: z.string().default(""),
     DISCORD_CLIENT_SECRET: z.string().default(""),
@@ -232,9 +244,17 @@ const envSchema = z
       ? normalizeUrl(configuredDiscordRedirect)
       : "";
     const effectiveDiscordRedirect = oauthCallbackUrl || normalizedDiscordRedirect;
+    const configuredTranscriptBaseUrl = cleanEnvValue(value.TRANSCRIPT_BASE_URL);
+    const normalizedTranscriptBaseUrl = configuredTranscriptBaseUrl && (!isProduction || !isLocalUrl(configuredTranscriptBaseUrl))
+      ? normalizeUrl(configuredTranscriptBaseUrl)
+      : "";
 
     if (normalizedDiscordRedirect && oauthCallbackUrl && normalizedDiscordRedirect !== oauthCallbackUrl) {
       console.warn(`[env] Discord redirect configurado (${normalizedDiscordRedirect}) difere do dominio canonico (${oauthCallbackUrl}); usando o canonico.`);
+    }
+
+    if (isProduction && configuredTranscriptBaseUrl && isLocalUrl(configuredTranscriptBaseUrl)) {
+      console.warn("[env] TRANSCRIPT_BASE_URL local ignorado em producao. Configure um dominio publico para transcripts.");
     }
 
     return {
@@ -243,6 +263,8 @@ const envSchema = z
       SITE_ORIGIN: oauthFrontendUrl,
       FRONTEND_URL: oauthFrontendUrl,
       BACKEND_URL: oauthFrontendUrl,
+      TRANSCRIPT_BASE_URL: normalizedTranscriptBaseUrl || oauthFrontendUrl,
+      TRANSCRIPT_PORT: value.TRANSCRIPT_PORT ?? value.PORT,
       DISCORD_REDIRECT_URI: effectiveDiscordRedirect,
       DISCORD_OAUTH_REDIRECT_URI: effectiveDiscordRedirect,
       DISCORD_CALLBACK_URL: effectiveDiscordRedirect,
@@ -265,6 +287,8 @@ process.env.MONGODB_URI = env.MONGODB_URI;
 process.env.SITE_ORIGIN = env.SITE_ORIGIN;
 process.env.FRONTEND_URL = env.FRONTEND_URL;
 process.env.BACKEND_URL = env.BACKEND_URL;
+process.env.TRANSCRIPT_BASE_URL = env.TRANSCRIPT_BASE_URL;
+process.env.TRANSCRIPT_PORT = String(env.TRANSCRIPT_PORT);
 process.env.DISCORD_REDIRECT_URI = env.DISCORD_REDIRECT_URI;
 process.env.DISCORD_OAUTH_REDIRECT_URI = env.DISCORD_OAUTH_REDIRECT_URI;
 process.env.DISCORD_CALLBACK_URL = env.DISCORD_CALLBACK_URL;
@@ -274,6 +298,7 @@ if (env.NODE_ENV === "production") {
   const missing = [
     ["SITE_ORIGIN", env.SITE_ORIGIN],
     ["FRONTEND_URL", env.FRONTEND_URL],
+    ["TRANSCRIPT_BASE_URL", env.TRANSCRIPT_BASE_URL],
     ["MONGODB_URI", env.MONGODB_URI],
     ["BOT_API_TOKEN", cleanEnvValue(env.BOT_API_TOKEN)],
     ["DISCORD_BOT_TOKEN", cleanEnvValue(env.DISCORD_BOT_TOKEN)],

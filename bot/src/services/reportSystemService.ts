@@ -532,7 +532,7 @@ async function handleArchiveSelect(interaction: StringSelectMenuInteraction, con
   if (!channel || !topic || topic.ticketId !== ticketId) return;
   const ticket = await context.api.updateTicketStatus(ticketId, { status: "ARCHIVED" });
   const archiveCategoryId = interaction.values[0] ?? null;
-  if (archiveCategoryId) await channel.setParent(archiveCategoryId).catch(() => null);
+  if (archiveCategoryId && archiveCategoryId !== "none") await channel.setParent(archiveCategoryId).catch(() => null);
   await channel.permissionOverwrites.edit(channel.guild.roles.everyone.id, { SendMessages: false }).catch(() => null);
   const nextTopic = { ...topic, status: "archived" as const };
   await channel.setTopic(makeTopic(nextTopic)).catch(() => null);
@@ -722,8 +722,7 @@ async function sendTranscriptPanel(guild: Guild, settings: GuildSettings, topic:
   const channelId = report.transcriptChannelId ?? reportCompetenceLogChannelId(report, topic.competence);
   const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
   if (!channel?.isTextBased() || !("send" in channel)) return;
-  const origin = env.BACKEND_API_URL ? new URL(env.BACKEND_API_URL).origin : "";
-  const url = `${origin}${transcript.transcript.htmlPath}`;
+  const url = resolveTranscriptUrl(transcript);
   await (channel as TextChannel).send(renderComponentsV2Panel({
     accentColor: parseColor(report.panelColor),
     actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setLabel("Abrir transcript").setStyle(ButtonStyle.Link).setURL(url))],
@@ -737,6 +736,13 @@ async function sendTranscriptPanel(guild: Guild, settings: GuildSettings, topic:
     moduleId: "iab-transcript",
     title: "Transcript gerado"
   })).catch(() => null);
+}
+
+function resolveTranscriptUrl(transcript: Awaited<ReturnType<BotContext["api"]["createTranscript"]>>) {
+  if (transcript.publicUrl) return transcript.publicUrl;
+  if (transcript.transcript.publicUrl) return transcript.transcript.publicUrl;
+  const origin = env.BACKEND_API_URL ? new URL(env.BACKEND_API_URL).origin : "";
+  return `${origin}${transcript.transcript.htmlPath}`;
 }
 
 async function logIabEvent(context: BotContext, guild: Guild, settings: GuildSettings, topic: ReportTopic, action: string, message: string, actorId: string | null) {

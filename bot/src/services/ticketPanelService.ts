@@ -405,8 +405,7 @@ async function sendTranscriptLog(guild: Guild, context: BotContext, transcript: 
   const logChannel = logChannelId ? await guild.channels.fetch(logChannelId).catch(() => null) : null;
   if (!logChannel?.isTextBased() || !("send" in logChannel)) return;
 
-  const origin = env.BACKEND_API_URL ? new URL(env.BACKEND_API_URL).origin : "";
-  const url = `${origin}${transcript.transcript.htmlPath}`;
+  const url = resolveTranscriptUrl(transcript);
   await (logChannel as TextChannel).send({
     components: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -433,6 +432,13 @@ async function sendTranscriptLog(guild: Guild, context: BotContext, transcript: 
       transcript.temporaryPassword ? `Senha privada do painel: ||${transcript.temporaryPassword}||` : ""
     ].filter(Boolean).join("\n")
   }).catch(() => null);
+}
+
+function resolveTranscriptUrl(transcript: Awaited<ReturnType<BotContext["api"]["createTranscript"]>>) {
+  if (transcript.publicUrl) return transcript.publicUrl;
+  if (transcript.transcript.publicUrl) return transcript.transcript.publicUrl;
+  const origin = env.BACKEND_API_URL ? new URL(env.BACKEND_API_URL).origin : "";
+  return `${origin}${transcript.transcript.htmlPath}`;
 }
 
 function toSelectOption(option: TicketPanelOption) {

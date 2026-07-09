@@ -8,6 +8,7 @@ const HASH_KEY_LENGTH = 32;
 const HASH_DIGEST = "sha256";
 const DEFAULT_TEMP_PASSWORD_TTL_HOURS = 72;
 const TEMP_PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*-_";
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1"]);
 
 export type TranscriptInput = {
   botId?: string | null;
@@ -48,6 +49,7 @@ export async function createTranscript(input: TranscriptInput) {
   const collections = await getMongoCollections();
   const now = new Date();
   const transcriptId = `TR-${randomUUID().slice(0, 8).toUpperCase()}`;
+  const publicUrl = buildTranscriptPublicUrl(transcriptId);
   const temporaryPassword = input.generateTemporaryPassword === false ? null : generateTemporaryPassword();
   const expiresAt = temporaryPassword
     ? new Date(now.getTime() + Math.max(1, input.temporaryPasswordTtlHours ?? DEFAULT_TEMP_PASSWORD_TTL_HOURS) * 60 * 60 * 1000)
@@ -79,7 +81,7 @@ export async function createTranscript(input: TranscriptInput) {
     txtPath: `/transcripts/${encodeURIComponent(transcriptId)}/export.txt`,
     htmlContent: "",
     textContent: "",
-    websiteUrl: null,
+    websiteUrl: publicUrl,
     status: input.status ?? (input.isPartial ? "Incompleto" : "Finalizado"),
     createdAt: toDate(input.createdAt) ?? now,
     closedAt: toDate(input.closedAt) ?? now,
@@ -141,8 +143,49 @@ export async function createTranscript(input: TranscriptInput) {
     );
   }
 
-  emitRealtime("transcripts:new", publicTranscriptSummary(transcript));
-  return { transcript: publicTranscriptSummary(transcript), temporaryPassword, temporaryPasswordExpiresAt: expiresAt?.toISOString() ?? null };
+  const summary = publicTranscriptSummary(transcript);
+  emitRealtime("transcripts:new", summary);
+  return { publicUrl, transcript: summary, temporaryPassword, temporaryPasswordExpiresAt: expiresAt?.toISOString() ?? null };
+}
+
+export function buildTranscriptPublicUrl(transcriptId: string) {
+  const baseUrl = resolveTranscriptPublicBaseUrl();
+  return `${baseUrl}/transcripts/${encodeURIComponent(transcriptId)}`;
+}
+
+export function resolveTranscriptPublicBaseUrl() {
+  const configured = env.TRANSCRIPT_BASE_URL || env.SITE_ORIGIN || env.FRONTEND_URL || env.BACKEND_URL;
+
+  if (configured) {
+    if (env.NODE_ENV === "production" && isLocalUrl(configured)) {
+      throw new Error("TRANSCRIPT_BASE_URL nao pode ser localhost/127.0.0.1 em producao. Configure um dominio publico.");
+    }
+    return configured.replace(/\/+$/, "");
+  }
+
+  if (env.NODE_ENV !== "production") {
+    return `http://localhost:${env.TRANSCRIPT_PORT || env.PORT}`;
+  }
+
+  throw new Error("TRANSCRIPT_BASE_URL ausente. Configure o dominio publico para gerar links de transcript.");
+}
+
+export function getTranscriptStartupStatus() {
+  try {
+    const baseUrl = resolveTranscriptPublicBaseUrl();
+    return {
+      ok: true,
+      baseUrl,
+      route: `${baseUrl}/transcripts/:id`,
+      port: env.TRANSCRIPT_PORT || env.PORT
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+      port: env.TRANSCRIPT_PORT || env.PORT
+    };
+  }
 }
 
 export async function getTranscriptForExport(transcriptId: string) {
@@ -345,9 +388,19 @@ function publicTranscriptSummary(transcript: MongoTranscript) {
     status: transcript.status,
     isPartial: transcript.isPartial,
     htmlPath: transcript.htmlPath,
+    publicUrl: transcript.websiteUrl ?? buildTranscriptPublicUrl(transcript._id),
     createdAt: transcript.createdAt.toISOString(),
     expiresAt: transcript.expiresAt?.toISOString() ?? null
   };
+}
+
+function isLocalUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return LOCAL_HOSTS.has(url.hostname);
+  } catch {
+    return /(?:\/\/|@)(localhost|127\.0\.0\.1|0\.0\.0\.0)(?::|\/|$)/i.test(value);
+  }
 }
 
 async function registerAccess(transcript: MongoTranscript, accessType: MongoTranscriptAccessLog["accessType"], success: boolean, reason: string, request: { ip?: string | null; userAgent?: string | null }) {

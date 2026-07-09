@@ -9,6 +9,7 @@ import { processQueuedGiveawayEnd, processQueuedGiveawayStart, startGiveawaySche
 import { processQueuedServerBackupCapture, processQueuedServerBackupRestore, startServerBackupScheduler } from "./services/serverBackupService";
 import { startVoiceRecorderRetentionScheduler } from "./services/voiceRecorderService";
 import { registerBackgroundJobHandler, startBackgroundJobWorker, stopBackgroundJobWorker } from "./services/backgroundJobService";
+import { getTranscriptStartupStatus } from "./services/transcriptService";
 
 const httpServer = createServer(app);
 let shuttingDown = false;
@@ -26,6 +27,12 @@ registerBackgroundJobHandler("giveaway.end", processQueuedGiveawayEnd);
 
 httpServer.listen(env.PORT, env.HOST, () => {
   console.log(`[api] rodando em ${env.FRONTEND_URL} (${env.HOST}:${env.PORT})`);
+  const transcriptStatus = getTranscriptStartupStatus();
+  if (transcriptStatus.ok) {
+    console.log(`[transcripts] rota publica pronta em ${transcriptStatus.route} (porta ${transcriptStatus.port})`);
+  } else {
+    console.error(`[transcripts] configuracao invalida: ${transcriptStatus.error}`);
+  }
   if (env.BACKGROUND_WORKER_ENABLED) startBackgroundJobWorker();
   if (env.SCHEDULER_ENABLED) {
     startGiveawayScheduler();

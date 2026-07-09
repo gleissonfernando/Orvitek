@@ -40,6 +40,7 @@ export type TicketRecord = {
 };
 
 export type TranscriptCreateResult = {
+  publicUrl: string;
   temporaryPassword: string | null;
   temporaryPasswordExpiresAt: string | null;
   transcript: {
@@ -51,6 +52,7 @@ export type TranscriptCreateResult = {
     status: string;
     isPartial: boolean;
     htmlPath: string;
+    publicUrl?: string | null;
     createdAt: string;
     expiresAt: string | null;
   };
