@@ -742,10 +742,22 @@ function createManagementPayload(settings: GuildSettings, ticket: TicketRecord, 
 function withManagementMention(settings: GuildSettings, payload: MessageCreateOptions): MessageCreateOptions {
   const roleIds = settings.reportSystem.mentionRoleIds.slice(0, 10);
   if (!roleIds.length) return payload;
+  const mentions = roleIds.map((roleId) => `<@&${roleId}>`).join(" ");
+  const components = Array.isArray(payload.components) ? [...payload.components] as Array<Record<string, unknown>> : [];
+  const container = components[0];
+  const containerComponents = Array.isArray(container?.components) ? [...container.components] : null;
+  if (!container || !containerComponents) return payload;
+  const firstActionIndex = containerComponents.findIndex((component) => {
+    if (!component || typeof component !== "object") return false;
+    return (component as { type?: unknown }).type === 1;
+  });
+  const mentionComponent = { type: 10, content: `**Equipe notificada:** ${mentions}` };
+  if (firstActionIndex >= 0) containerComponents.splice(firstActionIndex, 0, mentionComponent);
+  else containerComponents.push(mentionComponent);
   return {
     ...payload,
     allowedMentions: { roles: roleIds },
-    content: roleIds.map((roleId) => `<@&${roleId}>`).join(" ")
+    components: ([{ ...container, components: containerComponents }, ...components.slice(1)] as unknown) as MessageCreateOptions["components"]
   };
 }
 
