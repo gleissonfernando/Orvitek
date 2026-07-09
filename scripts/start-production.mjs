@@ -1,12 +1,13 @@
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 
 const children = new Set();
 process.env.NODE_ENV = "production";
 process.env.HOST ||= "0.0.0.0";
 process.env.PORT ||= "8080";
 process.env.BOT_API_TOKEN ||= packedConfigValue("BOT_API_TOKEN") || randomBytes(32).toString("hex");
+process.env.START_REGISTERED_DEV_BOTS ||= packedConfigValue("START_REGISTERED_DEV_BOTS") || (discloudStartEnablesDevBots() ? "true" : "");
 process.env.BACKEND_API_URL = `http://127.0.0.1:${process.env.PORT}/api`;
 process.env.BACKEND_SOCKET_URL = `http://127.0.0.1:${process.env.PORT}`;
 
@@ -28,6 +29,23 @@ function packedConfigValue(key) {
     return value === null || value === undefined ? "" : String(value).trim();
   } catch {
     return "";
+  }
+}
+
+function discloudStartEnablesDevBots() {
+  try {
+    const config = readFileSync("discloud.config", "utf8");
+    const start = config
+      .split(/\r?\n/)
+      .find((line) => line.trim().startsWith("START="))
+      ?.split("=")
+      .slice(1)
+      .join("=")
+      .trim();
+
+    return start === "npm run start:discloud" || /\bSTART_REGISTERED_DEV_BOTS=true\b/.test(start ?? "");
+  } catch {
+    return false;
   }
 }
 

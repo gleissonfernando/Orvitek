@@ -7,7 +7,10 @@ export function errorHandler(error: unknown, _req: Request, res: Response, _next
     ? (error as { statusCode: number }).statusCode
     : 500;
 
-  console.error("[api]", error);
+  if (statusCode >= 500) {
+    console.error("[api]", error);
+  }
+
   res.status(statusCode).json({
     message
   });

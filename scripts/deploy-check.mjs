@@ -14,7 +14,7 @@ const requiredDiscloud = {
   RAM: "1024",
   VERSION: "latest",
   BUILD: "npm install && npm run build",
-  START: "npm start"
+  START: "npm run start:discloud"
 };
 
 const checks = [];

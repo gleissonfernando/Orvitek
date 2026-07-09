@@ -47,7 +47,9 @@ export async function startRegisteredDevBots() {
     return [];
   });
 
+  console.log(`[dev-bot] iniciando ${bots.length} bot(s) cadastrado(s) automaticamente.`);
   await startDevBotRuntimeBatch(bots);
+  return bots.length;
 }
 
 export async function startAllDevBotProcesses(botIds: string[]) {

@@ -548,6 +548,13 @@ const moduleCatalog: ModuleDefinition[] = [
     view: "police-iab"
   },
   {
+    id: "police-subpoenas",
+    title: "Intimacao",
+    description: "Configura intimações institucionais, competência dos órgãos, prazos, DMs e canais sigilosos.",
+    icon: ScrollText,
+    view: "police-subpoenas"
+  },
+  {
     id: "fivem-orders",
     title: "Encomendas FiveM",
     description: "Controle separado para pedidos, fila, producao, entrega e historico de encomendas.",
@@ -650,6 +657,7 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   "police-patrol-reports": "police-patrol-reports",
   "police-hidden-channel": "police-hidden-channel",
   "police-dm": "police-dm",
+  "police-subpoenas": "police-subpoenas",
   "rh-admin": "rh-admin",
   "police-iab": "police-iab",
   "fivem-orders": "fivem-orders",
@@ -1412,10 +1420,10 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             guildId={selectedGuild.id}
           />
         ) : null}
-        {activeView === "police-iab" ? (
+        {activeView === "police-iab" || activeView === "police-subpoenas" ? (
           <PoliceIabPanel
             botId={activeBotId}
-            canManage={canManageModule(selectedBot, "police-iab", canManageDashboard)}
+            canManage={canManageModule(selectedBot, activeView === "police-subpoenas" ? "police-subpoenas" : "police-iab", canManageDashboard)}
             guild={selectedGuild}
             loading={settingsLoading}
             onSettingsChange={setSettings}
@@ -3635,7 +3643,8 @@ function fivemUserModules(enabledModules: string[], fivemModules: FivemModuleDef
     { builtIn: true, description: "Relatórios de patrulhamento exclusivos para oficiais.", id: "police-patrol-reports", permissions: "Admin Polícia", title: "Relatórios Policiais" },
     { builtIn: true, description: "Canal anonimo policial com logs administrativos.", id: "police-hidden-channel", permissions: "Admin Polícia", title: "Canal Oculto" },
     { builtIn: true, description: "Envio de mensagens privadas com painel visual e logs.", id: "police-dm", permissions: "Admin Polícia", title: "Barra DM" },
-    { builtIn: true, description: "Denuncias anonimas/identificadas com orgaos, logs e auditoria.", id: "police-iab", permissions: "Admin Polícia", title: "Denuncias Corregedoria" }
+    { builtIn: true, description: "Denuncias anonimas/identificadas com orgaos, logs e auditoria.", id: "police-iab", permissions: "Admin Polícia", title: "Denuncias Corregedoria" },
+    { builtIn: true, description: "Intimacoes institucionais com DMs, prazos e competência por órgão.", id: "police-subpoenas", permissions: "Admin Polícia", title: "Intimacao" }
   ];
   const catalog = fivemModules.length ? fivemModules : fallbackCatalog;
   const enabled = new Set(enabledModules.map((moduleId) => moduleId === "fivem-fac" ? "fivem-absences" : moduleId));
@@ -3645,7 +3654,7 @@ function fivemUserModules(enabledModules: string[], fivemModules: FivemModuleDef
     .filter((module) => {
       if (mode === "orders") return module.id === "fivem-orders";
       if (mode === "goals") return module.id === "fivem-goals";
-      return module.id !== "fivem-orders" && module.id !== "fivem-goals" && module.id !== "fivem-hierarchy" && module.id !== "fivem-absences" && module.id !== "police-absences" && module.id !== "police-actions" && module.id !== "police-patrol-reports" && module.id !== "police-hidden-channel" && module.id !== "police-dm" && module.id !== "police-iab";
+      return module.id !== "fivem-orders" && module.id !== "fivem-goals" && module.id !== "fivem-hierarchy" && module.id !== "fivem-absences" && module.id !== "police-absences" && module.id !== "police-actions" && module.id !== "police-patrol-reports" && module.id !== "police-hidden-channel" && module.id !== "police-dm" && module.id !== "police-iab" && module.id !== "police-subpoenas";
     })
     .map((module) => ({
       description: module.description,
@@ -3672,7 +3681,8 @@ function fivemIconForModule(moduleId: string) {
     "police-actions": Activity,
     "police-hidden-channel": EyeOff,
     "police-dm": UserPlus,
-    "police-iab": ShieldAlert
+    "police-iab": ShieldAlert,
+    "police-subpoenas": ScrollText
   };
 
   return icons[moduleId] ?? Boxes;
@@ -3755,6 +3765,7 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
       "police-absences",
       "police-actions",
       "police-iab",
+      "police-subpoenas",
       "police-patrol-reports",
       "police-hidden-channel",
       "police-dm",

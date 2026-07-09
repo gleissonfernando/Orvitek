@@ -944,7 +944,7 @@ async function canPatchSettings(
     ticketPanelColor: ["tickets"],
     ticketPanelPlaceholder: ["tickets"],
     ticketPanelOptions: ["tickets"],
-    reportSystem: ["police-iab", "tickets"],
+    reportSystem: ["police-iab", "police-subpoenas", "tickets"],
     logChannelId: ["logs"],
     discordLogsEnabled: ["logs"],
     siteLogsEnabled: ["logs"],

@@ -47,7 +47,13 @@ httpServer.listen(env.PORT, env.HOST, () => {
     })
     .finally(() => {
       if (env.START_REGISTERED_DEV_BOTS) {
-        void startRegisteredDevBots();
+        void startRegisteredDevBots()
+          .then((count) => {
+            console.log(`[dev-bot] start automatico concluido para ${count} bot(s) cadastrado(s).`);
+          })
+          .catch((error) => {
+            console.warn("[dev-bot] start automatico falhou:", error instanceof Error ? error.message : error);
+          });
       } else {
         console.log("[dev-bot] start automatico desativado. Use START_REGISTERED_DEV_BOTS=true para habilitar.");
       }
