@@ -211,7 +211,7 @@ export async function handlePoliceSubpoenaMessage(message: Message, context: Bot
 
   const settings = await getFreshGuildSettings(context, message.guild.id, message.client.user?.id);
   const member = message.member ?? await message.guild.members.fetch(message.author.id).catch(() => null);
-  if (message.author.id === state.targetId || !member || !canManageCompetence(member, settings.reportSystem, state.finalCompetence)) return false;
+  if (message.author.id === state.targetId || !member || !canManageCase(member, settings.reportSystem, state, message.author.id)) return false;
 
   const me = message.guild.members.me ?? await message.guild.members.fetchMe().catch(() => null);
   const permissions = me ? channel.permissionsFor(me) : null;
@@ -246,7 +246,7 @@ async function handleCaseButton(interaction: ButtonInteraction, context: BotCont
     await interaction.reply({ content: "Não encontrei os dados desta intimação após reinício. Gere uma nova intimação.", ephemeral: true });
     return true;
   }
-  if (!interaction.member || !canManageCompetence(interaction.member as GuildMember, settings.reportSystem, state.finalCompetence)) {
+  if (!interaction.member || !canManageCase(interaction.member as GuildMember, settings.reportSystem, state, interaction.user.id)) {
     await replyDenied(interaction);
     return true;
   }
@@ -271,7 +271,7 @@ async function handleCaseButton(interaction: ButtonInteraction, context: BotCont
 
 async function submitNote(interaction: ModalSubmitInteraction, _context: BotContext, settings: GuildSettings, channelId: string) {
   const state = cases.get(channelId) ?? await recoverCaseFromChannel(interaction, settings);
-  if (!state || !interaction.member || !canManageCompetence(interaction.member as GuildMember, settings.reportSystem, state.finalCompetence)) {
+  if (!state || !interaction.member || !canManageCase(interaction.member as GuildMember, settings.reportSystem, state, interaction.user.id)) {
     await replyDenied(interaction);
     return true;
   }
@@ -292,11 +292,13 @@ async function createSubpoenaChannel(guild: Guild, settings: GuildSettings, stat
   const report = settings.reportSystem;
   const categoryId = categoryFor(report, state.finalCompetence);
   const roleIds = orgRoleIds(report, state.finalCompetence);
+  const caseUserIds = [...new Set([state.createdById, state.responsibleId].filter((id) => id && id !== target.id))];
   const overwrites = [
     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
     { id: guild.members.me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ReadMessageHistory] },
     ...allOrgRoleIds(report).filter((roleId) => !roleIds.includes(roleId)).map((id) => ({ id, deny: [PermissionFlagsBits.ViewChannel] })),
     ...roleIds.map((id) => ({ id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] })),
+    ...caseUserIds.map((id) => ({ id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ReadMessageHistory] })),
     { id: target.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ReadMessageHistory] }
   ];
   return guild.channels.create({
@@ -411,6 +413,7 @@ function parseCompetence(value: string | undefined): Competence | null { return 
 function hasAnyRole(member: GuildMember, roleIds: string[]) { return roleIds.some((roleId) => member.roles.cache.has(roleId)); }
 function canUseCommand(member: GuildMember, report: ReportSystemSettings) { if (member.permissions.has(PermissionFlagsBits.Administrator)) return true; const ids = [...report.competenceCommandRoleIds, ...report.permissionRoleIds, ...report.adminRoleIds, ...allOrgRoleIds(report)]; return !ids.length || hasAnyRole(member, ids); }
 function canManageCompetence(member: GuildMember, report: ReportSystemSettings, competence: Competence) { if (member.permissions.has(PermissionFlagsBits.Administrator)) return true; return hasAnyRole(member, orgRoleIds(report, competence)); }
+function canManageCase(member: GuildMember, report: ReportSystemSettings, state: CaseState, userId: string) { if (member.permissions.has(PermissionFlagsBits.Administrator)) return true; if (userId === state.createdById || userId === state.responsibleId) return true; return canManageCompetence(member, report, state.finalCompetence); }
 function staffDisplayName(report: ReportSystemSettings, competence: Competence) { return competence === "iab" ? report.anonymousInvestigatorName || "Equipe IAB" : COMPETENCE_LABEL[competence] || "Equipe Responsável"; }
 function orgRoleIds(report: ReportSystemSettings, competence: Competence) { const fallback = competence === "iab" ? [...report.viewRoleIds, ...report.replyRoleIds, ...report.adminRoleIds] : []; return [...new Set((competence === "iab" ? report.iabRoleIds : competence === "conselho" ? report.conselhoRoleIds : competence === "hcmd" ? report.hcmdRoleIds : report.comissarioRoleIds).concat(fallback))]; }
 function allOrgRoleIds(report: ReportSystemSettings) { return [...new Set([...orgRoleIds(report, "iab"), ...orgRoleIds(report, "conselho"), ...orgRoleIds(report, "hcmd"), ...orgRoleIds(report, "comissario")])]; }
