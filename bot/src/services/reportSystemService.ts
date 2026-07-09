@@ -425,6 +425,17 @@ async function handleReportTicketButton(interaction: ButtonInteraction, context:
     return;
   }
 
+  if (isReportManagementAction(action)) {
+    if (interaction.user.id === topic.openerId) {
+      await safeReply(interaction, "Quem abriu esta denuncia nao pode assumir nem usar os botoes internos do atendimento.");
+      return;
+    }
+    if (!canUseReportManagementAction(interaction.member as GuildMember | null, settings.reportSystem, topic)) {
+      await safeReply(interaction, "Apenas a equipe responsavel pode usar os botoes internos desta denuncia.");
+      return;
+    }
+  }
+
   if (action === "submit") {
     await interaction.reply({
       ...confirmPayload(settings, "Encaminhar denuncia", "Tem certeza que deseja encaminhar esta denuncia para a Corregedoria? Apos confirmar, voce perdera acesso ao canal.", `${PUBLIC_PREFIX}:submit-confirm:${ticketId}:${interaction.message.id}`, `${PUBLIC_PREFIX}:noop:${ticketId}`),
@@ -1140,10 +1151,29 @@ function canCreateReport(member: GuildMember | null, report: ReportSystemSetting
 
 function canFinalizeReport(member: GuildMember | null, report: ReportSystemSettings, ticket: TicketRecord, topic: ReportTopic, userId: string) {
   if (!member) return false;
+  if (userId === topic.openerId) return false;
   if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
   if (ticket.responsibleUserId && ticket.responsibleUserId === userId) return true;
   const authorizedRoleIds = [...report.adminRoleIds, ...report.closeRoleIds, ...reportCompetenceRoleIds(report, topic.competence)];
   return authorizedRoleIds.some((roleId) => member.roles.cache.has(roleId));
+}
+
+function isReportManagementAction(action: string) {
+  return ["claim", "call", "archive", "finish", "finish-confirm"].includes(action);
+}
+
+function canUseReportManagementAction(member: GuildMember | null, report: ReportSystemSettings, topic: ReportTopic) {
+  if (!member) return false;
+  if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+  const authorizedRoleIds = [
+    ...report.adminRoleIds,
+    ...report.replyRoleIds,
+    ...report.closeRoleIds,
+    ...report.reopenRoleIds,
+    ...report.statusRoleIds,
+    ...reportCompetenceRoleIds(report, topic.competence)
+  ];
+  return [...new Set(authorizedRoleIds)].some((roleId) => member.roles.cache.has(roleId));
 }
 
 function reportCompetence(categoryId: string, categoryName: string): "iab" | "conselho" | "hcmd" | "comissario" {

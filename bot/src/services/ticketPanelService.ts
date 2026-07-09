@@ -21,6 +21,7 @@ import {
 } from "discord.js";
 import { env } from "../config/env";
 import type { BotContext, GuildSettings, PanelImageSettings, TicketPanelOption } from "../types";
+import type { TicketRecord } from "./apiClient";
 import { getFreshGuildSettings } from "./guildSettingsCache";
 import { renderComponentsV2Panel } from "./panelVisualRenderer";
 
@@ -163,9 +164,24 @@ async function handleTicketAction(interaction: ButtonInteraction, context: BotCo
     return;
   }
 
+  if (action === "noop") {
+    await interaction.deferUpdate().catch(() => null);
+    return;
+  }
+
+  const ticket = await context.api.getTicket(ticketId);
+  if (!ticket) {
+    await interaction.reply({ content: "Ticket nao encontrado.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (isTicketOpener(ticket, interaction.user.id)) {
+    await interaction.reply({ content: "Quem abriu este ticket nao pode assumir nem usar os botoes internos do atendimento.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
   if (action === "claim") {
     await interaction.deferUpdate();
-    const ticket = await context.api.updateTicketStatus(ticketId, {
+    const updatedTicket = await context.api.updateTicketStatus(ticketId, {
       responsibleUserId: interaction.user.id,
       status: "IN_ANALYSIS"
     });
@@ -175,7 +191,7 @@ async function handleTicketAction(interaction: ButtonInteraction, context: BotCo
       eventType: "ticket.claimed",
       guildId: interaction.guildId!
     }).catch(() => null);
-    await interaction.message.edit(createOpenTicketPayload(ticketId, ticket?.categoryName ?? ticket?.subject ?? "Atendimento", ticket?.openerId ?? interaction.user.id, interaction.user.id, "Em análise")).catch(() => null);
+    await interaction.message.edit(createOpenTicketPayload(ticketId, updatedTicket?.categoryName ?? ticket.categoryName ?? updatedTicket?.subject ?? ticket.subject ?? "Atendimento", updatedTicket?.openerId ?? ticket.openerId, interaction.user.id, "Em análise")).catch(() => null);
     return;
   }
 
@@ -202,19 +218,38 @@ async function handleTicketStatus(interaction: StringSelectMenuInteraction, cont
   const ticketId = interaction.customId.slice(TICKET_STATUS_PREFIX.length);
   const status = interaction.values[0];
   const label = STATUS_OPTIONS.find((item) => item.value === status)?.label ?? status;
-  const ticket = await context.api.updateTicketStatus(ticketId, { status });
+  const ticket = await context.api.getTicket(ticketId);
+  if (!ticket) {
+    await interaction.reply({ content: "Ticket nao encontrado.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (isTicketOpener(ticket, interaction.user.id)) {
+    await interaction.reply({ content: "Quem abriu este ticket nao pode alterar status nem usar os botoes internos do atendimento.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const updatedTicket = await context.api.updateTicketStatus(ticketId, { status });
   await context.api.recordTicketEvent(ticketId, {
     authorId: interaction.user.id,
     content: `Status alterado para ${label}.`,
     eventType: "ticket.status_changed",
     guildId: interaction.guildId!
   }).catch(() => null);
-  await interaction.update(createOpenTicketPayload(ticketId, ticket?.categoryName ?? ticket?.subject ?? "Atendimento", ticket?.openerId ?? interaction.user.id, ticket?.responsibleUserId ?? null, label));
+  await interaction.update(createOpenTicketPayload(ticketId, updatedTicket?.categoryName ?? ticket.categoryName ?? updatedTicket?.subject ?? ticket.subject ?? "Atendimento", updatedTicket?.openerId ?? ticket.openerId, updatedTicket?.responsibleUserId ?? ticket.responsibleUserId ?? null, label));
 }
 
 async function handleTicketCloseModal(interaction: ModalSubmitInteraction, context: BotContext) {
   const ticketId = interaction.customId.slice(CLOSE_MODAL_PREFIX.length);
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const currentTicket = await context.api.getTicket(ticketId);
+  if (!currentTicket) {
+    await interaction.editReply("Nao consegui localizar o ticket.");
+    return;
+  }
+  if (isTicketOpener(currentTicket, interaction.user.id)) {
+    await interaction.editReply("Quem abriu este ticket nao pode finalizar nem usar os botoes internos do atendimento.");
+    return;
+  }
 
   const ticket = await context.api.updateTicketStatus(ticketId, {
     closedAt: new Date().toISOString(),
@@ -393,6 +428,10 @@ function buildParticipants(messages: Awaited<ReturnType<typeof collectChannelMes
   }
   if (responsibleUserId) participants.set(responsibleUserId, { id: responsibleUserId, name: `@${responsibleUserId}`, role: "Responsável" });
   return [...participants.values()];
+}
+
+function isTicketOpener(ticket: TicketRecord, userId: string) {
+  return ticket.openerId === userId || ticket.ownerId === userId;
 }
 
 async function lockTicketChannel(channel: TextChannel, openerId: string) {
