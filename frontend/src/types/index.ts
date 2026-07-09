@@ -731,8 +731,15 @@ export type AutomatedLogSettings = { id: string; botId: string; guildId: string;
 export type PanelImagePosition = "banner" | "thumbnail" | "top" | "below_title" | "middle" | "bottom" | "side" | "footer" | "before_buttons" | "below_text" | "above_buttons" | "none";
 export type PanelImageSize = "small" | "medium" | "large" | "full_banner" | "custom";
 export type PanelImageLayoutMode = "embed" | "components_v2";
+export type PanelBlock =
+  | { editable?: boolean; id: string; order: number; type: "text"; content: string }
+  | { divider?: boolean; id: string; order: number; spacing?: "small" | "large" | number; type: "separator" }
+  | { id: string; items: Array<{ description?: string | null; spoiler?: boolean; url: string }>; order: number; type: "media_gallery" }
+  | { accessory?: { kind: "thumbnail"; description?: string | null; url: string } | { kind: "button"; customId?: string; disabled?: boolean; label: string; style?: "primary" | "secondary" | "success" | "danger" | "link"; url?: string } | null; id: string; order: number; texts: string[]; type: "section" }
+  | { buttons: Array<{ customId?: string; disabled?: boolean; label: string; style?: "primary" | "secondary" | "success" | "danger" | "link"; url?: string }>; id: string; order: number; type: "action_row" };
 
 export type PanelImageSettings = {
+  blocks: PanelBlock[];
   botId: string;
   customHeight: number | null;
   customWidth: number | null;
@@ -750,7 +757,7 @@ export type PanelImageSettings = {
 
 export type SavePanelImageSettingsPayload = Partial<Pick<
   PanelImageSettings,
-  "customHeight" | "customWidth" | "imageEnabled" | "imagePosition" | "imageSize" | "imageUrl" | "layoutMode" | "useGlobalDefault"
+  "blocks" | "customHeight" | "customWidth" | "imageEnabled" | "imagePosition" | "imageSize" | "imageUrl" | "layoutMode" | "useGlobalDefault"
 >>;
 
 export type SaveSelfBotProtectionSettingsPayload = Partial<Omit<

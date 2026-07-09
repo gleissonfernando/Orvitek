@@ -210,6 +210,7 @@ export type LogCategory =
   | "automation";
 
 export type PanelImageSettings = {
+  blocks?: import("./services/panelVisualRenderer").PanelBlock[];
   botId: string;
   customHeight: number | null;
   customWidth: number | null;

@@ -22,7 +22,7 @@ import { env } from "../config/env";
 import type { BotContext } from "../types";
 import type { ManualRegistrationSettings, ManualRegistrationSubmission } from "./apiClient";
 import { ensureFivemGoalChannelForUser } from "./fivemGoalService";
-import { buildV2Container } from "./panelVisualRenderer";
+import { buildV2Container, renderPanelBlocks } from "./panelVisualRenderer";
 
 const PREFIX = "manual_registration";
 
@@ -455,7 +455,9 @@ function createPanelPayload(settings: ManualRegistrationSettings) {
   const thumbnailUrl = resolveImageUrl(settings.thumbnailUrl ?? null);
   const availableSets = settings.setRoles.filter((item) => item.enabled && item.requestable).length;
   const components: unknown[] = [];
-  if (imageUrl && ["top", "banner"].includes(imagePosition)) components.push(mediaGallery(imageUrl));
+  const blockComponents = renderPanelBlocks(settings.panelImage?.blocks ?? []);
+  if (blockComponents.length) components.push(...blockComponents);
+  if (!blockComponents.length && imageUrl && ["top", "banner"].includes(imagePosition)) components.push(mediaGallery(imageUrl));
   const heading = {
     type: 10,
     content: [
@@ -472,9 +474,9 @@ function createPanelPayload(settings: ManualRegistrationSettings) {
     }],
     accessory: { type: 11, media: { url: sideImageUrl } }
   } : heading);
-  if (imageUrl && ["below_title", "below_text"].includes(imagePosition)) components.push(mediaGallery(imageUrl));
+  if (!blockComponents.length && imageUrl && ["below_title", "below_text"].includes(imagePosition)) components.push(mediaGallery(imageUrl));
   components.push({ type: 14, divider: true, spacing: 1 });
-  if (imageUrl && imagePosition === "middle") components.push(mediaGallery(imageUrl));
+  if (!blockComponents.length && imageUrl && imagePosition === "middle") components.push(mediaGallery(imageUrl));
   components.push({
     type: 10,
     content: [
@@ -497,7 +499,7 @@ function createPanelPayload(settings: ManualRegistrationSettings) {
       settings.footerText ? `-# ${settings.footerText}` : "-# Preencha os dados corretamente para evitar atrasos na analise."
     ].join("\n")
   });
-  if (imageUrl && ["before_buttons", "above_buttons", "bottom"].includes(imagePosition)) components.push(mediaGallery(imageUrl));
+  if (!blockComponents.length && imageUrl && ["before_buttons", "above_buttons", "bottom"].includes(imagePosition)) components.push(mediaGallery(imageUrl));
   components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(`${PREFIX}:start`).setEmoji("📝").setLabel("Solicitar Set").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`${PREFIX}:status`).setLabel("Meu Status").setStyle(ButtonStyle.Secondary),

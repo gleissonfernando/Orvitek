@@ -7,6 +7,7 @@ import {
   type MongoGlobalPanelImageLayoutMode,
   type MongoGlobalPanelImagePosition,
   type MongoGlobalPanelImageSize,
+  type MongoPanelBlock,
   type MongoPanelImageSettings,
 } from "../database/mongo";
 import {
@@ -23,6 +24,7 @@ export type PanelImageSize = MongoGlobalPanelImageSize;
 export type PanelImageLayoutMode = MongoGlobalPanelImageLayoutMode;
 
 export type PanelImageSettingsDto = {
+  blocks: MongoPanelBlock[];
   botId: string;
   customHeight: number | null;
   customWidth: number | null;
@@ -41,7 +43,7 @@ export type PanelImageSettingsDto = {
 export type SavePanelImageSettingsInput = Partial<Pick<
   PanelImageSettingsDto,
   "customHeight" | "customWidth" | "imageEnabled" | "imagePosition" | "imageSize" | "imageUrl" | "layoutMode" | "useGlobalDefault"
->>;
+>> & { blocks?: MongoPanelBlock[] };
 
 const IMAGE_POSITIONS = new Set<PanelImagePosition>([
   "banner",
@@ -63,6 +65,7 @@ const UPLOADS_ROOT = path.resolve(__dirname, "../../uploads");
 const DEFAULT_SETTINGS = {
   customHeight: null,
   customWidth: null,
+  blocks: [] as MongoPanelBlock[],
   imageEnabled: false,
   imagePosition: "none" as PanelImagePosition,
   imageSize: "medium" as PanelImageSize,
@@ -123,6 +126,7 @@ export async function savePanelImageSettings(
   });
   const now = new Date();
   const changed = (["customHeight", "customWidth", "imageEnabled", "imagePosition", "imageSize", "imageUrl", "layoutMode", "useGlobalDefault"] as const).some((key) => current[key] !== next[key]);
+  const blocksChanged = JSON.stringify(current.blocks) !== JSON.stringify(next.blocks);
   const { panelImageSettings } = await getMongoCollections();
 
   await ensureGuild(guildId);
@@ -131,6 +135,7 @@ export async function savePanelImageSettings(
     {
       $set: {
         botId,
+        blocks: next.blocks,
         customHeight: next.customHeight,
         customWidth: next.customWidth,
         guildId,
@@ -153,7 +158,7 @@ export async function savePanelImageSettings(
     { upsert: true }
   );
 
-  if (changed) emitPanelRefresh(guildId, botId, panelId);
+  if (changed || blocksChanged) emitPanelRefresh(guildId, botId, panelId);
   if (changed && current.imageUrl !== next.imageUrl) {
     await createLog({
       botId,
@@ -259,6 +264,7 @@ function normalizeSettings(settings: PanelImageSettingsDto): PanelImageSettingsD
 
   return {
     ...settings,
+    blocks: normalizeBlocks(settings.blocks),
     customHeight: imageSize === "custom" ? clampDimension(settings.customHeight) : null,
     customWidth: imageSize === "custom" ? clampDimension(settings.customWidth) : null,
     imageEnabled,
@@ -341,18 +347,61 @@ async function toDtoWithMigration(settings: MongoPanelImageSettings): Promise<Pa
 
 function toDto(settings: MongoPanelImageSettings): PanelImageSettingsDto {
   const persistentOrRemote = isPersistentImageUrl(settings.imageUrl) || /^https?:\/\//i.test(settings.imageUrl ?? "");
+  const imageEnabled = settings.imageEnabled === true && persistentOrRemote;
+  const legacyImageUrl = persistentOrRemote ? settings.imageUrl ?? "" : "";
   return {
+    blocks: normalizeBlocks(settings.blocks?.length ? settings.blocks : legacyBlocks(settings.panelId, imageEnabled, legacyImageUrl, settings.imagePosition)),
     botId: settings.botId,
     customHeight: settings.customHeight ?? null,
     customWidth: settings.customWidth ?? null,
     guildId: settings.guildId,
-    imageEnabled: settings.imageEnabled === true && persistentOrRemote,
+    imageEnabled,
     imagePosition: settings.imagePosition ?? DEFAULT_SETTINGS.imagePosition,
     imageSize: settings.imageSize ?? DEFAULT_SETTINGS.imageSize,
-    imageUrl: persistentOrRemote ? settings.imageUrl ?? "" : "",
+    imageUrl: legacyImageUrl,
     layoutMode: settings.layoutMode ?? DEFAULT_SETTINGS.layoutMode,
     panelId: settings.panelId,
     updatedAt: settings.updatedAt?.toISOString() ?? null,
     useGlobalDefault: settings.useGlobalDefault ?? false
   };
+}
+
+function normalizeBlocks(blocks: MongoPanelBlock[] | undefined | null): MongoPanelBlock[] {
+  return (blocks ?? [])
+    .map((block, index) => normalizeBlock(block, index))
+    .filter((block): block is MongoPanelBlock => Boolean(block))
+    .map((block, order) => ({ ...block, order }))
+    .slice(0, 30);
+}
+
+function normalizeBlock(block: MongoPanelBlock, index: number): MongoPanelBlock | null {
+  const id = block.id?.trim() || `blk_${Date.now()}_${index}`;
+  if (block.type === "text") return { editable: block.editable !== false, id, order: index, type: "text", content: String(block.content ?? "").slice(0, 4000) || "-# Rodape do painel" };
+  if (block.type === "separator") return { divider: block.divider !== false, id, order: index, spacing: block.spacing === "large" ? "large" : "small", type: "separator" };
+  if (block.type === "media_gallery") {
+    const items = (block.items ?? []).map((item) => ({ description: item.description?.slice(0, 1024) ?? null, spoiler: Boolean(item.spoiler), url: normalizeImageUrl(item.url) })).filter((item) => item.url).slice(0, 10);
+    return items.length ? { id, items, order: index, type: "media_gallery" } : null;
+  }
+  if (block.type === "section") {
+    const texts = (block.texts ?? []).map((text) => String(text).slice(0, 4000)).filter(Boolean).slice(0, 3);
+    if (!texts.length) return null;
+    const accessory = block.accessory?.kind === "thumbnail" && normalizeImageUrl(block.accessory.url)
+      ? { kind: "thumbnail" as const, description: block.accessory.description?.slice(0, 1024) ?? null, url: normalizeImageUrl(block.accessory.url) }
+      : null;
+    return { accessory, id, order: index, texts, type: "section" };
+  }
+  if (block.type === "action_row") {
+    const buttons = (block.buttons ?? []).filter((button) => button.label).slice(0, 5).map((button) => ({ customId: button.customId?.slice(0, 100), disabled: Boolean(button.disabled), label: button.label.slice(0, 80), style: button.style ?? "secondary", url: button.url }));
+    return buttons.length ? { buttons, id, order: index, type: "action_row" } : null;
+  }
+  return null;
+}
+
+function legacyBlocks(panelId: string, imageEnabled: boolean, imageUrl: string, position: PanelImagePosition): MongoPanelBlock[] {
+  if (!imageEnabled || !imageUrl || position === "none") return [];
+  const order = position === "top" || position === "banner" ? 0 : position === "middle" ? 2 : 10;
+  if (position === "thumbnail" || position === "side" || position === "footer") {
+    return [{ accessory: { kind: "thumbnail", url: imageUrl }, id: `${panelId}_legacy_section`, order, texts: [position === "footer" ? "-# Rodape do painel" : "## Imagem do painel"], type: "section" }];
+  }
+  return [{ id: `${panelId}_legacy_media`, items: [{ description: "Banner do painel", url: imageUrl }], order, type: "media_gallery" }];
 }

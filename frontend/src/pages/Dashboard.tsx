@@ -8804,18 +8804,8 @@ function visualPanelIdForView(view: ViewId) {
 }
 
 function policePanelImageSlotsForView(view: ViewId) {
-  if (view !== "fivem-hierarchy" && view !== "police-actions" && view !== "police-patrol-reports") {
-    return null;
-  }
-
-  const basePanelId = visualPanelIdForView(view);
-  const label = view === "fivem-hierarchy" ? "Hierarquia" : view === "police-actions" ? "Acoes" : "Relatorios";
-
-  return [
-    { id: basePanelId, label: `${label} - Banner 1` },
-    { id: `${basePanelId}-banner-2`, label: `${label} - Banner 2` },
-    { id: `${basePanelId}-banner-3`, label: `${label} - Banner 3` }
-  ];
+  void view;
+  return null;
 }
 
 function isViewAllowed(view: ViewId, enabledModules: string[]) {

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Image, Loader2, Save, Trash2, Upload } from "lucide-react";
+import { ArrowDown, ArrowUp, Image, Loader2, Plus, Save, Trash2, Type, Upload } from "lucide-react";
 import { getPanelImageSettings, listPanelImageSettings, removePanelImage, savePanelImageSettings, uploadPanelImage } from "../../lib/api";
 import type {
   PanelImageLayoutMode,
   PanelImagePosition,
+  PanelBlock,
   PanelImageSettings as PanelImageSettingsDto,
   PanelImageSize,
   SavePanelImageSettingsPayload
@@ -169,6 +170,44 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
 
       return next;
     });
+  }
+
+  function blocks() {
+    return (draft.blocks ?? []).slice().sort((a, b) => a.order - b.order);
+  }
+
+  function setBlocks(nextBlocks: PanelBlock[]) {
+    updateDraft("blocks", nextBlocks.map((block, order) => ({ ...block, order })) as PanelImageSettingsDto["blocks"]);
+  }
+
+  function addBannerBlock() {
+    const url = draft.imageUrl || "";
+    setBlocks([...blocks(), { id: blockId(), items: [{ description: "Banner do painel", url }], order: blocks().length, type: "media_gallery" }]);
+  }
+
+  function addTextBlock() {
+    setBlocks([...blocks(), { editable: true, id: blockId(), order: blocks().length, type: "text", content: "-# Rodape do painel" }]);
+  }
+
+  function addSeparatorBlock() {
+    setBlocks([...blocks(), { divider: true, id: blockId(), order: blocks().length, spacing: "small", type: "separator" }]);
+  }
+
+  function updateBlock(id: string, patch: Partial<PanelBlock>) {
+    setBlocks(blocks().map((block) => block.id === id ? ({ ...block, ...patch } as PanelBlock) : block));
+  }
+
+  function moveBlock(id: string, direction: -1 | 1) {
+    const list = blocks();
+    const index = list.findIndex((block) => block.id === id);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= list.length) return;
+    [list[index], list[nextIndex]] = [list[nextIndex]!, list[index]!];
+    setBlocks(list);
+  }
+
+  function removeBlock(id: string) {
+    setBlocks(blocks().filter((block) => block.id !== id));
   }
 
   async function save(payload?: SavePanelImageSettingsPayload) {
@@ -423,6 +462,53 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
                 ) : null}
               </div>
             </div>
+
+            <div className="rounded-lg border border-zinc-900 bg-zinc-950/70 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-zinc-100">Blocos dinamicos Components V2</p>
+                  <p className="mt-1 text-xs text-zinc-500">A ordem dos blocos vira a ordem real dentro do Container do Discord.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button disabled={disabled} onClick={addBannerBlock} type="button" variant="outline"><Plus className="h-4 w-4" />Adicionar banner</Button>
+                  <Button disabled={disabled} onClick={addTextBlock} type="button" variant="outline"><Type className="h-4 w-4" />Texto/rodape</Button>
+                  <Button disabled={disabled} onClick={addSeparatorBlock} type="button" variant="ghost">Separador</Button>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {blocks().length ? blocks().map((block, index) => (
+                  <div className="rounded-lg border border-zinc-800 bg-black p-3" key={block.id}>
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">{blockLabel(block)}</span>
+                      <div className="flex gap-1">
+                        <Button disabled={disabled || index === 0} onClick={() => moveBlock(block.id, -1)} size="icon" type="button" variant="ghost"><ArrowUp className="h-4 w-4" /></Button>
+                        <Button disabled={disabled || index === blocks().length - 1} onClick={() => moveBlock(block.id, 1)} size="icon" type="button" variant="ghost"><ArrowDown className="h-4 w-4" /></Button>
+                        <Button disabled={disabled} onClick={() => removeBlock(block.id)} size="icon" type="button" variant="ghost"><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    </div>
+                    {block.type === "media_gallery" ? (
+                      <div className="grid gap-2 md:grid-cols-[1fr_180px]">
+                        <input className="h-10 rounded-md border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100" disabled={disabled} onChange={(event) => updateBlock(block.id, { items: [{ ...(block.items[0] ?? {}), url: event.target.value }] } as Partial<PanelBlock>)} placeholder="URL do banner" value={block.items[0]?.url ?? ""} />
+                        <input className="h-10 rounded-md border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100" disabled={disabled} onChange={(event) => updateBlock(block.id, { items: [{ ...(block.items[0] ?? {}), description: event.target.value }] } as Partial<PanelBlock>)} placeholder="Descricao" value={block.items[0]?.description ?? ""} />
+                      </div>
+                    ) : null}
+                    {block.type === "text" ? (
+                      <textarea className="min-h-20 w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100" disabled={disabled} onChange={(event) => updateBlock(block.id, { content: event.target.value } as Partial<PanelBlock>)} value={block.content} />
+                    ) : null}
+                    {block.type === "separator" ? (
+                      <label className="flex items-center gap-2 text-sm text-zinc-300"><input checked={block.divider !== false} disabled={disabled} onChange={(event) => updateBlock(block.id, { divider: event.target.checked } as Partial<PanelBlock>)} type="checkbox" />Exibir linha divisoria</label>
+                    ) : null}
+                    {block.type === "section" ? (
+                      <div className="grid gap-2">
+                        <textarea className="min-h-20 rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100" disabled={disabled} onChange={(event) => updateBlock(block.id, { texts: event.target.value.split(/\n{2,}/).slice(0, 3) } as Partial<PanelBlock>)} value={block.texts.join("\n\n")} />
+                        <input className="h-10 rounded-md border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100" disabled={disabled} onChange={(event) => updateBlock(block.id, { accessory: { kind: "thumbnail", url: event.target.value } } as Partial<PanelBlock>)} placeholder="URL da thumbnail" value={block.accessory?.kind === "thumbnail" ? block.accessory.url : ""} />
+                      </div>
+                    ) : null}
+                  </div>
+                )) : <p className="rounded-lg border border-dashed border-zinc-800 p-4 text-sm text-zinc-500">Nenhum bloco dinamico configurado. O painel usa o modo antigo ate voce adicionar blocos.</p>}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -547,6 +633,7 @@ function defaultSettings(guildId: string, botId: string, panelId: string): Panel
     customWidth: null,
     guildId,
     imageEnabled: false,
+    blocks: [],
     imagePosition: "none",
     imageSize: "medium",
     imageUrl: "",
@@ -557,6 +644,18 @@ function defaultSettings(guildId: string, botId: string, panelId: string): Panel
   };
 }
 
+function blockId() {
+  return `blk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function blockLabel(block: PanelBlock) {
+  if (block.type === "media_gallery") return "Banner / Media Gallery";
+  if (block.type === "section") return "Section com thumbnail";
+  if (block.type === "text") return "Texto / Rodape";
+  if (block.type === "separator") return "Separador";
+  return "Botoes";
+}
+
 function panelLabelForId(panelId: string) {
   return PANELS.find((panel) => panel.id === panelId)?.label ?? panelId;
 }
@@ -565,6 +664,7 @@ function buildPayload(settings: PanelImageSettingsDto, layoutMode: PanelImageLay
   return {
     customHeight: settings.imageSize === "custom" ? settings.customHeight : null,
     customWidth: settings.imageSize === "custom" ? settings.customWidth : null,
+    blocks: settings.blocks ?? [],
     imageEnabled: settings.imageEnabled,
     imagePosition: settings.imageEnabled ? settings.imagePosition : "none",
     imageSize: settings.imageSize,

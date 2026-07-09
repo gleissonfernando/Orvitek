@@ -2,7 +2,7 @@ import { MessageFlags, type GuildMember, type PartialGuildMember } from "discord
 import { env } from "../config/env";
 import type { BotContext, PanelImageSettings } from "../types";
 import { getCachedGuildSettings } from "./guildSettingsCache";
-import { buildV2Container } from "./panelVisualRenderer";
+import { buildV2Container, renderPanelBlocks } from "./panelVisualRenderer";
 
 type MemberPanelMode = "welcome" | "leave";
 
@@ -140,12 +140,17 @@ export function createMemberPanelPayload(
   }
 
   const components: Array<Record<string, unknown>> = [];
+  const blockComponents = renderPanelBlocks(panelImage?.blocks ?? []);
 
-  if (imageUrl && ["top", "banner"].includes(imagePosition)) {
+  if (blockComponents.length) {
+    components.push(...blockComponents as Array<Record<string, unknown>>);
+  }
+
+  if (!blockComponents.length && imageUrl && ["top", "banner"].includes(imagePosition)) {
     components.push(mediaGalleryComponent(imageUrl, input.mode));
   }
 
-  if (imageUrl && ["thumbnail", "side"].includes(imagePosition) && contentBlocks.length) {
+  if (!blockComponents.length && imageUrl && ["thumbnail", "side"].includes(imagePosition) && contentBlocks.length) {
     const sectionBlocks = contentBlocks.splice(0, 3);
     components.push({
       type: 9,
@@ -162,11 +167,11 @@ export function createMemberPanelPayload(
 
   components.push(...contentBlocks.map(textDisplayComponent));
 
-  if (imageUrl && ["below_title", "middle", "bottom", "before_buttons", "below_text", "above_buttons"].includes(imagePosition)) {
+  if (!blockComponents.length && imageUrl && ["below_title", "middle", "bottom", "before_buttons", "below_text", "above_buttons"].includes(imagePosition)) {
     components.push(mediaGalleryComponent(imageUrl, input.mode));
   }
 
-  if (imageUrl && ["thumbnail", "side"].includes(imagePosition) && !components.length) {
+  if (!blockComponents.length && imageUrl && ["thumbnail", "side"].includes(imagePosition) && !components.length) {
     components.push(mediaGalleryComponent(imageUrl, input.mode));
   }
 

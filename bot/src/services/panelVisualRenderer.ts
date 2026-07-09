@@ -5,10 +5,18 @@ export type PanelVisualPosition = "banner" | "thumbnail" | "top" | "below_title"
 const MAX_V2_COMPONENTS = 40;
 
 export type PanelVisualConfig = {
+  blocks?: PanelBlock[] | null;
   imageEnabled?: boolean;
   imagePosition?: PanelVisualPosition;
   imageUrl?: string | null;
 };
+
+export type PanelBlock =
+  | { editable?: boolean; id: string; order: number; type: "text"; content: string }
+  | { divider?: boolean; id: string; order: number; spacing?: "small" | "large" | number; type: "separator" }
+  | { id: string; items: Array<{ description?: string | null; spoiler?: boolean; url: string }>; order: number; type: "media_gallery" }
+  | { accessory?: { kind: "thumbnail"; description?: string | null; url: string } | { kind: "button"; customId?: string; disabled?: boolean; label: string; style?: "primary" | "secondary" | "success" | "danger" | "link"; url?: string } | null; id: string; order: number; texts: string[]; type: "section" }
+  | { buttons: Array<{ customId?: string; disabled?: boolean; label: string; style?: "primary" | "secondary" | "success" | "danger" | "link"; url?: string }>; id: string; order: number; type: "action_row" };
 
 export type ComponentsV2FooterConfig = {
   description?: string | null;
@@ -41,7 +49,11 @@ export function renderComponentsV2Panel(input: {
   const requestedPosition = requestedImageUrl ? normalizePosition(input.image?.imagePosition) : "none";
   const imageUrl = requestedPosition === "footer" ? null : requestedImageUrl;
   const footerImage = input.footerImage ?? (requestedPosition === "footer" ? requestedImageUrl : null);
-  const extraMedia = (input.extraImages ?? [])
+  const blockComponents = renderPanelBlocks([
+    ...(input.image?.blocks ?? []),
+    ...(input.extraImages ?? []).flatMap((image) => image?.blocks ?? [])
+  ]);
+  const extraMedia = blockComponents.length ? [] : (input.extraImages ?? [])
     .map((image) => image?.imageEnabled ? resolvePanelImageUrl(image.imageUrl ?? null) : null)
     .filter((url): url is string => Boolean(url))
     .slice(0, 2)
@@ -57,22 +69,23 @@ export function renderComponentsV2Panel(input: {
     components.push(...extraMedia);
   };
 
-  if ((media || extraMedia.length) && ["top", "banner"].includes(position)) pushMedia();
+  if (blockComponents.length) components.push(...blockComponents);
+  if (!blockComponents.length && (media || extraMedia.length) && ["top", "banner"].includes(position)) pushMedia();
   if (media && ["thumbnail", "side"].includes(position)) {
     components.push({ type: 9, components: [{ type: 10, content: titleText }], accessory: { type: 11, media: { url: imageUrl }, description: input.title } });
     components.push(...extraMedia);
   } else {
     components.push({ type: 10, content: titleText });
   }
-  if ((media || extraMedia.length) && ["below_title", "below_text"].includes(position)) pushMedia();
+  if (!blockComponents.length && (media || extraMedia.length) && ["below_title", "below_text"].includes(position)) pushMedia();
 
   const split = Math.ceil(fields.length / 2);
   fields.slice(0, split).forEach((content) => components.push({ type: 10, content }));
-  if ((media || extraMedia.length) && position === "middle") pushMedia();
+  if (!blockComponents.length && (media || extraMedia.length) && position === "middle") pushMedia();
   fields.slice(split).forEach((content) => components.push({ type: 10, content }));
-  if ((media || extraMedia.length) && ["before_buttons", "above_buttons"].includes(position)) pushMedia();
+  if (!blockComponents.length && (media || extraMedia.length) && ["before_buttons", "above_buttons"].includes(position)) pushMedia();
   components.push(...actions);
-  if ((media || extraMedia.length) && position === "bottom") pushMedia();
+  if (!blockComponents.length && (media || extraMedia.length) && position === "bottom") pushMedia();
 
   const footer = mergeFooter(input.footer, footerImage);
   return {
@@ -106,6 +119,23 @@ export function buildV2Container(input: { accentColor?: number; components: unkn
   };
 }
 
+export function renderPanelFromBlocks(input: { accentColor: number; blocks: PanelBlock[]; footer?: ComponentsV2FooterConfig }) {
+  return {
+    allowedMentions: { parse: [] as never[] },
+    components: [buildV2Container({ accentColor: input.accentColor, components: renderPanelBlocks(input.blocks), footer: input.footer })],
+    flags: MessageFlags.IsComponentsV2 as const
+  };
+}
+
+export function renderPanelBlocks(blocks: PanelBlock[] | null | undefined) {
+  const components: unknown[] = [];
+  for (const block of normalizePanelBlocks(blocks)) {
+    const component = renderPanelBlock(block);
+    if (component) components.push(component);
+  }
+  return components;
+}
+
 export function createV2Footer(footer: ComponentsV2FooterConfig) {
   if (!footer) return null;
   const normalized = typeof footer === "string" ? { text: footer } : footer;
@@ -135,6 +165,66 @@ export function resolvePanelImageUrl(value: string | null) {
 
 function mediaBlock(url: string, description: string) { return { type: 12, items: [{ media: { url }, description }] }; }
 function normalizePosition(position: PanelVisualPosition | undefined): PanelVisualPosition { return position && position !== "none" ? position : "none"; }
+
+function normalizePanelBlocks(blocks: PanelBlock[] | null | undefined) {
+  return (blocks ?? [])
+    .filter((block): block is PanelBlock => Boolean(block?.id && block.type))
+    .sort((a, b) => a.order - b.order)
+    .slice(0, 30);
+}
+
+function renderPanelBlock(block: PanelBlock) {
+  try {
+    if (block.type === "text") return { type: 10, content: block.content.slice(0, 4000) || "\u200b" };
+    if (block.type === "separator") return { type: 14, divider: block.divider !== false, spacing: block.spacing === "large" ? 2 : 1 };
+    if (block.type === "media_gallery") {
+      const items = block.items
+        .map((item) => ({ ...item, url: resolvePanelImageUrl(item.url) }))
+        .filter((item): item is { description?: string | null; spoiler?: boolean; url: string } => Boolean(item.url))
+        .slice(0, 10)
+        .map((item) => ({ media: { url: item.url }, ...(item.description ? { description: item.description.slice(0, 1024) } : {}), ...(item.spoiler ? { spoiler: true } : {}) }));
+      return items.length ? { type: 12, items } : null;
+    }
+    if (block.type === "section") {
+      const texts = block.texts.filter(Boolean).slice(0, 3).map((content) => ({ type: 10, content: content.slice(0, 4000) || "\u200b" }));
+      if (!texts.length) return null;
+      const accessory = renderSectionAccessory(block.accessory);
+      return accessory ? { type: 9, components: texts, accessory } : { type: 10, content: texts.map((item) => item.content).join("\n").slice(0, 4000) };
+    }
+    if (block.type === "action_row") {
+      const buttons = block.buttons.map(renderButtonComponent).filter(Boolean).slice(0, 5);
+      return buttons.length ? { type: 1, components: buttons } : null;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function renderSectionAccessory(accessory: Extract<PanelBlock, { type: "section" }>["accessory"]) {
+  if (!accessory) return null;
+  if (accessory.kind === "thumbnail") {
+    const url = resolvePanelImageUrl(accessory.url);
+    return url ? { type: 11, media: { url }, description: accessory.description || "Thumbnail" } : null;
+  }
+  return renderButtonComponent(accessory);
+}
+
+function renderButtonComponent(button: { customId?: string; disabled?: boolean; label: string; style?: "primary" | "secondary" | "success" | "danger" | "link"; url?: string } | null | undefined) {
+  if (!button?.label) return null;
+  const style = button.style === "primary" ? 1 : button.style === "success" ? 3 : button.style === "danger" ? 4 : button.style === "link" ? 5 : 2;
+  return {
+    type: 2,
+    disabled: Boolean(button.disabled),
+    label: button.label.slice(0, 80),
+    style,
+    ...(style === 5 ? { url: button.url ?? "https://discord.com" } : { custom_id: button.customId ?? `panel_block:${slug(button.label)}` })
+  };
+}
+
+function slug(value: string) {
+  return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80) || `button-${Date.now()}`;
+}
 
 function mergeFooter(footer: ComponentsV2FooterConfig, image: string | null): ComponentsV2FooterConfig {
   if (footer && typeof footer === "object") return { ...footer, image: footer.image ?? footer.iconURL ?? footer.iconUrl ?? image };

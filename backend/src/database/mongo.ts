@@ -3041,9 +3041,16 @@ export type MongoDashboardAuditLog = {
 export type MongoGlobalPanelImagePosition = "banner" | "thumbnail" | "top" | "below_title" | "middle" | "bottom" | "side" | "footer" | "before_buttons" | "below_text" | "above_buttons" | "none";
 export type MongoGlobalPanelImageSize = "small" | "medium" | "large" | "full_banner" | "custom";
 export type MongoGlobalPanelImageLayoutMode = "embed" | "components_v2";
+export type MongoPanelBlock =
+  | { editable?: boolean; id: string; order: number; type: "text"; content: string }
+  | { divider?: boolean; id: string; order: number; spacing?: "small" | "large" | number; type: "separator" }
+  | { id: string; items: Array<{ description?: string | null; spoiler?: boolean; url: string }>; order: number; type: "media_gallery" }
+  | { accessory?: { kind: "thumbnail"; description?: string | null; url: string } | { kind: "button"; customId?: string; disabled?: boolean; label: string; style?: "primary" | "secondary" | "success" | "danger" | "link"; url?: string } | null; id: string; order: number; texts: string[]; type: "section" }
+  | { buttons: Array<{ customId?: string; disabled?: boolean; label: string; style?: "primary" | "secondary" | "success" | "danger" | "link"; url?: string }>; id: string; order: number; type: "action_row" };
 
 export type MongoPanelImageSettings = {
   _id: string;
+  blocks?: MongoPanelBlock[];
   botId: string;
   guildId: string;
   panelId: string;

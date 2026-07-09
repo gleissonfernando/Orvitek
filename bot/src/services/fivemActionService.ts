@@ -170,7 +170,7 @@ async function getPanelVisualSlots(context: BotContext, guildId: string, basePan
   return visuals.flatMap((visual, index): PanelVisualConfig[] => {
     if (!visual?.imageEnabled || !visual.imageUrl) return [];
     if (index > 0 && visual.useGlobalDefault) return [];
-    return [{ imageEnabled: visual.imageEnabled, imagePosition: visual.imagePosition, imageUrl: resolvePanelImageUrl(visual.imageUrl) ?? visual.imageUrl }];
+    return [{ blocks: visual.blocks ?? [], imageEnabled: visual.imageEnabled, imagePosition: visual.imagePosition, imageUrl: resolvePanelImageUrl(visual.imageUrl) ?? visual.imageUrl }];
   });
 }
 

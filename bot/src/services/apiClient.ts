@@ -352,6 +352,7 @@ export type ManualRegistrationSettings = {
   panelChannelId: string | null;
   panelMessageId: string | null;
   panelImage: {
+    blocks?: import("./panelVisualRenderer").PanelBlock[];
     imageEnabled: boolean;
     imagePosition: import("./panelVisualRenderer").PanelVisualPosition;
     imageUrl: string;
@@ -443,7 +444,7 @@ export type FivemOrderSettings = {
   approveRoleIds: string[]; cancelRoleIds: string[]; color: string; createRoleIds: string[]; deliveryChannelId: string | null; enabled: boolean; enabledOrderModules: Array<"washing" | "ammo" | "drug" | "weapon" | "custom">; errorMessage: string; finishRoleIds: string[];
   footerText: string | null; guildId: string; logChannelId: string | null; maxOpenHours: number; orderCancelledMessage: string; orderCreatedMessage: string;
   orderDeliveredMessage: string; panelChannelId: string | null; panelDescription: string; panelMessageId: string | null; panelTitle: string;
-  panelImage: { imageEnabled: boolean; imagePosition: import("./panelVisualRenderer").PanelVisualPosition; imageUrl: string; useGlobalDefault?: boolean } | null;
+  panelImage: { blocks?: import("./panelVisualRenderer").PanelBlock[]; imageEnabled: boolean; imagePosition: import("./panelVisualRenderer").PanelVisualPosition; imageUrl: string; useGlobalDefault?: boolean } | null;
 };
 export type FivemOrderFamily = { active: boolean; id: string; logChannelId: string | null; name: string; notes: string | null; orderModules: Array<"washing" | "ammo" | "drug" | "weapon" | "custom">; responsibleId: string; roleId: string; type?: "pista" | "produto" | "sem_produto" };
 export type FivemOrderProduct = {
@@ -489,7 +490,7 @@ export type FivemFinanceSettings = {
   logChannelId: string | null;
   panelChannelId: string | null;
   panelDescription: string;
-  panelImage: { imageEnabled: boolean; imagePosition: import("./panelVisualRenderer").PanelVisualPosition; imageUrl: string; useGlobalDefault?: boolean } | null;
+  panelImage: { blocks?: import("./panelVisualRenderer").PanelBlock[]; imageEnabled: boolean; imagePosition: import("./panelVisualRenderer").PanelVisualPosition; imageUrl: string; useGlobalDefault?: boolean } | null;
   panelMessageId: string | null;
   panelTitle: string;
   tempCategoryId: string | null;
@@ -2016,7 +2017,7 @@ export class ApiClient {
   }
 
   async getPanelVisualSettings(guildId: string, panelId: string) {
-    const { data } = await this.http.get<{ settings: { imageEnabled: boolean; imagePosition: import("./panelVisualRenderer").PanelVisualPosition; imageUrl: string; useGlobalDefault: boolean } }>(`/panel-images/bot/${guildId}/${encodeURIComponent(panelId)}`);
+    const { data } = await this.http.get<{ settings: { blocks?: import("./panelVisualRenderer").PanelBlock[]; imageEnabled: boolean; imagePosition: import("./panelVisualRenderer").PanelVisualPosition; imageUrl: string; useGlobalDefault: boolean } }>(`/panel-images/bot/${guildId}/${encodeURIComponent(panelId)}`);
     return data.settings;
   }
 
