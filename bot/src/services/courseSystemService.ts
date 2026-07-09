@@ -59,6 +59,7 @@ const IDS = {
   publicSchedule: "course_public_schedule",
   publicReport: "course_public_report",
   sync: "course_config_sync",
+  proofSelect: "course_proof_select",
   startSelect: "course_start_select"
 } as const;
 
@@ -143,11 +144,18 @@ export const startCourseCommand: BotCommand = {
   data: new SlashCommandBuilder()
     .setName("iniciar")
     .setDescription("Inicia sistemas em andamento.")
-    .addSubcommand((subcommand) => subcommand.setName("curso").setDescription("Inicia uma publicação de curso aberta.")),
+    .addSubcommand((subcommand) => subcommand.setName("curso").setDescription("Inicia uma publicação de curso aberta."))
+    .addSubcommand((subcommand) => subcommand.setName("prova").setDescription("Inicia a prova de uma aula já iniciada.")),
   moduleId: "courses",
   async execute(interaction, context) {
-    if (interaction.options.getSubcommand() !== "curso") return;
-    await startCourseStartFlow(interaction, context);
+    const subcommand = interaction.options.getSubcommand();
+    if (subcommand === "curso") {
+      await startCourseStartFlow(interaction, context);
+      return;
+    }
+    if (subcommand === "prova") {
+      await startCourseProofFlow(interaction, context);
+    }
   }
 };
 
@@ -275,6 +283,51 @@ async function startCourseStartFlow(interaction: ChatInputCommandInteraction | B
     description: "Escolha uma publicação aberta para bloquear novas inscrições e marcar o curso como iniciado.",
     moduleId: "courses",
     title: "Iniciar Curso"
+  })));
+}
+
+async function startCourseProofFlow(interaction: ChatInputCommandInteraction | ButtonInteraction, context: BotContext) {
+  const [settings, publications, courses] = await Promise.all([
+    context.api.getCourseSettings(interaction.guildId!),
+    context.api.listCoursePublications(interaction.guildId!, "started"),
+    manageableCourses(interaction, context)
+  ]);
+  const manageableIds = new Set(courses.map((course) => course.id));
+  const allowed = publications.filter((publication) => publication.instructorId === interaction.user.id || manageableIds.has(publication.courseId));
+  if (!allowed.length) {
+    await interaction.reply(ephemeral(renderComponentsV2Panel({
+      accentColor: 0xdc2626,
+      description: "Nenhuma aula iniciada foi encontrada para abrir prova com suas permissões atuais.",
+      fields: [`Gestores configurados: ${settings.managerUserIds.map((id) => `<@${id}>`).concat(settings.managerRoleIds.map((id) => `<@&${id}>`)).join(", ") || "nenhum"}`],
+      moduleId: "courses",
+      title: "📝 Iniciar Prova"
+    })));
+    return;
+  }
+  if (allowed.length === 1) {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const message = await startCourseExamById(interaction, context, allowed[0]!.id);
+    await interaction.editReply(message);
+    return;
+  }
+  const courseNames = new Map(courses.map((course) => [course.id, `${course.emoji ?? "📚"} ${course.name}`]));
+  await interaction.reply(ephemeral(renderComponentsV2Panel({
+    accentColor: 0x16a34a,
+    actions: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(IDS.proofSelect)
+          .setPlaceholder("Selecione a aula que vai entrar em prova")
+          .addOptions(allowed.slice(0, 25).map((publication) => ({
+            label: (courseNames.get(publication.courseId) ?? `Curso ${publication.courseId}`).slice(0, 100),
+            value: publication.id,
+            description: `${publication.scheduledFor} • ${publication.students.length}/${publication.capacity} inscritos`.slice(0, 100)
+          })))
+      )
+    ],
+    description: "Escolha uma aula iniciada para criar os canais individuais de prova dos alunos.",
+    moduleId: "courses",
+    title: "📝 Iniciar Prova"
   })));
 }
 
@@ -411,6 +464,12 @@ async function handleStringSelect(interaction: StringSelectMenuInteraction, cont
   if (interaction.customId === IDS.startSelect) {
     await interaction.deferUpdate();
     const message = await startPublicationById(interaction, context, courseId);
+    await interaction.followUp({ content: message, flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (interaction.customId === IDS.proofSelect) {
+    await interaction.deferUpdate();
+    const message = await startCourseExamById(interaction, context, courseId);
     await interaction.followUp({ content: message, flags: MessageFlags.Ephemeral });
   }
 }
@@ -619,25 +678,25 @@ async function startPublicationById(interaction: ChatInputCommandInteraction | B
 
 async function startCourseExam(interaction: ButtonInteraction, context: BotContext, publicationId: string) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  await interaction.editReply(await startCourseExamById(interaction, context, publicationId));
+}
+
+async function startCourseExamById(interaction: ButtonInteraction | ChatInputCommandInteraction | StringSelectMenuInteraction, context: BotContext, publicationId: string) {
   const [publication, settings] = await Promise.all([
     context.api.getCoursePublication(interaction.guildId!, publicationId).catch(() => null),
     context.api.getCourseSettings(interaction.guildId!)
   ]);
   if (!publication) {
-    await interaction.editReply("Publicação de curso não encontrada.");
-    return;
+    return "Publicação de curso não encontrada.";
   }
   if (publication.status !== "started") {
-    await interaction.editReply("Inicie o curso antes de iniciar a prova.");
-    return;
+    return "Inicie a aula antes de iniciar a prova.";
   }
   if (!(await canManagePublication(interaction, context, publication))) {
-    await interaction.editReply("Você não possui permissão para usar este sistema.");
-    return;
+    return "Você não possui permissão para usar este sistema.";
   }
   if (!publication.students.length) {
-    await interaction.editReply("Não há alunos inscritos para criar canais de prova.");
-    return;
+    return "Não há alunos inscritos para criar canais de prova.";
   }
 
   const [course, runtime] = await Promise.all([
@@ -646,15 +705,13 @@ async function startCourseExam(interaction: ButtonInteraction, context: BotConte
   ]);
   const proofReady = validateRuntimeProof(runtime.questions);
   if (!runtime.settings.enabled || !proofReady.ok) {
-    await interaction.editReply(proofReady.message);
-    return;
+    return proofReady.message;
   }
   if (!settings.tempProofCategoryId && !settings.temporaryCategoryId) {
-    await interaction.editReply("Configure a categoria dos canais temporários de prova.");
-    return;
+    return "Configure a categoria dos canais temporários de prova.";
   }
   const proofPublication = await context.api.setCoursePublicationStatus(interaction.guildId!, publicationId, "proof", interaction.user.id);
-  await refreshPublicationMessage(interaction, context, proofPublication);
+  await refreshPublicationMessageByRecord(interaction, context, proofPublication);
   const created: string[] = [];
   const reused: string[] = [];
   const failed: string[] = [];
@@ -687,12 +744,12 @@ async function startCourseExam(interaction: ButtonInteraction, context: BotConte
   }
 
   await sendPublicationLog(interaction, context, proofPublication, `📝 Prova iniciada\nCurso: ${course.name}\nInstrutor: <@${interaction.user.id}>\nCanais criados: ${created.length}\nCanais reutilizados: ${reused.length}\nFalhas: ${failed.length}`);
-  await interaction.editReply([
+  return [
     `Prova iniciada para ${publication.students.length} aluno(s).`,
     created.length ? `Canais criados:\n${created.join("\n")}` : "",
     reused.length ? `Canais já existentes:\n${reused.join("\n")}` : "",
     failed.length ? `Falhas:\n${failed.join("\n")}` : ""
-  ].filter(Boolean).join("\n\n").slice(0, 1900));
+  ].filter(Boolean).join("\n\n").slice(0, 1900);
 }
 
 async function beginStudentExam(interaction: ButtonInteraction, context: BotContext) {
@@ -986,14 +1043,14 @@ function courseConfigPanel(settings: CourseSettings) {
     accentColor: 0x2563eb,
     actions: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(IDS.addCourse).setLabel("Config Cadastro Curso").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(IDS.channels).setLabel("Configuração de Canais").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(IDS.sync).setLabel("Configuração de Provas").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(IDS.managers).setLabel("Administradores").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(IDS.close).setLabel("Fechar").setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId(IDS.addCourse).setLabel("➕ Cadastrar Curso").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(IDS.channels).setLabel("📡 Canais").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(IDS.sync).setLabel("📝 Provas").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(IDS.managers).setLabel("🛡️ Administradores").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(IDS.close).setLabel("✖️ Fechar").setStyle(ButtonStyle.Danger)
       )
     ],
-    description: "Configurações salvas aqui são sincronizadas com a dashboard e usam o mesmo banco de dados.",
+    description: "Central de operação dos cursos. Configure canais, gestores, publicações e provas sem sair do Discord.",
     fields: [
       `Publicação: ${settings.publishChannelId ? `<#${settings.publishChannelId}>` : "não configurado"}`,
       `Logs de prova: ${settings.proofLogChannelId ? `<#${settings.proofLogChannelId}>` : "não configurado"}`,
@@ -1001,7 +1058,7 @@ function courseConfigPanel(settings: CourseSettings) {
       `Resultados: ${settings.resultChannelId ? `<#${settings.resultChannelId}>` : "não configurado"}`
     ],
     moduleId: "courses",
-    title: "Sistema de Curso"
+    title: "🎓 Sistema de Cursos"
   });
 }
 
@@ -1011,19 +1068,19 @@ function publicCoursesPanel(settings: CourseSettings, courses: Course[]) {
     accentColor: 0x2563eb,
     actions: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(IDS.publicPublish).setLabel(`${settings.buttonEmojis.enter} Publicar Curso`).setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(IDS.publicSchedule).setLabel("Solicitar Horário").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(IDS.publicReport).setLabel("Lançar Relatório").setStyle(ButtonStyle.Success)
+        new ButtonBuilder().setCustomId(IDS.publicPublish).setLabel("📣 Publicar Curso").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(IDS.publicSchedule).setLabel("🗓️ Solicitar Horário").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(IDS.publicReport).setLabel("📊 Lançar Relatório").setStyle(ButtonStyle.Success)
       )
     ],
-    description: "Use este painel para publicar cursos disponíveis, solicitar horários e lançar relatórios de aplicação.",
+    description: "Painel de trabalho dos instrutores. Publique cursos, solicite horários e registre relatórios de aplicação em um só lugar.",
     fields: [
-      `Cursos ativos: ${activeCourses.length}`,
+      `**Cursos ativos:** ${activeCourses.length}`,
       activeCourses.slice(0, 12).map((course) => `${course.emoji ?? "📚"} ${course.name}`).join("\n") || "Nenhum curso ativo cadastrado."
     ],
     image: resolveCourseImage(settings, "module") || (settings.globalBannerUrl ? { imageEnabled: true, imagePosition: "top", imageUrl: settings.globalBannerUrl } : null),
     moduleId: "courses",
-    title: "Sistema de Cursos"
+    title: "🎓 Sistema de Cursos"
   });
 }
 
@@ -1155,30 +1212,43 @@ function selectCoursePanel(description: string, customId: string, courses: Cours
 function coursePublicationPanel(course: Course, publication: CoursePublication, settings: CourseSettings, guild: { members: { cache: Map<string, GuildMember> } }) {
   const students = publication.students.map((id, index) => `${index + 1}. <@${id}>`).join("\n") || "Nenhum aluno inscrito ainda.";
   const full = publication.students.length >= publication.capacity;
-  const statusText = publication.status === "open" && full ? "Lotado" : publication.status === "open" ? "Ativo" : publication.status === "started" ? "Curso Iniciado" : publication.status === "proof" ? "Prova" : publication.status === "finished" || publication.status === "closed" ? "Finalizado" : "Cancelado";
-  const statusNotice = publication.status === "started" ? settings.startedMessage : publication.status === "proof" ? "Curso em prova. Canais individuais foram criados para os alunos." : publication.status === "cancelled" ? (course.cancelledText || settings.cancelledMessage) : "Clique em Entrar no Curso para participar.";
+  const statusText = coursePublicationStatusLabel(publication, full);
+  const statusNotice = coursePublicationStatusNotice(course, settings, publication, full);
+  const canJoin = publication.status === "open" && !full;
+  const canLeave = publication.status === "open" || publication.status === "started";
+  const canStartClass = publication.status === "open";
+  const canStartExam = publication.status === "started";
+  const canCancel = !["cancelled", "proof", "finished", "closed"].includes(publication.status);
   return renderComponentsV2Panel({
     accentColor: parseColor(course.color),
     actions: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`course_join:${publication.id}`).setLabel(`${settings.buttonEmojis.enter} ${course.buttonLabels.enter}`).setStyle(ButtonStyle.Success).setDisabled(publication.status !== "open" || full),
-        new ButtonBuilder().setCustomId(`course_leave:${publication.id}`).setLabel(`${settings.buttonEmojis.leave} ${course.buttonLabels.leave}`).setStyle(ButtonStyle.Secondary).setDisabled(publication.status !== "open" && publication.status !== "started"),
-        new ButtonBuilder().setCustomId(`course_start:${publication.id}`).setLabel(`${settings.buttonEmojis.start} ${course.buttonLabels.start}`).setStyle(ButtonStyle.Primary).setDisabled(publication.status !== "open"),
-        new ButtonBuilder().setCustomId(`course_exam_start:${publication.id}`).setLabel("Iniciar Prova").setStyle(ButtonStyle.Success).setDisabled(publication.status !== "started"),
-        new ButtonBuilder().setCustomId(`course_cancel:${publication.id}`).setLabel(`${settings.buttonEmojis.cancel} ${course.buttonLabels.cancel}`).setStyle(ButtonStyle.Danger).setDisabled(publication.status === "cancelled" || publication.status === "proof" || publication.status === "finished" || publication.status === "closed")
+        new ButtonBuilder().setCustomId(`course_join:${publication.id}`).setLabel(`${settings.buttonEmojis.enter ?? "✅"} ${course.buttonLabels.enter || "Entrar no Curso"}`).setStyle(ButtonStyle.Success).setDisabled(!canJoin),
+        new ButtonBuilder().setCustomId(`course_leave:${publication.id}`).setLabel(`${settings.buttonEmojis.leave ?? "🚪"} ${course.buttonLabels.leave || "Sair do Curso"}`).setStyle(ButtonStyle.Secondary).setDisabled(!canLeave)
+      ),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`course_start:${publication.id}`).setLabel(`${settings.buttonEmojis.start ?? "▶️"} Iniciar Aula`).setStyle(ButtonStyle.Primary).setDisabled(!canStartClass),
+        new ButtonBuilder().setCustomId(`course_exam_start:${publication.id}`).setLabel("📝 Iniciar Prova").setStyle(ButtonStyle.Success).setDisabled(!canStartExam),
+        new ButtonBuilder().setCustomId(`course_cancel:${publication.id}`).setLabel(`${settings.buttonEmojis.cancel ?? "❌"} ${course.buttonLabels.cancel || "Cancelar Curso"}`).setStyle(ButtonStyle.Danger).setDisabled(!canCancel)
       )
     ],
-    description: course.publishText || course.description || "Curso disponível para inscrição.",
+    description: course.publishText || course.description || "Curso disponível para inscrição. Acompanhe o status, entre na lista e aguarde o instrutor iniciar a aula.",
     fields: [
-      `Instrutor: <@${publication.instructorId}>\nLocal: ${publication.location}\nHorário: ${publication.scheduledFor}\nVagas: ${publication.students.length}/${publication.capacity}\nStatus: ${statusText}`,
-      publication.notes ? `Observações: ${publication.notes}` : "",
+      [
+        `**Instrutor:** <@${publication.instructorId}>`,
+        `**Local:** ${publication.location}`,
+        `**Horário:** ${publication.scheduledFor}`,
+        `**Vagas:** ${publication.students.length}/${publication.capacity}`,
+        `**Status:** ${statusText}`
+      ].join("\n"),
+      publication.notes ? `**Observações:** ${publication.notes}` : "",
       statusNotice,
-      `Alunos inscritos:\n${students}`,
-      publication.status === "cancelled" ? `Cancelado por: ${publication.cancelledBy ? `<@${publication.cancelledBy}>` : "-"}\nData: ${publication.cancelledAt ? new Date(publication.cancelledAt).toLocaleString("pt-BR") : "-"}` : ""
+      `**Alunos inscritos:**\n${students}`,
+      publication.status === "cancelled" ? `**Cancelamento:**\nResponsável: ${publication.cancelledBy ? `<@${publication.cancelledBy}>` : "-"}\nData: ${publication.cancelledAt ? new Date(publication.cancelledAt).toLocaleString("pt-BR") : "-"}` : ""
     ].filter(Boolean),
     image: course.bannerUrl ? { imageEnabled: true, imagePosition: course.imagePosition === "side" ? "side" : course.imagePosition === "footer" ? "footer" : course.imagePosition, imageUrl: course.bannerUrl } : null,
     moduleId: "courses",
-    title: publication.status === "cancelled" ? "Curso Cancelado" : `Curso de ${course.name}`
+    title: `${coursePublicationStatusEmoji(publication, full)} ${publication.status === "cancelled" ? "Curso Cancelado" : course.name}`
   });
 }
 
@@ -1186,18 +1256,53 @@ function studentExamWelcomePanel(course: Course, publication: CoursePublication,
   return renderComponentsV2Panel({
     accentColor: parseColor(course.color),
     actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`course_exam_begin:${publication.id}:${studentId}`).setLabel("Iniciar Prova").setStyle(ButtonStyle.Success)
+      new ButtonBuilder().setCustomId(`course_exam_begin:${publication.id}:${studentId}`).setLabel("📝 Iniciar Prova").setStyle(ButtonStyle.Success)
     )],
-    description: course.proofInstructionText || "Bem-vindo à prova do curso. Quando estiver preparado, clique em Iniciar Prova.",
+    description: course.proofInstructionText || "Sua prova foi liberada em um canal individual. Leia as instruções com atenção e clique em Iniciar Prova somente quando estiver pronto.",
     fields: [
-      `Curso:\n${course.name}`,
-      `Aluno:\n<@${studentId}>`,
-      `Instrutor:\n<@${publication.instructorId}>`
+      `**Curso:** ${course.name}`,
+      `**Aluno:** <@${studentId}>`,
+      `**Instrutor:** <@${publication.instructorId}>`
     ],
     image: (course.proofBannerUrl || course.bannerUrl) ? { imageEnabled: true, imagePosition: "top", imageUrl: course.proofBannerUrl || course.bannerUrl! } : null,
     moduleId: "courses",
-    title: "Prova do Curso"
+    title: "📝 Prova do Curso"
   });
+}
+
+function coursePublicationStatusLabel(publication: CoursePublication, full: boolean) {
+  if (publication.status === "open" && full) return "🟠 Lotado";
+  const labels: Record<CoursePublication["status"], string> = {
+    cancelled: "🔴 Cancelado",
+    closed: "✅ Encerrado",
+    finished: "✅ Finalizado",
+    open: "🟢 Inscrições abertas",
+    proof: "📝 Prova em andamento",
+    started: "🔵 Aula iniciada"
+  };
+  return labels[publication.status];
+}
+
+function coursePublicationStatusEmoji(publication: CoursePublication, full: boolean) {
+  if (publication.status === "open" && full) return "🟠";
+  const emojis: Record<CoursePublication["status"], string> = {
+    cancelled: "🔴",
+    closed: "✅",
+    finished: "✅",
+    open: "📚",
+    proof: "📝",
+    started: "🔵"
+  };
+  return emojis[publication.status];
+}
+
+function coursePublicationStatusNotice(course: Course, settings: CourseSettings, publication: CoursePublication, full: boolean) {
+  if (publication.status === "open" && full) return "🟠 **Turma lotada.** Aguarde uma vaga abrir ou uma nova publicação do curso.";
+  if (publication.status === "open") return "🟢 **Inscrições abertas.** Clique em Entrar no Curso para participar.";
+  if (publication.status === "started") return course.startedText || settings.startedMessage || "🔵 **Aula iniciada.** Novas inscrições foram bloqueadas. O instrutor pode iniciar a prova quando estiver pronto.";
+  if (publication.status === "proof") return "📝 **Prova em andamento.** Canais individuais foram criados para os alunos.";
+  if (publication.status === "cancelled") return course.cancelledText || settings.cancelledMessage || "🔴 **Curso cancelado.** Esta publicação não aceita novas ações.";
+  return "✅ **Curso finalizado.** Esta publicação foi encerrada.";
 }
 
 function examIntroPanel(course: Course, settings: CourseExamSettings) {

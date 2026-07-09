@@ -276,23 +276,34 @@ async function publishHierarchyPanel(guild: Guild, context: BotContext, panel: F
   await logMissingHierarchyRoles(context, guild, panel);
   const visuals = await getPanelVisualSlots(context, guild.id, "fivem-hierarchy");
   const payload = createHierarchyPayload(guild, panel, cache, visuals[0] ?? null);
-  let message = panel.panelMessageId ? await channel.messages.fetch(panel.panelMessageId).catch(() => null) : null;
-  if (message) {
-    message = await message.edit(payload).catch(async (error) => {
-      await logPublishFailure(context, guild.id, panel, `Falha ao editar painel existente: ${discordErrorMessage(error)}. ${permissionHint(permissionReport)}`, permissionReport);
-      return channel.send(payload).catch(async (sendError) => {
-        await logPublishFailure(context, guild.id, panel, `Falha ao reenviar painel: ${discordErrorMessage(sendError)}. ${permissionHint(permissionReport)}`, permissionReport);
-        return null;
-      });
-    });
-  } else {
-    message = await channel.send(payload).catch(async (error) => {
-      await logPublishFailure(context, guild.id, panel, `Falha ao enviar painel: ${discordErrorMessage(error)}. ${permissionHint(permissionReport)}`, permissionReport);
+  if (panel.panelMessageId) {
+    const message = await channel.messages.fetch(panel.panelMessageId).catch(async (error) => {
+      await logPublishFailure(context, guild.id, panel, `Mensagem salva do painel nao foi encontrada para edicao: ${discordErrorMessage(error)}.`, permissionReport);
       return null;
     });
+    if (!message) {
+      return { error: "Mensagem salva do painel nao encontrada. O bot nao enviou outra mensagem para evitar duplicidade.", ok: false, panelId: panel.id };
+    }
+
+    const edited = await message.edit(payload).catch(async (error) => {
+      await logPublishFailure(context, guild.id, panel, `Falha ao editar painel existente: ${discordErrorMessage(error)}. ${permissionHint(permissionReport)}`, permissionReport);
+      return null;
+    });
+    if (!edited) {
+      return { error: `Falha ao editar a mensagem salva do painel. ${permissionHint(permissionReport)}`, ok: false, panelId: panel.id };
+    }
+
+    return { messageId: edited.id, ok: true, panelId: panel.id };
   }
+
+  const message = await channel.send(payload).catch(async (error) => {
+    await logPublishFailure(context, guild.id, panel, `Falha ao enviar painel inicial: ${discordErrorMessage(error)}. ${permissionHint(permissionReport)}`, permissionReport);
+    return null;
+  });
   if (message) {
-    await context.api.updateFivemHierarchyPanelState({ guildId: guild.id, messageId: message.id, panelId: panel.id }).catch(() => null);
+    if (panel.panelMessageId !== message.id) {
+      await context.api.updateFivemHierarchyPanelState({ guildId: guild.id, messageId: message.id, panelId: panel.id }).catch(() => null);
+    }
     return { messageId: message.id, ok: true, panelId: panel.id };
   }
   return { error: `O Discord recusou o envio do painel no canal configurado. ${permissionHint(permissionReport)}`, ok: false, panelId: panel.id };
@@ -405,7 +416,7 @@ function renderHierarchyText(guild: Guild, panel: FivemHierarchyPanel, cache: Hi
       const roleExists = Boolean(guild.roles.cache.get(item.roleId));
       const roleMembers = roleExists ? [...(cache.assignmentsByEntryId.get(item.cacheKey) ?? [])]
         .sort(compareHierarchyMembers)
-        .map((member) => member.displayName || member.username)
+        .map(formatHierarchyMemberLine)
         .slice(0, item.limit ?? 50) : [];
       return `${item.emoji ?? ""} **${item.name}**\n${roleMembers.length ? roleMembers.join("\n") : "*Nenhum membro encontrado.*"}`;
     })
@@ -557,6 +568,15 @@ function intersects(left: Set<string>, right: Set<string>) {
 
 function compareHierarchyMembers(left: HierarchyMemberSnapshot, right: HierarchyMemberSnapshot) {
   return (left.displayName || left.username).localeCompare(right.displayName || right.username, "pt-BR", { sensitivity: "base" });
+}
+
+function formatHierarchyMemberLine(member: HierarchyMemberSnapshot) {
+  const name = escapeDiscordMarkdown(member.displayName || member.username || member.userId);
+  return `- ${name} - <@${member.userId}>`;
+}
+
+function escapeDiscordMarkdown(value: string) {
+  return value.replace(/([\\`*_~|>])/g, "\\$1").replace(/@/g, "@\u200b");
 }
 
 function sanitizeSingleHierarchyVisual(visual: PanelVisualConfig | null): PanelVisualConfig | null {
