@@ -600,13 +600,7 @@ async function publishFivemFacPanel(client: Client, context: BotContext, guildId
     const oldMessage = await channel.messages.fetch(settings.panelMessageId).catch(() => null);
 
     if (oldMessage) {
-      if (oldMessage.flags.has(MessageFlags.IsComponentsV2)) {
-        await oldMessage.delete().catch(() => null);
-      } else {
-        const edited = await oldMessage.edit(payload);
-        await pinPanelMessage(edited, "FAC");
-        messageId = edited.id;
-      }
+      await oldMessage.delete().catch(() => null);
     }
   }
 
