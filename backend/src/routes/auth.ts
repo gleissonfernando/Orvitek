@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import type { Request } from "express";
 import { Router } from "express";
 import { env } from "../config/env";
@@ -23,7 +23,6 @@ import {
   createAuthResponse,
   issueAuthCookies,
   issueVerificationToken,
-  refreshAuthFromRequest,
   resolveAuthFromRequest
 } from "../services/tokenService";
 import { getBotStatus, refreshBotGuildsFromDiscord } from "../services/statsService";
@@ -50,6 +49,11 @@ function appRedirectUrl(path: string) {
   return env.SITE_ORIGIN ? `${env.SITE_ORIGIN}${path}` : path;
 }
 
+function authCallbackLandingUrl(path: string) {
+  const separator = path.includes("?") ? "&" : "?";
+  return appRedirectUrl(`${path}${separator}auth=callback`);
+}
+
 function errorRedirectUrl(reason: string) {
   const path = `${errorPath}?reason=${encodeURIComponent(reason)}`;
   return env.SITE_ORIGIN ? `${env.SITE_ORIGIN}${path}` : path;
@@ -67,25 +71,21 @@ async function createOAuthState(req: Request, input: {
   returnTo: string;
   type: "dev" | "bot";
 }) {
-  const state = randomUUID();
-
-  req.session.oauthState = {
+  const payload = {
     ...input,
     expiresAt: Date.now() + OAUTH_STATE_TTL_MS,
-    state,
+    nonce: randomUUID(),
     ua: requestFingerprint(req)
   };
-  await saveSession(req);
-  return state;
+
+  return signOAuthState(payload);
 }
 
 function consumeOAuthState(req: Request, state: string) {
-  const saved = req.session.oauthState;
-  req.session.oauthState = undefined;
+  const saved = verifyOAuthState(state);
 
   if (
     !saved ||
-    saved.state !== state ||
     saved.expiresAt < Date.now() ||
     saved.ua !== requestFingerprint(req) ||
     !isAllowedReturnTo(saved.returnTo, saved.botSlug)
@@ -94,6 +94,56 @@ function consumeOAuthState(req: Request, state: string) {
   }
 
   return saved;
+}
+
+type SignedOAuthState = {
+  botId?: string;
+  botSlug?: string;
+  expiresAt: number;
+  nonce: string;
+  returnTo: string;
+  type: "dev" | "bot";
+  ua: string;
+};
+
+function signOAuthState(payload: SignedOAuthState) {
+  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = createHmac("sha256", env.SESSION_SECRET).update(encodedPayload).digest("base64url");
+  return `${encodedPayload}.${signature}`;
+}
+
+function verifyOAuthState(state: string): SignedOAuthState | null {
+  const [encodedPayload, signature] = state.split(".");
+
+  if (!encodedPayload || !signature) {
+    return null;
+  }
+
+  const expected = createHmac("sha256", env.SESSION_SECRET).update(encodedPayload).digest("base64url");
+  const signatureBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+
+  if (signatureBuffer.length !== expectedBuffer.length || !timingSafeEqual(signatureBuffer, expectedBuffer)) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8")) as Partial<SignedOAuthState>;
+
+    if (
+      typeof parsed.expiresAt !== "number" ||
+      typeof parsed.nonce !== "string" ||
+      typeof parsed.returnTo !== "string" ||
+      (parsed.type !== "dev" && parsed.type !== "bot") ||
+      typeof parsed.ua !== "string"
+    ) {
+      return null;
+    }
+
+    return parsed as SignedOAuthState;
+  } catch {
+    return null;
+  }
 }
 
 function isAllowedReturnTo(returnTo: string, botSlug?: string | null) {
@@ -150,10 +200,10 @@ function accessValidationOptions(req: Request) {
   return {
     botSlug: readAccessBotSlug(req),
     discordAccessToken: req.session.discordAccessToken ?? null,
-    discordRefreshToken: req.session.discordRefreshToken ?? null,
+    discordRefreshToken: null,
     onDiscordTokensRefreshed: (tokens: { accessToken: string; refreshToken: string | null }) => {
       req.session.discordAccessToken = tokens.accessToken;
-      req.session.discordRefreshToken = tokens.refreshToken ?? req.session.discordRefreshToken;
+      req.session.discordRefreshToken = undefined;
     }
   };
 }
@@ -391,13 +441,13 @@ authRouter.get("/discord/callback", async (req, res, next) => {
     req.session.verified = false;
     req.session.oauthState = undefined;
     req.session.discordAccessToken = tokens.access_token;
-    req.session.discordRefreshToken = tokens.refresh_token;
+    req.session.discordRefreshToken = undefined;
     req.session.accessValidatedAt = Date.now();
 
     issueAuthCookies(res, req.session.user, false);
     await saveSession(req);
     console.info(`[auth] oauth: sessao temporaria criada para ${discordUser.id}; redirect=${redirectTo}.`);
-    return res.redirect(appRedirectUrl(redirectTo));
+    return res.redirect(authCallbackLandingUrl(redirectTo));
   } catch (error) {
     console.error("[auth] oauth: falha no callback:", error instanceof Error ? error.message : error);
     clearAuthCookies(res);
@@ -442,22 +492,16 @@ authRouter.get("/me", async (req, res, next) => {
 
 authRouter.post("/refresh", async (req, res, next) => {
   try {
-    await withAuthTimeout("bot_guilds_refresh", ensureBotGuildsLoaded());
-    const auth = refreshAuthFromRequest(req, res);
-
-    if (!auth) {
-      return res.status(401).json({
-        message: "Sessao expirada."
-      });
-    }
-
-    req.session.user = auth.user;
-    if (auth.verified) {
-      req.session.verified = true;
-    }
+    clearAuthCookies(res);
+    req.session.user = undefined;
+    req.session.verified = false;
+    req.session.discordAccessToken = undefined;
+    req.session.discordRefreshToken = undefined;
     await saveSession(req);
 
-    return res.json(createAuthResponse(auth));
+    return res.status(401).json({
+      message: "Renovacao automatica de sessao desativada. Autentique novamente pelo Discord."
+    });
   } catch (error) {
     return next(error);
   }

@@ -35,6 +35,10 @@ export function useAuth() {
       if (refreshId.current !== requestId) {
         return;
       }
+      if (!session.access.verified && isProtectedPanelPath(window.location.pathname) && !isAuthCallbackLanding()) {
+        await logoutRequest();
+        throw Object.assign(new Error("Sessão local expirada."), { response: { status: 401 } });
+      }
       setAuth(session);
       setAccessValidation(session.validation ?? null);
       setStatus(session.access.verified ? "Acesso liberado." : "Verificando liberação na dashboard...");
@@ -117,6 +121,7 @@ export function useAuth() {
       setAuth(session);
       setAccessValidation(session.validation ?? null);
       setStatus("Acesso liberado.");
+      clearAuthCallbackLanding();
       if (!isProtectedPanelPath(window.location.pathname)) {
         window.location.replace(dashboardUrl());
       }
@@ -157,6 +162,21 @@ export function useAuth() {
 
 function isProtectedPanelPath(path: string) {
   return isDashboardRoutePath(path) || path === "/dev" || path.startsWith("/dev/");
+}
+
+function isAuthCallbackLanding() {
+  return new URLSearchParams(window.location.search).get("auth") === "callback";
+}
+
+function clearAuthCallbackLanding() {
+  const url = new URL(window.location.href);
+
+  if (!url.searchParams.has("auth")) {
+    return;
+  }
+
+  url.searchParams.delete("auth");
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {

@@ -33,10 +33,9 @@ export type DashboardAuth = {
 
 export function issueAuthCookies(res: Response, user: AuthSessionUser, verified: boolean) {
   const accessToken = signToken("access", user, verified, env.JWT_ACCESS_TTL_SECONDS);
-  const refreshToken = signToken("refresh", user, verified, env.JWT_REFRESH_TTL_SECONDS);
 
   setAuthCookie(res, ACCESS_COOKIE, accessToken, env.JWT_ACCESS_TTL_SECONDS);
-  setAuthCookie(res, REFRESH_COOKIE, refreshToken, env.JWT_REFRESH_TTL_SECONDS);
+  res.clearCookie(REFRESH_COOKIE, cookieOptions());
   clearVerificationCookie(res);
 
   return buildAuthFromToken(accessToken);
@@ -84,12 +83,11 @@ export function resolveAuthFromRequest(req: Request, res: Response) {
     } catch (error) {
       if (!(error instanceof TokenExpiredError)) {
         clearAuthCookies(res);
-        return issueAuthFromSession(req, res);
       }
     }
   }
 
-  return refreshAuthFromRequest(req, res);
+  return null;
 }
 
 export function resolveAuthFromCookieHeader(cookieHeader: string | undefined) {
@@ -120,27 +118,9 @@ export function isValidDashboardVerificationToken(token: unknown, discordId: str
 }
 
 export function refreshAuthFromRequest(req: Request, res: Response) {
-  const refreshToken = readCookie(req, REFRESH_COOKIE);
-
-  if (!refreshToken) {
-    return issueAuthFromSession(req, res);
-  }
-
-  try {
-    const payload = verifyToken(refreshToken, "refresh");
-    return applyBrowserVerification(req, issueAuthCookies(res, payload.user, payload.verified));
-  } catch {
-    clearAuthCookies(res);
-    return issueAuthFromSession(req, res);
-  }
-}
-
-function issueAuthFromSession(req: Request, res: Response) {
-  if (!req.session.user) {
-    return null;
-  }
-
-  return applyBrowserVerification(req, issueAuthCookies(res, req.session.user, req.session.verified === true));
+  void req;
+  clearAuthCookies(res);
+  return null;
 }
 
 function signToken(type: "access" | "refresh", user: AuthSessionUser, verified: boolean, expiresIn: number) {
@@ -269,7 +249,7 @@ function hasVerificationHeader(req: Request, user: AuthSessionUser) {
 function cookieOptions() {
   return {
     httpOnly: true,
-    sameSite: "lax" as const,
+    sameSite: "strict" as const,
     secure: env.NODE_ENV === "production",
     path: "/"
   };

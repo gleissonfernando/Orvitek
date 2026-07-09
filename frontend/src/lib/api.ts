@@ -149,8 +149,9 @@ export const api = axios.create({
   withCredentials: true
 });
 
-const VERIFICATION_STORAGE_KEY = "dashboard.tab_verification";
 let tabVerificationToken: string | null = null;
+
+clearLegacyTabVerificationStorage();
 
 api.interceptors.request.use((config) => {
   const token = readTabVerification();
@@ -174,8 +175,6 @@ function scopedBotGuildPath(botId: string, guildId: string, suffix: string) {
   return `/bots/${encodeURIComponent(botId)}/guilds/${encodeURIComponent(guildId)}${suffix}`;
 }
 
-let refreshPromise: Promise<AuthResponse> | null = null;
-
 type RetryRequestConfig = InternalAxiosRequestConfig & {
   _retry?: boolean;
 };
@@ -185,17 +184,13 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config as RetryRequestConfig | undefined;
 
-    if (!originalRequest || error.response?.status !== 401 || originalRequest._retry || originalRequest.url?.includes("/auth/refresh")) {
+    if (!originalRequest || error.response?.status !== 401 || originalRequest._retry) {
       throw error;
     }
 
     originalRequest._retry = true;
-    refreshPromise ??= refreshSession().finally(() => {
-      refreshPromise = null;
-    });
-
-    await refreshPromise;
-    return api(originalRequest);
+    clearTabVerification();
+    throw error;
   }
 );
 
@@ -259,27 +254,23 @@ export function readTabVerification() {
 
 function storeTabVerification(token: string) {
   tabVerificationToken = token;
-
-  try {
-    window.sessionStorage.setItem(VERIFICATION_STORAGE_KEY, token);
-  } catch {
-    // Browsers with storage disabled will require verification again.
-  }
 }
 
 export function clearTabVerification() {
   tabVerificationToken = null;
-
-  try {
-    window.sessionStorage.removeItem(VERIFICATION_STORAGE_KEY);
-  } catch {
-    // Nothing else is needed when storage is unavailable.
-  }
 }
 
 function synchronizeTabVerification(auth: AuthResponse) {
   if (!auth.access.verified) {
     clearTabVerification();
+  }
+}
+
+function clearLegacyTabVerificationStorage() {
+  try {
+    window.sessionStorage.removeItem("dashboard.tab_verification");
+  } catch {
+    // Legacy cleanup only; auth state is kept in memory.
   }
 }
 
