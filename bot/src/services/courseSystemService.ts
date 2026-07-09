@@ -334,6 +334,14 @@ async function handleButton(interaction: ButtonInteraction, context: BotContext)
     await changePublicationStatus(interaction, context, idFromCustomId(interaction.customId), "started");
     return;
   }
+  if (interaction.customId.startsWith("course_exam_start:")) {
+    await startCourseExam(interaction, context, idFromCustomId(interaction.customId));
+    return;
+  }
+  if (interaction.customId.startsWith("course_exam_begin:")) {
+    await beginStudentExam(interaction);
+    return;
+  }
   if (interaction.customId.startsWith("course_cancel:")) {
     await changePublicationStatus(interaction, context, idFromCustomId(interaction.customId), "cancelled");
     return;
@@ -581,6 +589,80 @@ async function startPublicationById(interaction: ChatInputCommandInteraction | B
   const updated = await context.api.setCoursePublicationStatus(interaction.guildId!, publicationId, "started", interaction.user.id);
   await refreshPublicationMessageByRecord(interaction, context, updated);
   return "Curso iniciado. Novas entradas foram bloqueadas.";
+}
+
+async function startCourseExam(interaction: ButtonInteraction, context: BotContext, publicationId: string) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const [publication, settings] = await Promise.all([
+    context.api.getCoursePublication(interaction.guildId!, publicationId).catch(() => null),
+    context.api.getCourseSettings(interaction.guildId!)
+  ]);
+  if (!publication) {
+    await interaction.editReply("Publicação de curso não encontrada.");
+    return;
+  }
+  if (publication.status !== "started") {
+    await interaction.editReply("Inicie o curso antes de iniciar a prova.");
+    return;
+  }
+  if (!(await canManagePublication(interaction, context, publication))) {
+    await interaction.editReply("Você não tem permissão para iniciar a prova deste curso.");
+    return;
+  }
+  if (!publication.students.length) {
+    await interaction.editReply("Não há alunos inscritos para criar canais de prova.");
+    return;
+  }
+
+  const course = await context.api.getCourse(interaction.guildId!, publication.courseId);
+  const created: string[] = [];
+  const reused: string[] = [];
+  const failed: string[] = [];
+
+  for (const studentId of publication.students) {
+    try {
+      const member = await interaction.guild!.members.fetch(studentId).catch(() => null);
+      const channelName = examChannelName(member?.displayName ?? studentId, course.name);
+      const existing = interaction.guild!.channels.cache.find((channel) => channel.type === ChannelType.GuildText && channel.name === channelName);
+      const channel = existing ?? await interaction.guild!.channels.create({
+        name: channelName,
+        parent: settings.temporaryCategoryId ?? undefined,
+        permissionOverwrites: [
+          { deny: [PermissionFlagsBits.ViewChannel], id: interaction.guild!.roles.everyone.id },
+          { allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory], id: studentId },
+          { allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory], id: publication.instructorId },
+          { allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageChannels], id: context.client.user!.id }
+        ],
+        reason: `Prova do curso ${course.name}`
+      });
+      if (channel.isTextBased() && "send" in channel && !existing) {
+        await (channel as TextChannel).send(studentExamWelcomePanel(course, publication, studentId));
+      }
+      (existing ? reused : created).push(`<#${channel.id}>`);
+    } catch (error) {
+      failed.push(`<@${studentId}>: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  await sendPublicationLog(interaction, context, publication, `📝 Prova iniciada\nCurso: ${course.name}\nInstrutor: <@${interaction.user.id}>\nCanais criados: ${created.length}\nCanais reutilizados: ${reused.length}\nFalhas: ${failed.length}`);
+  await interaction.editReply([
+    `Prova iniciada para ${publication.students.length} aluno(s).`,
+    created.length ? `Canais criados:\n${created.join("\n")}` : "",
+    reused.length ? `Canais já existentes:\n${reused.join("\n")}` : "",
+    failed.length ? `Falhas:\n${failed.join("\n")}` : ""
+  ].filter(Boolean).join("\n\n").slice(0, 1900));
+}
+
+async function beginStudentExam(interaction: ButtonInteraction) {
+  const [, publicationId, studentId] = interaction.customId.split(":");
+  if (interaction.user.id !== studentId) {
+    await interaction.reply({ content: "Somente o aluno deste canal pode iniciar esta prova.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  await interaction.reply({
+    content: `Prova vinculada à publicação ${publicationId}. As perguntas ainda precisam ser configuradas na dashboard para liberar a execução completa.`,
+    flags: MessageFlags.Ephemeral
+  });
 }
 
 async function decideSchedule(interaction: ButtonInteraction, context: BotContext) {
@@ -913,6 +995,7 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
         new ButtonBuilder().setCustomId(`course_join:${publication.id}`).setLabel(`${settings.buttonEmojis.enter} ${course.buttonLabels.enter}`).setStyle(ButtonStyle.Success).setDisabled(publication.status !== "open" || full),
         new ButtonBuilder().setCustomId(`course_leave:${publication.id}`).setLabel(`${settings.buttonEmojis.leave} ${course.buttonLabels.leave}`).setStyle(ButtonStyle.Secondary).setDisabled(publication.status === "cancelled" || publication.status === "closed"),
         new ButtonBuilder().setCustomId(`course_start:${publication.id}`).setLabel(`${settings.buttonEmojis.start} ${course.buttonLabels.start}`).setStyle(ButtonStyle.Primary).setDisabled(publication.status !== "open"),
+        new ButtonBuilder().setCustomId(`course_exam_start:${publication.id}`).setLabel("Iniciar Prova").setStyle(ButtonStyle.Success).setDisabled(publication.status !== "started"),
         new ButtonBuilder().setCustomId(`course_cancel:${publication.id}`).setLabel(`${settings.buttonEmojis.cancel} ${course.buttonLabels.cancel}`).setStyle(ButtonStyle.Danger).setDisabled(publication.status === "cancelled")
       )
     ],
@@ -927,6 +1010,24 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
     image: course.bannerUrl ? { imageEnabled: true, imagePosition: course.imagePosition === "side" ? "side" : course.imagePosition === "footer" ? "footer" : course.imagePosition, imageUrl: course.bannerUrl } : null,
     moduleId: "courses",
     title: publication.status === "cancelled" ? "Curso Cancelado" : `Curso de ${course.name}`
+  });
+}
+
+function studentExamWelcomePanel(course: Course, publication: CoursePublication, studentId: string) {
+  return renderComponentsV2Panel({
+    accentColor: parseColor(course.color),
+    actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`course_exam_begin:${publication.id}:${studentId}`).setLabel("Iniciar Prova").setStyle(ButtonStyle.Success)
+    )],
+    description: "Bem-vindo à prova do curso. Quando estiver preparado, clique em Iniciar Prova.",
+    fields: [
+      `Curso:\n${course.name}`,
+      `Aluno:\n<@${studentId}>`,
+      `Instrutor:\n<@${publication.instructorId}>`
+    ],
+    image: course.bannerUrl ? { imageEnabled: true, imagePosition: "top", imageUrl: course.bannerUrl } : null,
+    moduleId: "courses",
+    title: "Prova do Curso"
   });
 }
 
@@ -1030,6 +1131,20 @@ function inputRow(customId: string, label: string, style: TextInputStyle, requir
   const input = new TextInputBuilder().setCustomId(customId).setLabel(label).setStyle(style).setRequired(required).setMaxLength(maxLength);
   if (value) input.setValue(value);
   return new ActionRowBuilder<TextInputBuilder>().addComponents(input);
+}
+
+function examChannelName(studentName: string, courseName: string) {
+  return `prova-${slugPart(studentName)}-${slugPart(courseName)}`.slice(0, 100);
+}
+
+function slugPart(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40) || "aluno";
 }
 
 function ephemeral<T extends Record<string, unknown>>(payload: T) {
