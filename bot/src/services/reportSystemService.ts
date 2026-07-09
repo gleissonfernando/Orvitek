@@ -37,6 +37,7 @@ const PUBLIC_PREFIX = "iab";
 const TOPIC_PREFIX = "orvitek-iab:";
 const LEGACY_IDENTIFIED_BUTTON_ID = "iab_denuncia_identificada";
 const LEGACY_ANONYMOUS_BUTTON_ID = "iab_denuncia_anonima";
+const ANONYMOUS_DISABLED_MESSAGE = "Denuncias anonimas estao desativadas neste servidor. Para continuar, use Denuncia Identificada.";
 const BUTTON_LABELS: Record<ReportSystemButtonKey, string> = {
   addMember: "Adicionar membro",
   claim: "Assumir denuncia",
@@ -252,7 +253,7 @@ async function handlePublicReportSelect(interaction: StringSelectMenuInteraction
   }
 
   if (!report.allowAnonymousReports) {
-    await openReportFromPanel(interaction, context, selectedCategoryId, "identified");
+    await interaction.reply({ ...anonymousDisabledPayload(selectedCategoryId), flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -304,6 +305,10 @@ async function handlePublicReportButton(interaction: ButtonInteraction, context:
       return;
     }
     const mode = customId === LEGACY_ANONYMOUS_BUTTON_ID ? "anonymous" : "identified";
+    if (mode === "anonymous" && !settings.reportSystem.allowAnonymousReports) {
+      await interaction.reply({ ...anonymousDisabledPayload(category.id), flags: MessageFlags.Ephemeral });
+      return;
+    }
     await openReportFromPanel(interaction, context, category.id, mode);
     return;
   }
@@ -340,7 +345,7 @@ async function openReportFromPanel(interaction: StringSelectMenuInteraction | Bu
     return;
   }
   if (mode === "anonymous" && !report.allowAnonymousReports) {
-    await interaction.editReply("Denuncias anonimas estao desativadas neste servidor.");
+    await interaction.editReply(anonymousDisabledPayload(category.id));
     return;
   }
   if (!canCreateReport(interaction.member as GuildMember | null, report)) {
@@ -771,6 +776,19 @@ function confirmPayload(settings: GuildSettings, title: string, description: str
   });
 }
 
+function anonymousDisabledPayload(categoryId: string) {
+  return {
+    allowedMentions: { parse: [] },
+    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${PUBLIC_PREFIX}:id:${categoryId}:identified`)
+        .setLabel("Usar Denuncia Identificada")
+        .setStyle(ButtonStyle.Primary)
+    )],
+    content: ANONYMOUS_DISABLED_MESSAGE
+  };
+}
+
 async function sendTranscriptPanel(guild: Guild, settings: GuildSettings, topic: ReportTopic, ticket: TicketRecord, transcript: Awaited<ReturnType<BotContext["api"]["createTranscript"]>>, status: string, messages: Awaited<ReturnType<typeof collectTranscriptMessages>>) {
   const report = settings.reportSystem;
   const channelId = report.transcriptChannelId ?? reportCompetenceLogChannelId(report, topic.competence);
@@ -980,7 +998,7 @@ async function submitPublicReport(interaction: ModalSubmitInteraction, context: 
   }
 
   if (mode === "anonymous" && !report.allowAnonymousReports) {
-    await interaction.editReply("Denuncias anonimas estao desativadas neste servidor.");
+    await interaction.editReply(anonymousDisabledPayload(category.id));
     return;
   }
 
