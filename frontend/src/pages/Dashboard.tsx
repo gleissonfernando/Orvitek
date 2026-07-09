@@ -3045,7 +3045,9 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
       const saved = await saveFivemHierarchyPanel(guild.id, { ...draft, enabled: true }, botId);
       setPanels((current) => [saved, ...current.filter((panel) => panel.id !== saved.id && panel.id !== draft.id)]);
       setDraft(saved);
-      await publishFivemHierarchyPanel(guild.id, saved.id, botId);
+      const published = await publishFivemHierarchyPanel(guild.id, saved.id, botId);
+      setPanels((current) => [published, ...current.filter((panel) => panel.id !== published.id)]);
+      setDraft(published);
       setMessage("Hierarquia salva e publicada no Discord.");
     } catch (error) {
       setError(readResponseMessage(error) ?? "Nao foi possivel publicar. Confira canal, cargos e permissoes do bot.");
@@ -3106,6 +3108,10 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
                 <FivemChannelSelect channels={channels} disabled={!canManage} label="Canal do painel" onChange={(value) => patchDraft({ panelChannelId: value })} placeholder="Selecione" value={draft.panelChannelId} />
                 <FivemChannelSelect channels={channels} disabled={!canManage} label="Canal de logs" onChange={(value) => patchDraft({ logChannelId: value })} placeholder="Sem logs" value={draft.logChannelId} />
                 <TicketField disabled={!canManage} label="Cor" onChange={(value) => patchDraft({ color: value })} type="color" value={draft.color} />
+                <label className="flex h-10 items-center justify-between rounded-md border border-zinc-800 bg-[#09090b] px-3 text-xs font-medium text-zinc-300">
+                  Painel ativo
+                  <Switch checked={draft.enabled} disabled={!canManage} onCheckedChange={(enabled) => patchDraft({ enabled })} />
+                </label>
                 <label className="block text-xs font-medium text-zinc-400">Imagem
                   <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchDraft({ imagePosition: event.target.value as FivemHierarchyPanelType["imagePosition"] })} value={draft.imagePosition}>
                     <option value="none">Sem imagem</option>

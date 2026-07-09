@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { ensureGuild, getMongoCollections, type MongoFivemHierarchyEntry, type MongoFivemHierarchyLog, type MongoFivemHierarchyPanel } from "../database/mongo";
-import { devBotRealtimeRoom, emitRealtimeToRoom } from "../realtime/events";
+import { devBotRealtimeRoom, emitRealtimeToRoom, emitRealtimeToRoomWithAck } from "../realtime/events";
 
 export const FIVEM_HIERARCHY_MODULE_ID = "fivem-hierarchy";
 
@@ -50,6 +50,13 @@ export type FivemHierarchyLogDto = {
   id: string;
   panelId: string | null;
   userId: string | null;
+};
+
+type FivemHierarchyPublishAck = {
+  error?: string;
+  messageId?: string | null;
+  ok: boolean;
+  panelId?: string;
 };
 
 export async function getFivemHierarchyDashboard(guildId: string, botId?: string | null) {
@@ -117,8 +124,18 @@ export async function requestFivemHierarchyPanelPublish(guildId: string, botId: 
   if (!panel.enabled) throw createPublishError("Ative o painel de hierarquia antes de publicar.", 400);
   if (!panel.panelChannelId) throw createPublishError("Configure o canal do painel de hierarquia.", 400);
   await writeFivemHierarchyLog({ action: "panel.publish_requested", botId, details: { channelId: panel.panelChannelId }, guildId, panelId, userId: actorId });
-  emitRealtimeToRoom(devBotRealtimeRoom(botId), "fivem:hierarchy:panel_update", { action: "publish", botId, guildId, panelId });
-  return panel;
+  const responses = await emitRealtimeToRoomWithAck<
+    { action: "publish"; botId: string; guildId: string; panelId: string },
+    FivemHierarchyPublishAck
+  >(devBotRealtimeRoom(botId), "fivem:hierarchy:panel_update", { action: "publish", botId, guildId, panelId }, 20_000);
+  const success = responses.find((response) => response?.ok);
+  if (success) {
+    await writeFivemHierarchyLog({ action: "panel.published", botId, details: { channelId: panel.panelChannelId, messageId: success.messageId ?? null }, guildId, panelId, userId: actorId });
+    return await getFivemHierarchyPanel(guildId, panelId, botId) ?? panel;
+  }
+
+  const error = responses.find((response) => response?.error)?.error;
+  throw createPublishError(error ?? "O bot nao respondeu a solicitacao de publicacao. Confira se o bot DEV esta online e conectado ao backend.", 409);
 }
 
 export async function updateFivemHierarchyPanelState(guildId: string, botId: string | null, panelId: string, messageId: string | null) {

@@ -104,6 +104,7 @@ export type FivemHierarchyPanelUpdateEvent = {
   guildId: string;
   panelId: string;
 };
+export type FivemHierarchyPanelUpdateAck = (response: { error?: string; messageId?: string | null; ok: boolean; panelId?: string }) => void;
 
 export type FivemFacAbsenceUpdateEvent = {
   absence?: unknown;
@@ -249,7 +250,7 @@ export class BotSocketClient {
   private manualRegistrationPanelPublishHandler: ((payload: ManualRegistrationPanelPublishEvent) => void) | null = null;
   private manualRegistrationExecuteHandler: ((payload: ManualRegistrationExecuteEvent) => void) | null = null;
   private databaseMaintenanceDeleteChannelsHandler: ((payload: DatabaseMaintenanceDeleteChannelsEvent) => void) | null = null;
-  private fivemHierarchyPanelUpdateHandler: ((payload: FivemHierarchyPanelUpdateEvent) => void) | null = null;
+  private fivemHierarchyPanelUpdateHandler: ((payload: FivemHierarchyPanelUpdateEvent, ack?: FivemHierarchyPanelUpdateAck) => void) | null = null;
   private fivemFacAbsenceUpdateHandler: ((payload: FivemFacAbsenceUpdateEvent) => void) | null = null;
   private policeHiddenChannelSettingsHandler: ((payload: PoliceHiddenChannelSettingsEvent) => void) | null = null;
   private dmBarSettingsHandler: ((payload: DmBarSettingsEvent) => void) | null = null;
@@ -580,7 +581,7 @@ export class BotSocketClient {
     this.socket?.on("database-maintenance:delete_channels", handler);
   }
 
-  onFivemHierarchyPanelUpdate(handler: (payload: FivemHierarchyPanelUpdateEvent) => void) {
+  onFivemHierarchyPanelUpdate(handler: (payload: FivemHierarchyPanelUpdateEvent, ack?: FivemHierarchyPanelUpdateAck) => void) {
     this.fivemHierarchyPanelUpdateHandler = handler;
     this.socket?.off("fivem:hierarchy:panel_update");
     this.socket?.on("fivem:hierarchy:panel_update", handler);

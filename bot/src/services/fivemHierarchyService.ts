@@ -2,6 +2,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  DiscordAPIError,
   PermissionFlagsBits,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
@@ -14,6 +15,7 @@ import { isBotModuleEnabled } from "../config/env";
 import type { BotCommand, BotContext } from "../types";
 import type { FivemHierarchyPanel } from "./apiClient";
 import { renderComponentsV2Panel, type PanelVisualConfig } from "./panelVisualRenderer";
+import type { FivemHierarchyPanelUpdateAck } from "../websocket/socketClient";
 
 const PREFIX = "fivem_hierarchy";
 const scheduledGuilds = new Map<string, NodeJS.Timeout>();
@@ -36,9 +38,24 @@ export const hierarchyCommand: BotCommand = {
 };
 
 export function startFivemHierarchyService(client: Client<true>, context: BotContext) {
-  context.socket.onFivemHierarchyPanelUpdate((payload) => {
+  context.socket.onFivemHierarchyPanelUpdate((payload, ack?: FivemHierarchyPanelUpdateAck) => {
     const guild = client.guilds.cache.get(payload.guildId);
-    if (guild) void refreshHierarchyPanelsForGuild(guild, context, payload.panelId);
+    if (!guild) {
+      ack?.({ error: "O bot nao esta conectado ao servidor selecionado.", ok: false, panelId: payload.panelId });
+      return;
+    }
+    void refreshHierarchyPanelsForGuild(guild, context, payload.panelId)
+      .then((results) => {
+        const success = results.find((result) => result.ok);
+        if (success) {
+          ack?.(success);
+          return;
+        }
+        ack?.(results[0] ?? { error: "Nenhum painel de hierarquia ativo foi encontrado para publicar.", ok: false, panelId: payload.panelId });
+      })
+      .catch((error) => {
+        ack?.({ error: `Falha inesperada ao publicar hierarquia: ${errorMessage(error)}`, ok: false, panelId: payload.panelId });
+      });
   });
 
   for (const guild of client.guilds.cache.values()) {
@@ -76,46 +93,60 @@ export function scheduleHierarchyRefresh(guild: Guild, context: BotContext) {
 }
 
 export async function refreshHierarchyPanelsForGuild(guild: Guild, context: BotContext, panelId?: string | null) {
-  const panels = await context.api.getActiveFivemHierarchyPanels().catch(() => []);
+  const panels = await context.api.getActiveFivemHierarchyPanels().catch((error) => {
+    console.warn(`[fivem-hierarchy] falha ao buscar paineis ativos: ${errorMessage(error)}`);
+    return [];
+  });
   const scoped = panels.filter((panel) => panel.guildId === guild.id && (!panelId || panel.id === panelId));
-  if (!scoped.length) return;
-  await guild.members.fetch().catch(() => null);
-  for (const panel of scoped) {
-    await publishHierarchyPanel(guild, context, panel);
+  if (!scoped.length) {
+    return panelId
+      ? [{ error: "Painel ativo nao encontrado para este bot. Salve o painel como ativo e confira se o bot DEV correto esta selecionado.", ok: false, panelId }]
+      : [];
   }
+  await guild.members.fetch().catch(() => null);
+  const results = [];
+  for (const panel of scoped) {
+    results.push(await publishHierarchyPanel(guild, context, panel));
+  }
+  return results;
 }
 
 async function publishHierarchyPanel(guild: Guild, context: BotContext, panel: FivemHierarchyPanel) {
-  if (!panel.enabled || !panel.panelChannelId) return;
+  if (!panel.enabled) return { error: "O painel de hierarquia esta desativado.", ok: false, panelId: panel.id };
+  if (!panel.panelChannelId) return { error: "Canal do painel de hierarquia nao configurado.", ok: false, panelId: panel.id };
   const channel = await guild.channels.fetch(panel.panelChannelId).catch(() => null);
   if (!channel || !("send" in channel) || !("messages" in channel)) {
-    await logPublishFailure(context, guild.id, panel, "Canal do painel nao encontrado ou nao e um canal de texto.");
-    return;
+    const error = "Canal do painel nao encontrado ou nao e um canal de texto.";
+    await logPublishFailure(context, guild.id, panel, error);
+    return { error, ok: false, panelId: panel.id };
   }
   const permissionError = validatePublishPermissions(guild, channel as { id: string; permissionsFor(member: GuildMember): { has(permission: bigint): boolean } | null });
   if (permissionError) {
     await logPublishFailure(context, guild.id, panel, permissionError);
-    return;
+    return { error: permissionError, ok: false, panelId: panel.id };
   }
   const visuals = await getPanelVisualSlots(context, guild.id, "fivem-hierarchy");
   const payload = createHierarchyPayload(guild, panel, visuals[0] ?? null, visuals.slice(1));
   let message = panel.panelMessageId ? await channel.messages.fetch(panel.panelMessageId).catch(() => null) : null;
   if (message) {
-    await message.edit(payload).catch(async () => {
-      message = await channel.send(payload).catch((error) => {
-        void logPublishFailure(context, guild.id, panel, `Falha ao reenviar painel: ${errorMessage(error)}`);
+    message = await message.edit(payload).catch(async (error) => {
+      await logPublishFailure(context, guild.id, panel, `Falha ao editar painel existente: ${discordErrorMessage(error)}`);
+      return channel.send(payload).catch(async (sendError) => {
+        await logPublishFailure(context, guild.id, panel, `Falha ao reenviar painel: ${discordErrorMessage(sendError)}`);
         return null;
       });
     });
   } else {
-    message = await channel.send(payload).catch((error) => {
-      void logPublishFailure(context, guild.id, panel, `Falha ao enviar painel: ${errorMessage(error)}`);
+    message = await channel.send(payload).catch(async (error) => {
+      await logPublishFailure(context, guild.id, panel, `Falha ao enviar painel: ${discordErrorMessage(error)}`);
       return null;
     });
   }
   if (message) {
     await context.api.updateFivemHierarchyPanelState({ guildId: guild.id, messageId: message.id, panelId: panel.id }).catch(() => null);
+    return { messageId: message.id, ok: true, panelId: panel.id };
   }
+  return { error: "O Discord recusou o envio do painel no canal configurado.", ok: false, panelId: panel.id };
 }
 
 function validatePublishPermissions(guild: Guild, channel: { id: string; permissionsFor(member: GuildMember): { has(permission: bigint): boolean } | null }) {
@@ -147,6 +178,13 @@ async function logPublishFailure(context: BotContext, guildId: string, panel: Fi
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function discordErrorMessage(error: unknown) {
+  if (error instanceof DiscordAPIError) {
+    return `${error.message} (${error.code})`;
+  }
+  return errorMessage(error);
 }
 
 function createHierarchyPayload(guild: Guild, panel: FivemHierarchyPanel, visual: PanelVisualConfig | null, extraImages: PanelVisualConfig[] = []) {
