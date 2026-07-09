@@ -19,6 +19,7 @@ import {
   getScheduleRequest,
   joinCoursePublication,
   leaveCoursePublication,
+  listCoursePublications,
   requestCoursePanelPublish,
   saveCourseSettings,
   setCoursePublicationStatus,
@@ -93,6 +94,7 @@ const publicationSchema = z.object({
 });
 const joinSchema = z.object({ userId: snowflake });
 const statusSchema = z.object({ actorId: snowflake, status: z.enum(["started", "cancelled", "closed"]) });
+const publicationListSchema = z.object({ status: z.enum(["open", "started", "cancelled", "closed"]).nullable().optional() });
 const messageStateSchema = z.object({ messageId: optionalSnowflake });
 const scheduleSchema = z.object({
   channelId: optionalSnowflake,
@@ -283,6 +285,17 @@ coursesRouter.post("/bot/:guildId/publications", requireBot, async (req, res, ne
     const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
     const publication = await createCoursePublication(botId, guildId, sanitizePublication(publicationSchema.parse(req.body ?? {})));
     return res.status(201).json({ publication });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+coursesRouter.get("/bot/:guildId/publications", requireBot, async (req, res, next) => {
+  try {
+    const guildId = snowflake.parse(req.params.guildId);
+    const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
+    const input = publicationListSchema.parse(req.query ?? {});
+    return res.json({ publications: await listCoursePublications(botId, guildId, input.status ?? null) });
   } catch (error) {
     return next(error);
   }

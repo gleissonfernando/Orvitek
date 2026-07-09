@@ -258,6 +258,16 @@ export async function getCoursePublication(botId: string | null, guildId: string
   return publication ? mapPublication(publication) : null;
 }
 
+export async function listCoursePublications(botId: string | null, guildId: string, status?: MongoCoursePublication["status"] | null) {
+  const { coursePublications } = await getMongoCollections();
+  const query = {
+    ...scope(botId, guildId),
+    ...(status ? { status } : {})
+  };
+  const publications = await coursePublications.find(query).sort({ createdAt: -1 }).limit(50).toArray();
+  return publications.map(mapPublication);
+}
+
 export async function joinCoursePublication(botId: string | null, guildId: string, publicationId: string, userId: string) {
   const { coursePublications } = await getMongoCollections();
   const publication = await coursePublications.findOne({ _id: publicationId, ...scope(botId, guildId) });

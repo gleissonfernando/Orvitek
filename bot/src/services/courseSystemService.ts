@@ -52,7 +52,8 @@ const IDS = {
   channelLogs: "course_channel_logs",
   publicPublish: "course_public_publish",
   publicSchedule: "course_public_schedule",
-  publicReport: "course_public_report"
+  publicReport: "course_public_report",
+  startSelect: "course_start_select"
 } as const;
 
 const reportDrafts = new Map<string, { courseId: string; students: Array<{ note: string; observation: string | null; userId: string }> }>();
@@ -91,11 +92,16 @@ export const courseCommand: BotCommand = {
   data: new SlashCommandBuilder()
     .setName("curso")
     .setDescription("Gerencia cursos.")
+    .addSubcommand((subcommand) => subcommand.setName("config").setDescription("Abre a configuração do Sistema de Cursos."))
     .addSubcommand((subcommand) => subcommand.setName("publicar").setDescription("Publica um curso disponível."))
     .addSubcommand((subcommand) => subcommand.setName("horario").setDescription("Solicita um horário de curso.")),
   moduleId: "courses",
   async execute(interaction, context) {
     const subcommand = interaction.options.getSubcommand();
+    if (subcommand === "config") {
+      await openCourseConfig(interaction, context);
+      return;
+    }
     if (subcommand === "publicar") {
       await startPublishFlow(interaction, context);
       return;
@@ -103,6 +109,18 @@ export const courseCommand: BotCommand = {
     if (subcommand === "horario") {
       await startScheduleFlow(interaction, context);
     }
+  }
+};
+
+export const startCourseCommand: BotCommand = {
+  data: new SlashCommandBuilder()
+    .setName("iniciar")
+    .setDescription("Inicia sistemas em andamento.")
+    .addSubcommand((subcommand) => subcommand.setName("curso").setDescription("Inicia uma publicação de curso aberta.")),
+  moduleId: "courses",
+  async execute(interaction, context) {
+    if (interaction.options.getSubcommand() !== "curso") return;
+    await startCourseStartFlow(interaction, context);
   }
 };
 
@@ -180,6 +198,51 @@ async function startReportFlow(interaction: ChatInputCommandInteraction | Button
     return;
   }
   await interaction.reply(ephemeral(selectCoursePanel("Selecione o curso aplicado para iniciar o relatório.", IDS.reportSelect, courses)));
+}
+
+async function startCourseStartFlow(interaction: ChatInputCommandInteraction | ButtonInteraction, context: BotContext) {
+  const [settings, publications, courses] = await Promise.all([
+    context.api.getCourseSettings(interaction.guildId!),
+    context.api.listCoursePublications(interaction.guildId!, "open"),
+    manageableCourses(interaction, context)
+  ]);
+  const manageableIds = new Set(courses.map((course) => course.id));
+  const allowed = publications.filter((publication) => publication.instructorId === interaction.user.id || manageableIds.has(publication.courseId));
+  if (!allowed.length) {
+    await interaction.reply(ephemeral(renderComponentsV2Panel({
+      accentColor: 0xdc2626,
+      description: "Nenhum curso aberto foi encontrado para iniciar com suas permissões atuais.",
+      fields: [`Gestores configurados: ${settings.managerUserIds.map((id) => `<@${id}>`).concat(settings.managerRoleIds.map((id) => `<@&${id}>`)).join(", ") || "nenhum"}`],
+      moduleId: "courses",
+      title: "Iniciar Curso"
+    })));
+    return;
+  }
+  if (allowed.length === 1) {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const message = await startPublicationById(interaction, context, allowed[0]!.id);
+    await interaction.editReply(message);
+    return;
+  }
+  const courseNames = new Map(courses.map((course) => [course.id, `${course.emoji ?? "📚"} ${course.name}`]));
+  await interaction.reply(ephemeral(renderComponentsV2Panel({
+    accentColor: 0x2563eb,
+    actions: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(IDS.startSelect)
+          .setPlaceholder("Selecione o curso que será iniciado")
+          .addOptions(allowed.slice(0, 25).map((publication) => ({
+            label: (courseNames.get(publication.courseId) ?? `Curso ${publication.courseId}`).slice(0, 100),
+            value: publication.id,
+            description: `${publication.scheduledFor} • ${publication.students.length}/${publication.capacity} inscritos`.slice(0, 100)
+          })))
+      )
+    ],
+    description: "Escolha uma publicação aberta para bloquear novas inscrições e marcar o curso como iniciado.",
+    moduleId: "courses",
+    title: "Iniciar Curso"
+  })));
 }
 
 async function handleButton(interaction: ButtonInteraction, context: BotContext) {
@@ -260,7 +323,7 @@ async function handleButton(interaction: ButtonInteraction, context: BotContext)
   }
 }
 
-async function handleStringSelect(interaction: StringSelectMenuInteraction, _context: BotContext) {
+async function handleStringSelect(interaction: StringSelectMenuInteraction, context: BotContext) {
   const courseId = interaction.values[0] ?? "";
   if (interaction.customId === IDS.publishSelect) {
     await interaction.showModal(publicationModal(courseId));
@@ -273,6 +336,12 @@ async function handleStringSelect(interaction: StringSelectMenuInteraction, _con
   if (interaction.customId === IDS.reportSelect) {
     reportDrafts.set(draftKey(interaction), { courseId, students: [] });
     await interaction.update(reportDraftPanel(interaction.user.id, courseId, []));
+    return;
+  }
+  if (interaction.customId === IDS.startSelect) {
+    await interaction.deferUpdate();
+    const message = await startPublicationById(interaction, context, courseId);
+    await interaction.followUp({ content: message, flags: MessageFlags.Ephemeral });
   }
 }
 
@@ -430,6 +499,18 @@ async function changePublicationStatus(interaction: ButtonInteraction, context: 
   await interaction.editReply(status === "started" ? "Curso iniciado. Novas entradas foram bloqueadas." : "Curso cancelado.");
 }
 
+async function startPublicationById(interaction: ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction, context: BotContext, publicationId: string) {
+  const publication = await context.api.getCoursePublication(interaction.guildId!, publicationId).catch(() => null);
+  if (!publication) return "Publicação de curso não encontrada.";
+  if (publication.status !== "open") return "Este curso não está aberto para iniciar.";
+  if (!(await canManagePublication(interaction, context, publication))) {
+    return "Você não tem permissão para iniciar este curso.";
+  }
+  const updated = await context.api.setCoursePublicationStatus(interaction.guildId!, publicationId, "started", interaction.user.id);
+  await refreshPublicationMessageByRecord(interaction, context, updated);
+  return "Curso iniciado. Novas entradas foram bloqueadas.";
+}
+
 async function decideSchedule(interaction: ButtonInteraction, context: BotContext) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const [, , action, requestId] = interaction.customId.split("_").join(":").split(":");
@@ -512,11 +593,18 @@ async function launchReport(interaction: ButtonInteraction, context: BotContext)
 }
 
 async function refreshPublicationMessage(interaction: ButtonInteraction, context: BotContext, publication: CoursePublication) {
+  await refreshPublicationMessageByRecord(interaction, context, publication);
+}
+
+async function refreshPublicationMessageByRecord(interaction: { guild: ChatInputCommandInteraction["guild"]; guildId: string | null }, context: BotContext, publication: CoursePublication) {
   const [course, settings] = await Promise.all([
     context.api.getCourse(interaction.guildId!, publication.courseId),
     context.api.getCourseSettings(interaction.guildId!)
   ]);
-  await interaction.message.edit(coursePublicationPanel(course, publication, settings, interaction.guild!)).catch(() => null);
+  const channel = await interaction.guild?.channels.fetch(publication.channelId).catch(() => null);
+  if (!channel?.isTextBased() || !("messages" in channel) || !publication.messageId) return;
+  const message = await channel.messages.fetch(publication.messageId).catch(() => null);
+  await message?.edit(coursePublicationPanel(course, publication, settings, interaction.guild!)).catch(() => null);
 }
 
 async function publishPublicCoursesPanel(client: Client, context: BotContext, guildId: string) {
@@ -538,7 +626,7 @@ async function publishPublicCoursesPanel(client: Client, context: BotContext, gu
   await context.api.updateCoursePanelMessage(guildId, nextMessage.id);
 }
 
-async function manageableCourses(interaction: ChatInputCommandInteraction | ButtonInteraction, context: BotContext) {
+async function manageableCourses(interaction: ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction, context: BotContext) {
   const member = interaction.member as GuildMember | null;
   return context.api.getManageableCourses(interaction.guildId!, {
     isAdministrator: Boolean(member?.permissions.has(PermissionFlagsBits.Administrator)),
@@ -547,12 +635,12 @@ async function manageableCourses(interaction: ChatInputCommandInteraction | Butt
   });
 }
 
-async function canManagePublication(interaction: ButtonInteraction, context: BotContext, publication: CoursePublication) {
+async function canManagePublication(interaction: ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction, context: BotContext, publication: CoursePublication) {
   if (publication.instructorId === interaction.user.id) return true;
   return canManageCourse(interaction, context, publication.courseId);
 }
 
-async function canManageCourse(interaction: ButtonInteraction, context: BotContext, courseId: string) {
+async function canManageCourse(interaction: ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction, context: BotContext, courseId: string) {
   const member = interaction.member as GuildMember | null;
   const courses = await context.api.getManageableCourses(interaction.guildId!, {
     isAdministrator: Boolean(member?.permissions.has(PermissionFlagsBits.Administrator)),

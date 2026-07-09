@@ -21,7 +21,7 @@ import { policePatrolReportCommand, viewPolicePatrolReportCommand } from "./poli
 import { policeHiddenChannelCommand } from "../services/policeHiddenChannelService";
 import { dmBarCommand } from "../services/dmBarService";
 import { policeSubpoenaCommand } from "../services/policeSubpoenaService";
-import { configCourseCommand, courseCommand } from "../services/courseSystemService";
+import { configCourseCommand, courseCommand, startCourseCommand } from "../services/courseSystemService";
 import { rhAdminCommand } from "../services/rhAdminService";
 import { removerCommand } from "./remover";
 import type { BotCommand } from "../types";
@@ -53,6 +53,7 @@ export function createCommandCollection() {
     policeSubpoenaCommand,
     configCourseCommand,
     courseCommand,
+    startCourseCommand,
     rhAdminCommand,
     removerCommand,
     sistemaCommand,

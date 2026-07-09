@@ -120,25 +120,27 @@ async function publishHierarchyPanel(guild: Guild, context: BotContext, panel: F
     await logPublishFailure(context, guild.id, panel, error);
     return { error, ok: false, panelId: panel.id };
   }
-  const permissionError = validatePublishPermissions(guild, channel as { id: string; permissionsFor(member: GuildMember): { has(permission: bigint): boolean } | null });
-  if (permissionError) {
-    await logPublishFailure(context, guild.id, panel, permissionError);
-    return { error: permissionError, ok: false, panelId: panel.id };
+  const permissionReport = inspectPublishPermissions(guild, channel as PublishPermissionChannel, Boolean(panel.panelMessageId));
+  await logPublishPermissionSnapshot(context, guild.id, panel, permissionReport);
+  if (permissionReport.blockingMissing.length) {
+    const error = `Permissoes ausentes no canal <#${channel.id}>: ${permissionReport.blockingMissing.join(", ")}. Permissoes reais: ${permissionReport.granted.join(", ") || "nenhuma"}.`;
+    await logPublishFailure(context, guild.id, panel, error, permissionReport);
+    return { error, ok: false, panelId: panel.id };
   }
   const visuals = await getPanelVisualSlots(context, guild.id, "fivem-hierarchy");
   const payload = createHierarchyPayload(guild, panel, visuals[0] ?? null, visuals.slice(1));
   let message = panel.panelMessageId ? await channel.messages.fetch(panel.panelMessageId).catch(() => null) : null;
   if (message) {
     message = await message.edit(payload).catch(async (error) => {
-      await logPublishFailure(context, guild.id, panel, `Falha ao editar painel existente: ${discordErrorMessage(error)}`);
+      await logPublishFailure(context, guild.id, panel, `Falha ao editar painel existente: ${discordErrorMessage(error)}. ${permissionHint(permissionReport)}`, permissionReport);
       return channel.send(payload).catch(async (sendError) => {
-        await logPublishFailure(context, guild.id, panel, `Falha ao reenviar painel: ${discordErrorMessage(sendError)}`);
+        await logPublishFailure(context, guild.id, panel, `Falha ao reenviar painel: ${discordErrorMessage(sendError)}. ${permissionHint(permissionReport)}`, permissionReport);
         return null;
       });
     });
   } else {
     message = await channel.send(payload).catch(async (error) => {
-      await logPublishFailure(context, guild.id, panel, `Falha ao enviar painel: ${discordErrorMessage(error)}`);
+      await logPublishFailure(context, guild.id, panel, `Falha ao enviar painel: ${discordErrorMessage(error)}. ${permissionHint(permissionReport)}`, permissionReport);
       return null;
     });
   }
@@ -146,25 +148,65 @@ async function publishHierarchyPanel(guild: Guild, context: BotContext, panel: F
     await context.api.updateFivemHierarchyPanelState({ guildId: guild.id, messageId: message.id, panelId: panel.id }).catch(() => null);
     return { messageId: message.id, ok: true, panelId: panel.id };
   }
-  return { error: "O Discord recusou o envio do painel no canal configurado.", ok: false, panelId: panel.id };
+  return { error: `O Discord recusou o envio do painel no canal configurado. ${permissionHint(permissionReport)}`, ok: false, panelId: panel.id };
 }
 
-function validatePublishPermissions(guild: Guild, channel: { id: string; permissionsFor(member: GuildMember): { has(permission: bigint): boolean } | null }) {
+type PublishPermissionChannel = {
+  id: string;
+  permissionsFor(member: GuildMember): { has(permission: bigint): boolean; toArray(): string[] } | null;
+};
+
+function inspectPublishPermissions(guild: Guild, channel: PublishPermissionChannel, editingExistingMessage: boolean) {
   const me = guild.members.me;
   if (!me || !channel || !("permissionsFor" in channel)) {
-    return "Nao consegui validar meu membro ou minhas permissoes nesse canal.";
+    return {
+      botId: me?.id ?? null,
+      channelId: channel?.id ?? null,
+      granted: [],
+      blockingMissing: ["Validar membro do bot"],
+      diagnosticMissing: ["Validar membro do bot"],
+      required: ["Validar membro do bot"]
+    };
   }
   const permissions = channel.permissionsFor(me);
-  const missing = [
+  const required: Array<[bigint, string]> = [
     [PermissionFlagsBits.ViewChannel, "Ver Canal"],
     [PermissionFlagsBits.SendMessages, "Enviar Mensagens"],
     [PermissionFlagsBits.EmbedLinks, "Inserir Links"],
     [PermissionFlagsBits.ReadMessageHistory, "Ler Historico"]
-  ].filter(([permission]) => !permissions?.has(permission as bigint)).map(([, label]) => label);
-  return missing.length ? `Permissoes ausentes no canal <#${channel.id}>: ${missing.join(", ")}.` : null;
+  ];
+  const diagnostic: Array<[bigint, string]> = editingExistingMessage
+    ? [[PermissionFlagsBits.ManageMessages, "Gerenciar Mensagens"]]
+    : [];
+  const granted = permissions?.toArray() ?? [];
+  const blockingMissing = required.filter(([permission]) => !permissions?.has(permission)).map(([, label]) => label);
+  const diagnosticMissing = diagnostic.filter(([permission]) => !permissions?.has(permission)).map(([, label]) => label);
+  const report = {
+    botId: me.id,
+    channelId: channel.id,
+    granted,
+    blockingMissing,
+    diagnosticMissing,
+    required: required.map(([, label]) => label),
+    diagnostic: diagnostic.map(([, label]) => label)
+  };
+  console.info(`[fivem-hierarchy] permissoes do bot no canal ${channel.id}: granted=${granted.join(",") || "nenhuma"} missing=${blockingMissing.join(",") || "nenhuma"} diagnosticMissing=${diagnosticMissing.join(",") || "nenhuma"}`);
+  return report;
 }
 
-async function logPublishFailure(context: BotContext, guildId: string, panel: FivemHierarchyPanel, reason: string) {
+async function logPublishPermissionSnapshot(context: BotContext, guildId: string, panel: FivemHierarchyPanel, permissionReport: ReturnType<typeof inspectPublishPermissions>) {
+  await context.api.postLog({
+    guildId,
+    channelId: panel.panelChannelId,
+    module: "fivem-hierarchy",
+    action: "panel.permission_snapshot",
+    type: "fivem_hierarchy.permission_snapshot",
+    message: `Permissoes do bot no canal antes de publicar hierarquia: ${permissionReport.granted.join(", ") || "nenhuma"}. Faltando: ${permissionReport.blockingMissing.join(", ") || "nenhuma"}. Diagnostico: ${permissionReport.diagnosticMissing.join(", ") || "nenhuma"}.`,
+    metadata: { panelId: panel.id, ...permissionReport }
+  }).catch(() => null);
+}
+
+async function logPublishFailure(context: BotContext, guildId: string, panel: FivemHierarchyPanel, reason: string, permissionReport?: ReturnType<typeof inspectPublishPermissions>) {
   await context.api.postLog({
     guildId,
     channelId: panel.panelChannelId,
@@ -172,8 +214,14 @@ async function logPublishFailure(context: BotContext, guildId: string, panel: Fi
     action: "panel.publish_failed",
     type: "fivem_hierarchy.publish_failed",
     message: `Falha ao publicar painel de hierarquia: ${reason}`,
-    metadata: { panelId: panel.id, channelId: panel.panelChannelId, reason }
+    metadata: { panelId: panel.id, channelId: panel.panelChannelId, permissionReport: permissionReport ?? null, reason }
   }).catch(() => null);
+}
+
+function permissionHint(permissionReport: ReturnType<typeof inspectPublishPermissions>) {
+  return permissionReport.blockingMissing.length
+    ? `Permissoes faltando: ${permissionReport.blockingMissing.join(", ")}.`
+    : `Permissoes calculadas no canal: ${permissionReport.granted.join(", ") || "nenhuma"}.`;
 }
 
 function errorMessage(error: unknown) {

@@ -1782,6 +1782,13 @@ export class ApiClient {
     return data.publication;
   }
 
+  async listCoursePublications(guildId: string, status?: CoursePublication["status"] | null) {
+    const { data } = await this.http.get<{ publications: CoursePublication[] }>(`/courses/bot/${guildId}/publications`, {
+      params: status ? { status } : undefined
+    });
+    return data.publications;
+  }
+
   async updateCoursePublicationMessage(guildId: string, publicationId: string, messageId: string | null) {
     const { data } = await this.http.patch<{ publication: CoursePublication }>(`/courses/bot/${guildId}/publications/${publicationId}/message`, { messageId });
     return data.publication;
