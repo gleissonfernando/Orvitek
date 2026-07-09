@@ -416,21 +416,23 @@ async function getPanelVisualSlots(context: BotContext, guildId: string, basePan
 function createHierarchyPayload(guild: Guild, panel: FivemHierarchyPanel, cache: HierarchyPanelCache, visual: PanelVisualConfig | null) {
   const fallbackVisual: PanelVisualConfig | null = panel.imageUrl ? { imageEnabled: true, imagePosition: panel.imagePosition === "bottom" ? "bottom" : panel.imagePosition, imageUrl: panel.imageUrl } : null;
   const singleVisual = sanitizeSingleHierarchyVisual(visual?.imageEnabled ? visual : fallbackVisual);
-  return renderComponentsV2Panel({ accentColor: colorToInt(panel.color), actions: [], description: panel.description ?? "Hierarquia atualizada automaticamente pelos cargos do servidor.", fields: [renderHierarchyText(guild, panel, cache)], footer: panel.footerEnabled ? { text: panel.footerText ?? "OrviteK" } : { enabled: false }, image: singleVisual, moduleId: "fivem-hierarchy", title: panel.title });
+  return renderComponentsV2Panel({ accentColor: colorToInt(panel.color), actions: [], description: panel.description ?? "Hierarquia atualizada automaticamente pelos cargos do servidor.", fields: renderHierarchyFields(guild, panel, cache), footer: panel.footerEnabled ? { text: panel.footerText ?? "OrviteK" } : { enabled: false }, image: singleVisual, moduleId: "fivem-hierarchy", title: panel.title });
 }
 
-function renderHierarchyText(guild: Guild, panel: FivemHierarchyPanel, cache: HierarchyPanelCache) {
-  return orderedHierarchyEntries(panel)
-    .map((item) => {
-      const roleExists = Boolean(guild.roles.cache.get(item.roleId));
-      const roleMembers = roleExists ? [...(cache.assignmentsByEntryId.get(item.cacheKey) ?? [])]
-        .sort(compareHierarchyMembers)
-        .map(formatHierarchyMemberLine)
-        .slice(0, item.limit ?? 50) : [];
-      return `${item.emoji ?? ""} **${item.name}**\n${roleMembers.length ? roleMembers.join("\n") : "*Nenhum membro encontrado.*"}`;
-    })
-    .join("\n\n")
-    .slice(0, 3800) || "*Nenhuma hierarquia configurada.*";
+function renderHierarchyFields(guild: Guild, panel: FivemHierarchyPanel, cache: HierarchyPanelCache) {
+  const sections = orderedHierarchyEntries(panel).map((item) => {
+    const roleExists = Boolean(guild.roles.cache.get(item.roleId));
+    const members = roleExists
+      ? [...(cache.assignmentsByEntryId.get(item.cacheKey) ?? [])].sort(compareHierarchyMembers)
+      : [];
+    const limitedMembers = typeof item.limit === "number" && item.limit > 0 ? members.slice(0, item.limit) : members;
+    const hiddenCount = members.length - limitedMembers.length;
+    const lines = limitedMembers.map(formatHierarchyMemberLine);
+    if (hiddenCount > 0) lines.push(`_+${hiddenCount} membro(s) oculto(s) pelo limite configurado._`);
+    return `${item.emoji ?? ""} **${item.name}**\n${lines.length ? lines.join("\n") : "*Nenhum membro encontrado.*"}`;
+  });
+
+  return splitHierarchySections(sections.length ? sections : ["*Nenhuma hierarquia configurada.*"]);
 }
 
 function rebuildHierarchyPanelCache(guild: Guild, panel: FivemHierarchyPanel, members: Iterable<GuildMember>): HierarchyPanelCache {
@@ -568,6 +570,40 @@ function panelCacheKey(guildId: string, panelId: string) {
   return `${guildId}:${panelId}`;
 }
 
+function splitHierarchySections(sections: string[]) {
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const section of sections) {
+    const next = current ? `${current}\n\n${section}` : section;
+    if (next.length <= 3800) {
+      current = next;
+      continue;
+    }
+
+    if (current) chunks.push(current);
+    if (section.length <= 3800) {
+      current = section;
+      continue;
+    }
+
+    const lines = section.split("\n");
+    current = "";
+    for (const line of lines) {
+      const lineNext = current ? `${current}\n${line}` : line;
+      if (lineNext.length <= 3800) {
+        current = lineNext;
+        continue;
+      }
+      if (current) chunks.push(current);
+      current = line.slice(0, 3800);
+    }
+  }
+
+  if (current) chunks.push(current);
+  return chunks.slice(0, 35);
+}
+
 function intersects(left: Set<string>, right: Set<string>) {
   for (const value of left) {
     if (right.has(value)) return true;
@@ -580,12 +616,7 @@ function compareHierarchyMembers(left: HierarchyMemberSnapshot, right: Hierarchy
 }
 
 function formatHierarchyMemberLine(member: HierarchyMemberSnapshot) {
-  const name = escapeDiscordMarkdown(member.displayName || member.username || member.userId);
-  return `- ${name} - <@${member.userId}>`;
-}
-
-function escapeDiscordMarkdown(value: string) {
-  return value.replace(/([\\`*_~|>])/g, "\\$1").replace(/@/g, "@\u200b");
+  return `<@${member.userId}>`;
 }
 
 async function pruneDuplicateHierarchyPanelMessages(channel: DuplicateCleanupChannel, currentMessage: Message, panel: FivemHierarchyPanel) {
