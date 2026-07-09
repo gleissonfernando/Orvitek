@@ -190,13 +190,13 @@ export async function handleReportSystemMessage(message: Message, context: BotCo
     return false;
   }
 
-  const topic = topicFromString(message.channel.topic);
+  const settings = await getFreshGuildSettings(context, message.guild.id, message.client.user?.id).catch(() => null);
+  if (!settings) return false;
+
+  const topic = await resolveReportTopic(message.channel as TextChannel, context, settings);
   if (!topic || topic.mode !== "anonymous" || topic.status === "archived" || topic.status === "closed") {
     return false;
   }
-
-  const settings = await getFreshGuildSettings(context, message.guild.id, message.client.user?.id).catch(() => null);
-  if (!settings) return false;
 
   const report = settings.reportSystem;
   const isReporter = message.author.id === topic.openerId;
@@ -217,7 +217,7 @@ export async function handleReportSystemMessage(message: Message, context: BotCo
     content
   }).catch(() => null);
 
-  await logIabEvent(message.guild, settings, topic, "Mensagem anonima", [
+  await logIabEvent(context, message.guild, settings, topic, "Mensagem anonima", [
     `Autor real: ${message.author.tag} (${message.author.id})`,
     `Nome no servidor: ${message.member?.displayName ?? "-"}`,
     `Mensagem original: ${message.content || "(sem texto)"}`,
@@ -324,6 +324,11 @@ async function handlePublicReportButton(interaction: ButtonInteraction, context:
     return;
   }
 
+  if (action === "noop") {
+    await interaction.deferUpdate().catch(() => null);
+    return;
+  }
+
   await safeReply(interaction, "Esta acao da denuncia nao esta disponivel no momento.");
 }
 
@@ -383,13 +388,13 @@ async function openReportFromPanel(interaction: StringSelectMenuInteraction | Bu
 
   if (mode === "anonymous") {
     await channel.send(createAnonymousPreparationPayload(settings, ticket.ticket));
-    await logIabEvent(interaction.guild!, settings, topicFromString(topic)!, "Criado", `Denuncia anonima criada em preparacao por ${interaction.user.tag}.`, interaction.user.id);
+    await logIabEvent(context, interaction.guild!, settings, topicFromString(topic)!, "Criado", `Denuncia anonima criada em preparacao por ${interaction.user.tag}.`, interaction.user.id);
     await interaction.editReply(`Canal privado criado para preparar sua denuncia: <#${channel.id}>`);
     return;
   }
 
   await channel.send(createManagementPayload(settings, ticket.ticket, topicFromString(topic)!, "Aberto"));
-  await logIabEvent(interaction.guild!, settings, topicFromString(topic)!, "Criado", `Denuncia identificada criada por ${interaction.user.tag}.`, interaction.user.id);
+  await logIabEvent(context, interaction.guild!, settings, topicFromString(topic)!, "Criado", `Denuncia identificada criada por ${interaction.user.tag}.`, interaction.user.id);
   await interaction.editReply(`Denuncia identificada aberta: <#${channel.id}>`);
 }
 
@@ -400,13 +405,12 @@ async function handleReportTicketButton(interaction: ButtonInteraction, context:
     return;
   }
   const textChannel = channel as TextChannel;
-  const topic = topicFromString(textChannel.topic);
+  const settings = await getFreshGuildSettings(context, interaction.guildId!, interaction.client.user?.id);
+  const topic = await resolveReportTopic(textChannel, context, settings);
   if (!topic || topic.ticketId !== ticketId) {
     await safeReply(interaction, "Nao consegui identificar esta denuncia.");
     return;
   }
-
-  const settings = await getFreshGuildSettings(context, interaction.guildId!, interaction.client.user?.id);
   const ticket = await context.api.getTicket(ticketId);
   if (!ticket) {
     await safeReply(interaction, "Ticket nao encontrado no backend.");
@@ -433,7 +437,7 @@ async function handleReportTicketButton(interaction: ButtonInteraction, context:
   }
   if (action === "cancel-confirm") {
     await interaction.deferUpdate();
-    await logIabEvent(interaction.guild!, settings, topic, "Cancelado", `Denuncia anonima cancelada por <@${interaction.user.id}> antes do envio.`, interaction.user.id);
+    await logIabEvent(context, interaction.guild!, settings, topic, "Cancelado", `Denuncia anonima cancelada por <@${interaction.user.id}> antes do envio.`, interaction.user.id);
     await textChannel.delete("Denuncia IAB cancelada antes do envio.").catch(() => null);
     return;
   }
@@ -442,7 +446,7 @@ async function handleReportTicketButton(interaction: ButtonInteraction, context:
     return;
   }
   if (action === "call") {
-    await callReporter(interaction, settings, textChannel, ticket, topic);
+    await callReporter(interaction, context, settings, textChannel, ticket, topic);
     return;
   }
   if (action === "archive") {
@@ -466,15 +470,17 @@ async function submitAnonymousReport(interaction: ButtonInteraction, context: Bo
   await interaction.deferUpdate();
   const report = settings.reportSystem;
   const staffRoleIds = reportCompetenceRoleIds(report, topic.competence);
+  await anonymizePreparedReporterMessages(channel, settings, topic, interaction.message.id);
   await channel.permissionOverwrites.edit(topic.openerId, { ViewChannel: false, SendMessages: false }).catch(() => null);
   for (const roleId of staffRoleIds) {
     await channel.permissionOverwrites.edit(roleId, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true }).catch(() => null);
   }
   const nextTopic = { ...topic, status: "open" as const };
   await channel.setTopic(makeTopic(nextTopic)).catch(() => null);
-  await context.api.updateTicketStatus(ticket.id, { status: "OPEN" });
+  const updatedTicket = await context.api.updateTicketStatus(ticket.id, { status: "OPEN" });
+  await interaction.message.edit(createSubmittedAnonymousPayload(settings, updatedTicket ?? ticket, nextTopic) as never).catch(() => null);
   await channel.send(createManagementPayload(settings, ticket, nextTopic, "Encaminhado"));
-  await logIabEvent(interaction.guild!, settings, nextTopic, "Encaminhado", `Denuncia anonima encaminhada para a equipe por <@${interaction.user.id}>.`, interaction.user.id);
+  await logIabEvent(context, interaction.guild!, settings, nextTopic, "Encaminhado", `Denuncia anonima encaminhada para a equipe por <@${interaction.user.id}>.`, interaction.user.id);
 }
 
 async function claimReport(interaction: ButtonInteraction, context: BotContext, settings: GuildSettings, channel: TextChannel, ticket: TicketRecord, topic: ReportTopic) {
@@ -490,10 +496,10 @@ async function claimReport(interaction: ButtonInteraction, context: BotContext, 
   }
   await channel.permissionOverwrites.edit(interaction.user.id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true }).catch(() => null);
   await interaction.message.edit(createManagementPayload(settings, updated ?? ticket, topic, "Em analise") as never).catch(() => null);
-  await logIabEvent(interaction.guild!, settings, topic, "Assumido", `Denuncia assumida por <@${interaction.user.id}>.`, interaction.user.id);
+  await logIabEvent(context, interaction.guild!, settings, topic, "Assumido", `Denuncia assumida por <@${interaction.user.id}>.`, interaction.user.id);
 }
 
-async function callReporter(interaction: ButtonInteraction, settings: GuildSettings, channel: TextChannel, ticket: TicketRecord, topic: ReportTopic) {
+async function callReporter(interaction: ButtonInteraction, context: BotContext, settings: GuildSettings, channel: TextChannel, ticket: TicketRecord, topic: ReportTopic) {
   await interaction.deferReply({ ephemeral: true });
   await channel.permissionOverwrites.edit(topic.openerId, { ViewChannel: true, SendMessages: true, AttachFiles: true, ReadMessageHistory: true }).catch(() => null);
   const url = `https://discord.com/channels/${channel.guild.id}/${channel.id}`;
@@ -511,7 +517,8 @@ async function callReporter(interaction: ButtonInteraction, settings: GuildSetti
       })
     }).catch(() => null);
   }
-  await logIabEvent(interaction.guild!, settings, topic, "Denunciante chamado", `Denunciante chamado por <@${interaction.user.id}>.`, interaction.user.id);
+  await logIabEvent(context, interaction.guild!, settings, topic, "Denunciante chamado", `Denunciante chamado por <@${interaction.user.id}>.`, interaction.user.id);
+  await channel.send(createReporterCalledPayload(settings, ticket, topic)).catch(() => null);
   await interaction.editReply(`Acesso devolvido para <@${topic.openerId}>.`);
   void ticket;
 }
@@ -520,9 +527,9 @@ async function handleArchiveSelect(interaction: StringSelectMenuInteraction, con
   await interaction.deferUpdate();
   const ticketId = interaction.customId.slice(`${PUBLIC_PREFIX}:archive-select:`.length);
   const channel = interaction.channel as TextChannel | null;
-  const topic = topicFromString(channel?.topic);
-  if (!channel || !topic || topic.ticketId !== ticketId) return;
   const settings = await getFreshGuildSettings(context, interaction.guildId!, interaction.client.user?.id);
+  const topic = channel ? await resolveReportTopic(channel, context, settings) : null;
+  if (!channel || !topic || topic.ticketId !== ticketId) return;
   const ticket = await context.api.updateTicketStatus(ticketId, { status: "ARCHIVED" });
   const archiveCategoryId = interaction.values[0] ?? null;
   if (archiveCategoryId) await channel.setParent(archiveCategoryId).catch(() => null);
@@ -557,7 +564,7 @@ async function finishReport(context: BotContext, guild: Guild, settings: GuildSe
   });
   await context.api.updateTicketStatus(ticket.id, { closedAt: new Date().toISOString(), closedById: actorId, closeReason: status, finalResult: status, status: deleteChannel ? "CLOSED" : "ARCHIVED" });
   await sendTranscriptPanel(guild, settings, topic, ticket, transcript, status);
-  await logIabEvent(guild, settings, topic, status, `Denuncia ${status.toLowerCase()} por <@${actorId}>.`, actorId);
+  await logIabEvent(context, guild, settings, topic, status, `Denuncia ${status.toLowerCase()} por <@${actorId}>.`, actorId);
   if (deleteChannel) await channel.delete(`Denuncia IAB finalizada por ${actorId}`).catch(() => null);
   else await channel.send(createManagementPayload(settings, { ...ticket, status: "ARCHIVED" }, { ...topic, status: "archived" }, "Arquivado")).catch(() => null);
 }
@@ -580,6 +587,67 @@ function createAnonymousPreparationPayload(settings: GuildSettings, ticket: Tick
     moduleId: "iab-anonymous-prep",
     title: "Preparacao da Denuncia Anonima"
   });
+}
+
+function createSubmittedAnonymousPayload(settings: GuildSettings, ticket: TicketRecord, topic: ReportTopic): MessageCreateOptions {
+  const report = settings.reportSystem;
+  return renderComponentsV2Panel({
+    accentColor: parseColor(report.anonymousEmbedColor),
+    actions: [],
+    description: "Esta denuncia anonima foi encaminhada para a Corregedoria. O acesso do denunciante foi removido e a equipe autorizada recebeu o ticket para analise.",
+    fields: [
+      `**Ticket:** ${ticket.id}\n**Status:** Encaminhado\n**Orgao:** ${topic.categoryName}`,
+      "As mensagens enviadas na preparacao foram mascaradas como Denunciante Anonimo antes da equipe receber acesso."
+    ],
+    image: report.thumbnailUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: report.thumbnailUrl } : null,
+    moduleId: "iab-anonymous-submitted",
+    title: "Denuncia Anonima Encaminhada"
+  });
+}
+
+function createReporterCalledPayload(settings: GuildSettings, ticket: TicketRecord, topic: ReportTopic): MessageCreateOptions {
+  const report = settings.reportSystem;
+  return renderComponentsV2Panel({
+    accentColor: parseColor(topic.mode === "anonymous" ? report.anonymousEmbedColor : report.panelColor),
+    actions: [],
+    description: topic.mode === "anonymous"
+      ? "O denunciante recebeu acesso temporario. Tudo que ele enviar aqui sera apagado e reenviado pelo bot como Denunciante Anonimo."
+      : "O denunciante recebeu acesso ao canal para complementar as informacoes.",
+    fields: [
+      `**Ticket:** ${ticket.id}\n**Status:** Denunciante chamado\n**Orgao:** ${topic.categoryName}`,
+      topic.mode === "anonymous" ? "**Identidade no canal:** Denunciante Anonimo" : `**Denunciante:** <@${topic.openerId}>`
+    ],
+    image: report.dmBannerUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: report.dmBannerUrl } : null,
+    moduleId: "iab-reporter-called",
+    title: "Denunciante chamado"
+  });
+}
+
+async function anonymizePreparedReporterMessages(channel: TextChannel, settings: GuildSettings, topic: ReportTopic, panelMessageId: string) {
+  const collected: Message[] = [];
+  let before: string | undefined;
+  do {
+    const batch = await channel.messages.fetch({ limit: 100, before }).catch(() => null);
+    if (!batch?.size) break;
+    collected.push(...batch.values());
+    before = batch.last()?.id;
+  } while (before && collected.length < 500);
+
+  const reporterMessages = collected
+    .filter((message) => message.author.id === topic.openerId && message.id !== panelMessageId)
+    .sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+
+  for (const message of reporterMessages) {
+    const files = message.attachments.map((attachment) => attachment.url);
+    const content = [
+      `**${settings.reportSystem.anonymousReporterName}:**`,
+      message.content || (files.length ? "" : "(sem texto)"),
+      files.join("\n")
+    ].filter(Boolean).join("\n").slice(0, 1900);
+
+    await channel.send({ allowedMentions: { parse: [] }, content }).catch(() => null);
+    await message.delete().catch(() => null);
+  }
 }
 
 function createManagementPayload(settings: GuildSettings, ticket: TicketRecord, topic: ReportTopic, statusLabel: string): MessageCreateOptions {
@@ -665,22 +733,39 @@ async function sendTranscriptPanel(guild: Guild, settings: GuildSettings, topic:
   })).catch(() => null);
 }
 
-async function logIabEvent(guild: Guild, settings: GuildSettings, topic: ReportTopic, action: string, message: string, actorId: string | null) {
+async function logIabEvent(context: BotContext, guild: Guild, settings: GuildSettings, topic: ReportTopic, action: string, message: string, actorId: string | null) {
   const report = settings.reportSystem;
+  await context.api.recordTicketEvent(topic.ticketId, {
+    authorId: actorId,
+    content: message,
+    eventType: `iab.${slug(action)}`,
+    guildId: guild.id,
+    metadata: {
+      action,
+      channelId: topic.channelId,
+      competence: topic.competence,
+      mode: topic.mode,
+      openerId: topic.openerId,
+      status: topic.status
+    }
+  }).catch(() => null);
+
   const channelId = reportCompetenceLogChannelId(report, topic.competence);
   const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
   if (!channel?.isTextBased() || !("send" in channel)) return;
-  await (channel as TextChannel).send({
-    content: [
-      `**IAB | ${action}**`,
-      `Ticket: ${topic.ticketId}`,
-      `Tipo: ${topic.mode === "anonymous" ? "Denuncia Anonima" : "Denuncia Identificada"}`,
-      `Denunciante real: <@${topic.openerId}> (${topic.openerId})`,
-      actorId ? `Executor: <@${actorId}> (${actorId})` : null,
-      `Canal: <#${topic.channelId}>`,
-      message
-    ].filter(Boolean).join("\n")
-  }).catch(() => null);
+  await (channel as TextChannel).send(renderComponentsV2Panel({
+    accentColor: parseColor(topic.mode === "anonymous" ? report.anonymousEmbedColor : report.panelColor),
+    actions: [],
+    description: message,
+    fields: [
+      `**Ticket:** ${topic.ticketId}\n**Tipo:** ${topic.mode === "anonymous" ? "Denuncia Anonima" : "Denuncia Identificada"}\n**Orgao:** ${topic.categoryName}`,
+      `**Denunciante real:** <@${topic.openerId}> (${topic.openerId})\n${actorId ? `**Executor:** <@${actorId}> (${actorId})` : "**Executor:** Sistema"}\n**Canal:** <#${topic.channelId}>`,
+      `**Status:** ${topic.status}\n**Data:** <t:${Math.floor(Date.now() / 1000)}:F>`
+    ],
+    image: report.thumbnailUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: report.thumbnailUrl } : null,
+    moduleId: "iab-log",
+    title: `IAB | ${action}`
+  })).catch(() => null);
 }
 
 async function collectTranscriptMessages(channel: TextChannel, topic: ReportTopic, settings: GuildSettings) {
@@ -728,6 +813,39 @@ function maskedNameForMessage(message: Message, topic: ReportTopic, settings: Gu
 
 function makeTopic(topic: ReportTopic) {
   return `${TOPIC_PREFIX}${Buffer.from(JSON.stringify(topic), "utf8").toString("base64url")}`;
+}
+
+async function resolveReportTopic(channel: TextChannel, context: BotContext, settings: GuildSettings) {
+  const fromTopic = topicFromString(channel.topic);
+  if (fromTopic) return fromTopic;
+
+  const ticket = await context.api.getTicketByChannel(channel.id).catch(() => null);
+  if (!ticket || ticket.status === "CLOSED") return null;
+
+  const categoryId = ticket.categoryId ?? "iab";
+  const categoryName = ticket.categoryName ?? "IAB";
+  const mode: ReportMode = /anonim|anonima|anonymous/i.test(ticket.subject) || ticket.status === "PENDING" ? "anonymous" : "identified";
+  const status: ReportTopic["status"] = ticket.status === "ARCHIVED"
+    ? "archived"
+    : ticket.status === "CLOSED"
+      ? "closed"
+      : ticket.status === "PENDING"
+        ? "preparing"
+        : "open";
+  const topic: ReportTopic = {
+    categoryId,
+    categoryName,
+    channelId: channel.id,
+    competence: reportCompetence(categoryId, categoryName),
+    mode,
+    openerId: ticket.openerId,
+    status,
+    ticketId: ticket.id
+  };
+
+  await channel.setTopic(makeTopic(topic)).catch(() => null);
+  await logIabEvent(context, channel.guild, settings, topic, "Estado restaurado", "Estado da denuncia restaurado pelo ticket persistido no backend apos reinicio ou perda do topico do canal.", null);
+  return topic;
 }
 
 function topicFromString(value: string | null | undefined): ReportTopic | null {
