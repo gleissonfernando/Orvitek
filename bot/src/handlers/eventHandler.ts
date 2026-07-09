@@ -20,6 +20,7 @@ import { handleAntiDisconnectVoiceStateUpdate } from "../services/antiDisconnect
 import { handleAntiAbuseVoiceStateUpdate } from "../services/antiAbuseService";
 import { handleTemporaryCallChannelDelete, handleTemporaryVoiceStateUpdate } from "../services/temporaryVoiceService";
 import { handleVoiceLogStateUpdate } from "../services/voiceLogService";
+import { scheduleHierarchyRefresh, scheduleHierarchyRefreshForRoles } from "../services/fivemHierarchyService";
 import type { BotContext } from "../types";
 import { handleAntiBanDetection, recoverDeletedProtectedRole, recoverMemberProtectedRoles, recoverUpdatedProtectedRole } from "../services/antiBanService";
 import { BoundedTaskQueue } from "../services/boundedTaskQueue";
@@ -68,7 +69,10 @@ export function registerEvents(client: Client, context: BotContext) {
     }
   });
   client.on(Events.GuildCreate, (guild) => {
-    runEvent("guildCreate", () => ensureSafeBotSetup(guild, context));
+    runEvent("guildCreate", async () => {
+      await ensureSafeBotSetup(guild, context);
+      if (isBotModuleEnabled("fivem-hierarchy")) scheduleHierarchyRefresh(guild, context);
+    });
   });
 
   const memberEventsEnabled = env.BOT_MEMBER_EVENTS_ENABLED || managedRuntimeBot || isBotModuleEnabled("fivem-hierarchy");
@@ -111,6 +115,21 @@ export function registerEvents(client: Client, context: BotContext) {
             });
           }
         }
+      });
+    });
+  }
+
+  if (isBotModuleEnabled("fivem-hierarchy")) {
+    client.on(Events.GuildRoleUpdate, (_oldRole, newRole) => {
+      if (isMaintenanceModeActive()) return;
+      runEvent("guildRoleUpdate.fivemHierarchy", async () => {
+        scheduleHierarchyRefreshForRoles(newRole.guild, context, [newRole.id]);
+      });
+    });
+    client.on(Events.GuildRoleDelete, (role) => {
+      if (isMaintenanceModeActive()) return;
+      runEvent("guildRoleDelete.fivemHierarchy", async () => {
+        scheduleHierarchyRefreshForRoles(role.guild, context, [role.id], { deleted: true });
       });
     });
   }

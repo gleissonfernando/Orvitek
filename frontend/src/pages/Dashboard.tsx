@@ -2979,6 +2979,41 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
     };
   }, [botId, guild?.id]);
 
+  useEffect(() => {
+    if (!guild) return;
+    let active = true;
+    const socket = createDashboardSocket();
+    const refresh = (payload: { botId?: string | null; guildId: string }) => {
+      if (payload.guildId !== guild.id) return;
+      if ((payload.botId ?? null) !== (botId ?? null)) return;
+
+      Promise.all([getFivemHierarchy(guild.id, botId), getGuildLiveOptions(guild.id, botId)])
+        .then(([dashboard, options]) => {
+          if (!active) return;
+          setPanels(dashboard.panels);
+          setDraft((current) => {
+            if (current?.id === "new") return current;
+            return (current?.id ? dashboard.panels.find((panel) => panel.id === current.id) : null)
+              ?? dashboard.panels[0]
+              ?? createEmptyHierarchyPanel(guild.id, botId);
+          });
+          setChannels(options.channels);
+          setRoles(options.roles);
+        })
+        .catch(() => {
+          if (active) setError("Nao foi possivel atualizar Hierarquia FAQ em tempo real.");
+        });
+    };
+
+    socket.on("fivem:hierarchy:updated", refresh);
+
+    return () => {
+      active = false;
+      socket.off("fivem:hierarchy:updated", refresh);
+      socket.disconnect();
+    };
+  }, [botId, guild?.id]);
+
   function patchDraft(patch: Partial<FivemHierarchyPanelType>) {
     setDraft((current) => current ? { ...current, ...patch } : current);
   }

@@ -1,7 +1,7 @@
 import type { GuildMember } from "discord.js";
 import { isBotModuleEnabled } from "../config/env";
 import { logRoleChange } from "../services/logService";
-import { scheduleHierarchyRefreshForRoles } from "../services/fivemHierarchyService";
+import { scheduleHierarchyRefreshForMember } from "../services/fivemHierarchyService";
 import { applyAutomaticRoles } from "../services/roleService";
 import type { BotContext } from "../types";
 
@@ -20,7 +20,7 @@ export async function handleGuildMemberUpdate(oldMember: GuildMember, newMember:
   const removed = removedRoles.map((role) => role.name);
 
   if (isBotModuleEnabled("fivem-hierarchy") && (added.length || removed.length)) {
-    scheduleHierarchyRefreshForRoles(newMember.guild, context, [
+    scheduleHierarchyRefreshForMember(newMember, context, [
       ...addedRoles.map((role) => role.id),
       ...removedRoles.map((role) => role.id)
     ]);

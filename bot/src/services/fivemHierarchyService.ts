@@ -14,11 +14,36 @@ import { renderComponentsV2Panel, type PanelVisualConfig } from "./panelVisualRe
 import type { FivemHierarchyPanelUpdateAck } from "../websocket/socketClient";
 
 type ScheduledRefresh = {
-  roleIds: Set<string> | null;
+  deletedRoleIds: Set<string>;
+  fullRefresh: boolean;
+  members: Map<string, GuildMember>;
+  removedUserIds: Set<string>;
+  roleIds: Set<string>;
   timeout: NodeJS.Timeout;
 };
 
+type HierarchyMemberSnapshot = {
+  displayName: string;
+  roleIds: string[];
+  userId: string;
+  username: string;
+};
+
+type HierarchyRenderEntry = FivemHierarchyPanel["hierarchies"][number] & {
+  cacheKey: string;
+};
+
+type HierarchyPanelCache = {
+  assignedEntryByUserId: Map<string, string>;
+  assignmentsByEntryId: Map<string, HierarchyMemberSnapshot[]>;
+  guildId: string;
+  membersByUserId: Map<string, HierarchyMemberSnapshot>;
+  panelId: string;
+  signature: string;
+};
+
 const scheduledGuilds = new Map<string, ScheduledRefresh>();
+const hierarchyPanelCaches = new Map<string, HierarchyPanelCache>();
 
 export const hierarchyCommand: BotCommand = {
   data: new SlashCommandBuilder()
@@ -64,30 +89,74 @@ export function startFivemHierarchyService(client: Client<true>, context: BotCon
 }
 
 export function scheduleHierarchyRefresh(guild: Guild, context: BotContext) {
-  scheduleHierarchyRefreshInternal(guild, context, null);
+  scheduleHierarchyRefreshInternal(guild, context, { fullRefresh: true });
 }
 
-export function scheduleHierarchyRefreshForRoles(guild: Guild, context: BotContext, roleIds: string[]) {
+export function scheduleHierarchyRefreshForMember(member: GuildMember, context: BotContext, roleIds?: string[]) {
+  scheduleHierarchyRefreshInternal(member.guild, context, {
+    members: [member],
+    roleIds: roleIds?.length ? roleIds : member.roles.cache.map((role) => role.id)
+  });
+}
+
+export function scheduleHierarchyMemberRemoval(guild: Guild, context: BotContext, userId: string) {
+  scheduleHierarchyRefreshInternal(guild, context, {
+    removedUserIds: [userId]
+  });
+}
+
+export function scheduleHierarchyRefreshForRoles(guild: Guild, context: BotContext, roleIds: string[], options: { deleted?: boolean } = {}) {
   const uniqueRoleIds = [...new Set(roleIds.filter(Boolean))];
   if (!uniqueRoleIds.length) return;
-  scheduleHierarchyRefreshInternal(guild, context, uniqueRoleIds);
+  scheduleHierarchyRefreshInternal(guild, context, {
+    deletedRoleIds: options.deleted ? uniqueRoleIds : [],
+    roleIds: uniqueRoleIds
+  });
 }
 
-function scheduleHierarchyRefreshInternal(guild: Guild, context: BotContext, roleIds: string[] | null) {
+function scheduleHierarchyRefreshInternal(guild: Guild, context: BotContext, input: {
+  deletedRoleIds?: string[];
+  fullRefresh?: boolean;
+  members?: GuildMember[];
+  removedUserIds?: string[];
+  roleIds?: string[];
+}) {
   if (!isBotModuleEnabled("fivem-hierarchy")) return;
   const current = scheduledGuilds.get(guild.id);
-  const nextRoleIds = !roleIds || current?.roleIds === null
-    ? null
-    : current?.roleIds
-      ? new Set([...current.roleIds, ...roleIds])
-      : new Set(roleIds);
   if (current) clearTimeout(current.timeout);
+  const fullRefresh = current?.fullRefresh === true || input.fullRefresh === true;
+  const members = fullRefresh ? new Map<string, GuildMember>() : new Map(current?.members ?? []);
+  const removedUserIds = fullRefresh ? new Set<string>() : new Set(current?.removedUserIds ?? []);
+  const roleIds = fullRefresh ? new Set<string>() : new Set(current?.roleIds ?? []);
+  const deletedRoleIds = fullRefresh ? new Set<string>() : new Set(current?.deletedRoleIds ?? []);
+
+  if (!fullRefresh) {
+    for (const member of input.members ?? []) {
+      members.set(member.id, member);
+      removedUserIds.delete(member.id);
+    }
+    for (const userId of input.removedUserIds ?? []) {
+      removedUserIds.add(userId);
+      members.delete(userId);
+    }
+    for (const roleId of input.roleIds ?? []) roleIds.add(roleId);
+    for (const roleId of input.deletedRoleIds ?? []) {
+      roleIds.add(roleId);
+      deletedRoleIds.add(roleId);
+    }
+  }
+
   const timeout = setTimeout(() => {
     scheduledGuilds.delete(guild.id);
-    void refreshHierarchyPanelsForGuild(guild, context, null, nextRoleIds ? [...nextRoleIds] : null);
+    const job = { deletedRoleIds, fullRefresh, members, removedUserIds, roleIds };
+    if (job.fullRefresh) {
+      void refreshHierarchyPanelsForGuild(guild, context);
+      return;
+    }
+    void refreshHierarchyPanelsIncrementally(guild, context, job);
   }, 2500);
   timeout.unref();
-  scheduledGuilds.set(guild.id, { roleIds: nextRoleIds, timeout });
+  scheduledGuilds.set(guild.id, { deletedRoleIds, fullRefresh, members, removedUserIds, roleIds, timeout });
 }
 
 export async function refreshHierarchyPanelsForGuild(guild: Guild, context: BotContext, panelId?: string | null, changedRoleIds?: string[] | null) {
@@ -113,12 +182,82 @@ export async function refreshHierarchyPanelsForGuild(guild: Guild, context: BotC
   });
   const results = [];
   for (const panel of scoped) {
-    results.push(await publishHierarchyPanel(guild, context, panel, (fetchedMembers ?? guild.members.cache).values()));
+    const cache = rebuildHierarchyPanelCache(guild, panel, (fetchedMembers ?? guild.members.cache).values());
+    hierarchyPanelCaches.set(panelCacheKey(guild.id, panel.id), cache);
+    results.push(await publishHierarchyPanel(guild, context, panel, cache));
   }
   return results;
 }
 
-async function publishHierarchyPanel(guild: Guild, context: BotContext, panel: FivemHierarchyPanel, members: Iterable<GuildMember>) {
+async function refreshHierarchyPanelsIncrementally(guild: Guild, context: BotContext, job: Omit<ScheduledRefresh, "timeout">) {
+  const panels = await context.api.getActiveFivemHierarchyPanels().catch((error) => {
+    console.warn(`[fivem-hierarchy] falha ao buscar paineis ativos: ${errorMessage(error)}`);
+    return [];
+  });
+  const activePanels = panels.filter((panel) => panel.guildId === guild.id);
+  if (!activePanels.length) return [];
+
+  if (job.removedUserIds.size && !activePanels.some((panel) => hierarchyPanelCaches.has(panelCacheKey(guild.id, panel.id)))) {
+    return refreshHierarchyPanelsForGuild(guild, context);
+  }
+
+  const roleIds = new Set(job.roleIds);
+  for (const member of job.members.values()) {
+    for (const roleId of member.roles.cache.keys()) roleIds.add(roleId);
+  }
+
+  const scoped = activePanels.filter((panel) => {
+    const cache = hierarchyPanelCaches.get(panelCacheKey(guild.id, panel.id));
+    if (intersects(panelRoleIds(panel), roleIds)) return true;
+    if (cache && [...job.removedUserIds].some((userId) => cache.membersByUserId.has(userId))) return true;
+    if (cache && [...job.members.keys()].some((userId) => cache.membersByUserId.has(userId))) return true;
+    return false;
+  });
+  if (!scoped.length) return [];
+
+  const fallbackPanelIds = new Set<string>();
+  const results = [];
+
+  for (const panel of scoped) {
+    const cache = hierarchyPanelCaches.get(panelCacheKey(guild.id, panel.id));
+    if (!cache || cache.signature !== panelCacheSignature(panel)) {
+      fallbackPanelIds.add(panel.id);
+      continue;
+    }
+
+    let changed = false;
+    for (const roleId of job.deletedRoleIds) {
+      changed = removeRoleFromPanelCache(cache, panel, roleId) || changed;
+    }
+    for (const userId of job.removedUserIds) {
+      changed = removeMemberFromPanelCache(cache, userId) || changed;
+    }
+    for (const member of job.members.values()) {
+      changed = upsertMemberInPanelCache(cache, panel, member) || changed;
+    }
+
+    if (changed) {
+      results.push(await publishHierarchyPanel(guild, context, panel, cache));
+    }
+  }
+
+  if (fallbackPanelIds.size) {
+    const fetchedMembers = await guild.members.fetch().catch((error) => {
+      console.warn(`[fivem-hierarchy] falha ao reconstruir cache de membros do servidor ${guild.id}: ${errorMessage(error)}`);
+      return null;
+    });
+    const members = [...(fetchedMembers ?? guild.members.cache).values()];
+    for (const panel of scoped.filter((item) => fallbackPanelIds.has(item.id))) {
+      const cache = rebuildHierarchyPanelCache(guild, panel, members);
+      hierarchyPanelCaches.set(panelCacheKey(guild.id, panel.id), cache);
+      results.push(await publishHierarchyPanel(guild, context, panel, cache));
+    }
+  }
+
+  return results;
+}
+
+async function publishHierarchyPanel(guild: Guild, context: BotContext, panel: FivemHierarchyPanel, cache: HierarchyPanelCache) {
   if (!panel.enabled) return { error: "O painel de hierarquia esta desativado.", ok: false, panelId: panel.id };
   if (!panel.panelChannelId) return { error: "Canal do painel de hierarquia nao configurado.", ok: false, panelId: panel.id };
   const channel = await guild.channels.fetch(panel.panelChannelId).catch(() => null);
@@ -136,7 +275,7 @@ async function publishHierarchyPanel(guild: Guild, context: BotContext, panel: F
   }
   await logMissingHierarchyRoles(context, guild, panel);
   const visuals = await getPanelVisualSlots(context, guild.id, "fivem-hierarchy");
-  const payload = createHierarchyPayload(guild, panel, members, visuals[0] ?? null);
+  const payload = createHierarchyPayload(guild, panel, cache, visuals[0] ?? null);
   let message = panel.panelMessageId ? await channel.messages.fetch(panel.panelMessageId).catch(() => null) : null;
   if (message) {
     message = await message.edit(payload).catch(async (error) => {
@@ -243,12 +382,6 @@ function discordErrorMessage(error: unknown) {
   return errorMessage(error);
 }
 
-function createHierarchyPayload(guild: Guild, panel: FivemHierarchyPanel, members: Iterable<GuildMember>, visual: PanelVisualConfig | null) {
-  const fallbackVisual: PanelVisualConfig | null = panel.imageUrl ? { imageEnabled: true, imagePosition: panel.imagePosition === "bottom" ? "bottom" : panel.imagePosition, imageUrl: panel.imageUrl } : null;
-  const singleVisual = sanitizeSingleHierarchyVisual(visual?.imageEnabled ? visual : fallbackVisual);
-  return renderComponentsV2Panel({ accentColor: colorToInt(panel.color), actions: [], description: panel.description ?? "Hierarquia atualizada automaticamente pelos cargos do servidor.", fields: [renderHierarchyText(guild, panel, members)], footer: panel.footerEnabled ? { text: panel.footerText ?? "OrviteK" } : { enabled: false }, image: singleVisual, moduleId: "fivem-hierarchy", title: panel.title });
-}
-
 async function getPanelVisualSlots(context: BotContext, guildId: string, basePanelId: string) {
   const panelIds = [basePanelId, `${basePanelId}-banner-2`, `${basePanelId}-banner-3`];
   const visuals = await Promise.all(panelIds.map((panelId) => context.api.getPanelVisualSettings(guildId, panelId).catch(() => null)));
@@ -260,21 +393,170 @@ async function getPanelVisualSlots(context: BotContext, guildId: string, basePan
   });
 }
 
-function renderHierarchyText(guild: Guild, panel: FivemHierarchyPanel, members: Iterable<GuildMember>) {
-  const memberList = [...members];
-  return panel.hierarchies
-    .filter((item) => item.active)
-    .sort((a, b) => a.order - b.order)
+function createHierarchyPayload(guild: Guild, panel: FivemHierarchyPanel, cache: HierarchyPanelCache, visual: PanelVisualConfig | null) {
+  const fallbackVisual: PanelVisualConfig | null = panel.imageUrl ? { imageEnabled: true, imagePosition: panel.imagePosition === "bottom" ? "bottom" : panel.imagePosition, imageUrl: panel.imageUrl } : null;
+  const singleVisual = sanitizeSingleHierarchyVisual(visual?.imageEnabled ? visual : fallbackVisual);
+  return renderComponentsV2Panel({ accentColor: colorToInt(panel.color), actions: [], description: panel.description ?? "Hierarquia atualizada automaticamente pelos cargos do servidor.", fields: [renderHierarchyText(guild, panel, cache)], footer: panel.footerEnabled ? { text: panel.footerText ?? "OrviteK" } : { enabled: false }, image: singleVisual, moduleId: "fivem-hierarchy", title: panel.title });
+}
+
+function renderHierarchyText(guild: Guild, panel: FivemHierarchyPanel, cache: HierarchyPanelCache) {
+  return orderedHierarchyEntries(panel)
     .map((item) => {
       const roleExists = Boolean(guild.roles.cache.get(item.roleId));
-      const roleMembers = roleExists ? memberList
-        .filter((member: GuildMember) => member.roles.cache.has(item.roleId))
-        .map((member) => member.displayName || member.user.username)
+      const roleMembers = roleExists ? [...(cache.assignmentsByEntryId.get(item.cacheKey) ?? [])]
+        .sort(compareHierarchyMembers)
+        .map((member) => member.displayName || member.username)
         .slice(0, item.limit ?? 50) : [];
       return `${item.emoji ?? ""} **${item.name}**\n${roleMembers.length ? roleMembers.join("\n") : "*Nenhum membro encontrado.*"}`;
     })
     .join("\n\n")
     .slice(0, 3800) || "*Nenhuma hierarquia configurada.*";
+}
+
+function rebuildHierarchyPanelCache(guild: Guild, panel: FivemHierarchyPanel, members: Iterable<GuildMember>): HierarchyPanelCache {
+  void guild;
+  const cache = createEmptyPanelCache(panel);
+
+  for (const member of members) {
+    upsertMemberInPanelCache(cache, panel, member);
+  }
+
+  return cache;
+}
+
+function createEmptyPanelCache(panel: FivemHierarchyPanel): HierarchyPanelCache {
+  return {
+    assignedEntryByUserId: new Map(),
+    assignmentsByEntryId: new Map(orderedHierarchyEntries(panel).map((entry) => [entry.cacheKey, []])),
+    guildId: panel.guildId,
+    membersByUserId: new Map(),
+    panelId: panel.id,
+    signature: panelCacheSignature(panel)
+  };
+}
+
+function upsertMemberInPanelCache(cache: HierarchyPanelCache, panel: FivemHierarchyPanel, member: GuildMember) {
+  return applyMemberSnapshotToPanelCache(cache, panel, {
+    displayName: member.displayName || member.user.username,
+    roleIds: member.roles.cache.map((role) => role.id),
+    userId: member.id,
+    username: member.user.username
+  });
+}
+
+function applyMemberSnapshotToPanelCache(cache: HierarchyPanelCache, panel: FivemHierarchyPanel, snapshot: HierarchyMemberSnapshot) {
+  const previousEntryId = cache.assignedEntryByUserId.get(snapshot.userId) ?? null;
+  const previousSnapshot = cache.membersByUserId.get(snapshot.userId) ?? null;
+  const nextEntry = resolveHierarchyEntryForRoleIds(panel, snapshot.roleIds);
+
+  if (!nextEntry) {
+    return removeMemberFromPanelCache(cache, snapshot.userId);
+  }
+
+  if (previousEntryId && previousEntryId !== nextEntry.cacheKey) {
+    removeMemberFromEntry(cache, previousEntryId, snapshot.userId);
+  }
+
+  const list = cache.assignmentsByEntryId.get(nextEntry.cacheKey) ?? [];
+  const wasListed = list.some((member) => member.userId === snapshot.userId);
+  cache.assignmentsByEntryId.set(nextEntry.cacheKey, [
+    ...list.filter((member) => member.userId !== snapshot.userId),
+    snapshot
+  ]);
+  cache.assignedEntryByUserId.set(snapshot.userId, nextEntry.cacheKey);
+  cache.membersByUserId.set(snapshot.userId, snapshot);
+
+  return previousEntryId !== nextEntry.cacheKey
+    || !previousSnapshot
+    || !wasListed
+    || previousSnapshot.displayName !== snapshot.displayName
+    || previousSnapshot.username !== snapshot.username;
+}
+
+function removeMemberFromPanelCache(cache: HierarchyPanelCache, userId: string) {
+  let changed = false;
+
+  for (const entryId of cache.assignmentsByEntryId.keys()) {
+    changed = removeMemberFromEntry(cache, entryId, userId) || changed;
+  }
+
+  if (cache.assignedEntryByUserId.delete(userId)) changed = true;
+  if (cache.membersByUserId.delete(userId)) changed = true;
+  return changed;
+}
+
+function removeRoleFromPanelCache(cache: HierarchyPanelCache, panel: FivemHierarchyPanel, roleId: string) {
+  let changed = false;
+  const affected = [...cache.membersByUserId.values()].filter((member) => member.roleIds.includes(roleId));
+
+  for (const member of affected) {
+    changed = applyMemberSnapshotToPanelCache(cache, panel, {
+      ...member,
+      roleIds: member.roleIds.filter((item) => item !== roleId)
+    }) || changed;
+  }
+
+  return changed;
+}
+
+function removeMemberFromEntry(cache: HierarchyPanelCache, entryId: string, userId: string) {
+  const list = cache.assignmentsByEntryId.get(entryId);
+  if (!list?.length) return false;
+  const next = list.filter((member) => member.userId !== userId);
+  if (next.length === list.length) return false;
+  cache.assignmentsByEntryId.set(entryId, next);
+  return true;
+}
+
+function resolveHierarchyEntryForRoleIds(panel: FivemHierarchyPanel, roleIds: Iterable<string>): HierarchyRenderEntry | null {
+  const roleSet = new Set(roleIds);
+  return orderedHierarchyEntries(panel).find((entry) => roleSet.has(entry.roleId)) ?? null;
+}
+
+function orderedHierarchyEntries(panel: FivemHierarchyPanel): HierarchyRenderEntry[] {
+  const seenRoleIds = new Set<string>();
+  return panel.hierarchies
+    .map((entry, index) => ({ ...entry, __index: index, cacheKey: `${entry.id}:${index}:${entry.roleId}` }))
+    .filter((entry) => entry.active && entry.roleId)
+    .sort((a, b) => a.order - b.order || a.__index - b.__index)
+    .filter((entry) => {
+      if (seenRoleIds.has(entry.roleId)) return false;
+      seenRoleIds.add(entry.roleId);
+      return true;
+    })
+    .map(({ __index, ...entry }) => entry);
+}
+
+function panelRoleIds(panel: FivemHierarchyPanel) {
+  return new Set(orderedHierarchyEntries(panel).map((entry) => entry.roleId));
+}
+
+function panelCacheSignature(panel: FivemHierarchyPanel) {
+  return JSON.stringify(orderedHierarchyEntries(panel).map((entry) => ({
+    active: entry.active,
+    cacheKey: entry.cacheKey,
+    emoji: entry.emoji ?? null,
+    id: entry.id,
+    limit: entry.limit ?? null,
+    name: entry.name,
+    order: entry.order,
+    roleId: entry.roleId
+  })));
+}
+
+function panelCacheKey(guildId: string, panelId: string) {
+  return `${guildId}:${panelId}`;
+}
+
+function intersects(left: Set<string>, right: Set<string>) {
+  for (const value of left) {
+    if (right.has(value)) return true;
+  }
+  return false;
+}
+
+function compareHierarchyMembers(left: HierarchyMemberSnapshot, right: HierarchyMemberSnapshot) {
+  return (left.displayName || left.username).localeCompare(right.displayName || right.username, "pt-BR", { sensitivity: "base" });
 }
 
 function sanitizeSingleHierarchyVisual(visual: PanelVisualConfig | null): PanelVisualConfig | null {
