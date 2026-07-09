@@ -1,15 +1,11 @@
 import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   DiscordAPIError,
   PermissionFlagsBits,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
   type Client,
   type Guild,
-  type GuildMember,
-  type Interaction
+  type GuildMember
 } from "discord.js";
 import { isBotModuleEnabled } from "../config/env";
 import type { BotCommand, BotContext } from "../types";
@@ -17,8 +13,12 @@ import type { FivemHierarchyPanel } from "./apiClient";
 import { renderComponentsV2Panel, type PanelVisualConfig } from "./panelVisualRenderer";
 import type { FivemHierarchyPanelUpdateAck } from "../websocket/socketClient";
 
-const PREFIX = "fivem_hierarchy";
-const scheduledGuilds = new Map<string, NodeJS.Timeout>();
+type ScheduledRefresh = {
+  roleIds: Set<string> | null;
+  timeout: NodeJS.Timeout;
+};
+
+const scheduledGuilds = new Map<string, ScheduledRefresh>();
 
 export const hierarchyCommand: BotCommand = {
   data: new SlashCommandBuilder()
@@ -63,41 +63,45 @@ export function startFivemHierarchyService(client: Client<true>, context: BotCon
   }
 }
 
-export async function handleFivemHierarchyInteraction(interaction: Interaction, context: BotContext) {
-  if (!interaction.isButton() || !interaction.customId.startsWith(`${PREFIX}:`)) return false;
-  if (!interaction.guild) return true;
-  if (interaction.customId.startsWith(`${PREFIX}:refresh:`)) {
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: "Somente a administracao pode atualizar este painel manualmente.", ephemeral: true });
-      return true;
-    }
-    const panelId = interaction.customId.split(":")[2] ?? null;
-    await interaction.deferReply({ ephemeral: true });
-    await refreshHierarchyPanelsForGuild(interaction.guild, context, panelId);
-    await interaction.editReply("Painel de hierarquia atualizado.");
-    return true;
-  }
-  return false;
+export function scheduleHierarchyRefresh(guild: Guild, context: BotContext) {
+  scheduleHierarchyRefreshInternal(guild, context, null);
 }
 
-export function scheduleHierarchyRefresh(guild: Guild, context: BotContext) {
+export function scheduleHierarchyRefreshForRoles(guild: Guild, context: BotContext, roleIds: string[]) {
+  const uniqueRoleIds = [...new Set(roleIds.filter(Boolean))];
+  if (!uniqueRoleIds.length) return;
+  scheduleHierarchyRefreshInternal(guild, context, uniqueRoleIds);
+}
+
+function scheduleHierarchyRefreshInternal(guild: Guild, context: BotContext, roleIds: string[] | null) {
   if (!isBotModuleEnabled("fivem-hierarchy")) return;
   const current = scheduledGuilds.get(guild.id);
-  if (current) clearTimeout(current);
+  const nextRoleIds = !roleIds || current?.roleIds === null
+    ? null
+    : current?.roleIds
+      ? new Set([...current.roleIds, ...roleIds])
+      : new Set(roleIds);
+  if (current) clearTimeout(current.timeout);
   const timeout = setTimeout(() => {
     scheduledGuilds.delete(guild.id);
-    void refreshHierarchyPanelsForGuild(guild, context);
+    void refreshHierarchyPanelsForGuild(guild, context, null, nextRoleIds ? [...nextRoleIds] : null);
   }, 2500);
   timeout.unref();
-  scheduledGuilds.set(guild.id, timeout);
+  scheduledGuilds.set(guild.id, { roleIds: nextRoleIds, timeout });
 }
 
-export async function refreshHierarchyPanelsForGuild(guild: Guild, context: BotContext, panelId?: string | null) {
+export async function refreshHierarchyPanelsForGuild(guild: Guild, context: BotContext, panelId?: string | null, changedRoleIds?: string[] | null) {
   const panels = await context.api.getActiveFivemHierarchyPanels().catch((error) => {
     console.warn(`[fivem-hierarchy] falha ao buscar paineis ativos: ${errorMessage(error)}`);
     return [];
   });
-  const scoped = panels.filter((panel) => panel.guildId === guild.id && (!panelId || panel.id === panelId));
+  const changedRoleSet = changedRoleIds?.length ? new Set(changedRoleIds) : null;
+  const scoped = panels.filter((panel) => {
+    if (panel.guildId !== guild.id) return false;
+    if (panelId && panel.id !== panelId) return false;
+    if (!changedRoleSet) return true;
+    return panel.hierarchies.some((item) => item.active && changedRoleSet.has(item.roleId));
+  });
   if (!scoped.length) {
     return panelId
       ? [{ error: "Painel ativo nao encontrado para este bot. Salve o painel como ativo e confira se o bot DEV correto esta selecionado.", ok: false, panelId }]
@@ -237,10 +241,7 @@ function discordErrorMessage(error: unknown) {
 
 function createHierarchyPayload(guild: Guild, panel: FivemHierarchyPanel, visual: PanelVisualConfig | null, extraImages: PanelVisualConfig[] = []) {
   const fallbackVisual: PanelVisualConfig | null = panel.imageUrl ? { imageEnabled: true, imagePosition: panel.imagePosition === "bottom" ? "bottom" : panel.imagePosition, imageUrl: panel.imageUrl } : null;
-  const action = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`${PREFIX}:refresh:${panel.id}`).setLabel("Atualizar painel").setStyle(ButtonStyle.Secondary)
-      );
-  return renderComponentsV2Panel({ accentColor: colorToInt(panel.color), actions: [action], description: panel.description ?? "Hierarquia atualizada automaticamente pelos cargos do servidor.", extraImages, fields: [renderHierarchyText(guild, panel)], footer: panel.footerEnabled ? { text: panel.footerText ?? "OrviteK" } : { enabled: false }, image: visual?.imageEnabled ? visual : fallbackVisual, moduleId: "fivem-hierarchy", title: panel.title });
+  return renderComponentsV2Panel({ accentColor: colorToInt(panel.color), actions: [], description: panel.description ?? "Hierarquia atualizada automaticamente pelos cargos do servidor.", extraImages, fields: [renderHierarchyText(guild, panel)], footer: panel.footerEnabled ? { text: panel.footerText ?? "OrviteK" } : { enabled: false }, image: visual?.imageEnabled ? visual : fallbackVisual, moduleId: "fivem-hierarchy", title: panel.title });
 }
 
 async function getPanelVisualSlots(context: BotContext, guildId: string, basePanelId: string) {
