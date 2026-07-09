@@ -78,6 +78,13 @@ export function startCourseSystemService(client: Client, context: BotContext) {
       console.error(`[courses] failed to publish panel in ${payload.guildId}:`, error instanceof Error ? error.message : error);
     });
   });
+  const refreshExistingPanels = () => {
+    void refreshActiveCoursePublicationPanels(client, context).catch((error) => {
+      console.error("[courses] failed to refresh active publication panels:", error instanceof Error ? error.message : error);
+    });
+  };
+  if (client.isReady()) refreshExistingPanels();
+  else client.once("ready", refreshExistingPanels);
 }
 
 export const configCourseCommand: BotCommand = {
@@ -1050,6 +1057,18 @@ async function publishPublicCoursesPanel(client: Client, context: BotContext, gu
   await context.api.updateCoursePanelMessage(guildId, nextMessage.id);
 }
 
+async function refreshActiveCoursePublicationPanels(client: Client, context: BotContext) {
+  for (const guild of client.guilds.cache.values()) {
+    const publications = await Promise.all([
+      context.api.listCoursePublications(guild.id, "open").catch(() => []),
+      context.api.listCoursePublications(guild.id, "started").catch(() => [])
+    ]);
+    for (const publication of publications.flat()) {
+      await refreshPublicationMessageByRecord({ guild, guildId: guild.id }, context, publication);
+    }
+  }
+}
+
 async function manageableCourses(interaction: ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction, context: BotContext) {
   const member = interaction.member as GuildMember | null;
   return context.api.getManageableCourses(interaction.guildId!, {
@@ -1298,6 +1317,9 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
   const canStartClass = publication.status === "open";
   const canStartExam = publication.status === "started";
   const canCancel = !["cancelled", "proof", "finished", "closed"].includes(publication.status);
+  const primaryAction = canStartExam
+    ? new ButtonBuilder().setCustomId(`course_exam_start:${publication.id}`).setLabel("📝 Iniciar Prova").setStyle(ButtonStyle.Success)
+    : new ButtonBuilder().setCustomId(`course_start:${publication.id}`).setLabel(`${settings.buttonEmojis.start ?? "▶️"} Iniciar Aula`).setStyle(ButtonStyle.Primary).setDisabled(!canStartClass);
   return renderComponentsV2Panel({
     accentColor: parseColor(course.color),
     actions: [
@@ -1306,8 +1328,7 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
         new ButtonBuilder().setCustomId(`course_leave:${publication.id}`).setLabel(`${settings.buttonEmojis.leave ?? "🚪"} ${course.buttonLabels.leave || "Sair do Curso"}`).setStyle(ButtonStyle.Secondary).setDisabled(!canLeave)
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`course_start:${publication.id}`).setLabel(`${settings.buttonEmojis.start ?? "▶️"} Iniciar Aula`).setStyle(ButtonStyle.Primary).setDisabled(!canStartClass),
-        new ButtonBuilder().setCustomId(`course_exam_start:${publication.id}`).setLabel("📝 Iniciar Prova").setStyle(ButtonStyle.Success).setDisabled(!canStartExam),
+        primaryAction,
         new ButtonBuilder().setCustomId(`course_cancel:${publication.id}`).setLabel(`${settings.buttonEmojis.cancel ?? "❌"} ${course.buttonLabels.cancel || "Cancelar Curso"}`).setStyle(ButtonStyle.Danger).setDisabled(!canCancel)
       )
     ],
