@@ -6,7 +6,7 @@ import { emitRealtime } from "../realtime/events";
 import { canManageDashboardGuild, canReadDashboardGuild, getAccessibleGuildIds } from "../services/dashboardGuildAccessService";
 import { canReadDevBotModule, canUseDevBotModule } from "../services/devBotService";
 import { createLog } from "../services/logService";
-import { createTicket, getTicketByChannel, listTickets, recordTicketEvent, updateTicketStatus } from "../services/ticketService";
+import { createTicket, getTicketByChannel, getTicketById, listTickets, recordTicketEvent, updateTicketStatus } from "../services/ticketService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
 
 const ticketSchema = z.object({
@@ -112,6 +112,19 @@ ticketsRouter.get("/bot/channel/:channelId", async (req, res, next) => {
     }
     const botId = await resolveRequestBotId(req);
     const ticket = await getTicketByChannel(req.params.channelId, botId);
+    return res.json({ ticket });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+ticketsRouter.get("/bot/:ticketId", async (req, res, next) => {
+  try {
+    if (!isBotRequest(req)) {
+      return res.status(403).json({ message: "Rota disponivel apenas para o bot." });
+    }
+    const botId = await resolveRequestBotId(req);
+    const ticket = await getTicketById(req.params.ticketId, botId);
     return res.json({ ticket });
   } catch (error) {
     return next(error);

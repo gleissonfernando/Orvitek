@@ -20,16 +20,21 @@ import {
   type Guild,
   type GuildMember,
   type Interaction,
+  type Message,
   type MessageCreateOptions,
+  type TextChannel,
   type TextBasedChannel
 } from "discord.js";
+import { env } from "../config/env";
 import type { BotContext, GuildSettings, ReportSystemButtonKey, ReportSystemLogKey, ReportSystemSettings } from "../types";
+import type { TicketRecord } from "./apiClient";
 import { getFreshGuildSettings } from "./guildSettingsCache";
 import { renderComponentsV2Panel } from "./panelVisualRenderer";
 
 const PREFIX = "iab_admin";
 const PANEL_SELECT_ID = "iab_report_select";
 const PUBLIC_PREFIX = "iab";
+const TOPIC_PREFIX = "orvitek-iab:";
 const LEGACY_IDENTIFIED_BUTTON_ID = "iab_denuncia_identificada";
 const LEGACY_ANONYMOUS_BUTTON_ID = "iab_denuncia_anonima";
 const BUTTON_LABELS: Record<ReportSystemButtonKey, string> = {
@@ -64,6 +69,19 @@ const ROLE_GROUPS = [
   ["mentionRoleIds", "Mencionar cargos"],
   ["statusRoleIds", "Alterar status"]
 ] as const;
+
+type ReportMode = "anonymous" | "identified";
+type ReportCompetence = "iab" | "conselho" | "hcmd" | "comissario";
+type ReportTopic = {
+  categoryId: string;
+  categoryName: string;
+  channelId: string;
+  competence: ReportCompetence;
+  mode: ReportMode;
+  openerId: string;
+  status: "preparing" | "open" | "archived" | "closed";
+  ticketId: string;
+};
 
 export async function openReportSystemAdmin(interaction: ChatInputCommandInteraction, context: BotContext) {
   if (!interaction.guild || !interaction.member) {
@@ -167,6 +185,49 @@ export async function handleReportSystemInteraction(interaction: Interaction, co
   return false;
 }
 
+export async function handleReportSystemMessage(message: Message, context: BotContext) {
+  if (!message.guild || message.author.bot || !message.channel.isTextBased() || message.channel.isDMBased() || !("topic" in message.channel)) {
+    return false;
+  }
+
+  const topic = topicFromString(message.channel.topic);
+  if (!topic || topic.mode !== "anonymous" || topic.status === "archived" || topic.status === "closed") {
+    return false;
+  }
+
+  const settings = await getFreshGuildSettings(context, message.guild.id, message.client.user?.id).catch(() => null);
+  if (!settings) return false;
+
+  const report = settings.reportSystem;
+  const isReporter = message.author.id === topic.openerId;
+  const isStaff = reportCompetenceRoleIds(report, topic.competence).some((roleId) => message.member?.roles.cache.has(roleId));
+  if (!isReporter && !isStaff) return false;
+
+  const displayName = isReporter ? report.anonymousReporterName : report.anonymousInvestigatorName;
+  const files = message.attachments.map((attachment) => attachment.url);
+  const content = [
+    `**${displayName}:**`,
+    message.content || (files.length ? "" : "(sem texto)"),
+    files.join("\n")
+  ].filter(Boolean).join("\n").slice(0, 1900);
+
+  await message.delete().catch(() => null);
+  const relayed = await (message.channel as TextChannel).send({
+    allowedMentions: { parse: [] },
+    content
+  }).catch(() => null);
+
+  await logIabEvent(message.guild, settings, topic, "Mensagem anonima", [
+    `Autor real: ${message.author.tag} (${message.author.id})`,
+    `Nome no servidor: ${message.member?.displayName ?? "-"}`,
+    `Mensagem original: ${message.content || "(sem texto)"}`,
+    relayed ? `Mensagem reenviada: ${relayed.id}` : "Mensagem reenviada: falhou",
+    files.length ? `Anexos: ${files.join(", ")}` : null
+  ].filter(Boolean).join("\n"), message.author.id);
+
+  return true;
+}
+
 async function handlePublicReportSelect(interaction: StringSelectMenuInteraction, context: BotContext) {
   if (!interaction.guild) {
     await safeReply(interaction, "Use este painel dentro de um servidor.");
@@ -189,7 +250,7 @@ async function handlePublicReportSelect(interaction: StringSelectMenuInteraction
   }
 
   if (!report.allowAnonymousReports) {
-    await interaction.showModal(createPublicReportModal(selectedCategoryId, "identified", category.name));
+    await openReportFromPanel(interaction, context, selectedCategoryId, "identified");
     return;
   }
 
@@ -227,6 +288,11 @@ async function handlePublicReportInteraction(interaction: Interaction, context: 
     return;
   }
 
+  if (interaction.isStringSelectMenu() && customId.startsWith(`${PUBLIC_PREFIX}:archive-select:`)) {
+    await handleArchiveSelect(interaction, context);
+    return;
+  }
+
   if (interaction.isModalSubmit() && customId.startsWith(`${PUBLIC_PREFIX}:m:`)) {
     await submitPublicReport(interaction, context);
   }
@@ -241,28 +307,436 @@ async function handlePublicReportButton(interaction: ButtonInteraction, context:
       return;
     }
     const mode = customId === LEGACY_ANONYMOUS_BUTTON_ID ? "anonymous" : "identified";
-    await interaction.showModal(createPublicReportModal(category.id, mode, category.name));
+    await openReportFromPanel(interaction, context, category.id, mode);
     return;
   }
 
   const [, action, categoryId, mode] = customId.split(":");
   if (action === "id") {
-    const settings = await getFreshGuildSettings(context, interaction.guildId!, interaction.client.user?.id);
-    const category = settings.reportSystem.categories.find((item) => item.enabled && item.id === categoryId);
-    if (!category) {
-      await safeReply(interaction, "Este tipo de denuncia nao esta mais disponivel.");
-      return;
-    }
-    await interaction.showModal(createPublicReportModal(category.id, mode === "anonymous" ? "anonymous" : "identified", category.name));
+    if (!categoryId) return safeReply(interaction, "Opcao de denuncia invalida.");
+    await openReportFromPanel(interaction, context, categoryId, mode === "anonymous" ? "anonymous" : "identified");
     return;
   }
 
-  if (action === "ack") {
-    await safeReply(interaction, "Acao registrada. Use o canal da denuncia para continuar o atendimento.");
+  if (action === "submit" || action === "submit-confirm" || action === "cancel" || action === "cancel-confirm" || action === "claim" || action === "call" || action === "archive" || action === "finish" || action === "finish-confirm") {
+    if (!categoryId) return safeReply(interaction, "Ticket invalido.");
+    await handleReportTicketButton(interaction, context, action, categoryId);
     return;
   }
 
   await safeReply(interaction, "Esta acao da denuncia nao esta disponivel no momento.");
+}
+
+async function openReportFromPanel(interaction: StringSelectMenuInteraction | ButtonInteraction, context: BotContext, categoryId: string, mode: ReportMode) {
+  await interaction.deferReply({ ephemeral: true });
+  const settings = await getFreshGuildSettings(context, interaction.guildId!, interaction.client.user?.id);
+  const report = settings.reportSystem;
+  const category = report.categories.find((item) => item.enabled && item.id === categoryId);
+
+  if (!report.enabled || !category) {
+    await interaction.editReply("Esta opcao de denuncia nao esta mais disponivel.");
+    return;
+  }
+  if (mode === "anonymous" && !report.allowAnonymousReports) {
+    await interaction.editReply("Denuncias anonimas estao desativadas neste servidor.");
+    return;
+  }
+  if (!canCreateReport(interaction.member as GuildMember | null, report)) {
+    await interaction.editReply("Voce nao tem permissao para abrir denuncias neste servidor.");
+    return;
+  }
+
+  const channel = await createReportChannel(interaction.guild!, settings, {
+    categoryId: category.id,
+    categoryName: category.name,
+    mode,
+    openerId: interaction.user.id,
+    summary: category.name
+  }) as TextChannel | null;
+
+  if (!channel) {
+    await interaction.editReply("Nao consegui criar o canal da denuncia. Verifique categoria/permissoes do bot.");
+    return;
+  }
+
+  const ticket = await context.api.createTicket({
+    allowedRoleIds: reportCompetenceRoleIds(report, reportCompetence(category.id, category.name)),
+    categoryId: category.id,
+    categoryName: category.name,
+    channelId: channel.id,
+    guildId: interaction.guildId!,
+    openerId: interaction.user.id,
+    status: mode === "anonymous" ? "PENDING" : "OPEN",
+    subject: `${mode === "anonymous" ? "Denuncia anonima" : "Denuncia identificada"} - ${category.name}`
+  });
+  const topic = makeTopic({
+    categoryId: category.id,
+    categoryName: category.name,
+    channelId: channel.id,
+    competence: reportCompetence(category.id, category.name),
+    mode,
+    openerId: interaction.user.id,
+    status: mode === "anonymous" ? "preparing" : "open",
+    ticketId: ticket.ticket.id
+  });
+  await channel.setTopic(topic).catch(() => null);
+
+  if (mode === "anonymous") {
+    await channel.send(createAnonymousPreparationPayload(settings, ticket.ticket));
+    await logIabEvent(interaction.guild!, settings, topicFromString(topic)!, "Criado", `Denuncia anonima criada em preparacao por ${interaction.user.tag}.`, interaction.user.id);
+    await interaction.editReply(`Canal privado criado para preparar sua denuncia: <#${channel.id}>`);
+    return;
+  }
+
+  await channel.send(createManagementPayload(settings, ticket.ticket, topicFromString(topic)!, "Aberto"));
+  await logIabEvent(interaction.guild!, settings, topicFromString(topic)!, "Criado", `Denuncia identificada criada por ${interaction.user.tag}.`, interaction.user.id);
+  await interaction.editReply(`Denuncia identificada aberta: <#${channel.id}>`);
+}
+
+async function handleReportTicketButton(interaction: ButtonInteraction, context: BotContext, action: string, ticketId: string) {
+  const channel = interaction.channel;
+  if (!channel?.isTextBased() || channel.isDMBased() || !("permissionOverwrites" in channel)) {
+    await safeReply(interaction, "Esta acao precisa ser usada no canal da denuncia.");
+    return;
+  }
+  const textChannel = channel as TextChannel;
+  const topic = topicFromString(textChannel.topic);
+  if (!topic || topic.ticketId !== ticketId) {
+    await safeReply(interaction, "Nao consegui identificar esta denuncia.");
+    return;
+  }
+
+  const settings = await getFreshGuildSettings(context, interaction.guildId!, interaction.client.user?.id);
+  const ticket = await context.api.getTicket(ticketId);
+  if (!ticket) {
+    await safeReply(interaction, "Ticket nao encontrado no backend.");
+    return;
+  }
+
+  if (action === "submit") {
+    await interaction.reply({
+      ...confirmPayload(settings, "Encaminhar denuncia", "Tem certeza que deseja encaminhar esta denuncia para a Corregedoria? Apos confirmar, voce perdera acesso ao canal.", `${PUBLIC_PREFIX}:submit-confirm:${ticketId}`, `${PUBLIC_PREFIX}:noop:${ticketId}`),
+      flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
+    } as never);
+    return;
+  }
+  if (action === "cancel") {
+    await interaction.reply({
+      ...confirmPayload(settings, "Cancelar denuncia", "Tem certeza que deseja cancelar esta denuncia? O canal sera apagado.", `${PUBLIC_PREFIX}:cancel-confirm:${ticketId}`, `${PUBLIC_PREFIX}:noop:${ticketId}`),
+      flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
+    } as never);
+    return;
+  }
+  if (action === "submit-confirm") {
+    await submitAnonymousReport(interaction, context, settings, textChannel, ticket, topic);
+    return;
+  }
+  if (action === "cancel-confirm") {
+    await interaction.deferUpdate();
+    await logIabEvent(interaction.guild!, settings, topic, "Cancelado", `Denuncia anonima cancelada por <@${interaction.user.id}> antes do envio.`, interaction.user.id);
+    await textChannel.delete("Denuncia IAB cancelada antes do envio.").catch(() => null);
+    return;
+  }
+  if (action === "claim") {
+    await claimReport(interaction, context, settings, textChannel, ticket, topic);
+    return;
+  }
+  if (action === "call") {
+    await callReporter(interaction, settings, textChannel, ticket, topic);
+    return;
+  }
+  if (action === "archive") {
+    await interaction.reply({ ...archivePayload(settings, ticketId), flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 } as never);
+    return;
+  }
+  if (action === "finish") {
+    await interaction.reply({
+      ...confirmPayload(settings, "Finalizar denuncia", "Tem certeza que deseja finalizar esta denuncia? O transcript sera gerado e o canal sera apagado.", `${PUBLIC_PREFIX}:finish-confirm:${ticketId}`, `${PUBLIC_PREFIX}:noop:${ticketId}`),
+      flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
+    } as never);
+    return;
+  }
+  if (action === "finish-confirm") {
+    await interaction.deferUpdate();
+    await finishReport(context, interaction.guild!, settings, textChannel, ticket, topic, "Finalizado", true, interaction.user.id);
+  }
+}
+
+async function submitAnonymousReport(interaction: ButtonInteraction, context: BotContext, settings: GuildSettings, channel: TextChannel, ticket: TicketRecord, topic: ReportTopic) {
+  await interaction.deferUpdate();
+  const report = settings.reportSystem;
+  const staffRoleIds = reportCompetenceRoleIds(report, topic.competence);
+  await channel.permissionOverwrites.edit(topic.openerId, { ViewChannel: false, SendMessages: false }).catch(() => null);
+  for (const roleId of staffRoleIds) {
+    await channel.permissionOverwrites.edit(roleId, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true }).catch(() => null);
+  }
+  const nextTopic = { ...topic, status: "open" as const };
+  await channel.setTopic(makeTopic(nextTopic)).catch(() => null);
+  await context.api.updateTicketStatus(ticket.id, { status: "OPEN" });
+  await channel.send(createManagementPayload(settings, ticket, nextTopic, "Encaminhado"));
+  await logIabEvent(interaction.guild!, settings, nextTopic, "Encaminhado", `Denuncia anonima encaminhada para a equipe por <@${interaction.user.id}>.`, interaction.user.id);
+}
+
+async function claimReport(interaction: ButtonInteraction, context: BotContext, settings: GuildSettings, channel: TextChannel, ticket: TicketRecord, topic: ReportTopic) {
+  if (ticket.responsibleUserId && ticket.responsibleUserId !== interaction.user.id) {
+    await safeReply(interaction, `Esta denuncia ja foi assumida por <@${ticket.responsibleUserId}>.`);
+    return;
+  }
+  await interaction.deferUpdate();
+  const updated = await context.api.updateTicketStatus(ticket.id, { responsibleUserId: interaction.user.id, status: "IN_ANALYSIS" });
+  const staffRoleIds = reportCompetenceRoleIds(settings.reportSystem, topic.competence);
+  for (const roleId of staffRoleIds) {
+    await channel.permissionOverwrites.edit(roleId, { ViewChannel: true, SendMessages: false, ReadMessageHistory: true }).catch(() => null);
+  }
+  await channel.permissionOverwrites.edit(interaction.user.id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true }).catch(() => null);
+  await interaction.message.edit(createManagementPayload(settings, updated ?? ticket, topic, "Em analise") as never).catch(() => null);
+  await logIabEvent(interaction.guild!, settings, topic, "Assumido", `Denuncia assumida por <@${interaction.user.id}>.`, interaction.user.id);
+}
+
+async function callReporter(interaction: ButtonInteraction, settings: GuildSettings, channel: TextChannel, ticket: TicketRecord, topic: ReportTopic) {
+  await interaction.deferReply({ ephemeral: true });
+  await channel.permissionOverwrites.edit(topic.openerId, { ViewChannel: true, SendMessages: true, AttachFiles: true, ReadMessageHistory: true }).catch(() => null);
+  const url = `https://discord.com/channels/${channel.guild.id}/${channel.id}`;
+  const user = await interaction.client.users.fetch(topic.openerId).catch(() => null);
+  if (user) {
+    await user.send({
+      ...renderComponentsV2Panel({
+        accentColor: parseColor(settings.reportSystem.panelColor),
+        actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setLabel("Acessar denuncia").setStyle(ButtonStyle.Link).setURL(url))],
+        description: settings.reportSystem.subpoenaDmText || "A Corregedoria precisa de mais informacoes sobre sua denuncia. Voce recebeu acesso temporario ao canal para complementar o procedimento.",
+        fields: [],
+        image: settings.reportSystem.dmBannerUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: settings.reportSystem.dmBannerUrl } : null,
+        moduleId: "iab-call",
+        title: "A Corregedoria precisa de mais informacoes"
+      })
+    }).catch(() => null);
+  }
+  await logIabEvent(interaction.guild!, settings, topic, "Denunciante chamado", `Denunciante chamado por <@${interaction.user.id}>.`, interaction.user.id);
+  await interaction.editReply(`Acesso devolvido para <@${topic.openerId}>.`);
+  void ticket;
+}
+
+async function handleArchiveSelect(interaction: StringSelectMenuInteraction, context: BotContext) {
+  await interaction.deferUpdate();
+  const ticketId = interaction.customId.slice(`${PUBLIC_PREFIX}:archive-select:`.length);
+  const channel = interaction.channel as TextChannel | null;
+  const topic = topicFromString(channel?.topic);
+  if (!channel || !topic || topic.ticketId !== ticketId) return;
+  const settings = await getFreshGuildSettings(context, interaction.guildId!, interaction.client.user?.id);
+  const ticket = await context.api.updateTicketStatus(ticketId, { status: "ARCHIVED" });
+  const archiveCategoryId = interaction.values[0] ?? null;
+  if (archiveCategoryId) await channel.setParent(archiveCategoryId).catch(() => null);
+  await channel.permissionOverwrites.edit(channel.guild.roles.everyone.id, { SendMessages: false }).catch(() => null);
+  const nextTopic = { ...topic, status: "archived" as const };
+  await channel.setTopic(makeTopic(nextTopic)).catch(() => null);
+  await finishReport(context, interaction.guild!, settings, channel, ticket!, nextTopic, "Arquivado", false, interaction.user.id);
+}
+
+async function finishReport(context: BotContext, guild: Guild, settings: GuildSettings, channel: TextChannel, ticket: TicketRecord, topic: ReportTopic, status: "Arquivado" | "Finalizado", deleteChannel: boolean, actorId: string) {
+  const messages = await collectTranscriptMessages(channel, topic, settings);
+  const transcript = await context.api.createTranscript({
+    categoryName: topic.categoryName,
+    channelId: channel.id,
+    channelName: channel.name,
+    closeReason: status,
+    closedAt: new Date().toISOString(),
+    closedById: actorId,
+    finalResult: status,
+    generateTemporaryPassword: true,
+    guildId: guild.id,
+    guildName: guild.name,
+    isPartial: false,
+    messages,
+    openedById: topic.openerId,
+    ownerId: topic.openerId,
+    participants: participantsFromMessages(messages, topic, settings),
+    responsibleUserId: ticket.responsibleUserId ?? null,
+    temporaryPasswordTtlHours: 24 * 365,
+    ticketId: ticket.id,
+    type: "Denuncia"
+  });
+  await context.api.updateTicketStatus(ticket.id, { closedAt: new Date().toISOString(), closedById: actorId, closeReason: status, finalResult: status, status: deleteChannel ? "CLOSED" : "ARCHIVED" });
+  await sendTranscriptPanel(guild, settings, topic, ticket, transcript, status);
+  await logIabEvent(guild, settings, topic, status, `Denuncia ${status.toLowerCase()} por <@${actorId}>.`, actorId);
+  if (deleteChannel) await channel.delete(`Denuncia IAB finalizada por ${actorId}`).catch(() => null);
+  else await channel.send(createManagementPayload(settings, { ...ticket, status: "ARCHIVED" }, { ...topic, status: "archived" }, "Arquivado")).catch(() => null);
+}
+
+function createAnonymousPreparationPayload(settings: GuildSettings, ticket: TicketRecord): MessageCreateOptions {
+  const report = settings.reportSystem;
+  const actions = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:submit:${ticket.id}`).setLabel("Encaminhar denuncia").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:cancel:${ticket.id}`).setLabel("Cancelar envio da denuncia").setStyle(ButtonStyle.Danger)
+  );
+  return renderComponentsV2Panel({
+    accentColor: parseColor(report.anonymousEmbedColor),
+    actions: [actions],
+    description: "Este canal privado serve apenas para preparar a denuncia antes de enviar para a equipe responsavel.",
+    fields: [
+      "Envie todas as provas antes de confirmar.\nAguarde todos os arquivos terminarem o upload.\nApos confirmar, voce perdera acesso ao canal.",
+      "A equipe recebera a denuncia sem ver sua identidade no painel. Sua identidade sera registrada apenas nas logs internas administrativas."
+    ],
+    image: report.thumbnailUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: report.thumbnailUrl } : null,
+    moduleId: "iab-anonymous-prep",
+    title: "Preparacao da Denuncia Anonima"
+  });
+}
+
+function createManagementPayload(settings: GuildSettings, ticket: TicketRecord, topic: ReportTopic, statusLabel: string): MessageCreateOptions {
+  const report = settings.reportSystem;
+  const actions = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:claim:${ticket.id}`).setLabel(topic.mode === "anonymous" ? "Assumir denuncia" : "Assumir ticket").setStyle(ButtonStyle.Primary).setDisabled(!report.buttons.claim || topic.status === "archived"),
+    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:call:${ticket.id}`).setLabel("Chamar denunciante").setStyle(ButtonStyle.Secondary).setDisabled(topic.status === "archived"),
+    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:archive:${ticket.id}`).setLabel("Arquivar").setStyle(ButtonStyle.Secondary).setDisabled(topic.status === "archived"),
+    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:finish:${ticket.id}`).setLabel("Finalizar").setStyle(ButtonStyle.Danger).setDisabled(topic.status === "archived")
+  );
+  return renderComponentsV2Panel({
+    accentColor: parseColor(topic.mode === "anonymous" ? report.anonymousEmbedColor : report.panelColor),
+    actions: [actions],
+    description: topic.mode === "anonymous"
+      ? "Denuncia anonima encaminhada. A identidade do denunciante fica restrita as logs administrativas."
+      : "Denuncia identificada aberta para conversa direta entre denunciante e equipe.",
+    fields: [
+      `**Ticket:** ${ticket.id}\n**Tipo:** ${topic.mode === "anonymous" ? "Denuncia Anonima" : "Denuncia Identificada"}\n**Orgao:** ${topic.categoryName}`,
+      `**Status:** ${statusLabel}\n**Responsavel:** ${ticket.responsibleUserId ? `<@${ticket.responsibleUserId}>` : "Nao assumido"}\n**Assumido em:** ${ticket.responsibleUserId ? `<t:${Math.floor(Date.now() / 1000)}:F>` : "-"}`,
+      topic.mode === "anonymous" ? "**Denunciante:** Denunciante Anonimo" : `**Denunciante:** <@${topic.openerId}>`
+    ],
+    image: report.imageUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: report.imageUrl } : null,
+    moduleId: "iab-management",
+    title: "Painel de Gerenciamento da Denuncia"
+  });
+}
+
+function confirmPayload(settings: GuildSettings, title: string, description: string, confirmId: string, cancelId: string): MessageCreateOptions {
+  return renderComponentsV2Panel({
+    accentColor: parseColor(settings.reportSystem.panelColor),
+    actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(confirmId).setLabel(title).setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(cancelId).setLabel("Cancelar").setStyle(ButtonStyle.Secondary)
+    )],
+    description,
+    fields: [],
+    image: null,
+    moduleId: "iab-confirm",
+    title
+  });
+}
+
+function archivePayload(settings: GuildSettings, ticketId: string): MessageCreateOptions {
+  const report = settings.reportSystem;
+  const categories = [
+    ["main", report.categoryId],
+    ["iab", report.iabCategoryId],
+    ["conselho", report.conselhoCategoryId],
+    ["hcmd", report.hcmdCategoryId],
+    ["comissario", report.comissarioCategoryId]
+  ].filter((item): item is [string, string] => Boolean(item[1]));
+  const options = categories.length ? categories.slice(0, 25).map(([label, id]) => new StringSelectMenuOptionBuilder().setLabel(`Arquivo ${label}`).setValue(id)) : [new StringSelectMenuOptionBuilder().setLabel("Sem categoria configurada").setValue("none")];
+  return renderComponentsV2Panel({
+    accentColor: parseColor(report.panelColor),
+    actions: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(`${PUBLIC_PREFIX}:archive-select:${ticketId}`).setPlaceholder("Selecione a categoria de arquivamento").addOptions(options))],
+    description: "Escolha para qual categoria o ticket sera movido. O canal sera bloqueado e o transcript sera gerado.",
+    fields: [],
+    image: null,
+    moduleId: "iab-archive",
+    title: "Arquivar denuncia"
+  });
+}
+
+async function sendTranscriptPanel(guild: Guild, settings: GuildSettings, topic: ReportTopic, ticket: TicketRecord, transcript: Awaited<ReturnType<BotContext["api"]["createTranscript"]>>, status: string) {
+  const report = settings.reportSystem;
+  const channelId = report.transcriptChannelId ?? reportCompetenceLogChannelId(report, topic.competence);
+  const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
+  if (!channel?.isTextBased() || !("send" in channel)) return;
+  const origin = env.BACKEND_API_URL ? new URL(env.BACKEND_API_URL).origin : "";
+  const url = `${origin}${transcript.transcript.htmlPath}`;
+  await (channel as TextChannel).send(renderComponentsV2Panel({
+    accentColor: parseColor(report.panelColor),
+    actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setLabel("Abrir transcript").setStyle(ButtonStyle.Link).setURL(url))],
+    description: "Transcript gerado. Link e senha ficam restritos ao canal de logs configurado.",
+    fields: [
+      `**Ticket:** ${ticket.id}\n**Tipo:** ${topic.mode === "anonymous" ? "Denuncia Anonima" : "Denuncia Identificada"}\n**Status:** ${status}`,
+      `**Denunciante real:** <@${topic.openerId}>\n**Responsavel:** ${ticket.responsibleUserId ? `<@${ticket.responsibleUserId}>` : "Nao assumido"}`,
+      `**Transcript:** ${url}\n**Senha:** ${transcript.temporaryPassword ? `||${transcript.temporaryPassword}||` : "nao gerada"}\n**Expira em:** ${transcript.temporaryPasswordExpiresAt ? `<t:${Math.floor(Date.parse(transcript.temporaryPasswordExpiresAt) / 1000)}:D>` : "1 ano"}`
+    ],
+    image: report.thumbnailUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: report.thumbnailUrl } : null,
+    moduleId: "iab-transcript",
+    title: "Transcript gerado"
+  })).catch(() => null);
+}
+
+async function logIabEvent(guild: Guild, settings: GuildSettings, topic: ReportTopic, action: string, message: string, actorId: string | null) {
+  const report = settings.reportSystem;
+  const channelId = reportCompetenceLogChannelId(report, topic.competence);
+  const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
+  if (!channel?.isTextBased() || !("send" in channel)) return;
+  await (channel as TextChannel).send({
+    content: [
+      `**IAB | ${action}**`,
+      `Ticket: ${topic.ticketId}`,
+      `Tipo: ${topic.mode === "anonymous" ? "Denuncia Anonima" : "Denuncia Identificada"}`,
+      `Denunciante real: <@${topic.openerId}> (${topic.openerId})`,
+      actorId ? `Executor: <@${actorId}> (${actorId})` : null,
+      `Canal: <#${topic.channelId}>`,
+      message
+    ].filter(Boolean).join("\n")
+  }).catch(() => null);
+}
+
+async function collectTranscriptMessages(channel: TextChannel, topic: ReportTopic, settings: GuildSettings) {
+  const collected: Message[] = [];
+  let before: string | undefined;
+  do {
+    const batch = await channel.messages.fetch({ limit: 100, before }).catch(() => null);
+    if (!batch?.size) break;
+    collected.push(...batch.values());
+    before = batch.last()?.id;
+  } while (before && collected.length < 1000);
+
+  return collected.sort((a, b) => a.createdTimestamp - b.createdTimestamp).map((message) => ({
+    anonymous: topic.mode === "anonymous",
+    attachments: message.attachments.map((attachment) => ({ contentType: attachment.contentType, id: attachment.id, name: attachment.name, size: attachment.size, url: attachment.url })),
+    authorAvatarUrl: message.author.displayAvatarURL(),
+    authorId: message.author.id,
+    authorName: maskedNameForMessage(message, topic, settings),
+    authorRoleIds: message.member?.roles.cache.map((role) => role.id) ?? [],
+    botRelayed: message.author.id === message.client.user.id,
+    content: message.content,
+    createdAt: message.createdAt.toISOString(),
+    editedAt: message.editedAt?.toISOString() ?? null,
+    embeds: message.embeds.map((embed) => embed.toJSON()),
+    id: message.id,
+    system: message.system
+  }));
+}
+
+function participantsFromMessages(messages: Awaited<ReturnType<typeof collectTranscriptMessages>>, topic: ReportTopic, settings: GuildSettings) {
+  const participants = new Map<string, { id: string; name: string; role: string | null }>();
+  participants.set(topic.openerId, { id: topic.openerId, name: topic.mode === "anonymous" ? settings.reportSystem.anonymousReporterName : `@${topic.openerId}`, role: "Denunciante" });
+  for (const message of messages) {
+    if (message.authorId) participants.set(message.authorId, { id: message.authorId, name: message.authorName, role: null });
+  }
+  return [...participants.values()];
+}
+
+function maskedNameForMessage(message: Message, topic: ReportTopic, settings: GuildSettings) {
+  if (topic.mode !== "anonymous") return message.author.tag;
+  if (message.author.id === topic.openerId) return settings.reportSystem.anonymousReporterName;
+  if (message.author.bot) return message.author.tag;
+  return settings.reportSystem.anonymousInvestigatorName;
+}
+
+function makeTopic(topic: ReportTopic) {
+  return `${TOPIC_PREFIX}${Buffer.from(JSON.stringify(topic), "utf8").toString("base64url")}`;
+}
+
+function topicFromString(value: string | null | undefined): ReportTopic | null {
+  if (!value?.startsWith(TOPIC_PREFIX)) return null;
+  try {
+    return JSON.parse(Buffer.from(value.slice(TOPIC_PREFIX.length), "base64url").toString("utf8")) as ReportTopic;
+  } catch {
+    return null;
+  }
 }
 
 function createPublicReportModal(categoryId: string, mode: "anonymous" | "identified", categoryName: string) {
@@ -362,11 +836,14 @@ async function createReportChannel(guild: Guild, settings: GuildSettings, input:
   const overwrites = [
     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
     { id: guild.members.me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ReadMessageHistory] },
-    ...otherRoleIds.map((id) => ({ id, deny: [PermissionFlagsBits.ViewChannel] })),
-    ...staffRoleIds.map((id) => ({ id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }))
+    ...otherRoleIds.map((id) => ({ id, deny: [PermissionFlagsBits.ViewChannel] }))
   ];
 
   if (input.mode === "identified") {
+    overwrites.push(...staffRoleIds.map((id) => ({ id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] })));
+    overwrites.push({ id: input.openerId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ReadMessageHistory] });
+  } else {
+    overwrites.push(...staffRoleIds.map((id) => ({ id, deny: [PermissionFlagsBits.ViewChannel] })));
     overwrites.push({ id: input.openerId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ReadMessageHistory] });
   }
 

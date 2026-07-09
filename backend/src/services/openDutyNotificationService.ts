@@ -165,7 +165,7 @@ export async function resetOpenDutyCounter(botId: string | null, guildId: string
 }
 
 function shouldTriggerFineLog(total: number) {
-  return total === 2 || total >= 3;
+  return total >= 3;
 }
 
 function mapSettings(settings: MongoOpenDutySettings) {

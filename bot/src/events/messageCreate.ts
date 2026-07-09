@@ -12,6 +12,7 @@ import { isBotModuleEnabled } from "../config/env";
 import { canModerateMessage } from "../services/moderationChannelPolicy";
 import { capturePolicePatrolMessage } from "../services/policePatrolReportService";
 import { handlePoliceHiddenChannelMessage } from "../services/policeHiddenChannelService";
+import { handleReportSystemMessage } from "../services/reportSystemService";
 
 const MUSIC_PREFIX_COMMANDS = new Set(["music", "play", "artist", "pause", "resume", "skip", "stop", "queue", "clearqueue", "nowplaying", "volume", "loop", "shuffle"]);
 
@@ -24,6 +25,10 @@ export async function handleMessageCreate(message: Message, context: BotContext)
   });
 
   if (await handlePoliceHiddenChannelMessage(message, context)) {
+    return;
+  }
+
+  if (await handleReportSystemMessage(message, context)) {
     return;
   }
 

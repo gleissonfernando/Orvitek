@@ -151,7 +151,8 @@ transcriptsRouter.post("/bot", async (req, res, next) => {
     if (!isBotRequest(req)) {
       return res.status(403).json({ message: "Rota disponivel apenas para o bot." });
     }
-    const input = createTranscriptSchema.parse(req.body);
+    const botId = await resolveRequestBotId(req);
+    const input = createTranscriptSchema.parse({ ...req.body, botId });
     const result = await createTranscript(input);
     return res.status(201).json(result);
   } catch (error) {

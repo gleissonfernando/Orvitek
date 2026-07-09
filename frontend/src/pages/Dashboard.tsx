@@ -3027,8 +3027,8 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
       setPanels((current) => [saved, ...current.filter((panel) => panel.id !== saved.id)]);
       setDraft(saved);
       setMessage("Hierarquia FAQ salva.");
-    } catch {
-      setError("Nao foi possivel salvar o painel de hierarquia.");
+    } catch (error) {
+      setError(readResponseMessage(error) ?? "Nao foi possivel salvar o painel de hierarquia.");
     } finally {
       setSaving(false);
     }
@@ -3047,8 +3047,8 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
       setDraft(saved);
       await publishFivemHierarchyPanel(guild.id, saved.id, botId);
       setMessage("Hierarquia salva e publicada no Discord.");
-    } catch {
-      setError("Nao foi possivel publicar. Confira canal, cargos e permissoes do bot.");
+    } catch (error) {
+      setError(readResponseMessage(error) ?? "Nao foi possivel publicar. Confira canal, cargos e permissoes do bot.");
     } finally {
       setSaving(false);
     }

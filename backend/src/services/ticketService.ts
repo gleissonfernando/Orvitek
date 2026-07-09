@@ -149,6 +149,17 @@ export async function getTicketByChannel(channelId: string, botId?: string | nul
   }
 }
 
+export async function getTicketById(ticketId: string, botId?: string | null) {
+  const normalizedBotId = normalizeBotId(botId);
+  try {
+    const { tickets } = await getMongoCollections();
+    const ticket = await tickets.findOne({ _id: ticketId, ...scopedQuery(undefined, normalizedBotId) });
+    return ticket ? toDto(ticket) : null;
+  } catch {
+    return memoryTickets.find((ticket) => ticket.id === ticketId && ticket.botId === normalizedBotId) ?? null;
+  }
+}
+
 export async function updateTicketStatus(ticketId: string, input: Partial<Pick<MongoTicket, "status" | "responsibleUserId" | "closeReason" | "finalResult" | "internalNotes" | "closedById" | "closedAt" | "isIncomplete">>) {
   const { tickets } = await getMongoCollections();
   const $set: Partial<MongoTicket> = {};

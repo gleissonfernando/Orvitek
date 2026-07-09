@@ -1685,6 +1685,11 @@ export class ApiClient {
     return data.ticket;
   }
 
+  async getTicket(ticketId: string) {
+    const { data } = await this.http.get<{ ticket: TicketRecord | null }>(`/tickets/bot/${ticketId}`);
+    return data.ticket;
+  }
+
   async updateTicketStatus(ticketId: string, input: Record<string, unknown>) {
     const { data } = await this.http.patch<{ ticket: TicketRecord | null }>(`/tickets/bot/${ticketId}/status`, input);
     return data.ticket;
@@ -1695,7 +1700,7 @@ export class ApiClient {
   }
 
   async createTranscript(input: Record<string, unknown>) {
-    const { data } = await this.http.post<TranscriptCreateResult>("/transcripts/bot", input, { timeout: 20_000 });
+    const { data } = await this.http.post<TranscriptCreateResult>("/transcripts/bot", input, { timeout: 60_000 });
     return data;
   }
 

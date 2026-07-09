@@ -65,7 +65,7 @@ app.use(
 );
 app.use(cookieParser());
 app.use(express.json({
-  limit: "1mb",
+  limit: "10mb",
   verify: (req, _res, buf) => {
     (req as typeof req & { rawBody?: Buffer }).rawBody = Buffer.from(buf);
   }

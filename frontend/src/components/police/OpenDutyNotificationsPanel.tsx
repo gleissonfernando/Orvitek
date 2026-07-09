@@ -123,10 +123,10 @@ export function OpenDutyNotificationsPanel({ botId, canManage, guild }: Props) {
 
           <div className="grid gap-4 md:grid-cols-2">
             <SelectField disabled={disabled} label="Canal de logs" onChange={(value) => patch("logChannelId", value || null)} options={channels.map((channel) => ({ label: `#${channel.name}`, value: channel.id }))} value={settings.logChannelId ?? ""} />
-            <SelectField disabled={disabled} label="Canal de multas (2/3 e 3/3)" onChange={(value) => patch("alertChannelId", value || null)} options={channels.map((channel) => ({ label: `#${channel.name}`, value: channel.id }))} value={settings.alertChannelId ?? ""} />
+            <SelectField disabled={disabled} label="Canal de multas (3/3)" onChange={(value) => patch("alertChannelId", value || null)} options={channels.map((channel) => ({ label: `#${channel.name}`, value: channel.id }))} value={settings.alertChannelId ?? ""} />
             <div className="rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-300">
               <p className="font-medium text-zinc-100">Regra de contagem</p>
-              <p className="mt-1">O canal de multas recebe logs em 2/3 e 3/3. Ao chegar em 3/3, o contador zera e inicia uma nova contagem.</p>
+              <p className="mt-1">As logs internas continuam em todos os envios. O canal de multas recebe mensagem somente em 3/3; depois disso, o contador zera e inicia uma nova contagem.</p>
             </div>
             <label className="text-sm font-medium text-zinc-200">
               Cor do painel

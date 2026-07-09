@@ -28,6 +28,7 @@ import {
 import type { BotCommand, BotContext } from "../types";
 import { renderComponentsV2Panel } from "./panelVisualRenderer";
 import type { Course, CoursePublication, CourseScheduleRequest, CourseSettings } from "./apiClient";
+import { openReportSystemAdmin } from "./reportSystemService";
 
 const IDS = {
   addCourse: "course_config_add",
@@ -71,11 +72,18 @@ export const configCourseCommand: BotCommand = {
   data: new SlashCommandBuilder()
     .setName("config")
     .setDescription("Configura módulos do bot.")
-    .addSubcommand((subcommand) => subcommand.setName("curso").setDescription("Abre a configuração do Sistema de Cursos.")),
+    .addSubcommand((subcommand) => subcommand.setName("curso").setDescription("Abre a configuração do Sistema de Cursos."))
+    .addSubcommand((subcommand) => subcommand.setName("iab").setDescription("Abre o painel IAB Config.")),
   moduleId: "courses",
   async execute(interaction, context) {
-    if (interaction.options.getSubcommand() !== "curso") return;
-    await openCourseConfig(interaction, context);
+    const subcommand = interaction.options.getSubcommand();
+    if (subcommand === "curso") {
+      await openCourseConfig(interaction, context);
+      return;
+    }
+    if (subcommand === "iab") {
+      await openReportSystemAdmin(interaction, context);
+    }
   }
 };
 

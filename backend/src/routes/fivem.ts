@@ -1129,10 +1129,6 @@ async function validateHierarchyResources(guildId: string, botId: string, input:
     throw createRouteError("Um dos canais selecionados nao pertence a este servidor.", 400);
   }
 
-  if (input.panelChannelId) {
-    await assertPanelChannelReady(guildId, botId, input.panelChannelId);
-  }
-
   const roleIds = [
     ...(input.allowedRoleIds ?? []),
     ...(input.hierarchies ?? []).map((item) => item.roleId)

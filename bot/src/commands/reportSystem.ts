@@ -18,3 +18,12 @@ export const iabCommand: BotCommand = {
   execute: openReportSystemAdmin,
   moduleId: "police-iab"
 };
+
+export const configCommand: BotCommand = {
+  data: new SlashCommandBuilder()
+    .setName("config")
+    .setDescription("Abre paineis de configuracao do bot.")
+    .addSubcommand((subcommand) => subcommand.setName("iab").setDescription("Abre o painel IAB Config.")),
+  execute: openReportSystemAdmin,
+  moduleId: "police-iab"
+};

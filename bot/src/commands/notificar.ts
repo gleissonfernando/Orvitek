@@ -102,7 +102,7 @@ async function openConfigSummary(interaction: ChatInputCommandInteraction, conte
       description: "Resumo da configuracao principal. Use a dashboard para editar todos os campos.",
       fields: [
         `**Logs internas:** ${settings.logChannelId ? `<#${settings.logChannelId}>` : "nao configurado"}\n**Canal de multas:** ${settings.alertChannelId ? `<#${settings.alertChannelId}>` : "nao configurado"}`,
-        `**Cargos autorizados:** ${settings.allowedRoleIds.length ? settings.allowedRoleIds.map((id) => `<@&${id}>`).join(", ") : "nenhum"}\n**Regra:** multa em 2/3 e 3/3; zera ao chegar em 3/3.`
+        `**Cargos autorizados:** ${settings.allowedRoleIds.length ? settings.allowedRoleIds.map((id) => `<@&${id}>`).join(", ") : "nenhum"}\n**Regra:** envia multa ao chegar em 3/3; zera e inicia uma nova contagem.`
       ],
       title: "Configurar Ponto Aberto"
     }),
@@ -232,15 +232,12 @@ async function sendAlert(interaction: ButtonInteraction, settings: OpenDutySetti
   if (!channelId || !interaction.guild) return;
   const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
   if (!channel?.isTextBased() || channel.isDMBased()) return;
-  const reachedLimit = total >= 3;
   await channel.send(panel(settings, {
-    description: reachedLimit
-      ? `${settings.alertMessage}\n\nO contador foi zerado automaticamente e uma nova contagem foi iniciada.`
-      : "O usuario chegou em 2/3 avisos verbais por ponto aberto. Caso receba mais uma notificacao, sera enviado o alerta de multa e o contador sera zerado.",
+    description: `${settings.alertMessage}\n\nO contador foi zerado automaticamente e uma nova contagem foi iniciada.`,
     fields: [
       `**Usuario:** <@${target.id}>\n**ID:** ${target.id}\n**Progresso:** ${Math.min(total, 3)}/3\n**Ultima notificacao:** <t:${Math.floor(Date.now() / 1000)}:F>`
     ],
-    title: reachedLimit ? "Alerta de Multa - 3/3 Avisos" : "Aviso de Multa - 2/3 Avisos"
+    title: "Alerta de Multa - 3/3 Avisos"
   })).catch(() => null);
 }
 
