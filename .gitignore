@@ -10,6 +10,7 @@ build
 !**/.env.example
 .env.local
 .env.*.local
+.orvitek-runtime-env.json
 coverage
 dev-logs
 logs

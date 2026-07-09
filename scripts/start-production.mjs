@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 
 const children = new Set();
+loadRuntimeConfigFile();
 process.env.NODE_ENV = "production";
 process.env.HOST ||= "0.0.0.0";
 process.env.PORT ||= "8080";
@@ -10,6 +11,32 @@ process.env.BOT_API_TOKEN ||= packedConfigValue("BOT_API_TOKEN") || randomBytes(
 process.env.START_REGISTERED_DEV_BOTS ||= packedConfigValue("START_REGISTERED_DEV_BOTS") || (discloudStartEnablesDevBots() ? "true" : "");
 process.env.BACKEND_API_URL = `http://127.0.0.1:${process.env.PORT}/api`;
 process.env.BACKEND_SOCKET_URL = `http://127.0.0.1:${process.env.PORT}`;
+
+function loadRuntimeConfigFile() {
+  const path = ".orvitek-runtime-env.json";
+  if (!existsSync(path)) {
+    return;
+  }
+
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("arquivo precisa conter um objeto JSON.");
+    }
+
+    for (const [key, value] of Object.entries(parsed)) {
+      if (!/^[A-Z0-9_]+$/.test(key) || value === null || value === undefined) {
+        continue;
+      }
+
+      if (!process.env[key]?.trim()) {
+        process.env[key] = typeof value === "string" ? value : String(value);
+      }
+    }
+  } catch (error) {
+    console.warn("[start] .orvitek-runtime-env.json invalido:", error instanceof Error ? error.message : error);
+  }
+}
 
 function packedConfigValue(key) {
   const jsonConfig = process.env.APP_CONFIG_JSON?.trim();
