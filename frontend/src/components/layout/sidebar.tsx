@@ -55,6 +55,7 @@ export type ViewId =
   | "manual-payments"
   | "price-tables"
   | "courses"
+  | "rh-admin"
   | "mission-tools"
   | "voice-recorder"
   | "music"
@@ -136,6 +137,7 @@ const navItems: NavItem[] = [
   { id: "manual-payments", label: "Pagamentos", icon: CreditCard, moduleId: "manual-payments" },
   { id: "price-tables", label: "Tabela de Precos", icon: TableProperties, moduleId: "price-tables" },
   { id: "courses", label: "Cursos", icon: BookOpen, moduleId: "courses" },
+  { id: "rh-admin", label: "RH Administrativo", icon: ShieldCheck, moduleId: "rh-admin" },
   { id: "mission-tools", label: "Mission Tools", icon: ListChecks, moduleId: "mission-tools" },
   { id: "voice-recorder", label: "Voice Recorder", icon: Mic2, moduleId: "voice-recorder" },
   { id: "music", label: "Música", icon: Music2, moduleId: "music" },
@@ -195,6 +197,7 @@ function navSectionForItem(item: NavItem): NavSectionId {
     || item.id === "police-patrol-reports"
     || item.id === "police-hidden-channel"
     || item.id === "police-dm"
+    || item.id === "rh-admin"
     || item.moduleId === "fivem-hierarchy"
     || item.moduleId === "police-absences"
     || item.moduleId === "police-actions"
@@ -202,6 +205,7 @@ function navSectionForItem(item: NavItem): NavSectionId {
     || item.moduleId === "police-patrol-reports"
     || item.moduleId === "police-hidden-channel"
     || item.moduleId === "police-dm"
+    || item.moduleId === "rh-admin"
   ) {
     return "police";
   }

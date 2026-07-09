@@ -66,6 +66,7 @@ import { SiteAccessPanel } from "../components/moderation/SiteAccessPanel";
 import { PanelImageSettings } from "../components/panels/PanelImageSettings";
 import { ManualPaymentsPanel } from "../components/manual-payments/ManualPaymentsPanel";
 import { PriceTablesPanel } from "../components/price-tables/PriceTablesPanel";
+import { RhAdminPanel } from "../components/rh-admin/RhAdminPanel";
 import { VoiceRecorderPanel } from "../components/moderation/VoiceRecorderPanel";
 import { AccountAgeSecurityPanel } from "../components/security/AccountAgeSecurityPanel";
 import { AntiBanPanel } from "../components/security/AntiBanPanel";
@@ -533,6 +534,13 @@ const moduleCatalog: ModuleDefinition[] = [
     view: "police-dm"
   },
   {
+    id: "rh-admin",
+    title: "RH Administrativo",
+    description: "Solicitações de ausência, adornos, análise de RH, cargos temporários e logs policiais.",
+    icon: ShieldCheck,
+    view: "rh-admin"
+  },
+  {
     id: "police-iab",
     title: "Denuncias Corregedoria",
     description: "Painel IAB com denuncias anonimas, orgaos, logs e auditoria policial.",
@@ -642,6 +650,7 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   "police-patrol-reports": "police-patrol-reports",
   "police-hidden-channel": "police-hidden-channel",
   "police-dm": "police-dm",
+  "rh-admin": "rh-admin",
   "police-iab": "police-iab",
   "fivem-orders": "fivem-orders",
   "fivem-families": "fivem-orders",
@@ -1394,6 +1403,13 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             botId={activeBotId}
             canManage={canManageModule(selectedBot, "police-dm", canManageDashboard)}
             guild={selectedGuild}
+          />
+        ) : null}
+        {activeView === "rh-admin" && selectedGuild && activeBotId ? (
+          <RhAdminPanel
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "rh-admin", canManageDashboard)}
+            guildId={selectedGuild.id}
           />
         ) : null}
         {activeView === "police-iab" ? (

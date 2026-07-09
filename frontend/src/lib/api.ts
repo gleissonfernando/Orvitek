@@ -84,6 +84,7 @@ import type {
   PriceTablesDashboard,
   PublicOrvitechProduct,
   PublicKickClips,
+  RhAdminDashboard,
   SaveClipsConfigPayload,
   SaveCoursePayload,
   SaveCourseSettingsPayload,
@@ -100,6 +101,7 @@ import type {
   SaveOrvitechSalesSettingsPayload,
   SavePanelImageSettingsPayload,
   SavePriceTablePayload,
+  SaveRhAdminSettingsPayload,
   SaveSelfBotProtectionSettingsPayload,
   SaveSocialPanelPayload,
   SaveVoiceRecorderSettingsPayload,
@@ -2057,6 +2059,22 @@ export async function deleteCourseApi(botId: string, guildId: string, courseId: 
     { params: botParams(botId) }
   );
   return data.course;
+}
+
+export async function getRhAdminDashboard(botId: string, guildId: string) {
+  const { data } = await api.get<RhAdminDashboard>(`/rh-admin/${encodeURIComponent(guildId)}`, {
+    params: botParams(botId)
+  });
+  return data;
+}
+
+export async function saveRhAdminSettings(botId: string, guildId: string, payload: SaveRhAdminSettingsPayload) {
+  const { data } = await api.patch<{ settings: RhAdminDashboard["settings"] }>(
+    `/rh-admin/${encodeURIComponent(guildId)}/settings`,
+    payload,
+    { params: botParams(botId) }
+  );
+  return data.settings;
 }
 
 export async function createPriceTable(botId: string, guildId: string, payload: SavePriceTablePayload) {

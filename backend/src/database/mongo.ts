@@ -353,6 +353,113 @@ export type MongoCourseLog = {
   createdAt: Date;
 };
 
+export type MongoRhAdminSettings = {
+  _id: string;
+  botId: string | null;
+  guildId: string;
+  enabled: boolean;
+  systemName: string;
+  color: string;
+  panelChannelId: string | null;
+  absencePanelChannelId: string | null;
+  absenceReviewChannelId: string | null;
+  absenceLogChannelId: string | null;
+  adornmentPanelChannelId: string | null;
+  adornmentReviewChannelId: string | null;
+  adornmentLogChannelId: string | null;
+  generalLogChannelId: string | null;
+  absenceRoleId: string | null;
+  configUserIds: string[];
+  configRoleIds: string[];
+  approverUserIds: string[];
+  approverRoleIds: string[];
+  viewerUserIds: string[];
+  viewerRoleIds: string[];
+  panelBannerUrl: string | null;
+  dmBannerUrl: string | null;
+  approvalDmBannerUrl: string | null;
+  rejectionDmBannerUrl: string | null;
+  finishedDmBannerUrl: string | null;
+  adornmentBannerUrl: string | null;
+  panelDescription: string;
+  adornmentDescription: string;
+  approvalDmText: string;
+  rejectionDmText: string;
+  finishedDmText: string;
+  sendAbsenceDm: boolean;
+  mentionAdornmentUser: boolean;
+  allowNonDirectImageLinks: boolean;
+  checkIntervalMinutes: number;
+  buttonEmojis: {
+    absence: string;
+    adornment: string;
+    approve: string;
+    reject: string;
+    back: string;
+    save: string;
+    publish: string;
+    logs: string;
+  };
+  mainPanelMessageId: string | null;
+  mainPanelPublishedAt: Date | null;
+  updatedAt: Date;
+  updatedBy: string | null;
+};
+
+export type MongoRhAdminAbsence = {
+  _id: string;
+  botId: string | null;
+  guildId: string;
+  userId: string;
+  serverName: string;
+  startDate: string;
+  returnDate: string;
+  startAt: Date;
+  returnAt: Date;
+  reason: string;
+  status: "pending" | "approved" | "rejected" | "finished";
+  absenceRoleId: string | null;
+  reviewerId: string | null;
+  reviewedAt: Date | null;
+  rejectionReason: string | null;
+  reviewChannelId: string | null;
+  reviewMessageId: string | null;
+  roleAddedAt: Date | null;
+  roleRemovedAt: Date | null;
+  autoRemoved: boolean;
+  dmDelivered: boolean | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoRhAdminAdornment = {
+  _id: string;
+  botId: string | null;
+  guildId: string;
+  userId: string;
+  serverName: string;
+  number: string;
+  imageUrl: string;
+  observation: string | null;
+  channelId: string | null;
+  messageId: string | null;
+  createdAt: Date;
+};
+
+export type MongoRhAdminLog = {
+  _id: string;
+  botId: string | null;
+  guildId: string;
+  userId: string | null;
+  action: string;
+  actorId: string | null;
+  description: string;
+  status: "success" | "warning" | "error" | "denied" | "info";
+  metadata: Record<string, unknown>;
+  channelId: string | null;
+  createdAt: Date;
+};
+
 export type MongoManualRegistrationField = {
   enabled?: boolean;
   id: string;
@@ -2930,6 +3037,10 @@ export async function getMongoCollections() {
     courseScheduleRequests: db.collection<MongoCourseScheduleRequest>("course_schedule_requests"),
     courseReports: db.collection<MongoCourseReport>("course_reports"),
     courseLogs: db.collection<MongoCourseLog>("course_logs"),
+    rhAdminSettings: db.collection<MongoRhAdminSettings>("rh_admin_settings"),
+    rhAdminAbsences: db.collection<MongoRhAdminAbsence>("rh_admin_absences"),
+    rhAdminAdornments: db.collection<MongoRhAdminAdornment>("rh_admin_adornments"),
+    rhAdminLogs: db.collection<MongoRhAdminLog>("rh_admin_logs"),
     manualRegistrationSettings: db.collection<MongoManualRegistrationSettings>("manual_registration_settings"),
     manualRegistrationSubmissions: db.collection<MongoManualRegistrationSubmission>("manual_registration_submissions"),
     manualRegistrationLogs: db.collection<MongoManualRegistrationLog>("manual_registration_logs"),
@@ -3104,6 +3215,12 @@ async function createMongoIndexes(db: Db) {
     db.collection<MongoCourseScheduleRequest>("course_schedule_requests").createIndex({ botId: 1, guildId: 1, status: 1, createdAt: -1 }),
     db.collection<MongoCourseReport>("course_reports").createIndex({ botId: 1, guildId: 1, courseId: 1, createdAt: -1 }),
     db.collection<MongoCourseLog>("course_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoRhAdminSettings>("rh_admin_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    db.collection<MongoRhAdminAbsence>("rh_admin_absences").createIndex({ botId: 1, guildId: 1, status: 1, createdAt: -1 }),
+    db.collection<MongoRhAdminAbsence>("rh_admin_absences").createIndex({ botId: 1, status: 1, returnAt: 1, autoRemoved: 1 }),
+    db.collection<MongoRhAdminAbsence>("rh_admin_absences").createIndex({ botId: 1, guildId: 1, reviewMessageId: 1 }),
+    db.collection<MongoRhAdminAdornment>("rh_admin_adornments").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoRhAdminLog>("rh_admin_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
     db.collection<MongoManualRegistrationSettings>("manual_registration_settings").createIndex(
       { botId: 1, guildId: 1 },
       { unique: true }

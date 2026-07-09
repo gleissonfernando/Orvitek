@@ -151,6 +151,13 @@ export const BUILTIN_FIVEM_MODULES: FivemModuleDefinition[] = [
   },
   {
     builtIn: true,
+    description: "Solicitacoes de ausencia, adornos, aprovacao, cargo temporario e logs administrativos de RH.",
+    id: "rh-admin",
+    permissions: "Admin Policia, RH",
+    title: "RH Administrativo"
+  },
+  {
+    builtIn: true,
     description: "Intimacoes, notificacoes, prazos e comprovantes de comparecimento.",
     id: "police-subpoenas",
     permissions: "Admin Policia, Investigacao",

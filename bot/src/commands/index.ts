@@ -21,6 +21,7 @@ import { policeHiddenChannelCommand } from "../services/policeHiddenChannelServi
 import { dmBarCommand } from "../services/dmBarService";
 import { policeSubpoenaCommand } from "../services/policeSubpoenaService";
 import { configCourseCommand, courseCommand } from "../services/courseSystemService";
+import { rhAdminCommand } from "../services/rhAdminService";
 import type { BotCommand } from "../types";
 
 export function createCommandCollection() {
@@ -49,6 +50,7 @@ export function createCommandCollection() {
     policeSubpoenaCommand,
     configCourseCommand,
     courseCommand,
+    rhAdminCommand,
     sistemaCommand,
     iabCommand,
     serverClonerCommand,

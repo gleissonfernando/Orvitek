@@ -148,6 +148,90 @@ export type CourseReport = {
   createdAt: string;
 };
 
+export type RhAdminSettings = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  enabled: boolean;
+  systemName: string;
+  color: string;
+  panelChannelId: string | null;
+  absencePanelChannelId: string | null;
+  absenceReviewChannelId: string | null;
+  absenceLogChannelId: string | null;
+  adornmentPanelChannelId: string | null;
+  adornmentReviewChannelId: string | null;
+  adornmentLogChannelId: string | null;
+  generalLogChannelId: string | null;
+  absenceRoleId: string | null;
+  configUserIds: string[];
+  configRoleIds: string[];
+  approverUserIds: string[];
+  approverRoleIds: string[];
+  viewerUserIds: string[];
+  viewerRoleIds: string[];
+  panelBannerUrl: string | null;
+  dmBannerUrl: string | null;
+  approvalDmBannerUrl: string | null;
+  rejectionDmBannerUrl: string | null;
+  finishedDmBannerUrl: string | null;
+  adornmentBannerUrl: string | null;
+  panelDescription: string;
+  adornmentDescription: string;
+  approvalDmText: string;
+  rejectionDmText: string;
+  finishedDmText: string;
+  sendAbsenceDm: boolean;
+  mentionAdornmentUser: boolean;
+  allowNonDirectImageLinks: boolean;
+  checkIntervalMinutes: number;
+  buttonEmojis: { absence: string; adornment: string; approve: string; reject: string; back: string; save: string; publish: string; logs: string };
+  mainPanelMessageId: string | null;
+  mainPanelPublishedAt: string | null;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+
+export type RhAdminAbsence = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  userId: string;
+  serverName: string;
+  startDate: string;
+  returnDate: string;
+  startAt: string;
+  returnAt: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected" | "finished";
+  absenceRoleId: string | null;
+  reviewerId: string | null;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
+  reviewChannelId: string | null;
+  reviewMessageId: string | null;
+  roleAddedAt: string | null;
+  roleRemovedAt: string | null;
+  autoRemoved: boolean;
+  dmDelivered: boolean | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RhAdminAdornment = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  userId: string;
+  serverName: string;
+  number: string;
+  imageUrl: string;
+  observation: string | null;
+  channelId: string | null;
+  messageId: string | null;
+  createdAt: string;
+};
+
 export type LiveEventInput = {
   botId?: string | null;
   guildId: string;
@@ -1702,6 +1786,72 @@ export class ApiClient {
   }) {
     const { data } = await this.http.post<{ report: CourseReport }>(`/courses/bot/${guildId}/reports`, input);
     return data.report;
+  }
+
+  async getRhAdminSettings(guildId: string) {
+    const { data } = await this.http.get<{ settings: RhAdminSettings }>(`/rh-admin/bot/${guildId}/settings`);
+    return data.settings;
+  }
+
+  async saveRhAdminSettings(guildId: string, input: Partial<RhAdminSettings>, actorId?: string | null) {
+    const { data } = await this.http.post<{ settings: RhAdminSettings }>(`/rh-admin/bot/${guildId}/settings`, input, {
+      headers: actorId ? { "x-actor-id": actorId } : undefined
+    });
+    return data.settings;
+  }
+
+  async canApproveRhAbsence(guildId: string, input: { isAdministrator?: boolean; roleIds: string[]; userId: string }) {
+    const { data } = await this.http.post<{ allowed: boolean }>(`/rh-admin/bot/${guildId}/permissions/approver`, input);
+    return data.allowed;
+  }
+
+  async createRhAbsence(guildId: string, input: { reason: string; returnAt: string; returnDate: string; serverName: string; startAt: string; startDate: string; userId: string }) {
+    const { data } = await this.http.post<{ absence: RhAdminAbsence }>(`/rh-admin/bot/${guildId}/absences`, input);
+    return data.absence;
+  }
+
+  async getRhAbsence(guildId: string, absenceId: string) {
+    const { data } = await this.http.get<{ absence: RhAdminAbsence }>(`/rh-admin/bot/${guildId}/absences/${absenceId}`);
+    return data.absence;
+  }
+
+  async updateRhAbsenceMessage(guildId: string, absenceId: string, input: { reviewChannelId?: string | null; reviewMessageId?: string | null }) {
+    const { data } = await this.http.patch<{ absence: RhAdminAbsence }>(`/rh-admin/bot/${guildId}/absences/${absenceId}/message`, input);
+    return data.absence;
+  }
+
+  async decideRhAbsence(guildId: string, absenceId: string, input: { actorId: string; rejectionReason?: string | null; roleIds: string[]; status: "approved" | "rejected" }) {
+    const { data } = await this.http.post<{ absence: RhAdminAbsence }>(`/rh-admin/bot/${guildId}/absences/${absenceId}/decision`, input);
+    return data.absence;
+  }
+
+  async markRhAbsenceRoleAdded(guildId: string, absenceId: string, roleAdded = true) {
+    const { data } = await this.http.post<{ absence: RhAdminAbsence }>(`/rh-admin/bot/${guildId}/absences/${absenceId}/role-added`, { roleAdded });
+    return data.absence;
+  }
+
+  async finishRhAbsence(guildId: string, absenceId: string, input: { dmDelivered?: boolean | null; roleRemoved?: boolean }) {
+    const { data } = await this.http.post<{ absence: RhAdminAbsence }>(`/rh-admin/bot/${guildId}/absences/${absenceId}/finish`, input);
+    return data.absence;
+  }
+
+  async getDueRhAbsences() {
+    const { data } = await this.http.get<{ absences: RhAdminAbsence[] }>("/rh-admin/bot/absences/due");
+    return data.absences;
+  }
+
+  async createRhAdornment(guildId: string, input: { imageUrl: string; number: string; observation?: string | null; serverName: string; userId: string }) {
+    const { data } = await this.http.post<{ adornment: RhAdminAdornment }>(`/rh-admin/bot/${guildId}/adornments`, input);
+    return data.adornment;
+  }
+
+  async updateRhAdornmentMessage(guildId: string, adornmentId: string, input: { channelId?: string | null; messageId?: string | null }) {
+    const { data } = await this.http.patch<{ adornment: RhAdminAdornment }>(`/rh-admin/bot/${guildId}/adornments/${adornmentId}/message`, input);
+    return data.adornment;
+  }
+
+  async createRhAdminLog(guildId: string, input: { action: string; actorId?: string | null; channelId?: string | null; description: string; metadata?: Record<string, unknown>; status?: "success" | "warning" | "error" | "denied" | "info"; userId?: string | null }) {
+    await this.http.post(`/rh-admin/bot/${guildId}/logs`, input);
   }
 
   async getSettings(guildId: string, discordBotClientId?: string | null) {

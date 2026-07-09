@@ -1462,6 +1462,7 @@ function fiveMModuleIcon(moduleId: string): LucideIcon {
     "police-patrol-reports": ShieldCheck,
     "police-hidden-channel": EyeOff,
     "police-dm": Bell,
+    "rh-admin": ShieldCheck,
     "police-subpoenas": ScrollText,
     "police-open-duty": Activity
   };
@@ -1470,7 +1471,7 @@ function fiveMModuleIcon(moduleId: string): LucideIcon {
 }
 
 function isPoliceModule(moduleId: string) {
-  return moduleId === "fivem-hierarchy" || moduleId.startsWith("police-");
+  return moduleId === "fivem-hierarchy" || moduleId === "rh-admin" || moduleId.startsWith("police-");
 }
 
 function isFiveMManagerModule(moduleId: string) {

@@ -885,6 +885,113 @@ export type CoursesDashboard = {
 export type SaveCourseSettingsPayload = Partial<Omit<CourseSettings, "id" | "botId" | "guildId" | "updatedAt">>;
 export type SaveCoursePayload = Partial<Omit<Course, "id" | "botId" | "guildId" | "createdAt" | "updatedAt">> & { name: string };
 
+export type RhAdminSettings = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  enabled: boolean;
+  systemName: string;
+  color: string;
+  panelChannelId: string | null;
+  absencePanelChannelId: string | null;
+  absenceReviewChannelId: string | null;
+  absenceLogChannelId: string | null;
+  adornmentPanelChannelId: string | null;
+  adornmentReviewChannelId: string | null;
+  adornmentLogChannelId: string | null;
+  generalLogChannelId: string | null;
+  absenceRoleId: string | null;
+  configUserIds: string[];
+  configRoleIds: string[];
+  approverUserIds: string[];
+  approverRoleIds: string[];
+  viewerUserIds: string[];
+  viewerRoleIds: string[];
+  panelBannerUrl: string | null;
+  dmBannerUrl: string | null;
+  approvalDmBannerUrl: string | null;
+  rejectionDmBannerUrl: string | null;
+  finishedDmBannerUrl: string | null;
+  adornmentBannerUrl: string | null;
+  panelDescription: string;
+  adornmentDescription: string;
+  approvalDmText: string;
+  rejectionDmText: string;
+  finishedDmText: string;
+  sendAbsenceDm: boolean;
+  mentionAdornmentUser: boolean;
+  allowNonDirectImageLinks: boolean;
+  checkIntervalMinutes: number;
+  buttonEmojis: { absence: string; adornment: string; approve: string; reject: string; back: string; save: string; publish: string; logs: string };
+  mainPanelMessageId: string | null;
+  mainPanelPublishedAt: string | null;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+
+export type RhAdminAbsence = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  userId: string;
+  serverName: string;
+  startDate: string;
+  returnDate: string;
+  startAt: string;
+  returnAt: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected" | "finished";
+  absenceRoleId: string | null;
+  reviewerId: string | null;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
+  reviewChannelId: string | null;
+  reviewMessageId: string | null;
+  roleAddedAt: string | null;
+  roleRemovedAt: string | null;
+  autoRemoved: boolean;
+  dmDelivered: boolean | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RhAdminAdornment = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  userId: string;
+  serverName: string;
+  number: string;
+  imageUrl: string;
+  observation: string | null;
+  channelId: string | null;
+  messageId: string | null;
+  createdAt: string;
+};
+
+export type RhAdminLog = {
+  id: string;
+  action: string;
+  actorId: string | null;
+  channelId: string | null;
+  createdAt: string;
+  description: string;
+  guildId: string;
+  metadata: Record<string, unknown>;
+  status: "success" | "warning" | "error" | "denied" | "info";
+  userId: string | null;
+};
+
+export type RhAdminDashboard = {
+  absences: RhAdminAbsence[];
+  adornments: RhAdminAdornment[];
+  logs: RhAdminLog[];
+  settings: RhAdminSettings;
+  stats: { approvedAbsences: number; pendingAbsences: number; sentAdornments: number };
+};
+
+export type SaveRhAdminSettingsPayload = Partial<Omit<RhAdminSettings, "id" | "botId" | "guildId" | "updatedAt">>;
+
 export type ManualRegistrationField = {
   enabled: boolean;
   id: string;
