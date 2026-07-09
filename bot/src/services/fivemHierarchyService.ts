@@ -107,15 +107,18 @@ export async function refreshHierarchyPanelsForGuild(guild: Guild, context: BotC
       ? [{ error: "Painel ativo nao encontrado para este bot. Salve o painel como ativo e confira se o bot DEV correto esta selecionado.", ok: false, panelId }]
       : [];
   }
-  await guild.members.fetch().catch(() => null);
+  const fetchedMembers = await guild.members.fetch().catch((error) => {
+    console.warn(`[fivem-hierarchy] falha ao buscar membros do servidor ${guild.id}: ${errorMessage(error)}`);
+    return null;
+  });
   const results = [];
   for (const panel of scoped) {
-    results.push(await publishHierarchyPanel(guild, context, panel));
+    results.push(await publishHierarchyPanel(guild, context, panel, (fetchedMembers ?? guild.members.cache).values()));
   }
   return results;
 }
 
-async function publishHierarchyPanel(guild: Guild, context: BotContext, panel: FivemHierarchyPanel) {
+async function publishHierarchyPanel(guild: Guild, context: BotContext, panel: FivemHierarchyPanel, members: Iterable<GuildMember>) {
   if (!panel.enabled) return { error: "O painel de hierarquia esta desativado.", ok: false, panelId: panel.id };
   if (!panel.panelChannelId) return { error: "Canal do painel de hierarquia nao configurado.", ok: false, panelId: panel.id };
   const channel = await guild.channels.fetch(panel.panelChannelId).catch(() => null);
@@ -131,8 +134,9 @@ async function publishHierarchyPanel(guild: Guild, context: BotContext, panel: F
     await logPublishFailure(context, guild.id, panel, error, permissionReport);
     return { error, ok: false, panelId: panel.id };
   }
+  await logMissingHierarchyRoles(context, guild, panel);
   const visuals = await getPanelVisualSlots(context, guild.id, "fivem-hierarchy");
-  const payload = createHierarchyPayload(guild, panel, visuals[0] ?? null, visuals.slice(1));
+  const payload = createHierarchyPayload(guild, panel, members, visuals[0] ?? null);
   let message = panel.panelMessageId ? await channel.messages.fetch(panel.panelMessageId).catch(() => null) : null;
   if (message) {
     message = await message.edit(payload).catch(async (error) => {
@@ -239,9 +243,10 @@ function discordErrorMessage(error: unknown) {
   return errorMessage(error);
 }
 
-function createHierarchyPayload(guild: Guild, panel: FivemHierarchyPanel, visual: PanelVisualConfig | null, extraImages: PanelVisualConfig[] = []) {
+function createHierarchyPayload(guild: Guild, panel: FivemHierarchyPanel, members: Iterable<GuildMember>, visual: PanelVisualConfig | null) {
   const fallbackVisual: PanelVisualConfig | null = panel.imageUrl ? { imageEnabled: true, imagePosition: panel.imagePosition === "bottom" ? "bottom" : panel.imagePosition, imageUrl: panel.imageUrl } : null;
-  return renderComponentsV2Panel({ accentColor: colorToInt(panel.color), actions: [], description: panel.description ?? "Hierarquia atualizada automaticamente pelos cargos do servidor.", extraImages, fields: [renderHierarchyText(guild, panel)], footer: panel.footerEnabled ? { text: panel.footerText ?? "OrviteK" } : { enabled: false }, image: visual?.imageEnabled ? visual : fallbackVisual, moduleId: "fivem-hierarchy", title: panel.title });
+  const singleVisual = sanitizeSingleHierarchyVisual(visual?.imageEnabled ? visual : fallbackVisual);
+  return renderComponentsV2Panel({ accentColor: colorToInt(panel.color), actions: [], description: panel.description ?? "Hierarquia atualizada automaticamente pelos cargos do servidor.", fields: [renderHierarchyText(guild, panel, members)], footer: panel.footerEnabled ? { text: panel.footerText ?? "OrviteK" } : { enabled: false }, image: singleVisual, moduleId: "fivem-hierarchy", title: panel.title });
 }
 
 async function getPanelVisualSlots(context: BotContext, guildId: string, basePanelId: string) {
@@ -255,19 +260,46 @@ async function getPanelVisualSlots(context: BotContext, guildId: string, basePan
   });
 }
 
-function renderHierarchyText(guild: Guild, panel: FivemHierarchyPanel) {
+function renderHierarchyText(guild: Guild, panel: FivemHierarchyPanel, members: Iterable<GuildMember>) {
+  const memberList = [...members];
   return panel.hierarchies
     .filter((item) => item.active)
     .sort((a, b) => a.order - b.order)
     .map((item) => {
-      const members = guild.members.cache
+      const roleExists = Boolean(guild.roles.cache.get(item.roleId));
+      const roleMembers = roleExists ? memberList
         .filter((member: GuildMember) => member.roles.cache.has(item.roleId))
-        .map((member) => `<@${member.id}>`)
-        .slice(0, item.limit ?? 50);
-      return `${item.emoji ?? ""} **${item.name}**\n${members.length ? members.join("\n") : "*Nenhum membro encontrado.*"}`;
+        .map((member) => member.displayName || member.user.username)
+        .slice(0, item.limit ?? 50) : [];
+      return `${item.emoji ?? ""} **${item.name}**\n${roleMembers.length ? roleMembers.join("\n") : "*Nenhum membro encontrado.*"}`;
     })
     .join("\n\n")
     .slice(0, 3800) || "*Nenhuma hierarquia configurada.*";
+}
+
+function sanitizeSingleHierarchyVisual(visual: PanelVisualConfig | null): PanelVisualConfig | null {
+  if (!visual?.imageEnabled || !visual.imageUrl) return null;
+  return {
+    imageEnabled: true,
+    imagePosition: visual.imagePosition === "thumbnail" ? "top" : visual.imagePosition,
+    imageUrl: visual.imageUrl
+  };
+}
+
+async function logMissingHierarchyRoles(context: BotContext, guild: Guild, panel: FivemHierarchyPanel) {
+  const missing = panel.hierarchies
+    .filter((item) => item.active && item.roleId && !guild.roles.cache.has(item.roleId))
+    .map((item) => ({ name: item.name, roleId: item.roleId }));
+  if (!missing.length) return;
+  await context.api.postLog({
+    guildId: guild.id,
+    channelId: panel.panelChannelId,
+    module: "fivem-hierarchy",
+    action: "panel.missing_roles",
+    type: "fivem_hierarchy.missing_roles",
+    message: `Cargos configurados na hierarquia nao existem mais no servidor: ${missing.map((item) => `${item.name} (${item.roleId})`).join(", ")}`,
+    metadata: { missing, panelId: panel.id }
+  }).catch(() => null);
 }
 
 function colorToInt(value: string) {
