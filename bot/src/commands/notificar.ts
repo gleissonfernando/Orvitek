@@ -2,6 +2,8 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  ChannelSelectMenuBuilder,
+  ChannelType,
   MessageFlags,
   ModalBuilder,
   PermissionFlagsBits,
@@ -9,6 +11,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
   type ButtonInteraction,
+  type ChannelSelectMenuInteraction,
   type ChatInputCommandInteraction,
   type GuildMember,
   type Interaction,
@@ -52,6 +55,9 @@ export async function handleOpenDutyNotificationInteraction(interaction: Interac
   if (interaction.isButton() && customId.startsWith(`${PREFIX}:send:`)) return sendDraft(interaction, context, customId.slice(`${PREFIX}:send:`.length));
   if (interaction.isButton() && customId.startsWith(`${PREFIX}:edit:`)) return editDraft(interaction, customId.slice(`${PREFIX}:edit:`.length));
   if (interaction.isButton() && customId.startsWith(`${PREFIX}:cancel:`)) return cancelDraft(interaction, context, customId.slice(`${PREFIX}:cancel:`.length));
+  if (interaction.isChannelSelectMenu() && customId === `${PREFIX}:config:mention`) return updateConfigChannel(interaction, context, "mentionChannelId");
+  if (interaction.isChannelSelectMenu() && customId === `${PREFIX}:config:log`) return updateConfigChannel(interaction, context, "logChannelId");
+  if (interaction.isChannelSelectMenu() && customId === `${PREFIX}:config:alert`) return updateConfigChannel(interaction, context, "alertChannelId");
   if (interaction.isModalSubmit() && customId.startsWith(`${PREFIX}:modal:`)) return submitEdit(interaction, context, customId.slice(`${PREFIX}:modal:`.length));
   return false;
 }
@@ -87,7 +93,10 @@ async function openNotificationPanel(interaction: ChatInputCommandInteraction, c
     ...panel(settings, {
       actions: [actionRow(draftId, settings)],
       description: `Usuario selecionado: ${target}\n\nPrevia da mensagem que sera enviada por DM:`,
-      fields: [message],
+      fields: [
+        `**Canal mencionado na DM:** ${settings.mentionChannelId ? `<#${settings.mentionChannelId}>` : "nao configurado"}\n**Variavel de canal:** ${hasChannelVariable(settings.defaultMessage) ? "ativa" : "adicione {canal} ou {channel} na mensagem padrao"}`,
+        message
+      ],
       title: "Notificacao de Ponto Aberto"
     }),
     flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
@@ -98,16 +107,20 @@ async function openConfigSummary(interaction: ChatInputCommandInteraction, conte
   if (!interaction.guild) return interaction.reply({ content: "Use este comando dentro de um servidor.", ephemeral: true });
   const settings = await context.api.getOpenDutySettings(interaction.guild.id);
   await interaction.reply({
-    ...panel(settings, {
-      description: "Resumo da configuracao principal. Use a dashboard para editar todos os campos.",
-      fields: [
-        `**Logs internas:** ${settings.logChannelId ? `<#${settings.logChannelId}>` : "nao configurado"}\n**Canal de multas:** ${settings.alertChannelId ? `<#${settings.alertChannelId}>` : "nao configurado"}\n**Canal mencionado na DM:** ${settings.mentionChannelId ? `<#${settings.mentionChannelId}>` : "nao configurado"}`,
-        `**Cargos autorizados:** ${settings.allowedRoleIds.length ? settings.allowedRoleIds.map((id) => `<@&${id}>`).join(", ") : "nenhum"}\n**Regra:** envia multa ao chegar em 3/3; zera e inicia uma nova contagem.`
-      ],
-      title: "Configurar Ponto Aberto"
-    }),
+    ...configPanel(settings),
     flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
   });
+}
+
+async function updateConfigChannel(interaction: ChannelSelectMenuInteraction, context: BotContext, key: "alertChannelId" | "logChannelId" | "mentionChannelId") {
+  if (!interaction.guildId) return false;
+  const channelId = interaction.values[0] ?? null;
+  const settings = await context.api.saveOpenDutySettings(interaction.guildId, { [key]: channelId }, interaction.user.id);
+  await interaction.update({
+    ...configPanel(settings),
+    flags: MessageFlags.IsComponentsV2
+  });
+  return true;
 }
 
 async function sendDraft(interaction: ButtonInteraction, context: BotContext, draftId: string) {
@@ -260,6 +273,33 @@ function confirmEditedRow(draftId: string, settings: OpenDutySettings) {
   ).toJSON();
 }
 
+function configPanel(settings: OpenDutySettings) {
+  return panel(settings, {
+    actions: [
+      channelSelectRow(`${PREFIX}:config:mention`, "Canal que sera mencionado na DM", settings.mentionChannelId),
+      channelSelectRow(`${PREFIX}:config:log`, "Canal de logs internas", settings.logChannelId),
+      channelSelectRow(`${PREFIX}:config:alert`, "Canal de multas 3/3", settings.alertChannelId)
+    ],
+    description: "Resumo da configuracao principal. Selecione os canais abaixo para salvar direto pelo Discord.",
+    fields: [
+      `**Logs internas:** ${settings.logChannelId ? `<#${settings.logChannelId}>` : "nao configurado"}\n**Canal de multas:** ${settings.alertChannelId ? `<#${settings.alertChannelId}>` : "nao configurado"}\n**Canal mencionado na DM:** ${settings.mentionChannelId ? `<#${settings.mentionChannelId}>` : "nao configurado"}`,
+      `**Variavel de canal na mensagem:** ${hasChannelVariable(settings.defaultMessage) ? "configurada" : "ausente - use {canal} ou {channel}"}\n**Cargos autorizados:** ${settings.allowedRoleIds.length ? settings.allowedRoleIds.map((id) => `<@&${id}>`).join(", ") : "nenhum"}\n**Regra:** envia multa ao chegar em 3/3; zera e inicia uma nova contagem.`
+    ],
+    title: "Configurar Ponto Aberto"
+  });
+}
+
+function channelSelectRow(customId: string, placeholder: string, selectedChannelId: string | null) {
+  const select = new ChannelSelectMenuBuilder()
+    .setCustomId(customId)
+    .setPlaceholder(placeholder)
+    .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+    .setMinValues(1)
+    .setMaxValues(1);
+  if (selectedChannelId) select.setDefaultChannels(selectedChannelId);
+  return new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(select).toJSON();
+}
+
 function panel(settings: OpenDutySettings, input: { actions?: unknown[]; description: string; fields?: string[]; title: string }) {
   return renderComponentsV2Panel({
     accentColor: color(settings.panelColor),
@@ -286,6 +326,10 @@ function renderMessage(template: string, target: User, settings: OpenDutySetting
     .replaceAll("<@usuario>", `<@${target.id}>`)
     .replaceAll("{canal}", channelMention)
     .replaceAll("{channel}", channelMention);
+}
+
+function hasChannelVariable(template: string) {
+  return /\{(?:canal|channel)\}/i.test(template);
 }
 
 function color(value: string) {

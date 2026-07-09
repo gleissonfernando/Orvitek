@@ -2656,6 +2656,11 @@ export class ApiClient {
     return data.settings;
   }
 
+  async saveOpenDutySettings(guildId: string, input: Partial<OpenDutySettings>, actorId?: string | null) {
+    const { data } = await this.http.patch<{ settings: OpenDutySettings }>(`/open-duty-notifications/bot/${guildId}/config`, input, { headers: actorId ? { "x-actor-id": actorId } : undefined });
+    return data.settings;
+  }
+
   async recordOpenDutyDelivery(guildId: string, input: { edited: boolean; errorReason?: string | null; executorId: string; message: string; status: "sent" | "failed" | "cancelled" | "denied"; targetId: string }) {
     const { data } = await this.http.post<{ alertTriggered: boolean; counterTotal: number; settings: OpenDutySettings }>("/open-duty-notifications/bot/" + guildId + "/deliveries", input);
     return data;

@@ -19,7 +19,7 @@ import {
 } from "discord.js";
 import { isBotModuleEnabled } from "../config/env";
 import type { DmBarConfig } from "./apiClient";
-import { buildV2Container, resolvePanelImageUrl } from "./panelVisualRenderer";
+import { buildV2Container, renderComponentsV2Panel, resolvePanelImageUrl } from "./panelVisualRenderer";
 import type { BotCommand, BotContext } from "../types";
 
 const MODULE_ID = "police-dm";
@@ -203,7 +203,18 @@ async function sendLogChannel(interaction: ButtonInteraction, config: DmBarConfi
   if (!config.logsEnabled || !config.logChannelId || !interaction.guild) return;
   const channel = await interaction.guild.channels.fetch(config.logChannelId).catch(() => null);
   if (!channel?.isTextBased() || channel.isDMBased()) return;
-  await channel.send({ components: [{ type: 17, accent_color: status === "sent" ? 0x22c55e : 0xef4444, components: [{ type: 10, content: `# Log Barra DM\n**Status:** ${status}\n**Enviado por:** <@${interaction.user.id}> (${interaction.user.id})\n**Recebeu:** <@${target.id}> (${target.id})\n**Título:** ${draft.title}\n**Conteúdo:**\n${draft.message.slice(0, 1500)}${error ? `\n**Erro:** ${error}` : ""}\n**Data:** <t:${Math.floor(Date.now() / 1000)}:F>` }] }], flags: MessageFlags.IsComponentsV2 }).catch(() => null);
+  const payload = renderComponentsV2Panel({
+    accentColor: status === "sent" ? 0x22c55e : 0xef4444,
+    description: "Registro interno do sistema Barra DM.",
+    fields: [
+      `**Status:** ${status}\n**Enviado por:** <@${interaction.user.id}> (${interaction.user.id})\n**Recebeu:** <@${target.id}> (${target.id})\n**Data:** <t:${Math.floor(Date.now() / 1000)}:F>`,
+      `**Titulo:** ${draft.title}\n**Conteudo:**\n${draft.message.slice(0, 1500)}${error ? `\n**Erro:** ${error}` : ""}`
+    ],
+    image: config.mainImageUrl ? { imageEnabled: true, imagePosition: "top", imageUrl: resolvePanelImageUrl(config.mainImageUrl) } : null,
+    moduleId: MODULE_ID,
+    title: "Log Barra DM"
+  });
+  await channel.send({ ...payload, allowedMentions: { users: [interaction.user.id, target.id] } }).catch(() => null);
 }
 function variables(author: User, target: User, guildName: string, message: string, title: string, observation: string) {
   const now = new Date();

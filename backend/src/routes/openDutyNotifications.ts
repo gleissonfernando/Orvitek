@@ -89,6 +89,16 @@ openDutyNotificationsRouter.get("/bot/:guildId/config", requireBot, async (req, 
   } catch (error) { next(error); }
 });
 
+openDutyNotificationsRouter.patch("/bot/:guildId/config", requireBot, async (req, res, next) => {
+  try {
+    const botId = await botIdFor(req);
+    await licensed(botId);
+    const guildId = snowflake.parse(req.params.guildId);
+    const actorId = typeof req.header("x-actor-id") === "string" ? req.header("x-actor-id")! : null;
+    res.json({ settings: await saveOpenDutySettings(botId, guildId, configSchema.parse(req.body), actorId) });
+  } catch (error) { next(error); }
+});
+
 openDutyNotificationsRouter.post("/bot/:guildId/deliveries", requireBot, async (req, res, next) => {
   try {
     const botId = await botIdFor(req);
