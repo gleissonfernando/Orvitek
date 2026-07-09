@@ -53,6 +53,9 @@ const IDS = {
   channelSchedule: "course_channel_schedule",
   channelReport: "course_channel_report",
   channelLogs: "course_channel_logs",
+  editCourse: "course_config_edit_course",
+  editCourseInfo: "course_edit_info",
+  editSelect: "course_edit_select",
   courseInstructorUsers: "course_instructor_users",
   courseInstructorRoles: "course_instructor_roles",
   coursePublishChannel: "course_course_publish_channel",
@@ -226,10 +229,19 @@ async function startPublishFlow(interaction: ChatInputCommandInteraction | Butto
     return;
   }
   if (courses.length === 1) {
-    await interaction.showModal(publicationModal(courses[0]!.id));
+    await interaction.showModal(publicationModal(courses[0]!));
     return;
   }
   await interaction.reply(ephemeral(selectCoursePanel("Selecione o curso que deseja publicar.", IDS.publishSelect, courses)));
+}
+
+async function startEditCourseFlow(interaction: ButtonInteraction, context: BotContext) {
+  const courses = await manageableCourses(interaction, context);
+  if (!courses.length) {
+    await interaction.reply(ephemeral(accessDeniedPanel(await context.api.getCourseSettings(interaction.guildId!), interaction.guild!)));
+    return;
+  }
+  await interaction.update(selectCoursePanel("Selecione o curso que deseja editar.", IDS.editSelect, courses));
 }
 
 async function startScheduleFlow(interaction: ChatInputCommandInteraction | ButtonInteraction, context: BotContext) {
@@ -366,6 +378,15 @@ async function handleButton(interaction: ButtonInteraction, context: BotContext)
       ));
     return;
   }
+  if (interaction.customId === IDS.editCourse) {
+    await startEditCourseFlow(interaction, context);
+    return;
+  }
+  if (interaction.customId.startsWith(`${IDS.editCourseInfo}:`)) {
+    const course = await context.api.getCourse(interaction.guildId!, idFromCustomId(interaction.customId));
+    await interaction.showModal(courseEditModal(course));
+    return;
+  }
   if (interaction.customId === IDS.managers) {
     await interaction.update(managersPanel(await context.api.getCourseSettings(interaction.guildId!)));
     return;
@@ -462,7 +483,13 @@ async function handleStringSelect(interaction: StringSelectMenuInteraction, cont
     return;
   }
   if (interaction.customId === IDS.publishSelect) {
-    await interaction.showModal(publicationModal(courseId));
+    const course = await context.api.getCourse(interaction.guildId!, courseId);
+    await interaction.showModal(publicationModal(course));
+    return;
+  }
+  if (interaction.customId === IDS.editSelect) {
+    const course = await context.api.getCourse(interaction.guildId!, courseId);
+    await interaction.update(courseEditPanel(course, "Edite os dados, instrutores, cargos e canal deste curso."));
     return;
   }
   if (interaction.customId === IDS.scheduleSelect) {
@@ -571,6 +598,10 @@ async function handleModal(interaction: ModalSubmitInteraction, context: BotCont
     await publishCourse(interaction, context, idFromCustomId(interaction.customId));
     return;
   }
+  if (interaction.customId.startsWith("course_edit_modal:")) {
+    await editCourseInfo(interaction, context, idFromCustomId(interaction.customId));
+    return;
+  }
   if (interaction.customId.startsWith("course_schedule_modal:")) {
     await requestSchedule(interaction, context, idFromCustomId(interaction.customId));
     return;
@@ -590,7 +621,7 @@ async function publishCourse(interaction: ModalSubmitInteraction, context: BotCo
     context.api.getCourseSettings(interaction.guildId!),
     context.api.getCourse(interaction.guildId!, courseId)
   ]);
-  const targetChannelId = settings.publishChannelId;
+  const targetChannelId = course.publishChannelId || settings.publishChannelId;
   if (!targetChannelId) {
     await interaction.editReply("Canal padrão de publicação dos cursos não configurado.");
     return;
@@ -600,19 +631,54 @@ async function publishCourse(interaction: ModalSubmitInteraction, context: BotCo
     await interaction.editReply("Canal de publicação inválido ou sem permissão de envio.");
     return;
   }
+  const date = interaction.fields.getTextInputValue("date").trim();
+  const time = interaction.fields.getTextInputValue("time").trim();
+  const location = interaction.fields.getTextInputValue("location").trim();
+  const capacity = Number(interaction.fields.getTextInputValue("capacity").trim());
+  if (!Number.isInteger(capacity) || capacity < 1 || capacity > 500) {
+    await interaction.editReply("Informe uma quantidade de vagas válida entre 1 e 500.");
+    return;
+  }
+  if (!date || !time || !location) {
+    await interaction.editReply("Informe data, horário e local do curso.");
+    return;
+  }
   const publication = await context.api.createCoursePublication(interaction.guildId!, {
-    capacity: Number(interaction.fields.getTextInputValue("capacity")) || course.maxStudents || 1,
+    capacity,
     channelId: targetChannelId,
     courseId,
     instructorId: interaction.user.id,
-    location: interaction.fields.getTextInputValue("location"),
+    location,
     notes: interaction.fields.getTextInputValue("notes") || null,
-    scheduledFor: interaction.fields.getTextInputValue("time")
+    scheduledFor: `${date} ${time}`.trim()
   });
   const message = await (channel as TextChannel).send(coursePublicationPanel(course, publication, settings, interaction.guild!));
   await context.api.updateCoursePublicationMessage(interaction.guildId!, publication.id, message.id);
   await sendCourseLog(interaction, settings, `📚 Curso publicado\nCurso: ${course.name}${course.code ? ` (${course.code})` : ""}\nInstrutor: <@${interaction.user.id}>\nCanal: <#${targetChannelId}>\nHorário: ${publication.scheduledFor}\nLocal: ${publication.location}\nVagas: ${publication.capacity}`);
   await interaction.editReply("Curso publicado com sucesso.");
+}
+
+async function editCourseInfo(interaction: ModalSubmitInteraction, context: BotContext, courseId: string) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const maxStudents = Number(interaction.fields.getTextInputValue("maxStudents").trim());
+  const name = interaction.fields.getTextInputValue("name").trim();
+  if (!name) {
+    await interaction.editReply("Informe o nome do curso.");
+    return;
+  }
+  if (!Number.isInteger(maxStudents) || maxStudents < 1 || maxStudents > 500) {
+    await interaction.editReply("Informe um limite padrão de vagas entre 1 e 500.");
+    return;
+  }
+  const course = await context.api.updateCourse(interaction.guildId!, courseId, {
+    active: !/^n/i.test(interaction.fields.getTextInputValue("active").trim()),
+    code: interaction.fields.getTextInputValue("code").trim() || null,
+    location: interaction.fields.getTextInputValue("location").trim() || null,
+    maxStudents,
+    name
+  }, interaction.user.id);
+  await interaction.editReply("Curso atualizado com sucesso.");
+  await interaction.followUp(ephemeral(courseEditPanel(course, "Curso atualizado. Continue ajustando responsáveis, cargos ou canal se precisar."))).catch(() => null);
 }
 
 async function requestSchedule(interaction: ModalSubmitInteraction, context: BotContext, courseId: string) {
@@ -1141,7 +1207,10 @@ function courseConfigPanel(settings: CourseSettings, panelVisual: PanelVisualCon
     actions: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(IDS.addCourse).setLabel("➕ Cadastrar Curso").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(IDS.channels).setLabel("📡 Canais").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(IDS.editCourse).setLabel("✏️ Editar Curso").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(IDS.channels).setLabel("📡 Canais").setStyle(ButtonStyle.Secondary)
+      ),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(IDS.sync).setLabel("📝 Provas").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId(IDS.managers).setLabel("🛡️ Administradores").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId(IDS.close).setLabel("✖️ Fechar").setStyle(ButtonStyle.Danger)
@@ -1257,12 +1326,16 @@ function courseEditPanel(course: Course, message: string) {
       new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(new UserSelectMenuBuilder().setCustomId(`${IDS.courseInstructorUsers}:${course.id}`).setPlaceholder("Selecione instrutores responsáveis").setMinValues(0).setMaxValues(10)),
       new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(new RoleSelectMenuBuilder().setCustomId(`${IDS.courseInstructorRoles}:${course.id}`).setPlaceholder("Selecione cargos autorizados").setMinValues(0).setMaxValues(10)),
       channelSelect,
-      new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IDS.back).setLabel("Voltar").setStyle(ButtonStyle.Secondary))
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`${IDS.editCourseInfo}:${course.id}`).setLabel("✏️ Editar dados").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(IDS.back).setLabel("Voltar").setStyle(ButtonStyle.Secondary)
+      )
     ],
-    description: "Configure quem pode publicar este curso. Usuários específicos e cargos autorizados funcionam ao mesmo tempo.",
+    description: "Edite os dados do curso e configure quem pode publicar. Usuários específicos e cargos autorizados funcionam ao mesmo tempo.",
     fields: [
       `**${message}**`,
       `Curso: ${course.emoji ?? "🎓"} ${course.name}${course.code ? `\nCódigo: ${course.code}` : ""}`,
+      `Local padrão: ${course.location ?? "não configurado"}\nLimite padrão: ${course.maxStudents ?? 30} vaga(s)\nStatus: ${course.active ? "ativo" : "inativo"}`,
       `Instrutores: ${course.instructorUserIds.map((id) => `<@${id}>`).join(", ") || "nenhum"}`,
       `Cargos autorizados: ${course.instructorRoleIds.map((id) => `<@&${id}>`).join(", ") || "nenhum"}`,
       `Cargo geral de instrutor: ${course.allowGeneralInstructorRoles ? "liberado" : "bloqueado"}`,
@@ -1270,7 +1343,7 @@ function courseEditPanel(course: Course, message: string) {
     ],
     image: course.bannerUrl ? { imageEnabled: true, imagePosition: "top", imageUrl: course.bannerUrl } : null,
     moduleId: "courses",
-    title: "➕ Criar Novo Curso"
+    title: "✏️ Editar Curso"
   });
 }
 
@@ -1711,15 +1784,29 @@ async function sendCourseLog(interaction: { guild: ChatInputCommandInteraction["
   })).catch(() => null);
 }
 
-function publicationModal(courseId: string) {
+function publicationModal(course: Course) {
   return new ModalBuilder()
-    .setCustomId(`course_publish_modal:${courseId}`)
+    .setCustomId(`course_publish_modal:${course.id}`)
     .setTitle("Publicar Curso")
     .addComponents(
-      inputRow("location", "Local do curso", TextInputStyle.Short, true, 120),
-      inputRow("time", "Horário do curso", TextInputStyle.Short, true, 80),
-      inputRow("capacity", "Quantidade de vagas", TextInputStyle.Short, true, 4),
+      inputRow("date", "Data do curso", TextInputStyle.Short, true, 40),
+      inputRow("time", "Horário do curso", TextInputStyle.Short, true, 40),
+      inputRow("location", "Local do curso", TextInputStyle.Short, true, 120, course.location ?? ""),
+      inputRow("capacity", "Quantidade de pessoas/vagas", TextInputStyle.Short, true, 4, String(course.maxStudents ?? 30)),
       inputRow("notes", "Observações", TextInputStyle.Paragraph, false, 900)
+    );
+}
+
+function courseEditModal(course: Course) {
+  return new ModalBuilder()
+    .setCustomId(`course_edit_modal:${course.id}`)
+    .setTitle("Editar Curso")
+    .addComponents(
+      inputRow("name", "Nome do curso", TextInputStyle.Short, true, 120, course.name),
+      inputRow("code", "Código/número", TextInputStyle.Short, false, 40, course.code ?? ""),
+      inputRow("location", "Local padrão do curso", TextInputStyle.Short, false, 120, course.location ?? ""),
+      inputRow("maxStudents", "Limite padrão de vagas", TextInputStyle.Short, true, 4, String(course.maxStudents ?? 30)),
+      inputRow("active", "Curso ativo? Sim/Não", TextInputStyle.Short, true, 3, course.active ? "Sim" : "Não")
     );
 }
 
