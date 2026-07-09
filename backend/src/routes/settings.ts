@@ -106,6 +106,7 @@ const settingsSchema = z.object({
     dmBannerUrl: z.string().url().max(2048).nullable().optional(),
     enabled: z.boolean().optional(),
     footerText: z.string().max(180).nullable().optional(),
+    finishedCategoryId: z.string().nullable().optional(),
     hcmdCategoryId: z.string().nullable().optional(),
     hcmdLogChannelId: z.string().nullable().optional(),
     hcmdRoleIds: z.array(z.string().regex(/^\d{5,32}$/)).max(100).optional(),
@@ -1120,6 +1121,7 @@ async function validateGuildResources(
   }
 
   const reportCategoryIds = [
+    input.reportSystem?.finishedCategoryId,
     input.reportSystem?.iabCategoryId,
     input.reportSystem?.conselhoCategoryId,
     input.reportSystem?.hcmdCategoryId,

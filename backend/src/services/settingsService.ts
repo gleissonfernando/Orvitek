@@ -174,6 +174,7 @@ export type ReportSystemSettingsDto = {
   dmBannerUrl: string | null;
   enabled: boolean;
   footerText: string | null;
+  finishedCategoryId: string | null;
   hcmdCategoryId: string | null;
   hcmdLogChannelId: string | null;
   hcmdRoleIds: string[];
@@ -1156,6 +1157,7 @@ function defaultReportSystemSettings(): ReportSystemSettingsDto {
     dmBannerUrl: null,
     enabled: true,
     footerText: "Denúncias IAB • Sigilo institucional • Auditoria autorizada",
+    finishedCategoryId: null,
     hcmdCategoryId: null,
     hcmdLogChannelId: null,
     hcmdRoleIds: [],
@@ -1217,6 +1219,7 @@ function normalizeReportSystemSettings(value: unknown, fallback = defaultReportS
     dmBannerUrl: normalizeUrl(record.dmBannerUrl),
     enabled: record.enabled !== false,
     footerText: normalizeNullableText(record.footerText, 180),
+    finishedCategoryId: normalizeSnowflake(String(record.finishedCategoryId ?? "")),
     hcmdCategoryId: normalizeSnowflake(String(record.hcmdCategoryId ?? "")),
     hcmdLogChannelId: normalizeSnowflake(String(record.hcmdLogChannelId ?? "")),
     hcmdRoleIds: normalizeSnowflakes(asArray(record.hcmdRoleIds)),

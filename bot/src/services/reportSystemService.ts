@@ -462,7 +462,7 @@ async function handleReportTicketButton(interaction: ButtonInteraction, context:
   }
   if (action === "finish-confirm") {
     await interaction.deferUpdate();
-    await finishReport(context, interaction.guild!, settings, textChannel, ticket, topic, "Finalizado", true, interaction.user.id);
+    await finishReport(context, interaction.guild!, settings, textChannel, ticket, topic, "Finalizado", false, interaction.user.id);
   }
 }
 
@@ -562,11 +562,17 @@ async function finishReport(context: BotContext, guild: Guild, settings: GuildSe
     ticketId: ticket.id,
     type: "Denuncia"
   });
-  await context.api.updateTicketStatus(ticket.id, { closedAt: new Date().toISOString(), closedById: actorId, closeReason: status, finalResult: status, status: deleteChannel ? "CLOSED" : "ARCHIVED" });
+  const finalStatus = status === "Finalizado" ? "CLOSED" : "ARCHIVED";
+  await context.api.updateTicketStatus(ticket.id, { closedAt: new Date().toISOString(), closedById: actorId, closeReason: status, finalResult: status, status: finalStatus });
   await sendTranscriptPanel(guild, settings, topic, ticket, transcript, status);
   await logIabEvent(context, guild, settings, topic, status, `Denuncia ${status.toLowerCase()} por <@${actorId}>.`, actorId);
+  const targetCategoryId = status === "Finalizado" ? settings.reportSystem.finishedCategoryId : null;
+  if (targetCategoryId) await channel.setParent(targetCategoryId).catch(() => null);
+  await channel.permissionOverwrites.edit(channel.guild.roles.everyone.id, { SendMessages: false }).catch(() => null);
+  const nextTopic = { ...topic, status: status === "Finalizado" ? "closed" as const : "archived" as const };
+  await channel.setTopic(makeTopic(nextTopic)).catch(() => null);
   if (deleteChannel) await channel.delete(`Denuncia IAB finalizada por ${actorId}`).catch(() => null);
-  else await channel.send(createManagementPayload(settings, { ...ticket, status: "ARCHIVED" }, { ...topic, status: "archived" }, "Arquivado")).catch(() => null);
+  else await channel.send(createManagementPayload(settings, { ...ticket, status: finalStatus }, nextTopic, status)).catch(() => null);
 }
 
 function createAnonymousPreparationPayload(settings: GuildSettings, ticket: TicketRecord): MessageCreateOptions {
@@ -1155,6 +1161,7 @@ function channelRows() {
   return [
     channelRow("panelChannelId", "Canal do painel", [ChannelType.GuildText, ChannelType.GuildAnnouncement]),
     channelRow("categoryId", "Categoria das denuncias", [ChannelType.GuildCategory]),
+    channelRow("finishedCategoryId", "Categoria fixa de finalizados", [ChannelType.GuildCategory]),
     channelRow("logChannelId", "Canal de logs", [ChannelType.GuildText, ChannelType.GuildAnnouncement]),
     channelRow("transcriptChannelId", "Canal de transcripts", [ChannelType.GuildText, ChannelType.GuildAnnouncement]),
     channelRow("auditChannelId", "Canal de auditoria", [ChannelType.GuildText, ChannelType.GuildAnnouncement])

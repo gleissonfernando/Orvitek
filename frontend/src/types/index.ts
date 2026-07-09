@@ -259,6 +259,7 @@ export type ReportSystemSettings = {
   dmBannerUrl: string | null;
   enabled: boolean;
   footerText: string | null;
+  finishedCategoryId: string | null;
   hcmdCategoryId: string | null;
   hcmdLogChannelId: string | null;
   hcmdRoleIds: string[];
