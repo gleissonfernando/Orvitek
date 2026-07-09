@@ -37,7 +37,7 @@ const PUBLIC_PREFIX = "iab";
 const TOPIC_PREFIX = "orvitek-iab:";
 const LEGACY_IDENTIFIED_BUTTON_ID = "iab_denuncia_identificada";
 const LEGACY_ANONYMOUS_BUTTON_ID = "iab_denuncia_anonima";
-const ANONYMOUS_DISABLED_MESSAGE = "Denuncias anonimas estao desativadas neste servidor. Para continuar, use Denuncia Identificada.";
+const ANONYMOUS_DISABLED_MESSAGE = "A denuncia anonima foi desativada. Abra o ticket com identificacao.";
 const BUTTON_LABELS: Record<ReportSystemButtonKey, string> = {
   addMember: "Adicionar membro",
   claim: "Assumir denuncia",
@@ -197,16 +197,22 @@ export async function handleReportSystemMessage(message: Message, context: BotCo
   if (!settings) return false;
 
   const topic = await resolveReportTopic(message.channel as TextChannel, context, settings);
-  if (!topic || topic.mode !== "anonymous" || topic.status === "archived" || topic.status === "closed") {
+  if (!topic || topic.status === "archived" || topic.status === "closed") {
     return false;
   }
 
   const report = settings.reportSystem;
   const isReporter = message.author.id === topic.openerId;
-  const isStaff = reportCompetenceRoleIds(report, topic.competence).some((roleId) => message.member?.roles.cache.has(roleId));
-  if (!isReporter && !isStaff) return false;
+  const isStaff = !isReporter && (
+    Boolean(message.member?.permissions.has(PermissionFlagsBits.Administrator))
+    || reportCompetenceRoleIds(report, topic.competence).some((roleId) => message.member?.roles.cache.has(roleId))
+  );
+  const shouldRelay = topic.mode === "anonymous"
+    ? isReporter || isStaff
+    : isStaff;
+  if (!shouldRelay) return false;
 
-  const displayName = isReporter ? report.anonymousReporterName : report.anonymousInvestigatorName;
+  const displayName = isReporter && topic.mode === "anonymous" ? report.anonymousReporterName : report.anonymousInvestigatorName;
   const files = message.attachments.map((attachment) => attachment.url);
   const content = [
     `**${displayName}:**`,
@@ -220,7 +226,7 @@ export async function handleReportSystemMessage(message: Message, context: BotCo
     content
   }).catch(() => null);
 
-  await logIabEvent(context, message.guild, settings, topic, "Mensagem anonima", [
+  await logIabEvent(context, message.guild, settings, topic, isReporter ? "Mensagem anonima" : "Resposta oculta da equipe", [
     `Autor real: ${message.author.tag} (${message.author.id})`,
     `Nome no servidor: ${message.member?.displayName ?? "-"}`,
     `Mensagem original: ${message.content || "(sem texto)"}`,
@@ -726,7 +732,7 @@ function createManagementPayload(settings: GuildSettings, ticket: TicketRecord, 
     actions: [actions],
     description: topic.mode === "anonymous"
       ? "Uma nova denuncia anonima foi encaminhada para analise.\n\nAs provas enviadas pelo denunciante estao disponiveis neste canal. A identidade do denunciante permanece oculta para a equipe responsavel.\n\nSomente as logs administrativas internas registram a identidade real do denunciante."
-      : "Denuncia identificada aberta para conversa direta entre denunciante e equipe.",
+      : "Denuncia identificada aberta. O denunciante fica visivel, mas as respostas da equipe continuam sendo encaminhadas pelo bot.",
     fields: [
       `**Numero da denuncia:** ${ticket.id}\n**Orgao responsavel:** ${topic.categoryName}\n**Status:** ${statusLabel}\n**Denunciante:** ${topic.mode === "anonymous" ? "Anonimo" : `<@${topic.openerId}>`}`,
       `**Data de envio:** ${topic.submittedAt ? `<t:${Math.floor(Date.parse(topic.submittedAt) / 1000)}:F>` : "-"}\n**Mensagens enviadas:** ${stats?.messageCount ?? "-"}\n**Anexos enviados:** ${stats?.attachmentCount ?? "-"}`,
@@ -782,7 +788,7 @@ function anonymousDisabledPayload(categoryId: string) {
     components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`${PUBLIC_PREFIX}:id:${categoryId}:identified`)
-        .setLabel("Usar Denuncia Identificada")
+        .setLabel("Abrir Denuncia Identificada")
         .setStyle(ButtonStyle.Primary)
     )],
     content: ANONYMOUS_DISABLED_MESSAGE
