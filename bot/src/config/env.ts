@@ -169,6 +169,8 @@ const enabledModules = new Set(
     .filter(Boolean)
 );
 const MODULE_ALIASES: Record<string, string[]> = {
+  courses: ["courses", "police-courses"],
+  "police-courses": ["police-courses", "courses"],
   "fivem-absences": ["fivem-absences", "fivem-fac", "police-absences"],
   "fivem-fac": ["fivem-fac", "fivem-absences", "police-absences"],
   "police-absences": ["police-absences", "fivem-absences", "fivem-fac"],
