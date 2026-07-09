@@ -7,8 +7,16 @@ export type TicketDto = {
   guildId: string;
   channelId?: string | null;
   openerId: string;
+  ownerId?: string;
   subject: string;
-  status: "OPEN" | "PENDING" | "CLOSED";
+  categoryId?: string | null;
+  categoryName?: string | null;
+  responsibleRoleId?: string | null;
+  responsibleUserId?: string | null;
+  status: MongoTicket["status"];
+  closeReason?: string | null;
+  finalResult?: string | null;
+  isIncomplete?: boolean;
   createdAt: string;
   closedAt?: string | null;
 };
@@ -16,7 +24,12 @@ export type TicketDto = {
 const memoryTickets: TicketDto[] = [];
 
 type CreateTicketInput = Pick<TicketDto, "guildId" | "channelId" | "openerId" | "subject"> & {
+  allowedRoleIds?: string[];
   botId?: string | null;
+  categoryId?: string | null;
+  categoryName?: string | null;
+  responsibleRoleId?: string | null;
+  status?: MongoTicket["status"];
 };
 
 export async function createTicket(input: CreateTicketInput) {
@@ -26,8 +39,16 @@ export async function createTicket(input: CreateTicketInput) {
     guildId: input.guildId,
     channelId: input.channelId,
     openerId: input.openerId,
+    ownerId: input.openerId,
     subject: input.subject,
-    status: "OPEN",
+    categoryId: input.categoryId ?? null,
+    categoryName: input.categoryName ?? null,
+    responsibleRoleId: input.responsibleRoleId ?? null,
+    responsibleUserId: null,
+    status: input.status ?? "OPEN",
+    closeReason: null,
+    finalResult: null,
+    isIncomplete: false,
     createdAt: new Date().toISOString(),
     closedAt: null
   };
@@ -44,8 +65,20 @@ export async function createTicket(input: CreateTicketInput) {
       guildId: input.guildId,
       channelId: input.channelId ?? null,
       openerId: input.openerId,
+      ownerId: input.openerId,
       subject: input.subject,
-      status: "OPEN",
+      categoryId: input.categoryId ?? null,
+      categoryName: input.categoryName ?? null,
+      responsibleRoleId: input.responsibleRoleId ?? null,
+      responsibleUserId: null,
+      allowedRoleIds: input.allowedRoleIds ?? [],
+      status: input.status ?? "OPEN",
+      closeReason: null,
+      finalResult: null,
+      internalNotes: null,
+      closedById: null,
+      isIncomplete: false,
+      logs: {},
       createdAt: new Date(),
       closedAt: null
     };
@@ -85,8 +118,16 @@ export async function listTickets(guildId?: string, botId?: string | null) {
       guildId: ticket.guildId,
       channelId: ticket.channelId,
       openerId: ticket.openerId,
+      ownerId: ticket.ownerId ?? ticket.openerId,
       subject: ticket.subject,
+      categoryId: ticket.categoryId ?? null,
+      categoryName: ticket.categoryName ?? null,
+      responsibleRoleId: ticket.responsibleRoleId ?? null,
+      responsibleUserId: ticket.responsibleUserId ?? null,
       status: ticket.status,
+      closeReason: ticket.closeReason ?? null,
+      finalResult: ticket.finalResult ?? null,
+      isIncomplete: Boolean(ticket.isIncomplete),
       createdAt: ticket.createdAt.toISOString(),
       closedAt: ticket.closedAt?.toISOString() ?? null
     }));
@@ -95,6 +136,75 @@ export async function listTickets(guildId?: string, botId?: string | null) {
       .filter((ticket) => (!guildId || ticket.guildId === guildId) && ticket.botId === normalizedBotId)
       .slice(0, 50);
   }
+}
+
+export async function getTicketByChannel(channelId: string, botId?: string | null) {
+  const normalizedBotId = normalizeBotId(botId);
+  try {
+    const { tickets } = await getMongoCollections();
+    const ticket = await tickets.findOne({ channelId, ...scopedQuery(undefined, normalizedBotId) });
+    return ticket ? toDto(ticket) : null;
+  } catch {
+    return memoryTickets.find((ticket) => ticket.channelId === channelId && ticket.botId === normalizedBotId) ?? null;
+  }
+}
+
+export async function updateTicketStatus(ticketId: string, input: Partial<Pick<MongoTicket, "status" | "responsibleUserId" | "closeReason" | "finalResult" | "internalNotes" | "closedById" | "closedAt" | "isIncomplete">>) {
+  const { tickets } = await getMongoCollections();
+  const $set: Partial<MongoTicket> = {};
+  for (const [key, value] of Object.entries(input) as Array<[keyof typeof input, unknown]>) {
+    if (value !== undefined) {
+      ($set as Record<string, unknown>)[key] = value;
+    }
+  }
+  await tickets.updateOne({ _id: ticketId }, { $set });
+  const ticket = await tickets.findOne({ _id: ticketId });
+  return ticket ? toDto(ticket) : null;
+}
+
+export async function recordTicketEvent(input: {
+  authorId?: string | null;
+  botId?: string | null;
+  content: string;
+  eventType: string;
+  guildId: string;
+  metadata?: Record<string, unknown>;
+  ticketId: string;
+}) {
+  const { ticketEvents } = await getMongoCollections();
+  await ticketEvents.insertOne({
+    _id: randomUUID(),
+    ticketId: input.ticketId,
+    guildId: input.guildId,
+    botId: normalizeBotId(input.botId),
+    eventType: input.eventType,
+    authorId: input.authorId ?? null,
+    content: input.content,
+    metadata: input.metadata ?? {},
+    createdAt: new Date()
+  });
+}
+
+function toDto(ticket: MongoTicket): TicketDto {
+  return {
+    id: ticket._id,
+    botId: normalizeBotId(ticket.botId),
+    guildId: ticket.guildId,
+    channelId: ticket.channelId,
+    openerId: ticket.openerId,
+    ownerId: ticket.ownerId ?? ticket.openerId,
+    subject: ticket.subject,
+    categoryId: ticket.categoryId ?? null,
+    categoryName: ticket.categoryName ?? null,
+    responsibleRoleId: ticket.responsibleRoleId ?? null,
+    responsibleUserId: ticket.responsibleUserId ?? null,
+    status: ticket.status,
+    closeReason: ticket.closeReason ?? null,
+    finalResult: ticket.finalResult ?? null,
+    isIncomplete: Boolean(ticket.isIncomplete),
+    createdAt: ticket.createdAt.toISOString(),
+    closedAt: ticket.closedAt?.toISOString() ?? null
+  };
 }
 
 function normalizeBotId(botId: string | null | undefined) {

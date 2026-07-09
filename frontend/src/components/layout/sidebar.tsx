@@ -4,6 +4,7 @@ import {
   Archive,
   AtSign,
   Bot,
+  BookOpen,
   Building2,
   CalendarClock,
   CircleDollarSign,
@@ -53,6 +54,7 @@ export type ViewId =
   | "rules"
   | "manual-payments"
   | "price-tables"
+  | "courses"
   | "mission-tools"
   | "voice-recorder"
   | "music"
@@ -133,6 +135,7 @@ const navItems: NavItem[] = [
   { id: "rules", label: "Regras", icon: ScrollText, moduleId: "rules" },
   { id: "manual-payments", label: "Pagamentos", icon: CreditCard, moduleId: "manual-payments" },
   { id: "price-tables", label: "Tabela de Precos", icon: TableProperties, moduleId: "price-tables" },
+  { id: "courses", label: "Cursos", icon: BookOpen, moduleId: "courses" },
   { id: "mission-tools", label: "Mission Tools", icon: ListChecks, moduleId: "mission-tools" },
   { id: "voice-recorder", label: "Voice Recorder", icon: Mic2, moduleId: "voice-recorder" },
   { id: "music", label: "Música", icon: Music2, moduleId: "music" },

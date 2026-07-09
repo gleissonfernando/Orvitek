@@ -17,6 +17,8 @@ import type {
   CreateKickNotificationPayload,
   BotGuildConfig,
   CreateDevBotPayload,
+  Course,
+  CoursesDashboard,
   DashboardBot,
   DashboardMeResponse,
   DevAccessEntry,
@@ -83,6 +85,8 @@ import type {
   PublicOrvitechProduct,
   PublicKickClips,
   SaveClipsConfigPayload,
+  SaveCoursePayload,
+  SaveCourseSettingsPayload,
   SaveFivemFacSettingsPayload,
   SaveManualPaymentSettingsPayload,
   SaveFivemModulePayload,
@@ -2011,6 +2015,48 @@ export async function getPriceTablesDashboard(botId: string, guildId: string) {
     params: botParams(botId)
   });
   return data;
+}
+
+export async function getCoursesDashboard(botId: string, guildId: string) {
+  const { data } = await api.get<CoursesDashboard>(`/courses/${encodeURIComponent(guildId)}`, {
+    params: botParams(botId)
+  });
+  return data;
+}
+
+export async function saveCourseSettings(botId: string, guildId: string, payload: SaveCourseSettingsPayload) {
+  const { data } = await api.patch<{ settings: CoursesDashboard["settings"] }>(
+    `/courses/${encodeURIComponent(guildId)}/settings`,
+    payload,
+    { params: botParams(botId) }
+  );
+  return data.settings;
+}
+
+export async function createCourseApi(botId: string, guildId: string, payload: SaveCoursePayload) {
+  const { data } = await api.post<{ course: Course }>(
+    `/courses/${encodeURIComponent(guildId)}/courses`,
+    payload,
+    { params: botParams(botId) }
+  );
+  return data.course;
+}
+
+export async function updateCourseApi(botId: string, guildId: string, courseId: string, payload: Partial<SaveCoursePayload>) {
+  const { data } = await api.patch<{ course: Course }>(
+    `/courses/${encodeURIComponent(guildId)}/courses/${encodeURIComponent(courseId)}`,
+    payload,
+    { params: botParams(botId) }
+  );
+  return data.course;
+}
+
+export async function deleteCourseApi(botId: string, guildId: string, courseId: string) {
+  const { data } = await api.delete<{ course: Course }>(
+    `/courses/${encodeURIComponent(guildId)}/courses/${encodeURIComponent(courseId)}`,
+    { params: botParams(botId) }
+  );
+  return data.course;
 }
 
 export async function createPriceTable(botId: string, guildId: string, payload: SavePriceTablePayload) {

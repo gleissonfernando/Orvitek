@@ -497,6 +497,7 @@ export async function handleTemporaryCallChannelDelete(channel: Channel, context
 
   if (call) {
     cancelEmpty(channel.id);
+    await createTemporaryCallTranscript(context, call, channel.name ?? call.channelName, "Canal deletado antes do fluxo normal", true).catch(() => null);
     await context.api.deleteTemporaryCall(channel.guild.id, call.id).catch(() => null);
   }
 }
@@ -542,6 +543,7 @@ async function deleteEmpty(channel: VoiceChannel, context: BotContext, call: Tem
     return;
   }
 
+  await createTemporaryCallTranscript(context, call, fresh.name, "Inatividade", false).catch(() => null);
   await fresh.delete("Call temporária vazia por tempo limite");
   await context.api.deleteTemporaryCall(call.guildId, call.id).catch(() => null);
   await logCall(context, settings, call, "Call temporária deletada após ficar vazia", call.ownerId);
@@ -558,6 +560,7 @@ async function deleteCall(interaction: ButtonInteraction, context: BotContext, c
   }
 
   if (channel) {
+    await createTemporaryCallTranscript(context, call, channel.name, reason, false).catch(() => null);
     await channel.delete(reason);
   }
 
@@ -569,6 +572,42 @@ async function deleteCall(interaction: ButtonInteraction, context: BotContext, c
   } else {
     await ephemeral(interaction, "✅ Sua call temporária foi deletada.");
   }
+}
+
+async function createTemporaryCallTranscript(context: BotContext, call: TemporaryCall, channelName: string, reason: string, isPartial: boolean) {
+  await context.api.createTranscript({
+    categoryName: "Canal Temporário",
+    channelId: call.channelId,
+    channelName,
+    closeReason: reason,
+    closedAt: new Date().toISOString(),
+    events: [
+      {
+        authorId: call.ownerId,
+        content: `Canal temporário criado por ${call.ownerId}.`,
+        eventType: "temporary_channel.created",
+        createdAt: call.createdAt
+      },
+      {
+        authorId: call.ownerId,
+        content: `Canal temporário finalizado. Motivo: ${reason}.`,
+        eventType: "temporary_channel.closed",
+        createdAt: new Date().toISOString()
+      }
+    ],
+    finalResult: reason,
+    generateTemporaryPassword: true,
+    guildId: call.guildId,
+    isPartial,
+    messages: [],
+    openedById: call.ownerId,
+    ownerId: call.ownerId,
+    participants: [{ id: call.ownerId, name: `@${call.ownerId}`, role: "Dono" }],
+    partialReason: isPartial ? reason : null,
+    temporaryPasswordTtlHours: 72,
+    ticketId: call.id,
+    type: "Canal Temporario"
+  });
 }
 
 function cancelEmpty(channelId: string) {

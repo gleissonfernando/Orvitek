@@ -49,6 +49,7 @@ import {
 import { DashboardLayout } from "../components/layout/dashboard-layout";
 import type { ViewId } from "../components/layout/sidebar";
 import { ClipsPanel } from "../components/clips/ClipsPanel";
+import { CoursesPanel } from "../components/courses/CoursesPanel";
 import { FacAbsencePanel } from "../components/fivem/FacAbsencePanel";
 import { FivemActionsPanel } from "../components/fivem/FivemActionsPanel";
 import { PolicePatrolReportsPanel } from "../components/fivem/PolicePatrolReportsPanel";
@@ -675,6 +676,7 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   rules: "rules",
   "manual-payments": "manual-payments",
   "price-tables": "price-tables",
+  courses: "courses",
   "application-emojis": "emoji-cloner",
   "media-library": "emoji-cloner"
 };
@@ -1161,6 +1163,13 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             botId={activeBotId}
             canManage={canManageModule(selectedBot, "price-tables", canManageDashboard)}
             guild={selectedGuild}
+          />
+        ) : null}
+        {activeView === "courses" && selectedGuild && activeBotId ? (
+          <CoursesPanel
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "courses", canManageDashboard)}
+            guildId={selectedGuild.id}
           />
         ) : null}
         {activeView === "mission-tools" ? (

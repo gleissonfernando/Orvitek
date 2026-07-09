@@ -11,6 +11,143 @@ export type CreateLogInput = {
   metadata?: unknown;
 };
 
+export type TicketRecord = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  channelId: string | null;
+  openerId: string;
+  ownerId?: string;
+  subject: string;
+  categoryId?: string | null;
+  categoryName?: string | null;
+  responsibleRoleId?: string | null;
+  responsibleUserId?: string | null;
+  status: string;
+  closeReason?: string | null;
+  finalResult?: string | null;
+  isIncomplete?: boolean;
+  createdAt: string;
+  closedAt?: string | null;
+};
+
+export type TranscriptCreateResult = {
+  temporaryPassword: string | null;
+  temporaryPasswordExpiresAt: string | null;
+  transcript: {
+    id: string;
+    botId: string | null;
+    guildId: string;
+    ticketId: string | null;
+    type: string;
+    status: string;
+    isPartial: boolean;
+    htmlPath: string;
+    createdAt: string;
+    expiresAt: string | null;
+  };
+};
+
+export type CourseSettings = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  publishChannelId: string | null;
+  scheduleChannelId: string | null;
+  reportChannelId: string | null;
+  logChannelId: string | null;
+  temporaryCategoryId: string | null;
+  adminUserIds: string[];
+  adminRoleIds: string[];
+  managerUserIds: string[];
+  managerRoleIds: string[];
+  defaultExpirationHours: number | null;
+  noPermissionMessage: string;
+  cancelledMessage: string;
+  startedMessage: string;
+  globalBannerUrl: string | null;
+  reportImageUrl: string | null;
+  buttonEmojis: { cancel: string; enter: string; leave: string; start: string };
+  updatedAt: string;
+};
+
+export type Course = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  name: string;
+  description: string | null;
+  emoji: string | null;
+  color: string;
+  bannerUrl: string | null;
+  footerImageUrl: string | null;
+  thumbnailUrl: string | null;
+  imagePosition: "top" | "bottom" | "side" | "footer";
+  publishText: string | null;
+  startedText: string | null;
+  cancelledText: string | null;
+  buttonLabels: { cancel: string; enter: string; leave: string; start: string };
+  instructorUserIds: string[];
+  instructorRoleIds: string[];
+  active: boolean;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CoursePublication = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  courseId: string;
+  channelId: string;
+  messageId: string | null;
+  instructorId: string;
+  location: string;
+  scheduledFor: string;
+  capacity: number;
+  students: string[];
+  notes: string | null;
+  status: "open" | "started" | "cancelled" | "closed";
+  cancelledBy: string | null;
+  cancelledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CourseScheduleRequest = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  courseId: string;
+  instructorId: string;
+  requestedDate: string;
+  requestedTime: string;
+  location: string;
+  notes: string | null;
+  status: "pending" | "approved" | "rejected";
+  decidedBy: string | null;
+  decidedAt: string | null;
+  channelId: string | null;
+  messageId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CourseReport = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  courseId: string;
+  instructorId: string;
+  reportDate: string;
+  reportTime: string;
+  students: Array<{ note: string; observation: string | null; userId: string }>;
+  channelId: string | null;
+  messageId: string | null;
+  createdAt: string;
+};
+
 export type LiveEventInput = {
   botId?: string | null;
   guildId: string;
@@ -1409,9 +1546,162 @@ export class ApiClient {
     return data;
   }
 
-  async createTicket(input: { guildId: string; channelId?: string | null; openerId: string; subject: string }) {
+  async createTicket(input: {
+    allowedRoleIds?: string[];
+    categoryId?: string | null;
+    categoryName?: string | null;
+    guildId: string;
+    channelId?: string | null;
+    openerId: string;
+    responsibleRoleId?: string | null;
+    status?: string;
+    subject: string;
+  }) {
     const { data } = await this.http.post("/tickets", input);
+    return data as { ticket: TicketRecord };
+  }
+
+  async getTicketByChannel(channelId: string) {
+    const { data } = await this.http.get<{ ticket: TicketRecord | null }>(`/tickets/bot/channel/${channelId}`);
+    return data.ticket;
+  }
+
+  async updateTicketStatus(ticketId: string, input: Record<string, unknown>) {
+    const { data } = await this.http.patch<{ ticket: TicketRecord | null }>(`/tickets/bot/${ticketId}/status`, input);
+    return data.ticket;
+  }
+
+  async recordTicketEvent(ticketId: string, input: { authorId?: string | null; content: string; eventType: string; guildId: string; metadata?: Record<string, unknown> }) {
+    await this.http.post(`/tickets/bot/${ticketId}/events`, input);
+  }
+
+  async createTranscript(input: Record<string, unknown>) {
+    const { data } = await this.http.post<TranscriptCreateResult>("/transcripts/bot", input, { timeout: 20_000 });
     return data;
+  }
+
+  async createTranscriptTemporaryPassword(transcriptId: string, ttlHours = 72) {
+    const { data } = await this.http.post<{ password: string; expiresAt: string }>(`/transcripts/bot/${transcriptId}/passwords`, { ttlHours });
+    return data;
+  }
+
+  async revokeTranscriptTemporaryPasswords(transcriptId: string) {
+    await this.http.post(`/transcripts/bot/${transcriptId}/passwords/revoke`);
+  }
+
+  async getCourseSettings(guildId: string) {
+    const { data } = await this.http.get<{ settings: CourseSettings }>(`/courses/bot/${guildId}/settings`);
+    return data.settings;
+  }
+
+  async saveCourseSettings(guildId: string, input: Partial<CourseSettings>, actorId?: string | null) {
+    const { data } = await this.http.post<{ settings: CourseSettings }>(`/courses/bot/${guildId}/settings`, input, {
+      headers: actorId ? { "x-actor-id": actorId } : undefined
+    });
+    return data.settings;
+  }
+
+  async createCourse(guildId: string, input: Partial<Course> & { name: string }, actorId?: string | null) {
+    const { data } = await this.http.post<{ course: Course }>(`/courses/bot/${guildId}/courses`, input, {
+      headers: actorId ? { "x-actor-id": actorId } : undefined
+    });
+    return data.course;
+  }
+
+  async updateCourse(guildId: string, courseId: string, input: Partial<Course>, actorId?: string | null) {
+    const { data } = await this.http.patch<{ course: Course }>(`/courses/bot/${guildId}/courses/${courseId}`, input, {
+      headers: actorId ? { "x-actor-id": actorId } : undefined
+    });
+    return data.course;
+  }
+
+  async getCourse(guildId: string, courseId: string) {
+    const { data } = await this.http.get<{ course: Course }>(`/courses/bot/${guildId}/courses/${courseId}`);
+    return data.course;
+  }
+
+  async getManageableCourses(guildId: string, input: { isAdministrator?: boolean; roleIds: string[]; userId: string }) {
+    const { data } = await this.http.post<{ courses: Course[] }>(`/courses/bot/${guildId}/manageable`, input);
+    return data.courses;
+  }
+
+  async createCoursePublication(guildId: string, input: {
+    capacity: number;
+    channelId: string;
+    courseId: string;
+    instructorId: string;
+    location: string;
+    notes?: string | null;
+    scheduledFor: string;
+  }) {
+    const { data } = await this.http.post<{ publication: CoursePublication }>(`/courses/bot/${guildId}/publications`, input);
+    return data.publication;
+  }
+
+  async getCoursePublication(guildId: string, publicationId: string) {
+    const { data } = await this.http.get<{ publication: CoursePublication }>(`/courses/bot/${guildId}/publications/${publicationId}`);
+    return data.publication;
+  }
+
+  async updateCoursePublicationMessage(guildId: string, publicationId: string, messageId: string | null) {
+    const { data } = await this.http.patch<{ publication: CoursePublication }>(`/courses/bot/${guildId}/publications/${publicationId}/message`, { messageId });
+    return data.publication;
+  }
+
+  async joinCoursePublication(guildId: string, publicationId: string, userId: string) {
+    const { data } = await this.http.post<{ error?: "not_found" | "started" | "closed" | "already" | "full"; publication?: CoursePublication }>(`/courses/bot/${guildId}/publications/${publicationId}/join`, { userId });
+    return data;
+  }
+
+  async leaveCoursePublication(guildId: string, publicationId: string, userId: string) {
+    const { data } = await this.http.post<{ publication: CoursePublication }>(`/courses/bot/${guildId}/publications/${publicationId}/leave`, { userId });
+    return data.publication;
+  }
+
+  async setCoursePublicationStatus(guildId: string, publicationId: string, status: "started" | "cancelled" | "closed", actorId: string) {
+    const { data } = await this.http.post<{ publication: CoursePublication }>(`/courses/bot/${guildId}/publications/${publicationId}/status`, { actorId, status });
+    return data.publication;
+  }
+
+  async createCourseSchedule(guildId: string, input: {
+    channelId?: string | null;
+    courseId: string;
+    instructorId: string;
+    location: string;
+    notes?: string | null;
+    requestedDate: string;
+    requestedTime: string;
+  }) {
+    const { data } = await this.http.post<{ request: CourseScheduleRequest }>(`/courses/bot/${guildId}/schedules`, input);
+    return data.request;
+  }
+
+  async getCourseSchedule(guildId: string, requestId: string) {
+    const { data } = await this.http.get<{ request: CourseScheduleRequest }>(`/courses/bot/${guildId}/schedules/${requestId}`);
+    return data.request;
+  }
+
+  async updateCourseScheduleMessage(guildId: string, requestId: string, messageId: string | null) {
+    const { data } = await this.http.patch<{ request: CourseScheduleRequest }>(`/courses/bot/${guildId}/schedules/${requestId}/message`, { messageId });
+    return data.request;
+  }
+
+  async decideCourseSchedule(guildId: string, requestId: string, status: "approved" | "rejected", actorId: string) {
+    const { data } = await this.http.post<{ request: CourseScheduleRequest }>(`/courses/bot/${guildId}/schedules/${requestId}/decision`, { actorId, status });
+    return data.request;
+  }
+
+  async createCourseReport(guildId: string, input: {
+    channelId?: string | null;
+    courseId: string;
+    instructorId: string;
+    messageId?: string | null;
+    reportDate: string;
+    reportTime: string;
+    students: Array<{ note: string; observation?: string | null; userId: string }>;
+  }) {
+    const { data } = await this.http.post<{ report: CourseReport }>(`/courses/bot/${guildId}/reports`, input);
+    return data.report;
   }
 
   async getSettings(guildId: string, discordBotClientId?: string | null) {

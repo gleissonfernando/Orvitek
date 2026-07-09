@@ -17,6 +17,7 @@ import { apiRouter } from "./routes";
 import { authRouter } from "./routes/auth";
 import { healthRouter } from "./routes/health";
 import { kickWebhookPublicRouter } from "./routes/kickNotifications";
+import { publicTranscriptsRouter } from "./routes/transcripts";
 
 export const app = express();
 const frontendDistPath = path.resolve(__dirname, "../../frontend/dist");
@@ -82,6 +83,7 @@ app.use("/health", healthRouter);
 app.use("/auth", authRouter);
 app.use(maintenanceMiddleware);
 app.use("/webhooks", kickWebhookPublicRouter);
+app.use("/transcripts", publicTranscriptsRouter);
 app.use("/api", apiRouter);
 
 if (fs.existsSync(frontendIndexPath)) {

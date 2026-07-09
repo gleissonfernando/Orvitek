@@ -6,14 +6,38 @@ import { emitRealtime } from "../realtime/events";
 import { canManageDashboardGuild, canReadDashboardGuild, getAccessibleGuildIds } from "../services/dashboardGuildAccessService";
 import { canReadDevBotModule, canUseDevBotModule } from "../services/devBotService";
 import { createLog } from "../services/logService";
-import { createTicket, listTickets } from "../services/ticketService";
+import { createTicket, getTicketByChannel, listTickets, recordTicketEvent, updateTicketStatus } from "../services/ticketService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
 
 const ticketSchema = z.object({
   guildId: z.string().min(1),
   channelId: z.string().optional().nullable(),
   openerId: z.string().min(1),
-  subject: z.string().min(1).default("Atendimento")
+  subject: z.string().min(1).default("Atendimento"),
+  allowedRoleIds: z.array(z.string()).optional(),
+  categoryId: z.string().optional().nullable(),
+  categoryName: z.string().optional().nullable(),
+  responsibleRoleId: z.string().optional().nullable(),
+  status: z.enum(["OPEN", "PENDING", "CLOSED", "IN_ANALYSIS", "WAITING_EVIDENCE", "WAITING_USER", "RESOLVED", "DENIED", "ARCHIVED", "INCOMPLETE"]).optional()
+});
+
+const ticketStatusSchema = z.object({
+  closeReason: z.string().optional().nullable(),
+  closedAt: z.string().datetime().optional().nullable(),
+  closedById: z.string().optional().nullable(),
+  finalResult: z.string().optional().nullable(),
+  internalNotes: z.string().optional().nullable(),
+  isIncomplete: z.boolean().optional(),
+  responsibleUserId: z.string().optional().nullable(),
+  status: z.enum(["OPEN", "PENDING", "CLOSED", "IN_ANALYSIS", "WAITING_EVIDENCE", "WAITING_USER", "RESOLVED", "DENIED", "ARCHIVED", "INCOMPLETE"]).optional()
+});
+
+const ticketEventSchema = z.object({
+  authorId: z.string().optional().nullable(),
+  content: z.string().min(1),
+  eventType: z.string().min(1),
+  guildId: z.string().min(1),
+  metadata: z.record(z.unknown()).optional()
 });
 
 export const ticketsRouter = Router();
@@ -76,6 +100,49 @@ ticketsRouter.post("/", async (req, res, next) => {
     return res.status(201).json({
       ticket
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+ticketsRouter.get("/bot/channel/:channelId", async (req, res, next) => {
+  try {
+    if (!isBotRequest(req)) {
+      return res.status(403).json({ message: "Rota disponivel apenas para o bot." });
+    }
+    const botId = await resolveRequestBotId(req);
+    const ticket = await getTicketByChannel(req.params.channelId, botId);
+    return res.json({ ticket });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+ticketsRouter.patch("/bot/:ticketId/status", async (req, res, next) => {
+  try {
+    if (!isBotRequest(req)) {
+      return res.status(403).json({ message: "Rota disponivel apenas para o bot." });
+    }
+    const input = ticketStatusSchema.parse(req.body);
+    const ticket = await updateTicketStatus(req.params.ticketId, {
+      ...input,
+      closedAt: input.closedAt ? new Date(input.closedAt) : undefined
+    });
+    return res.json({ ticket });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+ticketsRouter.post("/bot/:ticketId/events", async (req, res, next) => {
+  try {
+    if (!isBotRequest(req)) {
+      return res.status(403).json({ message: "Rota disponivel apenas para o bot." });
+    }
+    const botId = await resolveRequestBotId(req);
+    const input = ticketEventSchema.parse(req.body);
+    await recordTicketEvent({ ...input, botId, ticketId: req.params.ticketId });
+    return res.status(201).json({ ok: true });
   } catch (error) {
     return next(error);
   }

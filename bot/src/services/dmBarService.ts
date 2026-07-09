@@ -58,7 +58,7 @@ export async function handleDmBarInteraction(interaction: Interaction, context: 
   if (!interaction.guild || !interaction.isRepliable() || !("customId" in interaction)) return false;
   const customId = String(interaction.customId);
   if (!customId.startsWith(`${PREFIX}:`)) return false;
-  if (interaction.isUserSelectMenu() && customId === `${PREFIX}:target`) return selectTarget(interaction);
+  if (interaction.isUserSelectMenu() && customId === `${PREFIX}:target`) return selectTarget(interaction, context);
   if (interaction.isModalSubmit() && customId.startsWith(`${PREFIX}:modal:`)) return submitModal(interaction, context, customId.slice(`${PREFIX}:modal:`.length));
   if (interaction.isButton() && customId.startsWith(`${PREFIX}:send:`)) return sendDraft(interaction, context, customId.slice(`${PREFIX}:send:`.length));
   if (interaction.isButton() && customId.startsWith(`${PREFIX}:edit:`)) return editDraft(interaction, customId.slice(`${PREFIX}:edit:`.length));
@@ -71,9 +71,10 @@ export function clearDmBarConfigCache(guildId?: string | null) {
   else cache.delete(guildId);
 }
 
-async function selectTarget(interaction: UserSelectMenuInteraction) {
+async function selectTarget(interaction: UserSelectMenuInteraction, context: BotContext) {
   const targetId = interaction.values[0]!;
-  await interaction.showModal(dmModal(targetId, "", "", ""));
+  const config = await getConfig(context, interaction.guildId!);
+  await interaction.showModal(dmModal(targetId, config.titleTemplate, "", ""));
   return true;
 }
 
@@ -85,11 +86,12 @@ async function submitModal(interaction: ModalSubmitInteraction, context: BotCont
   drafts.set(draftId, { guildId: interaction.guildId!, message, observation, targetId, title });
   const config = await getConfig(context, interaction.guildId!);
   const target = await interaction.client.users.fetch(targetId).catch(() => null);
+  const preview = previewPayload(config, interaction.user, target, title, message, observation);
   await interaction.reply({
-    ...previewPayload(config, interaction.user, target, title, message, observation),
+    ...preview,
     ephemeral: true,
     components: [
-      ...(previewPayload(config, interaction.user, target, title, message, observation).components ?? []),
+      ...(preview.components ?? []),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(`${PREFIX}:send:${draftId}`).setLabel("Enviar DM").setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId(`${PREFIX}:edit:${draftId}`).setLabel("Editar mensagem").setStyle(ButtonStyle.Primary),
@@ -140,7 +142,7 @@ async function cancelDraft(interaction: ButtonInteraction, context: BotContext, 
 
 function dmModal(targetId: string, title: string, message: string, observation: string) {
   return new ModalBuilder().setCustomId(`${PREFIX}:modal:${targetId}`).setTitle("Enviar DM").addComponents(
-    row("title", "Título da mensagem", "Ex: Comunicado Oficial", false, title, TextInputStyle.Short, 100),
+    row("title", "Título da mensagem", "Ex: Comunicado Oficial", true, title, TextInputStyle.Short, 100),
     row("message", "Mensagem", "Digite a mensagem que será enviada", true, message, TextInputStyle.Paragraph, 1800),
     row("observation", "Observação opcional", "Informação extra interna/visual", false, observation, TextInputStyle.Paragraph, 600)
   );
@@ -150,9 +152,11 @@ function dmPayload(config: DmBarConfig, author: User, target: User, title: strin
   const vars = variables(author, target, guildName, message, title, observation);
   const components: unknown[] = [];
   const mainImage = config.mainImageUrl ? resolvePanelImageUrl(config.mainImageUrl) : null;
-  const pushImage = () => { if (mainImage) components.push({ type: 12, items: [{ media: { url: mainImage }, description: applyVars(config.titleTemplate, vars) }] }); };
+  const renderedTitle = title || applyVars(config.titleTemplate, vars);
+  const renderedDescription = renderDmDescription(config.descriptionTemplate, vars, message);
+  const pushImage = () => { if (mainImage) components.push({ type: 12, items: [{ media: { url: mainImage }, description: renderedTitle }] }); };
   if (mainImage && config.imagePosition === "top") pushImage();
-  components.push({ type: 10, content: `# ${applyVars(config.titleTemplate || title, vars)}\n${applyVars(stripSenderLines(config.descriptionTemplate), vars)}`.slice(0, 3900) });
+  components.push({ type: 10, content: `# ${renderedTitle}\n${renderedDescription}`.slice(0, 3900) });
   if (mainImage && (config.imagePosition === "middle" || config.imagePosition === "gallery" || config.imagePosition === "thumbnail")) pushImage();
   if (observation) components.push({ type: 10, content: `**Observação:**\n${observation}` });
   if (mainImage && config.imagePosition === "bottom") pushImage();
@@ -213,6 +217,10 @@ function stripSenderLines(text: string) {
     .trim();
 }
 function applyVars(text: string, vars: Record<string, string>) { return Object.entries(vars).reduce((value, [key, replacement]) => value.replaceAll(key, replacement), text); }
+function renderDmDescription(template: string, vars: Record<string, string>, message: string) {
+  const rendered = applyVars(stripSenderLines(template), vars);
+  return template.includes("{mensagem}") ? rendered : `${rendered}\n\n**Mensagem:**\n${message}`.trim();
+}
 function sanitize(value: string, max: number) { return value.replace(/@everyone/gi, "@\u200beveryone").replace(/@here/gi, "@\u200bhere").trim().slice(0, max); }
 function row(id: string, label: string, placeholder: string, required: boolean, value: string, style: TextInputStyle, max: number) { return new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId(id).setLabel(label).setPlaceholder(placeholder).setRequired(required).setStyle(style).setMaxLength(max).setValue(value.slice(0, max))); }
 function color(value: string) { return Number.parseInt(value.replace("#", ""), 16) || 0x22c55e; }

@@ -774,6 +774,117 @@ export type Ticket = {
   closedAt?: string | null;
 };
 
+export type CourseSettings = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  publishChannelId: string | null;
+  scheduleChannelId: string | null;
+  reportChannelId: string | null;
+  logChannelId: string | null;
+  temporaryCategoryId: string | null;
+  adminUserIds: string[];
+  adminRoleIds: string[];
+  managerUserIds: string[];
+  managerRoleIds: string[];
+  defaultExpirationHours: number | null;
+  noPermissionMessage: string;
+  cancelledMessage: string;
+  startedMessage: string;
+  globalBannerUrl: string | null;
+  reportImageUrl: string | null;
+  buttonEmojis: { cancel: string; enter: string; leave: string; start: string };
+  updatedAt: string;
+};
+
+export type Course = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  name: string;
+  description: string | null;
+  emoji: string | null;
+  color: string;
+  bannerUrl: string | null;
+  footerImageUrl: string | null;
+  thumbnailUrl: string | null;
+  imagePosition: "top" | "bottom" | "side" | "footer";
+  publishText: string | null;
+  startedText: string | null;
+  cancelledText: string | null;
+  buttonLabels: { cancel: string; enter: string; leave: string; start: string };
+  instructorUserIds: string[];
+  instructorRoleIds: string[];
+  active: boolean;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CoursePublication = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  courseId: string;
+  channelId: string;
+  messageId: string | null;
+  instructorId: string;
+  location: string;
+  scheduledFor: string;
+  capacity: number;
+  students: string[];
+  notes: string | null;
+  status: "open" | "started" | "cancelled" | "closed";
+  cancelledBy: string | null;
+  cancelledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CourseScheduleRequest = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  courseId: string;
+  instructorId: string;
+  requestedDate: string;
+  requestedTime: string;
+  location: string;
+  notes: string | null;
+  status: "pending" | "approved" | "rejected";
+  decidedBy: string | null;
+  decidedAt: string | null;
+  channelId: string | null;
+  messageId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CourseReport = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  courseId: string;
+  instructorId: string;
+  reportDate: string;
+  reportTime: string;
+  students: Array<{ note: string; observation: string | null; userId: string }>;
+  channelId: string | null;
+  messageId: string | null;
+  createdAt: string;
+};
+
+export type CoursesDashboard = {
+  courses: Course[];
+  publications: CoursePublication[];
+  reports: CourseReport[];
+  scheduleRequests: CourseScheduleRequest[];
+  settings: CourseSettings;
+};
+
+export type SaveCourseSettingsPayload = Partial<Omit<CourseSettings, "id" | "botId" | "guildId" | "updatedAt">>;
+export type SaveCoursePayload = Partial<Omit<Course, "id" | "botId" | "guildId" | "createdAt" | "updatedAt">> & { name: string };
+
 export type ManualRegistrationField = {
   enabled: boolean;
   id: string;

@@ -1,13 +1,22 @@
 import {
   ActionRowBuilder,
+  ButtonBuilder,
+  type ButtonInteraction,
+  ButtonStyle,
   ChannelType,
   MessageFlags,
+  ModalBuilder,
   PermissionFlagsBits,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   type ChatInputCommandInteraction,
   type Guild,
   type Interaction,
+  type Message,
+  type ModalSubmitInteraction,
+  type StringSelectMenuInteraction,
   type TextChannel
 } from "discord.js";
 import { env } from "../config/env";
@@ -16,6 +25,18 @@ import { getFreshGuildSettings } from "./guildSettingsCache";
 import { renderComponentsV2Panel } from "./panelVisualRenderer";
 
 const TICKET_PANEL_CUSTOM_ID = "ticket_panel_select";
+const TICKET_ACTION_PREFIX = "ticket_action:";
+const TICKET_STATUS_PREFIX = "ticket_status:";
+const CLOSE_MODAL_PREFIX = "ticket_close:";
+const STATUS_OPTIONS = [
+  { label: "Aguardando atendimento", value: "OPEN" },
+  { label: "Em análise", value: "IN_ANALYSIS" },
+  { label: "Aguardando provas", value: "WAITING_EVIDENCE" },
+  { label: "Aguardando usuário", value: "WAITING_USER" },
+  { label: "Resolvido", value: "RESOLVED" },
+  { label: "Negado", value: "DENIED" },
+  { label: "Encerrado", value: "CLOSED" }
+];
 
 export async function publishTicketPanel(interaction: ChatInputCommandInteraction, context: BotContext) {
   if (!interaction.guild) {
@@ -47,7 +68,26 @@ export async function publishTicketPanel(interaction: ChatInputCommandInteractio
 }
 
 export async function handleTicketPanelInteraction(interaction: Interaction, context: BotContext) {
-  if (!interaction.isStringSelectMenu() || interaction.customId !== TICKET_PANEL_CUSTOM_ID || !interaction.guild) {
+  if (!interaction.guild) {
+    return false;
+  }
+
+  if (interaction.isButton() && interaction.customId.startsWith(TICKET_ACTION_PREFIX)) {
+    await handleTicketAction(interaction, context);
+    return true;
+  }
+
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith(TICKET_STATUS_PREFIX)) {
+    await handleTicketStatus(interaction, context);
+    return true;
+  }
+
+  if (interaction.isModalSubmit() && interaction.customId.startsWith(CLOSE_MODAL_PREFIX)) {
+    await handleTicketCloseModal(interaction, context);
+    return true;
+  }
+
+  if (!interaction.isStringSelectMenu() || interaction.customId !== TICKET_PANEL_CUSTOM_ID) {
     return false;
   }
 
@@ -72,10 +112,25 @@ export async function handleTicketPanelInteraction(interaction: Interaction, con
 
   const ticket = await context.api.createTicket({
     channelId,
+    categoryId: option.value,
+    categoryName: option.label,
     guildId: interaction.guild.id,
     openerId: interaction.user.id,
     subject: option.label
   });
+
+  if (channelId) {
+    const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
+    if (channel?.isTextBased() && "send" in channel) {
+      await (channel as TextChannel).send(createOpenTicketPayload(ticket.ticket.id, option.label, interaction.user.id));
+    }
+    await context.api.recordTicketEvent(ticket.ticket.id, {
+      authorId: interaction.user.id,
+      content: `Ticket criado na categoria ${option.label}.`,
+      eventType: "ticket.created",
+      guildId: interaction.guild.id
+    }).catch(() => null);
+  }
 
   await interaction.editReply(
     channelId
@@ -84,6 +139,131 @@ export async function handleTicketPanelInteraction(interaction: Interaction, con
   );
 
   return true;
+}
+
+async function handleTicketAction(interaction: ButtonInteraction, context: BotContext) {
+  const [, action, ticketId] = interaction.customId.split(":");
+  if (!ticketId) {
+    await interaction.reply({ content: "Ticket invalido.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  if (action === "newpass") {
+    const password = await context.api.createTranscriptTemporaryPassword(ticketId);
+    await interaction.reply({
+      content: `Nova senha temporária criada: ||${password.password}||\nValidade: ${new Date(password.expiresAt).toLocaleString("pt-BR")}`,
+      flags: MessageFlags.Ephemeral
+    });
+    return;
+  }
+
+  if (action === "revoke") {
+    await context.api.revokeTranscriptTemporaryPasswords(ticketId);
+    await interaction.reply({ content: "Senhas temporárias revogadas para este transcript.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  if (action === "claim") {
+    await interaction.deferUpdate();
+    const ticket = await context.api.updateTicketStatus(ticketId, {
+      responsibleUserId: interaction.user.id,
+      status: "IN_ANALYSIS"
+    });
+    await context.api.recordTicketEvent(ticketId, {
+      authorId: interaction.user.id,
+      content: `Ticket assumido por ${interaction.user.tag}.`,
+      eventType: "ticket.claimed",
+      guildId: interaction.guildId!
+    }).catch(() => null);
+    await interaction.message.edit(createOpenTicketPayload(ticketId, ticket?.categoryName ?? ticket?.subject ?? "Atendimento", ticket?.openerId ?? interaction.user.id, interaction.user.id, "Em análise")).catch(() => null);
+    return;
+  }
+
+  if (action === "close") {
+    await interaction.showModal(
+      new ModalBuilder()
+        .setCustomId(`${CLOSE_MODAL_PREFIX}${ticketId}`)
+        .setTitle("Finalizar Ticket")
+        .addComponents(
+          new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("reason").setLabel("Motivo do fechamento").setRequired(true).setStyle(TextInputStyle.Paragraph).setMaxLength(900)),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("result").setLabel("Resultado da análise").setRequired(true).setStyle(TextInputStyle.Paragraph).setMaxLength(900)),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("notes").setLabel("Observações internas").setRequired(false).setStyle(TextInputStyle.Paragraph).setMaxLength(900)),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("generatePassword").setLabel("Gerar senha temporária? Sim/Não").setRequired(true).setStyle(TextInputStyle.Short).setValue("Sim").setMaxLength(3)),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("ttl").setLabel("Validade da senha temporária em horas").setRequired(true).setStyle(TextInputStyle.Short).setValue("72").setMaxLength(4))
+        )
+    );
+    return;
+  }
+
+  await interaction.reply({ content: "Ação ainda não configurada para este painel.", flags: MessageFlags.Ephemeral });
+}
+
+async function handleTicketStatus(interaction: StringSelectMenuInteraction, context: BotContext) {
+  const ticketId = interaction.customId.slice(TICKET_STATUS_PREFIX.length);
+  const status = interaction.values[0];
+  const label = STATUS_OPTIONS.find((item) => item.value === status)?.label ?? status;
+  const ticket = await context.api.updateTicketStatus(ticketId, { status });
+  await context.api.recordTicketEvent(ticketId, {
+    authorId: interaction.user.id,
+    content: `Status alterado para ${label}.`,
+    eventType: "ticket.status_changed",
+    guildId: interaction.guildId!
+  }).catch(() => null);
+  await interaction.update(createOpenTicketPayload(ticketId, ticket?.categoryName ?? ticket?.subject ?? "Atendimento", ticket?.openerId ?? interaction.user.id, ticket?.responsibleUserId ?? null, label));
+}
+
+async function handleTicketCloseModal(interaction: ModalSubmitInteraction, context: BotContext) {
+  const ticketId = interaction.customId.slice(CLOSE_MODAL_PREFIX.length);
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const ticket = await context.api.updateTicketStatus(ticketId, {
+    closedAt: new Date().toISOString(),
+    closedById: interaction.user.id,
+    closeReason: interaction.fields.getTextInputValue("reason"),
+    finalResult: interaction.fields.getTextInputValue("result"),
+    internalNotes: interaction.fields.getTextInputValue("notes") || null,
+    status: "CLOSED"
+  });
+
+  if (!ticket || !interaction.channel || !("messages" in interaction.channel)) {
+    await interaction.editReply("Nao consegui localizar o ticket para gerar o transcript.");
+    return;
+  }
+
+  await lockTicketChannel(interaction.channel as TextChannel, ticket.openerId);
+  const messages = await collectChannelMessages(interaction.channel as TextChannel);
+  const transcript = await context.api.createTranscript({
+    categoryName: ticket.categoryName ?? ticket.subject,
+    channelId: ticket.channelId,
+    channelName: (interaction.channel as TextChannel).name,
+    closeReason: ticket.closeReason,
+    closedAt: new Date().toISOString(),
+    closedById: interaction.user.id,
+    finalResult: ticket.finalResult,
+    generateTemporaryPassword: /^s/i.test(interaction.fields.getTextInputValue("generatePassword")),
+    guildId: interaction.guildId!,
+    guildName: interaction.guild?.name ?? null,
+    internalNotes: interaction.fields.getTextInputValue("notes") || null,
+    isPartial: false,
+    messages,
+    openedById: ticket.openerId,
+    ownerId: ticket.ownerId ?? ticket.openerId,
+    participants: buildParticipants(messages, ticket.openerId, ticket.responsibleUserId),
+    responsibleUserId: ticket.responsibleUserId,
+    temporaryPasswordTtlHours: Number(interaction.fields.getTextInputValue("ttl")) || 72,
+    ticketId,
+    type: ticket.categoryName?.toLowerCase().includes("den") ? "Denuncia" : "Ticket"
+  });
+
+  await context.api.recordTicketEvent(ticketId, {
+    authorId: interaction.user.id,
+    content: `Transcript ${transcript.transcript.id} gerado.`,
+    eventType: "transcript.generated",
+    guildId: interaction.guildId!
+  }).catch(() => null);
+
+  await sendTranscriptLog(interaction.guild!, context, transcript, ticket, interaction.user.id);
+  await interaction.editReply(`Ticket finalizado. Transcript gerado: ${transcript.transcript.id}.`);
 }
 
 function createTicketPanelPayload(settings: GuildSettings) {
@@ -141,14 +321,118 @@ async function createTicketChannel(guild: Guild, settings: GuildSettings, opener
     ],
     reason: `Ticket aberto por ${openerId}: ${option.label}`,
     type: ChannelType.GuildText
-  }).then(async (channel) => {
-    const textChannel = channel as TextChannel;
-    await textChannel.send({
-      allowedMentions: { users: [openerId] },
-      content: `<@${openerId}> ticket aberto para **${option.label}**. Descreva o que precisa e aguarde a equipe.`
-    }).catch(() => null);
-    return textChannel;
-  });
+  }).then((channel) => channel as TextChannel);
+}
+
+function createOpenTicketPayload(ticketId: string, category: string, openerId: string, responsibleUserId: string | null = null, status = "Aguardando atendimento") {
+  const actions = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`${TICKET_ACTION_PREFIX}claim:${ticketId}`).setLabel("Assumir Ticket").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`${TICKET_ACTION_PREFIX}add:${ticketId}`).setLabel("Adicionar Usuário").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`${TICKET_ACTION_PREFIX}remove:${ticketId}`).setLabel("Remover Usuário").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`${TICKET_ACTION_PREFIX}close:${ticketId}`).setLabel("Finalizar Ticket").setStyle(ButtonStyle.Danger)
+  );
+  const statusMenu = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(`${TICKET_STATUS_PREFIX}${ticketId}`)
+      .setPlaceholder("Alterar Status")
+      .addOptions(STATUS_OPTIONS.map((item) => ({ label: item.label, value: item.value })))
+  );
+
+  return {
+    allowedMentions: { users: [openerId, responsibleUserId].filter(Boolean) as string[] },
+    components: [actions, statusMenu],
+    content: [
+      "## Ticket de Denúncia Aberto",
+      `Categoria: ${category}`,
+      `Autor: <@${openerId}>`,
+      `Responsável atual: ${responsibleUserId ? `<@${responsibleUserId}>` : "Nenhum"}`,
+      `Status: ${status}`,
+      `ID do Ticket: #${ticketId}`,
+      "",
+      "Explique sua denúncia com o máximo de detalhes possível. Envie prints, vídeos ou provas se necessário."
+    ].join("\n")
+  };
+}
+
+async function collectChannelMessages(channel: TextChannel) {
+  const collected: Message[] = [];
+  let before: string | undefined;
+  do {
+    const batch = await channel.messages.fetch({ limit: 100, before }).catch(() => null);
+    if (!batch?.size) break;
+    collected.push(...batch.values());
+    before = batch.last()?.id;
+  } while (before && collected.length < 1000);
+
+  return collected
+    .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
+    .map((message) => ({
+      id: message.id,
+      authorAvatarUrl: message.author.displayAvatarURL(),
+      authorId: message.author.id,
+      authorName: message.author.tag,
+      authorRoleIds: message.member?.roles.cache.map((role) => role.id) ?? [],
+      content: message.content,
+      attachments: message.attachments.map((attachment) => ({
+        contentType: attachment.contentType,
+        id: attachment.id,
+        name: attachment.name,
+        size: attachment.size,
+        url: attachment.url
+      })),
+      embeds: message.embeds.map((embed) => embed.toJSON()),
+      createdAt: message.createdAt.toISOString(),
+      editedAt: message.editedAt?.toISOString() ?? null
+    }));
+}
+
+function buildParticipants(messages: Awaited<ReturnType<typeof collectChannelMessages>>, openerId: string, responsibleUserId?: string | null) {
+  const participants = new Map<string, { id: string; name: string; role: string | null }>();
+  for (const message of messages) {
+    if (message.authorId) participants.set(message.authorId, { id: message.authorId, name: message.authorName, role: message.authorId === openerId ? "Autor" : null });
+  }
+  if (responsibleUserId) participants.set(responsibleUserId, { id: responsibleUserId, name: `@${responsibleUserId}`, role: "Responsável" });
+  return [...participants.values()];
+}
+
+async function lockTicketChannel(channel: TextChannel, openerId: string) {
+  await channel.permissionOverwrites.edit(openerId, { SendMessages: false }).catch(() => null);
+}
+
+async function sendTranscriptLog(guild: Guild, context: BotContext, transcript: Awaited<ReturnType<BotContext["api"]["createTranscript"]>>, ticket: { categoryName?: string | null; subject: string; openerId: string; responsibleUserId?: string | null; createdAt: string; finalResult?: string | null }, closedById: string) {
+  const settings = await getFreshGuildSettings(context, guild.id, guild.client.user?.id).catch(() => null);
+  const logChannelId = settings?.reportSystem?.transcriptChannelId || settings?.logChannelId;
+  const logChannel = logChannelId ? await guild.channels.fetch(logChannelId).catch(() => null) : null;
+  if (!logChannel?.isTextBased() || !("send" in logChannel)) return;
+
+  const origin = env.BACKEND_API_URL ? new URL(env.BACKEND_API_URL).origin : "";
+  const url = `${origin}${transcript.transcript.htmlPath}`;
+  await (logChannel as TextChannel).send({
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setLabel("Abrir Transcript").setStyle(ButtonStyle.Link).setURL(url),
+        new ButtonBuilder().setCustomId(`${TICKET_ACTION_PREFIX}noop:${transcript.transcript.id}`).setLabel("Copiar Link").setStyle(ButtonStyle.Secondary).setDisabled(true),
+        new ButtonBuilder().setCustomId(`${TICKET_ACTION_PREFIX}newpass:${transcript.transcript.id}`).setLabel("Gerar Nova Senha Temporária").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`${TICKET_ACTION_PREFIX}revoke:${transcript.transcript.id}`).setLabel("Revogar Senha Temporária").setStyle(ButtonStyle.Danger)
+      )
+    ],
+    content: [
+      "## Transcript Gerado",
+      `Tipo: ${transcript.transcript.type}`,
+      `Categoria: ${ticket.categoryName ?? ticket.subject}`,
+      `ID do Ticket: #${transcript.transcript.ticketId}`,
+      `Aberto por: <@${ticket.openerId}>`,
+      `Finalizado por: <@${closedById}>`,
+      `Responsável: ${ticket.responsibleUserId ? `<@${ticket.responsibleUserId}>` : "Nenhum"}`,
+      `Status final: ${ticket.finalResult ?? "Finalizado"}`,
+      `Criado em: ${new Date(ticket.createdAt).toLocaleString("pt-BR")}`,
+      `Finalizado em: ${new Date().toLocaleString("pt-BR")}`,
+      "",
+      `Link do transcript: ${url}`,
+      `Senha temporária: \`${transcript.temporaryPassword ? "************" : "não gerada"}\``,
+      transcript.temporaryPassword ? `Senha privada do painel: ||${transcript.temporaryPassword}||` : ""
+    ].filter(Boolean).join("\n")
+  }).catch(() => null);
 }
 
 function toSelectOption(option: TicketPanelOption) {

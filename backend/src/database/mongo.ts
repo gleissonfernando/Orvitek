@@ -130,10 +130,227 @@ export type MongoTicket = {
   guildId: string;
   channelId: string | null;
   openerId: string;
+  ownerId?: string;
   subject: string;
-  status: "OPEN" | "PENDING" | "CLOSED";
+  categoryId?: string | null;
+  categoryName?: string | null;
+  responsibleRoleId?: string | null;
+  responsibleUserId?: string | null;
+  allowedRoleIds?: string[];
+  status: "OPEN" | "PENDING" | "CLOSED" | "IN_ANALYSIS" | "WAITING_EVIDENCE" | "WAITING_USER" | "RESOLVED" | "DENIED" | "ARCHIVED" | "INCOMPLETE";
+  closeReason?: string | null;
+  finalResult?: string | null;
+  internalNotes?: string | null;
+  closedById?: string | null;
+  isIncomplete?: boolean;
+  logs?: Record<string, string | null>;
   createdAt: Date;
   closedAt: Date | null;
+};
+
+export type MongoTranscriptMessage = {
+  id: string;
+  authorAvatarUrl: string | null;
+  authorId: string | null;
+  authorName: string;
+  authorRoleIds: string[];
+  content: string;
+  attachments: Array<{ contentType: string | null; id: string; name: string; size: number; url: string }>;
+  embeds: unknown[];
+  createdAt: Date;
+  editedAt?: Date | null;
+  system?: boolean;
+};
+
+export type MongoTranscript = {
+  _id: string;
+  ticketId: string | null;
+  guildId: string;
+  botId: string | null;
+  ownerId: string | null;
+  channelId: string | null;
+  channelName: string | null;
+  guildName: string | null;
+  type: "Denuncia" | "Ticket" | "Canal Temporario" | "Suporte" | "Outro";
+  categoryName: string | null;
+  htmlPath: string;
+  pdfPath: string | null;
+  htmlContent: string;
+  status: "Finalizado" | "Incompleto";
+  createdAt: Date;
+  closedAt: Date | null;
+  expiresAt: Date | null;
+  isPartial: boolean;
+  partialReason: string | null;
+  accessCount: number;
+  openedById: string | null;
+  responsibleUserId: string | null;
+  closedById: string | null;
+  closeReason: string | null;
+  finalResult: string | null;
+  internalNotes: string | null;
+  participants: Array<{ id: string | null; name: string; role: string | null }>;
+  messages: MongoTranscriptMessage[];
+  attachments: Array<{ contentType: string | null; id: string; name: string; size: number; url: string }>;
+  events: Array<{ authorId: string | null; content: string; eventType: string; metadata?: Record<string, unknown>; createdAt: Date }>;
+};
+
+export type MongoTranscriptPassword = {
+  _id: string;
+  transcriptId: string;
+  passwordHash: string;
+  type: "temporary" | "master";
+  expiresAt: Date | null;
+  revokedAt: Date | null;
+  createdAt: Date;
+};
+
+export type MongoTranscriptAccessLog = {
+  _id: string;
+  transcriptId: string;
+  guildId: string;
+  botId: string | null;
+  accessType: "temporary" | "master" | "unknown";
+  success: boolean;
+  reason: string;
+  createdAt: Date;
+  maskedIp: string | null;
+  userAgent: string | null;
+};
+
+export type MongoTicketEvent = {
+  _id: string;
+  ticketId: string;
+  guildId: string;
+  botId: string | null;
+  eventType: string;
+  authorId: string | null;
+  content: string;
+  metadata: Record<string, unknown>;
+  createdAt: Date;
+};
+
+export type MongoCourseSettings = {
+  _id: string;
+  botId: string | null;
+  guildId: string;
+  publishChannelId: string | null;
+  scheduleChannelId: string | null;
+  reportChannelId: string | null;
+  logChannelId: string | null;
+  temporaryCategoryId: string | null;
+  adminUserIds: string[];
+  adminRoleIds: string[];
+  managerUserIds: string[];
+  managerRoleIds: string[];
+  defaultExpirationHours: number | null;
+  noPermissionMessage: string;
+  cancelledMessage: string;
+  startedMessage: string;
+  globalBannerUrl: string | null;
+  reportImageUrl: string | null;
+  buttonEmojis: {
+    cancel: string;
+    enter: string;
+    leave: string;
+    start: string;
+  };
+  updatedAt: Date;
+  updatedBy: string | null;
+};
+
+export type MongoCourse = {
+  _id: string;
+  botId: string | null;
+  guildId: string;
+  name: string;
+  description: string | null;
+  emoji: string | null;
+  color: string;
+  bannerUrl: string | null;
+  footerImageUrl: string | null;
+  thumbnailUrl: string | null;
+  imagePosition: "top" | "bottom" | "side" | "footer";
+  publishText: string | null;
+  startedText: string | null;
+  cancelledText: string | null;
+  buttonLabels: {
+    cancel: string;
+    enter: string;
+    leave: string;
+    start: string;
+  };
+  instructorUserIds: string[];
+  instructorRoleIds: string[];
+  active: boolean;
+  createdBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoCoursePublication = {
+  _id: string;
+  botId: string | null;
+  guildId: string;
+  courseId: string;
+  channelId: string;
+  messageId: string | null;
+  instructorId: string;
+  location: string;
+  scheduledFor: string;
+  capacity: number;
+  students: string[];
+  notes: string | null;
+  status: "open" | "started" | "cancelled" | "closed";
+  cancelledBy: string | null;
+  cancelledAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoCourseScheduleRequest = {
+  _id: string;
+  botId: string | null;
+  guildId: string;
+  courseId: string;
+  instructorId: string;
+  requestedDate: string;
+  requestedTime: string;
+  location: string;
+  notes: string | null;
+  status: "pending" | "approved" | "rejected";
+  decidedBy: string | null;
+  decidedAt: Date | null;
+  channelId: string | null;
+  messageId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoCourseReport = {
+  _id: string;
+  botId: string | null;
+  guildId: string;
+  courseId: string;
+  instructorId: string;
+  reportDate: string;
+  reportTime: string;
+  students: Array<{ note: string; observation: string | null; userId: string }>;
+  channelId: string | null;
+  messageId: string | null;
+  createdAt: Date;
+};
+
+export type MongoCourseLog = {
+  _id: string;
+  botId: string | null;
+  guildId: string;
+  action: string;
+  actorId: string | null;
+  courseId: string | null;
+  publicationId: string | null;
+  data: Record<string, unknown>;
+  createdAt: Date;
 };
 
 export type MongoManualRegistrationField = {
@@ -2703,6 +2920,16 @@ export async function getMongoCollections() {
     guildSettings: db.collection<MongoGuildSettings>("GuildSettings"),
     safeBotMessageStates: db.collection<MongoSafeBotMessageState>("safe_bot_message_states"),
     tickets: db.collection<MongoTicket>("Ticket"),
+    transcripts: db.collection<MongoTranscript>("transcripts"),
+    transcriptPasswords: db.collection<MongoTranscriptPassword>("transcript_passwords"),
+    transcriptAccessLogs: db.collection<MongoTranscriptAccessLog>("transcript_access_logs"),
+    ticketEvents: db.collection<MongoTicketEvent>("ticket_events"),
+    courseSettings: db.collection<MongoCourseSettings>("course_settings"),
+    courses: db.collection<MongoCourse>("courses"),
+    coursePublications: db.collection<MongoCoursePublication>("course_publications"),
+    courseScheduleRequests: db.collection<MongoCourseScheduleRequest>("course_schedule_requests"),
+    courseReports: db.collection<MongoCourseReport>("course_reports"),
+    courseLogs: db.collection<MongoCourseLog>("course_logs"),
     manualRegistrationSettings: db.collection<MongoManualRegistrationSettings>("manual_registration_settings"),
     manualRegistrationSubmissions: db.collection<MongoManualRegistrationSubmission>("manual_registration_submissions"),
     manualRegistrationLogs: db.collection<MongoManualRegistrationLog>("manual_registration_logs"),
@@ -2861,6 +3088,22 @@ async function createMongoIndexes(db: Db) {
     ),
     ensureGuildSettingsIndexes(db),
     db.collection<MongoTicket>("Ticket").createIndex({ guildId: 1, createdAt: -1 }),
+    db.collection<MongoTicket>("Ticket").createIndex({ botId: 1, guildId: 1, channelId: 1 }),
+    db.collection<MongoTicket>("Ticket").createIndex({ botId: 1, guildId: 1, status: 1, createdAt: -1 }),
+    db.collection<MongoTranscript>("transcripts").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoTranscript>("transcripts").createIndex({ ticketId: 1 }),
+    db.collection<MongoTranscriptPassword>("transcript_passwords").createIndex({ transcriptId: 1, type: 1, createdAt: -1 }),
+    db.collection<MongoTranscriptAccessLog>("transcript_access_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoTranscriptAccessLog>("transcript_access_logs").createIndex({ transcriptId: 1, createdAt: -1 }),
+    db.collection<MongoTicketEvent>("ticket_events").createIndex({ ticketId: 1, createdAt: 1 }),
+    db.collection<MongoTicketEvent>("ticket_events").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoCourseSettings>("course_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    db.collection<MongoCourse>("courses").createIndex({ botId: 1, guildId: 1, active: 1, updatedAt: -1 }),
+    db.collection<MongoCoursePublication>("course_publications").createIndex({ botId: 1, guildId: 1, status: 1, createdAt: -1 }),
+    db.collection<MongoCoursePublication>("course_publications").createIndex({ botId: 1, guildId: 1, messageId: 1 }),
+    db.collection<MongoCourseScheduleRequest>("course_schedule_requests").createIndex({ botId: 1, guildId: 1, status: 1, createdAt: -1 }),
+    db.collection<MongoCourseReport>("course_reports").createIndex({ botId: 1, guildId: 1, courseId: 1, createdAt: -1 }),
+    db.collection<MongoCourseLog>("course_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
     db.collection<MongoManualRegistrationSettings>("manual_registration_settings").createIndex(
       { botId: 1, guildId: 1 },
       { unique: true }
