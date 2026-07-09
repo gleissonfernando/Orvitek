@@ -162,6 +162,22 @@ export function OpenDutyNotificationsPanel({ botId, canManage, guild }: Props) {
             <TextField disabled={disabled} label="Banner da DM URL" onChange={(value) => patch("dmBannerUrl", value || null)} value={settings.dmBannerUrl ?? ""} />
             <TextField disabled={disabled} label="Banner do painel URL" onChange={(value) => patch("panelBannerUrl", value || null)} value={settings.panelBannerUrl ?? ""} />
             <TextField disabled={disabled} label="Imagem pequena do rodape URL" onChange={(value) => patch("footerImageUrl", value || null)} value={settings.footerImageUrl ?? ""} />
+            <SelectField
+              disabled={disabled}
+              label="Posicao da imagem da DM"
+              onChange={(value) => patch("imagePosition", value as OpenDutySettings["imagePosition"])}
+              options={[
+                { label: "Topo", value: "top" },
+                { label: "Meio", value: "middle" },
+                { label: "Fundo", value: "bottom" },
+                { label: "Rodape", value: "footer" }
+              ]}
+              value={settings.imagePosition}
+            />
+            <div className="rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-300 md:col-span-2">
+              <p className="font-medium text-zinc-100">Imagem de rodape</p>
+              <p className="mt-1">A imagem pequena do rodape so aparece quando a posicao esta como Rodape. Para remover totalmente, limpe a URL e salve.</p>
+            </div>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">

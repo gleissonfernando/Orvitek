@@ -24,7 +24,8 @@ import type { BotCommand, BotContext } from "../types";
 
 const MODULE_ID = "police-open-duty";
 const PREFIX = "open_duty_notify";
-const drafts = new Map<string, { edited: boolean; executorId: string; guildId: string; message: string; targetId: string }>();
+type NotificationDraft = { edited: boolean; executorId: string; guildId: string; message: string; targetId: string };
+const drafts = new Map<string, NotificationDraft>();
 
 export const notificarCommand: BotCommand = {
   data: new SlashCommandBuilder()
@@ -53,7 +54,7 @@ export async function handleOpenDutyNotificationInteraction(interaction: Interac
   if (!("customId" in interaction) || !String(interaction.customId).startsWith(`${PREFIX}:`)) return false;
   const customId = String(interaction.customId);
   if (interaction.isButton() && customId.startsWith(`${PREFIX}:send:`)) return sendDraft(interaction, context, customId.slice(`${PREFIX}:send:`.length));
-  if (interaction.isButton() && customId.startsWith(`${PREFIX}:edit:`)) return editDraft(interaction, customId.slice(`${PREFIX}:edit:`.length));
+  if (interaction.isButton() && customId.startsWith(`${PREFIX}:edit:`)) return editDraft(interaction, context, customId.slice(`${PREFIX}:edit:`.length));
   if (interaction.isButton() && customId.startsWith(`${PREFIX}:cancel:`)) return cancelDraft(interaction, context, customId.slice(`${PREFIX}:cancel:`.length));
   if (interaction.isChannelSelectMenu() && customId === `${PREFIX}:config:mention`) return updateConfigChannel(interaction, context, "mentionChannelId");
   if (interaction.isChannelSelectMenu() && customId === `${PREFIX}:config:log`) return updateConfigChannel(interaction, context, "logChannelId");
@@ -87,7 +88,7 @@ async function openNotificationPanel(interaction: ChatInputCommandInteraction, c
   }
 
   const message = renderMessage(settings.defaultMessage, target, settings);
-  const draftId = `${interaction.id}-${Date.now()}`;
+  const draftId = `${interaction.id}:${target.id}`;
   drafts.set(draftId, { edited: false, executorId: interaction.user.id, guildId: interaction.guild.id, message, targetId: target.id });
   await interaction.reply({
     ...panel(settings, {
@@ -125,8 +126,8 @@ async function updateConfigChannel(interaction: ChannelSelectMenuInteraction, co
 
 async function sendDraft(interaction: ButtonInteraction, context: BotContext, draftId: string) {
   await interaction.deferUpdate();
-  const draft = drafts.get(draftId);
-  if (!draft) return interaction.followUp({ content: "Painel expirado. Execute /notificar novamente.", ephemeral: true });
+  const draft = await resolveDraft(interaction, context, draftId);
+  if (!draft) return interaction.followUp({ content: "Nao consegui recuperar os dados deste painel. Execute /notificar novamente.", ephemeral: true });
   const settings = await context.api.getOpenDutySettings(draft.guildId);
   const target = await interaction.client.users.fetch(draft.targetId).catch(() => null);
   if (!target) return interaction.followUp({ content: "Usuario nao encontrado.", ephemeral: true });
@@ -158,9 +159,9 @@ async function sendDraft(interaction: ButtonInteraction, context: BotContext, dr
   }
 }
 
-async function editDraft(interaction: ButtonInteraction, draftId: string) {
-  const draft = drafts.get(draftId);
-  if (!draft) return interaction.reply({ content: "Painel expirado. Execute /notificar novamente.", ephemeral: true });
+async function editDraft(interaction: ButtonInteraction, context: BotContext, draftId: string) {
+  const draft = await resolveDraft(interaction, context, draftId);
+  if (!draft) return interaction.reply({ content: "Nao consegui recuperar os dados deste painel. Execute /notificar novamente.", ephemeral: true });
   await interaction.showModal(new ModalBuilder()
     .setCustomId(`${PREFIX}:modal:${draftId}`)
     .setTitle("Editar notificacao")
@@ -175,8 +176,8 @@ async function editDraft(interaction: ButtonInteraction, draftId: string) {
 }
 
 async function submitEdit(interaction: ModalSubmitInteraction, context: BotContext, draftId: string) {
-  const draft = drafts.get(draftId);
-  if (!draft) return interaction.reply({ content: "Painel expirado. Execute /notificar novamente.", ephemeral: true });
+  const draft = await resolveDraft(interaction, context, draftId);
+  if (!draft) return interaction.reply({ content: "Nao consegui recuperar os dados deste painel. Execute /notificar novamente.", ephemeral: true });
   const settings = await context.api.getOpenDutySettings(draft.guildId);
   const target = await interaction.client.users.fetch(draft.targetId).catch(() => null);
   const message = interaction.fields.getTextInputValue("message");
@@ -209,6 +210,29 @@ async function cancelDraft(interaction: ButtonInteraction, context: BotContext, 
   return true;
 }
 
+async function resolveDraft(interaction: ButtonInteraction | ModalSubmitInteraction, context: BotContext, draftId: string): Promise<NotificationDraft | null> {
+  const existing = drafts.get(draftId);
+  if (existing) return existing;
+  const guildId = interaction.guildId;
+  if (!guildId) return null;
+  const sourceMessage = "message" in interaction ? interaction.message : null;
+  const targetId = extractTargetIdFromDraftId(draftId) ?? (sourceMessage ? extractTargetIdFromMessage(sourceMessage) : null);
+  if (!targetId) return null;
+  const target = await interaction.client.users.fetch(targetId).catch(() => null);
+  if (!target) return null;
+  const settings = await context.api.getOpenDutySettings(guildId);
+  const recoveredMessage = sourceMessage ? extractNotificationMessage(sourceMessage) : null;
+  const draft: NotificationDraft = {
+    edited: Boolean(recoveredMessage),
+    executorId: interaction.user.id,
+    guildId,
+    message: recoveredMessage ?? renderMessage(settings.defaultMessage, target, settings),
+    targetId
+  };
+  drafts.set(draftId, draft);
+  return draft;
+}
+
 function dmPayload(settings: OpenDutySettings, target: User, message: string) {
   const components: unknown[] = [];
   const banner = settings.dmBannerUrl ? resolvePanelImageUrl(settings.dmBannerUrl) : null;
@@ -223,7 +247,7 @@ function dmPayload(settings: OpenDutySettings, target: User, message: string) {
     components: [buildV2Container({
       accentColor: color(settings.panelColor),
       components,
-      footer: { image: footerImage ?? (settings.imagePosition === "footer" ? banner : null), text: settings.footerText ?? "OrviteK" }
+      footer: footer(settings, footerImage ?? banner)
     })],
     flags: MessageFlags.IsComponentsV2 as const
   };
@@ -306,10 +330,18 @@ function panel(settings: OpenDutySettings, input: { actions?: unknown[]; descrip
     actions: input.actions,
     description: input.description,
     fields: input.fields,
+    footer: footer(settings, settings.footerImageUrl ? resolvePanelImageUrl(settings.footerImageUrl) : null),
     image: settings.panelBannerUrl ? { imageEnabled: true, imagePosition: "top", imageUrl: settings.panelBannerUrl } : null,
     moduleId: MODULE_ID,
     title: input.title
   });
+}
+
+function footer(settings: OpenDutySettings, imageUrl: string | null) {
+  return {
+    image: settings.imagePosition === "footer" ? imageUrl : null,
+    text: settings.footerText ?? "OrviteK"
+  };
 }
 
 function canUse(member: GuildMember, userId: string, settings: OpenDutySettings) {
@@ -330,6 +362,40 @@ function renderMessage(template: string, target: User, settings: OpenDutySetting
 
 function hasChannelVariable(template: string) {
   return /\{(?:canal|channel)\}/i.test(template);
+}
+
+function extractTargetIdFromDraftId(draftId: string) {
+  const [, targetId] = draftId.split(":");
+  return /^\d{5,32}$/.test(targetId ?? "") ? targetId : null;
+}
+
+function extractTargetIdFromMessage(message: ButtonInteraction["message"]) {
+  return collectComponentText(message.components)
+    .join("\n")
+    .match(/Usuario selecionado:\s*<@!?(\d{5,32})>|Previa editada para\s*<@!?(\d{5,32})>|Prezada\(o\)\s*<@!?(\d{5,32})>/i)?.slice(1).find(Boolean) ?? null;
+}
+
+function extractNotificationMessage(message: ButtonInteraction["message"]) {
+  const texts = collectComponentText(message.components).map((text) => text.trim()).filter(Boolean);
+  const directMessage = [...texts].reverse().find((text) => /Prezada\(o\)|Verificamos que seu ponto|Se voce esqueceu|Se você esqueceu/i.test(text));
+  if (directMessage) return directMessage.replace(/^#+\s*Confirmar Envio\s*/i, "").trim().slice(0, 3000);
+  const joined = texts.join("\n\n");
+  const previewIndex = joined.search(/Previa da mensagem que sera enviada por DM:|Previa editada para/i);
+  return previewIndex >= 0 ? joined.slice(previewIndex).replace(/^.*?(?:DM:|:)\s*/s, "").trim().slice(0, 3000) || null : null;
+}
+
+function collectComponentText(value: unknown, output: string[] = []) {
+  if (!value) return output;
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectComponentText(item, output));
+    return output;
+  }
+  if (typeof value !== "object") return output;
+  const record = value as Record<string, unknown>;
+  if (typeof record.content === "string") output.push(record.content);
+  if (record.components) collectComponentText(record.components, output);
+  if (record.items) collectComponentText(record.items, output);
+  return output;
 }
 
 function color(value: string) {
