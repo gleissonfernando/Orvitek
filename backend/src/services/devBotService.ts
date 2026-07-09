@@ -118,10 +118,17 @@ const RUNTIME_MODULE_RELEASE_ALIASES: Record<string, (typeof DEV_MODULES)[number
   "anti-link": "safe-bot",
   "anti-links": "safe-bot",
   "anti-spam": "safe-bot",
+  "courses": "police-courses",
   "fivem-fac": "fivem-absences",
   "police-fac": "police-absences",
   "image-anti-spam": "safe-bot",
   "link-anti-spam": "safe-bot"
+};
+const DEV_MODULE_RELEASE_ALIASES: Record<string, string[]> = {
+  courses: ["police-courses"],
+  "police-courses": ["courses"],
+  "rh-admin": ["police-hr"],
+  "police-hr": ["rh-admin"]
 };
 const RUNTIME_INACTIVE_BOT_STATUSES = new Set<MongoDevBotStatus>(["error", "invalid_token"]);
 const RUNTIME_ACTIVE_LICENSE_STATUSES = new Set(["active", "ativo", "approved", "aprovado", "enabled", "liberado", "valid", "valido"]);
@@ -1996,7 +2003,8 @@ export async function authorizeBotRuntimeModule(input: {
   }
 
   const enabledModules = sanitizeModules(bot.enabledModules);
-  const moduleReleased = enabledModules.includes(releaseModuleId as (typeof DEV_MODULES)[number]["id"]);
+  const moduleReleased = devBotModuleReleaseIds(moduleId).some((candidate) => enabledModules.includes(candidate as (typeof DEV_MODULES)[number]["id"]))
+    || enabledModules.includes(releaseModuleId as (typeof DEV_MODULES)[number]["id"]);
   const securityReleased = releaseModuleId === "safe-bot"
     ? await isSecurityProtectionReleasedForBot(botId)
     : true;
@@ -2469,7 +2477,7 @@ function sanitizeModules(modules: string[]) {
 function devBotModuleReleaseIds(moduleId: string) {
   const canonicalModuleId = LEGACY_MODULE_ALIASES[moduleId] ?? moduleId;
 
-  return [...new Set([moduleId, canonicalModuleId])];
+  return [...new Set([moduleId, canonicalModuleId, ...(DEV_MODULE_RELEASE_ALIASES[moduleId] ?? [])])];
 }
 
 async function enableSelfBotDefaults(bot: DevBotDto) {

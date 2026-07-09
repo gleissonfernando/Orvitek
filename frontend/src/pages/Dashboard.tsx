@@ -5,6 +5,7 @@ import {
   AtSign,
   Bell,
   Bot,
+  BookOpen,
   Boxes,
   Building2,
   CalendarClock,
@@ -534,6 +535,13 @@ const moduleCatalog: ModuleDefinition[] = [
     view: "police-dm"
   },
   {
+    id: "courses",
+    title: "Cursos",
+    description: "Cursos, instrutores, agendamentos, publicações e relatórios de instrução.",
+    icon: BookOpen,
+    view: "courses"
+  },
+  {
     id: "rh-admin",
     title: "RH Administrativo",
     description: "Solicitações de ausência, adornos, análise de RH, cargos temporários e logs policiais.",
@@ -699,6 +707,20 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
 };
 
 const settingsModuleIds = new Set(["tickets", "avisos", "network", "server-generator"]);
+const moduleReleaseAliases: Record<string, string[]> = {
+  courses: ["police-courses"],
+  "police-courses": ["courses"],
+  "rh-admin": ["police-hr"],
+  "police-hr": ["rh-admin"]
+};
+
+function moduleReleaseIds(moduleId: string) {
+  return [moduleId, ...(moduleReleaseAliases[moduleId] ?? [])];
+}
+
+function hasReleasedModule(enabledModules: string[], moduleId: string) {
+  return moduleReleaseIds(moduleId).some((candidate) => enabledModules.includes(candidate));
+}
 
 export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardProps) {
   const [dashboardProfile, setDashboardProfile] = useState<DashboardMeResponse | null>(null);
@@ -757,10 +779,10 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
     ? auth.permissions.canManageBots || selectedBot.ownerId === auth.user.discordId || selectedBot.createdBy === auth.user.discordId
     : auth.permissions.canManageBots || auth.permissions.canManageDashboard;
   const canManageOwnerDevModule = (moduleId: string) => canManageOwnerDevSettings && (
-    selectedBot ? selectedBot.enabledModules.includes(moduleId) : canManageDashboard
+    selectedBot ? hasReleasedModule(selectedBot.enabledModules, moduleId) : canManageDashboard
   );
   const availableModules = useMemo(
-    () => moduleCatalog.filter((module) => enabledModules.includes(module.id)),
+    () => moduleCatalog.filter((module) => hasReleasedModule(enabledModules, module.id)),
     [enabledModulesKey]
   );
 
@@ -3750,6 +3772,7 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
       "account-age-security",
       "safe-bot",
       ...Object.keys(advancedSecurityModuleDetails),
+      "courses",
       "fivem",
       "fivem-factions",
       "fivem-corporations",
@@ -3765,6 +3788,9 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
       "police-absences",
       "police-actions",
       "police-iab",
+      "police-hr",
+      "police-courses",
+      "rh-admin",
       "police-subpoenas",
       "police-patrol-reports",
       "police-hidden-channel",
@@ -3803,7 +3829,7 @@ function isModuleReleasedForBot(bot: DashboardBot, moduleId: string) {
     return released.has("fivem-washing") || released.has("fivem-orders");
   }
 
-  return released.has(moduleId);
+  return moduleReleaseIds(moduleId).some((candidate) => released.has(candidate));
 }
 
 function UserDashboardHeader({
@@ -8788,7 +8814,7 @@ function isViewAllowed(view: ViewId, enabledModules: string[]) {
   }
 
   if (view === "police-absence") {
-    return enabledModules.includes("police-absences");
+    return hasReleasedModule(enabledModules, "police-absences");
   }
 
   if (view === "fivem-families") {
@@ -8796,7 +8822,7 @@ function isViewAllowed(view: ViewId, enabledModules: string[]) {
   }
 
   const requiredModule = viewModuleIds[view];
-  return Boolean(requiredModule && enabledModules.includes(requiredModule));
+  return Boolean(requiredModule && hasReleasedModule(enabledModules, requiredModule));
 }
 
 function liveModulesEnabled(enabledModules: string[]) {
