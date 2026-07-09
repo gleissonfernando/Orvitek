@@ -17,11 +17,14 @@ import {
   type Guild,
   type GuildMember,
   type Interaction,
+  type Message,
+  type MessageCreateOptions,
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
   type TextChannel,
   type UserSelectMenuInteraction
 } from "discord.js";
+import { isBotModuleEnabled } from "../config/env";
 import type { BotCommand, BotContext, GuildSettings, ReportSystemSettings } from "../types";
 import { getFreshGuildSettings } from "./guildSettingsCache";
 import { renderComponentsV2Panel } from "./panelVisualRenderer";
@@ -49,6 +52,7 @@ type CaseState = Draft & {
 };
 
 const PREFIX = "police_subpoena";
+const MODULE_ID = "police-subpoenas";
 const drafts = new Map<string, Draft>();
 const cases = new Map<string, CaseState>();
 
@@ -63,7 +67,7 @@ export const policeSubpoenaCommand: BotCommand = {
   data: new SlashCommandBuilder()
     .setName("intimacao")
     .setDescription("Cria uma intimação sigilosa com competência institucional."),
-  moduleId: "police-subpoenas",
+  moduleId: MODULE_ID,
   async execute(interaction, context) {
     await openSubpoenaFlow(interaction, context);
   }
@@ -231,6 +235,44 @@ async function submitSubpoena(interaction: ModalSubmitInteraction, context: BotC
   return true;
 }
 
+export async function handlePoliceSubpoenaMessage(message: Message, context: BotContext) {
+  if (!isBotModuleEnabled(MODULE_ID) || !message.guild || message.author.bot || message.webhookId) return false;
+  if (!message.channel.isTextBased() || message.channel.isDMBased()) return false;
+
+  const channel = message.channel as TextChannel;
+  const state = cases.get(channel.id) ?? recoverCaseFromTextChannel(channel);
+  if (!state || state.status !== "open") return false;
+  const hiddenIssuerIds = new Set([state.createdById, state.responsibleId].filter((id): id is string => Boolean(id)));
+  if (!hiddenIssuerIds.has(message.author.id)) return false;
+
+  const me = message.guild.members.me ?? await message.guild.members.fetchMe().catch(() => null);
+  const permissions = me ? channel.permissionsFor(me) : null;
+  if (!permissions?.has(PermissionFlagsBits.ManageMessages) || !permissions.has(PermissionFlagsBits.SendMessages)) {
+    return false;
+  }
+
+  const payload = anonymousIssuerPayload(message);
+  if (!payload.content && !payload.files?.length && !payload.stickers?.length) {
+    await message.delete().catch(() => null);
+    return true;
+  }
+
+  const settings = await getFreshGuildSettings(context, message.guild.id, message.client.user?.id);
+  await message.delete().catch(() => null);
+  const relayed = await channel.send(payload).catch(() => null);
+
+  await sendCompetenceLog(message.guild, settings, state, message.author.id, [
+    "Ação: **Mensagem anônima retransmitida**",
+    `Autor real: <@${message.author.id}> (${message.author.tag})`,
+    `Canal: <#${message.channelId}>`,
+    relayed ? `Mensagem do bot: https://discord.com/channels/${message.guild.id}/${message.channelId}/${relayed.id}` : "Mensagem do bot: falhou",
+    `Conteúdo: ${message.content ? message.content.slice(0, 1000) : "Sem texto"}`,
+    `Anexos: ${message.attachments.size ? message.attachments.map((attachment) => attachment.url).join("\n") : "Nenhum"}`
+  ].join("\n"));
+
+  return true;
+}
+
 async function handleCaseButton(interaction: ButtonInteraction, context: BotContext, settings: GuildSettings, action: string, channelId: string) {
   const state = cases.get(channelId) ?? await recoverCaseFromChannel(interaction, settings);
   if (!state) {
@@ -313,10 +355,10 @@ function casePanel(settings: GuildSettings, state: CaseState) {
     actions: [actions],
     description: "Painel interno sigiloso da intimação. Apenas o órgão competente pode atuar neste caso.",
     fields: [
-      `**Usuário intimado:** <@${state.targetId}> (${state.targetDisplayName})\n**Órgão competente:** ${COMPETENCE_LABEL[state.finalCompetence]}\n**Responsável:** <@${state.responsibleId}>`,
+      `**Usuário intimado:** <@${state.targetId}> (${state.targetDisplayName})\n**Órgão competente:** ${COMPETENCE_LABEL[state.finalCompetence]}\n**Responsável:** Atendimento sigiloso`,
       `**Motivo:** ${state.reason}\n**Prazo:** ${state.deadline}\n**Status:** ${statusLabel(state.status)}`,
       `**Descrição**\n${state.description}`.slice(0, 1000),
-      `**Criado por:** <@${state.createdById}>\n**Criado em:** <t:${Math.floor(new Date(state.createdAt).getTime() / 1000)}:F>\n${state.autoRedirected ? `**Redirecionamento automático:** ${state.redirectReason}` : "**Redirecionamento automático:** não"}`
+      `**Criado em:** <t:${Math.floor(new Date(state.createdAt).getTime() / 1000)}:F>\n${state.autoRedirected ? `**Redirecionamento automático:** ${state.redirectReason}` : "**Redirecionamento automático:** não"}`
     ],
     image: settings.reportSystem.subpoenaPanelBannerUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: settings.reportSystem.subpoenaPanelBannerUrl } : null,
     moduleId: "police-subpoena",
@@ -369,6 +411,21 @@ function panel(settings: GuildSettings | null, title: string, description: strin
   return renderComponentsV2Panel({ accentColor: color(settings?.reportSystem.panelColor), actions, description, fields: [], image: null, moduleId: "police-subpoena-flow", title });
 }
 
+function anonymousIssuerPayload(message: Message): MessageCreateOptions {
+  const files = message.attachments.map((attachment) => ({
+    attachment: attachment.url,
+    name: attachment.name ?? `arquivo-${attachment.id}`
+  })).slice(0, 10);
+  const stickers = message.stickers.map((sticker) => sticker.id).slice(0, 3);
+  const options: MessageCreateOptions = { allowedMentions: { parse: [] } };
+
+  if (message.content) options.content = message.content.slice(0, 2000);
+  if (files.length) options.files = files;
+  if (stickers.length) options.stickers = stickers;
+
+  return options;
+}
+
 function subpoenaModal(draftId: string) {
   return new ModalBuilder().setCustomId(`${PREFIX}:modal:${draftId}`).setTitle("Criar intimação").addComponents(
     inputRow("title", "Título da intimação", "Intimação institucional", TextInputStyle.Short, 100),
@@ -409,3 +466,4 @@ function color(value?: string | null) { return Number.parseInt(value?.replace("#
 function slug(value: string) { return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80) || "usuario"; }
 async function replyDenied(interaction: Interaction) { if (!interaction.isRepliable()) return; const payload = { content: "Você não possui permissão para atuar nesta intimação.", ephemeral: true }; if (interaction.replied || interaction.deferred) await interaction.followUp(payload).catch(() => null); else await interaction.reply(payload).catch(() => null); }
 async function recoverCaseFromChannel(interaction: Interaction, settings: GuildSettings): Promise<CaseState | null> { const channel = interaction.channel as TextChannel | null; const topic = channel?.topic ?? ""; const [, competence, targetId, responsibleId, createdById] = topic.split(":"); const parsed = parseCompetence(competence); if (!channel || !parsed || !targetId || !responsibleId || !createdById) return null; const target = await interaction.guild?.members.fetch(targetId).catch(() => null); return { autoRedirected: false, channelId: channel.id, createdAt: new Date().toISOString(), createdById, deadline: settings.reportSystem.defaultDeadline, description: "Dados recuperados após reinício. Consulte o histórico do canal.", finalCompetence: parsed, guildId: channel.guildId, reason: "Recuperado pelo canal", redirectReason: null, responsibleId, selectedCompetence: parsed, status: "open", targetDisplayName: target?.displayName ?? targetId, targetId, title: "Intimação" }; }
+function recoverCaseFromTextChannel(channel: TextChannel): CaseState | null { const topic = channel.topic ?? ""; const [, competence, targetId, responsibleId, createdById] = topic.split(":"); const parsed = parseCompetence(competence); if (!parsed || !targetId || !responsibleId || !createdById) return null; return { autoRedirected: false, channelId: channel.id, createdAt: new Date().toISOString(), createdById, deadline: "Consulte o painel da intimação", description: "Dados recuperados pelo canal.", finalCompetence: parsed, guildId: channel.guildId, reason: "Recuperado pelo canal", redirectReason: null, responsibleId, selectedCompetence: parsed, status: "open", targetDisplayName: targetId, targetId, title: "Intimação" }; }
