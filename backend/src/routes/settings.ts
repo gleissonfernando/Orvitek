@@ -26,7 +26,8 @@ import {
   areGuildAssignableRoles,
   areGuildRoles,
   isGuildCategoryChannel,
-  isGuildTextChannel
+  isGuildTextChannel,
+  isGuildTextOrCategoryChannel
 } from "../services/discordOptionsService";
 
 const settingsSchema = z.object({
@@ -1129,9 +1130,9 @@ async function validateGuildResources(
   ].filter((categoryId): categoryId is string => Boolean(categoryId));
 
   if (reportCategoryIds.length) {
-    const categoryChecks = await Promise.all([...new Set(reportCategoryIds)].map((categoryId) => isGuildCategoryChannel(guildId, categoryId, botToken)));
+    const categoryChecks = await Promise.all([...new Set(reportCategoryIds)].map((categoryId) => isGuildTextOrCategoryChannel(guildId, categoryId, botToken)));
     if (!categoryChecks.every(Boolean)) {
-      throw createSettingsError("Uma das categorias de competencia nao pertence a este servidor.");
+      throw createSettingsError("Um dos canais ou categorias de competencia nao pertence a este servidor.");
     }
   }
 

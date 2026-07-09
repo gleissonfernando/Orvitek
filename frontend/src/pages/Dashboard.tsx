@@ -5642,10 +5642,10 @@ function PoliceIabPanel({
               <TicketArea disabled={disabled} label="Texto padrão da DM" onChange={(value) => patch({ subpoenaDmText: value })} value={draft.subpoenaDmText} />
             </div>
             <div className="mt-4 grid gap-3 lg:grid-cols-2">
-              <CompetenceConfig categories={categories} channels={channels} disabled={disabled} label="IAB" logChannelId={draft.iabLogChannelId} categoryId={draft.iabCategoryId} onCategory={(iabCategoryId) => patch({ iabCategoryId })} onLog={(iabLogChannelId) => patch({ iabLogChannelId })} onRoles={(iabRoleIds) => patch({ iabRoleIds })} roles={options.roles} roleIds={draft.iabRoleIds} />
-              <CompetenceConfig categories={categories} channels={channels} disabled={disabled} label="Conselho" logChannelId={draft.conselhoLogChannelId} categoryId={draft.conselhoCategoryId} onCategory={(conselhoCategoryId) => patch({ conselhoCategoryId })} onLog={(conselhoLogChannelId) => patch({ conselhoLogChannelId })} onRoles={(conselhoRoleIds) => patch({ conselhoRoleIds })} roles={options.roles} roleIds={draft.conselhoRoleIds} />
-              <CompetenceConfig categories={categories} channels={channels} disabled={disabled} label="High Command / HCMD" logChannelId={draft.hcmdLogChannelId} categoryId={draft.hcmdCategoryId} onCategory={(hcmdCategoryId) => patch({ hcmdCategoryId })} onLog={(hcmdLogChannelId) => patch({ hcmdLogChannelId })} onRoles={(hcmdRoleIds) => patch({ hcmdRoleIds })} roles={options.roles} roleIds={draft.hcmdRoleIds} />
-              <CompetenceConfig categories={categories} channels={channels} disabled={disabled} label="Comissário" logChannelId={draft.comissarioLogChannelId} categoryId={draft.comissarioCategoryId} onCategory={(comissarioCategoryId) => patch({ comissarioCategoryId })} onLog={(comissarioLogChannelId) => patch({ comissarioLogChannelId })} onRoles={(comissarioRoleIds) => patch({ comissarioRoleIds })} roles={options.roles} roleIds={draft.comissarioRoleIds} />
+              <CompetenceConfig channels={channels} destinations={channelAndCategoryOptions} disabled={disabled} label="IAB" logChannelId={draft.iabLogChannelId} categoryId={draft.iabCategoryId} onCategory={(iabCategoryId) => patch({ iabCategoryId })} onLog={(iabLogChannelId) => patch({ iabLogChannelId })} onRoles={(iabRoleIds) => patch({ iabRoleIds })} roles={options.roles} roleIds={draft.iabRoleIds} />
+              <CompetenceConfig channels={channels} destinations={channelAndCategoryOptions} disabled={disabled} label="Conselho" logChannelId={draft.conselhoLogChannelId} categoryId={draft.conselhoCategoryId} onCategory={(conselhoCategoryId) => patch({ conselhoCategoryId })} onLog={(conselhoLogChannelId) => patch({ conselhoLogChannelId })} onRoles={(conselhoRoleIds) => patch({ conselhoRoleIds })} roles={options.roles} roleIds={draft.conselhoRoleIds} />
+              <CompetenceConfig channels={channels} destinations={channelAndCategoryOptions} disabled={disabled} label="High Command / HCMD" logChannelId={draft.hcmdLogChannelId} categoryId={draft.hcmdCategoryId} onCategory={(hcmdCategoryId) => patch({ hcmdCategoryId })} onLog={(hcmdLogChannelId) => patch({ hcmdLogChannelId })} onRoles={(hcmdRoleIds) => patch({ hcmdRoleIds })} roles={options.roles} roleIds={draft.hcmdRoleIds} />
+              <CompetenceConfig channels={channels} destinations={channelAndCategoryOptions} disabled={disabled} label="Comissário" logChannelId={draft.comissarioLogChannelId} categoryId={draft.comissarioCategoryId} onCategory={(comissarioCategoryId) => patch({ comissarioCategoryId })} onLog={(comissarioLogChannelId) => patch({ comissarioLogChannelId })} onRoles={(comissarioRoleIds) => patch({ comissarioRoleIds })} roles={options.roles} roleIds={draft.comissarioRoleIds} />
             </div>
           </div>
 
@@ -5698,9 +5698,9 @@ function PoliceIabPanel({
 }
 
 function CompetenceConfig({
-  categories,
   categoryId,
   channels,
+  destinations,
   disabled,
   label,
   logChannelId,
@@ -5710,9 +5710,9 @@ function CompetenceConfig({
   roles,
   roleIds
 }: {
-  categories: NonNullable<GuildLiveOptions["categories"]>;
   categoryId: string | null;
   channels: GuildLiveOptions["channels"];
+  destinations: Array<{ id: string; name: string }>;
   disabled: boolean;
   label: string;
   logChannelId: string | null;
@@ -5726,7 +5726,7 @@ function CompetenceConfig({
     <div className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-950 p-3">
       <p className="text-sm font-semibold text-white">{label}</p>
       <MultiRoleSelect disabled={disabled} label={`Cargos ${label}`} onChange={onRoles} roles={roles} values={roleIds} />
-      <FivemResourceSelect disabled={disabled} label={`Categoria ${label}`} onChange={onCategory} options={categories.map((category) => ({ id: category.id, name: category.name }))} placeholder="Categoria padrão" prefix="📁" value={categoryId} />
+      <FivemResourceSelect disabled={disabled} label={`Canal/categoria ${label}`} onChange={onCategory} options={destinations} placeholder="Destino padrão" value={categoryId} />
       <FivemChannelSelect channels={channels} disabled={disabled} label={`Logs ${label}`} onChange={onLog} placeholder="Canal padrão de logs" value={logChannelId} />
     </div>
   );

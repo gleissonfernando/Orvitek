@@ -195,6 +195,7 @@ async function submitSubpoena(interaction: ModalSubmitInteraction, context: BotC
     `DM: **${dmSent ? "enviada" : "falhou"}**`,
     caseState.redirectReason ? `Redirecionamento: **${caseState.redirectReason}**` : null
   ].filter(Boolean).join("\n"));
+  await sendCompetenceDestinationNotice(interaction.guild!, settings, caseState, interaction.user.id, channel);
 
   drafts.delete(draftId);
   await interaction.editReply(`Intimação criada em <#${channel.id}>.`);
@@ -290,7 +291,9 @@ function resolveCompetence(member: GuildMember, selected: Competence, report: Re
 async function createSubpoenaChannel(guild: Guild, settings: GuildSettings, state: Draft, target: GuildMember, title: string) {
   if (!guild.members.me?.permissions.has(PermissionFlagsBits.ManageChannels)) return null;
   const report = settings.reportSystem;
-  const categoryId = categoryFor(report, state.finalCompetence);
+  const destinationId = categoryFor(report, state.finalCompetence);
+  const destination = destinationId ? await guild.channels.fetch(destinationId).catch(() => null) : null;
+  const parent = destination?.type === ChannelType.GuildCategory ? destination.id : report.categoryId ?? undefined;
   const roleIds = orgRoleIds(report, state.finalCompetence);
   const caseUserIds = [...new Set([state.createdById, state.responsibleId].filter((id) => id && id !== target.id))];
   const overwrites = [
@@ -303,7 +306,7 @@ async function createSubpoenaChannel(guild: Guild, settings: GuildSettings, stat
   ];
   return guild.channels.create({
     name: `intimacao-${slug(target.displayName)}`.slice(0, 90),
-    parent: categoryId ?? undefined,
+    parent,
     permissionOverwrites: overwrites,
     reason: `Intimação ${COMPETENCE_LABEL[state.finalCompetence]}: ${title}`,
     topic: `intimacao:${state.finalCompetence}:${state.targetId}:${state.responsibleId ?? "0"}:${state.createdById}`,
@@ -362,6 +365,24 @@ async function sendCompetenceLog(guild: Guild, settings: GuildSettings, state: C
     image: null,
     moduleId: "police-subpoena-log",
     title: "Log de Intimação"
+  })).catch(() => null);
+}
+
+async function sendCompetenceDestinationNotice(guild: Guild, settings: GuildSettings, state: CaseState, executorId: string, subpoenaChannel: TextChannel) {
+  const destinationId = categoryFor(settings.reportSystem, state.finalCompetence);
+  if (!destinationId || destinationId === subpoenaChannel.id) return;
+  const destination = await guild.channels.fetch(destinationId).catch(() => null);
+  if (!destination?.isTextBased() || !("send" in destination)) return;
+  await (destination as TextChannel).send(renderComponentsV2Panel({
+    accentColor: color(settings.reportSystem.panelColor),
+    description: "Uma nova intimação foi registrada para este órgão.",
+    fields: [
+      `**Intimado:** <@${state.targetId}>\n**Órgão:** ${COMPETENCE_LABEL[state.finalCompetence]}`,
+      `**Canal da intimação:** <#${subpoenaChannel.id}>\n**Criada por:** <@${executorId}>`
+    ],
+    image: null,
+    moduleId: "police-subpoena-destination",
+    title: "Nova Intimação"
   })).catch(() => null);
 }
 

@@ -437,6 +437,10 @@ export async function isGuildTextChannel(guildId: string, channelId: string, bot
   return isGuildChannelType(guildId, channelId, TEXT_CHANNEL_TYPES, botToken);
 }
 
+export async function isGuildTextOrCategoryChannel(guildId: string, channelId: string, botToken?: string | null) {
+  return isGuildChannelType(guildId, channelId, new Set([...TEXT_CHANNEL_TYPES, 4]), botToken);
+}
+
 export async function isGuildVoiceChannel(guildId: string, channelId: string, botToken?: string | null) {
   return isGuildChannelType(guildId, channelId, VOICE_CHANNEL_TYPES, botToken);
 }
