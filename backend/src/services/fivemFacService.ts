@@ -26,6 +26,9 @@ export type FivemFacSettingsDto = {
   panelChannelId: string | null;
   panelMessageId: string | null;
   absenceRoleId: string | null;
+  autoApproveEnabled: boolean;
+  autoApproveMaxDays: number | null;
+  autoApproveRoleIds: string[];
   viewerRoleIds: string[];
   approverRoleIds: string[];
   memberRoleIds: string[];
@@ -52,6 +55,7 @@ export type FivemFacAbsenceDto = {
   privateChannelId: string | null;
   requestMessageId: string | null;
   moderatorId: string | null;
+  approvedBy: string | null;
   rejectionReason: string | null;
   roleAddedAt: string | null;
   roleRemovedAt: string | null;
@@ -69,10 +73,35 @@ export type FivemFacDashboardDto = {
   settings: FivemFacSettingsDto;
 };
 
+export type FivemFacHistoryResetResult = {
+  actorId: string;
+  botId: string;
+  deleted: {
+    facAbsences: number;
+    fivemGoalEntries: number;
+    fivemGoalLogs: number;
+    fivemGoalSubmissions: number;
+    fivemGoalUserChannels: number;
+    manualRegistrationLogs: number;
+    manualRegistrationSubmissions: number;
+    total: number;
+  };
+  discordChannelIds: {
+    all: string[];
+    facAbsencePrivate: string[];
+    fivemGoalUser: string[];
+  };
+  guildId: string;
+  resetAt: string;
+};
+
 export type SaveFivemFacSettingsInput = {
   enabled?: boolean;
   panelChannelId?: string | null;
   absenceRoleId?: string | null;
+  autoApproveEnabled?: boolean;
+  autoApproveMaxDays?: number | null;
+  autoApproveRoleIds?: string[];
   viewerRoleIds?: string[];
   approverRoleIds?: string[];
   memberRoleIds?: string[];
@@ -90,6 +119,7 @@ export type CreateFivemFacAbsenceInput = {
   startDate: string;
   endDate: string;
   notes?: string | null;
+  requesterRoleIds?: string[];
 };
 
 export type ModerateFivemFacAbsenceInput = {
@@ -166,6 +196,9 @@ export function defaultFivemFacSettings(botId: string, guildId: string): FivemFa
     panelChannelId: null,
     panelMessageId: null,
     absenceRoleId: null,
+    autoApproveEnabled: false,
+    autoApproveMaxDays: null,
+    autoApproveRoleIds: [],
     viewerRoleIds: [],
     approverRoleIds: [],
     memberRoleIds: [],
@@ -223,6 +256,9 @@ export async function saveFivemFacSettings(guildId: string, botId: string, input
     enabled: input.enabled ?? current.enabled,
     panelChannelId: normalizeNullableSnowflake(input.panelChannelId, current.panelChannelId),
     absenceRoleId: normalizeNullableSnowflake(input.absenceRoleId, current.absenceRoleId),
+    autoApproveEnabled: input.autoApproveEnabled ?? current.autoApproveEnabled,
+    autoApproveMaxDays: input.autoApproveMaxDays === undefined ? current.autoApproveMaxDays : normalizeAutoApproveMaxDays(input.autoApproveMaxDays),
+    autoApproveRoleIds: input.autoApproveRoleIds ? normalizeSnowflakes(input.autoApproveRoleIds) : current.autoApproveRoleIds,
     viewerRoleIds: input.viewerRoleIds ? normalizeSnowflakes(input.viewerRoleIds) : current.viewerRoleIds,
     approverRoleIds: input.approverRoleIds ? normalizeSnowflakes(input.approverRoleIds) : current.approverRoleIds,
     memberRoleIds: input.memberRoleIds ? normalizeSnowflakes(input.memberRoleIds) : current.memberRoleIds,
@@ -335,19 +371,6 @@ export async function requestFivemFacPanelPublish(guildId: string, botId: string
     settings: nextSettings
   });
 
-  await createFacLog({
-    botId,
-    guildId,
-    type: "fivem.fac.panel_publish_requested",
-    userId: actorId,
-    message: "Publicacao do painel FAC solicitada.",
-    metadata: {
-      action: "panel_publish_requested",
-      module: FAC_MODULE_ID,
-      panelChannelId: nextSettings.panelChannelId
-    }
-  });
-
   return nextSettings;
 }
 
@@ -369,6 +392,88 @@ export async function updateFivemFacPanelMessageState(botId: string, guildId: st
   );
 
   return getFivemFacSettings(guildId, botId);
+}
+
+export async function resetFivemFacTestHistory(input: { actorId: string; botId: string; guildId: string }): Promise<FivemFacHistoryResetResult> {
+  const {
+    fivemFacAbsences,
+    fivemGoalEntries,
+    fivemGoalLogs,
+    fivemGoalSubmissions,
+    fivemGoalUserChannels,
+    manualRegistrationLogs,
+    manualRegistrationSubmissions
+  } = await getMongoCollections();
+  const scope = { botId: input.botId, guildId: input.guildId };
+  const [facAbsenceChannels, goalChannels] = await Promise.all([
+    fivemFacAbsences
+      .find(scope, { projection: { privateChannelId: 1 } })
+      .toArray(),
+    fivemGoalUserChannels
+      .find(scope, { projection: { channelId: 1 } })
+      .toArray()
+  ]);
+  const facAbsencePrivate = uniqueSnowflakes(facAbsenceChannels.map((absence) => absence.privateChannelId));
+  const fivemGoalUser = uniqueSnowflakes(goalChannels.map((channel) => channel.channelId));
+  const [facAbsences, manualSubmissions, manualLogs, goalUserChannels, goalEntries, goalSubmissions, goalLogs] = await Promise.all([
+    fivemFacAbsences.deleteMany(scope),
+    manualRegistrationSubmissions.deleteMany(scope),
+    manualRegistrationLogs.deleteMany(scope),
+    fivemGoalUserChannels.deleteMany(scope),
+    fivemGoalEntries.deleteMany(scope),
+    fivemGoalSubmissions.deleteMany(scope),
+    fivemGoalLogs.deleteMany(scope)
+  ]);
+  const deleted = {
+    facAbsences: facAbsences.deletedCount ?? 0,
+    fivemGoalEntries: goalEntries.deletedCount ?? 0,
+    fivemGoalLogs: goalLogs.deletedCount ?? 0,
+    fivemGoalSubmissions: goalSubmissions.deletedCount ?? 0,
+    fivemGoalUserChannels: goalUserChannels.deletedCount ?? 0,
+    manualRegistrationLogs: manualLogs.deletedCount ?? 0,
+    manualRegistrationSubmissions: manualSubmissions.deletedCount ?? 0,
+    total: 0
+  };
+
+  deleted.total = Object.entries(deleted)
+    .filter(([key]) => key !== "total")
+    .reduce((sum, [, count]) => sum + count, 0);
+
+  const resetAt = new Date().toISOString();
+  const result: FivemFacHistoryResetResult = {
+    actorId: input.actorId,
+    botId: input.botId,
+    deleted,
+    discordChannelIds: {
+      all: uniqueSnowflakes([...facAbsencePrivate, ...fivemGoalUser]),
+      facAbsencePrivate,
+      fivemGoalUser
+    },
+    guildId: input.guildId,
+    resetAt
+  };
+  const log = await createFacLog({
+    botId: input.botId,
+    guildId: input.guildId,
+    type: "fivem.fac.test_history_reset",
+    userId: input.actorId,
+    message: "Historico de teste do FAC limpo.",
+    metadata: {
+      action: "test_history_reset",
+      deleted,
+      discordChannelIds: result.discordChannelIds.all,
+      module: FAC_MODULE_ID,
+      resetAt
+    }
+  });
+
+  emitRealtime("fivem:fac:history_reset", result);
+  emitRealtimeToRoom(devBotRealtimeRoom(input.botId), "fivem:fac:history_reset", result);
+  if (log) {
+    emitRealtime("logs:new", log);
+  }
+
+  return result;
 }
 
 export async function createFivemFacAbsence(input: CreateFivemFacAbsenceInput) {
@@ -394,6 +499,7 @@ export async function createFivemFacAbsence(input: CreateFivemFacAbsenceInput) {
   }
 
   const now = new Date();
+  const autoApproved = shouldAutoApproveAbsence(settings, startDate, endDate, input.requesterRoleIds ?? []);
   const absence: MongoFivemFacAbsence = {
     _id: randomUUID(),
     botId: input.botId,
@@ -405,19 +511,25 @@ export async function createFivemFacAbsence(input: CreateFivemFacAbsenceInput) {
     endDate,
     notes: normalizeShortText(input.notes, 1000),
     photoUrl: null,
-    status: "pending",
+    status: autoApproved ? "approved" : "pending",
     privateChannelId: null,
     requestMessageId: null,
     moderatorId: null,
+    approvedBy: autoApproved ? "automatic" : null,
     rejectionReason: null,
     roleAddedAt: null,
     roleRemovedAt: null,
-    approvedAt: null,
+    approvedAt: autoApproved ? now : null,
     rejectedAt: null,
     startedAt: null,
     finishedAt: null,
     closedAt: null,
-    audit: [auditEntry("created", input.userId, null, "pending", now)],
+    audit: autoApproved
+      ? [
+          auditEntry("created", input.userId, null, "pending", now),
+          auditEntry("auto_approved", "automatic", null, "approved", now)
+        ]
+      : [auditEntry("created", input.userId, null, "pending", now)],
     createdAt: now,
     updatedAt: now
   };
@@ -439,6 +551,24 @@ export async function createFivemFacAbsence(input: CreateFivemFacAbsenceInput) {
   });
 
   emitFacAbsenceEvent("created", dto, log);
+  if (autoApproved) {
+    const approvalLog = await createFacLog({
+      botId: input.botId,
+      guildId: input.guildId,
+      type: "fivem.fac.request_auto_approved",
+      userId: input.userId,
+      message: "Solicitacao de ausencia aprovada automaticamente.",
+      metadata: auditMetadata(dto, {
+        action: "request_auto_approved",
+        autoApproveMaxDays: settings.autoApproveMaxDays,
+        autoApproveRoleIds: settings.autoApproveRoleIds,
+        date: now.toISOString(),
+        moderatorId: "automatic",
+        module: FAC_MODULE_ID
+      })
+    });
+    emitFacAbsenceEvent("approved", dto, approvalLog);
+  }
   return dto;
 }
 
@@ -515,6 +645,7 @@ export async function approveFivemFacAbsence(input: ModerateFivemFacAbsenceInput
       $set: {
         status: "approved",
         moderatorId: input.moderatorId,
+        approvedBy: input.moderatorId,
         approvedAt: absence.approvedAt ?? now,
         updatedAt: now
       },
@@ -570,6 +701,8 @@ export async function rejectFivemFacAbsence(input: ModerateFivemFacAbsenceInput)
       $set: {
         status: "rejected",
         moderatorId: input.moderatorId,
+        approvedBy: null,
+        approvedAt: null,
         rejectionReason,
         rejectedAt: now,
         updatedAt: now
@@ -935,6 +1068,41 @@ function validateAbsenceDates(startDate: string, endDate: string, requireFuture:
   }
 }
 
+function shouldAutoApproveAbsence(settings: FivemFacSettingsDto, startDate: string, endDate: string, requesterRoleIds: string[]) {
+  if (!settings.autoApproveEnabled || !settings.autoApproveRoleIds.length) {
+    return false;
+  }
+
+  const allowedRoles = new Set(settings.autoApproveRoleIds);
+  if (!requesterRoleIds.some((roleId) => allowedRoles.has(roleId))) {
+    return false;
+  }
+
+  return settings.autoApproveMaxDays === null
+    || absenceDurationDays(startDate, endDate) <= settings.autoApproveMaxDays;
+}
+
+function absenceDurationDays(startDate: string, endDate: string) {
+  const start = dateKeyToUtcMs(startDate);
+  const end = dateKeyToUtcMs(endDate);
+
+  if (start === null || end === null || end < start) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return Math.round((end - start) / 86_400_000);
+}
+
+function dateKeyToUtcMs(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  return Date.UTC(year, month - 1, day);
+}
+
 function normalizeDateOnly(value: string) {
   const normalized = value.trim();
 
@@ -1118,6 +1286,23 @@ function normalizeSnowflakes(values: string[]) {
   return [...new Set(values.map((value) => normalizeNullableSnowflake(value, null)).filter((value): value is string => Boolean(value)))];
 }
 
+function uniqueSnowflakes(values: Array<string | null | undefined>) {
+  return [...new Set(values.filter((value): value is string => typeof value === "string" && /^\d{5,32}$/.test(value)))];
+}
+
+function normalizeAutoApproveMaxDays(value: unknown) {
+  if (value === null || value === "") {
+    return null;
+  }
+
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    throw createFacError("O limite de dias para autoaprovacao nao e valido.", 400);
+  }
+
+  return Math.max(0, Math.min(365, Math.trunc(numeric)));
+}
+
 async function findModeratableAbsence(absenceId: string, botId: string) {
   const { fivemFacAbsences } = await getMongoCollections();
   const absence = await fivemFacAbsences.findOne({
@@ -1203,6 +1388,9 @@ function toSettingsDto(settings: MongoFivemFacSettings): FivemFacSettingsDto {
     panelChannelId: settings.panelChannelId ?? null,
     panelMessageId: settings.panelMessageId ?? null,
     absenceRoleId: settings.absenceRoleId ?? null,
+    autoApproveEnabled: settings.autoApproveEnabled === true,
+    autoApproveMaxDays: typeof settings.autoApproveMaxDays === "number" && Number.isFinite(settings.autoApproveMaxDays) ? settings.autoApproveMaxDays : null,
+    autoApproveRoleIds: normalizeSnowflakes(settings.autoApproveRoleIds ?? []),
     viewerRoleIds: normalizeSnowflakes(settings.viewerRoleIds ?? []),
     approverRoleIds: normalizeSnowflakes(settings.approverRoleIds ?? []),
     memberRoleIds: normalizeSnowflakes(settings.memberRoleIds ?? []),
@@ -1231,6 +1419,7 @@ function toAbsenceDto(absence: MongoFivemFacAbsence): FivemFacAbsenceDto {
     privateChannelId: absence.privateChannelId ?? null,
     requestMessageId: absence.requestMessageId ?? null,
     moderatorId: absence.moderatorId ?? null,
+    approvedBy: absence.approvedBy ?? absence.moderatorId ?? null,
     rejectionReason: absence.rejectionReason ?? null,
     roleAddedAt: absence.roleAddedAt?.toISOString?.() ?? null,
     roleRemovedAt: absence.roleRemovedAt?.toISOString?.() ?? null,

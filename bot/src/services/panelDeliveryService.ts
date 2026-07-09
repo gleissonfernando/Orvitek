@@ -9,11 +9,13 @@ const PANEL_CHANNEL_PERMISSIONS = [
   { flag: PermissionFlagsBits.ViewChannel, label: "View Channel" },
   { flag: PermissionFlagsBits.SendMessages, label: "Send Messages" },
   { flag: PermissionFlagsBits.EmbedLinks, label: "Embed Links" },
-  { flag: PermissionFlagsBits.UseExternalEmojis, label: "Use External Emojis" },
+  { flag: PermissionFlagsBits.UseExternalEmojis, label: "Use External Emojis" }
+] as const;
+const PANEL_PIN_PERMISSION = [
   { flag: PermissionFlagsBits.PinMessages, label: "Pin Messages" }
 ] as const;
 
-export function assertPanelChannelPermissions(channel: GuildTextBasedChannel, client: Client, panelName: string) {
+export function assertPanelChannelPermissions(channel: GuildTextBasedChannel, client: Client, panelName: string, options: { requirePinMessages?: boolean } = {}) {
   const botId = client.user?.id;
 
   if (!botId) {
@@ -21,12 +23,16 @@ export function assertPanelChannelPermissions(channel: GuildTextBasedChannel, cl
   }
 
   const permissions = channel.permissionsFor(botId);
-  const missingPermissions = PANEL_CHANNEL_PERMISSIONS
+  const requiredPermissions = options.requirePinMessages === false
+    ? PANEL_CHANNEL_PERMISSIONS
+    : [...PANEL_CHANNEL_PERMISSIONS, ...PANEL_PIN_PERMISSION];
+  const missingPermissions = requiredPermissions
     .filter((permission) => !permissions?.has(permission.flag))
     .map((permission) => permission.label);
 
   if (missingPermissions.length) {
-    throw new Error(`Bot sem permissao para enviar/fixar o painel ${panelName}: ${missingPermissions.join(", ")}.`);
+    const action = options.requirePinMessages === false ? "enviar" : "enviar/fixar";
+    throw new Error(`Bot sem permissao para ${action} o painel ${panelName}: ${missingPermissions.join(", ")}.`);
   }
 }
 

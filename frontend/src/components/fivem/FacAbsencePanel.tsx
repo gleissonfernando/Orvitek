@@ -63,6 +63,9 @@ const emptySettings: FivemFacSettings = {
   panelChannelId: null,
   panelMessageId: null,
   absenceRoleId: null,
+  autoApproveEnabled: false,
+  autoApproveMaxDays: null,
+  autoApproveRoleIds: [],
   viewerRoleIds: [],
   approverRoleIds: [],
   memberRoleIds: [],
@@ -170,7 +173,7 @@ export function FacAbsencePanel({ botId, canManage, guild, variant = "fac" }: Fa
     }));
   }
 
-  function toggleRole(key: "viewerRoleIds" | "approverRoleIds" | "memberRoleIds", roleId: string) {
+  function toggleRole(key: "viewerRoleIds" | "approverRoleIds" | "memberRoleIds" | "autoApproveRoleIds", roleId: string) {
     setSettings((current) => {
       const selected = new Set(current[key]);
 
@@ -203,6 +206,9 @@ export function FacAbsencePanel({ botId, canManage, guild, variant = "fac" }: Fa
       const saved = await saveFivemFacSettings(guild.id, botId, {
         absenceRoleId: settings.absenceRoleId,
         approverRoleIds: settings.approverRoleIds,
+        autoApproveEnabled: settings.autoApproveEnabled,
+        autoApproveMaxDays: settings.autoApproveMaxDays,
+        autoApproveRoleIds: settings.autoApproveRoleIds,
         enabled: settings.enabled,
         logChannelId: settings.logChannelId,
         memberRoleIds: settings.memberRoleIds,
@@ -353,6 +359,35 @@ export function FacAbsencePanel({ botId, canManage, guild, variant = "fac" }: Fa
               roles={regularRoles}
               selectedRoleIds={settings.approverRoleIds}
             />
+
+            <div className="rounded-lg border border-zinc-900 bg-zinc-950/60 p-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-zinc-200">Autoaprovação</p>
+                  <p className="mt-1 text-xs text-zinc-500">Aprova automaticamente pedidos de usuários com cargos autorizados.</p>
+                </div>
+                <Switch
+                  checked={settings.autoApproveEnabled}
+                  disabled={!canManage || saving}
+                  onCheckedChange={(checked) => updateSetting("autoApproveEnabled", checked)}
+                />
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-[1fr_180px]">
+                <RoleChecklist
+                  disabled={!canManage || !settings.autoApproveEnabled}
+                  label="Cargos autoaprovados"
+                  onToggle={(roleId) => toggleRole("autoApproveRoleIds", roleId)}
+                  roles={regularRoles}
+                  selectedRoleIds={settings.autoApproveRoleIds}
+                />
+                <TextField
+                  disabled={!canManage || !settings.autoApproveEnabled}
+                  label="Limite de dias"
+                  onChange={(value) => updateSetting("autoApproveMaxDays", value.trim() ? Math.max(0, Number(value) || 0) : null)}
+                  value={settings.autoApproveMaxDays === null ? "" : String(settings.autoApproveMaxDays)}
+                />
+              </div>
+            </div>
 
             <div className="grid gap-3">
               <TextField disabled={!canManage} label="Titulo do painel" onChange={(value) => updateMessage("panelTitle", value)} value={settings.messages.panelTitle} />
@@ -668,6 +703,7 @@ function pruneSettingsForOptions(settings: FivemFacSettings, options: GuildLiveO
     ...settings,
     absenceRoleId: settings.absenceRoleId && roleIds.has(settings.absenceRoleId) ? settings.absenceRoleId : null,
     approverRoleIds: settings.approverRoleIds.filter((roleId) => roleIds.has(roleId)),
+    autoApproveRoleIds: settings.autoApproveRoleIds.filter((roleId) => roleIds.has(roleId)),
     logChannelId: settings.logChannelId && channelIds.has(settings.logChannelId) ? settings.logChannelId : null,
     memberRoleIds: settings.memberRoleIds.filter((roleId) => roleIds.has(roleId)),
     panelChannelId: settings.panelChannelId && channelIds.has(settings.panelChannelId) ? settings.panelChannelId : null,

@@ -1,5 +1,6 @@
 import { Collection } from "discord.js";
 import { banCommand } from "./ban";
+import { apagaHistoricoCommand } from "./apagaHistorico";
 import { advertirCommand } from "./advertir";
 import { clearCommand } from "./clear";
 import { deleteServeCommand } from "./deleteServe";
@@ -31,6 +32,7 @@ export function createCommandCollection() {
 
   [
     pingCommand,
+    apagaHistoricoCommand,
     advertirCommand,
     banCommand,
     clearCommand,

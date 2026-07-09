@@ -1705,6 +1705,9 @@ export type MongoFivemFacSettings = {
   panelChannelId: string | null;
   panelMessageId: string | null;
   absenceRoleId: string | null;
+  autoApproveEnabled?: boolean;
+  autoApproveMaxDays?: number | null;
+  autoApproveRoleIds?: string[];
   viewerRoleIds: string[];
   approverRoleIds: string[];
   memberRoleIds?: string[];
@@ -1730,6 +1733,7 @@ export type MongoFivemFacAuditEntry = {
 
 export type MongoFivemFacAbsence = {
   _id: string;
+  approvedBy?: string | null;
   botId: string;
   guildId: string;
   userId: string;

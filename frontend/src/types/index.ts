@@ -1995,6 +1995,9 @@ export type FivemFacSettings = {
   panelChannelId: string | null;
   panelMessageId: string | null;
   absenceRoleId: string | null;
+  autoApproveEnabled: boolean;
+  autoApproveMaxDays: number | null;
+  autoApproveRoleIds: string[];
   viewerRoleIds: string[];
   approverRoleIds: string[];
   memberRoleIds: string[];
@@ -2022,6 +2025,7 @@ export type FivemFacAbsence = {
   privateChannelId: string | null;
   requestMessageId: string | null;
   moderatorId: string | null;
+  approvedBy: string | null;
   rejectionReason: string | null;
   roleAddedAt: string | null;
   roleRemovedAt: string | null;

@@ -17,6 +17,7 @@ import {
     markFivemFacAbsenceStarted,
     rejectFivemFacAbsence,
     requestFivemFacPanelPublish,
+    resetFivemFacTestHistory,
     saveFivemFacAbsencePhotoFile,
     saveFivemFacPanelImageFile,
     saveFivemFacSettings,
@@ -64,6 +65,9 @@ const facSettingsSchema = z.object({
   enabled: z.boolean().optional(),
   panelChannelId: optionalSnowflakeSchema,
   absenceRoleId: optionalSnowflakeSchema,
+  autoApproveEnabled: z.boolean().optional(),
+  autoApproveMaxDays: z.coerce.number().int().min(0).max(365).nullable().optional(),
+  autoApproveRoleIds: z.array(snowflakeSchema).optional(),
   viewerRoleIds: z.array(snowflakeSchema).optional(),
   approverRoleIds: z.array(snowflakeSchema).optional(),
   memberRoleIds: z.array(snowflakeSchema).optional(),
@@ -108,7 +112,12 @@ const createAbsenceSchema = z.object({
   reason: z.string().min(1).max(800),
   startDate: dateOnlySchema,
   endDate: dateOnlySchema,
-  notes: z.string().max(1000).nullable().optional()
+  notes: z.string().max(1000).nullable().optional(),
+  requesterRoleIds: z.array(snowflakeSchema).max(100).optional()
+});
+const facHistoryResetSchema = z.object({
+  actorId: snowflakeSchema,
+  guildId: guildIdSchema
 });
 const goalFieldSchema = z.object({
   id: z.string().max(80),
@@ -707,6 +716,24 @@ fivemRouter.post("/bot/fac/panel-state", requireBot, async (req, res, next) => {
   }
 });
 
+fivemRouter.post("/bot/fac/history/reset", requireBot, async (req, res, next) => {
+  try {
+    const input = facHistoryResetSchema.parse(req.body);
+    const botId = await readRequiredBotId(req);
+    await assertBotFacLicense(botId);
+
+    return res.json({
+      result: await resetFivemFacTestHistory({
+        actorId: input.actorId,
+        botId,
+        guildId: input.guildId
+      })
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 fivemRouter.get("/bot/fac/:guildId", requireBot, async (req, res, next) => {
   try {
     const guildId = guildIdSchema.parse(req.params.guildId);
@@ -730,7 +757,8 @@ fivemRouter.post("/bot/fac/absences", requireBot, async (req, res, next) => {
     return res.status(201).json({
       absence: await createFivemFacAbsence({
         ...input,
-        botId
+        botId,
+        requesterRoleIds: input.requesterRoleIds ?? []
       })
     });
   } catch (error) {
@@ -1046,6 +1074,7 @@ async function validateFacResources(guildId: string, botId: string, input: z.inf
 
   const roleIds = [
     input.absenceRoleId,
+    ...(input.autoApproveRoleIds ?? []),
     ...(input.viewerRoleIds ?? []),
     ...(input.approverRoleIds ?? []),
     ...(input.memberRoleIds ?? [])
