@@ -1,4 +1,5 @@
 const PRODUCTION_ORIGIN = "";
+const RESERVED_DASHBOARD_PATHS = new Set(["planos"]);
 
 function normalizeUrl(value?: string) {
   const trimmed = value?.trim();
@@ -51,6 +52,9 @@ export function isDashboardRoutePath(path: string) {
 export function dashboardSlugFromPath(path: string) {
   if (path.startsWith("/dashboard/")) {
     const slug = path.slice("/dashboard/".length).split("/")[0]?.trim();
+    if (slug && RESERVED_DASHBOARD_PATHS.has(slug.toLowerCase())) {
+      return null;
+    }
     return decodeSlug(slug);
   }
 

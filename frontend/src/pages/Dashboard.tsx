@@ -67,6 +67,7 @@ import { MissionToolsPanel } from "../components/mission-tools/MissionToolsPanel
 import { MediaLibraryPanel } from "../components/media/MediaLibraryPanel";
 import { SiteAccessPanel } from "../components/moderation/SiteAccessPanel";
 import { PanelImageSettings } from "../components/panels/PanelImageSettings";
+import { PlansPanel } from "../components/plans/PlansPanel";
 import { ManualPaymentsPanel } from "../components/manual-payments/ManualPaymentsPanel";
 import { PriceTablesPanel } from "../components/price-tables/PriceTablesPanel";
 import { RhAdminPanel } from "../components/rh-admin/RhAdminPanel";
@@ -747,7 +748,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
   const [dashboardProfile, setDashboardProfile] = useState<DashboardMeResponse | null>(null);
   const [dashboardProfileLoading, setDashboardProfileLoading] = useState(true);
   const [dashboardRouteError, setDashboardRouteError] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<ViewId>("overview");
+  const [activeView, setActiveView] = useState<ViewId>(() => dashboardViewFromPath(window.location.pathname));
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [selectedGuildId, setSelectedGuildId] = useState<string | null>(
     auth.user.selectedGuildId ?? auth.guilds[0]?.id ?? CONFIGURED_GUILD_ID
@@ -834,7 +835,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
       }
 
       if (!requestedSlug) {
-        window.history.replaceState({}, "", `/${encodeURIComponent(targetBot.slug)}/dashboard`);
+        window.history.replaceState({}, "", dashboardPathForView(targetBot.slug, activeView));
       }
 
       setSelectedBotId(targetBot?.id ?? null);
@@ -1099,12 +1100,19 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
 
     setSelectedBotId(nextBot.id);
     storeSelectedBotId(nextBot.id);
-    window.history.replaceState({}, "", `/${encodeURIComponent(nextBot.slug)}/dashboard`);
+    window.history.replaceState({}, "", dashboardPathForView(nextBot.slug, activeView));
 
     if (nextGuildId) {
       setSelectedGuildId(nextGuildId);
       setDashboardProfile((current) => (current ? { ...current, selectedGuildId: nextGuildId } : current));
       void updateSelectedDashboardGuild(nextGuildId, nextBot.id).catch(() => undefined);
+    }
+  }
+
+  function handleChangeView(view: ViewId) {
+    setActiveView(view);
+    if (selectedBot) {
+      window.history.replaceState({}, "", dashboardPathForView(selectedBot.slug, view));
     }
   }
 
@@ -1119,7 +1127,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
       dashboardUser={dashboardProfile?.user}
       enabledModules={enabledModules}
       guilds={scopedDashboardGuilds}
-      onChangeView={setActiveView}
+      onChangeView={handleChangeView}
       onLogout={onLogout}
       onSelectBot={handleSelectBot}
       onSelectGuild={handleSelectGuild}
@@ -1140,7 +1148,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
           status={displayedBotStatus}
         />
 
-        {activeView !== "delete-channels" && activeView !== "fivem-hierarchy" ? (
+        {activeView !== "plans" && activeView !== "delete-channels" && activeView !== "fivem-hierarchy" ? (
           <PanelImageSettings
             botId={activeBotId}
             canManage={canManageDashboard}
@@ -1158,10 +1166,14 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             details={overviewDetails}
             guild={selectedGuild}
             logs={logs}
-            onConfigure={setActiveView}
+            onConfigure={handleChangeView}
             settings={settings}
             status={displayedBotStatus}
           />
+        ) : null}
+
+        {activeView === "plans" ? (
+          <PlansPanel />
         ) : null}
 
         {activeView === "lives" ? (
@@ -8868,8 +8880,19 @@ function policePanelImageSlotsForView(view: ViewId) {
   return null;
 }
 
+function dashboardViewFromPath(path: string): ViewId {
+  return path === "/dashboard/planos" || /^\/[a-z0-9]+(?:-[a-z0-9]+)*\/dashboard\/planos(?:\/|$)/i.test(path)
+    ? "plans"
+    : "overview";
+}
+
+function dashboardPathForView(slug: string, view: ViewId) {
+  const base = `/${encodeURIComponent(slug)}/dashboard`;
+  return view === "plans" ? `${base}/planos` : base;
+}
+
 function isViewAllowed(view: ViewId, enabledModules: string[]) {
-  if (view === "overview" || view === "notifications" || view === "delete-channels") {
+  if (view === "overview" || view === "plans" || view === "notifications" || view === "delete-channels") {
     return true;
   }
 

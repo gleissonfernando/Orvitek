@@ -1,4 +1,4 @@
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import {
   Bot,
   Check,
@@ -173,23 +173,26 @@ export function Login({
       <Header entering={verifying} onStart={handleStart} onNavigate={scrollTo} />
 
       <section id="inicio" className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col items-center justify-center px-4 pb-16 pt-32 text-center sm:px-6 lg:px-8">
-        <Reveal className="inline-flex items-center rounded-full border border-[#FFD500]/25 bg-[#FFD500]/10 px-4 py-2 text-sm font-medium text-[#FFEA70] shadow-[0_0_24px_rgba(255,213,0,0.16)]">
+        <Reveal delay={0.1} className="inline-flex items-center rounded-full border border-[#FFD500]/25 bg-[#FFD500]/10 px-4 py-2 text-sm font-medium text-[#FFEA70] shadow-[0_0_24px_rgba(255,213,0,0.16)]">
           A plataforma #1 de automação para Discord
         </Reveal>
 
-        <Reveal delay={0.08} className="mt-8 max-w-5xl">
+        <Reveal delay={0.2} className="mt-8 max-w-5xl">
           <h1 className="text-5xl font-black leading-tight text-white sm:text-6xl lg:text-7xl">
             Automatize seu servidor{" "}
             <span className="inline-block text-[#FFD500] drop-shadow-[0_0_28px_rgba(255,213,0,0.45)]">
               do seu jeito
             </span>
           </h1>
+        </Reveal>
+
+        <Reveal delay={0.3} className="max-w-5xl">
           <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-[#B3B3B3] sm:text-lg">
             Entre pela Dashboard com OAuth2 do Discord, configure seus bots e controle módulos, permissões, canais e logs em tempo real.
           </p>
         </Reveal>
 
-        <Reveal delay={0.16} className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+        <Reveal delay={0.4} className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Button className="h-12 min-w-44" disabled={verifying} onClick={handleStart}>
             {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
             {startLabel}
@@ -199,7 +202,7 @@ export function Login({
           </Button>
         </Reveal>
 
-        <Reveal delay={0.24} className="mt-12 w-full max-w-3xl">
+        <Reveal delay={0.5} className="mt-12 w-full max-w-3xl">
           <TerminalMockup />
         </Reveal>
       </section>
@@ -218,8 +221,8 @@ export function Login({
         </div>
 
         <Reveal className="mt-10 grid gap-3 rounded-lg border border-[#FFD500]/20 bg-[#141414]/90 p-4 shadow-glow sm:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat) => (
-            <StatCounter key={stat.label} {...stat} />
+          {stats.map((stat, index) => (
+            <StatCounter delay={index * 120} key={stat.label} {...stat} />
           ))}
         </Reveal>
       </section>
@@ -305,6 +308,7 @@ export function Login({
 function Header({ entering, onNavigate, onStart }: { entering: boolean; onNavigate: (id: string) => void; onStart: () => void }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -321,7 +325,12 @@ function Header({ entering, onNavigate, onStart }: { entering: boolean; onNaviga
   ] as const;
 
   return (
-    <header className={`fixed left-0 right-0 top-0 z-50 border-b px-4 transition duration-300 sm:px-6 lg:px-8 ${scrolled ? "border-[#FFD500]/20 bg-[#0A0A0A]/88 py-3 shadow-[0_16px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl" : "border-transparent bg-[#0A0A0A]/65 py-4 backdrop-blur-md"}`}>
+    <motion.header
+      animate={{ opacity: 1, y: 0 }}
+      className={`fixed left-0 right-0 top-0 z-50 border-b px-4 transition duration-300 sm:px-6 lg:px-8 ${scrolled ? "border-[#FFD500]/20 bg-[#0A0A0A]/88 py-3 shadow-[0_16px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl" : "border-transparent bg-[#0A0A0A]/65 py-4 backdrop-blur-md"}`}
+      initial={reducedMotion ? false : { opacity: 0, y: -18 }}
+      transition={{ duration: 0.48, ease: "easeOut" }}
+    >
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
         <button className="flex items-center gap-2 text-left" onClick={() => onNavigate("inicio")} type="button">
           <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#FFD500]/30 bg-[#FFD500]/10 text-[#FFD500] shadow-[0_0_22px_rgba(255,213,0,0.18)]">
@@ -370,7 +379,7 @@ function Header({ entering, onNavigate, onStart }: { entering: boolean; onNaviga
           </Button>
         </motion.div>
       ) : null}
-    </header>
+    </motion.header>
   );
 }
 
@@ -533,10 +542,11 @@ function SolutionCard({ index, onStart, solution }: { index: number; onStart: ()
   );
 }
 
-function StatCounter({ label, prefix = "", suffix = "", value }: { label: string; prefix?: string; suffix?: string; value: number }) {
+function StatCounter({ delay = 0, label, prefix = "", suffix = "", value }: { delay?: number; label: string; prefix?: string; suffix?: string; value: number }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(false);
   const [displayValue, setDisplayValue] = useState(0);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     const node = ref.current;
@@ -556,21 +566,35 @@ function StatCounter({ label, prefix = "", suffix = "", value }: { label: string
   useEffect(() => {
     if (!visible) return;
 
-    const duration = 900;
-    const start = performance.now();
+    if (reducedMotion) {
+      setDisplayValue(value);
+      return;
+    }
+
+    const duration = 1400;
+    let start = 0;
     let animation = 0;
+    let delayTimer = 0;
 
     const tick = (now: number) => {
+      if (!start) start = now;
       const progress = Math.min((now - start) / duration, 1);
-      setDisplayValue(Math.round(value * progress));
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayValue(Math.round(value * eased));
       if (progress < 1) {
         animation = requestAnimationFrame(tick);
       }
     };
 
-    animation = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(animation);
-  }, [value, visible]);
+    delayTimer = window.setTimeout(() => {
+      animation = requestAnimationFrame(tick);
+    }, delay);
+
+    return () => {
+      window.clearTimeout(delayTimer);
+      cancelAnimationFrame(animation);
+    };
+  }, [delay, reducedMotion, value, visible]);
 
   return (
     <div ref={ref} className="rounded-lg border border-[#FFD500]/15 bg-black/35 p-5 text-center">
@@ -581,8 +605,16 @@ function StatCounter({ label, prefix = "", suffix = "", value }: { label: string
 }
 
 function Footer({ currentYear, onNavigate }: { currentYear: number; onNavigate: (id: string) => void }) {
+  const reducedMotion = useReducedMotion();
+
   return (
-    <footer className="border-t border-[#FFD500]/15 bg-[#050505] px-4 py-12 sm:px-6 lg:px-8">
+    <motion.footer
+      className="border-t border-[#FFD500]/15 bg-[#050505] px-4 py-12 sm:px-6 lg:px-8"
+      initial={reducedMotion ? false : { opacity: 0, y: 20 }}
+      transition={{ duration: 0.55, ease: "easeOut" }}
+      viewport={{ once: true, amount: 0.15 }}
+      whileInView={reducedMotion ? undefined : { opacity: 1, y: 0 }}
+    >
       <div className="mx-auto grid max-w-7xl gap-8 md:grid-cols-4">
         <div>
           <button className="text-2xl font-black text-[#FFD500]" onClick={() => onNavigate("inicio")} type="button">Orvitek</button>
@@ -599,7 +631,7 @@ function Footer({ currentYear, onNavigate }: { currentYear: number; onNavigate: 
       <div className="mx-auto mt-10 max-w-7xl border-t border-[#FFD500]/10 pt-6 text-sm text-zinc-500">
         © {currentYear} Orvitek. Todos os direitos reservados.
       </div>
-    </footer>
+    </motion.footer>
   );
 }
 
@@ -619,14 +651,16 @@ function FooterColumn({ links, onNavigate, title }: { links: Array<[string, stri
 }
 
 function Reveal({ children, className, delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
+  const reducedMotion = useReducedMotion();
+
   return (
     <motion.div
       className={className}
-      initial="hidden"
-      transition={{ delay, duration: 0.55, ease: "easeOut" }}
-      variants={reveal}
+      initial={reducedMotion ? false : "hidden"}
+      transition={{ delay: reducedMotion ? 0 : delay, duration: 0.55, ease: "easeOut" }}
+      variants={reducedMotion ? undefined : reveal}
       viewport={{ once: true, amount: 0.18 }}
-      whileInView="visible"
+      whileInView={reducedMotion ? undefined : "visible"}
     >
       {children}
     </motion.div>

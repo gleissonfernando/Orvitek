@@ -3209,6 +3209,187 @@ export type MongoDashboardAuditLog = {
   createdAt: Date;
 };
 
+export type MongoPlanBillingCycle = "monthly" | "quarterly" | "semiannual" | "annual" | "lifetime" | "custom";
+export type MongoPaymentProvider = "disabled" | "mercadopago" | "asaas" | "efi" | "custom";
+export type MongoPlanSubscriptionStatus = "pending" | "active" | "suspended" | "cancelled" | "expired";
+export type MongoPlanWorkspaceStatus = "active" | "suspended" | "cancelled";
+export type MongoPlanPaymentOrderStatus = "interest_registered" | "pending" | "paid" | "cancelled" | "expired" | "failed";
+export type MongoBotCredentialStatus = "stored" | "validated" | "invalid" | "disabled";
+
+export type MongoPlanEntitlement = {
+  enabled: boolean;
+  key: string;
+  limit: number | null;
+  metadata?: Record<string, unknown>;
+  unit: string | null;
+};
+
+export type MongoPlanFeature = {
+  _id: string;
+  category: "streamer" | "fivem" | "discord" | "security" | "support" | "billing";
+  createdAt: Date;
+  defaultLimit: number | null;
+  description: string;
+  isActive: boolean;
+  isPublic: boolean;
+  key: string;
+  name: string;
+  order: number;
+  unit: string | null;
+  updatedAt: Date;
+};
+
+export type MongoPlan = {
+  _id: string;
+  badge: string | null;
+  billingCycle: MongoPlanBillingCycle;
+  botLimit: number;
+  buttonText: string;
+  color: string;
+  createdAt: Date;
+  createdBy: string | null;
+  currency: "BRL" | "USD" | "EUR";
+  description: string;
+  entitlements: MongoPlanEntitlement[];
+  guildLimit: number;
+  icon: string | null;
+  imageUrl: string | null;
+  isActive: boolean;
+  isPublic: boolean;
+  isPurchasable: boolean;
+  isRecommended: boolean;
+  name: string;
+  order: number;
+  priceInCents: number;
+  promotionalPriceInCents: number | null;
+  shortDescription: string;
+  slug: string;
+  updatedAt: Date;
+  updatedBy: string | null;
+  validityDays: number | null;
+};
+
+export type MongoPlanSubscription = {
+  _id: string;
+  activatedAt: Date | null;
+  activatedBy: string | null;
+  botLimit: number;
+  cancelledAt: Date | null;
+  createdAt: Date;
+  discordId: string;
+  endsAt: Date | null;
+  guildLimit: number;
+  metadata?: Record<string, unknown>;
+  planId: string;
+  planSlug: string;
+  startedAt: Date | null;
+  status: MongoPlanSubscriptionStatus;
+  suspendedAt: Date | null;
+  updatedAt: Date;
+  userId: string;
+  workspaceId: string | null;
+};
+
+export type MongoPlanWorkspace = {
+  _id: string;
+  botIds: string[];
+  createdAt: Date;
+  guildIds: string[];
+  name: string;
+  ownerDiscordId: string;
+  ownerUserId: string;
+  planId: string;
+  slug: string;
+  status: MongoPlanWorkspaceStatus;
+  subscriptionId: string;
+  updatedAt: Date;
+};
+
+export type MongoWorkspaceMember = {
+  _id: string;
+  createdAt: Date;
+  discordId: string;
+  role: "owner" | "admin" | "member";
+  updatedAt: Date;
+  userId: string;
+  workspaceId: string;
+};
+
+export type MongoBotCredential = {
+  _id: string;
+  authTag: string;
+  botClientId: string;
+  botName: string;
+  createdAt: Date;
+  encryptedDataKey: string;
+  iv: string;
+  keyVersion: string;
+  lastError: string | null;
+  lastValidatedAt: Date | null;
+  ownerUserId: string;
+  status: MongoBotCredentialStatus;
+  tokenCiphertext: string;
+  tokenFingerprint: string;
+  updatedAt: Date;
+  workspaceId: string;
+};
+
+export type MongoPaymentOrder = {
+  _id: string;
+  amountInCents: number;
+  checkoutUrl: string | null;
+  createdAt: Date;
+  currency: "BRL" | "USD" | "EUR";
+  discordId: string;
+  notes: string | null;
+  paidAt: Date | null;
+  pixCode: string | null;
+  planId: string;
+  planSlug: string;
+  provider: MongoPaymentProvider;
+  providerOrderId: string | null;
+  qrCode: string | null;
+  status: MongoPlanPaymentOrderStatus;
+  updatedAt: Date;
+  userId: string;
+};
+
+export type MongoPaymentEvent = {
+  _id: string;
+  createdAt: Date;
+  eventId: string | null;
+  eventType: string;
+  orderId: string | null;
+  payloadHash: string;
+  processedAt: Date | null;
+  provider: MongoPaymentProvider;
+  status: "received" | "ignored" | "processed" | "failed";
+};
+
+export type MongoPaymentSettings = {
+  _id: "global";
+  enabled: boolean;
+  provider: MongoPaymentProvider;
+  publicKey: string | null;
+  secretEncrypted: string | null;
+  updatedAt: Date;
+  updatedBy: string | null;
+  webhookSecretEncrypted: string | null;
+};
+
+export type MongoPlanAuditLog = {
+  _id: string;
+  action: string;
+  actorId: string | null;
+  actorName: string | null;
+  createdAt: Date;
+  ip: string | null;
+  metadata?: Record<string, unknown>;
+  targetId: string | null;
+  targetType: "plan" | "feature" | "subscription" | "workspace" | "bot_credential" | "payment" | "settings";
+  userAgent: string | null;
+};
+
 export type MongoGlobalPanelImagePosition = "banner" | "thumbnail" | "top" | "below_title" | "middle" | "bottom" | "side" | "footer" | "before_buttons" | "below_text" | "above_buttons" | "none";
 export type MongoGlobalPanelImageSize = "small" | "medium" | "large" | "full_banner" | "custom";
 export type MongoGlobalPanelImageLayoutMode = "embed" | "components_v2";
@@ -3419,6 +3600,16 @@ export async function getMongoCollections() {
     temporaryCalls: db.collection<MongoTemporaryCall>("temporary_calls"),
     automatedLogSettings: db.collection<MongoAutomatedLogSettings>("automated_log_settings"),
     securityFeatureAccess: db.collection<MongoSecurityFeatureAccess>("security_feature_access"),
+    plans: db.collection<MongoPlan>("plans"),
+    planFeatures: db.collection<MongoPlanFeature>("plan_features"),
+    planSubscriptions: db.collection<MongoPlanSubscription>("plan_subscriptions"),
+    planWorkspaces: db.collection<MongoPlanWorkspace>("plan_workspaces"),
+    workspaceMembers: db.collection<MongoWorkspaceMember>("workspace_members"),
+    botCredentials: db.collection<MongoBotCredential>("bot_credentials"),
+    paymentOrders: db.collection<MongoPaymentOrder>("payment_orders"),
+    paymentEvents: db.collection<MongoPaymentEvent>("payment_events"),
+    paymentSettings: db.collection<MongoPaymentSettings>("payment_settings"),
+    planAuditLogs: db.collection<MongoPlanAuditLog>("plan_audit_logs"),
     devBots: db.collection<MongoDevBot>("Bot"),
     botGuildConfigs: db.collection<MongoBotGuildConfig>("BotGuildConfig"),
     antiBanConfigs: db.collection<MongoAntiBanConfig>("anti_ban_configs"),
@@ -3594,6 +3785,7 @@ async function createMongoIndexes(db: Db) {
     ensureAutomatedLogIndexes(db),
     ensureSecurityFeatureAccessIndexes(db),
     ensureAntiBanIndexes(db),
+    ensurePlanIndexes(db),
     db.collection<MongoSocialNotification>("social_notifications").createIndex(
       {
         guildId: 1,
@@ -3638,6 +3830,35 @@ async function createMongoIndexes(db: Db) {
     db.collection<MongoBotGuildConfig>("BotGuildConfig").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
     db.collection<MongoDevPermission>("DevPermission").createIndex({ userId: 1 }, { unique: true }),
     ensureDashboardAuditLogIndexes(db)
+  ]);
+}
+
+async function ensurePlanIndexes(db: Db) {
+  await Promise.all([
+    db.collection<MongoPlan>("plans").createIndex({ slug: 1 }, { unique: true }),
+    db.collection<MongoPlan>("plans").createIndex({ isPublic: 1, isActive: 1, order: 1 }),
+    db.collection<MongoPlan>("plans").createIndex({ updatedAt: -1 }),
+    db.collection<MongoPlanFeature>("plan_features").createIndex({ key: 1 }, { unique: true }),
+    db.collection<MongoPlanFeature>("plan_features").createIndex({ category: 1, order: 1 }),
+    db.collection<MongoPlanSubscription>("plan_subscriptions").createIndex({ discordId: 1, status: 1, updatedAt: -1 }),
+    db.collection<MongoPlanSubscription>("plan_subscriptions").createIndex({ userId: 1, status: 1, updatedAt: -1 }),
+    db.collection<MongoPlanSubscription>("plan_subscriptions").createIndex({ planId: 1, status: 1, updatedAt: -1 }),
+    db.collection<MongoPlanSubscription>("plan_subscriptions").createIndex({ workspaceId: 1 }),
+    db.collection<MongoPlanWorkspace>("plan_workspaces").createIndex({ ownerDiscordId: 1, status: 1, updatedAt: -1 }),
+    db.collection<MongoPlanWorkspace>("plan_workspaces").createIndex({ slug: 1 }, { unique: true }),
+    db.collection<MongoWorkspaceMember>("workspace_members").createIndex({ workspaceId: 1, discordId: 1 }, { unique: true }),
+    db.collection<MongoWorkspaceMember>("workspace_members").createIndex({ discordId: 1, workspaceId: 1 }),
+    db.collection<MongoBotCredential>("bot_credentials").createIndex({ workspaceId: 1, createdAt: -1 }),
+    db.collection<MongoBotCredential>("bot_credentials").createIndex({ workspaceId: 1, botClientId: 1 }, { unique: true }),
+    db.collection<MongoBotCredential>("bot_credentials").createIndex({ tokenFingerprint: 1 }, { unique: true }),
+    db.collection<MongoPaymentOrder>("payment_orders").createIndex({ discordId: 1, createdAt: -1 }),
+    db.collection<MongoPaymentOrder>("payment_orders").createIndex({ planId: 1, status: 1, createdAt: -1 }),
+    db.collection<MongoPaymentOrder>("payment_orders").createIndex({ provider: 1, providerOrderId: 1 }),
+    db.collection<MongoPaymentEvent>("payment_events").createIndex({ provider: 1, eventId: 1 }),
+    db.collection<MongoPaymentEvent>("payment_events").createIndex({ createdAt: -1 }),
+    db.collection<MongoPlanAuditLog>("plan_audit_logs").createIndex({ createdAt: -1 }),
+    db.collection<MongoPlanAuditLog>("plan_audit_logs").createIndex({ actorId: 1, createdAt: -1 }),
+    db.collection<MongoPlanAuditLog>("plan_audit_logs").createIndex({ targetType: 1, targetId: 1, createdAt: -1 })
   ]);
 }
 

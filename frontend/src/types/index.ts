@@ -3338,3 +3338,211 @@ export type CreateDevBotPayload = {
   token: string;
   mainGuildId: string;
 };
+
+export type PlanBillingCycle = "monthly" | "quarterly" | "semiannual" | "annual" | "lifetime" | "custom";
+export type PaymentProvider = "disabled" | "mercadopago" | "asaas" | "efi" | "custom";
+export type PlanSubscriptionStatus = "pending" | "active" | "suspended" | "cancelled" | "expired";
+export type PlanWorkspaceStatus = "active" | "suspended" | "cancelled";
+export type PaymentOrderStatus = "interest_registered" | "pending" | "paid" | "cancelled" | "expired" | "failed";
+export type BotCredentialStatus = "stored" | "validated" | "invalid" | "disabled";
+
+export type PlanEntitlement = {
+  enabled: boolean;
+  key: string;
+  limit: number | null;
+  metadata?: Record<string, unknown>;
+  unit: string | null;
+};
+
+export type PlanFeature = {
+  id: string;
+  category: "streamer" | "fivem" | "discord" | "security" | "support" | "billing";
+  createdAt: string;
+  defaultLimit: number | null;
+  description: string;
+  isActive: boolean;
+  isPublic: boolean;
+  key: string;
+  name: string;
+  order: number;
+  unit: string | null;
+  updatedAt: string;
+};
+
+export type Plan = {
+  id: string;
+  badge: string | null;
+  billingCycle: PlanBillingCycle;
+  botLimit: number;
+  buttonText: string;
+  color: string;
+  createdAt: string;
+  createdBy: string | null;
+  currency: "BRL" | "USD" | "EUR";
+  description: string;
+  entitlements: PlanEntitlement[];
+  guildLimit: number;
+  icon: string | null;
+  imageUrl: string | null;
+  isActive: boolean;
+  isPublic: boolean;
+  isPurchasable: boolean;
+  isRecommended: boolean;
+  name: string;
+  order: number;
+  priceInCents: number;
+  promotionalPriceInCents: number | null;
+  shortDescription: string;
+  slug: string;
+  updatedAt: string;
+  updatedBy: string | null;
+  validityDays: number | null;
+};
+
+export type BotCredential = {
+  id: string;
+  botClientId: string;
+  botName: string;
+  createdAt: string;
+  keyVersion: string;
+  lastError: string | null;
+  lastValidatedAt: string | null;
+  ownerUserId: string;
+  status: BotCredentialStatus;
+  tokenConfigured: true;
+  tokenFingerprint: string;
+  updatedAt: string;
+  workspaceId: string;
+};
+
+export type PlanWorkspace = {
+  id: string;
+  botCount: number;
+  botIds: string[];
+  bots?: BotCredential[];
+  createdAt: string;
+  guildIds: string[];
+  name: string;
+  ownerDiscordId: string;
+  ownerUserId: string;
+  planId: string;
+  slug: string;
+  status: PlanWorkspaceStatus;
+  subscriptionId: string;
+  updatedAt: string;
+};
+
+export type PlanSubscription = {
+  id: string;
+  activatedAt: string | null;
+  activatedBy: string | null;
+  botLimit: number;
+  cancelledAt: string | null;
+  createdAt: string;
+  discordId: string;
+  endsAt: string | null;
+  guildLimit: number;
+  metadata?: Record<string, unknown>;
+  plan: Pick<Plan, "id" | "name" | "slug" | "color" | "badge" | "botLimit" | "guildLimit"> | null;
+  planId: string;
+  planSlug: string;
+  startedAt: string | null;
+  status: PlanSubscriptionStatus;
+  suspendedAt: string | null;
+  updatedAt: string;
+  userId: string;
+  workspace: Pick<PlanWorkspace, "id" | "name" | "slug" | "status"> | null;
+  workspaceId: string | null;
+};
+
+export type PaymentOrder = {
+  id: string;
+  amountInCents: number;
+  checkoutUrl: string | null;
+  createdAt: string;
+  currency: "BRL" | "USD" | "EUR";
+  discordId: string;
+  notes: string | null;
+  paidAt: string | null;
+  pixCode: string | null;
+  planId: string;
+  planSlug: string;
+  provider: PaymentProvider;
+  providerOrderId: string | null;
+  qrCode: string | null;
+  status: PaymentOrderStatus;
+  updatedAt: string;
+  userId: string;
+};
+
+export type PaymentSettings = {
+  id: "global";
+  enabled: boolean;
+  provider: PaymentProvider;
+  publicKey: string | null;
+  secretConfigured: boolean;
+  updatedAt: string;
+  updatedBy: string | null;
+  webhookSecretConfigured: boolean;
+};
+
+export type CustomerPlansDashboard = {
+  orders: PaymentOrder[];
+  paymentSettings: PaymentSettings;
+  plans: Plan[];
+  subscriptions: PlanSubscription[];
+  workspaces: PlanWorkspace[];
+};
+
+export type WorkspacePlanDashboard = {
+  bots: BotCredential[];
+  plan: Plan | null;
+  subscription: PlanSubscription | null;
+  workspace: PlanWorkspace;
+};
+
+export type PlanAuditLog = {
+  id: string;
+  _id: string;
+  action: string;
+  actorId: string | null;
+  actorName: string | null;
+  createdAt: string;
+  ip: string | null;
+  metadata?: Record<string, unknown>;
+  targetId: string | null;
+  targetType: "plan" | "feature" | "subscription" | "workspace" | "bot_credential" | "payment" | "settings";
+  userAgent: string | null;
+};
+
+export type DevPlansDashboard = {
+  auditLogs: PlanAuditLog[];
+  features: PlanFeature[];
+  orders: PaymentOrder[];
+  paymentSettings: PaymentSettings;
+  plans: Plan[];
+  subscriptions: PlanSubscription[];
+  summary: {
+    activePlans: number;
+    activeSubscriptions: number;
+    interestOrders: number;
+    paymentsEnabled: boolean;
+    publicPlans: number;
+    workspaces: number;
+  };
+  workspaces: PlanWorkspace[];
+};
+
+export type SavePlanPayload = Partial<Omit<Plan, "id" | "createdAt" | "updatedAt" | "createdBy" | "updatedBy">> & {
+  name: string;
+};
+
+export type SavePlanFeaturePayload = Omit<PlanFeature, "id" | "createdAt" | "updatedAt">;
+
+export type SavePaymentSettingsPayload = {
+  enabled?: boolean;
+  provider?: PaymentProvider;
+  publicKey?: string | null;
+  secret?: string | null;
+  webhookSecret?: string | null;
+};

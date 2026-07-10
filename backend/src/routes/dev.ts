@@ -75,6 +75,7 @@ import {
   toSettingsDto,
   updateOrvitechSaleStatus
 } from "../services/orvitechSalesService";
+import { devPlansRouter } from "./plans";
 import type { DashboardAuth } from "../services/tokenService";
 
 const moduleIds = DEV_MODULES.map((module) => module.id) as [string, ...string[]];
@@ -242,6 +243,7 @@ const discloudConsoleSchema = z.object({
 export const devRouter = Router();
 
 devRouter.use(requireDevAccess);
+devRouter.use(devPlansRouter);
 
 devRouter.get("/modules", (_req, res) => {
   return res.json({

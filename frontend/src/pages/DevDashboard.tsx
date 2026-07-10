@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DevPanel, type DevDashboardSection } from "../components/dev/DevPanel";
+import { DevPlansPanel } from "../components/plans/DevPlansPanel";
 import { Avatar } from "../components/ui/avatar";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -72,7 +73,7 @@ type DevDashboardProps = {
   onLogout: () => void;
 };
 
-type DevView = "bots" | "connected" | "bot-menu" | "cloning" | "sales" | "discloud" | "fivem" | "police" | "logs" | "access" | "maintenance";
+type DevView = "bots" | "connected" | "bot-menu" | "cloning" | "sales" | "plans" | "discloud" | "fivem" | "police" | "logs" | "access" | "maintenance";
 
 type FiveMModuleView = FivemModuleDefinition & {
   icon: LucideIcon;
@@ -219,6 +220,7 @@ export function DevDashboard({ auth, initialView = "bots", onLogout }: DevDashbo
             { id: "bot-menu" as const, label: "Menu do Bot" },
             { id: "cloning" as const, label: "Clonagem" },
             { id: "sales" as const, label: "Vendas" },
+            { id: "plans" as const, label: "Planos" },
             { id: "discloud" as const, label: "DisCloud" },
             { id: "fivem" as const, label: "FiveM" },
             { id: "police" as const, label: "Policia" },
@@ -275,6 +277,7 @@ export function DevDashboard({ auth, initialView = "bots", onLogout }: DevDashbo
           />
         ) : null}
 
+        {activeView === "plans" ? <DevPlansPanel /> : null}
         {activeView === "discloud" ? <DiscloudMonitoringPanel /> : null}
         {activeView === "logs" ? <TechnicalLogsPanel botId={selectedBotId} guildId={selectedGuildId} /> : null}
         {activeView === "access" ? <DevAccessPanel /> : null}
@@ -289,6 +292,7 @@ function devPathForView(view: DevView) {
   if (view === "bot-menu") return "/dev/menu-do-bot";
   if (view === "cloning") return "/dev/clonagem";
   if (view === "sales") return "/dev/vendas-orvitech";
+  if (view === "plans") return "/dev/planos";
   if (view === "discloud") return "/dev/discloud";
   if (view === "fivem") return "/dev/fivem";
   if (view === "police") return "/dev/policia";
@@ -323,6 +327,7 @@ function DevSidebar({
     { icon: Settings, id: "bot-menu", label: "Menu do Bot" },
     { icon: Copy, id: "cloning", label: "Clonagem" },
     { icon: CreditCard, id: "sales", label: "Vendas OrviTech" },
+    { icon: PackagePlus, id: "plans", label: "Planos" },
     { icon: Activity, id: "discloud", label: "Monitoramento DisCloud" },
     { icon: Building2, id: "fivem", label: "FiveM" },
     { icon: ShieldCheck, id: "police", label: "Policia" },

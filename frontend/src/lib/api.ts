@@ -75,6 +75,9 @@ import type {
   MissionToolsSettings,
   MissionToolsUserPanel,
   MaintenanceState,
+  BotCredential,
+  CustomerPlansDashboard,
+  DevPlansDashboard,
   OrvitechSale,
   OrvitechSaleStatus,
   OrvitechProduct,
@@ -95,6 +98,9 @@ import type {
   SaveCourseSettingsPayload,
   SaveFivemFacSettingsPayload,
   SaveManualPaymentSettingsPayload,
+  SavePaymentSettingsPayload,
+  SavePlanFeaturePayload,
+  SavePlanPayload,
   SaveFivemModulePayload,
   SaveGiveawayPayload,
   SaveImageAntiSpamSettingsPayload,
@@ -116,6 +122,10 @@ import type {
   ServerBackupRestorePreview,
   ServerBackupSettings,
   ServerBackupSnapshot,
+  Plan,
+  PlanFeature,
+  PlanSubscription,
+  WorkspacePlanDashboard,
   SelfBotProtectionResponse,
   SelfBotProtectionSettings,
   SocialMember,
@@ -238,6 +248,64 @@ export async function updateSelectedDashboardGuild(selectedGuildId: string, botI
     botId
   });
   return data.selectedGuildId;
+}
+
+export async function getPublicPlans() {
+  const { data } = await api.get<{ plans: Plan[] }>("/plans");
+  return data.plans;
+}
+
+export async function getPublicPlan(slug: string) {
+  const { data } = await api.get<{ plan: Plan }>(`/plans/${encodeURIComponent(slug)}`);
+  return data.plan;
+}
+
+export async function getCustomerPlansDashboard() {
+  const { data } = await api.get<CustomerPlansDashboard>("/customer/plans-dashboard");
+  return data;
+}
+
+export async function createPlanCheckoutInterest(planSlug: string) {
+  const { data } = await api.post<{
+    order: import("../types").PaymentOrder;
+    payment: { enabled: boolean; message: string | null; provider: import("../types").PaymentProvider };
+    plan: Plan;
+  }>("/checkout", {
+    planSlug
+  });
+  return data;
+}
+
+export async function getWorkspacePlanDashboard(workspaceId: string) {
+  const { data } = await api.get<WorkspacePlanDashboard>(`/workspaces/${encodeURIComponent(workspaceId)}`);
+  return data;
+}
+
+export async function createWorkspaceBot(workspaceId: string, payload: { botClientId: string; botName: string; token: string }) {
+  const { data } = await api.post<{ bot: BotCredential }>(`/workspaces/${encodeURIComponent(workspaceId)}/bots`, payload);
+  return data.bot;
+}
+
+export async function updateWorkspaceBotToken(workspaceId: string, credentialId: string, token: string) {
+  const { data } = await api.put<{ bot: BotCredential }>(
+    `/workspaces/${encodeURIComponent(workspaceId)}/bots/${encodeURIComponent(credentialId)}/token`,
+    { token }
+  );
+  return data.bot;
+}
+
+export async function validateWorkspaceBot(workspaceId: string, credentialId: string) {
+  const { data } = await api.post<{ bot: BotCredential }>(
+    `/workspaces/${encodeURIComponent(workspaceId)}/bots/${encodeURIComponent(credentialId)}/validate`
+  );
+  return data.bot;
+}
+
+export async function deleteWorkspaceBot(workspaceId: string, credentialId: string) {
+  const { data } = await api.delete<{ bot: BotCredential }>(
+    `/workspaces/${encodeURIComponent(workspaceId)}/bots/${encodeURIComponent(credentialId)}`
+  );
+  return data.bot;
 }
 
 export async function logout() {
@@ -1797,6 +1865,68 @@ export async function runDiscloudConsoleCommand(botId: string, command: string) 
     timeout: 30000
   });
   return data.result;
+}
+
+export async function getDevPlansDashboard() {
+  const { data } = await api.get<DevPlansDashboard>("/dev/plans-dashboard");
+  return data;
+}
+
+export async function createDevPlan(payload: SavePlanPayload) {
+  const { data } = await api.post<{ plan: Plan }>("/dev/plans", payload);
+  return data.plan;
+}
+
+export async function updateDevPlan(planId: string, payload: SavePlanPayload) {
+  const { data } = await api.put<{ plan: Plan }>(`/dev/plans/${encodeURIComponent(planId)}`, payload);
+  return data.plan;
+}
+
+export async function duplicateDevPlan(planId: string) {
+  const { data } = await api.post<{ plan: Plan }>(`/dev/plans/${encodeURIComponent(planId)}/duplicate`);
+  return data.plan;
+}
+
+export async function setDevPlanActive(planId: string, active: boolean) {
+  const { data } = await api.post<{ plan: Plan }>(
+    `/dev/plans/${encodeURIComponent(planId)}/${active ? "activate" : "deactivate"}`
+  );
+  return data.plan;
+}
+
+export async function createDevPlanFeature(payload: SavePlanFeaturePayload) {
+  const { data } = await api.post<{ feature: PlanFeature }>("/dev/plan-features", payload);
+  return data.feature;
+}
+
+export async function updateDevPlanFeature(featureId: string, payload: SavePlanFeaturePayload) {
+  const { data } = await api.put<{ feature: PlanFeature }>(`/dev/plan-features/${encodeURIComponent(featureId)}`, payload);
+  return data.feature;
+}
+
+export async function manuallyActivatePlanSubscription(payload: { planId: string; userId: string; workspaceName?: string | null }) {
+  const { data } = await api.post<{ subscription: PlanSubscription }>("/dev/subscriptions/manual-activate", payload);
+  return data.subscription;
+}
+
+export async function setPlanSubscriptionStatus(subscriptionId: string, action: "suspend" | "reactivate" | "cancel") {
+  const { data } = await api.post<{ subscription: PlanSubscription }>(
+    `/dev/subscriptions/${encodeURIComponent(subscriptionId)}/${action}`
+  );
+  return data.subscription;
+}
+
+export async function extendPlanSubscription(subscriptionId: string, days: number) {
+  const { data } = await api.post<{ subscription: PlanSubscription }>(
+    `/dev/subscriptions/${encodeURIComponent(subscriptionId)}/extend`,
+    { days }
+  );
+  return data.subscription;
+}
+
+export async function updatePlanPaymentSettings(payload: SavePaymentSettingsPayload) {
+  const { data } = await api.put<{ settings: import("../types").PaymentSettings }>("/dev/payment-settings", payload);
+  return data.settings;
 }
 
 export async function getDatabaseMaintenanceModules() {
