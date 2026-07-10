@@ -55,6 +55,7 @@ const PREFIX = "police_subpoena";
 const MODULE_ID = "police-subpoenas";
 const cases = new Map<string, CaseState>();
 const flowDrafts = new Map<string, { selectedCompetence: Competence; targetId: string }>();
+const relayingMessages = new Set<string>();
 
 const COMPETENCE_LABEL: Record<Competence, string> = {
   comissario: "Comissário",
@@ -229,6 +230,7 @@ async function submitSubpoena(interaction: ModalSubmitInteraction, context: BotC
 
 export async function handlePoliceSubpoenaMessage(message: Message, context: BotContext) {
   if (!isBotModuleEnabled(MODULE_ID) || !message.guild || message.author.bot || message.webhookId) return false;
+  if (relayingMessages.has(message.id)) return true;
   if (!message.channel.isTextBased() || message.channel.isDMBased()) return false;
 
   const channel = message.channel as TextChannel;
@@ -237,31 +239,44 @@ export async function handlePoliceSubpoenaMessage(message: Message, context: Bot
 
   const settings = await getFreshGuildSettings(context, message.guild.id, message.client.user?.id);
   const member = message.member ?? await message.guild.members.fetch(message.author.id).catch(() => null);
-  if (message.author.id === state.targetId || !member || !canReplyAnonymously(member, settings.reportSystem, state, message.author.id, channel)) return false;
+  if (message.author.id === state.targetId || !member) return false;
 
   const me = message.guild.members.me ?? await message.guild.members.fetchMe().catch(() => null);
   const permissions = me ? channel.permissionsFor(me) : null;
+  if (!canManageCase(member, settings.reportSystem, state)) {
+    if (permissions?.has(PermissionFlagsBits.ManageMessages)) await message.delete().catch(() => null);
+    if (permissions?.has(PermissionFlagsBits.SendMessages)) {
+      const warning = await channel.send({ allowedMentions: { parse: [] }, content: "Apenas os responsáveis pelo órgão competente podem responder nesta intimação." }).catch(() => null);
+      if (warning) setTimeout(() => void warning.delete().catch(() => null), 8_000).unref();
+    }
+    return true;
+  }
   if (!permissions?.has(PermissionFlagsBits.ManageMessages) || !permissions.has(PermissionFlagsBits.SendMessages)) {
     return false;
   }
 
-  const payload = anonymousIssuerPayload(message, subpoenaStaffDisplayName(settings.reportSystem, state));
-  if (!payload.content && !payload.files?.length && !payload.stickers?.length) {
+  relayingMessages.add(message.id);
+  try {
+    const payload = anonymousIssuerPayload(message, subpoenaStaffDisplayName(settings.reportSystem, state));
+    if (!payload.content && !payload.files?.length && !payload.stickers?.length) {
+      await message.delete().catch(() => null);
+      return true;
+    }
+
     await message.delete().catch(() => null);
-    return true;
+    const relayed = await channel.send(payload).catch(() => null);
+
+    await sendCompetenceLog(message.guild, settings, state, message.author.id, [
+      "Ação: **Mensagem anônima retransmitida**",
+      `Autor real: <@${message.author.id}> (${message.author.tag})`,
+      `Canal: <#${message.channelId}>`,
+      relayed ? `Mensagem do bot: https://discord.com/channels/${message.guild.id}/${message.channelId}/${relayed.id}` : "Mensagem do bot: falhou",
+      `Conteúdo: ${message.content ? message.content.slice(0, 1000) : "Sem texto"}`,
+      `Anexos: ${message.attachments.size ? message.attachments.map((attachment) => attachment.url).join("\n") : "Nenhum"}`
+    ].join("\n"));
+  } finally {
+    setTimeout(() => relayingMessages.delete(message.id), 30_000).unref();
   }
-
-  await message.delete().catch(() => null);
-  const relayed = await channel.send(payload).catch(() => null);
-
-  await sendCompetenceLog(message.guild, settings, state, message.author.id, [
-    "Ação: **Mensagem anônima retransmitida**",
-    `Autor real: <@${message.author.id}> (${message.author.tag})`,
-    `Canal: <#${message.channelId}>`,
-    relayed ? `Mensagem do bot: https://discord.com/channels/${message.guild.id}/${message.channelId}/${relayed.id}` : "Mensagem do bot: falhou",
-    `Conteúdo: ${message.content ? message.content.slice(0, 1000) : "Sem texto"}`,
-    `Anexos: ${message.attachments.size ? message.attachments.map((attachment) => attachment.url).join("\n") : "Nenhum"}`
-  ].join("\n"));
 
   return true;
 }
@@ -272,7 +287,7 @@ async function handleCaseButton(interaction: ButtonInteraction, context: BotCont
     await interaction.reply({ content: "Não encontrei os dados desta intimação após reinício. Gere uma nova intimação.", ephemeral: true });
     return true;
   }
-  if (!interaction.member || !canManageCase(interaction.member as GuildMember, settings.reportSystem, state, interaction.user.id)) {
+  if (!interaction.member || !canManageCase(interaction.member as GuildMember, settings.reportSystem, state)) {
     await replyDenied(interaction);
     return true;
   }
@@ -288,47 +303,43 @@ async function handleCaseButton(interaction: ButtonInteraction, context: BotCont
     await interaction.reply({ content: sent ? "Lembrete enviado por DM." : "Não consegui enviar a DM.", ephemeral: true });
     return true;
   }
-  if (action === "cancel") {
-    await cancelSubpoena(interaction, context, settings, state, channelId);
+  if (action === "finish" || action === "cancel") {
+    await closeSubpoena(interaction, context, settings, state, channelId, action === "finish" ? "Finalizada" : "Cancelada");
     return true;
   }
-  state.status = action === "finish" ? "finished" : "cancelled";
-  cases.set(channelId, state);
-  await interaction.update(casePanel(settings, state));
-  await sendCompetenceLog(interaction.guild!, settings, state, interaction.user.id, `Ação: **${action === "finish" ? "Intimação finalizada" : "Intimação cancelada"}**\nCanal: <#${channelId}>`);
   return true;
 }
 
-async function cancelSubpoena(interaction: ButtonInteraction, context: BotContext, settings: GuildSettings, state: CaseState, channelId: string) {
+async function closeSubpoena(interaction: ButtonInteraction, context: BotContext, settings: GuildSettings, state: CaseState, channelId: string, status: "Cancelada" | "Finalizada") {
   await interaction.deferReply({ ephemeral: true });
   const channel = interaction.channel?.id === channelId && interaction.channel.isTextBased()
     ? interaction.channel as TextChannel
     : await interaction.guild!.channels.fetch(channelId).catch(() => null);
   if (!channel || !("delete" in channel) || !channel.isTextBased()) {
-    await interaction.editReply("Não encontrei o canal da intimação para cancelar.");
+    await interaction.editReply("Não encontrei o canal da intimação para encerrar.");
     return;
   }
 
-  state.status = "cancelled";
+  state.status = status === "Finalizada" ? "finished" : "cancelled";
   cases.set(channelId, state);
-  const transcript = await createSubpoenaTranscript(context, interaction.guild!, settings, channel as TextChannel, state, interaction.user.id, "Cancelada").catch((error) => {
+  const transcript = await createSubpoenaTranscript(context, interaction.guild!, settings, channel as TextChannel, state, interaction.user.id, status).catch((error) => {
     console.error("[police-subpoena] failed to create transcript:", error instanceof Error ? error.message : error);
     return null;
   });
   await sendCompetenceLog(interaction.guild!, settings, state, interaction.user.id, [
-    "Ação: **Intimação cancelada**",
+    `Ação: **Intimação ${status.toLowerCase()}**`,
     `Canal apagado: <#${channelId}>`,
     transcript ? `Transcript: ${subpoenaTranscriptUrl(transcript)}` : "Transcript: falhou"
   ].join("\n"));
   cases.delete(channelId);
-  await interaction.editReply(transcript ? "Intimação cancelada. Transcript gerado e canal será apagado." : "Intimação cancelada. Não consegui gerar o transcript, mas o canal será apagado.");
+  await interaction.editReply(transcript ? `Intimação ${status.toLowerCase()}. Transcript gerado e canal será apagado.` : `Intimação ${status.toLowerCase()}. Não consegui gerar o transcript, mas o canal será apagado.`);
   await new Promise((resolve) => setTimeout(resolve, 2_000));
-  await (channel as TextChannel).delete(`Intimação cancelada por ${interaction.user.tag} (${interaction.user.id})`).catch(() => null);
+  await (channel as TextChannel).delete(`Intimação ${status.toLowerCase()} por ${interaction.user.tag} (${interaction.user.id})`).catch(() => null);
 }
 
 async function submitNote(interaction: ModalSubmitInteraction, _context: BotContext, settings: GuildSettings, channelId: string) {
   const state = cases.get(channelId) ?? await recoverCaseFromChannel(interaction, settings);
-  if (!state || !interaction.member || !canManageCase(interaction.member as GuildMember, settings.reportSystem, state, interaction.user.id)) {
+  if (!state || !interaction.member || !canManageCase(interaction.member as GuildMember, settings.reportSystem, state)) {
     await replyDenied(interaction);
     return true;
   }
@@ -353,14 +364,15 @@ async function createSubpoenaChannel(guild: Guild, settings: GuildSettings, stat
   const report = settings.reportSystem;
   const parent = await resolveSubpoenaParent(guild, report, state.finalCompetence);
   const roleIds = filterExistingRoles(guild, orgRoleIds(report, state.finalCompetence));
+  if (!roleIds.length) {
+    return { channel: null, error: `Configure pelo menos um cargo responsável para o órgão ${COMPETENCE_LABEL[state.finalCompetence]} antes de criar intimações.` };
+  }
   const deniedRoleIds = filterExistingRoles(guild, allOrgRoleIds(report).filter((roleId) => !roleIds.includes(roleId)));
-  const caseUserIds = [...new Set([state.createdById, state.responsibleId].filter((id) => id && id !== target.id))];
   const overwrites = [
     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
     { id: me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ReadMessageHistory] },
     ...deniedRoleIds.map((id) => ({ id, deny: [PermissionFlagsBits.ViewChannel] })),
     ...roleIds.map((id) => ({ id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ReadMessageHistory] })),
-    ...caseUserIds.map((id) => ({ id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ReadMessageHistory] })),
     { id: target.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ReadMessageHistory] }
   ];
 
@@ -615,8 +627,7 @@ function flowKey(interaction: { guildId: string | null; user: { id: string } }) 
 function hasAnyRole(member: GuildMember, roleIds: string[]) { return roleIds.some((roleId) => member.roles.cache.has(roleId)); }
 function canUseCommand(member: GuildMember, report: ReportSystemSettings) { if (member.permissions.has(PermissionFlagsBits.Administrator)) return true; const ids = [...report.competenceCommandRoleIds, ...report.permissionRoleIds, ...report.adminRoleIds, ...allOrgRoleIds(report)]; return !ids.length || hasAnyRole(member, ids); }
 function canManageCompetence(member: GuildMember, report: ReportSystemSettings, competence: Competence) { if (member.permissions.has(PermissionFlagsBits.Administrator)) return true; return hasAnyRole(member, orgRoleIds(report, competence)); }
-function canManageCase(member: GuildMember, report: ReportSystemSettings, state: CaseState, userId: string) { if (member.permissions.has(PermissionFlagsBits.Administrator)) return true; if (userId === state.createdById || userId === state.responsibleId) return true; return canManageCompetence(member, report, state.finalCompetence); }
-function canReplyAnonymously(member: GuildMember, report: ReportSystemSettings, state: CaseState, userId: string, channel: TextChannel) { if (canManageCase(member, report, state, userId) || canUseCommand(member, report)) return true; const permissions = channel.permissionsFor(member); return Boolean(permissions?.has(PermissionFlagsBits.ViewChannel) && permissions.has(PermissionFlagsBits.SendMessages)); }
+function canManageCase(member: GuildMember, report: ReportSystemSettings, state: CaseState) { if (member.permissions.has(PermissionFlagsBits.Administrator)) return true; return canManageCompetence(member, report, state.finalCompetence); }
 function subpoenaStaffDisplayName(report: ReportSystemSettings, state: CaseState) { return state.finalCompetence === "iab" ? report.anonymousInvestigatorName || "Equipe IAB" : `Equipe ${COMPETENCE_LABEL[state.finalCompetence]}`; }
 function subpoenaTranscriptUrl(transcript: Awaited<ReturnType<BotContext["api"]["createTranscript"]>>) { return transcript.publicUrl || transcript.transcript.publicUrl || `https://orvitek-bots.discloud.app/transcripts/${transcript.transcript.id}`; }
 function orgRoleIds(report: ReportSystemSettings, competence: Competence) { const fallback = competence === "iab" ? [...report.viewRoleIds, ...report.replyRoleIds, ...report.adminRoleIds] : []; return [...new Set((competence === "iab" ? report.iabRoleIds : competence === "conselho" ? report.conselhoRoleIds : competence === "hcmd" ? report.hcmdRoleIds : report.comissarioRoleIds).concat(fallback))]; }
