@@ -42,6 +42,8 @@ const DEV_BOT_START_STAGGER_MS = 3_000;
 const DEV_BOT_RESTART_DELAY_MS = 30_000;
 const DEV_BOT_SUPERVISOR_LEASE_ID = "dev-bot-runtime-supervisor";
 const DEV_BOT_SUPERVISOR_LEASE_MS = 30_000;
+const DEV_BOT_SUPERVISOR_START_RETRY_MS = 6_000;
+const DEV_BOT_SUPERVISOR_START_ATTEMPTS = 7;
 const DEV_BOT_SUPERVISOR_INSTANCE_ID = `dev-bot-supervisor:${process.pid}:${randomUUID()}`;
 const runningBots = new Map<string, RunningBot>();
 const restartTimers = new Map<string, NodeJS.Timeout>();
@@ -50,8 +52,8 @@ let supervisorLeaseHeld = false;
 let supervisorLeaseErrors = 0;
 
 export async function startRegisteredDevBots() {
-  if (!(await ensureDevBotSupervisorLease())) {
-    console.warn("[dev-bot] outro supervisor possui a trava distribuida; bots cadastrados nao serao iniciados nesta instancia.");
+  if (!(await waitForDevBotSupervisorLease())) {
+    console.warn("[dev-bot] outro supervisor manteve a trava distribuida; bots cadastrados nao serao iniciados nesta instancia.");
     return 0;
   }
 
@@ -63,6 +65,18 @@ export async function startRegisteredDevBots() {
   console.log(`[dev-bot] iniciando ${bots.length} bot(s) cadastrado(s) automaticamente.`);
   await startDevBotRuntimeBatch(bots);
   return bots.length;
+}
+
+async function waitForDevBotSupervisorLease() {
+  for (let attempt = 1; attempt <= DEV_BOT_SUPERVISOR_START_ATTEMPTS; attempt += 1) {
+    if (await ensureDevBotSupervisorLease()) return true;
+    if (attempt === DEV_BOT_SUPERVISOR_START_ATTEMPTS) break;
+
+    console.warn(`[dev-bot] trava de supervisor ainda pertence a instancia anterior; nova tentativa em ${DEV_BOT_SUPERVISOR_START_RETRY_MS / 1_000}s (${attempt}/${DEV_BOT_SUPERVISOR_START_ATTEMPTS}).`);
+    await delay(DEV_BOT_SUPERVISOR_START_RETRY_MS);
+  }
+
+  return false;
 }
 
 export async function startAllDevBotProcesses(botIds: string[]) {
