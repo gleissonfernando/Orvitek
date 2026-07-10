@@ -170,7 +170,7 @@ export async function createOrResumeCourseExamAttempt(botId: string | null, guil
     _id: input.publicationId,
     ...scope(botId, guildId),
     courseId: input.courseId,
-    status: "proof",
+    status: { $in: ["started", "proof"] },
     students: input.studentId
   });
   if (!publication) throw new Error("Aluno não inscrito, turma inativa ou curso divergente.");
@@ -191,23 +191,24 @@ export async function createOrResumeCourseExamAttempt(botId: string | null, guil
   if (existing) {
     if (existing.channelId !== input.channelId) {
       await collections.courseExamAttempts.updateOne({ _id: existing._id, ...scope(botId, guildId) }, { $set: { channelId: input.channelId, updatedAt: new Date() } });
+      await collections.courseEnrollments.updateOne(
+        { ...scope(botId, guildId), publicationId: input.publicationId, studentId: input.studentId, examStatus: "STARTING", examChannelId: input.channelId },
+        { $set: { examId: examSettings._id, examStatus: "IN_PROGRESS", attemptId: existing._id, updatedAt: new Date() } }
+      );
       const updated = await collections.courseExamAttempts.findOne({ _id: existing._id, ...scope(botId, guildId) });
       return mapAttempt(updated ?? existing);
     }
+    await collections.courseEnrollments.updateOne(
+      { ...scope(botId, guildId), publicationId: input.publicationId, studentId: input.studentId, examStatus: "STARTING", examChannelId: input.channelId },
+      { $set: { examId: examSettings._id, examStatus: "IN_PROGRESS", attemptId: existing._id, updatedAt: new Date() } }
+    );
     return mapAttempt(existing);
   }
   const now = new Date();
-  const claim = await collections.courseEnrollments.updateOne(
-    { ...scope(botId, guildId), publicationId: input.publicationId, studentId: input.studentId, enrollmentStatus: "ENROLLED", examStatus: "AVAILABLE" },
-    { $set: { examStatus: "STARTING", updatedAt: now } }
-  );
-  if (claim.modifiedCount === 0) {
-    const racedAttempt = await collections.courseExamAttempts.findOne({
-      ...scope(botId, guildId), courseId: input.courseId, publicationId: input.publicationId, studentId: input.studentId, status: "in_progress"
-    });
-    if (racedAttempt) return mapAttempt(racedAttempt);
-    throw new Error("A tentativa já está sendo iniciada ou não está disponível.");
-  }
+  const enrollment = await collections.courseEnrollments.findOne({
+    ...scope(botId, guildId), publicationId: input.publicationId, studentId: input.studentId, enrollmentStatus: "ENROLLED", examStatus: "STARTING", examChannelId: input.channelId
+  });
+  if (!enrollment) throw new Error("A tentativa não foi reservada para este canal.");
   const questions = await collections.courseExamQuestions.find({ ...scope(botId, guildId), courseId: input.courseId, active: true }).sort({ order: 1, createdAt: 1 }).toArray();
   const questionsSnapshot = questions.map((question) => ({ ...question, alternatives: normalizeAlternatives(question.alternatives, question.type) }));
   if (!questionsSnapshot.length) {

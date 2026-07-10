@@ -154,6 +154,7 @@ export type CoursePublication = {
   students: string[];
   notes: string | null;
   status: "open" | "started" | "cancelled" | "closed" | "proof" | "finished";
+  workflowStatus: string;
   cancelledBy: string | null;
   cancelledAt: string | null;
   startedBy: string | null;
@@ -162,6 +163,33 @@ export type CoursePublication = {
   proofStartedAt: string | null;
   finishedAt: string | null;
   createdAt: string;
+  updatedAt: string;
+};
+
+export type CourseEnrollment = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  courseId: string;
+  publicationId: string;
+  studentId: string;
+  studentName: string;
+  publicationChannelId: string;
+  enrolledAt: string;
+  enrollmentStatus: "ENROLLED" | "LEFT";
+  examId: string | null;
+  examStatus: "NOT_AVAILABLE" | "AVAILABLE" | "STARTING" | "IN_PROGRESS" | "COMPLETED" | "APPROVED" | "FAILED" | "CANCELED" | "EXPIRED";
+  studentStatus: "INSCRITO" | "PROVA_DISPONIVEL" | "REALIZANDO_PROVA" | "PROVA_CONCLUIDA" | "APROVADO" | "REPROVADO" | "CANCELED" | "EXPIRED";
+  attemptId: string | null;
+  attemptNumber: number;
+  examChannelId: string | null;
+  examStartedAt: string | null;
+  score: number | null;
+  correctAnswers: number | null;
+  result: "approved" | "rejected" | null;
+  completedAt: string | null;
+  correctedBy: string | null;
+  transcriptId: string | null;
   updatedAt: string;
 };
 
@@ -1944,6 +1972,20 @@ export class ApiClient {
   async getCoursePublication(guildId: string, publicationId: string) {
     const { data } = await this.http.get<{ publication: CoursePublication }>(`/courses/bot/${guildId}/publications/${publicationId}`);
     return data.publication;
+  }
+
+  async getCoursePublicationEnrollments(guildId: string, publicationId: string) {
+    const { data } = await this.http.get<{ enrollments: CourseEnrollment[] }>(`/courses/bot/${guildId}/publications/${publicationId}/enrollments`);
+    return data.enrollments;
+  }
+
+  async reserveCourseExamStart(guildId: string, publicationId: string, studentId: string) {
+    const { data } = await this.http.post<{ error?: "not_found" | "not_enrolled" | "cancelled" | "finished" | "not_started" | "exam_missing" | "exam_disabled" | "completed" | "in_progress"; enrollment?: CourseEnrollment }>(`/courses/bot/${guildId}/publications/${publicationId}/exam-reservation`, { studentId });
+    return data;
+  }
+
+  async releaseCourseExamStart(guildId: string, publicationId: string, studentId: string) {
+    await this.http.delete(`/courses/bot/${guildId}/publications/${publicationId}/exam-reservation`, { data: { studentId } });
   }
 
   async listCoursePublications(guildId: string, status?: CoursePublication["status"] | null) {

@@ -32,7 +32,7 @@ import {
 import type { BotCommand, BotContext } from "../types";
 import { showModalAndResetSelect } from "../utils/selectMenuReset";
 import { renderComponentsV2Panel, type PanelVisualConfig } from "./panelVisualRenderer";
-import type { Course, CourseExamAnswer, CourseExamAttempt, CourseExamQuestion, CourseExamSettings, CoursePublication, CourseSettings } from "./apiClient";
+import type { Course, CourseEnrollment, CourseExamAnswer, CourseExamAttempt, CourseExamQuestion, CourseExamSettings, CoursePublication, CourseSettings } from "./apiClient";
 
 type CourseActionInteraction = ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
 
@@ -96,10 +96,17 @@ export function startCourseSystemService(client: Client, context: BotContext) {
     });
   });
   client.on("channelDelete", (channel) => {
-    if (channel.type !== ChannelType.GuildText || !parseCourseExamChannelTopic(channel.topic)) return;
-    void context.api.expireCourseEnrollmentChannel(channel.guild.id, channel.id).catch((error) => {
-      console.error(`[courses] failed to persist removed exam channel ${channel.id}:`, error instanceof Error ? error.message : error);
-    });
+    if (channel.type !== ChannelType.GuildText) return;
+    const marker = parseCourseExamChannelTopic(channel.topic);
+    if (!marker) return;
+    void context.api.expireCourseEnrollmentChannel(channel.guild.id, channel.id)
+      .then(async () => {
+        const publication = await context.api.getCoursePublication(channel.guild.id, marker.publicationId).catch(() => null);
+        if (publication) await refreshPublicationMessageByRecord({ guild: channel.guild, guildId: channel.guild.id }, context, publication);
+      })
+      .catch((error) => {
+        console.error(`[courses] failed to persist removed exam channel ${channel.id}:`, error instanceof Error ? error.message : error);
+      });
   });
   const refreshExistingPanels = () => {
     void refreshActiveCoursePublicationPanels(client, context).catch((error) => {
@@ -258,8 +265,8 @@ async function handleButton(interaction: ButtonInteraction, context: BotContext)
     await changePublicationStatus(interaction, context, idFromCustomId(interaction.customId), "started");
     return;
   }
-  if (interaction.customId.startsWith("course_exam_start:")) {
-    await startCourseExam(interaction, context, idFromCustomId(interaction.customId));
+  if (interaction.customId.startsWith("course_exam_realize:") || interaction.customId.startsWith("course_exam_start:")) {
+    await realizeCourseExam(interaction, context, idFromCustomId(interaction.customId));
     return;
   }
   if (interaction.customId.startsWith("course_exam_begin:")) {
@@ -564,8 +571,101 @@ async function changePublicationStatus(interaction: ButtonInteraction, context: 
     return;
   }
   await refreshPublicationMessage(interaction, context, updated);
-  await sendPublicationLog(interaction, context, updated, `${status === "started" ? "▶️ Curso iniciado" : "❌ Curso cancelado"}\nResponsável: <@${interaction.user.id}>\nStatus: ${status}`);
-  await interaction.editReply(status === "started" ? "Curso iniciado. Novas entradas foram bloqueadas." : "Curso cancelado.");
+  await sendPublicationLog(interaction, context, updated, `${status === "started" ? "▶️ Curso iniciado" : "❌ Curso cancelado"}\nResponsável: <@${interaction.user.id}>\nInscritos: ${updated.students.length}\nStatus: ${status}`);
+  await interaction.editReply(status === "started" ? "Curso iniciado. A opção Realizar prova foi liberada aos alunos inscritos." : "Curso cancelado.");
+}
+
+async function realizeCourseExam(interaction: ButtonInteraction, context: BotContext, publicationId: string) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const publication = await context.api.getCoursePublication(interaction.guildId!, publicationId).catch(() => null);
+  if (!publication) return void await interaction.editReply("Publicação de curso não encontrada.");
+  if (!publication.students.includes(interaction.user.id)) return void await interaction.editReply("Você não está inscrito nesta turma e, por isso, não pode realizar esta prova.");
+  if (publication.status === "cancelled") return void await interaction.editReply("Este curso foi cancelado e a prova não pode ser realizada.");
+  if (publication.status === "closed" || publication.status === "finished") return void await interaction.editReply("Este curso já foi finalizado.");
+  if (publication.status !== "started" && publication.status !== "proof") return void await interaction.editReply("A prova ainda não está disponível. Aguarde o instrutor iniciar o curso.");
+
+  const member = await interaction.guild!.members.fetch(interaction.user.id).catch(() => null);
+  if (!member) return void await interaction.editReply("Você não possui acesso válido a este servidor.");
+  const [course, runtime, settings] = await Promise.all([
+    context.api.getCourse(interaction.guildId!, publication.courseId),
+    context.api.getCourseExamRuntime(interaction.guildId!, publication.courseId),
+    context.api.getCourseSettings(interaction.guildId!)
+  ]);
+  if (!runtime.settings.enabled) return void await interaction.editReply("A prova vinculada a este curso está desativada na dashboard.");
+  const proofReady = validateRuntimeProof(runtime.questions);
+  if (!proofReady.ok) return void await interaction.editReply("A prova vinculada a este curso não foi encontrada.");
+  const temporaryCategoryId = runtime.settings.temporaryCategoryId || settings.tempProofCategoryId || settings.temporaryCategoryId;
+  if (!temporaryCategoryId) return void await interaction.editReply("A categoria dos canais temporários de prova ainda não foi configurada.");
+  const category = await interaction.guild!.channels.fetch(temporaryCategoryId).catch(() => null);
+  if (!category || category.type !== ChannelType.GuildCategory) return void await interaction.editReply("A categoria configurada para a prova não foi encontrada.");
+
+  const reservation = await context.api.reserveCourseExamStart(interaction.guildId!, publicationId, interaction.user.id).catch(() => null);
+  if (!reservation) return void await interaction.editReply("Não foi possível iniciar sua prova neste momento. A equipe responsável foi notificada.");
+  if (reservation.error === "completed") return void await interaction.editReply("Esta prova já foi finalizada e não pode ser realizada novamente.");
+  if (reservation.error === "in_progress") {
+    const channel = reservation.enrollment?.examChannelId
+      ? await interaction.guild!.channels.fetch(reservation.enrollment.examChannelId).catch(() => null)
+      : null;
+    return void await interaction.editReply(channel ? `Você já possui uma prova em andamento para este curso: <#${channel.id}>.` : "Você já possui uma prova em andamento para este curso.");
+  }
+  if (reservation.error === "exam_disabled") return void await interaction.editReply("A prova vinculada a este curso está desativada na dashboard.");
+  if (reservation.error === "exam_missing") return void await interaction.editReply("Este curso não possui uma prova vinculada.");
+  if (reservation.error) return void await interaction.editReply("Não foi possível realizar esta prova devido ao estado atual do curso.");
+
+  let channel: TextChannel | null = null;
+  try {
+    await interaction.guild!.channels.fetch().catch(() => null);
+    const marker = courseExamChannelTopic(publication.id, interaction.user.id);
+    const expectedName = examChannelName(member.displayName, course.name);
+    const existing = interaction.guild!.channels.cache.find((candidate): candidate is TextChannel => (
+      candidate.type === ChannelType.GuildText && isCourseExamChannelFor(candidate.topic, publication.id, interaction.user.id)
+    ));
+    channel = existing ?? await interaction.guild!.channels.create({
+      name: uniqueExamChannelName(interaction.guild!, expectedName, interaction.user.id),
+      parent: temporaryCategoryId,
+      permissionOverwrites: examPermissionOverwrites(interaction.guild!, context, publication, course, settings, interaction.user.id),
+      reason: `Avaliativo individual do curso ${course.name}`,
+      topic: marker,
+      type: ChannelType.GuildText
+    });
+    await context.api.setCourseEnrollmentExamChannel(interaction.guildId!, publication.id, {
+      channelId: channel.id, studentId: interaction.user.id, studentName: member.displayName
+    });
+    const welcome = await channel.send(studentExamWelcomePanel(course, publication, runtime.settings, interaction.user.id, member.displayName, runtime.questions, true));
+    const attempt = await context.api.createCourseExamAttempt(interaction.guildId!, {
+      channelId: channel.id,
+      courseId: publication.courseId,
+      instructorId: publication.instructorId,
+      publicationId,
+      studentId: interaction.user.id
+    });
+    await welcome.edit(studentExamWelcomePanel(course, publication, runtime.settings, interaction.user.id, member.displayName, runtime.questions, false));
+    await channel.setTopic(`${marker}:ready`, `Canal individual da prova do curso ${course.name}`);
+    scheduleExamChannelDeletion(channel, examChannelFallbackDeleteAt(channel, settings), context);
+    await refreshPublicationMessageByRecord(interaction, context, publication);
+    await sendPublicationLog(interaction, context, publication, [
+      "📝 Prova iniciada",
+      `Aluno: ${member.displayName} (<@${interaction.user.id}>)`,
+      `ID do aluno: ${interaction.user.id}`,
+      `Curso: ${course.name}`,
+      `ID do curso: ${course.id}`,
+      `Prova: Prova de ${course.name}`,
+      `ID da tentativa: ${attempt.id}`,
+      `Canal: <#${channel.id}>`,
+      `Instrutor: <@${publication.instructorId}>`,
+      `Servidor: ${interaction.guild!.name} (${interaction.guildId})`,
+      `Bot: ${interaction.client.user.username} (${interaction.client.user.id})`,
+      `Status: Realizando prova`,
+      `Horário: ${new Date(attempt.startedAt).toLocaleString("pt-BR")}`
+    ].join("\n"));
+    await interaction.editReply(`Seu canal de prova foi criado: <#${channel.id}>.`);
+  } catch (error) {
+    if (channel) await channel.delete("Revertendo canal após falha ao iniciar o avaliativo").catch(() => null);
+    await context.api.releaseCourseExamStart(interaction.guildId!, publication.id, interaction.user.id).catch(() => null);
+    console.error(`[courses] failed to create individual exam for ${interaction.user.id}:`, error instanceof Error ? error.message : error);
+    await sendPublicationLog(interaction, context, publication, `⚠️ Falha ao criar canal da prova\nAluno: ${member.displayName} (<@${interaction.user.id}>)\nCurso: ${course.name}\nErro: ${error instanceof Error ? error.message : String(error)}`).catch(() => null);
+    await interaction.editReply("Não foi possível criar o canal da prova. Verifique as permissões do bot ou tente novamente.");
+  }
 }
 
 async function startCourseExam(interaction: ButtonInteraction, context: BotContext, publicationId: string) {
@@ -705,8 +805,8 @@ async function provisionCourseExamChannels(interaction: ButtonInteraction | Chat
     await sendPublicationLog(interaction, context, publication, `⚠️ Preparação da prova incompleta\nCurso: ${course.name}\nInstrutor: <@${interaction.user.id}>\nCanais criados: ${created.length}\nCanais reutilizados: ${reused.length}\nFalhas: ${failed.length}`);
     return [
       publication.status === "proof"
-        ? "A prova está liberada, mas ainda faltam canais individuais. Corrija as falhas e clique em **Verificar Canais** novamente."
-        : "Não foi possível preparar o canal de todos os alunos. A prova ainda não foi liberada; corrija as falhas e clique em **Iniciar Prova** novamente.",
+        ? "A prova está liberada, mas ainda faltam canais individuais. Corrija as falhas e tente novamente."
+        : "Não foi possível preparar o canal de todos os alunos. Corrija as falhas e tente **Realizar prova** novamente.",
       created.length ? `Canais criados:\n${created.join("\n")}` : "",
       reused.length ? `Canais já preparados:\n${reused.join("\n")}` : "",
       `Falhas:\n${failed.join("\n")}`
@@ -724,7 +824,7 @@ async function provisionCourseExamChannels(interaction: ButtonInteraction | Chat
   return [
     publication.status === "proof"
       ? `Canais verificados para ${readyChannels.length} aluno(s). Cada participante possui um canal individual e temporário.`
-      : `Prova iniciada para ${readyChannels.length} aluno(s). Cada participante recebeu um canal individual e temporário.`,
+      : `Prova liberada para ${readyChannels.length} aluno(s). Cada participante recebeu um canal individual e temporário.`,
     created.length ? `Canais criados:\n${created.join("\n")}` : "",
     reused.length ? `Canais já existentes:\n${reused.join("\n")}` : "",
   ].filter(Boolean).join("\n\n").slice(0, 1900);
@@ -762,8 +862,8 @@ async function beginStudentExamOnce(interaction: ButtonInteraction, context: Bot
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const publication = await context.api.getCoursePublication(interaction.guildId!, publicationId).catch(() => null);
   if (!publication) return interaction.editReply("Publicação de curso não encontrada.");
-  if (publication.status !== "proof") return void await interaction.editReply("A prova ainda não está disponível. Aguarde o instrutor iniciar o curso.");
-  if (!publication.students.includes(studentId)) return void await interaction.editReply("Você não está inscrito nesta turma e, por isso, não pode iniciar esta prova.");
+  if (publication.status !== "started" && publication.status !== "proof") return void await interaction.editReply("A prova ainda não está disponível. Aguarde o instrutor iniciar o curso.");
+  if (!publication.students.includes(studentId)) return void await interaction.editReply("Você não está inscrito nesta turma e, por isso, não pode realizar esta prova.");
   const member = await interaction.guild!.members.fetch(studentId).catch(() => null);
   if (!member) return void await interaction.editReply("Você não possui acesso válido a este servidor.");
   const [course, runtime] = await Promise.all([
@@ -772,24 +872,12 @@ async function beginStudentExamOnce(interaction: ButtonInteraction, context: Bot
   ]);
   if (!runtime.settings.enabled) return void await interaction.editReply("Este curso não possui uma prova vinculada. Configure a prova correspondente antes de liberar o avaliativo.");
   if (!runtime.questions.length) return void await interaction.editReply("A prova vinculada a este curso não foi encontrada.");
-  const existingAttempt = await context.api.getCourseExamAttemptByChannel(interaction.guildId!, interaction.channelId).catch(() => null);
-  if (existingAttempt && existingAttempt.status !== "in_progress") return void await interaction.editReply("Esta prova já foi finalizada e não pode ser iniciada novamente.");
-  if (existingAttempt?.status === "in_progress") return void await interaction.editReply("Você já possui uma prova em andamento. Utilize o canal temporário criado anteriormente.");
-  const attempt = await context.api.createCourseExamAttempt(interaction.guildId!, {
-    channelId: interaction.channelId,
-    courseId: publication.courseId,
-    instructorId: publication.instructorId,
-    publicationId,
-    questionsSnapshot: runtime.questions,
-    studentId
-  }).catch(async (error) => {
-    const message = error instanceof Error ? error.message : String(error);
-    await interaction.editReply(message.includes("finalizada") ? "Esta prova já foi finalizada e não pode ser iniciada novamente." : "Não foi possível iniciar sua prova neste momento. A equipe responsável foi notificada.");
-    return null;
-  });
-  if (!attempt) return;
+  const attempt = await context.api.getCourseExamAttemptByChannel(interaction.guildId!, interaction.channelId).catch(() => null);
+  if (!attempt || attempt.studentId !== studentId) return void await interaction.editReply("Tentativa de prova inválida para este canal.");
+  if (attempt.status !== "in_progress") return void await interaction.editReply("Esta prova já foi finalizada e não pode ser realizada novamente.");
   const bundle = await context.api.getCourseExamAttempt(interaction.guildId!, attempt.id);
-  await interaction.editReply(bundle.attempt.currentQuestionIndex > 0 ? "Prova retomada do ponto salvo." : "Prova iniciada. A primeira pergunta foi enviada no canal.");
+  await interaction.message.edit({ components: [] }).catch(() => null);
+  await interaction.editReply(bundle.attempt.currentQuestionIndex > 0 ? "Prova retomada do ponto salvo." : "Você pode começar a responder. A primeira pergunta foi enviada no canal.");
   const channel = interaction.channel;
   if (!channel?.isTextBased() || !("send" in channel)) return;
   if (bundle.attempt.currentQuestionIndex === 0) await channel.send(examIntroPanel(course, runtime.settings)).catch(() => null);
@@ -933,6 +1021,8 @@ async function finishExam(interaction: ButtonInteraction, context: BotContext) {
   await interaction.followUp({ content: "Prova finalizada e enviada para correção.", flags: MessageFlags.Ephemeral });
   await sendExamCorrectionPanel(interaction, context, course, result.attempt, result.questions, result.answers);
   await sendExamDetailedLog(interaction, settings, course, result.attempt, result.questions, result.answers);
+  const publication = await context.api.getCoursePublication(interaction.guildId!, result.attempt.publicationId).catch(() => null);
+  if (publication) await refreshPublicationMessageByRecord(interaction, context, publication);
   await lockAndScheduleExamChannel(interaction, context, settings, result.attempt.publicationId, result.attempt.studentId);
 }
 
@@ -1000,6 +1090,8 @@ async function completeExamReview(interaction: ButtonInteraction | ModalSubmitIn
   await sendExamResultPanel(interaction, courseSettings, runtime.settings, course, reviewed);
   const student = await interaction.guild!.members.fetch(reviewed.studentId).catch(() => null);
   await student?.send(examDecisionDm(course, runtime.settings, reviewed, status)).catch(() => null);
+  const publication = await context.api.getCoursePublication(interaction.guildId!, reviewed.publicationId).catch(() => null);
+  if (publication) await refreshPublicationMessageByRecord(interaction, context, publication);
   return reviewed;
 }
 
@@ -1008,14 +1100,15 @@ async function refreshPublicationMessage(interaction: ButtonInteraction, context
 }
 
 async function refreshPublicationMessageByRecord(interaction: { guild: ChatInputCommandInteraction["guild"]; guildId: string | null }, context: BotContext, publication: CoursePublication) {
-  const [course, settings] = await Promise.all([
+  const [course, settings, enrollments] = await Promise.all([
     context.api.getCourse(interaction.guildId!, publication.courseId),
-    context.api.getCourseSettings(interaction.guildId!)
+    context.api.getCourseSettings(interaction.guildId!),
+    context.api.getCoursePublicationEnrollments(interaction.guildId!, publication.id).catch(() => [])
   ]);
   const channel = await interaction.guild?.channels.fetch(publication.channelId).catch(() => null);
   if (!channel?.isTextBased() || !("messages" in channel) || !publication.messageId) return;
   const message = await channel.messages.fetch(publication.messageId).catch(() => null);
-  await message?.edit(coursePublicationPanel(course, publication, settings, interaction.guild!)).catch(() => null);
+  await message?.edit(coursePublicationPanel(course, publication, settings, interaction.guild!, enrollments)).catch(() => null);
 }
 
 async function publishPublicCoursesPanel(client: Client, context: BotContext, guildId: string) {
@@ -1325,7 +1418,7 @@ function selectCoursePanel(description: string, customId: string, courses: Cours
   });
 }
 
-function coursePublicationPanel(course: Course, publication: CoursePublication, settings: CourseSettings, guild: { members: { cache: Map<string, GuildMember> } }) {
+function coursePublicationPanel(course: Course, publication: CoursePublication, settings: CourseSettings, guild: { members: { cache: Map<string, GuildMember> } }, enrollments: CourseEnrollment[] = []) {
   const students = publication.students.map((id, index) => `${index + 1}. <@${id}>`).join("\n") || "Nenhum aluno inscrito ainda.";
   const full = publication.students.length >= publication.capacity;
   const statusText = coursePublicationStatusLabel(publication, full);
@@ -1334,6 +1427,15 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
   const canLeave = publication.status === "open";
   const canStartClass = publication.status === "open";
   const canStartExam = publication.status === "started" || publication.status === "proof";
+  const examProgress = enrollments
+    .filter((enrollment) => ["STARTING", "IN_PROGRESS", "COMPLETED", "APPROVED", "FAILED"].includes(enrollment.examStatus))
+    .map((enrollment) => {
+      const label = enrollment.examStatus === "APPROVED" ? "Aprovado"
+        : enrollment.examStatus === "FAILED" ? "Reprovado"
+          : enrollment.examStatus === "COMPLETED" ? "Prova concluída" : "Realizando prova";
+      const referenceTime = enrollment.completedAt ?? enrollment.examStartedAt;
+      return `• ${enrollment.studentName} — ${label}${referenceTime ? ` — ${new Date(referenceTime).toLocaleString("pt-BR")}` : ""}`;
+    });
   const canCancel = !["cancelled", "proof", "finished", "closed"].includes(publication.status);
   return renderComponentsV2Panel({
     accentColor: parseColor(course.color),
@@ -1344,7 +1446,7 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(`course_start:${publication.id}`).setLabel(`${settings.buttonEmojis.start ?? "▶️"} Iniciar curso`).setStyle(ButtonStyle.Primary).setDisabled(!canStartClass),
-        new ButtonBuilder().setCustomId(`course_exam_start:${publication.id}`).setLabel(publication.status === "proof" ? "🔧 Verificar Canais" : "📝 Iniciar Prova").setStyle(ButtonStyle.Success).setDisabled(!canStartExam),
+        new ButtonBuilder().setCustomId(`course_exam_realize:${publication.id}`).setLabel("📝 Realizar prova").setStyle(ButtonStyle.Success).setDisabled(!canStartExam),
         new ButtonBuilder().setCustomId(`course_cancel:${publication.id}`).setLabel(`${settings.buttonEmojis.cancel ?? "❌"} ${course.buttonLabels.cancel || "Cancelar Curso"}`).setStyle(ButtonStyle.Danger).setDisabled(!canCancel)
       )
     ],
@@ -1360,6 +1462,7 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
       publication.notes ? `**Observações:** ${publication.notes}` : "",
       statusNotice,
       `**Alunos inscritos:**\n${students}`,
+      examProgress.length ? `**Situação das provas:**\n${examProgress.join("\n")}\n\n**Em andamento:** ${enrollments.filter((item) => item.examStatus === "STARTING" || item.examStatus === "IN_PROGRESS").length} | **Concluídas:** ${enrollments.filter((item) => ["COMPLETED", "APPROVED", "FAILED"].includes(item.examStatus)).length}` : "",
       publication.startedAt ? `**Curso iniciado por:** ${publication.startedBy ? `<@${publication.startedBy}>` : `<@${publication.instructorId}>`}\n**Data e horário de início:** ${new Date(publication.startedAt).toLocaleString("pt-BR")}` : "",
       publication.proofStartedAt ? `**Prova liberada por:** ${publication.proofStartedBy ? `<@${publication.proofStartedBy}>` : `<@${publication.instructorId}>`}\n**Data e horário da liberação:** ${new Date(publication.proofStartedAt).toLocaleString("pt-BR")}` : "",
       publication.status === "cancelled" ? `**Cancelamento:**\nResponsável: ${publication.cancelledBy ? `<@${publication.cancelledBy}>` : "-"}\nData: ${publication.cancelledAt ? new Date(publication.cancelledAt).toLocaleString("pt-BR") : "-"}` : ""
@@ -1370,7 +1473,7 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
   });
 }
 
-function studentExamWelcomePanel(course: Course, publication: CoursePublication, settings: CourseExamSettings, studentId: string, studentName: string, questions: CourseExamQuestion[]) {
+function studentExamWelcomePanel(course: Course, publication: CoursePublication, settings: CourseExamSettings, studentId: string, studentName: string, questions: CourseExamQuestion[], disabled = false) {
   const linkButton = settings.externalLinkEnabled && settings.externalLinkUrl
     ? new ButtonBuilder()
       .setLabel(`${settings.externalLinkEmoji ? `${settings.externalLinkEmoji} ` : ""}${settings.externalLinkText || "Acessar material da prova"}`.slice(0, 80))
@@ -1379,21 +1482,21 @@ function studentExamWelcomePanel(course: Course, publication: CoursePublication,
     : null;
   const actions = [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`course_exam_begin:${publication.id}:${studentId}`).setLabel("Começar prova").setStyle(ButtonStyle.Success)
+      new ButtonBuilder().setCustomId(`course_exam_begin:${publication.id}:${studentId}`).setLabel("Começar a responder").setStyle(ButtonStyle.Success).setDisabled(disabled)
     )
   ];
   if (linkButton) actions.push(new ActionRowBuilder<ButtonBuilder>().addComponents(linkButton));
   return renderComponentsV2Panel({
     accentColor: parseColor(course.color),
     actions,
-    description: course.proofInstructionText || "Sua prova foi liberada em um canal individual. Leia as instruções com atenção e clique em Iniciar Prova somente quando estiver pronto.",
+    description: course.proofInstructionText || "Sua prova foi liberada em um canal individual. Leia as instruções com atenção e clique em Começar a responder quando estiver pronto.",
     fields: [
       `**Curso:** ${course.name}`,
       `**Aluno:** ${studentName} (<@${studentId}>)`,
       `**Instrutor:** <@${publication.instructorId}>`,
       `**Início:** ${new Date().toLocaleString("pt-BR")}`,
       `**Prova:** Prova de ${course.name}`,
-      `**Questões:** ${questions.length}\n**Pontuação total:** ${formatScore(questions.reduce((total, question) => total + question.points, 0))}\n**Nota mínima:** ${formatScore(settings.minScore)}`,
+      `**Questões:** ${questions.length}\n**Tempo limite:** ${settings.maxTimeMinutes ? `${settings.maxTimeMinutes} minuto(s)` : "não configurado"}\n**Pontuação total:** ${formatScore(questions.reduce((total, question) => total + question.points, 0))}\n**Nota mínima:** ${formatScore(settings.minScore)}`,
       settings.externalLinkEnabled && settings.externalLinkDescription ? `**Material:** ${settings.externalLinkDescription}` : "",
       "Respostas enviadas não poderão ser alteradas."
     ].filter(Boolean),
@@ -1411,7 +1514,7 @@ function coursePublicationStatusLabel(publication: CoursePublication, full: bool
     finished: "✅ Finalizado",
     open: "🟢 Inscrições abertas",
     proof: "📝 Prova em andamento",
-    started: "🔵 Aula iniciada"
+    started: "🔵 Em andamento"
   };
   return labels[publication.status];
 }
@@ -1432,8 +1535,8 @@ function coursePublicationStatusEmoji(publication: CoursePublication, full: bool
 function coursePublicationStatusNotice(course: Course, settings: CourseSettings, publication: CoursePublication, full: boolean) {
   if (publication.status === "open" && full) return "🟠 **Turma lotada.** Aguarde uma vaga abrir ou uma nova publicação do curso.";
   if (publication.status === "open") return "🟢 **Inscrições abertas.** Clique em Entrar no Curso para participar.";
-  if (publication.status === "started") return course.startedText || settings.startedMessage || "🔵 **Aula iniciada.** Novas inscrições foram bloqueadas. O instrutor pode iniciar a prova quando estiver pronto.";
-  if (publication.status === "proof") return "📝 **Prova em andamento.** Canais individuais foram criados para os alunos.";
+  if (publication.status === "started") return course.startedText || settings.startedMessage || "🔵 **Curso em andamento.** Novas inscrições foram bloqueadas. Alunos inscritos já podem clicar em Realizar prova.";
+  if (publication.status === "proof") return "📝 **Prova disponível.** Alunos inscritos podem clicar em Realizar prova para abrir o canal individual.";
   if (publication.status === "cancelled") return course.cancelledText || settings.cancelledMessage || "🔴 **Curso cancelado.** Esta publicação não aceita novas ações.";
   return "✅ **Curso finalizado.** Esta publicação foi encerrada.";
 }

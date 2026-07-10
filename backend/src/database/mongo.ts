@@ -416,6 +416,7 @@ export type MongoCourseEnrollment = {
   examStatus: CourseEnrollmentExamStatus;
   attemptId: string | null;
   examChannelId: string | null;
+  examStartedAt?: Date | null;
   score: number | null;
   correctAnswers: number | null;
   result: "approved" | "rejected" | null;

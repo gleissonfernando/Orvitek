@@ -138,6 +138,13 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
   }, [botId, guildId]);
 
   useEffect(() => {
+    const timer = window.setInterval(() => {
+      void getCoursesDashboard(botId, guildId).then((data) => setDashboard(data)).catch(() => null);
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [botId, guildId]);
+
+  useEffect(() => {
     setChannelDraft(dashboard ? toChannelDraft(dashboard.settings) : null);
   }, [dashboard?.settings]);
 
@@ -436,6 +443,20 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
               </div>
             </CardContent>
           </Card>
+          <Card className="xl:col-span-2">
+            <CardHeader><CardTitle>Alunos e andamento das provas</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              {(dashboard.enrollments ?? []).filter((item) => !selectedCourseId || item.courseId === selectedCourseId).map((item) => (
+                <div className="grid gap-2 rounded-lg border border-zinc-800 bg-black/30 p-3 text-sm md:grid-cols-[minmax(0,1fr)_180px_130px_180px]" key={item.id}>
+                  <div><p className="font-semibold text-white">{item.studentName}</p><p className="text-xs text-zinc-500">{item.studentId}</p></div>
+                  <div><p className="text-xs text-zinc-500">Status</p><p>{courseExamStatusLabel(item.examStatus)}</p></div>
+                  <div><p className="text-xs text-zinc-500">Tentativas</p><p>{item.attemptNumber}</p></div>
+                  <div><p className="text-xs text-zinc-500">Canal / horários</p><p>{item.examChannelId || "-"}</p><p className="text-xs text-zinc-500">Início: {item.examStartedAt ? new Date(item.examStartedAt).toLocaleString("pt-BR") : "-"}</p><p className="text-xs text-zinc-500">Conclusão: {item.completedAt ? new Date(item.completedAt).toLocaleString("pt-BR") : "-"}</p></div>
+                </div>
+              ))}
+              {!(dashboard.enrollments ?? []).some((item) => !selectedCourseId || item.courseId === selectedCourseId) ? <p className="text-sm text-zinc-500">Nenhum aluno inscrito neste curso.</p> : null}
+            </CardContent>
+          </Card>
         </div>
       ) : null}
 
@@ -625,6 +646,21 @@ function sortQuestion(a: CourseExamQuestion, b: CourseExamQuestion) {
 
 function csv(value: string) {
   return value.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function courseExamStatusLabel(status: CoursesDashboard["enrollments"][number]["examStatus"]) {
+  const labels: Record<typeof status, string> = {
+    NOT_AVAILABLE: "Inscrito",
+    AVAILABLE: "Prova disponível",
+    STARTING: "Criando canal",
+    IN_PROGRESS: "Realizando prova",
+    COMPLETED: "Prova concluída",
+    APPROVED: "Aprovado",
+    FAILED: "Reprovado",
+    CANCELED: "Cancelado",
+    EXPIRED: "Canal expirado"
+  };
+  return labels[status];
 }
 
 function toChannelDraft(settings: CoursesDashboard["settings"]): CourseChannelDraft {

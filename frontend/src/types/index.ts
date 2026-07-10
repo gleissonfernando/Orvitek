@@ -909,6 +909,7 @@ export type CoursePublication = {
   students: string[];
   notes: string | null;
   status: "open" | "started" | "cancelled" | "closed" | "proof" | "finished";
+  workflowStatus: string;
   cancelledBy: string | null;
   cancelledAt: string | null;
   startedBy: string | null;
@@ -917,6 +918,33 @@ export type CoursePublication = {
   proofStartedAt: string | null;
   finishedAt: string | null;
   createdAt: string;
+  updatedAt: string;
+};
+
+export type CourseEnrollment = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  courseId: string;
+  publicationId: string;
+  studentId: string;
+  studentName: string;
+  publicationChannelId: string;
+  enrolledAt: string;
+  enrollmentStatus: "ENROLLED" | "LEFT";
+  examId: string | null;
+  examStatus: "NOT_AVAILABLE" | "AVAILABLE" | "STARTING" | "IN_PROGRESS" | "COMPLETED" | "APPROVED" | "FAILED" | "CANCELED" | "EXPIRED";
+  studentStatus: "INSCRITO" | "PROVA_DISPONIVEL" | "REALIZANDO_PROVA" | "PROVA_CONCLUIDA" | "APROVADO" | "REPROVADO" | "CANCELED" | "EXPIRED";
+  attemptId: string | null;
+  attemptNumber: number;
+  examChannelId: string | null;
+  examStartedAt: string | null;
+  score: number | null;
+  correctAnswers: number | null;
+  result: "approved" | "rejected" | null;
+  completedAt: string | null;
+  correctedBy: string | null;
+  transcriptId: string | null;
   updatedAt: string;
 };
 
@@ -1065,6 +1093,7 @@ export type CoursesDashboard = {
   scheduleRequests: CourseScheduleRequest[];
   settings: CourseSettings;
   logs: CourseLog[];
+  enrollments: CourseEnrollment[];
 };
 
 export type SaveCourseSettingsPayload = Partial<Omit<CourseSettings, "id" | "botId" | "guildId" | "updatedAt">>;
