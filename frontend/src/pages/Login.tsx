@@ -8,7 +8,7 @@ import {
   Headphones,
   KeyRound,
   Link2,
-  Lock,
+  Loader2,
   LogIn,
   Menu,
   MonitorCog,
@@ -22,25 +22,16 @@ import {
   Wrench,
   X
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Avatar } from "../components/ui/avatar";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "../components/ui/button";
-import type { AccessValidationResult, AuthResponse } from "../types";
-import type { AuthStatus } from "../hooks/useAuth";
+import type { AuthResponse } from "../types";
 
-const ACCESS_DENIED_MESSAGE = "Você não está liberado para acessar esta dashboard.";
 const SUPPORT_URL = "https://discord.gg/2jCEx3XwMh";
 
 type LoginProps = {
-  accessValidation: AccessValidationResult | null;
   auth: AuthResponse | null;
-  checkingAccess: boolean;
-  error: string | null;
   onLoginDiscord: () => void;
-  onLogout: () => void;
-  onRetry: () => void;
   onVerify: () => void;
-  status: AuthStatus;
   verifying: boolean;
 };
 
@@ -49,18 +40,50 @@ const reveal = {
   visible: { opacity: 1, y: 0 }
 };
 
-const terminalLines = [
-  "GET /auth/discord/dashboard",
-  "302 Discord OAuth2",
-  "GET /dashboard/session",
-  "{",
-  '  "user": "discord:authorized",',
-  '  "access": "verified",',
-  '  "modules": ["logs", "tickets", "courses"]',
-  "}",
-  'dashboard: "online"',
-  'redirect: "/dashboard"'
+type TerminalResponseLine = {
+  text: string;
+  tone?: "status";
+};
+
+type TerminalSequence = {
+  command: string;
+  response: TerminalResponseLine[];
+};
+
+const terminalSequences: [TerminalSequence, ...TerminalSequence[]] = [
+  {
+    command: "$ GET /auth/discord/dashboard",
+    response: [
+      { text: "302 Discord OAuth2", tone: "status" },
+      { text: "GET /dashboard/session" },
+      { text: "{" },
+      { text: '  "user": "discord:authorized",' },
+      { text: '  "access": "verified",' },
+      { text: '  "modules": ["logs", "tickets", "courses"]' },
+      { text: "}" },
+      { text: 'dashboard: "online"' },
+      { text: 'redirect: "/dashboard"' }
+    ]
+  },
+  {
+    command: "$ POST /api/v1/bots/create",
+    response: [
+      { text: "{" },
+      { text: '  "name": "Orvitek Manager",' },
+      { text: '  "modules": ["moderation", "logs", "tickets"]' },
+      { text: "}" },
+      { text: "201 Created", tone: "status" },
+      { text: 'bot_id: "orv_94A7"' },
+      { text: 'status: "online"' },
+      { text: 'dashboard_link: "/dashboard/orvitek-manager"' }
+    ]
+  }
 ];
+
+const TYPEWRITER_DELAY_MS = 28;
+const RESPONSE_REVEAL_DELAY_MS = 190;
+const RESPONSE_START_DELAY_MS = 220;
+const TERMINAL_HOLD_MS = 3400;
 
 const solutionCards = [
   {
@@ -117,22 +140,16 @@ const steps = [
 ];
 
 export function Login({
-  accessValidation,
   auth,
-  checkingAccess,
-  error,
   onLoginDiscord,
-  onLogout,
-  onRetry,
   onVerify,
-  status,
   verifying
 }: LoginProps) {
   const stepsRef = useRef<HTMLElement | null>(null);
   const { scrollYProgress } = useScroll({ target: stepsRef, offset: ["start 80%", "end 45%"] });
   const progressWidth = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
   const currentYear = new Date().getFullYear();
-  const startLabel = auth ? (verifying ? "Verificando..." : "Verificar Dashboard") : "Entrar na Dashboard";
+  const startLabel = verifying ? "Entrando..." : "Entrar na Dashboard";
 
   function handleStart() {
     if (auth) {
@@ -153,7 +170,7 @@ export function Login({
       <div className="fixed inset-0 -z-10 bg-[linear-gradient(rgba(255,213,0,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,213,0,0.035)_1px,transparent_1px)] bg-[size:44px_44px]" />
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(255,213,0,0.16),transparent_32rem)]" />
 
-      <Header onStart={handleStart} onNavigate={scrollTo} />
+      <Header entering={verifying} onStart={handleStart} onNavigate={scrollTo} />
 
       <section id="inicio" className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col items-center justify-center px-4 pb-16 pt-32 text-center sm:px-6 lg:px-8">
         <Reveal className="inline-flex items-center rounded-full border border-[#FFD500]/25 bg-[#FFD500]/10 px-4 py-2 text-sm font-medium text-[#FFEA70] shadow-[0_0_24px_rgba(255,213,0,0.16)]">
@@ -163,7 +180,7 @@ export function Login({
         <Reveal delay={0.08} className="mt-8 max-w-5xl">
           <h1 className="text-5xl font-black leading-tight text-white sm:text-6xl lg:text-7xl">
             Automatize seu servidor{" "}
-            <span className="inline-block animate-pulse-glow rounded-lg px-2 text-[#FFD500] drop-shadow-[0_0_28px_rgba(255,213,0,0.45)]">
+            <span className="inline-block text-[#FFD500] drop-shadow-[0_0_28px_rgba(255,213,0,0.45)]">
               do seu jeito
             </span>
           </h1>
@@ -174,28 +191,13 @@ export function Login({
 
         <Reveal delay={0.16} className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Button className="h-12 min-w-44" disabled={verifying} onClick={handleStart}>
-            <LogIn className="h-4 w-4" />
+            {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
             {startLabel}
           </Button>
           <Button className="h-12 min-w-44" onClick={() => scrollTo("solucoes")} variant="outline">
             Ver Soluções
           </Button>
         </Reveal>
-
-        {auth || error ? (
-          <AuthStatusPanel
-            accessValidation={accessValidation}
-            auth={auth}
-            checkingAccess={checkingAccess}
-            error={error}
-            onLoginDiscord={onLoginDiscord}
-            onLogout={onLogout}
-            onRetry={onRetry}
-            onVerify={onVerify}
-            status={status}
-            verifying={verifying}
-          />
-        ) : null}
 
         <Reveal delay={0.24} className="mt-12 w-full max-w-3xl">
           <TerminalMockup />
@@ -275,7 +277,7 @@ export function Login({
           </p>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
             <Button className="h-12 min-w-44" disabled={verifying} onClick={handleStart}>
-              <Rocket className="h-4 w-4" />
+              {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
               {startLabel}
             </Button>
             <Button asChild className="h-12 min-w-44" variant="outline">
@@ -300,7 +302,7 @@ export function Login({
   );
 }
 
-function Header({ onNavigate, onStart }: { onNavigate: (id: string) => void; onStart: () => void }) {
+function Header({ entering, onNavigate, onStart }: { entering: boolean; onNavigate: (id: string) => void; onStart: () => void }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -336,8 +338,9 @@ function Header({ onNavigate, onStart }: { onNavigate: (id: string) => void; onS
           ))}
         </nav>
 
-        <Button className="hidden h-10 px-4 sm:inline-flex" onClick={onStart}>
-          Dashboard
+        <Button className="hidden h-10 px-4 sm:inline-flex" disabled={entering} onClick={onStart}>
+          {entering ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          {entering ? "Entrando..." : "Dashboard"}
         </Button>
         <button
           aria-label={menuOpen ? "Fechar menu" : "Abrir menu"}
@@ -361,8 +364,9 @@ function Header({ onNavigate, onStart }: { onNavigate: (id: string) => void; onS
               {label}
             </button>
           ))}
-          <Button className="h-11 w-full" onClick={() => { setMenuOpen(false); onStart(); }}>
-            Dashboard
+          <Button className="h-11 w-full" disabled={entering} onClick={() => { setMenuOpen(false); onStart(); }}>
+            {entering ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {entering ? "Entrando..." : "Dashboard"}
           </Button>
         </motion.div>
       ) : null}
@@ -381,29 +385,71 @@ function SectionHeading({ badge, subtitle, title }: { badge?: string; subtitle: 
 }
 
 function TerminalMockup() {
+  const [sequenceIndex, setSequenceIndex] = useState(0);
+  const [typedCommand, setTypedCommand] = useState("");
+  const [visibleResponseCount, setVisibleResponseCount] = useState(0);
+  const [typing, setTyping] = useState(true);
+  const sequence = terminalSequences[sequenceIndex] ?? terminalSequences[0];
+
+  useEffect(() => {
+    const timers: number[] = [];
+    let cancelled = false;
+
+    const schedule = (callback: () => void, delay: number) => {
+      const timer = window.setTimeout(() => {
+        if (!cancelled) callback();
+      }, delay);
+      timers.push(timer);
+    };
+
+    setTypedCommand("");
+    setVisibleResponseCount(0);
+    setTyping(true);
+
+    for (let index = 1; index <= sequence.command.length; index += 1) {
+      schedule(() => setTypedCommand(sequence.command.slice(0, index)), index * TYPEWRITER_DELAY_MS);
+    }
+
+    const typingCompleteAt = sequence.command.length * TYPEWRITER_DELAY_MS + 240;
+    const responseStartAt = typingCompleteAt + RESPONSE_START_DELAY_MS;
+    schedule(() => setTyping(false), typingCompleteAt);
+
+    sequence.response.forEach((_, index) => {
+      schedule(() => setVisibleResponseCount(index + 1), responseStartAt + index * RESPONSE_REVEAL_DELAY_MS);
+    });
+
+    const restartAt = responseStartAt + sequence.response.length * RESPONSE_REVEAL_DELAY_MS + TERMINAL_HOLD_MS;
+    schedule(() => {
+      setTypedCommand("");
+      setVisibleResponseCount(0);
+      setSequenceIndex((current) => (current + 1) % terminalSequences.length);
+    }, restartAt);
+
+    return () => {
+      cancelled = true;
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [sequence.command, sequence.response.length]);
+
+  const visibleResponse = sequence.response.slice(0, visibleResponseCount);
+
   return (
-    <div className="overflow-hidden rounded-lg border border-[#FFD500]/25 bg-[#0b0b0b] text-left shadow-[0_28px_90px_rgba(0,0,0,0.7),0_0_44px_rgba(255,213,0,0.12)]">
-      <div className="flex items-center justify-between border-b border-[#FFD500]/15 bg-[#141414] px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className="h-3 w-3 rounded-full bg-red-400" />
-          <span className="h-3 w-3 rounded-full bg-[#FFD500]" />
-          <span className="h-3 w-3 rounded-full bg-[#3DDC84]" />
+    <div className="overflow-hidden rounded-lg border border-[#FFD500]/25 bg-[#0b0b0b] text-left shadow-[0_28px_90px_rgba(0,0,0,0.7),0_0_40px_8px_rgba(255,213,0,0.15)]">
+      <div className="flex items-center gap-3 border-b border-[#FFD500]/15 bg-[#141414] px-4 py-3">
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="h-3 w-3 rounded-full bg-[#FFD900]" />
+          <span className="h-3 w-3 rounded-full bg-[#4B4B4B]" />
+          <span className="h-3 w-3 rounded-full bg-[#4B4B4B]" />
         </div>
-        <div className="flex items-center gap-2 text-xs font-medium text-zinc-400">
+        <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-zinc-400">
           <Terminal className="h-4 w-4 text-[#FFD500]" />
-          orvitek-cli
+          <span className="truncate">orvitek-cli ~ orvitek-bots.discloud.app</span>
         </div>
       </div>
-      <div className="min-h-[21rem] p-5 font-mono text-sm leading-7">
-        {terminalLines.map((line, index) => (
-          <p
-            className={`terminal-line ${line.includes("201 Created") || line.includes("online") ? "text-[#3DDC84]" : line.includes("token") ? "text-[#FFEA70]" : "text-zinc-300"}`}
-            key={`${line}-${index}`}
-            style={{ animationDelay: `${index * 0.52}s` }}
-          >
-            <span className="mr-2 text-[#FFD500]">$</span>
-            {line}
-          </p>
+      <div aria-label="Demonstração animada do terminal Orvitek" aria-live="off" className="min-h-[21rem] p-5 font-mono text-sm leading-7">
+        <TerminalCommandLine command={typedCommand} typing={typing} />
+        {visibleResponse.map((line, index) => (
+          <TerminalResponseItem key={`${sequenceIndex}-${line.text}-${index}`} line={line} />
         ))}
       </div>
       <div className="flex items-center justify-between border-t border-[#FFD500]/15 px-4 py-3 text-xs text-zinc-400">
@@ -414,6 +460,46 @@ function TerminalMockup() {
         </span>
       </div>
     </div>
+  );
+}
+
+function TerminalCommandLine({ command, typing }: { command: string; typing: boolean }) {
+  const hasPrompt = command.startsWith("$");
+
+  return (
+    <p className="flex min-h-7 min-w-0 items-center whitespace-pre-wrap text-zinc-100">
+      {hasPrompt ? <span className="text-[#FFD900]">$</span> : null}
+      <span>{hasPrompt ? command.slice(1) : command}</span>
+      {typing ? <span aria-hidden="true" className="terminal-cursor" /> : null}
+    </p>
+  );
+}
+
+function TerminalResponseItem({ line }: { line: TerminalResponseLine }) {
+  if (line.tone === "status") {
+    return <p className="terminal-response-line min-h-7 whitespace-pre-wrap text-[#3DDC84]">{line.text}</p>;
+  }
+
+  return (
+    <p className="terminal-response-line min-h-7 whitespace-pre-wrap text-zinc-300">
+      <TerminalHighlightedLine text={line.text} />
+    </p>
+  );
+}
+
+function TerminalHighlightedLine({ text }: { text: string }) {
+  const match = text.match(/^(\s*)("[^"]+"|[A-Za-z_][\w-]*)(:)(.*)$/);
+  if (!match) return <>{text}</>;
+
+  const [, leading, key, colon, rest] = match;
+
+  return (
+    <>
+      {leading}
+      <span className="text-[#FFEA70]">{key}</span>
+      <span className="text-zinc-500">{colon}</span>
+      {rest}
+    </>
   );
 }
 
@@ -491,67 +577,6 @@ function StatCounter({ label, prefix = "", suffix = "", value }: { label: string
       <p className="text-3xl font-black text-[#FFD500]">{prefix}{displayValue}{suffix}</p>
       <p className="mt-2 text-sm text-[#B3B3B3]">{label}</p>
     </div>
-  );
-}
-
-function AuthStatusPanel({
-  accessValidation,
-  auth,
-  checkingAccess,
-  error,
-  onLoginDiscord,
-  onLogout,
-  onRetry,
-  onVerify,
-  status,
-  verifying
-}: LoginProps) {
-  const rejectionReasons = useMemo(() => accessValidation?.rejectionReasons ?? [], [accessValidation]);
-
-  return (
-    <Reveal className="mt-8 w-full max-w-2xl rounded-lg border border-[#FFD500]/20 bg-[#141414]/92 p-4 text-left shadow-[0_18px_60px_rgba(0,0,0,0.4)]">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-[#FFEA70]">{error ? "Atenção no acesso" : status}</p>
-          <p className="mt-1 text-sm text-[#B3B3B3]">
-            {checkingAccess ? "Checando se seu usuário pode acessar o site..." : auth ? "Sessão Discord detectada. Confirme para entrar no dashboard." : "Use Discord para continuar."}
-          </p>
-        </div>
-        {auth ? (
-          <div className="flex min-w-0 items-center gap-3">
-            <Avatar className="h-11 w-11 rounded-lg border border-[#FFD500]/30" fallback={auth.user.username} src={auth.user.avatarUrl ?? auth.user.avatar} />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-white">{auth.user.username}</p>
-              <p className="truncate text-xs text-zinc-500">{auth.user.tag}</p>
-            </div>
-          </div>
-        ) : null}
-      </div>
-
-      {error ? <p className="mt-4 rounded-lg border border-[#FFD500]/15 bg-black/40 p-3 text-sm text-zinc-200">{error}</p> : null}
-      {rejectionReasons.length ? (
-        <div className="mt-3 space-y-1 text-xs leading-5 text-zinc-500">
-          <p>{ACCESS_DENIED_MESSAGE}</p>
-          {rejectionReasons.map((reason) => <p key={reason}>{reason}</p>)}
-        </div>
-      ) : null}
-
-      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-        {auth ? (
-          <>
-            <Button disabled={verifying} onClick={onVerify}>
-              {verifying ? "Verificando..." : "Verificar acesso"}
-            </Button>
-            <Button onClick={onLogout} variant="outline">Sair</Button>
-          </>
-        ) : (
-          <>
-            <Button onClick={onLoginDiscord}>Entrar com Discord</Button>
-            {error ? <Button onClick={onRetry} variant="outline">Tentar novamente</Button> : null}
-          </>
-        )}
-      </div>
-    </Reveal>
   );
 }
 

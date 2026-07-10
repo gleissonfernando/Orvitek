@@ -11,15 +11,11 @@ import { dashboardSlugFromPath, dashboardUrl, isDashboardRoutePath } from "./lib
 
 export function App() {
   const {
-    accessValidation,
     auth,
-    checkingAccess,
     error,
     loading,
     loginDiscord,
     logout,
-    refresh,
-    status,
     verify,
     verifying
   } = useAuth();
@@ -27,6 +23,7 @@ export function App() {
   const rouletteToken = rouletteTokenFromPath(path);
   const productRoute = orvitechProductRouteFromPath(path);
   const routeError = readAuthError();
+  const authCallbackLanding = isAuthCallbackLanding();
   const dashboardPath = isDashboardRoutePath(path);
   const devPanelPath = path === "/dev" || path.startsWith("/dev/");
   const protectedPanelPath = dashboardPath || devPanelPath;
@@ -53,6 +50,18 @@ export function App() {
     loginDiscord();
   }, [auth, protectedPanelPath, error, loading, loginDiscord, productRoute, routeError, rouletteToken]);
 
+  useEffect(() => {
+    if (rouletteToken || productRoute) {
+      return;
+    }
+
+    if (!authCallbackLanding || !auth || auth.access.verified || verifying) {
+      return;
+    }
+
+    verify();
+  }, [auth, authCallbackLanding, productRoute, rouletteToken, verify, verifying]);
+
   if (rouletteToken) {
     return <GiveawayRoulettePage token={rouletteToken} />;
   }
@@ -68,15 +77,9 @@ export function App() {
   if (!auth || !auth.access.verified) {
     return (
       <Login
-        accessValidation={accessValidation}
         auth={auth}
-        checkingAccess={checkingAccess}
-        error={routeError ?? error}
         onLoginDiscord={loginDiscord}
-        onLogout={logout}
-        onRetry={refresh}
         onVerify={verify}
-        status={routeError ? "Acesso negado." : status}
         verifying={verifying}
       />
     );
@@ -114,6 +117,10 @@ function readAuthError() {
   }
 
   return "Não foi possível conectar com o Discord. Verifique se o aplicativo está configurado corretamente.";
+}
+
+function isAuthCallbackLanding() {
+  return new URLSearchParams(window.location.search).get("auth") === "callback";
 }
 
 function rouletteTokenFromPath(path: string) {
