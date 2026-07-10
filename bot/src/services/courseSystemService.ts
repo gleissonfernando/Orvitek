@@ -7,6 +7,7 @@ import {
   MessageFlags,
   ModalBuilder,
   PermissionFlagsBits,
+  PermissionsBitField,
   RoleSelectMenuBuilder,
   SlashCommandBuilder,
   StringSelectMenuBuilder,
@@ -20,6 +21,7 @@ import {
   type Interaction,
   type Message,
   type ModalSubmitInteraction,
+  type PermissionResolvable,
   type StringSelectMenuInteraction,
   type TextChannel,
   type UserSelectMenuInteraction,
@@ -906,10 +908,9 @@ async function refreshActiveCoursePublicationPanels(client: Client, context: Bot
 }
 
 async function manageableCourses(interaction: ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction, context: BotContext) {
-  const member = interaction.member as GuildMember | null;
   return context.api.getManageableCourses(interaction.guildId!, {
-    isAdministrator: Boolean(member?.permissions.has(PermissionFlagsBits.Administrator)),
-    roleIds: member?.roles.cache.map((role) => role.id) ?? [],
+    isAdministrator: isGuildOwnerOrAdministrator(interaction),
+    roleIds: memberRoleIds(interaction.member),
     userId: interaction.user.id
   });
 }
@@ -927,10 +928,8 @@ async function getCoursePanelVisual(context: BotContext, guildId: string): Promi
 
 async function canOpenCourseConfig(interaction: ChatInputCommandInteraction | ButtonInteraction, settings: CourseSettings) {
   if (!interaction.guild) return false;
-  if (interaction.guild.ownerId === interaction.user.id) return true;
-  const member = interaction.member as GuildMember | null;
-  if (member?.permissions.has(PermissionFlagsBits.Administrator)) return true;
-  const roleIds = member?.roles.cache.map((role) => role.id) ?? [];
+  if (isGuildOwnerOrAdministrator(interaction)) return true;
+  const roleIds = memberRoleIds(interaction.member);
   return settings.adminUserIds.includes(interaction.user.id)
     || settings.managerUserIds.includes(interaction.user.id)
     || settings.configUserIds.includes(interaction.user.id)
@@ -945,10 +944,9 @@ async function canManagePublication(interaction: ChatInputCommandInteraction | B
 }
 
 async function canManageCourse(interaction: CourseActionInteraction, context: BotContext, courseId: string) {
-  const member = interaction.member as GuildMember | null;
   const courses = await context.api.getManageableCourses(interaction.guildId!, {
-    isAdministrator: Boolean(member?.permissions.has(PermissionFlagsBits.Administrator)),
-    roleIds: member?.roles.cache.map((role) => role.id) ?? [],
+    isAdministrator: isGuildOwnerOrAdministrator(interaction),
+    roleIds: memberRoleIds(interaction.member),
     userId: interaction.user.id
   });
   return courses.some((course) => course.id === courseId);
@@ -957,11 +955,9 @@ async function canManageCourse(interaction: CourseActionInteraction, context: Bo
 async function canReviewExam(interaction: CourseActionInteraction, context: BotContext, attempt: CourseExamAttempt) {
   if (!interaction.guild) return false;
   if (attempt.instructorId === interaction.user.id) return true;
-  if (interaction.guild.ownerId === interaction.user.id) return true;
+  if (isGuildOwnerOrAdministrator(interaction)) return true;
   const settings = await context.api.getCourseSettings(interaction.guildId!);
-  const member = interaction.member as GuildMember | null;
-  if (member?.permissions.has(PermissionFlagsBits.Administrator)) return true;
-  const roleIds = member?.roles.cache.map((role) => role.id) ?? [];
+  const roleIds = memberRoleIds(interaction.member);
   return settings.evaluatorUserIds.includes(interaction.user.id)
     || settings.adminUserIds.includes(interaction.user.id)
     || settings.managerUserIds.includes(interaction.user.id)
@@ -969,6 +965,31 @@ async function canReviewExam(interaction: CourseActionInteraction, context: BotC
     || settings.adminRoleIds.some((roleId) => roleIds.includes(roleId))
     || settings.managerRoleIds.some((roleId) => roleIds.includes(roleId))
     || await canManageCourse(interaction, context, attempt.courseId);
+}
+
+function isGuildOwnerOrAdministrator(interaction: CourseActionInteraction) {
+  return interaction.guild?.ownerId === interaction.user.id
+    || memberHasPermission(interaction.member, PermissionFlagsBits.Administrator);
+}
+
+function memberRoleIds(member: CourseActionInteraction["member"] | GuildMember | null) {
+  if (!member || !("roles" in member)) return [];
+  if (Array.isArray(member.roles)) return member.roles;
+  return member.roles.cache.map((role) => role.id);
+}
+
+function memberHasPermission(member: CourseActionInteraction["member"] | GuildMember | null, permission: PermissionResolvable) {
+  if (!member || !("permissions" in member) || member.permissions == null) return false;
+  const permissions = member.permissions;
+  if (typeof (permissions as { has?: unknown }).has === "function") {
+    return Boolean((permissions as PermissionsBitField).has(permission));
+  }
+
+  try {
+    return new PermissionsBitField(BigInt(String(permissions))).has(permission);
+  } catch {
+    return false;
+  }
 }
 
 function courseConfigPanel(settings: CourseSettings, panelVisual: PanelVisualConfig | null = null) {
