@@ -1140,7 +1140,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
           status={displayedBotStatus}
         />
 
-        {activeView !== "delete-channels" ? (
+        {activeView !== "delete-channels" && activeView !== "fivem-hierarchy" ? (
           <PanelImageSettings
             botId={activeBotId}
             canManage={canManageDashboard}
@@ -3147,19 +3147,24 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
                   Painel ativo
                   <Switch checked={draft.enabled} disabled={!canManage} onCheckedChange={(enabled) => patchDraft({ enabled })} />
                 </label>
-                <label className="block text-xs font-medium text-zinc-400">Imagem
-                  <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchDraft({ imagePosition: event.target.value as FivemHierarchyPanelType["imagePosition"] })} value={draft.imagePosition}>
-                    <option value="none">Sem imagem</option>
-                    <option value="top">Topo</option>
-                    <option value="bottom">Rodape</option>
-                    <option value="thumbnail">Thumbnail</option>
-                  </select>
-                </label>
                 <div className="md:col-span-2">
                   <TicketArea disabled={!canManage} label="Descricao" onChange={(value) => patchDraft({ description: value })} value={draft.description ?? ""} />
                 </div>
               </div>
               <div className="space-y-3">
+                {draft.id !== "new" ? (
+                  <PanelImageSettings
+                    botId={botId}
+                    canManage={canManage}
+                    guildId={guild?.id ?? null}
+                    panelLabel={`Imagem da hierarquia - ${draft.name || draft.title}`}
+                    panelSlots={fivemHierarchyPanelImageSlots(draft.id, draft.name || draft.title)}
+                  />
+                ) : (
+                  <div className="rounded-lg border border-zinc-800 bg-black/30 px-3 py-2 text-xs text-zinc-400">
+                    Salve o painel antes de configurar a imagem propria desta hierarquia.
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-white">Cargos exibidos no painel</p>
@@ -8836,6 +8841,26 @@ function visualPanelIdForView(view: ViewId) {
     "server-cloner": "server-cloner"
   };
   return aliases[view] ?? view;
+}
+
+function fivemHierarchyVisualPanelId(panelId: string) {
+  const normalized = panelId
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9_-]+/gi, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 55);
+  return `fivem-hierarchy-${normalized || "panel"}`;
+}
+
+function fivemHierarchyPanelImageSlots(panelId: string, label: string) {
+  const baseId = fivemHierarchyVisualPanelId(panelId);
+  const baseLabel = label?.trim() || "Hierarquia";
+  return [
+    { id: baseId, label: `${baseLabel} - Banner principal` },
+    { id: `${baseId}-banner-2`, label: `${baseLabel} - Banner 2` },
+    { id: `${baseId}-banner-3`, label: `${baseLabel} - Banner 3` }
+  ];
 }
 
 function policePanelImageSlotsForView(view: ViewId) {

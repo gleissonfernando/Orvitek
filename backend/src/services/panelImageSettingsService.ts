@@ -180,8 +180,13 @@ export async function savePanelImageSettings(
 }
 
 function emitPanelRefresh(guildId: string, botId: string, panelId: string) {
+  const hierarchyPanelId = hierarchyPanelIdFromImagePanelId(panelId);
+  if (hierarchyPanelId !== undefined) {
+    emitRealtimeToRoom(devBotRealtimeRoom(botId), "fivem:hierarchy:panel_update", { botId, guildId, ...(hierarchyPanelId ? { panelId: hierarchyPanelId } : {}) });
+    return;
+  }
+
   const events: Record<string, string> = {
-    "fivem-hierarchy": "fivem:hierarchy:panel_update",
     "fivem-orders": "fivem:orders:panel_publish",
     "fivem-finance": "fivem:finance:panel_publish",
     "fivem-general": "fivem:fac:panel_publish",
@@ -202,6 +207,13 @@ function emitPanelRefresh(guildId: string, botId: string, panelId: string) {
 
 function refreshPanelId(panelId: string) {
   return panelId.replace(/-banner-[23]$/i, "");
+}
+
+function hierarchyPanelIdFromImagePanelId(panelId: string) {
+  const basePanelId = refreshPanelId(panelId);
+  if (basePanelId === "fivem-hierarchy") return null;
+  const match = /^fivem-hierarchy-(.+)$/i.exec(basePanelId);
+  return match?.[1] ?? undefined;
 }
 
 export async function savePanelImageUpload(input: {

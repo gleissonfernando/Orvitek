@@ -275,7 +275,7 @@ async function publishHierarchyPanel(guild: Guild, context: BotContext, panel: F
     return { error, ok: false, panelId: panel.id };
   }
   await logMissingHierarchyRoles(context, guild, panel);
-  const visuals = await getPanelVisualSlots(context, guild.id, "fivem-hierarchy");
+  const visuals = await getHierarchyPanelVisualSlots(context, guild.id, panel);
   const payload = createHierarchyPayload(guild, panel, cache, visuals[0] ?? null);
   if (panel.panelMessageId) {
     let fetchError: unknown = null;
@@ -424,20 +424,47 @@ function isDiscordUnknownMessageError(error: unknown) {
   return Number(error.code) === 10008 || Number((error as { status?: unknown }).status) === 404;
 }
 
-async function getPanelVisualSlots(context: BotContext, guildId: string, basePanelId: string) {
-  const panelIds = [basePanelId, `${basePanelId}-banner-2`, `${basePanelId}-banner-3`];
-  const visuals = await Promise.all(panelIds.map((panelId) => context.api.getPanelVisualSettings(guildId, panelId).catch(() => null)));
+type PanelVisualSetting = {
+  blocks?: PanelVisualConfig["blocks"];
+  imageEnabled: boolean;
+  imagePosition: PanelVisualConfig["imagePosition"];
+  imageUrl: string;
+  useGlobalDefault: boolean;
+};
 
-  return visuals.flatMap((visual, index): PanelVisualConfig[] => {
+type PanelVisualSlot = PanelVisualConfig & {
+  useGlobalDefault?: boolean;
+};
+
+async function getHierarchyPanelVisualSlots(context: BotContext, guildId: string, panel: FivemHierarchyPanel) {
+  return panelVisualSettingsToSlots(await getPanelVisualSettings(context, guildId, fivemHierarchyVisualPanelId(panel.id)));
+}
+
+async function getPanelVisualSettings(context: BotContext, guildId: string, basePanelId: string) {
+  const panelIds = [basePanelId, `${basePanelId}-banner-2`, `${basePanelId}-banner-3`];
+  return Promise.all(panelIds.map((panelId) => context.api.getPanelVisualSettings(guildId, panelId).catch(() => null)));
+}
+
+function panelVisualSettingsToSlots(visuals: Array<PanelVisualSetting | null>): PanelVisualSlot[] {
+  return visuals.flatMap((visual, index): PanelVisualSlot[] => {
     if (!visual?.imageEnabled) return [];
     if (index > 0 && visual.useGlobalDefault) return [];
-    return [{ blocks: visual.blocks ?? [], imageEnabled: visual.imageEnabled, imagePosition: visual.imagePosition, imageUrl: visual.imageUrl }];
+    return [{ blocks: visual.blocks ?? [], imageEnabled: visual.imageEnabled, imagePosition: visual.imagePosition, imageUrl: visual.imageUrl, useGlobalDefault: visual.useGlobalDefault }];
   });
 }
 
+function fivemHierarchyVisualPanelId(panelId: string) {
+  const normalized = panelId
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9_-]+/gi, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 55);
+  return `fivem-hierarchy-${normalized || "panel"}`;
+}
+
 function createHierarchyPayload(guild: Guild, panel: FivemHierarchyPanel, cache: HierarchyPanelCache, visual: PanelVisualConfig | null) {
-  const fallbackVisual: PanelVisualConfig | null = panel.imageUrl ? { imageEnabled: true, imagePosition: panel.imagePosition === "bottom" ? "bottom" : panel.imagePosition, imageUrl: panel.imageUrl } : null;
-  const singleVisual = sanitizeSingleHierarchyVisual(visual?.imageEnabled ? visual : fallbackVisual);
+  const singleVisual = sanitizeSingleHierarchyVisual(visual?.imageEnabled ? visual : null);
   return renderComponentsV2Panel({ accentColor: colorToInt(panel.color), actions: [], description: panel.description ?? "Hierarquia atualizada automaticamente pelos cargos do servidor.", fields: renderHierarchyFields(guild, panel, cache), footer: panel.footerEnabled ? { text: panel.footerText ?? "OrviteK" } : { enabled: false }, image: singleVisual, moduleId: "fivem-hierarchy", title: panel.title });
 }
 
