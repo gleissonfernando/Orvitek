@@ -131,7 +131,6 @@ const navSectionLabels: Record<NavSectionId, string> = {
 
 const navItems: NavItem[] = [
   { id: "overview", label: "Visao geral", icon: Activity },
-  { id: "plans", label: "Planos", icon: CreditCard },
   { id: "lives", label: "Lives", icon: Radio, moduleIds: ["live", "kick-integration"] },
   { id: "clips", label: "Clips", icon: Film, moduleId: "clips" },
   { id: "kick-clips", label: "Clipes Kick", icon: Film, moduleId: "kick-clips" },

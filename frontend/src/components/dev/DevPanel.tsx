@@ -719,7 +719,10 @@ export function DevPanel({
   useEffect(() => {
     let mounted = true;
 
-    Promise.all([getDevModules(), getDevBots()])
+    Promise.all([
+      getDevModules().catch(() => fallbackModules),
+      getDevBots()
+    ])
       .then(([moduleData, botData]) => {
         if (!mounted) return;
         setModules(mergeDevModules(moduleData));

@@ -68,7 +68,6 @@ import { MissionToolsPanel } from "../components/mission-tools/MissionToolsPanel
 import { MediaLibraryPanel } from "../components/media/MediaLibraryPanel";
 import { SiteAccessPanel } from "../components/moderation/SiteAccessPanel";
 import { PanelImageSettings } from "../components/panels/PanelImageSettings";
-import { PlansPanel } from "../components/plans/PlansPanel";
 import { ManualPaymentsPanel } from "../components/manual-payments/ManualPaymentsPanel";
 import { PriceTablesPanel } from "../components/price-tables/PriceTablesPanel";
 import { RhAdminPanel } from "../components/rh-admin/RhAdminPanel";
@@ -1177,9 +1176,6 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
           />
         ) : null}
 
-        {activeView === "plans" ? (
-          <PlansPanel />
-        ) : null}
 
         {activeView === "lives" ? (
           <LiveView
@@ -9009,17 +9005,13 @@ function dashboardViewFromPath(path: string): ViewId {
     return "fivem-hierarchy";
   }
 
-  if (path === "/dashboard/planos" || /^\/[a-z0-9]+(?:-[a-z0-9]+)*\/dashboard\/planos(?:\/|$)/i.test(path)) {
-    return "plans";
-  }
-
   return "overview";
 }
 
 function dashboardPathForView(slug: string, view: ViewId) {
   const base = `/${encodeURIComponent(slug)}/dashboard`;
   if (view === "fivem-hierarchy") return `${base}/hierarquia`;
-  return view === "plans" ? `${base}/planos` : base;
+  return base;
 }
 
 function isViewAllowed(view: ViewId, enabledModules: string[]) {

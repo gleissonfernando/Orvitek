@@ -7,6 +7,7 @@ import { DocsPage } from "./pages/Docs";
 import { GiveawayRoulettePage } from "./pages/GiveawayRoulette";
 import { Login } from "./pages/Login";
 import { OrvitechProductPage } from "./pages/OrvitechProductPage";
+import { PublicPlansPage } from "./pages/Plans";
 import { useAuth } from "./hooks/useAuth";
 import { dashboardSlugFromPath, dashboardUrl, isDashboardRoutePath } from "./lib/urls";
 
@@ -22,6 +23,7 @@ export function App() {
   } = useAuth();
   const path = window.location.pathname;
   const docsPath = path === "/docs" || path.startsWith("/docs/");
+  const plansPath = path === "/planos" || path.startsWith("/planos/");
   const rouletteToken = rouletteTokenFromPath(path);
   const productRoute = orvitechProductRouteFromPath(path);
   const routeError = readAuthError();
@@ -31,17 +33,17 @@ export function App() {
   const protectedPanelPath = dashboardPath || devPanelPath;
 
   useEffect(() => {
-    if (rouletteToken || productRoute || docsPath) {
+    if (rouletteToken || productRoute || docsPath || plansPath) {
       return;
     }
 
     if (auth?.access.verified && !protectedPanelPath) {
       window.location.replace(dashboardUrl());
     }
-  }, [auth, docsPath, productRoute, protectedPanelPath, rouletteToken]);
+  }, [auth, docsPath, plansPath, productRoute, protectedPanelPath, rouletteToken]);
 
   useEffect(() => {
-    if (rouletteToken || productRoute || docsPath) {
+    if (rouletteToken || productRoute || docsPath || plansPath) {
       return;
     }
 
@@ -50,10 +52,10 @@ export function App() {
     }
 
     loginDiscord();
-  }, [auth, protectedPanelPath, docsPath, error, loading, loginDiscord, productRoute, routeError, rouletteToken]);
+  }, [auth, protectedPanelPath, docsPath, error, loading, loginDiscord, plansPath, productRoute, routeError, rouletteToken]);
 
   useEffect(() => {
-    if (rouletteToken || productRoute || docsPath) {
+    if (rouletteToken || productRoute || docsPath || plansPath) {
       return;
     }
 
@@ -62,10 +64,14 @@ export function App() {
     }
 
     verify();
-  }, [auth, authCallbackLanding, docsPath, productRoute, rouletteToken, verify, verifying]);
+  }, [auth, authCallbackLanding, docsPath, plansPath, productRoute, rouletteToken, verify, verifying]);
 
   if (docsPath) {
     return <DocsPage />;
+  }
+
+  if (plansPath) {
+    return <PublicPlansPage />;
   }
 
   if (rouletteToken) {

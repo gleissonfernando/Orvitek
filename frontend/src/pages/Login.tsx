@@ -158,6 +158,10 @@ export function Login({
   }
 
   function scrollTo(id: string) {
+    if (id === "planos") {
+      window.location.assign("/planos");
+      return;
+    }
     if (id === "docs") {
       window.location.assign("/docs");
       return;
@@ -200,6 +204,9 @@ export function Login({
           </Button>
           <Button className="h-12 min-w-44" onClick={() => scrollTo("solucoes")} variant="outline">
             Ver Soluções
+          </Button>
+          <Button className="h-12 min-w-44" onClick={() => scrollTo("planos")} variant="outline">
+            Ver Planos
           </Button>
         </Reveal>
 
@@ -322,6 +329,7 @@ function Header({ entering, onNavigate, onStart }: { entering: boolean; onNaviga
   const nav = [
     ["Início", "inicio"],
     ["Soluções", "solucoes"],
+    ["Planos", "planos"],
     ["Docs", "docs"],
     ["Suporte", "suporte"]
   ] as const;
