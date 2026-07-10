@@ -237,7 +237,7 @@ export async function handlePoliceSubpoenaMessage(message: Message, context: Bot
 
   const settings = await getFreshGuildSettings(context, message.guild.id, message.client.user?.id);
   const member = message.member ?? await message.guild.members.fetch(message.author.id).catch(() => null);
-  if (message.author.id === state.targetId || !member || !canManageCase(member, settings.reportSystem, state, message.author.id)) return false;
+  if (message.author.id === state.targetId || !member || !canReplyAnonymously(member, settings.reportSystem, state, message.author.id, channel)) return false;
 
   const me = message.guild.members.me ?? await message.guild.members.fetchMe().catch(() => null);
   const permissions = me ? channel.permissionsFor(me) : null;
@@ -245,7 +245,7 @@ export async function handlePoliceSubpoenaMessage(message: Message, context: Bot
     return false;
   }
 
-  const payload = anonymousIssuerPayload(message, botDisplayName(message.guild));
+  const payload = anonymousIssuerPayload(message, subpoenaStaffDisplayName(settings.reportSystem, state));
   if (!payload.content && !payload.files?.length && !payload.stickers?.length) {
     await message.delete().catch(() => null);
     return true;
@@ -288,11 +288,42 @@ async function handleCaseButton(interaction: ButtonInteraction, context: BotCont
     await interaction.reply({ content: sent ? "Lembrete enviado por DM." : "Não consegui enviar a DM.", ephemeral: true });
     return true;
   }
+  if (action === "cancel") {
+    await cancelSubpoena(interaction, context, settings, state, channelId);
+    return true;
+  }
   state.status = action === "finish" ? "finished" : "cancelled";
   cases.set(channelId, state);
   await interaction.update(casePanel(settings, state));
   await sendCompetenceLog(interaction.guild!, settings, state, interaction.user.id, `Ação: **${action === "finish" ? "Intimação finalizada" : "Intimação cancelada"}**\nCanal: <#${channelId}>`);
   return true;
+}
+
+async function cancelSubpoena(interaction: ButtonInteraction, context: BotContext, settings: GuildSettings, state: CaseState, channelId: string) {
+  await interaction.deferReply({ ephemeral: true });
+  const channel = interaction.channel?.id === channelId && interaction.channel.isTextBased()
+    ? interaction.channel as TextChannel
+    : await interaction.guild!.channels.fetch(channelId).catch(() => null);
+  if (!channel || !("delete" in channel) || !channel.isTextBased()) {
+    await interaction.editReply("Não encontrei o canal da intimação para cancelar.");
+    return;
+  }
+
+  state.status = "cancelled";
+  cases.set(channelId, state);
+  const transcript = await createSubpoenaTranscript(context, interaction.guild!, settings, channel as TextChannel, state, interaction.user.id, "Cancelada").catch((error) => {
+    console.error("[police-subpoena] failed to create transcript:", error instanceof Error ? error.message : error);
+    return null;
+  });
+  await sendCompetenceLog(interaction.guild!, settings, state, interaction.user.id, [
+    "Ação: **Intimação cancelada**",
+    `Canal apagado: <#${channelId}>`,
+    transcript ? `Transcript: ${subpoenaTranscriptUrl(transcript)}` : "Transcript: falhou"
+  ].join("\n"));
+  cases.delete(channelId);
+  await interaction.editReply(transcript ? "Intimação cancelada. Transcript gerado e canal será apagado." : "Intimação cancelada. Não consegui gerar o transcript, mas o canal será apagado.");
+  await new Promise((resolve) => setTimeout(resolve, 2_000));
+  await (channel as TextChannel).delete(`Intimação cancelada por ${interaction.user.tag} (${interaction.user.id})`).catch(() => null);
 }
 
 async function submitNote(interaction: ModalSubmitInteraction, _context: BotContext, settings: GuildSettings, channelId: string) {
@@ -404,6 +435,64 @@ async function sendCompetenceLog(guild: Guild, settings: GuildSettings, state: C
   })).catch(() => null);
 }
 
+async function createSubpoenaTranscript(context: BotContext, guild: Guild, settings: GuildSettings, channel: TextChannel, state: CaseState, actorId: string, status: "Cancelada" | "Finalizada") {
+  const messages = await collectSubpoenaTranscriptMessages(channel, settings, state);
+  const transcript = await context.api.createTranscript({
+    categoryName: COMPETENCE_LABEL[state.finalCompetence],
+    channelId: channel.id,
+    channelName: channel.name,
+    closeReason: status,
+    closedAt: new Date().toISOString(),
+    closedById: actorId,
+    finalResult: status,
+    generateTemporaryPassword: true,
+    guildId: guild.id,
+    guildName: guild.name,
+    isPartial: false,
+    messages,
+    metadata: {
+      competence: state.finalCompetence,
+      module: MODULE_ID,
+      targetId: state.targetId
+    },
+    openedById: state.createdById,
+    ownerId: state.targetId,
+    participants: subpoenaParticipantsFromMessages(messages, settings, state),
+    responsibleUserId: state.responsibleId || null,
+    temporaryPasswordTtlHours: 24 * 365,
+    ticketId: `subpoena:${state.channelId}`,
+    type: "Outro"
+  });
+  await sendSubpoenaTranscriptPanel(guild, settings, state, transcript, messages, status);
+  return transcript;
+}
+
+async function sendSubpoenaTranscriptPanel(guild: Guild, settings: GuildSettings, state: CaseState, transcript: Awaited<ReturnType<BotContext["api"]["createTranscript"]>>, messages: Awaited<ReturnType<typeof collectSubpoenaTranscriptMessages>>, status: string) {
+  const channelId = settings.reportSystem.transcriptChannelId ?? logFor(settings.reportSystem, state.finalCompetence);
+  const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
+  if (!channel?.isTextBased() || !("send" in channel)) return;
+  const url = subpoenaTranscriptUrl(transcript);
+  const attachmentCount = messages.reduce((total, message) => total + message.attachments.length, 0);
+  const participants = new Set(messages.map((message) => message.authorId).filter(Boolean));
+  const expiresAt = transcript.temporaryPasswordExpiresAt ?? transcript.transcript.expiresAt;
+  await (channel as TextChannel).send(renderComponentsV2Panel({
+    accentColor: color(settings.reportSystem.panelColor),
+    actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setLabel("Abrir Transcript").setStyle(ButtonStyle.Link).setURL(url)
+    )],
+    description: "A intimação foi encerrada e o canal temporário foi apagado. O transcript foi salvo para auditoria autorizada.",
+    fields: [
+      `**Intimação**\n**Canal:** ${state.channelId}\n**Status:** ${status}\n**Órgão:** ${COMPETENCE_LABEL[state.finalCompetence]}`,
+      `**Envolvidos**\n**Intimado:** <@${state.targetId}> (${state.targetId})\n**Criada por:** <@${state.createdById}>\n**Responsável:** <@${state.responsibleId}>`,
+      `**Resumo**\n**Criada em:** <t:${Math.floor(new Date(state.createdAt).getTime() / 1000)}:F>\n**Mensagens:** ${messages.length}\n**Anexos:** ${attachmentCount}\n**Participantes:** ${participants.size}`,
+      `**Acesso**\n**Link:** ${url}\n**Senha:** ${transcript.temporaryPassword ? `||${transcript.temporaryPassword}||` : "não gerada"}\n**Expira em:** ${expiresAt ? `<t:${Math.floor(Date.parse(expiresAt) / 1000)}:D>` : "configuração padrão"}`
+    ],
+    image: settings.reportSystem.subpoenaPanelBannerUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: settings.reportSystem.subpoenaPanelBannerUrl } : null,
+    moduleId: "police-subpoena-transcript",
+    title: "Transcript de Intimação"
+  })).catch(() => null);
+}
+
 async function sendCompetenceDestinationNotice(guild: Guild, settings: GuildSettings, state: CaseState, executorId: string, subpoenaChannel: TextChannel) {
   const destinationId = categoryFor(settings.reportSystem, state.finalCompetence);
   if (!destinationId || destinationId === subpoenaChannel.id) return;
@@ -453,6 +542,50 @@ function anonymousIssuerPayload(message: Message, displayName: string): MessageC
   return options;
 }
 
+async function collectSubpoenaTranscriptMessages(channel: TextChannel, settings: GuildSettings, state: CaseState) {
+  const collected: Message[] = [];
+  let before: string | undefined;
+  do {
+    const batch = await channel.messages.fetch({ limit: 100, before }).catch(() => null);
+    if (!batch?.size) break;
+    collected.push(...batch.values());
+    before = batch.last()?.id;
+  } while (before && collected.length < 1000);
+
+  return collected.sort((a, b) => a.createdTimestamp - b.createdTimestamp).map((message) => ({
+    anonymous: message.author.id !== state.targetId,
+    attachments: message.attachments.map((attachment) => ({ contentType: attachment.contentType, id: attachment.id, name: attachment.name ?? `arquivo-${attachment.id}`, size: attachment.size, url: attachment.url })),
+    authorAvatarUrl: message.author.displayAvatarURL(),
+    authorId: message.author.id,
+    authorName: subpoenaTranscriptAuthorName(message, settings, state),
+    authorRoleIds: message.member?.roles.cache.map((role) => role.id) ?? [],
+    botRelayed: message.author.id === message.client.user.id,
+    content: message.content,
+    createdAt: message.createdAt.toISOString(),
+    editedAt: message.editedAt?.toISOString() ?? null,
+    embeds: message.embeds.map((embed) => embed.toJSON()),
+    id: message.id,
+    system: message.system
+  }));
+}
+
+function subpoenaParticipantsFromMessages(messages: Awaited<ReturnType<typeof collectSubpoenaTranscriptMessages>>, settings: GuildSettings, state: CaseState) {
+  const participants = new Map<string, { id: string; name: string; role: string | null }>();
+  participants.set(state.targetId, { id: state.targetId, name: state.targetDisplayName || `@${state.targetId}`, role: "Intimado" });
+  participants.set("staff", { id: "staff", name: subpoenaStaffDisplayName(settings.reportSystem, state), role: "Equipe" });
+  for (const message of messages) {
+    if (!message.authorId || message.authorId === state.targetId) continue;
+    participants.set("staff", { id: "staff", name: subpoenaStaffDisplayName(settings.reportSystem, state), role: "Equipe" });
+  }
+  return [...participants.values()];
+}
+
+function subpoenaTranscriptAuthorName(message: Message, settings: GuildSettings, state: CaseState) {
+  if (message.author.id === state.targetId) return message.member?.displayName ?? message.author.tag;
+  if (message.author.bot) return message.author.username;
+  return subpoenaStaffDisplayName(settings.reportSystem, state);
+}
+
 function subpoenaModal(selectedCompetence: Competence, targetId: string) {
   return new ModalBuilder().setCustomId(`${PREFIX}:modal:${selectedCompetence}:${targetId}`).setTitle("Criar intimação").addComponents(
     inputRow("title", "Título da intimação", "", TextInputStyle.Short, 100, true, "Exemplo: Intimação Administrativa"),
@@ -483,7 +616,9 @@ function hasAnyRole(member: GuildMember, roleIds: string[]) { return roleIds.som
 function canUseCommand(member: GuildMember, report: ReportSystemSettings) { if (member.permissions.has(PermissionFlagsBits.Administrator)) return true; const ids = [...report.competenceCommandRoleIds, ...report.permissionRoleIds, ...report.adminRoleIds, ...allOrgRoleIds(report)]; return !ids.length || hasAnyRole(member, ids); }
 function canManageCompetence(member: GuildMember, report: ReportSystemSettings, competence: Competence) { if (member.permissions.has(PermissionFlagsBits.Administrator)) return true; return hasAnyRole(member, orgRoleIds(report, competence)); }
 function canManageCase(member: GuildMember, report: ReportSystemSettings, state: CaseState, userId: string) { if (member.permissions.has(PermissionFlagsBits.Administrator)) return true; if (userId === state.createdById || userId === state.responsibleId) return true; return canManageCompetence(member, report, state.finalCompetence); }
-function botDisplayName(guild: Guild) { return guild.members.me?.displayName || guild.client.user?.username || "Equipe Responsável"; }
+function canReplyAnonymously(member: GuildMember, report: ReportSystemSettings, state: CaseState, userId: string, channel: TextChannel) { if (canManageCase(member, report, state, userId) || canUseCommand(member, report)) return true; const permissions = channel.permissionsFor(member); return Boolean(permissions?.has(PermissionFlagsBits.ViewChannel) && permissions.has(PermissionFlagsBits.SendMessages)); }
+function subpoenaStaffDisplayName(report: ReportSystemSettings, state: CaseState) { return state.finalCompetence === "iab" ? report.anonymousInvestigatorName || "Equipe IAB" : `Equipe ${COMPETENCE_LABEL[state.finalCompetence]}`; }
+function subpoenaTranscriptUrl(transcript: Awaited<ReturnType<BotContext["api"]["createTranscript"]>>) { return transcript.publicUrl || transcript.transcript.publicUrl || `https://orvitek-bots.discloud.app/transcripts/${transcript.transcript.id}`; }
 function orgRoleIds(report: ReportSystemSettings, competence: Competence) { const fallback = competence === "iab" ? [...report.viewRoleIds, ...report.replyRoleIds, ...report.adminRoleIds] : []; return [...new Set((competence === "iab" ? report.iabRoleIds : competence === "conselho" ? report.conselhoRoleIds : competence === "hcmd" ? report.hcmdRoleIds : report.comissarioRoleIds).concat(fallback))]; }
 function allOrgRoleIds(report: ReportSystemSettings) { return [...new Set([...orgRoleIds(report, "iab"), ...orgRoleIds(report, "conselho"), ...orgRoleIds(report, "hcmd"), ...orgRoleIds(report, "comissario")])]; }
 function categoryFor(report: ReportSystemSettings, competence: Competence) { return competence === "iab" ? report.iabCategoryId ?? report.categoryId : competence === "conselho" ? report.conselhoCategoryId ?? report.categoryId : competence === "hcmd" ? report.hcmdCategoryId ?? report.categoryId : report.comissarioCategoryId ?? report.categoryId; }
