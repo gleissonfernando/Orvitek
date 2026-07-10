@@ -22,6 +22,7 @@ export function App() {
     verifying
   } = useAuth();
   const path = window.location.pathname;
+  const publicLandingPath = path === "/";
   const docsPath = path === "/docs" || path.startsWith("/docs/");
   const plansPath = path === "/planos" || path.startsWith("/planos/");
   const rouletteToken = rouletteTokenFromPath(path);
@@ -37,10 +38,10 @@ export function App() {
       return;
     }
 
-    if (auth?.access.verified && !protectedPanelPath) {
+    if (auth?.access.verified && !protectedPanelPath && !publicLandingPath) {
       window.location.replace(dashboardUrl());
     }
-  }, [auth, docsPath, plansPath, productRoute, protectedPanelPath, rouletteToken]);
+  }, [auth, docsPath, plansPath, productRoute, protectedPanelPath, publicLandingPath, rouletteToken]);
 
   useEffect(() => {
     if (rouletteToken || productRoute || docsPath || plansPath) {
@@ -84,6 +85,17 @@ export function App() {
 
   if (loading) {
     return <LoadingScreen />;
+  }
+
+  if (publicLandingPath) {
+    return (
+      <Login
+        auth={auth}
+        onLoginDiscord={loginDiscord}
+        onVerify={() => auth?.access.verified ? window.location.assign(dashboardUrl()) : verify()}
+        verifying={verifying}
+      />
+    );
   }
 
   if (!auth || !auth.access.verified) {

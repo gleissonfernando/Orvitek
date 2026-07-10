@@ -4,6 +4,7 @@ import { getRedisClient } from "../database/redis";
 import { metricsSnapshot } from "../services/monitoringService";
 import { getBotStatus } from "../services/statsService";
 import { backgroundJobHealth } from "../services/backgroundJobService";
+import { listDevBots } from "../services/devBotService";
 
 export const healthRouter = Router();
 
@@ -42,6 +43,21 @@ healthRouter.get("/bots", (_req, res) => {
     bot: getBotStatus(),
     timestamp: new Date().toISOString()
   });
+});
+
+healthRouter.get("/servers", async (_req, res, next) => {
+  try {
+    const bots = await listDevBots();
+    const servers = [...new Map(bots.map((bot) => [bot.mainGuildId, {
+      iconUrl: bot.mainGuildIconUrl,
+      id: bot.mainGuildId,
+      memberCount: bot.mainGuildMemberCount,
+      name: bot.mainGuildName
+    }])).values()];
+    return res.json({ servers });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 healthRouter.get("/metrics", async (_req, res) => {

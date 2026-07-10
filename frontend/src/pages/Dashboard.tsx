@@ -1169,7 +1169,6 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             bot={selectedBot}
             details={overviewDetails}
             guild={selectedGuild}
-            guilds={scopedDashboardGuilds}
             onConfigure={handleChangeView}
             settings={settings}
             status={displayedBotStatus}
@@ -4167,7 +4166,6 @@ function OverviewView({
   bot,
   details,
   guild,
-  guilds,
   onConfigure,
   settings,
   status
@@ -4176,7 +4174,6 @@ function OverviewView({
   bot: DashboardBot | null;
   details: OverviewDetails;
   guild: DashboardGuild | null;
-  guilds: DashboardGuild[];
   onConfigure: (view: ViewId) => void;
   settings: GuildSettings | null;
   status: BotStatus;
@@ -4193,7 +4190,6 @@ function OverviewView({
       botOnline={status.online}
       channelCount={guild?.channelCount ?? bot?.mainGuildChannelCount ?? 0}
       guildName={guild?.name ?? "Servidor não selecionado"}
-      guilds={guilds.map(({ iconUrl, memberCount, name }) => ({ iconUrl, memberCount, name }))}
       memberCount={guild?.memberCount ?? bot?.mainGuildMemberCount ?? 0}
       modules={availableModules.map((module) => ({
         description: module.description,
