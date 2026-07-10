@@ -12,6 +12,7 @@ import {
   getSecurityProtectionAccess,
   getDevBot,
   ensurePrimaryDevBotListed,
+  listDevBots,
   listAccessibleDevBots,
   listBotGuildConfigs,
   registerPrimaryDevBot,
@@ -517,7 +518,7 @@ devRouter.get("/bots", async (_req, res, next) => {
     }
 
     return res.json({
-      bots: await listAccessibleDevBots(auth.user)
+      bots: await listDevBots()
     });
   } catch (error) {
     return next(error);
