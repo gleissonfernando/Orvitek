@@ -156,7 +156,9 @@ export type CoursePublication = {
   status: "open" | "started" | "cancelled" | "closed" | "proof" | "finished";
   cancelledBy: string | null;
   cancelledAt: string | null;
+  startedBy: string | null;
   startedAt: string | null;
+  proofStartedBy: string | null;
   proofStartedAt: string | null;
   finishedAt: string | null;
   createdAt: string;
@@ -217,6 +219,11 @@ export type CourseExamSettings = {
   manualQuestionMaxScore: number;
   manualApproval: boolean;
   automaticApproval: boolean;
+  externalLinkEnabled: boolean;
+  externalLinkText: string;
+  externalLinkUrl: string | null;
+  externalLinkDescription: string | null;
+  externalLinkEmoji: string | null;
   updatedAt: string;
   updatedBy: string | null;
 };
@@ -281,11 +288,15 @@ export type CourseExamAnswer = {
   courseId: string;
   questionId: string;
   questionOrder: number;
+  questionText: string | null;
   type: "selection" | "written";
   selectedAlternativeId: string | null;
+  selectedAlternativeText: string | null;
+  alternativesSnapshot: Array<{ id: string; text: string; value?: string; score?: number; isCorrect?: boolean; order?: number }>;
   writtenAnswer: string | null;
   correct: boolean | null;
   pointsEarned: number;
+  maxScore: number;
   answeredAt: string;
 };
 
@@ -1949,7 +1960,7 @@ export class ApiClient {
   }
 
   async leaveCoursePublication(guildId: string, publicationId: string, userId: string) {
-    const { data } = await this.http.post<{ error?: "not_found" | "not_joined"; publication?: CoursePublication }>(`/courses/bot/${guildId}/publications/${publicationId}/leave`, { userId });
+    const { data } = await this.http.post<{ error?: "not_found" | "not_joined" | "closed"; publication?: CoursePublication }>(`/courses/bot/${guildId}/publications/${publicationId}/leave`, { userId });
     return data;
   }
 
@@ -2004,7 +2015,7 @@ export class ApiClient {
     return data;
   }
 
-  async createCourseExamAttempt(guildId: string, input: { channelId: string; courseId: string; instructorId: string; publicationId: string; studentId: string }) {
+  async createCourseExamAttempt(guildId: string, input: { channelId: string; courseId: string; instructorId: string; publicationId: string; questionsSnapshot?: CourseExamQuestion[]; studentId: string }) {
     const { data } = await this.http.post<{ attempt: CourseExamAttempt }>(`/courses/bot/${guildId}/exam-attempts`, input);
     return data.attempt;
   }
@@ -2015,11 +2026,11 @@ export class ApiClient {
   }
 
   async getCourseExamAttempt(guildId: string, attemptId: string) {
-    const { data } = await this.http.get<{ answers: CourseExamAnswer[]; attempt: CourseExamAttempt }>(`/courses/bot/${guildId}/exam-attempts/${attemptId}`);
+    const { data } = await this.http.get<{ answers: CourseExamAnswer[]; attempt: CourseExamAttempt; questions: CourseExamQuestion[] }>(`/courses/bot/${guildId}/exam-attempts/${attemptId}`);
     return data;
   }
 
-  async saveCourseExamAnswer(guildId: string, attemptId: string, input: { question: CourseExamQuestion; selectedAlternativeId?: string | null; writtenAnswer?: string | null }) {
+  async saveCourseExamAnswer(guildId: string, attemptId: string, input: { questionId?: string | null; questionIndex?: number | null; selectedAlternativeId?: string | null; writtenAnswer?: string | null }) {
     const { data } = await this.http.post<{ answer: CourseExamAnswer }>(`/courses/bot/${guildId}/exam-attempts/${attemptId}/answers`, input);
     return data.answer;
   }

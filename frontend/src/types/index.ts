@@ -911,7 +911,9 @@ export type CoursePublication = {
   status: "open" | "started" | "cancelled" | "closed" | "proof" | "finished";
   cancelledBy: string | null;
   cancelledAt: string | null;
+  startedBy: string | null;
   startedAt: string | null;
+  proofStartedBy: string | null;
   proofStartedAt: string | null;
   finishedAt: string | null;
   createdAt: string;
@@ -972,6 +974,11 @@ export type CourseExamSettings = {
   manualQuestionMaxScore: number;
   manualApproval: boolean;
   automaticApproval: boolean;
+  externalLinkEnabled: boolean;
+  externalLinkText: string;
+  externalLinkUrl: string | null;
+  externalLinkDescription: string | null;
+  externalLinkEmoji: string | null;
   updatedAt: string;
   updatedBy: string | null;
 };

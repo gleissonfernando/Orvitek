@@ -381,7 +381,9 @@ export type MongoCoursePublication = {
   status: "open" | "started" | "cancelled" | "closed" | "proof" | "finished";
   cancelledBy: string | null;
   cancelledAt: Date | null;
+  startedBy?: string | null;
   startedAt?: Date | null;
+  proofStartedBy?: string | null;
   proofStartedAt?: Date | null;
   finishedAt?: Date | null;
   createdAt: Date;
@@ -462,6 +464,11 @@ export type MongoCourseExamSettings = {
   manualQuestionMaxScore?: number;
   manualApproval?: boolean;
   automaticApproval?: boolean;
+  externalLinkEnabled?: boolean;
+  externalLinkText?: string | null;
+  externalLinkUrl?: string | null;
+  externalLinkDescription?: string | null;
+  externalLinkEmoji?: string | null;
   updatedAt: Date;
   updatedBy: string | null;
 };
@@ -497,6 +504,7 @@ export type MongoCourseExamAttempt = {
   studentId: string;
   instructorId: string;
   status: "in_progress" | "finished" | "approved" | "rejected" | "awaiting_review" | "manual_reviewed";
+  questionsSnapshot?: MongoCourseExamQuestion[];
   startedAt: Date;
   finishedAt: Date | null;
   correctedAt: Date | null;
@@ -526,8 +534,11 @@ export type MongoCourseExamAnswer = {
   courseId: string;
   questionId: string;
   questionOrder: number;
+  questionText?: string;
   type: "selection" | "written";
   selectedAlternativeId: string | null;
+  selectedAlternativeText?: string | null;
+  alternativesSnapshot?: Array<{ id: string; text: string; value?: string; score?: number; isCorrect?: boolean; order?: number }>;
   writtenAnswer: string | null;
   correct: boolean | null;
   pointsEarned: number;
@@ -3485,6 +3496,9 @@ async function createMongoIndexes(db: Db) {
     db.collection<MongoCourseScheduleRequest>("course_schedule_requests").createIndex({ botId: 1, guildId: 1, status: 1, createdAt: -1 }),
     db.collection<MongoCourseReport>("course_reports").createIndex({ botId: 1, guildId: 1, courseId: 1, createdAt: -1 }),
     db.collection<MongoCourseLog>("course_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoCourseExamAttempt>("course_exam_attempts").createIndex({ botId: 1, guildId: 1, publicationId: 1, studentId: 1, status: 1 }),
+    db.collection<MongoCourseExamAttempt>("course_exam_attempts").createIndex({ botId: 1, guildId: 1, channelId: 1, status: 1 }),
+    db.collection<MongoCourseExamAnswer>("course_exam_answers").createIndex({ botId: 1, guildId: 1, attemptId: 1, questionId: 1 }),
     db.collection<MongoOpenDutySettings>("open_duty_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
     db.collection<MongoOpenDutyWarningCounter>("open_duty_counters").createIndex({ botId: 1, guildId: 1, userId: 1 }, { unique: true }),
     db.collection<MongoOpenDutyNotification>("open_duty_notifications").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),

@@ -6,6 +6,7 @@ const DEFAULT_INITIAL = "Bem-vindo à prova do curso. Leia cada pergunta com ate
 const DEFAULT_FINAL = "Sua prova foi concluída. Clique abaixo para finalizar.";
 const DEFAULT_APPROVAL = "Você foi aprovado na prova do curso.";
 const DEFAULT_REJECTION = "Você foi reprovado na prova do curso.";
+const DEFAULT_EXTERNAL_LINK_TEXT = "Acessar material da prova";
 
 export type CourseExamSettingsDto = ReturnType<typeof mapSettings>;
 export type CourseExamQuestionDto = ReturnType<typeof mapQuestion>;
@@ -57,6 +58,11 @@ export async function getCourseExamSettings(botId: string | null, guildId: strin
     manualQuestionMaxScore: 10,
     manualApproval: true,
     automaticApproval: false,
+    externalLinkEnabled: false,
+    externalLinkText: DEFAULT_EXTERNAL_LINK_TEXT,
+    externalLinkUrl: null,
+    externalLinkDescription: null,
+    externalLinkEmoji: null,
     updatedAt: now,
     updatedBy: null
   };
@@ -107,7 +113,7 @@ export async function createCourseExamQuestion(botId: string | null, guildId: st
 export async function updateCourseExamQuestion(botId: string | null, guildId: string, courseId: string, questionId: string, input: any, actorId: string | null) {
   const patch: Partial<MongoCourseExamQuestion> = {};
   if (input.order !== undefined) patch.order = Number(input.order) || 0;
-  if (input.questionNumber !== undefined) patch.questionNumber = Math.max(1, Math.min(9, Number(input.questionNumber) || 1));
+  if (input.questionNumber !== undefined) patch.questionNumber = Math.max(1, Math.min(100, Number(input.questionNumber) || 1));
   if (input.type !== undefined) patch.type = input.type === "written" ? "written" : "selection";
   if (input.prompt !== undefined) patch.prompt = input.prompt.trim() || "Pergunta";
   if (input.title !== undefined) patch.title = input.title?.trim() || input.prompt?.trim() || "Pergunta";
@@ -150,11 +156,36 @@ export async function reorderCourseExamQuestions(botId: string | null, guildId: 
   return questions.map(mapQuestion);
 }
 
-export async function createOrResumeCourseExamAttempt(botId: string | null, guildId: string, input: { channelId: string; courseId: string; instructorId: string; publicationId: string; studentId: string }) {
+export async function createOrResumeCourseExamAttempt(botId: string | null, guildId: string, input: {
+  channelId: string;
+  courseId: string;
+  instructorId: string;
+  publicationId: string;
+  questionsSnapshot?: CourseExamQuestionDto[];
+  studentId: string;
+}) {
   const collections = await getMongoCollections();
-  const existing = await collections.courseExamAttempts.findOne({ ...scope(botId, guildId), channelId: input.channelId, status: "in_progress", studentId: input.studentId });
-  if (existing) return mapAttempt(existing);
+  const existing = await collections.courseExamAttempts.findOne({
+    ...scope(botId, guildId),
+    courseId: input.courseId,
+    publicationId: input.publicationId,
+    status: "in_progress",
+    studentId: input.studentId
+  });
+  if (existing) {
+    if (existing.channelId !== input.channelId) {
+      await collections.courseExamAttempts.updateOne({ _id: existing._id, ...scope(botId, guildId) }, { $set: { channelId: input.channelId, updatedAt: new Date() } });
+      const updated = await collections.courseExamAttempts.findOne({ _id: existing._id, ...scope(botId, guildId) });
+      return mapAttempt(updated ?? existing);
+    }
+    return mapAttempt(existing);
+  }
   const now = new Date();
+  let questionsSnapshot = normalizeQuestionSnapshot(input.questionsSnapshot);
+  if (!questionsSnapshot.length) {
+    const questions = await collections.courseExamQuestions.find({ ...scope(botId, guildId), courseId: input.courseId, active: true }).sort({ order: 1, createdAt: 1 }).toArray();
+    questionsSnapshot = questions.map((question) => ({ ...question, alternatives: normalizeAlternatives(question.alternatives, question.type) }));
+  }
   const doc: MongoCourseExamAttempt = {
     _id: randomUUID(),
     botId,
@@ -165,6 +196,7 @@ export async function createOrResumeCourseExamAttempt(botId: string | null, guil
     studentId: input.studentId,
     instructorId: input.instructorId,
     status: "in_progress",
+    questionsSnapshot,
     startedAt: now,
     finishedAt: null,
     correctedAt: null,
@@ -197,15 +229,24 @@ export async function getCourseExamAttemptBundle(botId: string | null, guildId: 
     collections.courseExamAttempts.findOne({ _id: attemptId, ...scope(botId, guildId) }),
     collections.courseExamAnswers.find({ ...scope(botId, guildId), attemptId }).sort({ questionOrder: 1 }).toArray()
   ]);
-  return attempt ? { answers: answers.map(mapAnswer), attempt: mapAttempt(attempt) } : null;
+  return attempt ? { answers: answers.map(mapAnswer), attempt: mapAttempt(attempt), questions: attemptQuestions(attempt).map(mapQuestion) } : null;
 }
 
-export async function saveCourseExamAnswer(botId: string | null, guildId: string, attemptId: string, question: CourseExamQuestionDto, input: { selectedAlternativeId?: string | null; writtenAnswer?: string | null }) {
+export async function saveCourseExamAnswer(botId: string | null, guildId: string, attemptId: string, input: { questionId?: string | null; questionIndex?: number | null; selectedAlternativeId?: string | null; writtenAnswer?: string | null }) {
   const collections = await getMongoCollections();
   const attempt = await collections.courseExamAttempts.findOne({ _id: attemptId, ...scope(botId, guildId), status: "in_progress" });
   if (!attempt) return null;
+  const questions = attemptQuestions(attempt);
+  const questionIndex = Number.isInteger(input.questionIndex) ? Number(input.questionIndex) : attempt.currentQuestionIndex;
+  if (questionIndex !== attempt.currentQuestionIndex) return null;
+  const question = questions[questionIndex];
+  if (!question) return null;
+  if (input.questionId && input.questionId !== question._id) return null;
   const selectedAlternativeId = question.type === "selection" ? normalizeCorrect(input.selectedAlternativeId) : null;
   const selectedAlternative = question.alternatives.find((alternative) => alternative.id === selectedAlternativeId);
+  if (question.type === "selection" && !selectedAlternative) return null;
+  const writtenAnswer = question.type === "written" ? input.writtenAnswer?.trim().slice(0, 3000) || "" : null;
+  if (question.type === "written" && !writtenAnswer) return null;
   const correct = question.type === "selection" ? Boolean(selectedAlternative?.isCorrect ?? selectedAlternativeId === question.correctAlternativeId) : null;
   const pointsEarned = question.type === "selection" ? Math.max(0, Number(selectedAlternative?.score ?? (correct ? question.points : 0)) || 0) : 0;
   const now = new Date();
@@ -215,31 +256,40 @@ export async function saveCourseExamAnswer(botId: string | null, guildId: string
     guildId,
     attemptId,
     courseId: attempt.courseId,
-    questionId: question.id,
+    questionId: question._id,
     questionOrder: question.order,
+    questionText: question.prompt,
     type: question.type,
     selectedAlternativeId,
-    writtenAnswer: question.type === "written" ? input.writtenAnswer?.trim().slice(0, 3000) || "" : null,
+    selectedAlternativeText: selectedAlternative?.text ?? null,
+    alternativesSnapshot: question.type === "selection" ? question.alternatives : [],
+    writtenAnswer,
     correct,
     pointsEarned,
     maxScore: question.points,
     answeredAt: now
   };
-  await collections.courseExamAnswers.updateOne({ ...scope(botId, guildId), attemptId, questionId: question.id }, { $set: doc }, { upsert: true });
-  await collections.courseExamAttempts.updateOne({ _id: attemptId, ...scope(botId, guildId) }, { $set: { currentQuestionIndex: attempt.currentQuestionIndex + 1, updatedAt: now } });
-  await logCourseAction(botId, guildId, "course.exam_question_answered", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, questionId: question.id });
+  const progress = await collections.courseExamAttempts.updateOne(
+    { _id: attemptId, ...scope(botId, guildId), status: "in_progress", currentQuestionIndex: questionIndex },
+    { $set: { currentQuestionIndex: questionIndex + 1, updatedAt: now } }
+  );
+  if (progress.matchedCount === 0) return null;
+  await collections.courseExamAnswers.updateOne({ ...scope(botId, guildId), attemptId, questionId: question._id }, { $setOnInsert: doc }, { upsert: true });
+  await logCourseAction(botId, guildId, "course.exam_question_answered", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, questionId: question._id, questionIndex });
   return mapAnswer(doc);
 }
 
 export async function finalizeCourseExamAttempt(botId: string | null, guildId: string, attemptId: string) {
   const collections = await getMongoCollections();
-  const [attempt, questions, answers] = await Promise.all([
-    collections.courseExamAttempts.findOne({ _id: attemptId, ...scope(botId, guildId) }),
-    collections.courseExamQuestions.find({ ...scope(botId, guildId) }).toArray(),
+  const [attempt, answers] = await Promise.all([
+    collections.courseExamAttempts.findOne({ _id: attemptId, ...scope(botId, guildId), status: "in_progress" }),
     collections.courseExamAnswers.find({ ...scope(botId, guildId), attemptId }).toArray()
   ]);
   if (!attempt) return null;
-  const relevantQuestions = questions.filter((question) => question.courseId === attempt.courseId && question.active);
+  const relevantQuestions = attemptQuestions(attempt);
+  if (!relevantQuestions.length) return null;
+  const answeredQuestionIds = new Set(answers.map((answer) => answer.questionId));
+  if (!relevantQuestions.every((question) => answeredQuestionIds.has(question._id))) return null;
   const maxScore = relevantQuestions.reduce((total, question) => total + question.points, 0);
   const score = answers.filter((answer) => answer.type === "selection").reduce((total, answer) => total + answer.pointsEarned, 0);
   const objectiveCorrect = answers.filter((answer) => answer.type === "selection" && answer.correct === true).length;
@@ -247,9 +297,10 @@ export async function finalizeCourseExamAttempt(botId: string | null, guildId: s
   const writtenCount = answers.filter((answer) => answer.type === "written").length;
   const percent = maxScore > 0 ? Math.round((score / maxScore) * 10000) / 100 : 0;
   const now = new Date();
-  await collections.courseExamAttempts.updateOne({ _id: attemptId, ...scope(botId, guildId) }, {
+  const updatedStatus = await collections.courseExamAttempts.updateOne({ _id: attemptId, ...scope(botId, guildId), status: "in_progress" }, {
     $set: { automaticScore: score, finishedAt: now, maxScore, objectiveCorrect, objectiveWrong, percent, score, status: "awaiting_review", updatedAt: now, writtenCount }
   });
+  if (updatedStatus.matchedCount === 0) return null;
   const updated = await collections.courseExamAttempts.findOne({ _id: attemptId, ...scope(botId, guildId) });
   await logCourseAction(botId, guildId, "course.exam_finished", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, percent, score });
   return updated ? { answers: answers.map(mapAnswer), attempt: mapAttempt(updated), questions: relevantQuestions.map(mapQuestion) } : null;
@@ -258,15 +309,23 @@ export async function finalizeCourseExamAttempt(botId: string | null, guildId: s
 export async function reviewCourseExamAttempt(botId: string | null, guildId: string, attemptId: string, reviewerId: string, status: "approved" | "rejected", rejectionReason?: string | null, manualScoreInput?: number | null) {
   const { courseExamAttempts } = await getMongoCollections();
   const now = new Date();
-  const existing = await courseExamAttempts.findOne({ _id: attemptId, ...scope(botId, guildId), status: { $in: ["finished", "awaiting_review", "manual_reviewed"] } });
+  const reviewableStatuses: MongoCourseExamAttempt["status"][] = ["finished", "awaiting_review", "manual_reviewed"];
+  const reviewableFilter = {
+    _id: attemptId,
+    ...scope(botId, guildId),
+    $or: [{ result: null }, { result: { $exists: false } }],
+    status: { $in: reviewableStatuses }
+  };
+  const existing = await courseExamAttempts.findOne(reviewableFilter);
   if (!existing) return null;
   const automaticScore = Number(existing.automaticScore ?? existing.score ?? 0) || 0;
   const manualScore = Math.max(0, Number(manualScoreInput ?? existing.manualScore ?? 0) || 0);
   const finalScore = automaticScore + manualScore;
   const percent = existing.maxScore > 0 ? Math.round((finalScore / existing.maxScore) * 10000) / 100 : 0;
-  await courseExamAttempts.updateOne({ _id: attemptId, ...scope(botId, guildId), status: { $in: ["finished", "awaiting_review", "manual_reviewed"] } }, {
+  const decided = await courseExamAttempts.updateOne(reviewableFilter, {
     $set: { automaticScore, correctedAt: now, correctedBy: reviewerId, finalScore, manualScore, percent, rejectionReason: rejectionReason || null, result: status, score: finalScore, status, updatedAt: now }
   });
+  if (decided.matchedCount === 0) return null;
   const attempt = await courseExamAttempts.findOne({ _id: attemptId, ...scope(botId, guildId) });
   if (!attempt) return null;
   await logCourseAction(botId, guildId, `course.exam_${status}`, reviewerId, attempt.courseId, attempt.publicationId, { attemptId });
@@ -300,6 +359,11 @@ function mapSettings(settings: MongoCourseExamSettings) {
     manualQuestionMaxScore: settings.manualQuestionMaxScore ?? 10,
     manualApproval: settings.manualApproval ?? true,
     automaticApproval: settings.automaticApproval ?? false,
+    externalLinkEnabled: settings.externalLinkEnabled ?? false,
+    externalLinkText: settings.externalLinkText ?? DEFAULT_EXTERNAL_LINK_TEXT,
+    externalLinkUrl: settings.externalLinkUrl ?? null,
+    externalLinkDescription: settings.externalLinkDescription ?? null,
+    externalLinkEmoji: settings.externalLinkEmoji ?? null,
     updatedAt: settings.updatedAt.toISOString(),
     updatedBy: settings.updatedBy
   };
@@ -370,8 +434,11 @@ function mapAnswer(answer: MongoCourseExamAnswer) {
     courseId: answer.courseId,
     questionId: answer.questionId,
     questionOrder: answer.questionOrder,
+    questionText: answer.questionText ?? null,
     type: answer.type,
     selectedAlternativeId: answer.selectedAlternativeId,
+    selectedAlternativeText: answer.selectedAlternativeText ?? null,
+    alternativesSnapshot: answer.alternativesSnapshot ?? [],
     writtenAnswer: answer.writtenAnswer,
     correct: answer.correct,
     pointsEarned: answer.pointsEarned,
@@ -391,6 +458,11 @@ function cleanSettings(input: Partial<CourseExamSettingsDto>) {
   if ("manualQuestionMaxScore" in input) patch.manualQuestionMaxScore = Math.max(0, Number(input.manualQuestionMaxScore ?? 10));
   if ("manualApproval" in input) patch.manualApproval = input.manualApproval ?? true;
   if ("automaticApproval" in input) patch.automaticApproval = input.automaticApproval ?? false;
+  if ("externalLinkEnabled" in input) patch.externalLinkEnabled = input.externalLinkEnabled === true;
+  if ("externalLinkText" in input) patch.externalLinkText = input.externalLinkText?.trim().slice(0, 80) || DEFAULT_EXTERNAL_LINK_TEXT;
+  if ("externalLinkUrl" in input) patch.externalLinkUrl = sanitizeExternalUrl(input.externalLinkUrl);
+  if ("externalLinkDescription" in input) patch.externalLinkDescription = input.externalLinkDescription?.trim().slice(0, 300) || null;
+  if ("externalLinkEmoji" in input) patch.externalLinkEmoji = input.externalLinkEmoji?.trim().slice(0, 80) || null;
   return patch;
 }
 
@@ -417,6 +489,55 @@ function normalizeAlternatives(value: unknown, type: "selection" | "written") {
 function normalizeCorrect(value: unknown): string | null {
   const normalized = String(value ?? "").trim();
   return normalized ? normalized.slice(0, 80) : null;
+}
+
+function normalizeQuestionSnapshot(value: unknown): MongoCourseExamQuestion[] {
+  const source = Array.isArray(value) ? value : [];
+  const normalized: MongoCourseExamQuestion[] = [];
+  source.forEach((item, index) => {
+    const question = item as Partial<CourseExamQuestionDto> & Partial<MongoCourseExamQuestion> & { id?: string };
+    const id = String(question.id ?? question._id ?? "").trim();
+    const prompt = String(question.prompt ?? "").trim();
+    const type = question.type === "written" ? "written" : "selection";
+    if (!id || !prompt) return;
+    const now = new Date();
+    normalized.push({
+      _id: id,
+      active: question.active !== false,
+      alternatives: normalizeAlternatives(question.alternatives, type),
+      botId: question.botId ?? null,
+      correctAlternativeId: type === "written" ? null : normalizeCorrect(question.correctAlternativeId),
+      courseId: String(question.courseId ?? ""),
+      createdAt: question.createdAt ? new Date(question.createdAt) : now,
+      description: question.description ?? null,
+      guildId: String(question.guildId ?? ""),
+      order: Number.isFinite(question.order) ? Number(question.order) : index,
+      placeholder: question.placeholder ?? null,
+      points: Math.max(0, Number(question.points ?? 0) || 0),
+      prompt,
+      questionNumber: Number.isFinite(question.questionNumber) ? Number(question.questionNumber) : index + 1,
+      title: question.title ?? prompt,
+      type,
+      updatedAt: question.updatedAt ? new Date(question.updatedAt) : now,
+      updatedBy: question.updatedBy ?? null
+    });
+  });
+  return normalized.sort((a, b) => (a.order - b.order) || ((a.questionNumber ?? 0) - (b.questionNumber ?? 0)));
+}
+
+function attemptQuestions(attempt: MongoCourseExamAttempt): MongoCourseExamQuestion[] {
+  return normalizeQuestionSnapshot(attempt.questionsSnapshot ?? []);
+}
+
+function sanitizeExternalUrl(value: string | null | undefined) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return null;
+  try {
+    const url = new URL(normalized);
+    return url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function scope(botId: string | null, guildId: string) {

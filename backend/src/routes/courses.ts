@@ -196,12 +196,18 @@ const decimalNumber = (schema: z.ZodNumber) => z.preprocess((value) => {
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : value;
 }, schema);
+const secureExternalUrl = z.string().max(2048).refine((value) => !value || value.startsWith("https://"), "Use uma URL iniciada por https://").nullable().optional().or(z.literal(""));
 const examSettingsSchema = z.object({
   allowCurrentQuestionReview: z.boolean().optional(),
   approvalMessage: z.string().max(1200).optional(),
   correctionChannelId: optionalSnowflake,
   deleteWrittenAnswers: z.boolean().optional(),
   enabled: z.boolean().optional(),
+  externalLinkDescription: z.string().max(300).nullable().optional().or(z.literal("")),
+  externalLinkEmoji: z.string().max(80).nullable().optional().or(z.literal("")),
+  externalLinkEnabled: z.boolean().optional(),
+  externalLinkText: z.string().min(1).max(80).optional(),
+  externalLinkUrl: secureExternalUrl,
   finalMessage: z.string().max(1200).optional(),
   initialMessage: z.string().max(1200).optional(),
   logChannelId: optionalSnowflake,
@@ -220,7 +226,7 @@ const examQuestionSchema = z.object({
   correctAlternativeId: z.string().max(80).nullable().optional(),
   description: z.string().max(1200).nullable().optional().or(z.literal("")),
   order: z.number().int().min(0).optional(),
-  questionNumber: z.number().int().min(1).max(9).optional(),
+  questionNumber: z.number().int().min(1).max(100).optional(),
   placeholder: z.string().max(300).nullable().optional().or(z.literal("")),
   points: decimalNumber(z.number().min(0).max(1000)).optional(),
   prompt: z.string().min(1).max(1200),
@@ -228,9 +234,11 @@ const examQuestionSchema = z.object({
   type: z.enum(["selection", "written"])
 });
 const reorderExamQuestionsSchema = z.object({ questionIds: z.array(z.string().min(1)).max(500) });
-const attemptSchema = z.object({ channelId: snowflake, courseId: z.string().min(1), instructorId: snowflake, publicationId: z.string().min(1), studentId: snowflake });
+const attemptSchema = z.object({ channelId: snowflake, courseId: z.string().min(1), instructorId: snowflake, publicationId: z.string().min(1), questionsSnapshot: z.array(z.any()).max(100).optional(), studentId: snowflake });
 const answerSchema = z.object({
-  question: examQuestionSchema.extend({ id: z.string().min(1), botId: z.string().nullable().optional(), guildId: z.string(), courseId: z.string(), createdAt: z.string().optional(), updatedAt: z.string().optional(), updatedBy: z.string().nullable().optional() }),
+  question: examQuestionSchema.extend({ id: z.string().min(1), botId: z.string().nullable().optional(), guildId: z.string(), courseId: z.string(), createdAt: z.string().optional(), updatedAt: z.string().optional(), updatedBy: z.string().nullable().optional() }).optional(),
+  questionId: z.string().min(1).nullable().optional(),
+  questionIndex: z.number().int().min(0).nullable().optional(),
   selectedAlternativeId: z.string().min(1).max(80).nullable().optional(),
   writtenAnswer: z.string().max(3000).nullable().optional()
 });
@@ -436,32 +444,12 @@ coursesRouter.post("/bot/:guildId/exam-attempts/:attemptId/answers", requireBot,
     const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
     const parsed = answerSchema.parse(req.body ?? {});
     const answer = await saveCourseExamAnswer(botId, guildId, routeParam(req, "attemptId"), {
-      ...parsed.question,
-      active: parsed.question.active ?? true,
-      alternatives: (parsed.question.alternatives ?? []).map((item, index) => {
-        const id = item.id ?? ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"][index] ?? randomUUID();
-        return {
-          id,
-          text: item.text,
-          value: item.value ?? id,
-          score: item.score,
-          isCorrect: item.isCorrect,
-          order: item.order ?? index
-        };
-      }),
-      botId: parsed.question.botId ?? null,
-      correctAlternativeId: parsed.question.correctAlternativeId ?? null,
-      createdAt: parsed.question.createdAt ?? new Date().toISOString(),
-      description: parsed.question.description ?? null,
-      order: parsed.question.order ?? 0,
-      questionNumber: parsed.question.questionNumber ?? (parsed.question.order ?? 0) + 1,
-      placeholder: parsed.question.placeholder ?? null,
-      points: parsed.question.points ?? 0,
-      title: parsed.question.title ?? parsed.question.prompt,
-      updatedAt: parsed.question.updatedAt ?? new Date().toISOString(),
-      updatedBy: parsed.question.updatedBy ?? null
-    }, parsed);
-    if (!answer) return res.status(404).json({ message: "Tentativa nao encontrada." });
+      questionId: parsed.questionId ?? parsed.question?.id ?? null,
+      questionIndex: parsed.questionIndex ?? parsed.question?.order ?? null,
+      selectedAlternativeId: parsed.selectedAlternativeId,
+      writtenAnswer: parsed.writtenAnswer
+    });
+    if (!answer) return res.status(409).json({ message: "Esta questão já foi respondida ou não está mais ativa." });
     return res.status(201).json({ answer });
   } catch (error) { return next(error); }
 });

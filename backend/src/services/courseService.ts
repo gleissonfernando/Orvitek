@@ -254,6 +254,24 @@ export async function createCoursePublication(botId: string | null, guildId: str
 }) {
   const { coursePublications } = await getMongoCollections();
   const now = new Date();
+  const existingOpen = await coursePublications.findOne({ ...scope(botId, guildId), courseId: input.courseId, status: "open" });
+  if (existingOpen) {
+    await coursePublications.updateOne({ _id: existingOpen._id, ...scope(botId, guildId) }, {
+      $set: {
+        capacity: Math.max(1, input.capacity),
+        channelId: input.channelId,
+        instructorId: input.instructorId,
+        location: input.location,
+        notes: input.notes || null,
+        scheduledFor: input.scheduledFor,
+        updatedAt: now
+      }
+    });
+    const updated = await coursePublications.findOne({ _id: existingOpen._id, ...scope(botId, guildId) });
+    await logCourseAction(botId, guildId, "course.publication_updated", input.instructorId, input.courseId, existingOpen._id, input);
+    emitRealtime("courses:publication", { botId, guildId, publicationId: existingOpen._id });
+    return mapPublication(updated ?? existingOpen);
+  }
   const doc: MongoCoursePublication = {
     _id: randomUUID(),
     botId,
@@ -270,7 +288,9 @@ export async function createCoursePublication(botId: string | null, guildId: str
     status: "open",
     cancelledBy: null,
     cancelledAt: null,
+    startedBy: null,
     startedAt: null,
+    proofStartedBy: null,
     proofStartedAt: null,
     finishedAt: null,
     createdAt: now,
@@ -324,6 +344,7 @@ export async function leaveCoursePublication(botId: string | null, guildId: stri
   const { coursePublications } = await getMongoCollections();
   const publication = await coursePublications.findOne({ _id: publicationId, ...scope(botId, guildId) });
   if (!publication) return { error: "not_found" as const };
+  if (publication.status !== "open") return { error: "closed" as const, publication: mapPublication(publication) };
   if (!publication.students.includes(userId)) return { error: "not_joined" as const, publication: mapPublication(publication) };
   await coursePublications.updateOne({ _id: publicationId, ...scope(botId, guildId) }, { $pull: { students: userId }, $set: { updatedAt: new Date() } });
   const updated = await coursePublications.findOne({ _id: publicationId, ...scope(botId, guildId) });
@@ -337,17 +358,21 @@ export async function setCoursePublicationStatus(botId: string | null, guildId: 
   const publication = await coursePublications.findOne({ _id: publicationId, ...scope(botId, guildId) });
   if (!publication) return null;
   const now = new Date();
-  await coursePublications.updateOne({ _id: publicationId, ...scope(botId, guildId) }, {
+  const expectedStatus = status === "started" ? "open" : status === "proof" ? "started" : null;
+  const transition = await coursePublications.updateOne({ _id: publicationId, ...scope(botId, guildId), ...(expectedStatus ? { status: expectedStatus } : {}) }, {
     $set: {
       cancelledAt: status === "cancelled" ? now : publication.cancelledAt,
       cancelledBy: status === "cancelled" ? actorId : publication.cancelledBy,
+      startedBy: status === "started" ? actorId : publication.startedBy ?? null,
       startedAt: status === "started" ? now : publication.startedAt ?? null,
+      proofStartedBy: status === "proof" ? actorId : publication.proofStartedBy ?? null,
       proofStartedAt: status === "proof" ? now : publication.proofStartedAt ?? null,
       finishedAt: status === "finished" || status === "closed" ? now : publication.finishedAt ?? null,
       status,
       updatedAt: now
     }
   });
+  if (transition.matchedCount === 0) return null;
   const updated = await coursePublications.findOne({ _id: publicationId, ...scope(botId, guildId) });
   await logCourseAction(botId, guildId, `course.${status}`, actorId, publication.courseId, publicationId, { from: publication.status, to: status });
   emitRealtime("courses:publication", { botId, guildId, publicationId });
@@ -562,7 +587,9 @@ function mapPublication(publication: MongoCoursePublication) {
     status: publication.status,
     cancelledBy: publication.cancelledBy,
     cancelledAt: publication.cancelledAt?.toISOString() ?? null,
+    startedBy: publication.startedBy ?? null,
     startedAt: publication.startedAt?.toISOString() ?? null,
+    proofStartedBy: publication.proofStartedBy ?? null,
     proofStartedAt: publication.proofStartedAt?.toISOString() ?? null,
     finishedAt: publication.finishedAt?.toISOString() ?? null,
     createdAt: publication.createdAt.toISOString(),

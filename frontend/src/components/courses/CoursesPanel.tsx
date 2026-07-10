@@ -30,6 +30,7 @@ type CourseChannelDraft = Pick<
   CoursesDashboard["settings"],
   "adminLogChannelId" | "evaluationChannelId" | "evaluatorMentionRoleId" | "proofLogChannelId" | "publishChannelId" | "resultChannelId" | "resultMentionRoleId" | "scheduleLogChannelId" | "tempProofCategoryId"
 >;
+type ExamLinkDraft = Pick<CourseExamDashboard["settings"], "externalLinkDescription" | "externalLinkEmoji" | "externalLinkEnabled" | "externalLinkText" | "externalLinkUrl">;
 
 const tabs: Array<{ id: TabId; icon: typeof Image; label: string }> = [
   { id: "images", icon: Image, label: "Banners e Imagens" },
@@ -119,6 +120,7 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
   const [questionDraft, setQuestionDraft] = useState<SaveCourseExamQuestionPayload>(emptyQuestion);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [channelDraft, setChannelDraft] = useState<CourseChannelDraft | null>(null);
+  const [examLinkDraft, setExamLinkDraft] = useState<ExamLinkDraft | null>(null);
   const [imageDraft, setImageDraft] = useState({ name: "", type: "main_banner", url: "" });
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -143,11 +145,16 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
     if (!selectedCourse) {
       setCourseDraft(emptyCourse);
       setExam(null);
+      setExamLinkDraft(null);
       return;
     }
     setCourseDraft(toCoursePayload(selectedCourse));
     void loadExam(selectedCourse.id);
   }, [selectedCourse]);
+
+  useEffect(() => {
+    setExamLinkDraft(exam ? toExamLinkDraft(exam.settings) : null);
+  }, [exam?.settings]);
 
   async function load() {
     setLoading(true);
@@ -258,6 +265,25 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
       setMessage("Pergunta salva.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível salvar a pergunta.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveExamLinkSettings() {
+    if (!selectedCourse || !exam || !examLinkDraft) return;
+    if (examLinkDraft.externalLinkEnabled && examLinkDraft.externalLinkUrl && !examLinkDraft.externalLinkUrl.startsWith("https://")) {
+      setError("O link externo precisa começar com https://.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const settings = await saveCourseExamSettings(botId, guildId, selectedCourse.id, examLinkDraft);
+      setExam({ ...exam, settings });
+      setMessage("Link externo da prova salvo.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível salvar o link externo.");
     } finally {
       setSaving(false);
     }
@@ -421,7 +447,7 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
               <>
                 <div className="grid gap-3 md:grid-cols-4">
                   <DecimalInputField disabled={!canManage || saving} label="Nota mínima" onCommit={(minScore) => void saveCourseExamSettings(botId, guildId, selectedCourse.id, { minScore }).then((settings) => setExam({ ...exam, settings }))} value={exam.settings.minScore} />
-                  <DecimalInputField disabled={!canManage || saving} label="Nota máxima pergunta 9" onCommit={(manualQuestionMaxScore) => void saveCourseExamSettings(botId, guildId, selectedCourse.id, { manualQuestionMaxScore }).then((settings) => setExam({ ...exam, settings }))} value={exam.settings.manualQuestionMaxScore ?? 10} />
+                  <DecimalInputField disabled={!canManage || saving} label="Nota máxima manual" onCommit={(manualQuestionMaxScore) => void saveCourseExamSettings(botId, guildId, selectedCourse.id, { manualQuestionMaxScore }).then((settings) => setExam({ ...exam, settings }))} value={exam.settings.manualQuestionMaxScore ?? 10} />
                   <ToggleField disabled={!canManage || saving} label="Aprovação sempre manual" onChange={(manualApproval) => void saveCourseExamSettings(botId, guildId, selectedCourse.id, { manualApproval }).then((settings) => setExam({ ...exam, settings }))} value={exam.settings.manualApproval ?? true} />
                   <ToggleField disabled={!canManage || saving} label="Prova ativa" onChange={(enabled) => void saveCourseExamSettings(botId, guildId, selectedCourse.id, { enabled }).then((settings) => setExam({ ...exam, settings }))} value={exam.settings.enabled} />
                   <SelectField disabled={!canManage || saving} label="Categoria dos canais da prova" onChange={(temporaryCategoryId) => void saveCourseExamSettings(botId, guildId, selectedCourse.id, { temporaryCategoryId }).then((settings) => setExam({ ...exam, settings }))} options={categories} value={exam.settings.temporaryCategoryId ?? ""} />
@@ -429,11 +455,27 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
                   <SelectField disabled={!canManage || saving} label="Canal de resultado da prova" onChange={(resultChannelId) => void saveCourseExamSettings(botId, guildId, selectedCourse.id, { resultChannelId }).then((settings) => setExam({ ...exam, settings }))} options={textChannels} value={exam.settings.resultChannelId ?? ""} />
                   <SelectField disabled={!canManage || saving} label="Canal de logs da prova" onChange={(logChannelId) => void saveCourseExamSettings(botId, guildId, selectedCourse.id, { logChannelId }).then((settings) => setExam({ ...exam, settings }))} options={textChannels} value={exam.settings.logChannelId ?? ""} />
                 </div>
+                {examLinkDraft ? (
+                  <div className="rounded-lg border border-zinc-800 bg-black/30 p-4">
+                    <p className="mb-3 font-semibold text-white">Botão de link externo</p>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                      <ToggleField disabled={!canManage || saving} label="Ativar link" onChange={(externalLinkEnabled) => setExamLinkDraft({ ...examLinkDraft, externalLinkEnabled })} value={examLinkDraft.externalLinkEnabled} />
+                      <InputField disabled={!canManage || saving} label="Texto do botão" onChange={(externalLinkText) => setExamLinkDraft({ ...examLinkDraft, externalLinkText })} value={examLinkDraft.externalLinkText ?? ""} />
+                      <InputField disabled={!canManage || saving} label="URL https://" onChange={(externalLinkUrl) => setExamLinkDraft({ ...examLinkDraft, externalLinkUrl })} value={examLinkDraft.externalLinkUrl ?? ""} />
+                      <InputField disabled={!canManage || saving} label="Emoji opcional" onChange={(externalLinkEmoji) => setExamLinkDraft({ ...examLinkDraft, externalLinkEmoji })} value={examLinkDraft.externalLinkEmoji ?? ""} />
+                      <InputField disabled={!canManage || saving} label="Descrição" onChange={(externalLinkDescription) => setExamLinkDraft({ ...examLinkDraft, externalLinkDescription })} value={examLinkDraft.externalLinkDescription ?? ""} />
+                    </div>
+                    <Button className="mt-3" disabled={!canManage || saving} onClick={() => void saveExamLinkSettings()} type="button">
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      Salvar link
+                    </Button>
+                  </div>
+                ) : null}
                 <ProofCompleteness questions={exam.questions} />
                 <div className="rounded-lg border border-zinc-800 bg-black/30 p-4">
                   <p className="mb-3 font-semibold text-white">{editingQuestionId ? "Editar pergunta" : "Criar pergunta"}</p>
                   <div className="grid gap-3 md:grid-cols-3">
-                    <InputField disabled={!canManage || saving} label="Número da pergunta" onChange={(value) => setQuestionDraft({ ...questionDraft, questionNumber: Number(value) || 1, order: Math.max(0, (Number(value) || 1) - 1), type: Number(value) === 9 ? "written" : "selection" })} value={String(questionDraft.questionNumber ?? 1)} />
+                    <InputField disabled={!canManage || saving} label="Número da pergunta" onChange={(value) => setQuestionDraft({ ...questionDraft, questionNumber: Number(value) || 1, order: Math.max(0, (Number(value) || 1) - 1) })} value={String(questionDraft.questionNumber ?? 1)} />
                     <SelectValueField disabled={!canManage || saving} label="Tipo" onChange={(type) => setQuestionDraft({ ...questionDraft, type: type as "selection" | "written" })} options={[["selection", "Objetiva"], ["written", "Discursiva"]]} value={questionDraft.type} />
                     <DecimalInputField disabled={!canManage || saving} label="Nota máxima" onCommit={(points) => setQuestionDraft({ ...questionDraft, points })} value={questionDraft.points ?? 10} />
                   </div>
@@ -511,9 +553,11 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
 
 function ProofCompleteness({ questions }: { questions: CourseExamQuestion[] }) {
   const objective = questions.filter((question) => question.type === "selection");
-  const written = questions.find((question) => (question.questionNumber ?? question.order + 1) === 9 && question.type === "written");
-  const complete = questions.length === 9 && objective.length >= 8 && Boolean(written) && objective.every((question) => question.alternatives.length >= 2 && question.points > 0 && question.alternatives.some((option) => option.isCorrect || option.id === question.correctAlternativeId));
-  return <div className="rounded-lg border border-zinc-800 bg-black/30 p-3 text-sm text-zinc-300">Status da prova: <Badge variant={complete ? "success" : "warning"}>{complete ? "Completa" : "Incompleta"}</Badge> • Perguntas: {questions.length}/9 • Objetivas: {objective.length}/8 • Discursiva final: {written ? "configurada" : "pendente"}</div>;
+  const written = questions.filter((question) => question.type === "written");
+  const complete = questions.length > 0
+    && questions.every((question) => question.prompt.trim() && question.points > 0)
+    && objective.every((question) => question.alternatives.length >= 2 && question.alternatives.some((option) => option.isCorrect || option.id === question.correctAlternativeId));
+  return <div className="rounded-lg border border-zinc-800 bg-black/30 p-3 text-sm text-zinc-300">Status da prova: <Badge variant={complete ? "success" : "warning"}>{complete ? "Completa" : "Incompleta"}</Badge> • Perguntas: {questions.length} • Objetivas: {objective.length} • Discursivas: {written.length}</div>;
 }
 
 function QuestionCard({ onDelete, onEdit, question }: { onDelete: () => void; onEdit: () => void; question: CourseExamQuestion }) {
@@ -548,15 +592,25 @@ function toQuestionPayload(question: CourseExamQuestion): SaveCourseExamQuestion
   return { ...question, questionNumber: question.questionNumber ?? question.order + 1 };
 }
 
+function toExamLinkDraft(settings: CourseExamDashboard["settings"]): ExamLinkDraft {
+  return {
+    externalLinkDescription: settings.externalLinkDescription ?? null,
+    externalLinkEmoji: settings.externalLinkEmoji ?? null,
+    externalLinkEnabled: settings.externalLinkEnabled ?? false,
+    externalLinkText: settings.externalLinkText ?? "Acessar material da prova",
+    externalLinkUrl: settings.externalLinkUrl ?? null
+  };
+}
+
 function normalizeQuestion(question: SaveCourseExamQuestionPayload) {
-  const questionNumber = Math.max(1, Math.min(9, Number(question.questionNumber ?? 1)));
+  const questionNumber = Math.max(1, Math.min(100, Number(question.questionNumber ?? 1)));
   return {
     ...question,
     questionNumber,
     order: questionNumber - 1,
-    type: questionNumber === 9 ? "written" : question.type,
-    alternatives: questionNumber === 9 ? [] : (question.alternatives ?? []).filter((option) => option.text?.trim()).map((option, index) => ({ ...option, id: option.id || String.fromCharCode(65 + index), order: index, value: option.value || option.id || String.fromCharCode(65 + index), score: parseDecimalNumber(option.score, 0) })),
-    correctAlternativeId: question.correctAlternativeId ?? (question.alternatives ?? []).find((option) => option.isCorrect)?.id ?? null
+    type: question.type,
+    alternatives: question.type === "written" ? [] : (question.alternatives ?? []).filter((option) => option.text?.trim()).map((option, index) => ({ ...option, id: option.id || String.fromCharCode(65 + index), order: index, value: option.value || option.id || String.fromCharCode(65 + index), score: parseDecimalNumber(option.score, 0) })),
+    correctAlternativeId: question.type === "written" ? null : question.correctAlternativeId ?? (question.alternatives ?? []).find((option) => option.isCorrect)?.id ?? null
   } satisfies SaveCourseExamQuestionPayload;
 }
 
