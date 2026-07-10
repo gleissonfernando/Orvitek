@@ -1,5 +1,5 @@
 const PRODUCTION_ORIGIN = "";
-const RESERVED_DASHBOARD_PATHS = new Set(["planos"]);
+const RESERVED_DASHBOARD_PATHS = new Set(["hierarquia", "planos"]);
 
 function normalizeUrl(value?: string) {
   const trimmed = value?.trim();

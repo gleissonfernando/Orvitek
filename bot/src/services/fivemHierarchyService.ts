@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
   DiscordAPIError,
+  MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
@@ -9,11 +10,11 @@ import {
   type GuildMember,
   type Message
 } from "discord.js";
-import { isBotModuleEnabled } from "../config/env";
+import { currentRuntimeBotId, env, isBotModuleEnabled } from "../config/env";
 import type { BotCommand, BotContext } from "../types";
 import type { FivemHierarchyPanel } from "./apiClient";
 import { renderComponentsV2Panel, type PanelVisualConfig } from "./panelVisualRenderer";
-import type { FivemHierarchyPanelUpdateAck } from "../websocket/socketClient";
+import type { FivemHierarchyPanelUpdateAck, FivemHierarchyPanelUpdateEvent } from "../websocket/socketClient";
 
 type ScheduledRefresh = {
   deletedRoleIds: Set<string>;
@@ -36,7 +37,7 @@ type HierarchyRenderEntry = FivemHierarchyPanel["hierarchies"][number] & {
 };
 
 type HierarchyPanelCache = {
-  assignedEntryByUserId: Map<string, string>;
+  assignedEntryIdsByUserId: Map<string, Set<string>>;
   assignmentsByEntryId: Map<string, HierarchyMemberSnapshot[]>;
   guildId: string;
   membersByUserId: Map<string, HierarchyMemberSnapshot>;
@@ -51,11 +52,43 @@ type HierarchyPublishResult = {
   panelId: string;
 };
 
+type HierarchyPublishInput = {
+  cache: HierarchyPanelCache;
+  context: BotContext;
+  guildGeneration: number;
+  guild: Guild;
+  panel: FivemHierarchyPanel;
+  panelGeneration: number;
+};
+
+type HierarchyPanelLock = {
+  configRevision: number;
+  lockToken: string;
+};
+
+type HierarchyPublishWaiter = {
+  resolve: (result: HierarchyPublishResult) => void;
+};
+
+type QueuedHierarchyPublish = {
+  input: HierarchyPublishInput;
+  waiters: HierarchyPublishWaiter[];
+};
+
+type HierarchyPublishQueue = {
+  cancelled: boolean;
+  drainPromise: Promise<void> | null;
+  pending: QueuedHierarchyPublish | null;
+};
+
 const HIERARCHY_PANEL_VERSION = 2;
 const HIERARCHY_INSTANCE_ID = `hierarchy:${process.pid}:${randomUUID()}`;
 const scheduledGuilds = new Map<string, ScheduledRefresh>();
 const hierarchyPanelCaches = new Map<string, HierarchyPanelCache>();
-const hierarchyPanelLocks = new Map<string, Promise<HierarchyPublishResult>>();
+const hierarchyPublishQueues = new Map<string, HierarchyPublishQueue>();
+const deletedHierarchyPanels = new Set<string>();
+const hierarchyGuildGenerations = new Map<string, number>();
+const hierarchyPanelGenerations = new Map<string, number>();
 let hierarchyServiceStarted = false;
 
 export const hierarchyCommand: BotCommand = {
@@ -81,48 +114,81 @@ export function startFivemHierarchyService(client: Client<true>, context: BotCon
     return;
   }
   hierarchyServiceStarted = true;
-  console.info("[HIERARCHY] Serviço V2 iniciado.");
+  const runtimeBotId = currentRuntimeBotId() ?? (env.DASHBOARD_BOT_ID.trim() || "principal");
+  const ownedGuildIds = client.guilds.cache.map((guild) => guild.id).sort();
+  console.info(`[HIERARCHY] Serviço V2 iniciado. InstanceId: ${HIERARCHY_INSTANCE_ID}. RuntimeBot: ${runtimeBotId}. Guilds: ${ownedGuildIds.join(",") || "nenhuma"}.`);
   console.info("[HIERARCHY] Serviço legado desativado.");
 
   context.socket.onFivemHierarchyPanelUpdate((payload, ack?: FivemHierarchyPanelUpdateAck) => {
-    const ackPanelId = payload.panelId ?? undefined;
-    const guild = client.guilds.cache.get(payload.guildId);
-    if (!guild) {
-      ack?.({ error: "O bot nao esta conectado ao servidor selecionado.", ok: false, panelId: ackPanelId });
-      return;
-    }
-    if (payload.action === "delete") {
-      if (!payload.panelId) {
-        ack?.({ error: "Painel de hierarquia nao informado para exclusao.", ok: false });
-        return;
-      }
-      const panelId = payload.panelId;
-      hierarchyPanelCaches.delete(panelCacheKey(payload.guildId, panelId));
-      void deleteOfficialHierarchyPanelMessage(guild, payload.oldPanelChannelId ?? null, payload.oldPanelMessageId ?? null, panelId)
-        .then(() => ack?.({ ok: true, panelId }))
-        .catch((error) => ack?.({ error: `Falha ao remover painel de hierarquia antigo: ${errorMessage(error)}`, ok: false, panelId }));
-      return;
-    }
-    void refreshHierarchyPanelsForGuild(guild, context, payload.panelId)
-      .then((results) => {
-        if (payload.oldPanelChannelId && payload.oldPanelMessageId) {
-          void deleteOfficialHierarchyPanelMessage(guild, payload.oldPanelChannelId, payload.oldPanelMessageId, payload.panelId ?? "unknown");
-        }
-        const success = results.find((result) => result.ok);
-        if (success) {
-          ack?.(success);
-          return;
-        }
-        ack?.(results[0] ?? { error: "Nenhum painel de hierarquia ativo foi encontrado para publicar.", ok: false, panelId: ackPanelId });
-      })
+    void handleHierarchyPanelUpdateEvent(client, context, payload)
+      .then((result) => ack?.(result))
       .catch((error) => {
-        ack?.({ error: `Falha inesperada ao publicar hierarquia: ${errorMessage(error)}`, ok: false, panelId: ackPanelId });
+        ack?.({
+          error: `Falha inesperada ao publicar hierarquia: ${errorMessage(error)}`,
+          ok: false,
+          panelId: payload.panelId ?? undefined
+        });
       });
   });
 
   for (const guild of client.guilds.cache.values()) {
     scheduleHierarchyRefresh(guild, context);
   }
+}
+
+async function handleHierarchyPanelUpdateEvent(
+  client: Client<true>,
+  context: BotContext,
+  payload: FivemHierarchyPanelUpdateEvent
+): Promise<HierarchyPublishResult> {
+  const panelId = payload.panelId ?? null;
+  const guild = client.guilds.cache.get(payload.guildId);
+  if (!guild) {
+    return { error: "O bot nao esta conectado ao servidor selecionado.", ok: false, panelId: panelId ?? "unknown" };
+  }
+  invalidateHierarchyRefreshGeneration(payload.guildId, panelId);
+
+  if (payload.action === "delete") {
+    if (!panelId) {
+      return { error: "Painel de hierarquia nao informado para exclusao.", ok: false, panelId: "unknown" };
+    }
+    await cancelHierarchyPanelUpdates(payload.guildId, panelId, true);
+    hierarchyPanelCaches.delete(panelCacheKey(payload.guildId, panelId));
+    await deleteOfficialHierarchyPanelMessage(
+      guild,
+      payload.oldPanelChannelId ?? null,
+      payload.oldPanelMessageId ?? null,
+      panelId
+    );
+    return { messageId: null, ok: true, panelId };
+  }
+
+  if (panelId) {
+    if (payload.oldPanelChannelId || payload.oldPanelMessageId) {
+      await cancelHierarchyPanelUpdates(payload.guildId, panelId, false);
+    }
+  }
+
+  const results = await refreshHierarchyPanelsForGuild(guild, context, panelId);
+  const success = results.find((result) => result.ok);
+  if (!success) {
+    return results[0] ?? {
+      error: "Nenhum painel de hierarquia ativo foi encontrado para publicar.",
+      ok: false,
+      panelId: panelId ?? "unknown"
+    };
+  }
+
+  if (payload.oldPanelChannelId && payload.oldPanelMessageId) {
+    await deleteOfficialHierarchyPanelMessage(
+      guild,
+      payload.oldPanelChannelId,
+      payload.oldPanelMessageId,
+      panelId ?? "unknown",
+      new Set([success.messageId].filter((value): value is string => Boolean(value)))
+    );
+  }
+  return success;
 }
 
 export function scheduleHierarchyRefresh(guild: Guild, context: BotContext) {
@@ -197,6 +263,7 @@ function scheduleHierarchyRefreshInternal(guild: Guild, context: BotContext, inp
 }
 
 export async function refreshHierarchyPanelsForGuild(guild: Guild, context: BotContext, panelId?: string | null, changedRoleIds?: string[] | null) {
+  const generationSnapshot = hierarchyRefreshGenerationSnapshot(guild.id);
   const panels = await context.api.getActiveFivemHierarchyPanels().catch((error) => {
     console.warn(`[fivem-hierarchy] falha ao buscar paineis ativos: ${errorMessage(error)}`);
     return [];
@@ -221,12 +288,13 @@ export async function refreshHierarchyPanelsForGuild(guild: Guild, context: BotC
   for (const panel of scoped) {
     const cache = rebuildHierarchyPanelCache(guild, panel, (fetchedMembers ?? guild.members.cache).values());
     hierarchyPanelCaches.set(panelCacheKey(guild.id, panel.id), cache);
-    results.push(await publishHierarchyPanel(guild, context, panel, cache));
+    results.push(await publishHierarchyPanel(guild, context, panel, cache, generationSnapshot));
   }
   return results;
 }
 
 async function refreshHierarchyPanelsIncrementally(guild: Guild, context: BotContext, job: Omit<ScheduledRefresh, "timeout">) {
+  const generationSnapshot = hierarchyRefreshGenerationSnapshot(guild.id);
   const panels = await context.api.getActiveFivemHierarchyPanels().catch((error) => {
     console.warn(`[fivem-hierarchy] falha ao buscar paineis ativos: ${errorMessage(error)}`);
     return [];
@@ -274,7 +342,7 @@ async function refreshHierarchyPanelsIncrementally(guild: Guild, context: BotCon
     }
 
     if (changed) {
-      results.push(await publishHierarchyPanel(guild, context, panel, cache));
+      results.push(await publishHierarchyPanel(guild, context, panel, cache, generationSnapshot));
     }
   }
 
@@ -287,57 +355,166 @@ async function refreshHierarchyPanelsIncrementally(guild: Guild, context: BotCon
     for (const panel of scoped.filter((item) => fallbackPanelIds.has(item.id))) {
       const cache = rebuildHierarchyPanelCache(guild, panel, members);
       hierarchyPanelCaches.set(panelCacheKey(guild.id, panel.id), cache);
-      results.push(await publishHierarchyPanel(guild, context, panel, cache));
+      results.push(await publishHierarchyPanel(guild, context, panel, cache, generationSnapshot));
     }
   }
 
   return results;
 }
 
-async function publishHierarchyPanel(guild: Guild, context: BotContext, panel: FivemHierarchyPanel, cache: HierarchyPanelCache) {
+async function publishHierarchyPanel(
+  guild: Guild,
+  context: BotContext,
+  panel: FivemHierarchyPanel,
+  cache: HierarchyPanelCache,
+  generationSnapshot: ReturnType<typeof hierarchyRefreshGenerationSnapshot>
+) {
   const lockKey = panelCacheKey(guild.id, panel.id);
-  const running = hierarchyPanelLocks.get(lockKey);
-  if (running) {
-    console.info(`[HIERARCHY] Atualização duplicada bloqueada. Guild: ${guild.id}. Hierarquia: ${panel.id}.`);
-    return running;
+  const input = {
+    cache,
+    context,
+    guild,
+    guildGeneration: generationSnapshot.guildGeneration,
+    panel,
+    panelGeneration: generationSnapshot.panelGenerations.get(lockKey) ?? 0
+  };
+  if (deletedHierarchyPanels.has(lockKey) || !isHierarchyPublishInputCurrent(input)) {
+    return hierarchyCancelledResult(panel.id);
   }
 
-  const task = publishHierarchyPanelWithLocks(guild, context, panel, cache)
-    .finally(() => {
-      hierarchyPanelLocks.delete(lockKey);
-    });
-  hierarchyPanelLocks.set(lockKey, task);
-  return task;
+  let queue = hierarchyPublishQueues.get(lockKey);
+  if (!queue) {
+    queue = { cancelled: false, drainPromise: null, pending: null };
+    hierarchyPublishQueues.set(lockKey, queue);
+  }
+
+  const activeQueue = queue;
+  return new Promise<HierarchyPublishResult>((resolve) => {
+    if (activeQueue.cancelled || deletedHierarchyPanels.has(lockKey)) {
+      resolve(hierarchyCancelledResult(panel.id));
+      return;
+    }
+
+    const waiter = { resolve };
+    if (activeQueue.pending) {
+      activeQueue.pending.input = input;
+      activeQueue.pending.waiters.push(waiter);
+      console.info(`[HIERARCHY] Atualização concorrente agrupada. Guild: ${guild.id}. Hierarquia: ${panel.id}.`);
+    } else {
+      activeQueue.pending = { input, waiters: [waiter] };
+    }
+
+    if (!activeQueue.drainPromise) {
+      activeQueue.drainPromise = drainHierarchyPublishQueue(lockKey, activeQueue)
+        .finally(() => {
+          if (hierarchyPublishQueues.get(lockKey) === activeQueue) {
+            hierarchyPublishQueues.delete(lockKey);
+          }
+        });
+    }
+  });
 }
 
-async function publishHierarchyPanelWithLocks(guild: Guild, context: BotContext, panel: FivemHierarchyPanel, cache: HierarchyPanelCache): Promise<HierarchyPublishResult> {
-  const acquired = await context.api.acquireFivemHierarchyPanelLock({
-    guildId: guild.id,
-    instanceId: HIERARCHY_INSTANCE_ID,
-    panelId: panel.id,
-    ttlMs: 30_000
-  }).catch((error) => {
-    console.warn(`[HIERARCHY] Falha ao adquirir lock distribuido para ${guild.id}:${panel.id}: ${errorMessage(error)}`);
-    return true;
-  });
+async function drainHierarchyPublishQueue(lockKey: string, queue: HierarchyPublishQueue) {
+  try {
+    while (!queue.cancelled && queue.pending) {
+      const queued = queue.pending;
+      queue.pending = null;
+      let result: HierarchyPublishResult;
+      try {
+        result = await publishHierarchyPanelWithLocks(
+          queued.input,
+          () => queue.cancelled || deletedHierarchyPanels.has(lockKey) || !isHierarchyPublishInputCurrent(queued.input)
+        );
+      } catch (error) {
+        result = {
+          error: `Falha inesperada na fila de hierarquia: ${errorMessage(error)}`,
+          ok: false,
+          panelId: queued.input.panel.id
+        };
+      }
+      for (const waiter of queued.waiters) waiter.resolve(result);
+    }
+  } finally {
+    const pending = queue.pending;
+    queue.pending = null;
+    if (pending) {
+      const result = hierarchyCancelledResult(pending.input.panel.id);
+      for (const waiter of pending.waiters) waiter.resolve(result);
+    }
+  }
+}
 
-  if (!acquired) {
+async function cancelHierarchyPanelUpdates(guildId: string, panelId: string, markDeleted: boolean) {
+  const lockKey = panelCacheKey(guildId, panelId);
+  if (markDeleted) deletedHierarchyPanels.add(lockKey);
+  const queue = hierarchyPublishQueues.get(lockKey);
+  if (!queue) return;
+  queue.cancelled = true;
+
+  const pending = queue.pending;
+  queue.pending = null;
+  if (pending) {
+    const result = hierarchyCancelledResult(panelId);
+    for (const waiter of pending.waiters) waiter.resolve(result);
+  }
+
+  await queue.drainPromise?.catch(() => undefined);
+  if (hierarchyPublishQueues.get(lockKey) === queue) hierarchyPublishQueues.delete(lockKey);
+}
+
+function hierarchyCancelledResult(panelId: string): HierarchyPublishResult {
+  return { error: "Atualização de hierarquia cancelada porque a configuração mudou ou foi excluída.", ok: false, panelId };
+}
+
+async function publishHierarchyPanelWithLocks(input: HierarchyPublishInput, isCancelled: () => boolean): Promise<HierarchyPublishResult> {
+  const { context, guild, panel } = input;
+  if (isCancelled()) return hierarchyCancelledResult(panel.id);
+
+  let lock: Awaited<ReturnType<BotContext["api"]["acquireFivemHierarchyPanelLock"]>>;
+  try {
+    lock = await context.api.acquireFivemHierarchyPanelLock({
+      guildId: guild.id,
+      instanceId: HIERARCHY_INSTANCE_ID,
+      panelId: panel.id,
+      ttlMs: 30_000
+    });
+  } catch (error) {
+    const reason = errorMessage(error);
+    console.warn(`[HIERARCHY] Falha ao adquirir lock distribuido para ${guild.id}:${panel.id}: ${reason}`);
+    return {
+      error: `Não foi possível confirmar o lock distribuído; publicação bloqueada para evitar duplicidade: ${reason}`,
+      ok: false,
+      panelId: panel.id
+    };
+  }
+
+  if (!lock.acquired || !lock.lockToken) {
     console.info(`[HIERARCHY] Atualização duplicada bloqueada pelo lock distribuido. Guild: ${guild.id}. Hierarquia: ${panel.id}.`);
-    return { messageId: panel.panelMessageId ?? null, ok: true, panelId: panel.id };
+    return { error: "Outra instância já está atualizando esta hierarquia.", ok: false, panelId: panel.id };
   }
 
   try {
-    return await publishHierarchyPanelUnlocked(guild, context, panel, cache);
+    if (isCancelled()) return hierarchyCancelledResult(panel.id);
+    return await publishHierarchyPanelUnlocked(input, isCancelled, {
+      configRevision: lock.configRevision,
+      lockToken: lock.lockToken
+    });
   } finally {
     await context.api.releaseFivemHierarchyPanelLock({
       guildId: guild.id,
       instanceId: HIERARCHY_INSTANCE_ID,
+      lockToken: lock.lockToken,
       panelId: panel.id
-    }).catch(() => null);
+    }).catch((error) => {
+      console.warn(`[HIERARCHY] Falha ao liberar lock distribuído para ${guild.id}:${panel.id}: ${errorMessage(error)}`);
+    });
   }
 }
 
-async function publishHierarchyPanelUnlocked(guild: Guild, context: BotContext, panel: FivemHierarchyPanel, cache: HierarchyPanelCache): Promise<HierarchyPublishResult> {
+async function publishHierarchyPanelUnlocked(input: HierarchyPublishInput, isCancelled: () => boolean, lock: HierarchyPanelLock): Promise<HierarchyPublishResult> {
+  const { cache, context, guild, panel } = input;
+  if (isCancelled()) return hierarchyCancelledResult(panel.id);
   if (!panel.enabled) return { error: "O painel de hierarquia esta desativado.", ok: false, panelId: panel.id };
   if (!panel.panelChannelId) return { error: "Canal do painel de hierarquia nao configurado.", ok: false, panelId: panel.id };
   const channel = await guild.channels.fetch(panel.panelChannelId).catch(() => null);
@@ -346,6 +523,7 @@ async function publishHierarchyPanelUnlocked(guild: Guild, context: BotContext, 
     await logPublishFailure(context, guild.id, panel, error);
     return { error, ok: false, panelId: panel.id };
   }
+  if (isCancelled()) return hierarchyCancelledResult(panel.id);
   const permissionReport = inspectPublishPermissions(guild, channel as PublishPermissionChannel, Boolean(panel.panelMessageId));
   await logPublishPermissionSnapshot(context, guild.id, panel, permissionReport);
   if (permissionReport.blockingMissing.length) {
@@ -356,8 +534,9 @@ async function publishHierarchyPanelUnlocked(guild: Guild, context: BotContext, 
   await logMissingHierarchyRoles(context, guild, panel);
   const visuals = await getHierarchyPanelVisualSlots(context, guild.id, panel);
   const payload = buildHierarchyPanel(guild, panel, cache, visuals[0] ?? null);
-  const contentHash = generatePanelHash(payload);
+  const contentHash = generatePanelHash(normalizeHierarchyPanelPayloadForHash(payload));
   console.info(`[HIERARCHY] Atualização solicitada. Guild: ${guild.id}. Hierarquia: ${panel.id}. MessageId encontrado: ${panel.panelMessageId ?? "nenhum"}.`);
+  if (isCancelled()) return hierarchyCancelledResult(panel.id);
   if (panel.panelMessageId) {
     let fetchError: unknown = null;
     const message = await channel.messages.fetch(panel.panelMessageId).catch((error) => {
@@ -371,11 +550,28 @@ async function publishHierarchyPanelUnlocked(guild: Guild, context: BotContext, 
       }
       await logStaleHierarchyPanelMessage(context, guild.id, panel, panel.panelMessageId, permissionReport);
     } else {
-      if (panel.panelVersion === HIERARCHY_PANEL_VERSION && panel.contentHash === contentHash) {
+      if (message.author.id !== guild.client.user?.id) {
+        const error = "O messageId salvo aponta para uma mensagem que não pertence a este bot.";
+        await logPublishFailure(context, guild.id, panel, error, permissionReport);
+        return { error, ok: false, panelId: panel.id };
+      }
+      const publishedContentHash = generatePanelHash(normalizeHierarchyMessageForHash(message));
+      if (publishedContentHash === contentHash) {
+        if (panel.panelVersion !== HIERARCHY_PANEL_VERSION || panel.contentHash !== contentHash) {
+          const persisted = await persistHierarchyPanelState(context, guild.id, panel.id, message.id, contentHash, lock).catch(async (error) => {
+            await logPublishFailure(context, guild.id, panel, `Conteúdo correto, mas falha ao persistir estado: ${errorMessage(error)}.`, permissionReport);
+            return false;
+          });
+          if (!persisted) {
+            return { error: "O painel está correto no Discord, mas o estado oficial não pôde ser persistido.", ok: false, panelId: panel.id };
+          }
+        }
+        if (isCancelled()) return hierarchyCancelledResult(panel.id);
         console.info(`[HIERARCHY] Conteúdo sem alterações. Atualização ignorada. Guild: ${guild.id}. Hierarquia: ${panel.id}.`);
-        void pruneDuplicateHierarchyPanelMessages(channel as DuplicateCleanupChannel, message, panel);
+        await cleanupHierarchyMigrationIfPending(channel as MigrationCleanupChannel, message, panel);
         return { messageId: message.id, ok: true, panelId: panel.id };
       }
+      if (isCancelled()) return hierarchyCancelledResult(panel.id);
       const edited = await message.edit(payload).catch(async (error) => {
         await logPublishFailure(context, guild.id, panel, `Falha ao editar painel existente: ${discordErrorMessage(error)}. ${permissionHint(permissionReport)}`, permissionReport);
         return null;
@@ -383,32 +579,58 @@ async function publishHierarchyPanelUnlocked(guild: Guild, context: BotContext, 
       if (!edited) {
         return { error: `Falha ao editar a mensagem salva do painel. ${permissionHint(permissionReport)}`, ok: false, panelId: panel.id };
       }
-
-      await context.api.updateFivemHierarchyPanelState({ contentHash, guildId: guild.id, messageId: edited.id, panelId: panel.id, panelVersion: HIERARCHY_PANEL_VERSION }).catch(() => null);
+      if (isCancelled()) return hierarchyCancelledResult(panel.id);
+      const persisted = await persistHierarchyPanelState(context, guild.id, panel.id, edited.id, contentHash, lock).catch(async (error) => {
+        await logPublishFailure(context, guild.id, panel, `Mensagem editada, mas falha ao persistir estado: ${errorMessage(error)}.`, permissionReport);
+        return false;
+      });
+      if (!persisted) {
+        return { error: "A mensagem foi editada, mas o estado oficial não pôde ser persistido.", ok: false, panelId: panel.id };
+      }
       console.info(`[HIERARCHY] Mensagem oficial editada. Guild: ${guild.id}. Hierarquia: ${panel.id}. MessageId: ${edited.id}.`);
-      void pruneDuplicateHierarchyPanelMessages(channel as DuplicateCleanupChannel, edited, panel);
+      await cleanupHierarchyMigrationIfPending(channel as MigrationCleanupChannel, edited, panel);
       return { messageId: edited.id, ok: true, panelId: panel.id };
     }
   }
 
+  if (isCancelled()) return hierarchyCancelledResult(panel.id);
   const message = await channel.send(payload).catch(async (error) => {
     await logPublishFailure(context, guild.id, panel, `Falha ao enviar painel inicial: ${discordErrorMessage(error)}. ${permissionHint(permissionReport)}`, permissionReport);
     return null;
   });
   if (message) {
-    if (panel.panelMessageId !== message.id) {
-      await context.api.updateFivemHierarchyPanelState({ contentHash, guildId: guild.id, messageId: message.id, panelId: panel.id, panelVersion: HIERARCHY_PANEL_VERSION }).catch(() => null);
+    if (isCancelled()) {
+      await deleteUnpersistedHierarchyMessage(message, panel);
+      return hierarchyCancelledResult(panel.id);
+    }
+    const persisted = await persistHierarchyPanelState(context, guild.id, panel.id, message.id, contentHash, lock).catch(async (error) => {
+      await logPublishFailure(context, guild.id, panel, `Nova mensagem criada, mas falha ao persistir messageId: ${errorMessage(error)}.`, permissionReport);
+      return false;
+    });
+    if (!persisted) {
+      const removed = await deleteUnpersistedHierarchyMessage(message, panel);
+      return {
+        error: removed
+          ? "A nova mensagem não foi persistida e foi removida para evitar duplicidade."
+          : "A nova mensagem não foi persistida e não pôde ser removida; intervenção manual necessária.",
+        ok: false,
+        panelId: panel.id
+      };
+    }
+    if (isCancelled()) {
+      await deleteUnpersistedHierarchyMessage(message, panel);
+      return hierarchyCancelledResult(panel.id);
     }
     console.info(`[HIERARCHY] Nova mensagem criada porque a anterior não existe. Guild: ${guild.id}. Hierarquia: ${panel.id}. MessageId: ${message.id}.`);
-    void pruneDuplicateHierarchyPanelMessages(channel as DuplicateCleanupChannel, message, panel);
+    await cleanupHierarchyMigrationIfPending(channel as MigrationCleanupChannel, message, panel);
     return { messageId: message.id, ok: true, panelId: panel.id };
   }
   return { error: `O Discord recusou o envio do painel no canal configurado. ${permissionHint(permissionReport)}`, ok: false, panelId: panel.id };
 }
 
-type DuplicateCleanupChannel = {
+type MigrationCleanupChannel = {
   messages: {
-    fetch(input: { limit: number }): Promise<Map<string, Message>>;
+    fetch(messageId: string): Promise<Message>;
   };
 };
 
@@ -513,6 +735,11 @@ function isDiscordUnknownMessageError(error: unknown) {
   return Number(error.code) === 10008 || Number((error as { status?: unknown }).status) === 404;
 }
 
+function isDiscordUnknownChannelError(error: unknown) {
+  if (!(error instanceof DiscordAPIError)) return false;
+  return Number(error.code) === 10003 || Number((error as { status?: unknown }).status) === 404;
+}
+
 type PanelVisualSetting = {
   blocks?: PanelVisualConfig["blocks"];
   imageEnabled: boolean;
@@ -557,8 +784,44 @@ function buildHierarchyPanel(guild: Guild, panel: FivemHierarchyPanel, cache: Hi
   return renderComponentsV2Panel({ accentColor: colorToInt(panel.color), actions: [], description: panel.description ?? "Hierarquia atualizada automaticamente pelos cargos do servidor.", fields: renderHierarchyFields(guild, panel, cache), footer: panel.footerEnabled ? { text: panel.footerText ?? "OrviteK" } : { enabled: false }, image: singleVisual, moduleId: "fivem-hierarchy", title: panel.title });
 }
 
-function generatePanelHash(payload: unknown) {
+export function generatePanelHash(payload: unknown) {
   return createHash("sha256").update(stableStringify(payload)).digest("hex");
+}
+
+export function normalizeHierarchyPanelPayloadForHash(payload: unknown) {
+  const record = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+  return {
+    components: normalizeHierarchyPanelComponentsForHash(record.components),
+    isComponentsV2: hasComponentsV2Flag(record.flags)
+  };
+}
+
+export function normalizeHierarchyMessageForHash(message: Pick<Message, "components" | "flags">) {
+  return {
+    components: normalizeHierarchyPanelComponentsForHash(message.components.map((component) => component.toJSON())),
+    isComponentsV2: message.flags.has(MessageFlags.IsComponentsV2)
+  };
+}
+
+export function normalizeHierarchyPanelComponentsForHash(value: unknown): unknown[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(normalizeHierarchyPanelComponentValue);
+}
+
+function normalizeHierarchyPanelComponentValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeHierarchyPanelComponentValue);
+  if (!value || typeof value !== "object") return value;
+  const record = value as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.entries(record)
+      .filter(([key, item]) => key !== "id" && item !== undefined && item !== null)
+      .map(([key, item]) => [key, normalizeHierarchyPanelComponentValue(item)])
+  );
+}
+
+function hasComponentsV2Flag(value: unknown) {
+  const bitfield = typeof value === "bigint" ? value : BigInt(typeof value === "number" ? value : 0);
+  return (bitfield & BigInt(MessageFlags.IsComponentsV2)) !== 0n;
 }
 
 function stableStringify(value: unknown): string {
@@ -599,7 +862,7 @@ function rebuildHierarchyPanelCache(guild: Guild, panel: FivemHierarchyPanel, me
 
 function createEmptyPanelCache(panel: FivemHierarchyPanel): HierarchyPanelCache {
   return {
-    assignedEntryByUserId: new Map(),
+    assignedEntryIdsByUserId: new Map(),
     assignmentsByEntryId: new Map(orderedHierarchyEntries(panel).map((entry) => [entry.cacheKey, []])),
     guildId: panel.guildId,
     membersByUserId: new Map(),
@@ -618,32 +881,39 @@ function upsertMemberInPanelCache(cache: HierarchyPanelCache, panel: FivemHierar
 }
 
 function applyMemberSnapshotToPanelCache(cache: HierarchyPanelCache, panel: FivemHierarchyPanel, snapshot: HierarchyMemberSnapshot) {
-  const previousEntryId = cache.assignedEntryByUserId.get(snapshot.userId) ?? null;
+  const previousEntryIds = cache.assignedEntryIdsByUserId.get(snapshot.userId) ?? new Set<string>();
   const previousSnapshot = cache.membersByUserId.get(snapshot.userId) ?? null;
-  const nextEntry = resolveHierarchyEntryForRoleIds(panel, snapshot.roleIds);
+  const nextEntries = resolveHierarchyEntriesForRoleIds(panel, snapshot.roleIds);
 
-  if (!nextEntry) {
+  if (!nextEntries.length) {
     return removeMemberFromPanelCache(cache, snapshot.userId);
   }
 
-  if (previousEntryId && previousEntryId !== nextEntry.cacheKey) {
-    removeMemberFromEntry(cache, previousEntryId, snapshot.userId);
-  }
-
-  const list = cache.assignmentsByEntryId.get(nextEntry.cacheKey) ?? [];
-  const wasListed = list.some((member) => member.userId === snapshot.userId);
-  cache.assignmentsByEntryId.set(nextEntry.cacheKey, [
-    ...list.filter((member) => member.userId !== snapshot.userId),
-    snapshot
-  ]);
-  cache.assignedEntryByUserId.set(snapshot.userId, nextEntry.cacheKey);
-  cache.membersByUserId.set(snapshot.userId, snapshot);
-
-  return previousEntryId !== nextEntry.cacheKey
+  const nextEntryIds = new Set(nextEntries.map((entry) => entry.cacheKey));
+  let changed = !sameStringSet(previousEntryIds, nextEntryIds)
     || !previousSnapshot
-    || !wasListed
     || previousSnapshot.displayName !== snapshot.displayName
     || previousSnapshot.username !== snapshot.username;
+
+  for (const previousEntryId of previousEntryIds) {
+    if (!nextEntryIds.has(previousEntryId)) {
+      changed = removeMemberFromEntry(cache, previousEntryId, snapshot.userId) || changed;
+    }
+  }
+
+  for (const nextEntry of nextEntries) {
+    const list = cache.assignmentsByEntryId.get(nextEntry.cacheKey) ?? [];
+    const wasListed = list.some((member) => member.userId === snapshot.userId);
+    cache.assignmentsByEntryId.set(nextEntry.cacheKey, [
+      ...list.filter((member) => member.userId !== snapshot.userId),
+      snapshot
+    ]);
+    if (!wasListed) changed = true;
+  }
+
+  cache.assignedEntryIdsByUserId.set(snapshot.userId, nextEntryIds);
+  cache.membersByUserId.set(snapshot.userId, snapshot);
+  return changed;
 }
 
 function removeMemberFromPanelCache(cache: HierarchyPanelCache, userId: string) {
@@ -653,7 +923,7 @@ function removeMemberFromPanelCache(cache: HierarchyPanelCache, userId: string) 
     changed = removeMemberFromEntry(cache, entryId, userId) || changed;
   }
 
-  if (cache.assignedEntryByUserId.delete(userId)) changed = true;
+  if (cache.assignedEntryIdsByUserId.delete(userId)) changed = true;
   if (cache.membersByUserId.delete(userId)) changed = true;
   return changed;
 }
@@ -681,9 +951,21 @@ function removeMemberFromEntry(cache: HierarchyPanelCache, entryId: string, user
   return true;
 }
 
-function resolveHierarchyEntryForRoleIds(panel: FivemHierarchyPanel, roleIds: Iterable<string>): HierarchyRenderEntry | null {
+function resolveHierarchyEntriesForRoleIds(panel: FivemHierarchyPanel, roleIds: Iterable<string>): HierarchyRenderEntry[] {
   const roleSet = new Set(roleIds);
-  return orderedHierarchyEntries(panel).find((entry) => roleSet.has(entry.roleId)) ?? null;
+  return orderedHierarchyEntries(panel).filter((entry) => roleSet.has(entry.roleId));
+}
+
+export function resolveHierarchyEntryIdsForRoleIds(panel: FivemHierarchyPanel, roleIds: Iterable<string>) {
+  return resolveHierarchyEntriesForRoleIds(panel, roleIds).map((entry) => entry.id);
+}
+
+function sameStringSet(left: Set<string>, right: Set<string>) {
+  if (left.size !== right.size) return false;
+  for (const value of left) {
+    if (!right.has(value)) return false;
+  }
+  return true;
 }
 
 function orderedHierarchyEntries(panel: FivemHierarchyPanel): HierarchyRenderEntry[] {
@@ -719,6 +1001,28 @@ function panelCacheSignature(panel: FivemHierarchyPanel) {
 
 function panelCacheKey(guildId: string, panelId: string) {
   return `${guildId}:${panelId}`;
+}
+
+function hierarchyRefreshGenerationSnapshot(guildId: string) {
+  return {
+    guildGeneration: hierarchyGuildGenerations.get(guildId) ?? 0,
+    panelGenerations: new Map(hierarchyPanelGenerations)
+  };
+}
+
+function invalidateHierarchyRefreshGeneration(guildId: string, panelId: string | null) {
+  if (panelId) {
+    const lockKey = panelCacheKey(guildId, panelId);
+    hierarchyPanelGenerations.set(lockKey, (hierarchyPanelGenerations.get(lockKey) ?? 0) + 1);
+    return;
+  }
+  hierarchyGuildGenerations.set(guildId, (hierarchyGuildGenerations.get(guildId) ?? 0) + 1);
+}
+
+function isHierarchyPublishInputCurrent(input: HierarchyPublishInput) {
+  const lockKey = panelCacheKey(input.guild.id, input.panel.id);
+  return (hierarchyGuildGenerations.get(input.guild.id) ?? 0) === input.guildGeneration
+    && (hierarchyPanelGenerations.get(lockKey) ?? 0) === input.panelGeneration;
 }
 
 function splitHierarchySections(sections: string[]) {
@@ -770,70 +1074,109 @@ function formatHierarchyMemberLine(member: HierarchyMemberSnapshot) {
   return `<@${member.userId}>`;
 }
 
-async function pruneDuplicateHierarchyPanelMessages(channel: DuplicateCleanupChannel, currentMessage: Message, panel: FivemHierarchyPanel) {
+async function persistHierarchyPanelState(context: BotContext, guildId: string, panelId: string, messageId: string, contentHash: string, lock: HierarchyPanelLock) {
+  const state = await context.api.updateFivemHierarchyPanelState({
+    configRevision: lock.configRevision,
+    contentHash,
+    guildId,
+    instanceId: HIERARCHY_INSTANCE_ID,
+    lockToken: lock.lockToken,
+    messageId,
+    panelId,
+    panelVersion: HIERARCHY_PANEL_VERSION
+  });
+  if (!state) throw new Error("O backend não encontrou mais a configuração da hierarquia.");
+  if (state.panelMessageId !== messageId || state.contentHash !== contentHash || state.panelVersion !== HIERARCHY_PANEL_VERSION) {
+    throw new Error("O backend não confirmou messageId, hash e versão persistidos.");
+  }
+  return true;
+}
+
+async function deleteUnpersistedHierarchyMessage(message: Message, panel: FivemHierarchyPanel) {
+  try {
+    await message.delete();
+    console.info(`[HIERARCHY] Mensagem não persistida removida. Guild: ${panel.guildId}. Hierarquia: ${panel.id}. MessageId: ${message.id}.`);
+    return true;
+  } catch (error) {
+    console.error(`[HIERARCHY] Falha ao remover mensagem não persistida ${message.id}: ${errorMessage(error)}`);
+    return false;
+  }
+}
+
+async function cleanupHierarchyMigrationIfPending(
+  channel: MigrationCleanupChannel,
+  currentMessage: Message,
+  panel: FivemHierarchyPanel
+) {
+  const migration = readHierarchyMigrationCleanup(panel);
+  if (!migration.pending || !migration.legacyMessageIds.length) return;
+  if (!migration.hasCompleteOfficialMessageIds) {
+    console.info(`[HIERARCHY] Limpeza de migração adiada. Hierarquia: ${panel.id}. A API ainda não forneceu a lista completa de messageIds oficiais.`);
+    return;
+  }
+
+  const protectedMessageIds = new Set([
+    currentMessage.id,
+    panel.panelMessageId,
+    ...migration.officialMessageIds
+  ].filter((value): value is string => Boolean(value)));
   const botId = currentMessage.client.user?.id;
   if (!botId) return;
-  const messages = await channel.messages.fetch({ limit: 50 }).catch(() => null);
-  if (!messages) return;
 
-  const duplicateKeys = [panel.title, panel.description]
-    .map((value) => normalizeDuplicateLookupText(value))
-    .filter(Boolean);
-  if (!duplicateKeys.length) return;
-
-  for (const message of messages.values()) {
-    if (message.id === currentMessage.id || message.author.id !== botId) continue;
-    if (!messageLooksLikeHierarchyPanel(message, duplicateKeys)) continue;
+  for (const messageId of migration.legacyMessageIds) {
+    if (protectedMessageIds.has(messageId)) continue;
+    const message = await channel.messages.fetch(messageId).catch(() => null);
+    if (!message || message.author.id !== botId) continue;
     await message.delete().then(() => {
-      console.info(`[HIERARCHY] Painel legado excluído. MessageId: ${message.id}.`);
+      console.info(`[HIERARCHY] Mensagem legada indicada pela migração removida. Hierarquia: ${panel.id}. MessageId: ${messageId}.`);
     }).catch((error) => {
-      console.warn(`[fivem-hierarchy] falha ao apagar painel duplicado ${message.id}: ${errorMessage(error)}`);
+      console.warn(`[HIERARCHY] Falha ao remover ID legado ${messageId}: ${errorMessage(error)}`);
     });
   }
 }
 
-async function deleteOfficialHierarchyPanelMessage(guild: Guild, channelId: string | null, messageId: string | null, panelId: string) {
+function readHierarchyMigrationCleanup(panel: FivemHierarchyPanel) {
+  const candidate = panel as FivemHierarchyPanel & {
+    legacyMessageIds?: unknown;
+    migrationPending?: unknown;
+    officialMessageIds?: unknown;
+  };
+  return {
+    hasCompleteOfficialMessageIds: Array.isArray(candidate.officialMessageIds),
+    legacyMessageIds: Array.isArray(candidate.legacyMessageIds)
+      ? [...new Set(candidate.legacyMessageIds.filter((value): value is string => typeof value === "string" && /^\d{5,32}$/.test(value)))]
+      : [],
+    officialMessageIds: Array.isArray(candidate.officialMessageIds)
+      ? [...new Set(candidate.officialMessageIds.filter((value): value is string => typeof value === "string" && /^\d{5,32}$/.test(value)))]
+      : [],
+    pending: candidate.migrationPending === true
+  };
+}
+
+async function deleteOfficialHierarchyPanelMessage(
+  guild: Guild,
+  channelId: string | null,
+  messageId: string | null,
+  panelId: string,
+  protectedMessageIds: Set<string> = new Set()
+) {
   if (!channelId || !messageId) return;
-  const channel = await guild.channels.fetch(channelId).catch(() => null);
-  if (!channel || !("messages" in channel)) return;
-  const message = await channel.messages.fetch(messageId).catch(() => null);
-  if (!message) return;
-  if (message.author.id !== guild.client.user?.id) return;
-  if (!messageLooksLikeAnyHierarchyPanel(message)) return;
-  await message.delete().then(() => {
-    console.info(`[HIERARCHY] Painel legado/oficial antigo excluído. Guild: ${guild.id}. Hierarquia: ${panelId}. MessageId: ${messageId}.`);
-  }).catch((error) => {
-    console.warn(`[fivem-hierarchy] falha ao apagar painel oficial antigo ${messageId}: ${errorMessage(error)}`);
+  if (protectedMessageIds.has(messageId)) return;
+  const channel = await guild.channels.fetch(channelId).catch((error) => {
+    if (isDiscordUnknownChannelError(error)) return null;
+    throw error;
   });
-}
-
-function messageLooksLikeHierarchyPanel(message: Message, duplicateKeys: string[]) {
-  const text = normalizeDuplicateLookupText([
-    message.content,
-    ...message.embeds.flatMap((embed) => [embed.title, embed.description, embed.footer?.text]),
-    JSON.stringify(message.components.map((component) => component.toJSON()))
-  ].filter(Boolean).join("\n"));
-
-  if (!text.includes("hierarquia")) return false;
-  return duplicateKeys.some((key) => key && text.includes(key));
-}
-
-function messageLooksLikeAnyHierarchyPanel(message: Message) {
-  const text = normalizeDuplicateLookupText([
-    message.content,
-    ...message.embeds.flatMap((embed) => [embed.title, embed.description, embed.footer?.text]),
-    JSON.stringify(message.components.map((component) => component.toJSON()))
-  ].filter(Boolean).join("\n"));
-
-  return text.includes("fivem-hierarchy") || text.includes("hierarquia");
-}
-
-function normalizeDuplicateLookupText(value: string | null | undefined) {
-  return (value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
+  if (!channel || !("messages" in channel)) return;
+  const message = await channel.messages.fetch(messageId).catch((error) => {
+    if (isDiscordUnknownMessageError(error)) return null;
+    throw error;
+  });
+  if (!message) return;
+  if (message.author.id !== guild.client.user?.id) {
+    throw new Error(`O messageId oficial ${messageId} não pertence a este bot; exclusão recusada.`);
+  }
+  await message.delete();
+  console.info(`[HIERARCHY] Mensagem oficial anterior removida. Guild: ${guild.id}. Hierarquia: ${panelId}. MessageId: ${messageId}.`);
 }
 
 function sanitizeSingleHierarchyVisual(visual: PanelVisualConfig | null): PanelVisualConfig | null {

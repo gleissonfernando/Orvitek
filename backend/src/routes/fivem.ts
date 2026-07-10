@@ -28,13 +28,17 @@ import {
 import { listFivemModules } from "../services/fivemModuleService";
 import {
   acquireFivemHierarchyPanelLock,
+  completeFivemHierarchyCleanup,
+  createFivemHierarchyPanel,
   deleteFivemHierarchyPanel,
   FIVEM_HIERARCHY_MODULE_ID,
+  FIVEM_HIERARCHY_PROTOCOL,
   getFivemHierarchyDashboard,
   listActiveFivemHierarchyPanels,
+  listFivemHierarchyCleanupTasks,
   releaseFivemHierarchyPanelLock,
   requestFivemHierarchyPanelPublish,
-  saveFivemHierarchyPanel,
+  updateFivemHierarchyPanel,
   updateFivemHierarchyPanelState
 } from "../services/fivemHierarchyService";
 import {
@@ -208,8 +212,8 @@ const hierarchyEntrySchema = z.object({
   name: z.string().min(1).max(80),
   order: z.coerce.number().int().min(0).max(1000),
   roleId: snowflakeSchema
-});
-const hierarchyPanelSchema = z.object({
+}).strict();
+const hierarchyPanelConfigSchema = z.object({
   allowedRoleIds: z.array(snowflakeSchema).max(100).optional(),
   color: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
   description: z.string().max(1200).nullable().optional(),
@@ -218,16 +222,19 @@ const hierarchyPanelSchema = z.object({
   footerIconUrl: z.string().max(2048).nullable().optional(),
   footerText: z.string().max(200).nullable().optional(),
   hierarchies: z.array(hierarchyEntrySchema).max(50).optional(),
-  id: z.string().max(80).optional(),
   imagePosition: z.enum(["top", "bottom", "thumbnail", "none"]).optional(),
   imageUrl: z.string().max(2048).nullable().optional(),
   linkedToFivem: z.boolean().optional(),
   logChannelId: optionalSnowflakeSchema,
   name: z.string().min(1).max(100).optional(),
   panelChannelId: optionalSnowflakeSchema,
-  panelMessageId: optionalSnowflakeSchema,
   title: z.string().min(1).max(120).optional()
-});
+}).strict();
+const hierarchyPanelCreateSchema = hierarchyPanelConfigSchema.extend({
+  clientRequestId: z.string().uuid()
+}).strict();
+const hierarchyPanelPatchSchema = hierarchyPanelConfigSchema.partial().strict();
+const hierarchyProtocolSchema = z.literal(FIVEM_HIERARCHY_PROTOCOL);
 const userAbsenceSchema = z.object({
   guildId: guildIdSchema,
   userId: snowflakeSchema
@@ -327,9 +334,17 @@ fivemRouter.post("/:guildId/hierarchy/panels", requireAuth, async (req, res, nex
     const botId = await resolveRequestBotId(req);
     if (!botId) throw createRouteError("Selecione um bot DEV para criar Hierarquia FAQ.", 400);
     await assertCanManageFivemHierarchy(res.locals.dashboardAuth.user, guildId, botId);
-    const input = hierarchyPanelSchema.parse(req.body);
-    await validateHierarchyResources(guildId, botId, input);
-    return res.status(201).json({ panel: await saveFivemHierarchyPanel(guildId, botId, normalizeHierarchyPanelInput(input), res.locals.dashboardAuth.user.discordId) });
+    const input = hierarchyPanelCreateSchema.parse(req.body);
+    const { clientRequestId, ...panelInput } = input;
+    await validateHierarchyResources(guildId, botId, panelInput);
+    return res.status(201).json({
+      panel: await createFivemHierarchyPanel(
+        guildId,
+        botId,
+        { ...normalizeHierarchyPanelInput(panelInput), clientRequestId },
+        res.locals.dashboardAuth.user.discordId
+      )
+    });
   } catch (error) {
     return next(error);
   }
@@ -342,9 +357,17 @@ fivemRouter.patch("/:guildId/hierarchy/panels/:panelId", requireAuth, async (req
     const botId = await resolveRequestBotId(req);
     if (!botId) throw createRouteError("Selecione um bot DEV para editar Hierarquia FAQ.", 400);
     await assertCanManageFivemHierarchy(res.locals.dashboardAuth.user, guildId, botId);
-    const input = hierarchyPanelSchema.partial().parse(req.body);
+    const input = hierarchyPanelPatchSchema.parse(req.body);
     await validateHierarchyResources(guildId, botId, input);
-    return res.json({ panel: await saveFivemHierarchyPanel(guildId, botId, { ...normalizeHierarchyPanelInput(input), id: panelId }, res.locals.dashboardAuth.user.discordId) });
+    return res.json({
+      panel: await updateFivemHierarchyPanel(
+        guildId,
+        botId,
+        panelId,
+        normalizeHierarchyPanelInput(input),
+        res.locals.dashboardAuth.user.discordId
+      )
+    });
   } catch (error) {
     return next(error);
   }
@@ -509,17 +532,23 @@ fivemRouter.get("/bot/hierarchy/configs", requireBot, async (req, res, next) => 
 fivemRouter.post("/bot/hierarchy/panel-state", requireBot, async (req, res, next) => {
   try {
     const input = z.object({
-      contentHash: z.string().regex(/^[a-f0-9]{64}$/i).nullable().optional(),
+      configRevision: z.coerce.number().int().min(1),
+      contentHash: z.string().regex(/^[a-f0-9]{64}$/i),
       guildId: guildIdSchema,
-      messageId: optionalSnowflakeSchema,
+      instanceId: z.string().min(1).max(120),
+      lockToken: z.string().uuid(),
+      messageId: snowflakeSchema,
       panelId: z.string().min(1).max(80),
       panelVersion: z.literal(2).optional()
     }).parse(req.body);
     const botId = await readRequiredBotId(req);
     await assertBotFivemHierarchyLicense(botId);
     const panel = await updateFivemHierarchyPanelState(input.guildId, botId, input.panelId, {
-      contentHash: input.contentHash ?? null,
-      messageId: input.messageId ?? null,
+      configRevision: input.configRevision,
+      contentHash: input.contentHash,
+      instanceId: input.instanceId,
+      lockToken: input.lockToken,
+      messageId: input.messageId,
       panelVersion: input.panelVersion ?? 2
     });
     return res.json({ panel });
@@ -534,13 +563,15 @@ fivemRouter.post("/bot/hierarchy/panel-lock", requireBot, async (req, res, next)
       action: z.enum(["acquire", "release"]),
       guildId: guildIdSchema,
       instanceId: z.string().min(1).max(120),
+      lockToken: z.string().uuid().optional(),
       panelId: z.string().min(1).max(80),
       ttlMs: z.coerce.number().int().min(5_000).max(120_000).optional()
     }).parse(req.body);
     const botId = await readRequiredBotId(req);
     await assertBotFivemHierarchyLicense(botId);
     if (input.action === "release") {
-      await releaseFivemHierarchyPanelLock(input.guildId, botId, input.panelId, input.instanceId);
+      if (!input.lockToken) throw createRouteError("Token do lock V2 ausente.", 400);
+      await releaseFivemHierarchyPanelLock(input.guildId, botId, input.panelId, input.instanceId, input.lockToken);
       return res.json({ acquired: false, released: true });
     }
     return res.json({ acquired: await acquireFivemHierarchyPanelLock(input.guildId, botId, input.panelId, input.instanceId, input.ttlMs ?? 30_000) });
@@ -1178,7 +1209,7 @@ async function validateGoalConfigResources(guildId: string, botId: string, input
   }
 }
 
-async function validateHierarchyResources(guildId: string, botId: string, input: Partial<z.infer<typeof hierarchyPanelSchema>>) {
+async function validateHierarchyResources(guildId: string, botId: string, input: Partial<z.infer<typeof hierarchyPanelConfigSchema>>) {
   const botToken = await getDevBotToken(botId);
   const channelIds = [input.panelChannelId, input.logChannelId].filter((channelId): channelId is string => typeof channelId === "string" && Boolean(channelId));
   const channelChecks = await Promise.all([...new Set(channelIds)].map((channelId) => isGuildTextChannel(guildId, channelId, botToken)));
@@ -1271,7 +1302,7 @@ function normalizeGoalConfigInput(input: Partial<z.infer<typeof goalConfigSchema
   };
 }
 
-function normalizeHierarchyPanelInput(input: Partial<z.infer<typeof hierarchyPanelSchema>>) {
+function normalizeHierarchyPanelInput(input: Partial<z.infer<typeof hierarchyPanelConfigSchema>>) {
   return {
     ...input,
     hierarchies: input.hierarchies?.map((item, index) => ({
@@ -1286,8 +1317,7 @@ function normalizeHierarchyPanelInput(input: Partial<z.infer<typeof hierarchyPan
       roleId: item.roleId
     })),
     logChannelId: normalizeOptionalId(input.logChannelId),
-    panelChannelId: normalizeOptionalId(input.panelChannelId),
-    panelMessageId: normalizeOptionalId(input.panelMessageId)
+    panelChannelId: normalizeOptionalId(input.panelChannelId)
   };
 }
 

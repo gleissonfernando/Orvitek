@@ -1,9 +1,11 @@
 import axios from "axios";
 import { spawn, type ChildProcessByStdio } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { Readable } from "node:stream";
 import { env } from "../config/env";
+import { getMongoCollections } from "../database/mongo";
 import { devBotRealtimeRoom, emitRealtimeToRoom } from "../realtime/events";
 import { sendDevBotUnexpectedExitLog } from "./devBotDiscordLogService";
 import {
@@ -38,10 +40,21 @@ const MODULES_REQUIRING_MESSAGE_CONTENT = ["moderation", "safe-bot", "link-anti-
 const DEV_BOT_START_CONCURRENCY = 2;
 const DEV_BOT_START_STAGGER_MS = 3_000;
 const DEV_BOT_RESTART_DELAY_MS = 30_000;
+const DEV_BOT_SUPERVISOR_LEASE_ID = "dev-bot-runtime-supervisor";
+const DEV_BOT_SUPERVISOR_LEASE_MS = 30_000;
+const DEV_BOT_SUPERVISOR_INSTANCE_ID = `dev-bot-supervisor:${process.pid}:${randomUUID()}`;
 const runningBots = new Map<string, RunningBot>();
 const restartTimers = new Map<string, NodeJS.Timeout>();
+let supervisorLeaseTimer: NodeJS.Timeout | null = null;
+let supervisorLeaseHeld = false;
+let supervisorLeaseErrors = 0;
 
 export async function startRegisteredDevBots() {
+  if (!(await ensureDevBotSupervisorLease())) {
+    console.warn("[dev-bot] outro supervisor possui a trava distribuida; bots cadastrados nao serao iniciados nesta instancia.");
+    return 0;
+  }
+
   const bots = await listDevBotRuntimeConfigs().catch((error) => {
     console.warn("[dev-bot] nao foi possivel carregar bots cadastrados:", error instanceof Error ? error.message : error);
     return [];
@@ -53,6 +66,10 @@ export async function startRegisteredDevBots() {
 }
 
 export async function startAllDevBotProcesses(botIds: string[]) {
+  if (!(await ensureDevBotSupervisorLease())) {
+    throw new Error("Outra instancia e responsavel por executar os bots cadastrados.");
+  }
+
   const bots = (await Promise.all(botIds.map((botId) => getDevBotRuntimeConfig(botId))))
     .filter((bot): bot is DevBotRuntimeConfig => Boolean(bot));
 
@@ -67,6 +84,11 @@ export async function stopSelectedDevBotProcesses(botIds: string[], options: Sto
 }
 
 export async function startDevBotProcess(botId: string) {
+  if (!(await ensureDevBotSupervisorLease())) {
+    console.warn(`[dev-bot:${botId}] inicio ignorado porque outra instancia possui a trava de supervisor.`);
+    return null;
+  }
+
   const bot = await getDevBotRuntimeConfig(botId);
 
   if (!bot) {
@@ -133,6 +155,126 @@ export async function stopAllDevBotProcesses() {
     message: "Backend encerrando processo do bot.",
     notifyBot: false
   })));
+  await releaseDevBotSupervisorLease();
+}
+
+async function ensureDevBotSupervisorLease() {
+  if (supervisorLeaseHeld) return true;
+
+  const acquired = await acquireDevBotSupervisorLease();
+  if (!acquired) return false;
+
+  supervisorLeaseHeld = true;
+  supervisorLeaseErrors = 0;
+  startDevBotSupervisorLeaseRenewal();
+  console.info(`[dev-bot] trava distribuida de supervisor adquirida por ${DEV_BOT_SUPERVISOR_INSTANCE_ID}.`);
+  return true;
+}
+
+async function acquireDevBotSupervisorLease() {
+  const { serviceHeartbeats } = await getMongoCollections();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + DEV_BOT_SUPERVISOR_LEASE_MS);
+
+  try {
+    const lease = await serviceHeartbeats.findOneAndUpdate(
+      {
+        _id: DEV_BOT_SUPERVISOR_LEASE_ID,
+        $or: [
+          { expiresAt: { $lte: now } },
+          { instanceId: DEV_BOT_SUPERVISOR_INSTANCE_ID }
+        ]
+      },
+      {
+        $set: {
+          expiresAt,
+          instanceId: DEV_BOT_SUPERVISOR_INSTANCE_ID,
+          metadata: { pid: process.pid },
+          service: "dev-bot-supervisor",
+          updatedAt: now
+        },
+        $setOnInsert: { startedAt: now }
+      },
+      { returnDocument: "after", upsert: true }
+    );
+    return lease?.instanceId === DEV_BOT_SUPERVISOR_INSTANCE_ID;
+  } catch (error) {
+    if (isDuplicateKeyError(error)) return false;
+    console.error("[dev-bot] falha ao adquirir trava distribuida de supervisor:", readRuntimeError(error));
+    return false;
+  }
+}
+
+function startDevBotSupervisorLeaseRenewal() {
+  if (supervisorLeaseTimer) clearInterval(supervisorLeaseTimer);
+  supervisorLeaseTimer = setInterval(() => void renewDevBotSupervisorLease(), Math.floor(DEV_BOT_SUPERVISOR_LEASE_MS / 3));
+  supervisorLeaseTimer.unref();
+}
+
+async function renewDevBotSupervisorLease() {
+  if (!supervisorLeaseHeld) return;
+  const now = new Date();
+
+  try {
+    const { serviceHeartbeats } = await getMongoCollections();
+    const result = await serviceHeartbeats.updateOne(
+      { _id: DEV_BOT_SUPERVISOR_LEASE_ID, instanceId: DEV_BOT_SUPERVISOR_INSTANCE_ID },
+      {
+        $set: {
+          expiresAt: new Date(now.getTime() + DEV_BOT_SUPERVISOR_LEASE_MS),
+          metadata: { pid: process.pid, runningBots: runningBots.size },
+          updatedAt: now
+        }
+      }
+    );
+
+    supervisorLeaseErrors = 0;
+    if (result.matchedCount === 0) {
+      await handleLostDevBotSupervisorLease("a posse da trava foi transferida para outra instancia");
+    }
+  } catch (error) {
+    supervisorLeaseErrors += 1;
+    console.error("[dev-bot] falha ao renovar trava distribuida de supervisor:", readRuntimeError(error));
+    if (supervisorLeaseErrors >= 2) {
+      await handleLostDevBotSupervisorLease("a trava nao pode ser renovada antes da expiracao");
+    }
+  }
+}
+
+async function handleLostDevBotSupervisorLease(reason: string) {
+  if (!supervisorLeaseHeld) return;
+  supervisorLeaseHeld = false;
+  if (supervisorLeaseTimer) clearInterval(supervisorLeaseTimer);
+  supervisorLeaseTimer = null;
+  console.error(`[dev-bot] supervisor desativado: ${reason}. Encerrando bots filhos para impedir processos duplicados.`);
+  await Promise.all([...runningBots.keys()].map((botId) => stopDevBotProcess(botId, {
+    message: "Processo encerrado porque esta instancia perdeu a trava de supervisor.",
+    notifyBot: false
+  })));
+}
+
+async function releaseDevBotSupervisorLease() {
+  if (supervisorLeaseTimer) clearInterval(supervisorLeaseTimer);
+  supervisorLeaseTimer = null;
+  const held = supervisorLeaseHeld;
+  supervisorLeaseHeld = false;
+  if (!held) return;
+
+  const { serviceHeartbeats } = await getMongoCollections();
+  await serviceHeartbeats.deleteOne({
+    _id: DEV_BOT_SUPERVISOR_LEASE_ID,
+    instanceId: DEV_BOT_SUPERVISOR_INSTANCE_ID
+  }).catch((error) => {
+    console.warn("[dev-bot] nao foi possivel liberar trava de supervisor:", readRuntimeError(error));
+  });
+}
+
+function isDuplicateKeyError(error: unknown) {
+  return typeof error === "object" && error !== null && (error as { code?: unknown }).code === 11000;
+}
+
+function readRuntimeError(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function startRuntime(bot: DevBotRuntimeConfig) {

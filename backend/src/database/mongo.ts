@@ -1154,13 +1154,24 @@ export type MongoFivemHierarchyEntry = {
   roleId: string;
 };
 
+export type MongoFivemHierarchyPendingCleanup = {
+  channelId: string;
+  createdAt: Date;
+  id: string;
+  messageId: string;
+  reason: "channel_changed" | "panel_deleted" | "migration_duplicate";
+};
+
 export type MongoFivemHierarchyPanel = {
   _id: string;
   allowedRoleIds: string[];
   botId: string | null;
   color: string;
+  configRevision?: number;
   contentHash?: string | null;
+  creationKey?: string | null;
   createdAt: Date;
+  deletedAt?: Date | null;
   description: string | null;
   enabled: boolean;
   footerEnabled: boolean;
@@ -1171,15 +1182,21 @@ export type MongoFivemHierarchyPanel = {
   imagePosition: "top" | "bottom" | "thumbnail" | "none";
   imageUrl: string | null;
   linkedToFivem: boolean;
+  legacyCleanupPending?: boolean;
   logChannelId: string | null;
+  migrationVersion?: number;
   name: string;
   panelChannelId: string | null;
   panelMessageId: string | null;
   panelVersion?: number;
+  pendingCleanup?: MongoFivemHierarchyPendingCleanup[];
+  stateUpdatedAt?: Date | null;
   title: string;
   updateLock?: {
     expiresAt: Date;
     instanceId: string;
+    lockToken: string;
+    revision: number;
   } | null;
   updatedAt: Date;
   updatedBy?: string | null;
@@ -3742,7 +3759,16 @@ async function createMongoIndexes(db: Db) {
     db.collection<MongoFivemFinanceTransaction>("fivem_finance_transactions").createIndex({ botId: 1, guildId: 1, userId: 1, createdAt: -1 }),
     db.collection<MongoFivemFinanceLog>("fivem_finance_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
     db.collection<MongoFivemHierarchyPanel>("fivem_hierarchy_panels").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
-    db.collection<MongoFivemHierarchyPanel>("fivem_hierarchy_panels").createIndex({ botId: 1, guildId: 1, enabled: 1 }),
+    db.collection<MongoFivemHierarchyPanel>("fivem_hierarchy_panels").createIndex({ botId: 1, guildId: 1, deletedAt: 1, enabled: 1 }),
+    db.collection<MongoFivemHierarchyPanel>("fivem_hierarchy_panels").createIndex(
+      { creationKey: 1 },
+      {
+        name: "fivem_hierarchy_creation_key_unique",
+        partialFilterExpression: { creationKey: { $type: "string" } },
+        unique: true
+      }
+    ),
+    db.collection<MongoFivemHierarchyPanel>("fivem_hierarchy_panels").createIndex({ botId: 1, legacyCleanupPending: 1, deletedAt: 1 }),
     db.collection<MongoFivemHierarchyLog>("fivem_hierarchy_logs").createIndex({ botId: 1, guildId: 1, panelId: 1, createdAt: -1 }),
     db.collection<MongoGlobalBlacklistSafeBotSettings>("global_blacklist_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
     db.collection<MongoGlobalBlacklistEntry>("global_blacklist_entries").createIndex({ userId: 1, active: 1 }),

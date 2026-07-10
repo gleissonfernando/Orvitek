@@ -16,6 +16,7 @@ import { Switch } from "../ui/switch";
 type PanelImageSettingsProps = {
   botId?: string | null;
   canManage: boolean;
+  componentsV2Only?: boolean;
   guildId?: string | null;
   panelId?: string;
   panelLabel?: string;
@@ -68,7 +69,7 @@ const layoutOptions: Array<{ label: string; value: PanelImageLayoutMode }> = [
 
 const advancedPositions = new Set<PanelImagePosition>(["top", "below_title", "middle", "bottom", "before_buttons", "below_text", "above_buttons"]);
 
-export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLabel, panelSlots }: PanelImageSettingsProps) {
+export function PanelImageSettings({ botId, canManage, componentsV2Only = false, guildId, panelId, panelLabel, panelSlots }: PanelImageSettingsProps) {
   const multiSlotMode = Boolean(panelSlots?.length);
   const fixedPanels = panelSlots?.length ? panelSlots.slice(0, 3) : panelId ? [{ id: panelId, label: panelLabel ?? panelLabelForId(panelId) }] : null;
   const panelChoices = fixedPanels ?? PANELS;
@@ -85,7 +86,7 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
   const fixedPanel = fixedPanels?.length === 1 ? fixedPanels[0] : null;
   const selectedPanel = panelChoices.find((panel) => panel.id === selectedPanelId) ?? panelChoices[0]!;
   const disabled = !canManage || !guildId || !botId || loading || saving || uploading;
-  const effectiveLayoutMode = advancedPositions.has(draft.imagePosition) ? "components_v2" : draft.layoutMode;
+  const effectiveLayoutMode = componentsV2Only || advancedPositions.has(draft.imagePosition) ? "components_v2" : draft.layoutMode;
   const previewStyle = previewImageStyle(draft.imageSize, draft.customWidth, draft.customHeight);
 
   useEffect(() => {
@@ -215,7 +216,7 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
       return;
     }
 
-    const nextPayload = payload ?? buildPayload(draft, effectiveLayoutMode);
+    const nextPayload = payload ?? buildPayload(draft, effectiveLayoutMode, componentsV2Only);
 
     if (nextPayload.imageEnabled && !String(nextPayload.imageUrl ?? "").trim()) {
       setStatus(null);
@@ -407,13 +408,22 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
                 options={sizeOptions}
                 value={draft.imageSize}
               />
-              <SelectField
-                disabled={disabled || advancedPositions.has(draft.imagePosition)}
-                label="Layout"
-                onChange={(value) => updateDraft("layoutMode", value as PanelImageLayoutMode)}
-                options={layoutOptions}
-                value={effectiveLayoutMode}
-              />
+              {!componentsV2Only ? (
+                <SelectField
+                  disabled={disabled || advancedPositions.has(draft.imagePosition)}
+                  label="Layout"
+                  onChange={(value) => updateDraft("layoutMode", value as PanelImageLayoutMode)}
+                  options={layoutOptions}
+                  value={effectiveLayoutMode}
+                />
+              ) : (
+                <div className="grid gap-2 text-sm">
+                  <span className="font-medium text-zinc-200">Layout</span>
+                  <div className="flex h-11 items-center rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 text-sm font-medium text-emerald-200">
+                    Components V2
+                  </div>
+                </div>
+              )}
             </div>
 
             {draft.imageSize === "custom" ? (
@@ -463,7 +473,7 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
               </div>
             </div>
 
-            <div className="rounded-lg border border-zinc-900 bg-zinc-950/70 p-4">
+            {!componentsV2Only ? <div className="rounded-lg border border-zinc-900 bg-zinc-950/70 p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-zinc-100">Blocos dinamicos Components V2</p>
@@ -506,9 +516,9 @@ export function PanelImageSettings({ botId, canManage, guildId, panelId, panelLa
                       </div>
                     ) : null}
                   </div>
-                )) : <p className="rounded-lg border border-dashed border-zinc-800 p-4 text-sm text-zinc-500">Nenhum bloco dinamico configurado. O painel usa o modo antigo ate voce adicionar blocos.</p>}
+                )) : <p className="rounded-lg border border-dashed border-zinc-800 p-4 text-sm text-zinc-500">Nenhum bloco dinamico configurado.</p>}
               </div>
-            </div>
+            </div> : null}
           </div>
         </div>
 
@@ -660,14 +670,14 @@ function panelLabelForId(panelId: string) {
   return PANELS.find((panel) => panel.id === panelId)?.label ?? panelId;
 }
 
-function buildPayload(settings: PanelImageSettingsDto, layoutMode: PanelImageLayoutMode): SavePanelImageSettingsPayload {
+function buildPayload(settings: PanelImageSettingsDto, layoutMode: PanelImageLayoutMode, componentsV2Only = false): SavePanelImageSettingsPayload {
   const imageUrl = settings.imageUrl.trim();
   const imageEnabled = settings.imageEnabled && settings.imagePosition !== "none" && Boolean(imageUrl);
 
   return {
     customHeight: settings.imageSize === "custom" ? settings.customHeight : null,
     customWidth: settings.imageSize === "custom" ? settings.customWidth : null,
-    blocks: settings.blocks ?? [],
+    blocks: componentsV2Only ? [] : settings.blocks ?? [],
     imageEnabled,
     imagePosition: imageEnabled ? settings.imagePosition : "none",
     imageSize: settings.imageSize,
