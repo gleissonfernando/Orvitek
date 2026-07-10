@@ -54,6 +54,7 @@ type CaseState = Draft & {
 const PREFIX = "police_subpoena";
 const MODULE_ID = "police-subpoenas";
 const cases = new Map<string, CaseState>();
+const flowDrafts = new Map<string, { selectedCompetence: Competence; targetId: string }>();
 
 const COMPETENCE_LABEL: Record<Competence, string> = {
   comissario: "Comissário",
@@ -112,9 +113,9 @@ export async function handlePoliceSubpoenaInteraction(interaction: Interaction, 
   }
 
   if (interaction.isStringSelectMenu() && action === "competence") return selectCompetence(interaction);
-  if (interaction.isUserSelectMenu() && action === "target") return selectTarget(interaction, context, settings, parts[2] as Competence);
-  if (interaction.isButton() && action === "open-modal") return openSubpoenaModal(interaction, parts[2] as Competence, parts[3] ?? "");
-  if (interaction.isModalSubmit() && action === "modal") return submitSubpoena(interaction, context, settings, parseCompetence(parts[2]), parts[3] ?? "");
+  if (interaction.isUserSelectMenu() && action === "target") return selectTarget(interaction, settings, parts[2]);
+  if (interaction.isButton() && action === "open-modal") return openSubpoenaModal(interaction, parts[2], parts[3] ?? "");
+  if (interaction.isModalSubmit() && action === "modal") return submitSubpoena(interaction, context, settings, parts[2], parts[3] ?? "");
   if (interaction.isButton() && ["finish", "cancel", "remind", "note"].includes(action ?? "")) return handleCaseButton(interaction, context, settings, action ?? "", parts[2] ?? "");
   if (interaction.isModalSubmit() && action === "note-modal") return submitNote(interaction, context, settings, parts[2] ?? "");
 
@@ -131,20 +132,28 @@ async function selectCompetence(interaction: StringSelectMenuInteraction) {
   return true;
 }
 
-async function selectTarget(interaction: UserSelectMenuInteraction, _context: BotContext, settings: GuildSettings, selectedCompetence: Competence) {
-  const targetId = interaction.values[0]!;
+async function selectTarget(interaction: UserSelectMenuInteraction, settings: GuildSettings, selectedCompetenceInput: string | undefined) {
+  const selectedCompetence = parseCompetence(selectedCompetenceInput);
+  const targetId = interaction.values[0];
+  if (!selectedCompetence || !targetId) {
+    await interaction.reply({ content: "Seleção inválida. Use /intimacao novamente.", ephemeral: true });
+    return true;
+  }
   const targetMember = await interaction.guild!.members.fetch(targetId).catch(() => null);
   if (!targetMember) {
     await interaction.reply({ content: "Usuário não encontrado no servidor.", ephemeral: true });
     return true;
   }
 
+  flowDrafts.set(flowKey(interaction), { selectedCompetence, targetId });
   await interaction.update(targetSelectedPanel(settings, selectedCompetence, targetMember));
   return true;
 }
 
-async function openSubpoenaModal(interaction: ButtonInteraction, selectedCompetence: Competence, targetId: string) {
-  const competence = parseCompetence(selectedCompetence);
+async function openSubpoenaModal(interaction: ButtonInteraction, selectedCompetenceInput: string | undefined, targetIdInput: string) {
+  const fallback = flowDrafts.get(flowKey(interaction));
+  const competence = parseCompetence(selectedCompetenceInput) ?? fallback?.selectedCompetence ?? null;
+  const targetId = targetIdInput || fallback?.targetId || "";
   if (!competence || !targetId) {
     await interaction.reply({ content: "Seleção inválida. Selecione o intimado novamente.", ephemeral: true });
     return true;
@@ -158,10 +167,13 @@ async function openSubpoenaModal(interaction: ButtonInteraction, selectedCompete
   return true;
 }
 
-async function submitSubpoena(interaction: ModalSubmitInteraction, context: BotContext, settings: GuildSettings, selectedCompetence: Competence | null, targetId: string) {
+async function submitSubpoena(interaction: ModalSubmitInteraction, context: BotContext, settings: GuildSettings, selectedCompetenceInput: string | undefined, targetIdInput: string) {
   await interaction.deferReply({ ephemeral: true });
+  const fallback = flowDrafts.get(flowKey(interaction));
+  const selectedCompetence = parseCompetence(selectedCompetenceInput) ?? fallback?.selectedCompetence ?? null;
+  const targetId = targetIdInput || fallback?.targetId || "";
   if (!selectedCompetence || !targetId) {
-    await interaction.editReply("Fluxo invalido. Use /intimacao novamente.");
+    await interaction.editReply("Fluxo inválido: não consegui identificar o intimado selecionado. Use /intimacao novamente.");
     return true;
   }
 
@@ -185,14 +197,16 @@ async function submitSubpoena(interaction: ModalSubmitInteraction, context: BotC
   };
   const title = field(interaction, "title") || "Intimação";
   const description = field(interaction, "description") || "Não informado";
-  const channel = await createSubpoenaChannel(interaction.guild!, settings, draft, target, title);
-  if (!channel) {
-    await interaction.editReply("Não consegui criar o canal temporário. Verifique categoria e permissão de Gerenciar Canais.");
+  const created = await createSubpoenaChannel(interaction.guild!, settings, draft, target, title);
+  if (!created.channel) {
+    await interaction.editReply(created.error);
     return true;
   }
+  const channel = created.channel;
 
   const caseState: CaseState = { ...draft, channelId: channel.id, createdAt: new Date().toISOString(), deadline: settings.reportSystem.defaultDeadline, description, reason: title, status: "open", title };
   cases.set(channel.id, caseState);
+  flowDrafts.delete(flowKey(interaction));
 
   await channel.send(casePanel(settings, caseState));
   const dmSent = await sendTargetDm(target, settings, caseState, channel);
@@ -300,29 +314,40 @@ function resolveCompetence(member: GuildMember, selected: Competence, report: Re
 }
 
 async function createSubpoenaChannel(guild: Guild, settings: GuildSettings, state: Draft, target: GuildMember, title: string) {
-  if (!guild.members.me?.permissions.has(PermissionFlagsBits.ManageChannels)) return null;
+  const me = guild.members.me ?? await guild.members.fetchMe().catch(() => null);
+  if (!me?.permissions.has(PermissionFlagsBits.ManageChannels)) {
+    return { channel: null, error: "Não consegui criar o canal da intimação: falta a permissão Gerenciar Canais para o bot." };
+  }
+
   const report = settings.reportSystem;
-  const destinationId = categoryFor(report, state.finalCompetence);
-  const destination = destinationId ? await guild.channels.fetch(destinationId).catch(() => null) : null;
-  const parent = destination?.type === ChannelType.GuildCategory ? destination.id : report.categoryId ?? undefined;
-  const roleIds = orgRoleIds(report, state.finalCompetence);
+  const parent = await resolveSubpoenaParent(guild, report, state.finalCompetence);
+  const roleIds = filterExistingRoles(guild, orgRoleIds(report, state.finalCompetence));
+  const deniedRoleIds = filterExistingRoles(guild, allOrgRoleIds(report).filter((roleId) => !roleIds.includes(roleId)));
   const caseUserIds = [...new Set([state.createdById, state.responsibleId].filter((id) => id && id !== target.id))];
   const overwrites = [
     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-    { id: guild.members.me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ReadMessageHistory] },
-    ...allOrgRoleIds(report).filter((roleId) => !roleIds.includes(roleId)).map((id) => ({ id, deny: [PermissionFlagsBits.ViewChannel] })),
-    ...roleIds.map((id) => ({ id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] })),
+    { id: me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ReadMessageHistory] },
+    ...deniedRoleIds.map((id) => ({ id, deny: [PermissionFlagsBits.ViewChannel] })),
+    ...roleIds.map((id) => ({ id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ReadMessageHistory] })),
     ...caseUserIds.map((id) => ({ id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ReadMessageHistory] })),
     { id: target.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ReadMessageHistory] }
   ];
-  return guild.channels.create({
-    name: `intimacao-${slug(target.displayName)}`.slice(0, 90),
-    parent,
-    permissionOverwrites: overwrites,
-    reason: `Intimação ${COMPETENCE_LABEL[state.finalCompetence]}: ${title}`,
-    topic: `intimacao:${state.finalCompetence}:${state.targetId}:${state.responsibleId ?? "0"}:${state.createdById}`,
-    type: ChannelType.GuildText
-  });
+
+  try {
+    const channel = await guild.channels.create({
+      name: `intimacao-${slug(target.displayName)}`.slice(0, 90),
+      parent,
+      permissionOverwrites: overwrites,
+      reason: `Intimação ${COMPETENCE_LABEL[state.finalCompetence]}: ${title}`,
+      topic: `intimacao:${state.finalCompetence}:${state.targetId}:${state.responsibleId ?? "0"}:${state.createdById}`,
+      type: ChannelType.GuildText
+    });
+    return { channel, error: "" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[police-subpoena] failed to create channel in ${guild.id}:`, message);
+    return { channel: null, error: `Não consegui criar o canal da intimação. Verifique as permissões do bot e se os cargos/canais configurados ainda existem. Detalhe: ${message.slice(0, 300)}` };
+  }
 }
 
 function casePanel(settings: GuildSettings, state: CaseState) {
@@ -453,6 +478,7 @@ function option(value: Competence, label: string) { return new StringSelectMenuO
 function inputRow(id: string, label: string, value: string, style: TextInputStyle, max: number, required = true, placeholder?: string) { const input = new TextInputBuilder().setCustomId(id).setLabel(label).setValue(value.slice(0, max)).setStyle(style).setMaxLength(max).setRequired(required); if (placeholder) input.setPlaceholder(placeholder.slice(0, 100)); return new ActionRowBuilder<TextInputBuilder>().addComponents(input); }
 function field(interaction: ModalSubmitInteraction, id: string) { return interaction.fields.getTextInputValue(id).trim(); }
 function parseCompetence(value: string | undefined): Competence | null { return value === "iab" || value === "conselho" || value === "hcmd" || value === "comissario" ? value : null; }
+function flowKey(interaction: { guildId: string | null; user: { id: string } }) { return `${interaction.guildId ?? "dm"}:${interaction.user.id}`; }
 function hasAnyRole(member: GuildMember, roleIds: string[]) { return roleIds.some((roleId) => member.roles.cache.has(roleId)); }
 function canUseCommand(member: GuildMember, report: ReportSystemSettings) { if (member.permissions.has(PermissionFlagsBits.Administrator)) return true; const ids = [...report.competenceCommandRoleIds, ...report.permissionRoleIds, ...report.adminRoleIds, ...allOrgRoleIds(report)]; return !ids.length || hasAnyRole(member, ids); }
 function canManageCompetence(member: GuildMember, report: ReportSystemSettings, competence: Competence) { if (member.permissions.has(PermissionFlagsBits.Administrator)) return true; return hasAnyRole(member, orgRoleIds(report, competence)); }
@@ -461,6 +487,14 @@ function botDisplayName(guild: Guild) { return guild.members.me?.displayName || 
 function orgRoleIds(report: ReportSystemSettings, competence: Competence) { const fallback = competence === "iab" ? [...report.viewRoleIds, ...report.replyRoleIds, ...report.adminRoleIds] : []; return [...new Set((competence === "iab" ? report.iabRoleIds : competence === "conselho" ? report.conselhoRoleIds : competence === "hcmd" ? report.hcmdRoleIds : report.comissarioRoleIds).concat(fallback))]; }
 function allOrgRoleIds(report: ReportSystemSettings) { return [...new Set([...orgRoleIds(report, "iab"), ...orgRoleIds(report, "conselho"), ...orgRoleIds(report, "hcmd"), ...orgRoleIds(report, "comissario")])]; }
 function categoryFor(report: ReportSystemSettings, competence: Competence) { return competence === "iab" ? report.iabCategoryId ?? report.categoryId : competence === "conselho" ? report.conselhoCategoryId ?? report.categoryId : competence === "hcmd" ? report.hcmdCategoryId ?? report.categoryId : report.comissarioCategoryId ?? report.categoryId; }
+async function resolveSubpoenaParent(guild: Guild, report: ReportSystemSettings, competence: Competence) {
+  const destinationId = categoryFor(report, competence);
+  const destination = destinationId ? await guild.channels.fetch(destinationId).catch(() => null) : null;
+  if (destination?.type === ChannelType.GuildCategory) return destination.id;
+  const fallback = report.categoryId && report.categoryId !== destinationId ? await guild.channels.fetch(report.categoryId).catch(() => null) : null;
+  return fallback?.type === ChannelType.GuildCategory ? fallback.id : undefined;
+}
+function filterExistingRoles(guild: Guild, roleIds: string[]) { return [...new Set(roleIds)].filter((roleId) => guild.roles.cache.has(roleId)); }
 function logFor(report: ReportSystemSettings, competence: Competence) { return competence === "iab" ? report.iabLogChannelId ?? report.logChannelId : competence === "conselho" ? report.conselhoLogChannelId ?? report.logChannelId : competence === "hcmd" ? report.hcmdLogChannelId ?? report.logChannelId : report.comissarioLogChannelId ?? report.logChannelId; }
 function statusLabel(status: CaseState["status"]) { return status === "open" ? "Aberta" : status === "finished" ? "Finalizada" : "Cancelada"; }
 function color(value?: string | null) { return Number.parseInt(value?.replace("#", "") ?? "", 16) || 0xdc2626; }
