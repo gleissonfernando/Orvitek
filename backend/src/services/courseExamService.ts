@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getMongoCollections, type MongoCourseExamAnswer, type MongoCourseExamAttempt, type MongoCourseExamQuestion, type MongoCourseExamSettings } from "../database/mongo";
 import { logCourseAction } from "./courseService";
+import { emitRealtime } from "../realtime/events";
 
 const DEFAULT_INITIAL = "Bem-vindo à prova do curso. Leia cada pergunta com atenção e responda uma etapa por vez.";
 const DEFAULT_FINAL = "Sua prova foi concluída. Clique abaixo para finalizar.";
@@ -165,6 +166,21 @@ export async function createOrResumeCourseExamAttempt(botId: string | null, guil
   studentId: string;
 }) {
   const collections = await getMongoCollections();
+  const publication = await collections.coursePublications.findOne({
+    _id: input.publicationId,
+    ...scope(botId, guildId),
+    courseId: input.courseId,
+    status: "proof",
+    students: input.studentId
+  });
+  if (!publication) throw new Error("Aluno não inscrito, turma inativa ou curso divergente.");
+  const examSettings = await collections.courseExamSettings.findOne({ ...scope(botId, guildId), courseId: input.courseId, enabled: true });
+  if (!examSettings) throw new Error("A prova vinculada a este curso não foi encontrada ou está desativada.");
+  const completed = await collections.courseExamAttempts.findOne({
+    ...scope(botId, guildId), publicationId: input.publicationId, studentId: input.studentId,
+    status: { $in: ["finished", "awaiting_review", "manual_reviewed", "approved", "rejected"] }
+  });
+  if (completed) throw new Error("Esta prova já foi finalizada e não pode ser iniciada novamente.");
   const existing = await collections.courseExamAttempts.findOne({
     ...scope(botId, guildId),
     courseId: input.courseId,
@@ -181,20 +197,36 @@ export async function createOrResumeCourseExamAttempt(botId: string | null, guil
     return mapAttempt(existing);
   }
   const now = new Date();
-  let questionsSnapshot = normalizeQuestionSnapshot(input.questionsSnapshot);
+  const claim = await collections.courseEnrollments.updateOne(
+    { ...scope(botId, guildId), publicationId: input.publicationId, studentId: input.studentId, enrollmentStatus: "ENROLLED", examStatus: "AVAILABLE" },
+    { $set: { examStatus: "STARTING", updatedAt: now } }
+  );
+  if (claim.modifiedCount === 0) {
+    const racedAttempt = await collections.courseExamAttempts.findOne({
+      ...scope(botId, guildId), courseId: input.courseId, publicationId: input.publicationId, studentId: input.studentId, status: "in_progress"
+    });
+    if (racedAttempt) return mapAttempt(racedAttempt);
+    throw new Error("A tentativa já está sendo iniciada ou não está disponível.");
+  }
+  const questions = await collections.courseExamQuestions.find({ ...scope(botId, guildId), courseId: input.courseId, active: true }).sort({ order: 1, createdAt: 1 }).toArray();
+  const questionsSnapshot = questions.map((question) => ({ ...question, alternatives: normalizeAlternatives(question.alternatives, question.type) }));
   if (!questionsSnapshot.length) {
-    const questions = await collections.courseExamQuestions.find({ ...scope(botId, guildId), courseId: input.courseId, active: true }).sort({ order: 1, createdAt: 1 }).toArray();
-    questionsSnapshot = questions.map((question) => ({ ...question, alternatives: normalizeAlternatives(question.alternatives, question.type) }));
+    await collections.courseEnrollments.updateOne(
+      { ...scope(botId, guildId), publicationId: input.publicationId, studentId: input.studentId, examStatus: "STARTING" },
+      { $set: { examStatus: "AVAILABLE", updatedAt: new Date() } }
+    );
+    throw new Error("A prova vinculada a este curso não foi encontrada.");
   }
   const doc: MongoCourseExamAttempt = {
     _id: randomUUID(),
     botId,
     guildId,
     courseId: input.courseId,
+    examId: examSettings._id,
     publicationId: input.publicationId,
     channelId: input.channelId,
     studentId: input.studentId,
-    instructorId: input.instructorId,
+    instructorId: publication.instructorId,
     status: "in_progress",
     questionsSnapshot,
     startedAt: now,
@@ -212,8 +244,21 @@ export async function createOrResumeCourseExamAttempt(botId: string | null, guil
     rejectionReason: null,
     updatedAt: now
   };
-  await collections.courseExamAttempts.insertOne(doc);
+  try {
+    await collections.courseExamAttempts.insertOne(doc);
+    await collections.courseEnrollments.updateOne(
+      { ...scope(botId, guildId), publicationId: input.publicationId, studentId: input.studentId, enrollmentStatus: "ENROLLED", examStatus: "STARTING" },
+      { $set: { examId: examSettings._id, examStatus: "IN_PROGRESS", attemptId: doc._id, examChannelId: input.channelId, updatedAt: now } }
+    );
+  } catch (error) {
+    await collections.courseEnrollments.updateOne(
+      { ...scope(botId, guildId), publicationId: input.publicationId, studentId: input.studentId, examStatus: "STARTING" },
+      { $set: { examStatus: "AVAILABLE", updatedAt: new Date() } }
+    ).catch(() => null);
+    throw error;
+  }
   await logCourseAction(botId, guildId, "course.exam_started", input.studentId, input.courseId, input.publicationId, { attemptId: doc._id });
+  emitRealtime("courses:publication", { botId, guildId, publicationId: input.publicationId });
   return mapAttempt(doc);
 }
 
@@ -303,11 +348,16 @@ export async function finalizeCourseExamAttempt(botId: string | null, guildId: s
   if (updatedStatus.matchedCount === 0) return null;
   const updated = await collections.courseExamAttempts.findOne({ _id: attemptId, ...scope(botId, guildId) });
   await logCourseAction(botId, guildId, "course.exam_finished", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, percent, score });
+  await collections.courseEnrollments.updateOne(
+    { ...scope(botId, guildId), publicationId: attempt.publicationId, studentId: attempt.studentId },
+    { $set: { examStatus: "COMPLETED", attemptId, examChannelId: attempt.channelId, score, correctAnswers: objectiveCorrect, completedAt: now, updatedAt: now } }
+  );
+  emitRealtime("courses:publication", { botId, guildId, publicationId: attempt.publicationId });
   return updated ? { answers: answers.map(mapAnswer), attempt: mapAttempt(updated), questions: relevantQuestions.map(mapQuestion) } : null;
 }
 
 export async function reviewCourseExamAttempt(botId: string | null, guildId: string, attemptId: string, reviewerId: string, status: "approved" | "rejected", rejectionReason?: string | null, manualScoreInput?: number | null) {
-  const { courseExamAttempts } = await getMongoCollections();
+  const { courseExamAttempts, courseEnrollments } = await getMongoCollections();
   const now = new Date();
   const reviewableStatuses: MongoCourseExamAttempt["status"][] = ["finished", "awaiting_review", "manual_reviewed"];
   const reviewableFilter = {
@@ -329,6 +379,11 @@ export async function reviewCourseExamAttempt(botId: string | null, guildId: str
   const attempt = await courseExamAttempts.findOne({ _id: attemptId, ...scope(botId, guildId) });
   if (!attempt) return null;
   await logCourseAction(botId, guildId, `course.exam_${status}`, reviewerId, attempt.courseId, attempt.publicationId, { attemptId });
+  await courseEnrollments.updateOne(
+    { ...scope(botId, guildId), publicationId: attempt.publicationId, studentId: attempt.studentId },
+    { $set: { examStatus: status === "approved" ? "APPROVED" : "FAILED", score: finalScore, result: status, correctedBy: reviewerId, completedAt: attempt.finishedAt ?? now, updatedAt: now } }
+  );
+  emitRealtime("courses:publication", { botId, guildId, publicationId: attempt.publicationId });
   return mapAttempt(attempt);
 }
 
@@ -398,6 +453,7 @@ function mapAttempt(attempt: MongoCourseExamAttempt) {
     botId: attempt.botId,
     guildId: attempt.guildId,
     courseId: attempt.courseId,
+    examId: attempt.examId ?? null,
     publicationId: attempt.publicationId,
     channelId: attempt.channelId,
     studentId: attempt.studentId,

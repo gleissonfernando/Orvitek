@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getMongoCollections, type MongoCourse, type MongoCourseImage, type MongoCoursePublication, type MongoCourseReport, type MongoCourseScheduleRequest, type MongoCourseSettings } from "../database/mongo";
+import { getMongoCollections, type MongoCourse, type MongoCourseEnrollment, type MongoCourseImage, type MongoCoursePublication, type MongoCourseReport, type MongoCourseScheduleRequest, type MongoCourseSettings } from "../database/mongo";
 import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoom } from "../realtime/events";
 
 export const COURSES_MODULE_ID = "courses";
@@ -12,6 +12,7 @@ export type CourseDashboard = {
   scheduleRequests: CourseScheduleRequestDto[];
   settings: CourseSettingsDto;
   logs: CourseLogDto[];
+  enrollments: CourseEnrollmentDto[];
 };
 
 export type CourseSettingsDto = ReturnType<typeof mapSettings>;
@@ -21,6 +22,7 @@ export type CourseScheduleRequestDto = ReturnType<typeof mapScheduleRequest>;
 export type CourseReportDto = ReturnType<typeof mapReport>;
 export type CourseLogDto = ReturnType<typeof mapLog>;
 export type CourseImageDto = ReturnType<typeof mapImage>;
+export type CourseEnrollmentDto = ReturnType<typeof mapEnrollment>;
 type CourseSettingsUpdate = Partial<Omit<CourseSettingsDto, "id" | "botId" | "guildId" | "updatedAt" | "defaultExpirationHours">> & {
   defaultExpirationHours?: number | null;
 };
@@ -28,12 +30,13 @@ type CourseSettingsUpdate = Partial<Omit<CourseSettingsDto, "id" | "botId" | "gu
 export async function getCoursesDashboard(botId: string | null, guildId: string): Promise<CourseDashboard> {
   const collections = await getMongoCollections();
   const settings = await getCourseSettings(botId, guildId);
-  const [courses, publications, scheduleRequests, reports, logs] = await Promise.all([
+  const [courses, publications, scheduleRequests, reports, logs, enrollments] = await Promise.all([
     collections.courses.find(scope(botId, guildId)).sort({ updatedAt: -1 }).toArray(),
     collections.coursePublications.find(scope(botId, guildId)).sort({ createdAt: -1 }).limit(50).toArray(),
     collections.courseScheduleRequests.find(scope(botId, guildId)).sort({ createdAt: -1 }).limit(50).toArray(),
     collections.courseReports.find(scope(botId, guildId)).sort({ createdAt: -1 }).limit(50).toArray(),
-    collections.courseLogs.find(scope(botId, guildId)).sort({ createdAt: -1 }).limit(25).toArray()
+    collections.courseLogs.find(scope(botId, guildId)).sort({ createdAt: -1 }).limit(25).toArray(),
+    collections.courseEnrollments.find(scope(botId, guildId)).sort({ updatedAt: -1 }).limit(500).toArray()
   ]);
 
   return {
@@ -42,7 +45,8 @@ export async function getCoursesDashboard(botId: string | null, guildId: string)
     reports: reports.map(mapReport),
     scheduleRequests: scheduleRequests.map(mapScheduleRequest),
     settings,
-    logs: logs.map(mapLog)
+    logs: logs.map(mapLog),
+    enrollments: enrollments.map(mapEnrollment)
   };
 }
 
@@ -338,8 +342,9 @@ export async function listCoursePublications(botId: string | null, guildId: stri
   return publications.map(mapPublication);
 }
 
-export async function joinCoursePublication(botId: string | null, guildId: string, publicationId: string, userId: string) {
-  const { coursePublications } = await getMongoCollections();
+export async function joinCoursePublication(botId: string | null, guildId: string, publicationId: string, input: { userId: string; studentName: string }) {
+  const { coursePublications, courseEnrollments } = await getMongoCollections();
+  const userId = input.userId;
   const publication = await coursePublications.findOne({ _id: publicationId, ...scope(botId, guildId) });
   if (!publication) return { error: "not_found" as const };
   if (publication.status === "started") return { error: "started" as const, publication: mapPublication(publication) };
@@ -347,6 +352,31 @@ export async function joinCoursePublication(botId: string | null, guildId: strin
   if (publication.students.includes(userId)) return { error: "already" as const, publication: mapPublication(publication) };
   if (publication.students.length >= publication.capacity) return { error: "full" as const, publication: mapPublication(publication) };
   await coursePublications.updateOne({ _id: publicationId, ...scope(botId, guildId) }, { $addToSet: { students: userId }, $set: { updatedAt: new Date() } });
+  const now = new Date();
+  try {
+    await courseEnrollments.updateOne(
+      { ...scope(botId, guildId), publicationId, studentId: userId },
+      {
+        $set: {
+          courseId: publication.courseId,
+          studentName: input.studentName.trim().slice(0, 100) || userId,
+          publicationChannelId: publication.channelId,
+          enrollmentStatus: "ENROLLED",
+          examStatus: "NOT_AVAILABLE",
+          updatedAt: now
+        },
+        $setOnInsert: {
+          _id: randomUUID(), botId, guildId, publicationId, studentId: userId, enrolledAt: now,
+          examId: null, attemptId: null, examChannelId: null, score: null, correctAnswers: null,
+          result: null, completedAt: null, correctedBy: null, transcriptId: null
+        }
+      },
+      { upsert: true }
+    );
+  } catch (error) {
+    await coursePublications.updateOne({ _id: publicationId, ...scope(botId, guildId) }, { $pull: { students: userId }, $set: { updatedAt: new Date() } }).catch(() => null);
+    throw error;
+  }
   const updated = await coursePublications.findOne({ _id: publicationId, ...scope(botId, guildId) });
   await logCourseAction(botId, guildId, "course.student_joined", userId, publication.courseId, publicationId, { userId });
   emitRealtime("courses:publication", { botId, guildId, publicationId });
@@ -354,20 +384,70 @@ export async function joinCoursePublication(botId: string | null, guildId: strin
 }
 
 export async function leaveCoursePublication(botId: string | null, guildId: string, publicationId: string, userId: string) {
-  const { coursePublications } = await getMongoCollections();
+  const { coursePublications, courseEnrollments } = await getMongoCollections();
   const publication = await coursePublications.findOne({ _id: publicationId, ...scope(botId, guildId) });
   if (!publication) return { error: "not_found" as const };
   if (publication.status !== "open") return { error: "closed" as const, publication: mapPublication(publication) };
   if (!publication.students.includes(userId)) return { error: "not_joined" as const, publication: mapPublication(publication) };
   await coursePublications.updateOne({ _id: publicationId, ...scope(botId, guildId) }, { $pull: { students: userId }, $set: { updatedAt: new Date() } });
+  await courseEnrollments.updateOne(
+    { ...scope(botId, guildId), publicationId, studentId: userId },
+    { $set: { enrollmentStatus: "LEFT", examStatus: "CANCELED", updatedAt: new Date() } }
+  );
   const updated = await coursePublications.findOne({ _id: publicationId, ...scope(botId, guildId) });
   await logCourseAction(botId, guildId, "course.student_left", userId, publication.courseId, publicationId, { userId });
   emitRealtime("courses:publication", { botId, guildId, publicationId });
   return { publication: mapPublication(updated ?? publication) };
 }
 
+export async function setCourseEnrollmentExamChannel(botId: string | null, guildId: string, publicationId: string, input: { channelId: string; studentId: string; studentName: string }) {
+  const { coursePublications, courseEnrollments, courseExamSettings } = await getMongoCollections();
+  const publication = await coursePublications.findOne({
+    _id: publicationId, ...scope(botId, guildId), status: { $in: ["started", "proof"] }, students: input.studentId
+  });
+  if (!publication) return null;
+  const exam = await courseExamSettings.findOne({ ...scope(botId, guildId), courseId: publication.courseId, enabled: true });
+  if (!exam) return null;
+  const now = new Date();
+  await courseEnrollments.updateOne(
+    { ...scope(botId, guildId), publicationId, studentId: input.studentId },
+    {
+      $set: {
+        courseId: publication.courseId, studentName: input.studentName.trim().slice(0, 100) || input.studentId,
+        publicationChannelId: publication.channelId, enrollmentStatus: "ENROLLED", examId: exam._id,
+        examStatus: "AVAILABLE", examChannelId: input.channelId, updatedAt: now
+      },
+      $setOnInsert: {
+        _id: randomUUID(), botId, guildId, publicationId, studentId: input.studentId, enrolledAt: now,
+        attemptId: null, score: null, correctAnswers: null, result: null, completedAt: null,
+        correctedBy: null, transcriptId: null
+      }
+    },
+    { upsert: true }
+  );
+  emitRealtime("courses:publication", { botId, guildId, publicationId });
+  return courseEnrollments.findOne({ ...scope(botId, guildId), publicationId, studentId: input.studentId });
+}
+
+export async function expireCourseEnrollmentChannel(botId: string | null, guildId: string, channelId: string) {
+  const { courseEnrollments } = await getMongoCollections();
+  const enrollment = await courseEnrollments.findOne({ ...scope(botId, guildId), examChannelId: channelId });
+  if (!enrollment) return null;
+  const now = new Date();
+  const nextStatus = ["AVAILABLE", "STARTING", "IN_PROGRESS"].includes(enrollment.examStatus) ? "EXPIRED" : enrollment.examStatus;
+  await courseEnrollments.updateOne(
+    { _id: enrollment._id, ...scope(botId, guildId) },
+    { $set: { examChannelId: null, examStatus: nextStatus, updatedAt: now } }
+  );
+  await logCourseAction(botId, guildId, "course.exam_channel_removed", null, enrollment.courseId, enrollment.publicationId, {
+    channelId, studentId: enrollment.studentId, previousStatus: enrollment.examStatus, status: nextStatus
+  });
+  emitRealtime("courses:publication", { botId, guildId, publicationId: enrollment.publicationId });
+  return { ...enrollment, examChannelId: null, examStatus: nextStatus, updatedAt: now };
+}
+
 export async function setCoursePublicationStatus(botId: string | null, guildId: string, publicationId: string, status: "started" | "cancelled" | "closed" | "proof" | "finished", actorId: string) {
-  const { coursePublications } = await getMongoCollections();
+  const { coursePublications, courseEnrollments, courseExamSettings } = await getMongoCollections();
   const publication = await coursePublications.findOne({ _id: publicationId, ...scope(botId, guildId) });
   if (!publication) return null;
   const now = new Date();
@@ -386,6 +466,16 @@ export async function setCoursePublicationStatus(botId: string | null, guildId: 
     }
   });
   if (transition.matchedCount === 0) return null;
+  const examSettings = status === "proof"
+    ? await courseExamSettings.findOne({ ...scope(botId, guildId), courseId: publication.courseId })
+    : null;
+  const examStatus = status === "proof" ? "AVAILABLE" : status === "cancelled" ? "CANCELED" : null;
+  if (examStatus) {
+    await courseEnrollments.updateMany(
+      { ...scope(botId, guildId), publicationId, enrollmentStatus: "ENROLLED", examStatus: { $in: ["NOT_AVAILABLE", "AVAILABLE"] } },
+      { $set: { examId: examSettings?._id ?? null, examStatus, updatedAt: now } }
+    );
+  }
   const updated = await coursePublications.findOne({ _id: publicationId, ...scope(botId, guildId) });
   await logCourseAction(botId, guildId, `course.${status}`, actorId, publication.courseId, publicationId, { from: publication.status, to: status });
   emitRealtime("courses:publication", { botId, guildId, publicationId });
@@ -607,6 +697,32 @@ function mapPublication(publication: MongoCoursePublication) {
     finishedAt: publication.finishedAt?.toISOString() ?? null,
     createdAt: publication.createdAt.toISOString(),
     updatedAt: publication.updatedAt.toISOString()
+  };
+}
+
+function mapEnrollment(enrollment: MongoCourseEnrollment) {
+  return {
+    id: enrollment._id,
+    botId: enrollment.botId,
+    guildId: enrollment.guildId,
+    courseId: enrollment.courseId,
+    publicationId: enrollment.publicationId,
+    studentId: enrollment.studentId,
+    studentName: enrollment.studentName,
+    publicationChannelId: enrollment.publicationChannelId,
+    enrolledAt: enrollment.enrolledAt.toISOString(),
+    enrollmentStatus: enrollment.enrollmentStatus,
+    examId: enrollment.examId,
+    examStatus: enrollment.examStatus,
+    attemptId: enrollment.attemptId,
+    examChannelId: enrollment.examChannelId,
+    score: enrollment.score,
+    correctAnswers: enrollment.correctAnswers,
+    result: enrollment.result,
+    completedAt: enrollment.completedAt?.toISOString() ?? null,
+    correctedBy: enrollment.correctedBy,
+    transcriptId: enrollment.transcriptId,
+    updatedAt: enrollment.updatedAt.toISOString()
   };
 }
 

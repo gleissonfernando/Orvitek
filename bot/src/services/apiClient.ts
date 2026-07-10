@@ -254,6 +254,7 @@ export type CourseExamAttempt = {
   botId: string | null;
   guildId: string;
   courseId: string;
+  examId: string | null;
   publicationId: string;
   channelId: string;
   studentId: string;
@@ -1957,14 +1958,22 @@ export class ApiClient {
     return data.publication;
   }
 
-  async joinCoursePublication(guildId: string, publicationId: string, userId: string) {
-    const { data } = await this.http.post<{ error?: "not_found" | "started" | "closed" | "already" | "full"; publication?: CoursePublication }>(`/courses/bot/${guildId}/publications/${publicationId}/join`, { userId });
+  async joinCoursePublication(guildId: string, publicationId: string, userId: string, studentName: string) {
+    const { data } = await this.http.post<{ error?: "not_found" | "started" | "closed" | "already" | "full"; publication?: CoursePublication }>(`/courses/bot/${guildId}/publications/${publicationId}/join`, { studentName, userId });
     return data;
   }
 
   async leaveCoursePublication(guildId: string, publicationId: string, userId: string) {
     const { data } = await this.http.post<{ error?: "not_found" | "not_joined" | "closed"; publication?: CoursePublication }>(`/courses/bot/${guildId}/publications/${publicationId}/leave`, { userId });
     return data;
+  }
+
+  async setCourseEnrollmentExamChannel(guildId: string, publicationId: string, input: { channelId: string; studentId: string; studentName: string }) {
+    await this.http.patch(`/courses/bot/${guildId}/publications/${publicationId}/enrollment-channel`, input);
+  }
+
+  async expireCourseEnrollmentChannel(guildId: string, channelId: string) {
+    await this.http.delete(`/courses/bot/${guildId}/exam-channels/${channelId}`);
   }
 
   async setCoursePublicationStatus(guildId: string, publicationId: string, status: "started" | "cancelled" | "closed" | "proof" | "finished", actorId: string) {

@@ -12,6 +12,7 @@ import {
   createCourseReport,
   createScheduleRequest,
   deleteCourse,
+  expireCourseEnrollmentChannel,
   getCourse,
   getCoursePublication,
   getCoursesDashboard,
@@ -24,6 +25,7 @@ import {
   requestCoursePanelPublish,
   saveCourseSettings,
   setCoursePublicationStatus,
+  setCourseEnrollmentExamChannel,
   updateCourse,
   updateCoursePanelMessage,
   updateCoursePublicationMessage,
@@ -159,7 +161,8 @@ const publicationSchema = z.object({
   notes: z.string().max(900).nullable().optional().or(z.literal("")),
   scheduledFor: z.string().min(1).max(120)
 });
-const joinSchema = z.object({ userId: snowflake });
+const joinSchema = z.object({ userId: snowflake, studentName: z.string().trim().min(1).max(100) });
+const enrollmentChannelSchema = z.object({ channelId: snowflake, studentId: snowflake, studentName: z.string().trim().min(1).max(100) });
 const statusSchema = z.object({ actorId: snowflake, status: z.enum(["started", "cancelled", "closed", "proof", "finished"]) });
 const publicationListSchema = z.object({ status: z.enum(["open", "started", "cancelled", "closed", "proof", "finished"]).nullable().optional() });
 const messageStateSchema = z.object({ messageId: optionalSnowflake });
@@ -603,11 +606,30 @@ coursesRouter.post("/bot/:guildId/publications/:publicationId/join", requireBot,
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
-    const result = await joinCoursePublication(botId, guildId, routeParam(req, "publicationId"), joinSchema.parse(req.body ?? {}).userId);
+    const result = await joinCoursePublication(botId, guildId, routeParam(req, "publicationId"), joinSchema.parse(req.body ?? {}));
     return res.json(result);
   } catch (error) {
     return next(error);
   }
+});
+
+coursesRouter.patch("/bot/:guildId/publications/:publicationId/enrollment-channel", requireBot, async (req, res, next) => {
+  try {
+    const guildId = snowflake.parse(req.params.guildId);
+    const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
+    const enrollment = await setCourseEnrollmentExamChannel(botId, guildId, routeParam(req, "publicationId"), enrollmentChannelSchema.parse(req.body ?? {}));
+    if (!enrollment) return res.status(409).json({ message: "Inscrição, turma ou prova vinculada inválida." });
+    return res.json({ ok: true });
+  } catch (error) { return next(error); }
+});
+
+coursesRouter.delete("/bot/:guildId/exam-channels/:channelId", requireBot, async (req, res, next) => {
+  try {
+    const guildId = snowflake.parse(req.params.guildId);
+    const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
+    await expireCourseEnrollmentChannel(botId, guildId, snowflake.parse(req.params.channelId));
+    return res.json({ ok: true });
+  } catch (error) { return next(error); }
 });
 
 coursesRouter.post("/bot/:guildId/publications/:publicationId/leave", requireBot, async (req, res, next) => {

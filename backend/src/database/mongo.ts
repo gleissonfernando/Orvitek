@@ -390,6 +390,41 @@ export type MongoCoursePublication = {
   updatedAt: Date;
 };
 
+export type CourseEnrollmentExamStatus =
+  | "NOT_AVAILABLE"
+  | "AVAILABLE"
+  | "STARTING"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "APPROVED"
+  | "FAILED"
+  | "CANCELED"
+  | "EXPIRED";
+
+export type MongoCourseEnrollment = {
+  _id: string;
+  botId: string | null;
+  guildId: string;
+  courseId: string;
+  publicationId: string;
+  studentId: string;
+  studentName: string;
+  publicationChannelId: string;
+  enrolledAt: Date;
+  enrollmentStatus: "ENROLLED" | "LEFT";
+  examId: string | null;
+  examStatus: CourseEnrollmentExamStatus;
+  attemptId: string | null;
+  examChannelId: string | null;
+  score: number | null;
+  correctAnswers: number | null;
+  result: "approved" | "rejected" | null;
+  completedAt: Date | null;
+  correctedBy: string | null;
+  transcriptId: string | null;
+  updatedAt: Date;
+};
+
 export type MongoCourseScheduleRequest = {
   _id: string;
   botId: string | null;
@@ -499,6 +534,7 @@ export type MongoCourseExamAttempt = {
   botId: string | null;
   guildId: string;
   courseId: string;
+  examId?: string | null;
   publicationId: string;
   channelId: string;
   studentId: string;
@@ -3512,6 +3548,7 @@ export async function getMongoCollections() {
     courseSettings: db.collection<MongoCourseSettings>("course_settings"),
     courses: db.collection<MongoCourse>("courses"),
     coursePublications: db.collection<MongoCoursePublication>("course_publications"),
+    courseEnrollments: db.collection<MongoCourseEnrollment>("course_enrollments"),
     courseScheduleRequests: db.collection<MongoCourseScheduleRequest>("course_schedule_requests"),
     courseReports: db.collection<MongoCourseReport>("course_reports"),
     courseLogs: db.collection<MongoCourseLog>("course_logs"),
@@ -3707,10 +3744,16 @@ async function createMongoIndexes(db: Db) {
     db.collection<MongoCourse>("courses").createIndex({ botId: 1, guildId: 1, active: 1, updatedAt: -1 }),
     db.collection<MongoCoursePublication>("course_publications").createIndex({ botId: 1, guildId: 1, status: 1, createdAt: -1 }),
     db.collection<MongoCoursePublication>("course_publications").createIndex({ botId: 1, guildId: 1, messageId: 1 }),
+    db.collection<MongoCourseEnrollment>("course_enrollments").createIndex(
+      { botId: 1, guildId: 1, publicationId: 1, studentId: 1 },
+      { unique: true }
+    ),
+    db.collection<MongoCourseEnrollment>("course_enrollments").createIndex({ botId: 1, guildId: 1, courseId: 1, examStatus: 1, updatedAt: -1 }),
     db.collection<MongoCourseScheduleRequest>("course_schedule_requests").createIndex({ botId: 1, guildId: 1, status: 1, createdAt: -1 }),
     db.collection<MongoCourseReport>("course_reports").createIndex({ botId: 1, guildId: 1, courseId: 1, createdAt: -1 }),
     db.collection<MongoCourseLog>("course_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
     db.collection<MongoCourseExamAttempt>("course_exam_attempts").createIndex({ botId: 1, guildId: 1, publicationId: 1, studentId: 1, status: 1 }),
+    db.collection<MongoCourseExamAttempt>("course_exam_attempts").createIndex({ botId: 1, guildId: 1, publicationId: 1, studentId: 1, startedAt: -1 }),
     db.collection<MongoCourseExamAttempt>("course_exam_attempts").createIndex({ botId: 1, guildId: 1, channelId: 1, status: 1 }),
     db.collection<MongoCourseExamAnswer>("course_exam_answers").createIndex({ botId: 1, guildId: 1, attemptId: 1, questionId: 1 }),
     db.collection<MongoOpenDutySettings>("open_duty_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
