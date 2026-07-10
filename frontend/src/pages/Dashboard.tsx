@@ -48,6 +48,7 @@ import {
   XCircle
 } from "lucide-react";
 import { DashboardLayout } from "../components/layout/dashboard-layout";
+import { DashboardHome } from "../components/dashboard/DashboardHome";
 import type { ViewId } from "../components/layout/sidebar";
 import { ClipsPanel } from "../components/clips/ClipsPanel";
 import { CoursesPanel } from "../components/courses/CoursesPanel";
@@ -1142,19 +1143,21 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
         initial={{ opacity: 0, y: 14 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
       >
-        <UserDashboardHeader
-          bot={selectedBot}
-          selectedGuild={selectedGuild}
-          status={displayedBotStatus}
-        />
+        {activeView !== "overview" ? (
+          <UserDashboardHeader
+            bot={selectedBot}
+            selectedGuild={selectedGuild}
+            status={displayedBotStatus}
+          />
+        ) : null}
 
-        {activeView !== "plans" && activeView !== "delete-channels" && activeView !== "fivem-hierarchy" ? (
+        {activeView !== "overview" && activeView !== "plans" && activeView !== "delete-channels" && activeView !== "fivem-hierarchy" ? (
           <PanelImageSettings
             botId={activeBotId}
             canManage={canManageDashboard}
             guildId={selectedGuild?.id ?? null}
-            panelId={policePanelImageSlotsForView(activeView) ? undefined : activeView === "settings" || activeView === "overview" ? "global-default" : visualPanelIdForView(activeView)}
-            panelLabel={policePanelImageSlotsForView(activeView) ? "Policia" : activeView === "settings" || activeView === "overview" ? "Padrão visual global" : `Configuração Visual do Painel — ${activeView}`}
+            panelId={policePanelImageSlotsForView(activeView) ? undefined : activeView === "settings" ? "global-default" : visualPanelIdForView(activeView)}
+            panelLabel={policePanelImageSlotsForView(activeView) ? "Policia" : activeView === "settings" ? "Padrão visual global" : `Configuração Visual do Painel — ${activeView}`}
             panelSlots={policePanelImageSlotsForView(activeView) ?? undefined}
           />
         ) : null}
@@ -1165,7 +1168,6 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             bot={selectedBot}
             details={overviewDetails}
             guild={selectedGuild}
-            logs={logs}
             onConfigure={handleChangeView}
             settings={settings}
             status={displayedBotStatus}
@@ -4003,7 +4005,6 @@ function OverviewView({
   bot,
   details,
   guild,
-  logs,
   onConfigure,
   settings,
   status
@@ -4012,7 +4013,6 @@ function OverviewView({
   bot: DashboardBot | null;
   details: OverviewDetails;
   guild: DashboardGuild | null;
-  logs: LogEntry[];
   onConfigure: (view: ViewId) => void;
   settings: GuildSettings | null;
   status: BotStatus;
@@ -4024,58 +4024,21 @@ function OverviewView({
   const activeModules = moduleSummaries.filter((module) => module.state.active).length;
 
   return (
-    <div className="space-y-5">
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <MetricCard icon={Bot} label="Bot" value={status.online ? "Online" : "Offline"} />
-        <MetricCard icon={Server} label="Servidor" value={guild?.name ?? "Nenhum"} />
-        <MetricCard icon={Users} label="Membros" value={formatNumber(guild?.memberCount ?? bot?.mainGuildMemberCount ?? 0)} />
-        <MetricCard icon={Hash} label="Canais" value={formatNumber(guild?.channelCount ?? bot?.mainGuildChannelCount ?? 0)} />
-        <MetricCard icon={CheckCircle2} label="Módulos ativos" value={`${activeModules}/${availableModules.length}`} />
-        <MetricCard icon={CalendarClock} label="Atualizado" value={formatDate(status.updatedAt)} />
-      </section>
-
-      <IsolationStatusPanel
-        availableModuleCount={availableModules.length}
-        bot={bot}
-        details={details}
-        status={status}
-        totalModuleCount={moduleCatalog.length}
-      />
-
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-lg font-semibold text-white">Módulos disponíveis</h2>
-          <p className="text-sm text-zinc-500">Apenas os módulos liberados para este bot neste servidor aparecem aqui.</p>
-        </div>
-
-        {moduleSummaries.length ? (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {moduleSummaries.map((module) => (
-              <ModuleCard
-                description={module.description}
-                icon={module.icon}
-                key={module.id}
-                onConfigure={() => onConfigure(module.view)}
-                state={module.state}
-                title={module.title}
-              />
-            ))}
-          </div>
-        ) : (
-          <EmptyState icon={Settings} title="Nenhum módulo liberado para este bot" />
-        )}
-      </section>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Logs recentes</CardTitle>
-          <CardDescription>Eventos importantes traduzidos para o usuário.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <FriendlyLogList compact logs={logs.slice(0, 5)} />
-        </CardContent>
-      </Card>
-    </div>
+    <DashboardHome
+      activeModules={activeModules}
+      botOnline={status.online}
+      channelCount={guild?.channelCount ?? bot?.mainGuildChannelCount ?? 0}
+      guildName={guild?.name ?? "Servidor não selecionado"}
+      memberCount={guild?.memberCount ?? bot?.mainGuildMemberCount ?? 0}
+      modules={availableModules.map((module) => ({
+        description: module.description,
+        icon: module.icon,
+        id: module.id,
+        onOpen: () => onConfigure(module.view),
+        title: module.title
+      }))}
+      totalModules={availableModules.length}
+    />
   );
 }
 
