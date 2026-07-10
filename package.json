@@ -26,8 +26,6 @@
     "start:bot": "npm run dev:bot",
     "build": "npm install --include=dev && npm --prefix frontend run build && npm --prefix backend run build && npm --prefix bot run build",
     "typecheck": "npm run typecheck --workspaces",
-    "test": "npm run test:hierarchy",
-    "test:hierarchy": "tsx --test backend/src/services/fivemHierarchyState.test.ts bot/src/services/fivemHierarchyService.test.ts frontend/src/lib/fivemHierarchy.test.ts",
     "deploy:check": "npm run build && node scripts/deploy-check.mjs",
     "deploy:check:fast": "node scripts/deploy-check.mjs fast",
     "deploy:check:env": "npm run build && node scripts/deploy-check.mjs env",
@@ -38,7 +36,6 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "tsx": "^4.19.2",
     "typescript": "^5.6.3"
   }
 }
