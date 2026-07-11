@@ -496,7 +496,7 @@ function formatElapsed(start: Date, end: Date) {
 function resolveTranscriptUrl(transcript: Awaited<ReturnType<BotContext["api"]["createTranscript"]>>) {
   if (transcript.publicUrl) return transcript.publicUrl;
   if (transcript.transcript.publicUrl) return transcript.transcript.publicUrl;
-  const origin = env.BACKEND_API_URL ? new URL(env.BACKEND_API_URL).origin : "";
+  const origin = (env.FRONTEND_URL || (env.BACKEND_API_URL ? new URL(env.BACKEND_API_URL).origin : "") || "https://nextech.discloud.app").replace(/\/+$/, "");
   return `${origin}${transcript.transcript.htmlPath}`;
 }
 

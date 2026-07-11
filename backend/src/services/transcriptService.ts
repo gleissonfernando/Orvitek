@@ -9,6 +9,11 @@ const HASH_DIGEST = "sha256";
 const DEFAULT_TEMP_PASSWORD_TTL_HOURS = 72;
 const TEMP_PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*-_";
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1"]);
+const LEGACY_TRANSCRIPT_ORIGINS = new Set([
+  "https://orvitek-bots.discloud.app",
+  "http://orvitek-bots.discloud.app"
+]);
+const CURRENT_TRANSCRIPT_ORIGIN = "https://nextech.discloud.app";
 
 export type TranscriptInput = {
   botId?: string | null;
@@ -160,7 +165,7 @@ export function resolveTranscriptPublicBaseUrl() {
     if (env.NODE_ENV === "production" && isLocalUrl(configured)) {
       throw new Error("TRANSCRIPT_BASE_URL nao pode ser localhost/127.0.0.1 em producao. Configure um dominio publico.");
     }
-    return configured.replace(/\/+$/, "");
+    return normalizeTranscriptPublicBaseUrl(configured);
   }
 
   if (env.NODE_ENV !== "production") {
@@ -168,6 +173,25 @@ export function resolveTranscriptPublicBaseUrl() {
   }
 
   throw new Error("TRANSCRIPT_BASE_URL ausente. Configure o dominio publico para gerar links de transcript.");
+}
+
+function normalizeTranscriptPublicBaseUrl(value: string) {
+  const normalized = value.replace(/\/+$/, "");
+  return LEGACY_TRANSCRIPT_ORIGINS.has(normalized) ? CURRENT_TRANSCRIPT_ORIGIN : normalized;
+}
+
+function normalizeTranscriptPublicUrl(value: string | null | undefined, transcriptId: string) {
+  if (!value) {
+    return buildTranscriptPublicUrl(transcriptId);
+  }
+
+  try {
+    const url = new URL(value);
+    const origin = normalizeTranscriptPublicBaseUrl(url.origin);
+    return `${origin}${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return buildTranscriptPublicUrl(transcriptId);
+  }
 }
 
 export function getTranscriptStartupStatus() {
@@ -477,7 +501,7 @@ function publicTranscriptSummary(transcript: MongoTranscript) {
     status: transcript.status,
     isPartial: transcript.isPartial,
     htmlPath: transcript.htmlPath,
-    publicUrl: transcript.websiteUrl ?? buildTranscriptPublicUrl(transcript._id),
+    publicUrl: normalizeTranscriptPublicUrl(transcript.websiteUrl, transcript._id),
     createdAt: transcript.createdAt.toISOString(),
     closedAt: transcript.closedAt?.toISOString() ?? null,
     expiresAt: transcript.expiresAt?.toISOString() ?? null,
