@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "description": "Arquitetura independente para frontend, backend API e bot Discord.",
+  "main": "index.js",
   "workspaces": [
     "frontend",
     "backend",
