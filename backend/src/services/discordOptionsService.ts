@@ -48,6 +48,12 @@ type DiscordGuildMember = {
   user?: DiscordUser;
 };
 
+type DiscordMessage = {
+  id: string;
+  author?: { id?: string };
+  content?: string;
+};
+
 export type GuildChannelOptionDto = {
   id: string;
   name: string;
@@ -114,6 +120,7 @@ export type GuildAssignableRoleValidationDto = {
 export type SafeBotDiscordResourcesDto = {
   filterChannelId: string;
   logChannelId: string;
+  messageId: string;
   roleId: string;
 };
 
@@ -227,9 +234,30 @@ export async function ensureSafeBotDiscordResources(
       permission_overwrites: logOverwrites,
       type: 0
     }, "SafeBot: canal de logs criado automaticamente");
+  const messages = await discordFetch<DiscordMessage[]>(`/channels/${filterChannel.id}/messages?limit=100`, botToken);
+  const existingWarning = messages.find((message) =>
+    message.author?.id === bot.id
+    && (message.content?.includes("Qualquer mensagem enviada nesta sala")
+      || message.content?.includes("Não envie mensagens aqui"))
+  );
+  const warning = existingWarning ?? await discordPost<DiscordMessage>(`/channels/${filterChannel.id}/messages`, botToken, {
+    allowed_mentions: { parse: [] },
+    content: [
+      "## Não envie mensagens aqui",
+      "**Você receberá um banimento se enviar mensagens neste canal.**",
+      "",
+      "Qualquer mensagem enviada nesta sala será analisada pelo SafeBot.",
+      "Este canal existe para identificar contas automatizadas que tentam espalhar spam ou conteúdo malicioso pelo servidor."
+    ].join("\n")
+  }, "SafeBot: aviso automatico do canal filter");
 
   guildLiveOptionsCache.delete(createLiveOptionsCacheKey(guildId, botToken));
-  return { filterChannelId: filterChannel.id, logChannelId: logChannel.id, roleId: role.id };
+  return {
+    filterChannelId: filterChannel.id,
+    logChannelId: logChannel.id,
+    messageId: warning.id,
+    roleId: role.id
+  };
 }
 
 export async function getGuildLiveOptions(

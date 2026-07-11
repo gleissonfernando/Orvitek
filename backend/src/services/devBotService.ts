@@ -23,7 +23,7 @@ import {
 import { getDiscordAvatarUrl, getGuildIconUrl } from "./discordAssetService";
 import { fetchDiscordCurrentUserGuildMember, refreshDiscordTokens } from "./discordOAuthService";
 import { ensureSafeBotDiscordResources } from "./discordOptionsService";
-import { getGuildSettings, getPersistedDashboardAccess, updateGuildSettings } from "./settingsService";
+import { getGuildSettings, getPersistedDashboardAccess, saveSafeBotMessageState, updateGuildSettings } from "./settingsService";
 import { getImageAntiSpamSettings } from "./imageAntiSpamService";
 import { saveSelfBotProtectionSettings } from "./selfBotProtectionService";
 import { getSelfBotProtectionSettings, type SelfBotProtectionModuleId } from "./selfBotProtectionService";
@@ -2516,6 +2516,10 @@ async function enableSelfBotDefaults(bot: DevBotDto) {
           safeBotEnabled: true,
           safeBotLogChannelId: resources.logChannelId,
           safeBotRoleId: resources.roleId
+        }, bot.id);
+        await saveSafeBotMessageState(guildId, {
+          channelId: resources.filterChannelId,
+          messageId: resources.messageId
         }, bot.id);
       } catch (error) {
         console.warn(`[safe-bot] criacao automatica falhou ao liberar o modulo em ${guildId}:`, error instanceof Error ? error.message : error);

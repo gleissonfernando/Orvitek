@@ -32,7 +32,7 @@ import type {
   SelfBotProtectionModuleId,
   SelfBotPunishmentAction
 } from "../services/selfBotProtectionService";
-import { updateGuildSettings } from "../services/settingsService";
+import { saveSafeBotMessageState, updateGuildSettings } from "../services/settingsService";
 import {
   SAFE_BOT_WARNING_ACTIONS,
   completeSafeBotWarning,
@@ -516,6 +516,10 @@ async function ensureSafeBotResourcesFromBackend(guildId: string, botId: string)
     safeBotEnabled: true,
     safeBotLogChannelId: resources.logChannelId,
     safeBotRoleId: resources.roleId
+  }, botId);
+  await saveSafeBotMessageState(guildId, {
+    channelId: resources.filterChannelId,
+    messageId: resources.messageId
   }, botId);
   return { ok: true as const, resources };
 }
