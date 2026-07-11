@@ -164,6 +164,8 @@ export type SelfBotEnsureSetupEvent = {
   guildId?: string | null;
 };
 
+export type SelfBotEnsureSetupAck = (response: { error?: string; ok: boolean }) => void;
+
 export type SettingsUpdatedEvent = GuildSettings;
 
 export type DiscordLogDispatchEvent = {
@@ -262,7 +264,7 @@ export class BotSocketClient {
   private giveawayPanelUpdateHandler: ((payload: GiveawayPanelUpdateEvent) => void) | null = null;
   private imageAntiSpamSettingsHandler: ((payload: ImageAntiSpamSettingsEvent) => void) | null = null;
   private selfBotProtectionSettingsHandler: ((payload: SelfBotProtectionSettingsEvent) => void) | null = null;
-  private selfBotEnsureSetupHandler: ((payload: SelfBotEnsureSetupEvent) => void) | null = null;
+  private selfBotEnsureSetupHandler: ((payload: SelfBotEnsureSetupEvent, ack?: SelfBotEnsureSetupAck) => void) | null = null;
   private settingsUpdatedHandlers = new Set<(payload: SettingsUpdatedEvent) => void>();
   private discordLogDispatchHandler: ((payload: DiscordLogDispatchEvent) => void) | null = null;
   private devModuleUpdatedHandler: ((payload: DevModuleUpdatedEvent) => void) | null = null;
@@ -643,7 +645,7 @@ export class BotSocketClient {
     this.socket?.on("self-bot-protection:settings_updated", handler);
   }
 
-  onSelfBotEnsureSetup(handler: (payload: SelfBotEnsureSetupEvent) => void) {
+  onSelfBotEnsureSetup(handler: (payload: SelfBotEnsureSetupEvent, ack?: SelfBotEnsureSetupAck) => void) {
     this.selfBotEnsureSetupHandler = handler;
     this.socket?.off("self-bot:ensure_setup");
     this.socket?.on("self-bot:ensure_setup", handler);

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth, requireBot } from "../middleware/auth";
-import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoom } from "../realtime/events";
+import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoomWithAck } from "../realtime/events";
 import {
   areGuildAssignableRoles,
   areGuildRoles,
@@ -455,13 +455,24 @@ selfBotProtectionRouter.patch("/:guildId", requireAuth, async (req, res, next) =
     emitRealtime("self-bot-protection:settings_updated", settings);
     emitRealtime("settings:updated", guildSettings);
     emitRealtime("logs:new", log);
-    emitRealtimeToRoom(devBotRealtimeRoom(botId), "self-bot:ensure_setup", {
-      botId,
-      guildId
-    });
+    const setupResponses = settings.enabled
+      ? await emitRealtimeToRoomWithAck<{ botId: string; guildId: string }, { error?: string; ok: boolean }>(
+          devBotRealtimeRoom(botId),
+          "self-bot:ensure_setup",
+          { botId, guildId },
+          6_000
+        )
+      : [];
+    const setupResult = settings.enabled
+      ? setupResponses.find((response) => response.ok) ?? setupResponses[0] ?? {
+          error: "Bot offline ou sem conexao em tempo real. A criacao sera tentada novamente automaticamente.",
+          ok: false
+        }
+      : { ok: true };
 
     return res.json({
-      settings
+      settings,
+      setup: setupResult
     });
   } catch (error) {
     return next(error);

@@ -773,14 +773,17 @@ export async function saveSelfBotProtectionSettings(
   botId: string,
   payload: SaveSelfBotProtectionSettingsPayload
 ) {
-  const { data } = await api.patch<{ settings: SelfBotProtectionSettings }>(
+  const { data } = await api.patch<{
+    settings: SelfBotProtectionSettings;
+    setup: { error?: string; ok: boolean };
+  }>(
     `/self-bot-protection/${guildId}`,
     payload,
     {
       params: botParams(botId)
     }
   );
-  return data.settings;
+  return data;
 }
 
 export async function getSafeBotWarnings(guildId: string, botId: string) {

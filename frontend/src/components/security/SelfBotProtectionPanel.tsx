@@ -420,7 +420,7 @@ export function SelfBotProtectionPanel({
     setMessage(null);
 
     try {
-      const saved = await saveSelfBotProtectionSettings(guild.id, botId, {
+      const result = await saveSelfBotProtectionSettings(guild.id, botId, {
         addRoleId: settings.addRoleId,
         blockedTerms: settings.blockedTerms,
         capsMinLength: settings.capsMinLength,
@@ -455,8 +455,10 @@ export function SelfBotProtectionPanel({
         timeoutSeconds: settings.timeoutSeconds
       });
 
-      setSettings(saved);
-      setMessage("SelfBot Protection salvo.");
+      setSettings(result.settings);
+      setMessage(result.settings.enabled && !result.setup.ok
+        ? `SelfBot Protection salvo, mas os canais ainda nao foram criados: ${result.setup.error ?? "verifique as permissoes do bot."}`
+        : "SelfBot Protection salvo e estrutura automatica confirmada.");
     } catch (error) {
       setMessage(readRequestMessage(error) ?? "Não foi possível salvar o SelfBot Protection.");
     } finally {

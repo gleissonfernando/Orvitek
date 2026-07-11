@@ -104,25 +104,36 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     if (!wasTagVerificationEnabled && isBotModuleEnabled("tag-verification")) void startTagVerificationService(client, context);
     if (wasTagVerificationEnabled && !isBotModuleEnabled("tag-verification")) stopTagVerificationService();
   });
-  context.socket.onSelfBotEnsureSetup((payload) => {
+  context.socket.onSelfBotEnsureSetup(async (payload, acknowledge) => {
     if (payload.botId && runtimeBotId && payload.botId !== runtimeBotId) {
+      acknowledge?.({ error: "Evento destinado a outro bot.", ok: false });
       return;
     }
 
     if (!isSelfBotModuleEnabled()) {
+      acknowledge?.({ error: "O modulo SafeBot nao esta ativo neste bot.", ok: false });
       return;
     }
 
-    if (payload.guildId) {
-      const guild = client.guilds.cache.get(payload.guildId);
-
-      if (guild) {
-        void ensureSafeBotSetup(guild, context);
+    try {
+      if (payload.guildId) {
+        const guild = client.guilds.cache.get(payload.guildId);
+        if (!guild) {
+          acknowledge?.({ error: "O bot nao esta conectado ao servidor selecionado.", ok: false });
+          return;
+        }
+        const setup = await ensureSafeBotSetup(guild, context);
+        acknowledge?.(setup
+          ? { ok: true }
+          : { error: "Nao foi possivel criar os canais. Verifique Gerenciar Canais e Gerenciar Cargos.", ok: false });
+        return;
       }
-      return;
-    }
 
-    void ensureSelfBotRoles(client, context);
+      await ensureSelfBotRoles(client, context);
+      acknowledge?.({ ok: true });
+    } catch (error) {
+      acknowledge?.({ error: error instanceof Error ? error.message : String(error), ok: false });
+    }
   });
   startGuildSettingsCache(context);
   context.socket.onSettingsUpdated((settings) => {
@@ -327,6 +338,8 @@ async function reconcileRuntimeModules(client: Client<true>, context: BotContext
   const nextSignature = runtimeModuleSignature(runtimeAccess.active, runtimeAccess.botId, runtimeModules);
 
   if (nextSignature === lastRuntimeModuleSignature) {
+    // Recover SafeBot activation events that happened during a socket reconnect.
+    if (isSelfBotModuleEnabled()) await ensureSelfBotRoles(client, context);
     return;
   }
 
