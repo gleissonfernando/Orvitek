@@ -172,12 +172,25 @@ function productionSafeUrl(value?: string) {
   return value;
 }
 
+function firstMongoUrl(...values: Array<string | undefined>) {
+  for (const value of values) {
+    const url = productionSafeUrl(cleanEnvValue(value));
+    if (url && /^mongodb(?:\+srv)?:\/\//i.test(url)) {
+      return url;
+    }
+  }
+
+  return "";
+}
+
 const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("production"),
     HOST: z.string().default("0.0.0.0"),
     PORT: z.coerce.number().default(80),
     MONGODB_URI: z.string().optional().default(""),
+    MONGO_URI: z.string().optional().default(""),
+    DATABASE_URL: z.string().optional().default(""),
     REDIS_URL: z.string().optional().default(""),
     REDIS_SESSION_ENABLED: envBoolean(false),
     BACKGROUND_JOB_CONCURRENCY: z.coerce.number().int().min(1).max(20).default(3),
@@ -240,7 +253,7 @@ const envSchema = z
     START_REGISTERED_DEV_BOTS: envBoolean(!isProduction)
   })
   .transform((value) => {
-    const mongoUrl = productionSafeUrl(cleanEnvValue(value.MONGODB_URI)) ?? "";
+    const mongoUrl = firstMongoUrl(value.MONGODB_URI, value.MONGO_URI, value.DATABASE_URL);
     const configuredAppBaseUrl =
       cleanEnvValue(value.TRANSCRIPT_BASE_URL)
       ?? cleanEnvValue(value.APP_BASE_URL)
