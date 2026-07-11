@@ -90,6 +90,11 @@ const modules: ModuleDefinition[] = [
   { id: "anti-divulgacao", label: "Anti Divulgação" },
   { id: "anti-auto-spam", label: "Anti Auto Spam" },
   { id: "anti-comandos-em-massa", label: "Anti Comandos em Massa" }
+  ,{ id: "anti-stickers", label: "Anti Stickers" }
+  ,{ id: "anti-nome", label: "Anti Nome" }
+  ,{ id: "anti-cargos", label: "Anti Cargos" }
+  ,{ id: "anti-canais", label: "Anti Canais" }
+  ,{ id: "anti-emojis-servidor", label: "Anti Emojis do Servidor" }
 ];
 
 const punishmentActions: Array<{ id: SelfBotPunishmentAction; label: string }> = [
@@ -157,9 +162,20 @@ const emptySettings: SelfBotProtectionSettings = {
     "anti-texto-repetido": true
   },
   ignoredChannelIds: [],
+  ignoredUserIds: [],
+  ignoredRoleIds: [],
+  ignoredBotIds: [],
+  ignoredCategoryIds: [],
   protectedChannelIds: [],
   mediaChannelIds: [],
   linkChannelIds: [],
+  allowedDomains: ["youtube.com", "youtu.be", "twitch.tv", "kick.com", "github.com"],
+  allowedInviteGuildIds: [],
+  blockedFileExtensions: ["zip", "rar", "exe", "bat", "js", "html", "dll", "scr", "apk", "msi"],
+  blockImages: true,
+  blockGifs: true,
+  blockVideos: true,
+  blockAudio: true,
   logChannelId: null,
   punishmentLogChannelId: null,
   logWebhookUrl: null,
@@ -175,6 +191,15 @@ const emptySettings: SelfBotProtectionSettings = {
   imageWindowSeconds: 15,
   mentionLimit: 5,
   emojiLimit: 12,
+  stickerLimit: 3,
+  stickerWindowSeconds: 15,
+  nicknameChangeLimit: 3,
+  nicknameWindowSeconds: 60,
+  antiBotAction: "manual",
+  raidLockdownEnabled: false,
+  dmWarningEnabled: false,
+  dmWarningMessage: "Você violou a proteção {protecao} no servidor {servidor}.",
+  moduleLogChannelIds: {},
   capsMinLength: 12,
   capsPercentage: 70,
   repeatedTextLimit: 3,
@@ -338,7 +363,7 @@ export function SelfBotProtectionPanel({
     }));
   }
 
-  function toggleId(key: "ignoredChannelIds" | "protectedChannelIds" | "mediaChannelIds" | "linkChannelIds", id: string) {
+  function toggleId(key: "ignoredChannelIds" | "ignoredRoleIds" | "protectedChannelIds" | "mediaChannelIds" | "linkChannelIds", id: string) {
     setSettings((current) => {
       const selected = new Set(current[key]);
 
@@ -432,6 +457,17 @@ export function SelfBotProtectionPanel({
         floodLimit: nextSettings.floodLimit,
         floodWindowSeconds: nextSettings.floodWindowSeconds,
         ignoredChannelIds: nextSettings.ignoredChannelIds,
+        ignoredUserIds: nextSettings.ignoredUserIds,
+        ignoredRoleIds: nextSettings.ignoredRoleIds,
+        ignoredBotIds: nextSettings.ignoredBotIds,
+        ignoredCategoryIds: nextSettings.ignoredCategoryIds,
+        allowedDomains: nextSettings.allowedDomains,
+        allowedInviteGuildIds: nextSettings.allowedInviteGuildIds,
+        blockedFileExtensions: nextSettings.blockedFileExtensions,
+        blockImages: nextSettings.blockImages,
+        blockGifs: nextSettings.blockGifs,
+        blockVideos: nextSettings.blockVideos,
+        blockAudio: nextSettings.blockAudio,
         imageLimit: nextSettings.imageLimit,
         imageWindowSeconds: nextSettings.imageWindowSeconds,
         linkChannelIds: nextSettings.linkChannelIds,
@@ -440,6 +476,15 @@ export function SelfBotProtectionPanel({
         logWebhookUrl: nextSettings.logWebhookUrl,
         mediaChannelIds: nextSettings.mediaChannelIds,
         mentionLimit: nextSettings.mentionLimit,
+        stickerLimit: nextSettings.stickerLimit,
+        stickerWindowSeconds: nextSettings.stickerWindowSeconds,
+        nicknameChangeLimit: nextSettings.nicknameChangeLimit,
+        nicknameWindowSeconds: nextSettings.nicknameWindowSeconds,
+        antiBotAction: nextSettings.antiBotAction,
+        raidLockdownEnabled: nextSettings.raidLockdownEnabled,
+        dmWarningEnabled: nextSettings.dmWarningEnabled,
+        dmWarningMessage: nextSettings.dmWarningMessage,
+        moduleLogChannelIds: nextSettings.moduleLogChannelIds,
         moduleToggles: nextSettings.moduleToggles,
         multiChannelLimit: nextSettings.multiChannelLimit,
         multiChannelWindowSeconds: nextSettings.multiChannelWindowSeconds,
@@ -644,6 +689,37 @@ export function SelfBotProtectionPanel({
             </div>
           </Section>
 
+          <Section icon={ShieldCheck} title="Whitelist e exceções">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Checklist
+                disabled={disabled}
+                emptyText="Nenhum cargo disponível."
+                icon={ShieldCheck}
+                items={selectableRoles.map((role) => ({ id: role.id, label: `@${role.name}` }))}
+                label="Cargos ignorados"
+                onToggle={(id) => toggleId("ignoredRoleIds", id)}
+                selectedIds={settings.ignoredRoleIds}
+              />
+              <TextListField disabled={disabled} label="IDs de usuários ignorados" onChange={(values) => updateSetting("ignoredUserIds", values)} value={settings.ignoredUserIds} />
+              <TextListField disabled={disabled} label="IDs de bots permitidos" onChange={(values) => updateSetting("ignoredBotIds", values)} value={settings.ignoredBotIds} />
+              <TextListField disabled={disabled} label="IDs de categorias ignoradas" onChange={(values) => updateSetting("ignoredCategoryIds", values)} value={settings.ignoredCategoryIds} />
+            </div>
+          </Section>
+
+          <Section icon={ImageOff} title="Links, mídia e arquivos">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <TextListField disabled={disabled} label="Domínios permitidos" onChange={(values) => updateSetting("allowedDomains", values)} value={settings.allowedDomains} />
+              <TextListField disabled={disabled} label="Extensões bloqueadas" onChange={(values) => updateSetting("blockedFileExtensions", values)} value={settings.blockedFileExtensions} />
+              <TextListField disabled={disabled} label="IDs de servidores com convite permitido" onChange={(values) => updateSetting("allowedInviteGuildIds", values)} value={settings.allowedInviteGuildIds} />
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow checked={settings.blockImages} disabled={disabled} label="Bloquear imagens" onChange={(value) => updateSetting("blockImages", value)} />
+                <ToggleRow checked={settings.blockGifs} disabled={disabled} label="Bloquear GIFs" onChange={(value) => updateSetting("blockGifs", value)} />
+                <ToggleRow checked={settings.blockVideos} disabled={disabled} label="Bloquear vídeos" onChange={(value) => updateSetting("blockVideos", value)} />
+                <ToggleRow checked={settings.blockAudio} disabled={disabled} label="Bloquear áudios" onChange={(value) => updateSetting("blockAudio", value)} />
+              </div>
+            </div>
+          </Section>
+
           <Section icon={Zap} title="Limites">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <NumberField disabled={disabled} label="Flood: quantidade" max={50} min={2} onChange={(value) => updateSetting("floodLimit", value)} value={settings.floodLimit} />
@@ -652,6 +728,10 @@ export function SelfBotProtectionPanel({
               <NumberField disabled={disabled} label="Imagens: janela" max={3600} min={1} onChange={(value) => updateSetting("imageWindowSeconds", value)} value={settings.imageWindowSeconds} />
               <NumberField disabled={disabled} label="Mencoes" max={100} min={1} onChange={(value) => updateSetting("mentionLimit", value)} value={settings.mentionLimit} />
               <NumberField disabled={disabled} label="Emojis" max={200} min={1} onChange={(value) => updateSetting("emojiLimit", value)} value={settings.emojiLimit} />
+              <NumberField disabled={disabled} label="Stickers: limite" max={50} min={1} onChange={(value) => updateSetting("stickerLimit", value)} value={settings.stickerLimit} />
+              <NumberField disabled={disabled} label="Stickers: janela" max={3600} min={1} onChange={(value) => updateSetting("stickerWindowSeconds", value)} value={settings.stickerWindowSeconds} />
+              <NumberField disabled={disabled} label="Nickname: alterações" max={50} min={1} onChange={(value) => updateSetting("nicknameChangeLimit", value)} value={settings.nicknameChangeLimit} />
+              <NumberField disabled={disabled} label="Nickname: janela" max={3600} min={1} onChange={(value) => updateSetting("nicknameWindowSeconds", value)} value={settings.nicknameWindowSeconds} />
               <NumberField disabled={disabled} label="Caps: minimo" max={500} min={4} onChange={(value) => updateSetting("capsMinLength", value)} value={settings.capsMinLength} />
               <NumberField disabled={disabled} label="Caps: porcentagem" max={100} min={40} onChange={(value) => updateSetting("capsPercentage", value)} value={settings.capsPercentage} />
               <NumberField disabled={disabled} label="Texto repetido" max={25} min={2} onChange={(value) => updateSetting("repeatedTextLimit", value)} value={settings.repeatedTextLimit} />
@@ -662,6 +742,23 @@ export function SelfBotProtectionPanel({
               <NumberField disabled={disabled} label="Raid: janela" max={3600} min={5} onChange={(value) => updateSetting("raidWindowSeconds", value)} value={settings.raidWindowSeconds} />
               <NumberField disabled={disabled} label="Conta nova: horas" max={87600} min={1} onChange={(value) => updateSetting("newAccountMaxAgeHours", value)} value={settings.newAccountMaxAgeHours} />
               <NumberField disabled={disabled} label="Timeout: segundos" max={2419200} min={5} onChange={(value) => updateSetting("timeoutSeconds", value)} value={settings.timeoutSeconds} />
+            </div>
+          </Section>
+
+          <Section icon={Bot} title="Entrada de bots, raid e avisos">
+            <div className="grid gap-4 md:grid-cols-2">
+              <SelectField disabled={disabled} icon={Bot} label="Ao entrar um bot" onChange={(value) => updateSetting("antiBotAction", value as SelfBotProtectionSettings["antiBotAction"])} options={[
+                { label: "Permitir", value: "allow" }, { label: "Expulsar", value: "kick" }, { label: "Banir", value: "ban" }, { label: "Aprovação manual", value: "manual" }
+              ]} placeholder="Selecione uma ação" value={settings.antiBotAction} />
+              <div className="grid gap-2">
+                <ToggleRow checked={settings.raidLockdownEnabled} disabled={disabled} label="Lockdown automático em raid" onChange={(value) => updateSetting("raidLockdownEnabled", value)} />
+                <ToggleRow checked={settings.dmWarningEnabled} disabled={disabled} label="Avisar usuário por DM" onChange={(value) => updateSetting("dmWarningEnabled", value)} />
+              </div>
+              <label className="grid gap-2 text-sm md:col-span-2">
+                <span className="font-medium text-zinc-200">Mensagem da DM</span>
+                <textarea className="min-h-24 rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-zinc-100" disabled={disabled || !settings.dmWarningEnabled} onChange={(event) => updateSetting("dmWarningMessage", event.target.value)} value={settings.dmWarningMessage} />
+                <span className="text-xs text-zinc-500">Variáveis: {'{protecao}'}, {'{modulo}'}, {'{servidor}'}, {'{usuario}'}</span>
+              </label>
             </div>
           </Section>
 
@@ -715,6 +812,24 @@ export function SelfBotProtectionPanel({
                 onChange={(values) => updateSetting("blockedTerms", values)}
                 value={settings.blockedTerms}
               />
+            </div>
+          </Section>
+
+          <Section icon={ScrollText} title="Logs por proteção">
+            <p className="mb-4 text-xs text-zinc-500">Deixe em “canal global” para usar o canal de logs principal.</p>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {modules.map((module) => (
+                <SelectField
+                  disabled={disabled}
+                  icon={ScrollText}
+                  key={module.id}
+                  label={module.label}
+                  onChange={(value) => updateSetting("moduleLogChannelIds", { ...settings.moduleLogChannelIds, [module.id]: value || undefined })}
+                  options={channels.map((channel) => ({ label: `#${channel.name}`, value: channel.id }))}
+                  placeholder="Canal global"
+                  value={settings.moduleLogChannelIds[module.id] ?? ""}
+                />
+              ))}
             </div>
           </Section>
 

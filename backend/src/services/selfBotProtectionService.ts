@@ -46,9 +46,20 @@ export type SelfBotProtectionSettingsDto = {
   enabled: boolean;
   moduleToggles: Record<SelfBotProtectionModuleId, boolean>;
   ignoredChannelIds: string[];
+  ignoredUserIds: string[];
+  ignoredRoleIds: string[];
+  ignoredBotIds: string[];
+  ignoredCategoryIds: string[];
   protectedChannelIds: string[];
   mediaChannelIds: string[];
   linkChannelIds: string[];
+  allowedDomains: string[];
+  allowedInviteGuildIds: string[];
+  blockedFileExtensions: string[];
+  blockImages: boolean;
+  blockGifs: boolean;
+  blockVideos: boolean;
+  blockAudio: boolean;
   logChannelId: string | null;
   punishmentLogChannelId: string | null;
   logWebhookUrl: string | null;
@@ -64,6 +75,15 @@ export type SelfBotProtectionSettingsDto = {
   imageWindowSeconds: number;
   mentionLimit: number;
   emojiLimit: number;
+  stickerLimit: number;
+  stickerWindowSeconds: number;
+  nicknameChangeLimit: number;
+  nicknameWindowSeconds: number;
+  antiBotAction: "allow" | "kick" | "ban" | "manual";
+  raidLockdownEnabled: boolean;
+  dmWarningEnabled: boolean;
+  dmWarningMessage: string;
+  moduleLogChannelIds: Partial<Record<SelfBotProtectionModuleId, string>>;
   capsMinLength: number;
   capsPercentage: number;
   repeatedTextLimit: number;
@@ -197,6 +217,11 @@ export const SELF_BOT_PROTECTION_MODULES: Array<{
   { id: "anti-divulgacao", label: "Anti Divulgacao" },
   { id: "anti-auto-spam", label: "Anti Auto Spam" },
   { id: "anti-comandos-em-massa", label: "Anti Comandos em Massa" }
+  ,{ id: "anti-stickers", label: "Anti Stickers" }
+  ,{ id: "anti-nome", label: "Anti Nome" }
+  ,{ id: "anti-cargos", label: "Anti Cargos" }
+  ,{ id: "anti-canais", label: "Anti Canais" }
+  ,{ id: "anti-emojis-servidor", label: "Anti Emojis do Servidor" }
 ];
 
 export const SELF_BOT_PUNISHMENT_ACTIONS: SelfBotPunishmentAction[] = [
@@ -247,9 +272,20 @@ export function defaultSelfBotProtectionSettings(guildId: string, botId: string)
     enabled: false,
     moduleToggles: defaultSafeBotModuleToggles(),
     ignoredChannelIds: [],
+    ignoredUserIds: [],
+    ignoredRoleIds: [],
+    ignoredBotIds: [],
+    ignoredCategoryIds: [],
     protectedChannelIds: [],
     mediaChannelIds: [],
     linkChannelIds: [],
+    allowedDomains: ["youtube.com", "youtu.be", "twitch.tv", "kick.com", "github.com"],
+    allowedInviteGuildIds: [],
+    blockedFileExtensions: ["zip", "rar", "exe", "bat", "js", "html", "dll", "scr", "apk", "msi"],
+    blockImages: true,
+    blockGifs: true,
+    blockVideos: true,
+    blockAudio: true,
     logChannelId: null,
     punishmentLogChannelId: null,
     logWebhookUrl: null,
@@ -265,6 +301,15 @@ export function defaultSelfBotProtectionSettings(guildId: string, botId: string)
     imageWindowSeconds: 15,
     mentionLimit: 5,
     emojiLimit: 12,
+    stickerLimit: 3,
+    stickerWindowSeconds: 15,
+    nicknameChangeLimit: 3,
+    nicknameWindowSeconds: 60,
+    antiBotAction: "manual",
+    raidLockdownEnabled: false,
+    dmWarningEnabled: false,
+    dmWarningMessage: "Você violou a proteção {protecao} no servidor {servidor}.",
+    moduleLogChannelIds: {},
     capsMinLength: 12,
     capsPercentage: 70,
     repeatedTextLimit: 3,
@@ -357,9 +402,20 @@ export async function saveSelfBotProtectionSettings(
         enabled: next.enabled,
         moduleToggles: next.moduleToggles,
         ignoredChannelIds: next.ignoredChannelIds,
+        ignoredUserIds: next.ignoredUserIds,
+        ignoredRoleIds: next.ignoredRoleIds,
+        ignoredBotIds: next.ignoredBotIds,
+        ignoredCategoryIds: next.ignoredCategoryIds,
         protectedChannelIds: next.protectedChannelIds,
         mediaChannelIds: next.mediaChannelIds,
         linkChannelIds: next.linkChannelIds,
+        allowedDomains: next.allowedDomains,
+        allowedInviteGuildIds: next.allowedInviteGuildIds,
+        blockedFileExtensions: next.blockedFileExtensions,
+        blockImages: next.blockImages,
+        blockGifs: next.blockGifs,
+        blockVideos: next.blockVideos,
+        blockAudio: next.blockAudio,
         logChannelId: next.logChannelId,
         punishmentLogChannelId: next.punishmentLogChannelId,
         logWebhookUrl: next.logWebhookUrl,
@@ -375,6 +431,15 @@ export async function saveSelfBotProtectionSettings(
         imageWindowSeconds: next.imageWindowSeconds,
         mentionLimit: next.mentionLimit,
         emojiLimit: next.emojiLimit,
+        stickerLimit: next.stickerLimit,
+        stickerWindowSeconds: next.stickerWindowSeconds,
+        nicknameChangeLimit: next.nicknameChangeLimit,
+        nicknameWindowSeconds: next.nicknameWindowSeconds,
+        antiBotAction: next.antiBotAction,
+        raidLockdownEnabled: next.raidLockdownEnabled,
+        dmWarningEnabled: next.dmWarningEnabled,
+        dmWarningMessage: next.dmWarningMessage,
+        moduleLogChannelIds: next.moduleLogChannelIds,
         capsMinLength: next.capsMinLength,
         capsPercentage: next.capsPercentage,
         repeatedTextLimit: next.repeatedTextLimit,
@@ -577,9 +642,20 @@ function toSettingsDto(settings: MongoSelfBotProtectionSettings): SelfBotProtect
       ...(settings.moduleToggles ?? {})
     },
     ignoredChannelIds: settings.ignoredChannelIds ?? [],
+    ignoredUserIds: settings.ignoredUserIds ?? [],
+    ignoredRoleIds: settings.ignoredRoleIds ?? [],
+    ignoredBotIds: settings.ignoredBotIds ?? [],
+    ignoredCategoryIds: settings.ignoredCategoryIds ?? [],
     protectedChannelIds: settings.protectedChannelIds ?? [],
     mediaChannelIds: settings.mediaChannelIds ?? [],
     linkChannelIds: settings.linkChannelIds ?? [],
+    allowedDomains: settings.allowedDomains ?? [],
+    allowedInviteGuildIds: settings.allowedInviteGuildIds ?? [],
+    blockedFileExtensions: settings.blockedFileExtensions ?? [],
+    blockImages: settings.blockImages ?? true,
+    blockGifs: settings.blockGifs ?? true,
+    blockVideos: settings.blockVideos ?? true,
+    blockAudio: settings.blockAudio ?? true,
     logChannelId: settings.logChannelId,
     punishmentLogChannelId: settings.punishmentLogChannelId ?? null,
     logWebhookUrl: settings.logWebhookUrl,
@@ -595,6 +671,15 @@ function toSettingsDto(settings: MongoSelfBotProtectionSettings): SelfBotProtect
     imageWindowSeconds: settings.imageWindowSeconds,
     mentionLimit: settings.mentionLimit,
     emojiLimit: settings.emojiLimit,
+    stickerLimit: settings.stickerLimit ?? 3,
+    stickerWindowSeconds: settings.stickerWindowSeconds ?? 15,
+    nicknameChangeLimit: settings.nicknameChangeLimit ?? 3,
+    nicknameWindowSeconds: settings.nicknameWindowSeconds ?? 60,
+    antiBotAction: settings.antiBotAction ?? "manual",
+    raidLockdownEnabled: settings.raidLockdownEnabled ?? false,
+    dmWarningEnabled: settings.dmWarningEnabled ?? false,
+    dmWarningMessage: settings.dmWarningMessage ?? "",
+    moduleLogChannelIds: settings.moduleLogChannelIds ?? {},
     capsMinLength: settings.capsMinLength,
     capsPercentage: settings.capsPercentage,
     repeatedTextLimit: settings.repeatedTextLimit,
@@ -742,9 +827,20 @@ function normalizeSettings(settings: SelfBotProtectionSettingsDto): SelfBotProte
     ...settings,
     moduleToggles: normalizeModuleToggles(settings.moduleToggles),
     ignoredChannelIds: normalizeSnowflakes(settings.ignoredChannelIds),
+    ignoredUserIds: normalizeSnowflakes(settings.ignoredUserIds),
+    ignoredRoleIds: normalizeSnowflakes(settings.ignoredRoleIds),
+    ignoredBotIds: normalizeSnowflakes(settings.ignoredBotIds),
+    ignoredCategoryIds: normalizeSnowflakes(settings.ignoredCategoryIds),
     protectedChannelIds: normalizeSnowflakes(settings.protectedChannelIds),
     mediaChannelIds: normalizeSnowflakes(settings.mediaChannelIds),
     linkChannelIds: normalizeSnowflakes(settings.linkChannelIds),
+    allowedDomains: normalizeDomainList(settings.allowedDomains),
+    allowedInviteGuildIds: normalizeSnowflakes(settings.allowedInviteGuildIds),
+    blockedFileExtensions: normalizeExtensionList(settings.blockedFileExtensions),
+    blockImages: settings.blockImages !== false,
+    blockGifs: settings.blockGifs !== false,
+    blockVideos: settings.blockVideos !== false,
+    blockAudio: settings.blockAudio !== false,
     logChannelId: normalizeSnowflake(settings.logChannelId),
     punishmentLogChannelId: normalizeSnowflake(settings.punishmentLogChannelId),
     logWebhookUrl: normalizeWebhookUrl(settings.logWebhookUrl),
@@ -764,6 +860,15 @@ function normalizeSettings(settings: SelfBotProtectionSettingsDto): SelfBotProte
     imageWindowSeconds: clampInteger(settings.imageWindowSeconds, 1, 3_600, defaults.imageWindowSeconds),
     mentionLimit: clampInteger(settings.mentionLimit, 1, 100, defaults.mentionLimit),
     emojiLimit: clampInteger(settings.emojiLimit, 1, 200, defaults.emojiLimit),
+    stickerLimit: clampInteger(settings.stickerLimit, 1, 50, defaults.stickerLimit),
+    stickerWindowSeconds: clampInteger(settings.stickerWindowSeconds, 1, 3_600, defaults.stickerWindowSeconds),
+    nicknameChangeLimit: clampInteger(settings.nicknameChangeLimit, 1, 50, defaults.nicknameChangeLimit),
+    nicknameWindowSeconds: clampInteger(settings.nicknameWindowSeconds, 1, 3_600, defaults.nicknameWindowSeconds),
+    antiBotAction: ["allow", "kick", "ban", "manual"].includes(settings.antiBotAction) ? settings.antiBotAction : defaults.antiBotAction,
+    raidLockdownEnabled: settings.raidLockdownEnabled === true,
+    dmWarningEnabled: settings.dmWarningEnabled === true,
+    dmWarningMessage: normalizeText(settings.dmWarningMessage, 1_500) ?? defaults.dmWarningMessage,
+    moduleLogChannelIds: normalizeModuleLogChannels(settings.moduleLogChannelIds),
     capsMinLength: clampInteger(settings.capsMinLength, 4, 500, defaults.capsMinLength),
     capsPercentage: clampInteger(settings.capsPercentage, 40, 100, defaults.capsPercentage),
     repeatedTextLimit: clampInteger(settings.repeatedTextLimit, 2, 25, defaults.repeatedTextLimit),
@@ -984,6 +1089,29 @@ function normalizeText(value: string | null | undefined, maxLength: number) {
 
 function normalizeTextList(values: string[], maxItems: number) {
   return [...new Set(values.map((value) => value.trim().toLowerCase()).filter(Boolean))].slice(0, maxItems);
+}
+
+function normalizeDomainList(values: string[]) {
+  return normalizeTextList(values, 250)
+    .map((value) => value.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0] ?? "")
+    .filter((value) => /^(?:[a-z0-9-]+\.)+[a-z]{2,63}$/.test(value));
+}
+
+function normalizeExtensionList(values: string[]) {
+  return normalizeTextList(values, 100)
+    .map((value) => value.replace(/^\.+/, ""))
+    .filter((value) => /^[a-z0-9]{1,12}$/.test(value));
+}
+
+function normalizeModuleLogChannels(value: Partial<Record<SelfBotProtectionModuleId, string>>) {
+  const result: Partial<Record<SelfBotProtectionModuleId, string>> = {};
+  for (const [moduleId, channelId] of Object.entries(value ?? {})) {
+    const normalized = normalizeSnowflake(channelId);
+    if (moduleIdSet.has(moduleId as SelfBotProtectionModuleId) && normalized) {
+      result[moduleId as SelfBotProtectionModuleId] = normalized;
+    }
+  }
+  return result;
 }
 
 function normalizeWebhookUrl(value: string | null | undefined) {

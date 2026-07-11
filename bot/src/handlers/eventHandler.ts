@@ -14,7 +14,7 @@ import { isLinkAntiSpamEnabled } from "../services/linkAntiSpamService";
 import { isMaintenanceModeActive } from "../services/maintenanceService";
 import { handleApplicationEmojiGuildCreate, handleApplicationEmojiGuildDelete, handleApplicationEmojiGuildUpdate } from "../services/applicationEmojiSyncService";
 import { clearSafeBotSetupCache, ensureSafeBotSetup, isSelfBotModuleEnabled } from "../services/safeBotService";
-import { handleSelfBotProtectionGuildMutation } from "../services/selfBotProtectionService";
+import { handleSelfBotProtectionGuildMutation, handleSelfBotProtectionMemberUpdate } from "../services/selfBotProtectionService";
 import { handleAutoUnmuteVoiceStateUpdate } from "../services/autoUnmuteService";
 import { handleAntiDisconnectVoiceStateUpdate } from "../services/antiDisconnectService";
 import { handleAntiAbuseVoiceStateUpdate } from "../services/antiAbuseService";
@@ -104,6 +104,9 @@ export function registerEvents(client: Client, context: BotContext) {
         const [oldResolved, newResolved] = await Promise.all([resolveMember(oldMember), resolveMember(newMember)]);
         if (oldResolved && newResolved) {
           await handleGuildMemberUpdate(oldResolved, newResolved, context);
+          if (managedRuntimeBot || isSelfBotModuleEnabled()) {
+            await handleSelfBotProtectionMemberUpdate(oldResolved, newResolved, context);
+          }
           if (managedRuntimeBot || isBotModuleEnabled("anti-ban")) {
             const removedRoleIds = oldResolved.roles.cache.filter((role) => !newResolved.roles.cache.has(role.id)).map((role) => role.id);
             const addedRoleIds = newResolved.roles.cache.filter((role) => !oldResolved.roles.cache.has(role.id)).map((role) => role.id);
@@ -206,6 +209,7 @@ export function registerEvents(client: Client, context: BotContext) {
           runEvent("channelDelete.antiBan", () => handleAntiBanDetection(context, { actionType: "channel_delete", auditType: AuditLogEvent.ChannelDelete, guild: channel.guild, targetId: channel.id }));
         }
         if (managedRuntimeBot || isSelfBotModuleEnabled()) {
+          runEvent("channelDelete.selfBotMutation", () => handleSelfBotProtectionGuildMutation(channel.guild, context, "channel_delete", channel.id));
           clearSafeBotSetupCache(channel.guild.id);
           runEvent("channelDelete.ensureSafeBotSetup", () => ensureSafeBotSetup(channel.guild, context));
         }
@@ -215,13 +219,13 @@ export function registerEvents(client: Client, context: BotContext) {
       if (isMaintenanceModeActive()) return;
       if (!(managedRuntimeBot || isSelfBotModuleEnabled())) return;
       if ("guild" in channel) {
-        runEvent("channelCreate.selfBotMutation", () => handleSelfBotProtectionGuildMutation(channel.guild, context, "channel_create", channel.id));
+        runEvent("channelCreate.selfBotMutation", () => handleSelfBotProtectionGuildMutation(channel.guild, context, "channel_create", channel.id, () => channel.delete("SafeBot: criação não autorizada")));
       }
     });
     client.on(Events.GuildRoleCreate, (role) => {
       if (isMaintenanceModeActive()) return;
       if (!(managedRuntimeBot || isSelfBotModuleEnabled())) return;
-      runEvent("guildRoleCreate.selfBotMutation", () => handleSelfBotProtectionGuildMutation(role.guild, context, "role_create", null));
+      runEvent("guildRoleCreate.selfBotMutation", () => handleSelfBotProtectionGuildMutation(role.guild, context, "role_create", null, () => role.delete("SafeBot: criação não autorizada")));
     });
     client.on(Events.GuildRoleDelete, (role) => {
       if (isMaintenanceModeActive()) return;
@@ -236,9 +240,20 @@ export function registerEvents(client: Client, context: BotContext) {
         }));
       }
       if (managedRuntimeBot || isSelfBotModuleEnabled()) {
+        runEvent("guildRoleDelete.selfBotMutation", () => handleSelfBotProtectionGuildMutation(role.guild, context, "role_delete"));
         clearSafeBotSetupCache(role.guild.id);
         runEvent("guildRoleDelete.ensureSafeBotSetup", () => ensureSafeBotSetup(role.guild, context));
       }
+    });
+    client.on(Events.ChannelUpdate, (oldChannel, newChannel) => {
+      if (isMaintenanceModeActive() || !(managedRuntimeBot || isSelfBotModuleEnabled()) || !("guild" in newChannel)) return;
+      runEvent("channelUpdate.selfBotMutation", () => handleSelfBotProtectionGuildMutation(newChannel.guild, context, "channel_update", newChannel.id, async () => {
+        if ("edit" in newChannel && "name" in oldChannel) await newChannel.edit({ name: oldChannel.name, reason: "SafeBot: rollback" });
+      }));
+    });
+    client.on(Events.GuildRoleUpdate, (oldRole, newRole) => {
+      if (isMaintenanceModeActive() || !(managedRuntimeBot || isSelfBotModuleEnabled())) return;
+      runEvent("guildRoleUpdate.selfBotMutation", () => handleSelfBotProtectionGuildMutation(newRole.guild, context, "role_update", null, () => newRole.edit({ name: oldRole.name, permissions: oldRole.permissions, color: oldRole.color, hoist: oldRole.hoist, mentionable: oldRole.mentionable, reason: "SafeBot: rollback" })));
     });
     client.on(Events.WebhooksUpdate, (channel) => {
       if (isMaintenanceModeActive()) return;
@@ -288,18 +303,36 @@ export function registerEvents(client: Client, context: BotContext) {
     });
   }
 
-  if (managedRuntimeBot || isBotModuleEnabled("emoji-cloner")) {
+  if (managedRuntimeBot || isBotModuleEnabled("emoji-cloner") || isSelfBotModuleEnabled()) {
     client.on(Events.GuildEmojiCreate, (emoji) => {
       if (isMaintenanceModeActive()) return;
-      runEvent("guildEmojiCreate.applicationSync", () => handleApplicationEmojiGuildCreate(emoji, context));
+      if (managedRuntimeBot || isBotModuleEnabled("emoji-cloner")) runEvent("guildEmojiCreate.applicationSync", () => handleApplicationEmojiGuildCreate(emoji, context));
+      if (managedRuntimeBot || isSelfBotModuleEnabled()) runEvent("guildEmojiCreate.selfBotMutation", () => handleSelfBotProtectionGuildMutation(emoji.guild, context, "emoji_create", null, () => emoji.delete("SafeBot: criação não autorizada")));
     });
     client.on(Events.GuildEmojiUpdate, (oldEmoji, newEmoji) => {
       if (isMaintenanceModeActive()) return;
-      runEvent("guildEmojiUpdate.applicationSync", () => handleApplicationEmojiGuildUpdate(oldEmoji, newEmoji, context));
+      if (managedRuntimeBot || isBotModuleEnabled("emoji-cloner")) runEvent("guildEmojiUpdate.applicationSync", () => handleApplicationEmojiGuildUpdate(oldEmoji, newEmoji, context));
+      if (managedRuntimeBot || isSelfBotModuleEnabled()) runEvent("guildEmojiUpdate.selfBotMutation", () => handleSelfBotProtectionGuildMutation(newEmoji.guild, context, "emoji_update", null, () => newEmoji.edit({ name: oldEmoji.name ?? "emoji", reason: "SafeBot: rollback" })));
     });
     client.on(Events.GuildEmojiDelete, (emoji) => {
       if (isMaintenanceModeActive()) return;
-      runEvent("guildEmojiDelete.applicationSync", () => handleApplicationEmojiGuildDelete(emoji, context));
+      if (managedRuntimeBot || isBotModuleEnabled("emoji-cloner")) runEvent("guildEmojiDelete.applicationSync", () => handleApplicationEmojiGuildDelete(emoji, context));
+      if (managedRuntimeBot || isSelfBotModuleEnabled()) runEvent("guildEmojiDelete.selfBotMutation", () => handleSelfBotProtectionGuildMutation(emoji.guild, context, "emoji_delete", null, () => emoji.guild.emojis.create({ attachment: emoji.imageURL(), name: emoji.name ?? "emoji", reason: "SafeBot: restauração" })));
+    });
+    client.on(Events.GuildStickerCreate, (sticker) => {
+      if (isMaintenanceModeActive() || !(managedRuntimeBot || isSelfBotModuleEnabled())) return;
+      if (!sticker.guild) return;
+      runEvent("guildStickerCreate.selfBotMutation", () => handleSelfBotProtectionGuildMutation(sticker.guild!, context, "sticker_create", null, () => sticker.delete()));
+    });
+    client.on(Events.GuildStickerUpdate, (oldSticker, newSticker) => {
+      if (isMaintenanceModeActive() || !(managedRuntimeBot || isSelfBotModuleEnabled())) return;
+      if (!newSticker.guild) return;
+      runEvent("guildStickerUpdate.selfBotMutation", () => handleSelfBotProtectionGuildMutation(newSticker.guild!, context, "sticker_update", null, () => newSticker.edit({ name: oldSticker.name, description: oldSticker.description ?? undefined, tags: oldSticker.tags ?? undefined })));
+    });
+    client.on(Events.GuildStickerDelete, (sticker) => {
+      if (isMaintenanceModeActive() || !(managedRuntimeBot || isSelfBotModuleEnabled())) return;
+      if (!sticker.guild) return;
+      runEvent("guildStickerDelete.selfBotMutation", () => handleSelfBotProtectionGuildMutation(sticker.guild!, context, "sticker_delete"));
     });
   }
 }

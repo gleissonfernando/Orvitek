@@ -48,6 +48,8 @@ const messageHistory = new Map<string, MessageHistoryEntry[]>();
 const attachmentHistory = new Map<string, AttachmentHistoryEntry[]>();
 const guildJoinWindows = new Map<string, number[]>();
 const guildMutationWindows = new Map<string, number[]>();
+const stickerHistory = new Map<string, number[]>();
+const nicknameHistory = new Map<string, number[]>();
 const processingQueues = new Map<string, Promise<boolean>>();
 const roleEnsureInFlight = new Map<string, Promise<unknown>>();
 const actionRateWindows = new Map<string, number[]>();
@@ -131,6 +133,25 @@ export async function handleSelfBotProtectionMemberAdd(member: GuildMember, cont
 
   await ensureRoleForEnabledGuild(member.guild, context);
 
+  if (isMemberExempt(member, settings)) return false;
+
+  if (member.user.bot && isModuleEnabled(settings, "anti-bots") && settings.antiBotAction !== "allow") {
+    if (settings.ignoredBotIds.includes(member.id)) return false;
+    if (settings.antiBotAction === "kick" && member.kickable) {
+      await member.kick("SafeBot: entrada de bot não autorizado");
+      return true;
+    }
+    if (settings.antiBotAction === "ban" && member.bannable) {
+      await member.ban({ reason: "SafeBot: entrada de bot não autorizado" });
+      return true;
+    }
+    await handleViolation({
+      context, guild: member.guild, member, settings,
+      violation: buildViolation("anti-bots", "Bot aguardando aprovação", "Um bot não autorizado entrou no servidor.", { botUserId: member.id })
+    });
+    return true;
+  }
+
   const now = Date.now();
   const createdAt = member.user.createdTimestamp;
   const accountAgeHours = Math.max(0, Math.floor((now - createdAt) / 3_600_000));
@@ -158,6 +179,7 @@ export async function handleSelfBotProtectionMemberAdd(member: GuildMember, cont
     const joins = pushWindow(guildJoinWindows, runtimeScopeKey(member.guild.id), now, settings.raidWindowSeconds);
 
     if (joins.length >= settings.raidJoinLimit) {
+      if (settings.raidLockdownEnabled) await applyRaidLockdown(member.guild);
       await handleViolation({
         context,
         guild: member.guild,
@@ -181,11 +203,17 @@ export async function handleSelfBotProtectionMemberAdd(member: GuildMember, cont
   return false;
 }
 
+async function applyRaidLockdown(guild: Guild) {
+  const channels = guild.channels.cache.filter((channel) => channel.isTextBased() && !channel.isThread()).first(50);
+  await Promise.allSettled(channels.map((channel) => channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: false }, { reason: "SafeBot: lockdown anti-raid" })));
+}
+
 export async function handleSelfBotProtectionGuildMutation(
   guild: Guild,
   context: BotContext,
-  mutation: "channel_create" | "role_create" | "webhook_create",
-  channelId: string | null = null
+  mutation: "channel_create" | "channel_update" | "channel_delete" | "role_create" | "role_update" | "role_delete" | "webhook_create" | "emoji_create" | "emoji_update" | "emoji_delete" | "sticker_create" | "sticker_update" | "sticker_delete",
+  channelId: string | null = null,
+  rollback?: () => Promise<unknown>
 ) {
   if (!isSelfBotModuleEnabled()) {
     return false;
@@ -205,9 +233,15 @@ export async function handleSelfBotProtectionGuildMutation(
   }
 
   const antiWebhook = mutation === "webhook_create" && isModuleEnabled(settings, "anti-webhook");
+  const specificModule = mutation.startsWith("channel_") ? "anti-canais"
+    : mutation.startsWith("role_") ? "anti-cargos"
+      : mutation.startsWith("emoji_") ? "anti-emojis-servidor"
+        : mutation.startsWith("sticker_") ? "anti-stickers"
+          : null;
+  const specificProtection = specificModule ? isModuleEnabled(settings, specificModule) : false;
   const antiRaid = isModuleEnabled(settings, "anti-raid");
 
-  if (!antiWebhook && !antiRaid) {
+  if (!antiWebhook && !antiRaid && !specificProtection) {
     return false;
   }
 
@@ -215,7 +249,7 @@ export async function handleSelfBotProtectionGuildMutation(
   const key = runtimeScopeKey(guild.id, mutation);
   const mutations = pushWindow(guildMutationWindows, key, now, settings.raidWindowSeconds);
 
-  if (!antiWebhook && mutations.length < settings.raidJoinLimit) {
+  if (!antiWebhook && !specificProtection && mutations.length < settings.raidJoinLimit) {
     return false;
   }
 
@@ -230,6 +264,11 @@ export async function handleSelfBotProtectionGuildMutation(
   if (!member) {
     return false;
   }
+  if (isMemberExempt(member, settings)) return false;
+
+  if ((antiWebhook || specificProtection) && rollback) {
+    await rollback().catch((error) => console.warn("[self-bot-protection] rollback falhou:", errorMessage(error)));
+  }
 
   await ensureRoleForEnabledGuild(guild, context);
 
@@ -239,10 +278,12 @@ export async function handleSelfBotProtectionGuildMutation(
     member,
     settings,
     violation: {
-      moduleId: antiWebhook ? "anti-webhook" : "anti-raid",
-      infractionType: antiWebhook ? "Webhook bloqueado" : "Raid detectada",
+      moduleId: antiWebhook ? "anti-webhook" : specificModule ?? "anti-raid",
+      infractionType: antiWebhook ? "Webhook bloqueado" : specificProtection ? "Alteração administrativa bloqueada" : "Raid detectada",
       details: antiWebhook
-        ? "Criacao de webhook detectada."
+        ? "Criação de webhook detectada."
+        : specificProtection
+          ? `${mutationLabel(mutation)} detectada e revertida.`
         : `${mutations.length} evento(s) de ${mutationLabel(mutation)} em ${settings.raidWindowSeconds} segundo(s).`,
       metadata: {
         channelId,
@@ -254,6 +295,16 @@ export async function handleSelfBotProtectionGuildMutation(
     }
   });
   return true;
+}
+
+export async function handleSelfBotProtectionMemberUpdate(oldMember: GuildMember, newMember: GuildMember, context: BotContext) {
+  if (oldMember.nickname === newMember.nickname || !isSelfBotModuleEnabled()) return false;
+  const settings = await getCachedSettings(newMember.guild.id, context).catch(() => null);
+  if (!settings?.enabled || !isModuleEnabled(settings, "anti-nome") || isMemberExempt(newMember, settings)) return false;
+  const changes = pushWindow(nicknameHistory, runtimeScopeKey(newMember.guild.id, newMember.id), Date.now(), settings.nicknameWindowSeconds);
+  if (changes.length < settings.nicknameChangeLimit) return false;
+  if (newMember.manageable) await newMember.setNickname(oldMember.nickname, "SafeBot: excesso de alteração de nickname").catch(() => undefined);
+  return handleViolation({ context, guild: newMember.guild, member: newMember, settings, violation: buildViolation("anti-nome", "Alteração excessiva de nome", `${changes.length} alterações em ${settings.nicknameWindowSeconds} segundos.`, { changes: changes.length }) });
 }
 
 async function processMessage(message: Message, context: BotContext) {
@@ -281,7 +332,13 @@ async function processMessage(message: Message, context: BotContext) {
     return false;
   }
 
-  const violation = detectMessageViolation(message, settings);
+  if (isMemberExempt(member, settings)) return false;
+
+  let violation = detectMessageViolation(message, settings);
+  if (violation?.moduleId === "anti-convites" && settings.allowedInviteGuildIds.length > 0) {
+    const inviteLinks = extractLinks(message.content ?? "").filter((link) => INVITE_PATTERN.test(link));
+    if (inviteLinks.length && await allInvitesAllowed(inviteLinks, settings.allowedInviteGuildIds, context)) violation = null;
+  }
 
   if (!violation) {
     rememberMessageState(message, settings);
@@ -420,24 +477,46 @@ function detectMessageViolation(message: Message, settings: SelfBotProtectionSet
     return buildViolation("anti-convites", "Convite bloqueado", "Convite Discord fora dos canais permitidos.", { links });
   }
 
-  if (links.length && linkNotAllowed && hasAnyModule(settings, ["anti-links", "anti-divulgacao"])) {
-    return buildViolation(activeModule(settings, ["anti-links", "anti-divulgacao"]), "Link bloqueado", "Link fora dos canais de divulgacao.", { links });
+  const disallowedLinks = links.filter((link) => !isAllowedDomain(link, settings.allowedDomains));
+  if (disallowedLinks.length && linkNotAllowed && hasAnyModule(settings, ["anti-links", "anti-divulgacao"])) {
+    return buildViolation(activeModule(settings, ["anti-links", "anti-divulgacao"]), "Link bloqueado", "Domínio não permitido fora dos canais liberados.", { links: disallowedLinks });
   }
 
   if (links.length && hasAnyModule(settings, ["anti-scam", "anti-phishing", "anti-nitro-scam"]) && isSuspiciousLinkOrText(content, links, settings)) {
     return buildViolation(activeModule(settings, ["anti-scam", "anti-phishing", "anti-nitro-scam"]), "Scam ou phishing", "URL ou termo suspeito detectado.", { links });
   }
 
-  if (attachmentStats.images > 0 && mediaNotAllowed && isModuleEnabled(settings, "anti-imagens")) {
+  if (settings.blockImages && attachmentStats.images > 0 && mediaNotAllowed && isModuleEnabled(settings, "anti-imagens")) {
     return buildViolation("anti-imagens", "Imagem bloqueada", "Imagem enviada fora dos canais permitidos.", attachmentStats);
   }
 
-  if (attachmentStats.gifs > 0 && mediaNotAllowed && isModuleEnabled(settings, "anti-gif")) {
+  if (settings.blockGifs && attachmentStats.gifs > 0 && mediaNotAllowed && isModuleEnabled(settings, "anti-gif")) {
     return buildViolation("anti-gif", "GIF bloqueado", "GIF enviado fora dos canais permitidos.", attachmentStats);
   }
 
   if (attachmentStats.total > 0 && mediaNotAllowed && isModuleEnabled(settings, "anti-anexos")) {
-    return buildViolation("anti-anexos", "Anexo bloqueado", "Anexo enviado fora dos canais permitidos.", attachmentStats);
+    const blockedFiles = attachmentStats.extensions.filter((extension) => settings.blockedFileExtensions.includes(extension));
+    if (!blockedFiles.length && !attachmentStats.audios && !attachmentStats.videos) {
+      // Imagens e GIFs são controlados pelos módulos de mídia.
+    } else {
+      return buildViolation("anti-anexos", "Arquivo bloqueado", "Arquivo ou mídia com tipo não permitido.", { ...attachmentStats, blockedFiles });
+    }
+  }
+
+  if (settings.blockVideos && attachmentStats.videos > 0 && mediaNotAllowed && isModuleEnabled(settings, "anti-anexos")) {
+    return buildViolation("anti-anexos", "Vídeo bloqueado", "Vídeo enviado fora dos canais permitidos.", attachmentStats);
+  }
+  if (settings.blockAudio && attachmentStats.audios > 0 && mediaNotAllowed && isModuleEnabled(settings, "anti-anexos")) {
+    return buildViolation("anti-anexos", "Áudio bloqueado", "Áudio enviado fora dos canais permitidos.", attachmentStats);
+  }
+
+  if (attachmentStats.stickers > 0 && isModuleEnabled(settings, "anti-stickers")) {
+    const key = keyForMessage(message);
+    const stickers = pushWindow(stickerHistory, key, Date.now(), settings.stickerWindowSeconds);
+    for (let index = 1; index < attachmentStats.stickers; index += 1) stickers.push(Date.now());
+    if (stickers.length >= settings.stickerLimit) {
+      return buildViolation("anti-stickers", "Flood de stickers", "Quantidade de stickers acima do limite.", { stickerCount: stickers.length });
+    }
   }
 
   if (attachmentStats.mediaTotal > 0 && mediaWindowTotal > settings.imageLimit && hasAnyModule(settings, ["anti-imagens", "anti-anexos"])) {
@@ -543,6 +622,7 @@ async function applyPunishment(input: {
         }
       } else if (action === "warn") {
         await warnMember(input.member, input.message, input.violation.details);
+        await sendDmWarning(input.member, input.settings, input.violation);
         actions.push(action);
       } else if (action === "log") {
         await sendLog(input);
@@ -722,6 +802,16 @@ async function warnMember(member: GuildMember, message: Message | undefined, det
   timer.unref();
 }
 
+async function sendDmWarning(member: GuildMember, settings: SelfBotProtectionSettings, violation: Violation) {
+  if (!settings.dmWarningEnabled) return;
+  const content = settings.dmWarningMessage
+    .replaceAll("{protecao}", violation.infractionType)
+    .replaceAll("{modulo}", violation.moduleId)
+    .replaceAll("{servidor}", member.guild.name)
+    .replaceAll("{usuario}", member.user.username);
+  await member.send({ content, allowedMentions: { parse: [] } }).catch(() => undefined);
+}
+
 async function sendLog(input: {
   guild: Guild;
   member: GuildMember;
@@ -763,8 +853,9 @@ async function sendLog(input: {
     ? null
     : input.settings.punishmentLogChannelId;
 
+  const moduleLogChannelId = input.settings.moduleLogChannelIds[input.violation.moduleId] ?? input.settings.logChannelId;
   await Promise.allSettled([
-    sendChannelLog(input.guild, input.settings.logChannelId, payload),
+    sendChannelLog(input.guild, moduleLogChannelId, payload),
     sendChannelLog(input.guild, punishmentLogChannelId, payload),
     sendWebhookLog(input.settings.logWebhookUrl, embed)
   ]);
@@ -868,7 +959,15 @@ function isChannelProtected(message: Message, settings: SelfBotProtectionSetting
     return false;
   }
 
-  return isAllowedChannel(message, settings.protectedChannelIds);
+  if (isAllowedChannel(message, settings.ignoredCategoryIds)) return false;
+  return settings.protectedChannelIds.length === 0 || isAllowedChannel(message, settings.protectedChannelIds);
+}
+
+function isMemberExempt(member: GuildMember, settings: SelfBotProtectionSettings) {
+  if (member.id === member.guild.ownerId || member.permissions.has("Administrator")) return true;
+  if (settings.ignoredUserIds.includes(member.id)) return true;
+  if (member.user.bot && settings.ignoredBotIds.includes(member.id)) return true;
+  return member.roles.cache.some((role) => settings.ignoredRoleIds.includes(role.id));
 }
 
 function isAllowedChannel(message: Message, channelIds: string[]) {
@@ -880,7 +979,7 @@ function isAllowedChannel(message: Message, channelIds: string[]) {
     return true;
   }
 
-  const parentId = message.channel.isThread() ? message.channel.parentId : null;
+  const parentId = "parentId" in message.channel ? message.channel.parentId : null;
   return Boolean(parentId && channelIds.includes(parentId));
 }
 
@@ -922,10 +1021,14 @@ function countAttachments(message: Message) {
   let images = 0;
   let gifs = gifEmbeds;
   let videos = 0;
+  let audios = 0;
+  const extensions: string[] = [];
 
   for (const attachment of message.attachments.values()) {
     const contentType = attachment.contentType?.toLowerCase() ?? "";
     const name = `${attachment.name ?? ""} ${attachment.url}`.toLowerCase();
+    const extension = (attachment.name ?? "").toLowerCase().match(/\.([a-z0-9]{1,12})$/)?.[1];
+    if (extension) extensions.push(extension);
 
     if (contentType.startsWith("image/gif") || /\.gif(?:$|\?)/i.test(name)) {
       gifs += 1;
@@ -934,6 +1037,8 @@ function countAttachments(message: Message) {
       images += 1;
     } else if (contentType.startsWith("video/") || /\.(?:mp4|mov|webm|mkv)(?:$|\?)/i.test(name)) {
       videos += 1;
+    } else if (contentType.startsWith("audio/") || /\.(?:mp3|wav|ogg|m4a|flac)(?:$|\?)/i.test(name)) {
+      audios += 1;
     }
   }
 
@@ -941,11 +1046,23 @@ function countAttachments(message: Message) {
     embeds,
     gifs,
     images,
-    mediaTotal: images + videos + embeds + stickers,
+    audios,
+    extensions,
+    mediaTotal: images + videos + audios + embeds + stickers,
     stickers,
     total: message.attachments.size + embeds + stickers,
     videos
   };
+}
+
+function isAllowedDomain(link: string, allowedDomains: string[]) {
+  try {
+    const url = new URL(/^https?:\/\//i.test(link) ? link : `https://${link}`);
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, "");
+    return allowedDomains.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
+  } catch {
+    return false;
+  }
 }
 
 function extractLinks(content: string) {
@@ -960,6 +1077,16 @@ function extractLinks(content: string) {
   }
 
   return links;
+}
+
+async function allInvitesAllowed(links: string[], allowedGuildIds: string[], context: BotContext) {
+  const guildIds = await Promise.all(links.map(async (link) => {
+    const code = link.match(INVITE_PATTERN)?.[0]?.split("/").pop();
+    if (!code) return null;
+    const invite = await context.client.fetchInvite(code).catch(() => null);
+    return invite?.guild?.id ?? null;
+  }));
+  return guildIds.every((guildId) => guildId !== null && allowedGuildIds.includes(guildId));
 }
 
 function isSuspiciousLinkOrText(content: string, links: string[], settings: SelfBotProtectionSettings) {
@@ -1053,6 +1180,12 @@ function clearGuildWindows(guildId: string) {
       attachmentHistory.delete(key);
     }
   }
+  for (const key of stickerHistory.keys()) {
+    if (key.startsWith(`${prefix}:`)) stickerHistory.delete(key);
+  }
+  for (const key of nicknameHistory.keys()) {
+    if (key.startsWith(`${prefix}:`)) nicknameHistory.delete(key);
+  }
 
   guildJoinWindows.delete(prefix);
 
@@ -1063,12 +1196,22 @@ function clearGuildWindows(guildId: string) {
   }
 }
 
-async function findAuditExecutor(guild: Guild, mutation: "channel_create" | "role_create" | "webhook_create") {
-  const type = mutation === "channel_create"
-    ? AuditLogEvent.ChannelCreate
-    : mutation === "role_create"
-      ? AuditLogEvent.RoleCreate
-      : AuditLogEvent.WebhookCreate;
+type GuildMutation = Parameters<typeof handleSelfBotProtectionGuildMutation>[2];
+
+async function findAuditExecutor(guild: Guild, mutation: GuildMutation) {
+  const type = mutation === "channel_create" ? AuditLogEvent.ChannelCreate
+    : mutation === "channel_update" ? AuditLogEvent.ChannelUpdate
+      : mutation === "channel_delete" ? AuditLogEvent.ChannelDelete
+        : mutation === "role_create" ? AuditLogEvent.RoleCreate
+          : mutation === "role_update" ? AuditLogEvent.RoleUpdate
+            : mutation === "role_delete" ? AuditLogEvent.RoleDelete
+              : mutation === "emoji_create" ? AuditLogEvent.EmojiCreate
+                : mutation === "emoji_update" ? AuditLogEvent.EmojiUpdate
+                  : mutation === "emoji_delete" ? AuditLogEvent.EmojiDelete
+                    : mutation === "sticker_create" ? AuditLogEvent.StickerCreate
+                      : mutation === "sticker_update" ? AuditLogEvent.StickerUpdate
+                        : mutation === "sticker_delete" ? AuditLogEvent.StickerDelete
+                          : AuditLogEvent.WebhookCreate;
   const logs = await guild.fetchAuditLogs({
     limit: 1,
     type
@@ -1082,10 +1225,8 @@ async function findAuditExecutor(guild: Guild, mutation: "channel_create" | "rol
   return entry.executor ?? null;
 }
 
-function mutationLabel(mutation: "channel_create" | "role_create" | "webhook_create") {
-  if (mutation === "channel_create") return "criacao de canais";
-  if (mutation === "role_create") return "criacao de cargos";
-  return "criacao de webhooks";
+function mutationLabel(mutation: GuildMutation) {
+  return mutation.replace("_", " ");
 }
 
 function parseColor(value: string) {

@@ -2894,7 +2894,12 @@ export type MongoSelfBotProtectionModuleId =
   | "anti-mass-ping"
   | "anti-divulgacao"
   | "anti-auto-spam"
-  | "anti-comandos-em-massa";
+  | "anti-comandos-em-massa"
+  | "anti-stickers"
+  | "anti-nome"
+  | "anti-cargos"
+  | "anti-canais"
+  | "anti-emojis-servidor";
 
 export type MongoSelfBotPunishmentAction =
   | "delete_message"
@@ -2935,9 +2940,20 @@ export type MongoSelfBotProtectionSettings = {
   enabled: boolean;
   moduleToggles: Partial<Record<MongoSelfBotProtectionModuleId, boolean>>;
   ignoredChannelIds: string[];
+  ignoredUserIds?: string[];
+  ignoredRoleIds?: string[];
+  ignoredBotIds?: string[];
+  ignoredCategoryIds?: string[];
   protectedChannelIds: string[];
   mediaChannelIds: string[];
   linkChannelIds: string[];
+  allowedDomains?: string[];
+  allowedInviteGuildIds?: string[];
+  blockedFileExtensions?: string[];
+  blockImages?: boolean;
+  blockGifs?: boolean;
+  blockVideos?: boolean;
+  blockAudio?: boolean;
   logChannelId: string | null;
   punishmentLogChannelId?: string | null;
   logWebhookUrl: string | null;
@@ -2953,6 +2969,15 @@ export type MongoSelfBotProtectionSettings = {
   imageWindowSeconds: number;
   mentionLimit: number;
   emojiLimit: number;
+  stickerLimit?: number;
+  stickerWindowSeconds?: number;
+  nicknameChangeLimit?: number;
+  nicknameWindowSeconds?: number;
+  antiBotAction?: "allow" | "kick" | "ban" | "manual";
+  raidLockdownEnabled?: boolean;
+  dmWarningEnabled?: boolean;
+  dmWarningMessage?: string;
+  moduleLogChannelIds?: Partial<Record<MongoSelfBotProtectionModuleId, string>>;
   capsMinLength: number;
   capsPercentage: number;
   repeatedTextLimit: number;
