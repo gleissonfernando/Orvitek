@@ -36,7 +36,7 @@ discloud init
 O arquivo versionado na raiz ja contem a configuracao usada por este projeto:
 
 ```text
-NAME=OrviteK
+NAME=NexTechK
 TYPE=bot
 MAIN=index.js
 RAM=512
