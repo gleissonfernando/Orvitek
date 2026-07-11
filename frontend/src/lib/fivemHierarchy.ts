@@ -4,6 +4,9 @@ export type EditableFivemHierarchyPanel = Pick<
   FivemHierarchyPanel,
   | "allowedRoleIds"
   | "color"
+  | "configRevision"
+  | "commandRoleIds"
+  | "commandUserIds"
   | "description"
   | "enabled"
   | "footerEnabled"
@@ -14,9 +17,12 @@ export type EditableFivemHierarchyPanel = Pick<
   | "imageUrl"
   | "linkedToFivem"
   | "logChannelId"
+  | "managerRoleIds"
+  | "managerUserIds"
   | "name"
   | "panelChannelId"
   | "title"
+  | "status"
 >;
 
 const UUID_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
@@ -27,6 +33,9 @@ export function buildEditableFivemHierarchyPanelPayload(panel: FivemHierarchyPan
   return {
     allowedRoleIds: panel.allowedRoleIds,
     color: panel.color,
+    configRevision: panel.configRevision,
+    commandRoleIds: panel.commandRoleIds,
+    commandUserIds: panel.commandUserIds,
     description: panel.description,
     enabled: panel.enabled,
     footerEnabled: panel.footerEnabled,
@@ -37,9 +46,12 @@ export function buildEditableFivemHierarchyPanelPayload(panel: FivemHierarchyPan
     imageUrl: panel.imageUrl,
     linkedToFivem: panel.linkedToFivem,
     logChannelId: panel.logChannelId,
+    managerRoleIds: panel.managerRoleIds,
+    managerUserIds: panel.managerUserIds,
     name: panel.name,
     panelChannelId: panel.panelChannelId,
-    title: panel.title
+    title: panel.title,
+    status: panel.status
   };
 }
 

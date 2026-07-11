@@ -15,6 +15,7 @@ import type { BotCommand, BotContext } from "../types";
 import type { FivemHierarchyPanel } from "./apiClient";
 import { renderComponentsV2Panel, type PanelVisualConfig } from "./panelVisualRenderer";
 import type { FivemHierarchyPanelUpdateAck, FivemHierarchyPanelUpdateEvent } from "../websocket/socketClient";
+import { openHierarchyConfig } from "./fivemHierarchyConfigService";
 
 type ScheduledRefresh = {
   deletedRoleIds: Set<string>;
@@ -104,18 +105,13 @@ export const hierarchyCommand: BotCommand = {
   moduleId: "fivem-hierarchy",
   async execute(interaction: ChatInputCommandInteraction, context: BotContext) {
     if (!interaction.guild) return;
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: "Voce precisa de permissao para gerenciar o servidor.", ephemeral: true });
-      return;
-    }
-
     const subcommand = interaction.options.getSubcommand();
     if (subcommand === "config") {
-      const origin = (env.FRONTEND_URL || "https://orvitek-bots.discloud.app").replace(/\/+$/, "");
-      await interaction.reply({
-        content: `Configure os painéis de Hierarquia V2 pela dashboard:\n${origin}/dashboard/hierarquia`,
-        ephemeral: true
-      });
+      await openHierarchyConfig(interaction, context);
+      return;
+    }
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+      await interaction.reply({ content: "Voce precisa de permissao para gerenciar o servidor.", ephemeral: true });
       return;
     }
 
@@ -169,11 +165,11 @@ async function handleHierarchyPanelUpdateEvent(
   }
   invalidateHierarchyRefreshGeneration(payload.guildId, panelId);
 
-  if (payload.action === "delete") {
+  if (payload.action === "delete" || payload.action === "unpublish") {
     if (!panelId) {
       return { error: "Painel de hierarquia nao informado para exclusao.", ok: false, panelId: "unknown" };
     }
-    await cancelHierarchyPanelUpdates(payload.guildId, panelId, true);
+    await cancelHierarchyPanelUpdates(payload.guildId, panelId, payload.action === "delete");
     hierarchyPanelCaches.delete(panelCacheKey(payload.guildId, panelId));
     await deleteOfficialHierarchyPanelMessage(
       guild,
@@ -864,7 +860,7 @@ function renderHierarchyFields(guild: Guild, panel: FivemHierarchyPanel, cache: 
     const hiddenCount = members.length - limitedMembers.length;
     const lines = limitedMembers.map(formatHierarchyMemberLine);
     if (hiddenCount > 0) lines.push(`_+${hiddenCount} membro(s) oculto(s) pelo limite configurado._`);
-    return `${item.emoji ?? ""} **${item.name}**\n${lines.length ? lines.join("\n") : "*Nenhum membro encontrado.*"}`;
+    return `${item.emoji ?? ""} **${item.name}**\n${roleExists ? (lines.length ? lines.join("\n") : "*Nenhum membro encontrado.*") : `⚠️ *Cargo não encontrado (${item.roleId}).*`}`;
   });
 
   return splitHierarchySections(sections.length ? sections : ["*Nenhuma hierarquia configurada.*"]);
@@ -1215,6 +1211,12 @@ async function logMissingHierarchyRoles(context: BotContext, guild: Guild, panel
     .filter((item) => item.active && item.roleId && !guild.roles.cache.has(item.roleId))
     .map((item) => ({ name: item.name, roleId: item.roleId }));
   if (!missing.length) return;
+  await context.api.recordFivemHierarchyAudit({
+    action: "hierarchy.role_deleted",
+    details: { fingerprint: createHash("sha256").update(JSON.stringify(missing.slice().sort((a, b) => a.roleId.localeCompare(b.roleId)))).digest("hex"), missing, origin: "Discord" },
+    guildId: guild.id,
+    panelId: panel.id
+  }).catch(() => null);
   await context.api.postLog({
     guildId: guild.id,
     channelId: panel.panelChannelId,
@@ -1224,6 +1226,12 @@ async function logMissingHierarchyRoles(context: BotContext, guild: Guild, panel
     message: `Cargos configurados na hierarquia nao existem mais no servidor: ${missing.map((item) => `${item.name} (${item.roleId})`).join(", ")}`,
     metadata: { missing, panelId: panel.id }
   }).catch(() => null);
+  if (panel.logChannelId) {
+    const channel = await guild.channels.fetch(panel.logChannelId).catch(() => null);
+    if (channel?.isTextBased() && !channel.isDMBased()) {
+      await channel.send(renderComponentsV2Panel({ accentColor: 0xef4444, description: `Hierarquia: **${panel.name}**\n${missing.map((item) => `- ${item.name}: cargo ${item.roleId} não encontrado`).join("\n")}\n\nSelecione um novo cargo pela dashboard ou por \`/hierarquia config\`.`, moduleId: "fivem-hierarchy", title: "Cargo vinculado excluído" })).catch(() => null);
+    }
+  }
 }
 
 function colorToInt(value: string) {

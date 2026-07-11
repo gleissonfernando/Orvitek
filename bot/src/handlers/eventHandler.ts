@@ -75,7 +75,10 @@ export function registerEvents(client: Client, context: BotContext) {
     });
   });
 
-  const memberEventsEnabled = env.BOT_MEMBER_EVENTS_ENABLED || managedRuntimeBot || isBotModuleEnabled("fivem-hierarchy");
+  const memberEventsEnabled = env.BOT_MEMBER_EVENTS_ENABLED
+    || managedRuntimeBot
+    || isBotModuleEnabled("fivem-hierarchy")
+    || isSelfBotModuleEnabled();
 
   if (memberEventsEnabled && (managedRuntimeBot || ["welcome", "leave", "roles", "logs", "fivem-fac", "fivem-hierarchy", "account-age-security", "safe-bot", "anti-ban"].some(isBotModuleEnabled))) {
     client.on(Events.GuildMemberAdd, (member) => {

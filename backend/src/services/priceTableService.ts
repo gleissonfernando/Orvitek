@@ -75,7 +75,10 @@ export async function savePriceTable(botId: string, guildId: string, tableId: st
       }
     );
     const table = await priceTables.findOne({ _id: tableId, botId, guildId });
-    if (table) await writePriceTableLog("updated", table, actorId, { changed: Object.keys(normalized) });
+    if (table) {
+      await writePriceTableLog("updated", table, actorId, { changed: Object.keys(normalized) });
+      if (table.messageId) emitRealtime("price-tables:panel_publish", { botId, guildId, tableId });
+    }
     return table ? toPriceTableDto(table) : null;
   }
 
@@ -156,8 +159,14 @@ export async function createPriceTableRequest(botId: string, guildId: string, in
 }
 
 export function toPriceTableDto(table: MongoPriceTable): PriceTableDto {
+  const defaults = defaultPriceTable();
   return {
+    ...defaults,
     ...table,
+    panelEmojis: { ...defaults.panelEmojis, ...table.panelEmojis },
+    panelSections: { ...defaults.panelSections, ...table.panelSections },
+    supportRoleIds: table.supportRoleIds ?? [],
+    ticketInitialMessage: table.ticketInitialMessage ?? defaults.ticketInitialMessage,
     id: table._id,
     createdAt: table.createdAt.toISOString(),
     updatedAt: table.updatedAt.toISOString()
@@ -216,6 +225,24 @@ function defaultPriceTable(): Omit<MongoPriceTable, "_id" | "botId" | "createdAt
     },
     name: "Tabela de Precos",
     supportCategoryId: null,
+    supportRoleIds: [],
+    ticketInitialMessage: "Ola {user}! Seu atendimento para **{product}** foi aberto. Nossa equipe respondera em breve.",
+    panelEmojis: {
+      products: "📦",
+      systems: "⚙️",
+      advantages: "🏆",
+      support: "🎧"
+    },
+    panelSections: {
+      includedTitle: "SISTEMAS INCLUSOS",
+      includedItems: ["Painel completo pela Dashboard", "Atualizacoes e configuracao sem alterar codigo"],
+      systemsTitle: "SISTEMAS",
+      systemsText: "**FAC**\n• Ausencias\n• Hierarquia\n• Acoes\n• Financeiro\n• Encomendas e metas",
+      advantagesTitle: "VANTAGENS",
+      advantages: ["Configuracao completa pela Dashboard", "Atualizacao em tempo real", "Suporte especializado"],
+      supportTitle: "SUPORTE",
+      supportText: "Abra um ticket para tirar duvidas ou contratar este produto."
+    },
     title: "Tabela de Precos - Sistemas para Discord"
   };
 }
@@ -237,6 +264,10 @@ function normalizePriceTableInput(input: SavePriceTableInput) {
       ...defaultPriceTable().modalText,
       ...input.modalText
     },
+    panelEmojis: { ...defaultPriceTable().panelEmojis, ...input.panelEmojis },
+    panelSections: { ...defaultPriceTable().panelSections, ...input.panelSections },
+    supportRoleIds: Array.isArray(input.supportRoleIds) ? [...new Set(input.supportRoleIds)] : defaultPriceTable().supportRoleIds,
+    ticketInitialMessage: input.ticketInitialMessage?.trim() || defaultPriceTable().ticketInitialMessage,
     name: input.name?.trim() || defaultPriceTable().name,
     title: input.title?.trim() || defaultPriceTable().title
   };

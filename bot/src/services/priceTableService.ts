@@ -3,9 +3,14 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
+  ContainerBuilder,
   MessageFlags,
   ModalBuilder,
   PermissionFlagsBits,
+  SectionBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
+  TextDisplayBuilder,
   TextInputBuilder,
   TextInputStyle,
   type ButtonInteraction,
@@ -16,7 +21,6 @@ import {
 } from "discord.js";
 import type { BotContext } from "../types";
 import type { PriceTable, PriceTableItem } from "./apiClient";
-import { renderComponentsV2Panel } from "./panelVisualRenderer";
 
 const PREFIX = "price_table";
 
@@ -56,28 +60,28 @@ async function publishPriceTablePanel(guild: Guild, context: BotContext, tableId
 
 function createPanelPayload(table: PriceTable) {
   const activeItems = table.items.filter((item) => item.active).sort((a, b) => a.order - b.order);
-  const rows = activeItems.slice(0, 12).map((item) => {
-    const marker = item.highlight ? "**" : "";
-    return `${marker}${item.name}${marker} - ${formatPrice(table, item)}${billingSuffix(item)}${item.description ? `\n${item.description}` : ""}`;
-  });
-  const actions = [
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${PREFIX}:quote:${table.id}`).setLabel(table.buttonText.quote).setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`${PREFIX}:plans:${table.id}`).setLabel(table.buttonText.plans).setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(`${PREFIX}:support:${table.id}`).setLabel(table.buttonText.support).setStyle(ButtonStyle.Primary)
+  const sections = table.panelSections;
+  const emoji = table.panelEmojis;
+  const products = activeItems.slice(0, 20).map((item) => `• **${item.name}** — ${formatPrice(table, item)}${billingSuffix(item)}${item.description ? `\n  ${item.description}` : ""}`).join("\n") || "• Consulte nossa equipe";
+  const list = (items: string[]) => items.filter(Boolean).map((item) => `• ${item}`).join("\n") || "• Consulte nossa equipe";
+  const separator = () => new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large);
+  const container = new ContainerBuilder().setAccentColor(parseColor(table.color)).addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(`# ${emoji.products} PLANO\n## ${table.title}\n${table.description ?? ""}`)
+  ).addSeparatorComponents(separator()).addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(`## ${emoji.products} ${sections.includedTitle}\n${list(sections.includedItems)}`)
+  ).addSeparatorComponents(separator()).addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(`## ${emoji.systems} ${sections.systemsTitle}\n${sections.systemsText}\n\n${products}`)
+  ).addSeparatorComponents(separator()).addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(`## ${emoji.advantages} ${sections.advantagesTitle}\n${list(sections.advantages)}`)
+  ).addSeparatorComponents(separator()).addSectionComponents(
+    new SectionBuilder().addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(`## ${emoji.support} ${sections.supportTitle}\n${sections.supportText}`)
+    ).setButtonAccessory(
+      new ButtonBuilder().setCustomId(`${PREFIX}:support:${table.id}`).setLabel(table.buttonText.support || "Abrir Ticket").setStyle(ButtonStyle.Primary)
     )
-  ];
-
-  return renderComponentsV2Panel({
-    accentColor: parseColor(table.color),
-    actions,
-    description: table.description ?? "",
-    fields: rows,
-    footer: { text: table.footerText ?? "OrviteK" },
-    image: table.imageUrl ? { imageEnabled: true, imagePosition: table.imagePosition === "thumbnail" ? "thumbnail" : table.imagePosition, imageUrl: table.imageUrl } : null,
-    moduleId: "price-tables",
-    title: table.title
-  });
+  );
+  if (table.footerText) container.addSeparatorComponents(separator()).addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${table.footerText}`));
+  return { components: [container], flags: MessageFlags.IsComponentsV2 as const };
 }
 
 async function showQuoteModal(interaction: ButtonInteraction, context: BotContext) {
@@ -149,14 +153,20 @@ async function createTicketChannel(guild: Guild, table: PriceTable, openerId: st
     permissionOverwrites: [
       { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
       { id: openerId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
-      { id: guild.members.me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ReadMessageHistory] }
+      { id: guild.members.me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ReadMessageHistory] },
+      ...table.supportRoleIds.map((id) => ({ id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }))
     ],
     reason: `Atendimento de tabela de precos aberto por ${openerId}`,
     type: ChannelType.GuildText
   }).catch(() => null);
   if (!channel) return null;
   const textChannel = channel as TextChannel;
-  await textChannel.send({ allowedMentions: { users: [openerId] }, content: `<@${openerId}> atendimento aberto para **${subject}**.\n${details}` }).catch(() => null);
+  const initial = table.ticketInitialMessage.replaceAll("{user}", `<@${openerId}>`).replaceAll("{product}", subject);
+  await textChannel.send({ allowedMentions: { roles: table.supportRoleIds, users: [openerId] }, content: `${table.supportRoleIds.map((id) => `<@&${id}>`).join(" ")}\n${initial}\n${details}`.trim() }).catch(() => null);
+  if (table.logChannelId) {
+    const log = await guild.channels.fetch(table.logChannelId).catch(() => null);
+    if (log?.isSendable()) await log.send(`Ticket de **${subject}** aberto por <@${openerId}>: <#${channel.id}>`).catch(() => null);
+  }
   return textChannel;
 }
 

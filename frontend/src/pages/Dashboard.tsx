@@ -3110,7 +3110,7 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
     setError(null);
     setDraft((current) => current ? {
       ...current,
-      hierarchies: [...current.hierarchies, { active: true, color: null, description: null, emoji: "👤", id: `hierarquia-${Date.now()}`, limit: null, name: "", order: current.hierarchies.length + 1, roleId: "" }]
+      hierarchies: [...current.hierarchies, { active: true, color: null, description: null, emoji: "👤", id: `hierarquia-${Date.now()}`, limit: null, name: "", order: current.hierarchies.length + 1, roleId: "", roleName: null }]
     } : current);
   }
 
@@ -3324,6 +3324,8 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
                 <div className="md:col-span-2">
                   <TicketArea disabled={controlsDisabled} label="Descricao" onChange={(value) => patchDraft({ description: value })} value={draft.description ?? ""} />
                 </div>
+                <MultiRoleSelect disabled={controlsDisabled} label="Cargos gestores desta hierarquia" onChange={(values) => patchDraft({ managerRoleIds: values })} roles={roles} values={draft.managerRoleIds} />
+                <MultiRoleSelect disabled={controlsDisabled} label="Cargos de comando desta hierarquia" onChange={(values) => patchDraft({ commandRoleIds: values })} roles={roles} values={draft.commandRoleIds} />
               </div>
               <div className="space-y-3">
                 {!isLocalHierarchyPanelId(draft.id) ? (
@@ -3349,7 +3351,7 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
                 </div>
                 {draft.hierarchies.map((item, index) => (
                   <div className="grid gap-3 rounded-lg border border-zinc-800 bg-black/30 p-3 md:grid-cols-[1.2fr_1fr_80px_90px_auto]" key={item.id}>
-                    <RoleSelect disabled={controlsDisabled} label="Cargo do Discord" onChange={(value) => patchHierarchy(index, { roleId: value })} roles={roles} value={item.roleId} />
+                    <RoleSelect disabled={controlsDisabled} label="Cargo do Discord" onChange={(value) => patchHierarchy(index, { roleId: value, roleName: roles.find((role) => role.id === value)?.name ?? null })} roles={roles} value={item.roleId} />
                     <TicketField disabled={controlsDisabled} label="Exibir como" onChange={(value) => patchHierarchy(index, { name: value })} value={item.name} />
                     <TicketField disabled={controlsDisabled} label="Emoji" onChange={(value) => patchHierarchy(index, { emoji: value })} value={item.emoji ?? ""} />
                     <TicketField disabled={controlsDisabled} label="Ordem" onChange={(value) => patchHierarchy(index, { order: Number(value) || index + 1 })} value={String(item.order)} />
@@ -3378,8 +3380,12 @@ function createEmptyHierarchyPanel(guildId: string, botId?: string | null): Five
     allowedRoleIds: [],
     botId: botId ?? null,
     color: "#22c55e",
+    commandRoleIds: [],
+    commandUserIds: [],
+    configRevision: 1,
     contentHash: null,
     createdAt: now,
+    createdBy: null,
     description: "Hierarquia atualizada automaticamente pelos cargos do servidor.",
     enabled: true,
     footerEnabled: true,
@@ -3392,10 +3398,14 @@ function createEmptyHierarchyPanel(guildId: string, botId?: string | null): Five
     imageUrl: null,
     linkedToFivem: true,
     logChannelId: null,
+    managerRoleIds: [],
+    managerUserIds: [],
     name: "Painel de Hierarquia V2",
     panelChannelId: null,
     panelMessageId: null,
     panelVersion: 2,
+    publishedAt: null,
+    status: "draft",
     title: "Hierarquia Policial",
     updatedAt: now
   };

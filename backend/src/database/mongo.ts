@@ -1189,6 +1189,7 @@ export type MongoFivemHierarchyEntry = {
   name: string;
   order: number;
   roleId: string;
+  roleName?: string | null;
 };
 
 export type MongoFivemHierarchyPendingCleanup = {
@@ -1208,6 +1209,7 @@ export type MongoFivemHierarchyPanel = {
   contentHash?: string | null;
   creationKey?: string | null;
   createdAt: Date;
+  createdBy?: string | null;
   deletedAt?: Date | null;
   description: string | null;
   enabled: boolean;
@@ -1221,11 +1223,17 @@ export type MongoFivemHierarchyPanel = {
   linkedToFivem: boolean;
   legacyCleanupPending?: boolean;
   logChannelId: string | null;
+  managerUserIds?: string[];
+  managerRoleIds?: string[];
+  commandUserIds?: string[];
+  commandRoleIds?: string[];
   migrationVersion?: number;
   name: string;
   panelChannelId: string | null;
   panelMessageId: string | null;
   panelVersion?: number;
+  publishedAt?: Date | null;
+  status?: "draft" | "completed" | "published" | "disabled";
   pendingCleanup?: MongoFivemHierarchyPendingCleanup[];
   stateUpdatedAt?: Date | null;
   title: string;
@@ -2435,6 +2443,24 @@ export type MongoPriceTable = {
   modalText: MongoPriceTableModalText;
   name: string;
   supportCategoryId: string | null;
+  supportRoleIds: string[];
+  ticketInitialMessage: string;
+  panelEmojis: {
+    products: string;
+    systems: string;
+    advantages: string;
+    support: string;
+  };
+  panelSections: {
+    includedTitle: string;
+    includedItems: string[];
+    systemsTitle: string;
+    systemsText: string;
+    advantagesTitle: string;
+    advantages: string[];
+    supportTitle: string;
+    supportText: string;
+  };
   title: string;
   updatedAt: Date;
   updatedBy: string | null;

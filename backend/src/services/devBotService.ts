@@ -2481,17 +2481,24 @@ function devBotModuleReleaseIds(moduleId: string) {
 }
 
 async function enableSelfBotDefaults(bot: DevBotDto) {
-  const [settings, protection] = await Promise.all([
-    updateGuildSettings(bot.mainGuildId, {
-      safeBotEnabled: true
-    }, bot.id),
-    saveSelfBotProtectionSettings(bot.mainGuildId, bot.id, {
-      enabled: true
-    }, null)
-  ]);
+  const runtime = await getDevBotRuntimeConfig(bot.id);
+  const guildIds = [...new Set([bot.mainGuildId, ...(runtime?.guildIds ?? [])].filter(Boolean))];
+  const updates = await Promise.all(guildIds.map(async (guildId) => {
+    const [settings, protection] = await Promise.all([
+      updateGuildSettings(guildId, {
+        safeBotEnabled: true
+      }, bot.id),
+      saveSelfBotProtectionSettings(guildId, bot.id, {
+        enabled: true
+      }, null)
+    ]);
+    return { protection, settings };
+  }));
 
-  emitRealtime("settings:updated", settings);
-  emitRealtime("self-bot-protection:settings_updated", protection);
+  for (const update of updates) {
+    emitRealtime("settings:updated", update.settings);
+    emitRealtime("self-bot-protection:settings_updated", update.protection);
+  }
   emitRealtimeToRoom(devBotRealtimeRoom(bot.id), "self-bot:ensure_setup", {
     botId: bot.id,
     guildId: null

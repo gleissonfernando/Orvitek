@@ -27,11 +27,13 @@ export type FivemHierarchyEntryDto = {
   name: string;
   order: number;
   roleId: string;
+  roleName?: string | null;
 };
 
 export type FivemHierarchyPanelConfigInput = {
   allowedRoleIds?: string[];
   color?: string;
+  configRevision?: number;
   description?: string | null;
   enabled?: boolean;
   footerEnabled?: boolean;
@@ -42,9 +44,14 @@ export type FivemHierarchyPanelConfigInput = {
   imageUrl?: string | null;
   linkedToFivem?: boolean;
   logChannelId?: string | null;
+  managerUserIds?: string[];
+  managerRoleIds?: string[];
+  commandUserIds?: string[];
+  commandRoleIds?: string[];
   name?: string;
   panelChannelId?: string | null;
   title?: string;
+  status?: "draft" | "completed" | "published" | "disabled";
 };
 
 export type FivemHierarchyPanelDto = {
@@ -54,6 +61,7 @@ export type FivemHierarchyPanelDto = {
   configRevision: number;
   contentHash: string | null;
   createdAt: string;
+  createdBy: string | null;
   deletedAt: string | null;
   description: string | null;
   enabled: boolean;
@@ -67,10 +75,16 @@ export type FivemHierarchyPanelDto = {
   imageUrl: string | null;
   linkedToFivem: boolean;
   logChannelId: string | null;
+  managerUserIds: string[];
+  managerRoleIds: string[];
+  commandUserIds: string[];
+  commandRoleIds: string[];
   name: string;
   panelChannelId: string | null;
   panelMessageId: string | null;
   panelVersion: number;
+  publishedAt: string | null;
+  status: "draft" | "completed" | "published" | "disabled";
   title: string;
   updatedAt: string;
   updatedBy?: string | null;
@@ -119,9 +133,14 @@ type NormalizedPanelConfig = {
   imageUrl: string | null;
   linkedToFivem: boolean;
   logChannelId: string | null;
+  managerUserIds: string[];
+  managerRoleIds: string[];
+  commandUserIds: string[];
+  commandRoleIds: string[];
   name: string;
   panelChannelId: string | null;
   title: string;
+  status: "draft" | "completed" | "published" | "disabled";
 };
 
 type FivemHierarchyPublishAck = {
@@ -157,6 +176,28 @@ export async function listActiveFivemHierarchyPanels(botId: string) {
   return rows.map(toPanelDto);
 }
 
+export async function listManageableFivemHierarchyPanels(guildId: string, botId: string, actorId: string, actorRoleIds: string[], isGuildManager = false) {
+  const panels = await listFivemHierarchyPanels(guildId, botId);
+  return panels.filter((panel) => canManageFivemHierarchyPanel(panel, actorId, actorRoleIds, isGuildManager));
+}
+
+export function canManageFivemHierarchyPanel(panel: FivemHierarchyPanelDto, actorId: string, actorRoleIds: string[], isGuildManager = false) {
+  if (isGuildManager) return true;
+  if (panel.createdBy === actorId || panel.managerUserIds.includes(actorId) || panel.commandUserIds.includes(actorId)) return true;
+  const roles = new Set(actorRoleIds);
+  return [...panel.managerRoleIds, ...panel.commandRoleIds, ...panel.allowedRoleIds].some((roleId) => roles.has(roleId));
+}
+
+export async function assertCanManageFivemHierarchyPanel(guildId: string, botId: string, panelId: string, actorId: string, actorRoleIds: string[], isGuildManager = false) {
+  const panel = await getFivemHierarchyPanel(guildId, panelId, botId);
+  if (!panel) throw createHierarchyError("Painel de hierarquia nao encontrado.", 404);
+  if (!canManageFivemHierarchyPanel(panel, actorId, actorRoleIds, isGuildManager)) {
+    await writeFivemHierarchyLogBestEffort({ action: "access.denied", botId, details: { origin: "Discord" }, guildId, panelId, userId: actorId });
+    throw createHierarchyError("Você não possui autorização para gerenciar esta hierarquia.", 403);
+  }
+  return panel;
+}
+
 export async function getFivemHierarchyPanel(guildId: string, panelId: string, botId?: string | null) {
   const normalizedBotId = normalizeBotId(botId);
   await ensureFivemHierarchyMigration(guildId, normalizedBotId);
@@ -169,7 +210,8 @@ export async function createFivemHierarchyPanel(
   guildId: string,
   botId: string,
   input: FivemHierarchyPanelConfigInput & { clientRequestId: string },
-  actorId: string | null
+  actorId: string | null,
+  origin: "Dashboard" | "Discord" = "Dashboard"
 ) {
   const normalizedBotId = normalizeBotId(botId);
   if (!normalizedBotId) throw createHierarchyError("Bot vinculado obrigatorio para criar a hierarquia.", 400);
@@ -183,6 +225,9 @@ export async function createFivemHierarchyPanel(
   if (existing) {
     return resolveIdempotentCreate(existing, normalizedConfig);
   }
+  const duplicateName = (await fivemHierarchyPanels.find({ ...scopeQuery(guildId, normalizedBotId), deletedAt: null }).toArray())
+    .some((panel) => normalizeHierarchyName(panel.name) === normalizeHierarchyName(normalizedConfig.name));
+  if (duplicateName) throw createHierarchyError("Ja existe uma hierarquia com este nome no servidor.", 409);
 
   const now = new Date();
   const panelId = randomUUID();
@@ -194,13 +239,16 @@ export async function createFivemHierarchyPanel(
     contentHash: null,
     creationKey,
     createdAt: now,
+    createdBy: actorId,
     deletedAt: null,
     guildId,
     legacyCleanupPending: false,
+    managerUserIds: actorId && !normalizedConfig.managerUserIds.length ? [actorId] : normalizedConfig.managerUserIds,
     migrationVersion: FIVEM_HIERARCHY_MIGRATION_VERSION,
     panelMessageId: null,
     panelVersion: FIVEM_HIERARCHY_PANEL_VERSION,
     pendingCleanup: [],
+    publishedAt: null,
     stateUpdatedAt: null,
     updateLock: null,
     updatedAt: now,
@@ -220,7 +268,7 @@ export async function createFivemHierarchyPanel(
   await writeFivemHierarchyLogBestEffort({
     action: "panel.created",
     botId: normalizedBotId,
-    details: { clientRequestId, title: next.title },
+    details: { clientRequestId, origin, title: next.title },
     guildId,
     panelId,
     userId: actorId
@@ -243,7 +291,8 @@ export async function updateFivemHierarchyPanel(
   botId: string,
   panelId: string,
   input: FivemHierarchyPanelConfigInput,
-  actorId: string | null
+  actorId: string | null,
+  origin: "Dashboard" | "Discord" = "Dashboard"
 ) {
   const normalizedBotId = normalizeBotId(botId);
   if (!normalizedBotId) throw createHierarchyError("Bot vinculado obrigatorio para editar a hierarquia.", 400);
@@ -251,15 +300,21 @@ export async function updateFivemHierarchyPanel(
   const { fivemHierarchyPanels } = await getMongoCollections();
   const current = await fivemHierarchyPanels.findOne({ _id: panelId, ...scopeQuery(guildId, normalizedBotId), deletedAt: null });
   if (!current) throw createHierarchyError("Painel de hierarquia nao encontrado.", 404);
+  const currentRevision = configRevisionOf(current);
+  if (input.configRevision !== undefined && input.configRevision !== currentRevision) {
+    throw createHierarchyError("Esta hierarquia foi atualizada por outro usuário. Recarregue as informações antes de continuar.", 409);
+  }
 
   const mergedInput = mergeDefinedPanelInput(panelConfigSnapshot(current), input);
   const nextConfig = normalizePanelInput(mergedInput);
+  const duplicateName = (await fivemHierarchyPanels.find({ ...scopeQuery(guildId, normalizedBotId), _id: { $ne: panelId }, deletedAt: null }).toArray())
+    .some((panel) => normalizeHierarchyName(panel.name) === normalizeHierarchyName(nextConfig.name));
+  if (duplicateName) throw createHierarchyError("Ja existe outra hierarquia com este nome no servidor.", 409);
   if (sameHierarchyConfig(panelConfigSnapshot(current), nextConfig)) {
     return toPanelDto(current);
   }
 
   const now = new Date();
-  const currentRevision = configRevisionOf(current);
   const nextRevision = currentRevision + 1;
   const channelChanged = (current.panelChannelId ?? null) !== nextConfig.panelChannelId;
   const pendingCleanup = channelChanged
@@ -302,6 +357,16 @@ export async function updateFivemHierarchyPanel(
     panelId,
     userId: actorId
   });
+  for (const change of hierarchyAuditChanges(current, row)) {
+    await writeFivemHierarchyLogBestEffort({
+      action: change.action,
+      botId: normalizedBotId,
+      details: { ...change.details, origin, revisionBefore: currentRevision, revisionAfter: nextRevision },
+      guildId,
+      panelId,
+      userId: actorId
+    });
+  }
   const dto = toPanelDto(row);
   emitFivemHierarchyPanelUpdated(guildId, normalizedBotId, "panel.updated", dto);
   emitRealtimeToRoom(devBotRealtimeRoom(normalizedBotId), "fivem:hierarchy:panel_update", {
@@ -417,6 +482,28 @@ export async function requestFivemHierarchyPanelPublish(guildId: string, botId: 
   throw createHierarchyError(error ?? "O bot V2 nao respondeu a solicitacao de publicacao.", 409);
 }
 
+export async function removeFivemHierarchyPanelPublication(guildId: string, botId: string, panelId: string, actorId: string | null) {
+  const normalizedBotId = normalizeBotId(botId);
+  if (!normalizedBotId) throw createHierarchyError("Bot vinculado obrigatorio para remover a publicacao.", 400);
+  const { fivemHierarchyPanels } = await getMongoCollections();
+  const current = await fivemHierarchyPanels.findOne({ _id: panelId, ...scopeQuery(guildId, normalizedBotId), deletedAt: null });
+  if (!current) throw createHierarchyError("Painel de hierarquia nao encontrado.", 404);
+  const revision = configRevisionOf(current);
+  const now = new Date();
+  const pendingCleanup = addPendingCleanup(current.pendingCleanup, current.panelChannelId, current.panelMessageId, "channel_changed", now);
+  const row = await fivemHierarchyPanels.findOneAndUpdate(
+    { _id: panelId, ...scopeQuery(guildId, normalizedBotId), configRevision: revision, deletedAt: null },
+    { $set: { configRevision: revision + 1, contentHash: null, enabled: false, panelMessageId: null, pendingCleanup, status: "completed", updatedAt: now, updatedBy: actorId } },
+    { returnDocument: "after" }
+  );
+  if (!row) throw createHierarchyError("Esta hierarquia foi atualizada por outro usuário. Recarregue as informações antes de continuar.", 409);
+  await writeFivemHierarchyLogBestEffort({ action: "panel.unpublished", botId: normalizedBotId, details: { channelId: current.panelChannelId, messageId: current.panelMessageId, origin: "Discord" }, guildId, panelId, userId: actorId });
+  const dto = toPanelDto(row);
+  emitFivemHierarchyPanelUpdated(guildId, normalizedBotId, "panel.unpublished", dto);
+  emitRealtimeToRoom(devBotRealtimeRoom(normalizedBotId), "fivem:hierarchy:panel_update", { action: "unpublish", botId: normalizedBotId, configRevision: revision + 1, guildId, oldPanelChannelId: current.panelChannelId ?? null, oldPanelMessageId: current.panelMessageId ?? null, panelId, protocol: FIVEM_HIERARCHY_PROTOCOL });
+  return dto;
+}
+
 export async function updateFivemHierarchyPanelState(
   guildId: string,
   botId: string,
@@ -462,6 +549,8 @@ export async function updateFivemHierarchyPanelState(
         contentHash: normalizedHash,
         panelMessageId: normalizedMessageId,
         panelVersion: FIVEM_HIERARCHY_PANEL_VERSION,
+        publishedAt: current.publishedAt ?? now,
+        status: "published",
         stateUpdatedAt: now
       }
     },
@@ -596,6 +685,16 @@ export async function listFivemHierarchyLogs(guildId: string, botId?: string | n
   return rows.map(toLogDto);
 }
 
+export async function recordFivemHierarchyAudit(input: { action: string; botId: string; details: Record<string, unknown>; guildId: string; panelId: string | null; userId: string | null }) {
+  const fingerprint = typeof input.details.fingerprint === "string" ? input.details.fingerprint : null;
+  if (fingerprint) {
+    const { fivemHierarchyLogs } = await getMongoCollections();
+    const duplicate = await fivemHierarchyLogs.findOne({ action: input.action, botId: input.botId, guildId: input.guildId, panelId: input.panelId, "details.fingerprint": fingerprint });
+    if (duplicate) return;
+  }
+  await writeFivemHierarchyLogBestEffort(input);
+}
+
 function resolveIdempotentCreate(existing: MongoFivemHierarchyPanel, normalizedConfig: NormalizedPanelConfig) {
   if (existing.deletedAt) {
     throw createHierarchyError("clientRequestId ja foi utilizado por uma hierarquia excluida.", 409);
@@ -620,9 +719,14 @@ function normalizePanelInput(input: FivemHierarchyPanelConfigInput): NormalizedP
     imageUrl: normalizeText(input.imageUrl, 2048),
     linkedToFivem: input.linkedToFivem !== false,
     logChannelId: normalizeSnowflake(input.logChannelId),
+    managerUserIds: normalizeRoleIds(input.managerUserIds ?? []),
+    managerRoleIds: normalizeRoleIds(input.managerRoleIds ?? []),
+    commandUserIds: normalizeRoleIds(input.commandUserIds ?? []),
+    commandRoleIds: normalizeRoleIds(input.commandRoleIds ?? []),
     name: normalizeText(input.name, 100) ?? "Hierarquia FAQ",
     panelChannelId: normalizeSnowflake(input.panelChannelId),
-    title: normalizeText(input.title, 120) ?? "Hierarquia Policial"
+    title: normalizeText(input.title, 120) ?? "Hierarquia Policial",
+    status: input.status === "completed" || input.status === "published" || input.status === "disabled" ? input.status : "draft"
   };
 }
 
@@ -640,9 +744,14 @@ function panelConfigSnapshot(row: MongoFivemHierarchyPanel): NormalizedPanelConf
     imageUrl: row.imageUrl,
     linkedToFivem: row.linkedToFivem,
     logChannelId: row.logChannelId,
+    managerUserIds: row.managerUserIds ?? [],
+    managerRoleIds: row.managerRoleIds ?? [],
+    commandUserIds: row.commandUserIds ?? [],
+    commandRoleIds: row.commandRoleIds ?? [],
     name: row.name,
     panelChannelId: row.panelChannelId,
-    title: row.title
+    title: row.title,
+    status: row.status ?? (row.enabled && row.panelMessageId ? "published" : "draft")
   });
 }
 
@@ -665,7 +774,8 @@ function normalizeHierarchies(values: Array<Partial<FivemHierarchyEntryDto> | Mo
       limit: typeof item.limit === "number" && Number.isFinite(item.limit) ? Math.max(1, Math.min(100, Math.trunc(item.limit))) : null,
       name: normalizeText(item.name, 80) ?? `Hierarquia ${index + 1}`,
       order: typeof item.order === "number" && Number.isFinite(item.order) ? Math.trunc(item.order) : index + 1,
-      roleId: normalizeSnowflake(item.roleId) ?? ""
+      roleId: normalizeSnowflake(item.roleId) ?? "",
+      roleName: normalizeText(item.roleName, 100)
     }))
     .filter((item) => item.roleId)
     .sort((a, b) => a.order - b.order)
@@ -681,6 +791,7 @@ function toPanelDto(row: MongoFivemHierarchyPanel): FivemHierarchyPanelDto {
     configRevision: configRevisionOf(row),
     contentHash: normalizeContentHash(row.contentHash),
     createdAt: normalizeDate(row.createdAt)?.toISOString() ?? new Date(0).toISOString(),
+    createdBy: row.createdBy ?? null,
     deletedAt: normalizeDate(row.deletedAt)?.toISOString() ?? null,
     description: row.description ?? null,
     enabled: row.enabled === true,
@@ -694,10 +805,16 @@ function toPanelDto(row: MongoFivemHierarchyPanel): FivemHierarchyPanelDto {
     imageUrl: row.imageUrl ?? null,
     linkedToFivem: row.linkedToFivem !== false,
     logChannelId: row.logChannelId ?? null,
+    managerUserIds: row.managerUserIds ?? [],
+    managerRoleIds: row.managerRoleIds ?? [],
+    commandUserIds: row.commandUserIds ?? [],
+    commandRoleIds: row.commandRoleIds ?? [],
     name: row.name,
     panelChannelId: row.panelChannelId ?? null,
     panelMessageId: row.panelMessageId ?? null,
     panelVersion: row.panelVersion === FIVEM_HIERARCHY_PANEL_VERSION ? FIVEM_HIERARCHY_PANEL_VERSION : 1,
+    publishedAt: normalizeDate(row.publishedAt)?.toISOString() ?? null,
+    status: row.status ?? (row.enabled && row.panelMessageId ? "published" : "draft"),
     title: row.title,
     updatedAt: normalizeDate(row.updatedAt)?.toISOString() ?? new Date(0).toISOString(),
     updatedBy: row.updatedBy ?? null
@@ -987,6 +1104,26 @@ function normalizeDate(value: unknown) {
 function normalizeText(value: string | null | undefined, maxLength: number) {
   const normalized = value?.trim().slice(0, maxLength) ?? "";
   return normalized || null;
+}
+
+function normalizeHierarchyName(value: string | null | undefined) {
+  return (value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function hierarchyAuditChanges(before: MongoFivemHierarchyPanel, after: MongoFivemHierarchyPanel) {
+  const changes: Array<{ action: string; details: Record<string, unknown> }> = [];
+  if (before.name !== after.name) changes.push({ action: "hierarchy.renamed", details: { before: before.name, after: after.name } });
+  if ((before.panelChannelId ?? null) !== (after.panelChannelId ?? null)) changes.push({ action: "hierarchy.channel_changed", details: { before: before.panelChannelId ?? null, after: after.panelChannelId ?? null } });
+  if ((before.status ?? "draft") !== (after.status ?? "draft")) changes.push({ action: "hierarchy.status_changed", details: { before: before.status ?? "draft", after: after.status ?? "draft" } });
+  const oldPositions = new Map((before.hierarchies ?? []).map((item) => [item.id, item]));
+  const newPositions = new Map((after.hierarchies ?? []).map((item) => [item.id, item]));
+  for (const [id, item] of newPositions) {
+    const previous = oldPositions.get(id);
+    if (!previous) changes.push({ action: "hierarchy.position_added", details: { position: item } });
+    else if (sameHierarchyConfig(previous, item) === false) changes.push({ action: previous.order !== item.order && previous.name === item.name && previous.roleId === item.roleId ? "hierarchy.order_changed" : "hierarchy.position_updated", details: { before: previous, after: item } });
+  }
+  for (const [id, item] of oldPositions) if (!newPositions.has(id)) changes.push({ action: "hierarchy.position_removed", details: { position: item } });
+  return changes;
 }
 
 function cleanupFingerprint(channelId: string, messageId: string) {

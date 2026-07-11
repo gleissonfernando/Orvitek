@@ -62,6 +62,17 @@ const tableSchema = z.object({
   }).optional(),
   name: z.string().min(1).max(100).optional(),
   supportCategoryId: optionalSnowflake,
+  supportRoleIds: z.array(snowflake).max(25).optional(),
+  ticketInitialMessage: z.string().max(1800).optional(),
+  panelEmojis: z.object({
+    products: z.string().max(100), systems: z.string().max(100), advantages: z.string().max(100), support: z.string().max(100)
+  }).optional(),
+  panelSections: z.object({
+    includedTitle: z.string().max(80), includedItems: z.array(z.string().max(180)).max(20),
+    systemsTitle: z.string().max(80), systemsText: z.string().max(1800),
+    advantagesTitle: z.string().max(80), advantages: z.array(z.string().max(180)).max(20),
+    supportTitle: z.string().max(80), supportText: z.string().max(1000)
+  }).optional(),
   title: z.string().min(1).max(120).optional()
 });
 const requestSchema = z.object({

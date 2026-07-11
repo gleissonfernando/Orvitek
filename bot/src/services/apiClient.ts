@@ -680,13 +680,18 @@ export type FivemHierarchyEntry = {
   name: string;
   order: number;
   roleId: string;
+  roleName?: string | null;
 };
 
 export type FivemHierarchyPanel = {
+  allowedRoleIds: string[];
+  botId: string | null;
   color: string;
   configRevision: number;
   contentHash: string | null;
   description: string | null;
+  createdAt: string;
+  createdBy: string | null;
   enabled: boolean;
   footerEnabled: boolean;
   footerIconUrl: string | null;
@@ -697,10 +702,19 @@ export type FivemHierarchyPanel = {
   imagePosition: "top" | "bottom" | "thumbnail" | "none";
   imageUrl: string | null;
   logChannelId: string | null;
+  managerUserIds: string[];
+  managerRoleIds: string[];
+  commandUserIds: string[];
+  commandRoleIds: string[];
+  name: string;
   panelChannelId: string | null;
   panelMessageId: string | null;
   panelVersion: number;
+  publishedAt: string | null;
+  status: "draft" | "completed" | "published" | "disabled";
   title: string;
+  updatedAt: string;
+  updatedBy?: string | null;
 };
 
 export type SafeBotMessageState = {
@@ -1617,6 +1631,13 @@ export type PriceTable = {
   };
   name: string;
   supportCategoryId: string | null;
+  supportRoleIds: string[];
+  ticketInitialMessage: string;
+  panelEmojis: { products: string; systems: string; advantages: string; support: string };
+  panelSections: {
+    includedTitle: string; includedItems: string[]; systemsTitle: string; systemsText: string;
+    advantagesTitle: string; advantages: string[]; supportTitle: string; supportText: string;
+  };
   title: string;
   updatedAt: string;
 };
@@ -2427,6 +2448,35 @@ export class ApiClient {
   async getActiveFivemHierarchyPanels() {
     const { data } = await this.http.get<{ panels: FivemHierarchyPanel[] }>("/fivem/bot/hierarchy/configs");
     return data.panels;
+  }
+
+  async getManageableFivemHierarchyPanels(input: { actorId: string; actorRoleIds: string[]; guildId: string; isGuildManager: boolean }) {
+    const { data } = await this.http.post<{ panels: FivemHierarchyPanel[] }>("/fivem/bot/hierarchy/manageable", input);
+    return data.panels;
+  }
+
+  async recordFivemHierarchyAudit(input: { action: string; details?: Record<string, unknown>; guildId: string; panelId?: string | null; userId?: string | null }) {
+    await this.http.post("/fivem/bot/hierarchy/audit", input);
+  }
+
+  async createFivemHierarchyPanelFromBot(input: { actorId: string; actorRoleIds: string[]; clientRequestId: string; guildId: string; isGuildManager: boolean; panel: Partial<FivemHierarchyPanel> }) {
+    const { data } = await this.http.post<{ panel: FivemHierarchyPanel }>("/fivem/bot/hierarchy/panels", input);
+    return data.panel;
+  }
+
+  async updateFivemHierarchyPanelFromBot(panelId: string, input: { actorId: string; actorRoleIds: string[]; guildId: string; isGuildManager: boolean; panel: Partial<FivemHierarchyPanel> }) {
+    const { data } = await this.http.patch<{ panel: FivemHierarchyPanel }>(`/fivem/bot/hierarchy/panels/${encodeURIComponent(panelId)}`, input);
+    return data.panel;
+  }
+
+  async deleteFivemHierarchyPanelFromBot(panelId: string, input: { actorId: string; actorRoleIds: string[]; guildId: string; isGuildManager: boolean }) {
+    const { data } = await this.http.delete<{ panel: FivemHierarchyPanel | null }>(`/fivem/bot/hierarchy/panels/${encodeURIComponent(panelId)}`, { data: input });
+    return data.panel;
+  }
+
+  async publishFivemHierarchyPanelFromBot(panelId: string, input: { actorId: string; actorRoleIds: string[]; guildId: string; isGuildManager: boolean; remove?: boolean }) {
+    const { data } = await this.http.post<{ panel: FivemHierarchyPanel }>(`/fivem/bot/hierarchy/panels/${encodeURIComponent(panelId)}/publish`, input);
+    return data.panel;
   }
 
   async updateFivemHierarchyPanelState(input: { configRevision: number; contentHash: string; guildId: string; instanceId: string; lockToken: string; messageId: string; panelId: string; panelVersion?: number }) {

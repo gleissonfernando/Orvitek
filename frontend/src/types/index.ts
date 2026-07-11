@@ -1578,14 +1578,17 @@ export type FivemHierarchyEntry = {
   name: string;
   order: number;
   roleId: string;
+  roleName?: string | null;
 };
 
 export type FivemHierarchyPanel = {
   allowedRoleIds: string[];
   botId: string | null;
   color: string;
+  configRevision: number;
   contentHash: string | null;
   createdAt: string;
+  createdBy: string | null;
   description: string | null;
   enabled: boolean;
   footerEnabled: boolean;
@@ -1598,10 +1601,16 @@ export type FivemHierarchyPanel = {
   imageUrl: string | null;
   linkedToFivem: boolean;
   logChannelId: string | null;
+  managerUserIds: string[];
+  managerRoleIds: string[];
+  commandUserIds: string[];
+  commandRoleIds: string[];
   name: string;
   panelChannelId: string | null;
   panelMessageId: string | null;
   panelVersion: number;
+  publishedAt: string | null;
+  status: "draft" | "completed" | "published" | "disabled";
   title: string;
   updatedAt: string;
   updatedBy?: string | null;
@@ -2879,6 +2888,13 @@ export type PriceTable = {
   };
   name: string;
   supportCategoryId: string | null;
+  supportRoleIds: string[];
+  ticketInitialMessage: string;
+  panelEmojis: { products: string; systems: string; advantages: string; support: string };
+  panelSections: {
+    includedTitle: string; includedItems: string[]; systemsTitle: string; systemsText: string;
+    advantagesTitle: string; advantages: string[]; supportTitle: string; supportText: string;
+  };
   title: string;
   updatedAt: string;
   updatedBy: string | null;

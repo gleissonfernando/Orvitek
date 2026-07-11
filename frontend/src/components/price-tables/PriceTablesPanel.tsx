@@ -157,11 +157,11 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
     <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
       <Card>
         <CardHeader>
-          <CardTitle>Tabela de Preco</CardTitle>
+          <CardTitle>Paineis de Vendas</CardTitle>
           <CardDescription>{loading ? "Carregando..." : `${tables.length} tabela(s) cadastrada(s)`}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Button className="w-full" disabled={!canManage || saving} onClick={() => void createNewTable()} type="button"><Plus className="mr-2 h-4 w-4" />Criar nova tabela</Button>
+          <Button className="w-full" disabled={!canManage || saving} onClick={() => void createNewTable()} type="button"><Plus className="mr-2 h-4 w-4" />Criar produto</Button>
           {tables.map((table) => (
             <button className={`w-full rounded-lg border p-3 text-left text-sm ${selectedId === table.id ? "border-[#FFD500]/50 bg-[#FFD500]/10 text-white" : "border-zinc-800 bg-zinc-950 text-zinc-400"}`} key={table.id} onClick={() => selectTable(table)} type="button">
               <span className="block truncate font-semibold">{table.name}</span>
@@ -176,8 +176,8 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
         <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_420px]">
           <Card>
             <CardHeader>
-              <CardTitle>Editar tabela</CardTitle>
-              <CardDescription>Textos, moeda, imagem, canal e itens publicados no painel.</CardDescription>
+              <CardTitle>Editor do painel de vendas</CardTitle>
+              <CardDescription>Um painel e um ticket independente para cada produto. Alteracoes salvas atualizam somente esta mensagem.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="grid gap-3 md:grid-cols-2">
@@ -185,11 +185,36 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
                 <Field label="Titulo principal" value={draft.title ?? ""} onChange={(value) => patch({ title: value })} disabled={!canManage} />
                 <Field label="Canal Discord" value={draft.discordChannelId ?? ""} onChange={(value) => patch({ discordChannelId: value || null })} disabled={!canManage} />
                 <Field label="Categoria atendimento" value={draft.supportCategoryId ?? ""} onChange={(value) => patch({ supportCategoryId: value || null })} disabled={!canManage} />
+                <Field label="Cargos da equipe (IDs separados por virgula)" value={(draft.supportRoleIds ?? []).join(", ")} onChange={(value) => patch({ supportRoleIds: value.split(",").map((id) => id.trim()).filter(Boolean) })} disabled={!canManage} />
+                <Field label="Canal de logs" value={draft.logChannelId ?? ""} onChange={(value) => patch({ logChannelId: value || null })} disabled={!canManage} />
                 <Field label="URL do banner" value={draft.imageUrl ?? ""} onChange={(value) => patch({ imageUrl: value || null })} disabled={!canManage} />
                 <Field label="Cor destaque" value={draft.color ?? "#FFD500"} onChange={(value) => patch({ color: value })} disabled={!canManage} />
               </div>
               <Textarea label="Descricao" value={draft.description ?? ""} onChange={(value) => patch({ description: value })} disabled={!canManage} />
               <Textarea label="Observacoes" value={draft.footerText ?? ""} onChange={(value) => patch({ footerText: value })} disabled={!canManage} />
+              <Textarea label="Mensagem inicial do ticket ({user} e {product})" value={draft.ticketInitialMessage ?? ""} onChange={(value) => patch({ ticketInitialMessage: value })} disabled={!canManage} />
+
+              <div className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-950/50 p-4">
+                <h3 className="text-sm font-semibold text-white">Emojis do Painel</h3>
+                <p className="text-xs text-zinc-500">Cole o emoji do servidor no formato &lt;:nome:ID&gt;. Nenhum ID fica fixo no codigo.</p>
+                <div className="grid gap-3 md:grid-cols-4">
+                  {([['products', 'Produtos'], ['systems', 'Sistemas'], ['advantages', 'Vantagens'], ['support', 'Suporte']] as const).map(([key, label]) => <Field key={key} label={label} value={draft.panelEmojis?.[key] ?? ''} onChange={(value) => patch({ panelEmojis: { ...(draft.panelEmojis ?? preview.panelEmojis), [key]: value } })} disabled={!canManage} />)}
+                </div>
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-950/50 p-4">
+                <h3 className="text-sm font-semibold text-white">Secoes do painel</h3>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Field label="Titulo: sistemas inclusos" value={draft.panelSections?.includedTitle ?? ''} onChange={(value) => patchSection(draft, patch, preview, { includedTitle: value })} disabled={!canManage} />
+                  <Field label="Titulo: sistemas" value={draft.panelSections?.systemsTitle ?? ''} onChange={(value) => patchSection(draft, patch, preview, { systemsTitle: value })} disabled={!canManage} />
+                  <Field label="Titulo: vantagens" value={draft.panelSections?.advantagesTitle ?? ''} onChange={(value) => patchSection(draft, patch, preview, { advantagesTitle: value })} disabled={!canManage} />
+                  <Field label="Titulo: suporte" value={draft.panelSections?.supportTitle ?? ''} onChange={(value) => patchSection(draft, patch, preview, { supportTitle: value })} disabled={!canManage} />
+                </div>
+                <Textarea label="Sistemas inclusos (um por linha)" value={(draft.panelSections?.includedItems ?? []).join('\n')} onChange={(value) => patchSection(draft, patch, preview, { includedItems: lines(value) })} disabled={!canManage} />
+                <Textarea label="Sistemas e subcategorias" value={draft.panelSections?.systemsText ?? ''} onChange={(value) => patchSection(draft, patch, preview, { systemsText: value })} disabled={!canManage} />
+                <Textarea label="Vantagens (uma por linha)" value={(draft.panelSections?.advantages ?? []).join('\n')} onChange={(value) => patchSection(draft, patch, preview, { advantages: lines(value) })} disabled={!canManage} />
+                <Textarea label="Texto de suporte" value={draft.panelSections?.supportText ?? ''} onChange={(value) => patchSection(draft, patch, preview, { supportText: value })} disabled={!canManage} />
+              </div>
               <div className="grid gap-3 md:grid-cols-4">
                 <Select label="Moeda" value={draft.currency ?? "BRL"} onChange={(value) => patch({ currency: value as PriceTable["currency"] })} options={["BRL", "USD", "EUR", "CUSTOM"]} disabled={!canManage} />
                 <Select label="Imagem" value={draft.imagePosition ?? "top"} onChange={(value) => patch({ imagePosition: value as PriceTable["imagePosition"] })} options={["top", "bottom", "thumbnail", "none"]} disabled={!canManage} />
@@ -245,9 +270,14 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
                 {preview.imageUrl && preview.imagePosition !== "none" ? <img alt="" className="h-36 w-full object-cover" src={preview.imageUrl} /> : null}
                 <div className="space-y-4 p-4">
                   <div>
+                    <p className="text-xs font-bold text-zinc-400">{preview.panelEmojis.products} PLANO</p>
                     <h3 className="text-lg font-bold text-white">{preview.title}</h3>
                     <p className="mt-1 text-sm text-zinc-400">{preview.description}</p>
                   </div>
+                  <div className="border-t border-zinc-800 pt-3 text-sm text-zinc-300"><b>{preview.panelEmojis.products} {preview.panelSections.includedTitle}</b><p className="mt-2 whitespace-pre-line">{preview.panelSections.includedItems.map((item) => `• ${item}`).join('\n')}</p></div>
+                  <div className="border-t border-zinc-800 pt-3 text-sm text-zinc-300"><b>{preview.panelEmojis.systems} {preview.panelSections.systemsTitle}</b><p className="mt-2 whitespace-pre-line">{preview.panelSections.systemsText}</p></div>
+                  <div className="border-t border-zinc-800 pt-3 text-sm text-zinc-300"><b>{preview.panelEmojis.advantages} {preview.panelSections.advantagesTitle}</b><p className="mt-2 whitespace-pre-line">{preview.panelSections.advantages.map((item) => `• ${item}`).join('\n')}</p></div>
+                  <div className="border-t border-zinc-800 pt-3 text-sm text-zinc-300"><b>{preview.panelEmojis.support} {preview.panelSections.supportTitle}</b><p className="mt-2">{preview.panelSections.supportText}</p></div>
                   <div className="space-y-2">
                     {preview.items.filter((item) => item.active).sort((a, b) => a.order - b.order).map((item) => (
                       <div className={`rounded-lg border p-3 ${item.highlight ? "border-[#FFD500]/40 bg-[#FFD500]/10" : "border-zinc-800 bg-zinc-900/60"}`} key={item.id}>
@@ -296,6 +326,19 @@ function Toggle({ checked, disabled, label, onChange }: { checked: boolean; disa
 
 function IconButton({ disabled, icon: Icon, onClick }: { disabled?: boolean; icon: typeof ArrowUp; onClick: () => void }) {
   return <button className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-800 text-zinc-400 transition hover:border-[#FFD500]/40 hover:text-white disabled:opacity-50" disabled={disabled} onClick={onClick} type="button"><Icon className="h-4 w-4" /></button>;
+}
+
+function lines(value: string) {
+  return value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+}
+
+function patchSection(
+  draft: SavePriceTablePayload,
+  patch: (value: SavePriceTablePayload) => void,
+  preview: PriceTable,
+  value: Partial<PriceTable["panelSections"]>
+) {
+  patch({ panelSections: { ...(draft.panelSections ?? preview.panelSections), ...value } });
 }
 
 function toPayload(table: PriceTable): SavePriceTablePayload {
