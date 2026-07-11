@@ -5,6 +5,7 @@ import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoomWithAck } from "../
 import {
   areGuildAssignableRoles,
   areGuildRoles,
+  ensureSafeBotDiscordResources,
   isGuildTextChannel
 } from "../services/discordOptionsService";
 import {
@@ -330,7 +331,15 @@ selfBotProtectionRouter.get("/:guildId", requireAuth, async (req, res, next) => 
 
     await assertCanRead(user, guildId, botId);
 
-    return res.json(await getSelfBotProtectionDashboard(guildId, botId));
+    const dashboard = await getSelfBotProtectionDashboard(guildId, botId);
+    const setup = dashboard.settings.enabled
+      ? await ensureSafeBotResourcesFromBackend(guildId, botId).catch((error) => ({
+          error: error instanceof Error ? error.message : String(error),
+          ok: false as const
+        }))
+      : { ok: true as const };
+
+    return res.json({ ...dashboard, setup });
   } catch (error) {
     return next(error);
   }
@@ -455,6 +464,12 @@ selfBotProtectionRouter.patch("/:guildId", requireAuth, async (req, res, next) =
     emitRealtime("self-bot-protection:settings_updated", settings);
     emitRealtime("settings:updated", guildSettings);
     emitRealtime("logs:new", log);
+    const directSetup = settings.enabled
+      ? await ensureSafeBotResourcesFromBackend(guildId, botId).catch((error) => ({
+          error: error instanceof Error ? error.message : String(error),
+          ok: false as const
+        }))
+      : { ok: true as const };
     const setupResponses = settings.enabled
       ? await emitRealtimeToRoomWithAck<{ botId: string; guildId: string }, { error?: string; ok: boolean }>(
           devBotRealtimeRoom(botId),
@@ -463,12 +478,14 @@ selfBotProtectionRouter.patch("/:guildId", requireAuth, async (req, res, next) =
           6_000
         )
       : [];
-    const setupResult = settings.enabled
-      ? setupResponses.find((response) => response.ok) ?? setupResponses[0] ?? {
+    const setupResult = directSetup.ok
+      ? directSetup
+      : settings.enabled
+        ? setupResponses.find((response) => response.ok) ?? setupResponses[0] ?? {
           error: "Bot offline ou sem conexao em tempo real. A criacao sera tentada novamente automaticamente.",
           ok: false
         }
-      : { ok: true };
+        : { ok: true };
 
     return res.json({
       settings,
@@ -487,6 +504,20 @@ async function readRequiredBotId(req: Parameters<typeof resolveRequestBotId>[0])
   }
 
   return botId;
+}
+
+async function ensureSafeBotResourcesFromBackend(guildId: string, botId: string) {
+  const token = await getDevBotToken(botId);
+  if (!token) throw createRouteError("Token do bot nao esta disponivel para criar a estrutura SafeBot.", 409);
+
+  const resources = await ensureSafeBotDiscordResources(guildId, token);
+  await updateGuildSettings(guildId, {
+    safeBotChannelId: resources.filterChannelId,
+    safeBotEnabled: true,
+    safeBotLogChannelId: resources.logChannelId,
+    safeBotRoleId: resources.roleId
+  }, botId);
+  return { ok: true as const, resources };
 }
 
 async function assertCanRead(user: AuthSessionUser, guildId: string, botId: string) {

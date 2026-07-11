@@ -111,6 +111,12 @@ export type GuildAssignableRoleValidationDto = {
   roleName: string | null;
 };
 
+export type SafeBotDiscordResourcesDto = {
+  filterChannelId: string;
+  logChannelId: string;
+  roleId: string;
+};
+
 const DISCORD_API_URL = "https://discord.com/api/v10";
 const LIVE_OPTIONS_CACHE_TTL_MS = 60_000;
 const LIVE_OPTIONS_STALE_TTL_MS = 15 * 60_000;
@@ -120,9 +126,13 @@ const TEXT_CHANNEL_TYPES = new Set([0, 5]);
 const VOICE_CHANNEL_TYPES = new Set([2, 13]);
 const ADMINISTRATOR = 0x8n;
 const MANAGE_ROLES = 0x10000000n;
+const MANAGE_GUILD = 1n << 5n;
+const MANAGE_MESSAGES = 1n << 13n;
+const MODERATE_MEMBERS = 1n << 40n;
 const VIEW_CHANNEL = 1n << 10n;
 const SEND_MESSAGES = 1n << 11n;
 const EMBED_LINKS = 1n << 14n;
+const READ_MESSAGE_HISTORY = 1n << 16n;
 const USE_EXTERNAL_EMOJIS = 1n << 18n;
 const PIN_MESSAGES = 1n << 51n;
 const PANEL_CHANNEL_PERMISSIONS = [
@@ -151,6 +161,76 @@ class DiscordApiRequestError extends Error {
 
 const guildLiveOptionsCache = new Map<string, GuildLiveOptionsCacheEntry>();
 const guildLiveOptionsRequests = new Map<string, Promise<GuildLiveOptionsDto>>();
+
+export async function ensureSafeBotDiscordResources(
+  guildId: string,
+  botToken: string
+): Promise<SafeBotDiscordResourcesDto> {
+  const [bot, channels, roles] = await Promise.all([
+    discordFetch<DiscordBotUser>("/users/@me", botToken),
+    discordFetch<DiscordChannel[]>(`/guilds/${guildId}/channels`, botToken),
+    discordFetch<DiscordRole[]>(`/guilds/${guildId}/roles`, botToken)
+  ]);
+  const role = roles.find((item) => item.name.toLowerCase() === "self bot")
+    ?? await discordPost<DiscordRole>(`/guilds/${guildId}/roles`, botToken, {
+      color: 0x7f1d1d,
+      name: "Self Bot",
+      permissions: "0"
+    }, "SafeBot: cargo Self Bot criado automaticamente");
+  const filterOverwrites: DiscordPermissionOverwrite[] = [
+    {
+      allow: String(VIEW_CHANNEL | SEND_MESSAGES | READ_MESSAGE_HISTORY),
+      deny: "0",
+      id: guildId,
+      type: 0
+    },
+    {
+      allow: String(VIEW_CHANNEL | SEND_MESSAGES | MANAGE_MESSAGES | READ_MESSAGE_HISTORY),
+      deny: "0",
+      id: bot.id,
+      type: 1
+    }
+  ];
+  const logOverwrites: DiscordPermissionOverwrite[] = [
+    { allow: "0", deny: String(VIEW_CHANNEL), id: guildId, type: 0 },
+    {
+      allow: String(VIEW_CHANNEL | SEND_MESSAGES | EMBED_LINKS | READ_MESSAGE_HISTORY),
+      deny: "0",
+      id: bot.id,
+      type: 1
+    },
+    ...roles
+      .filter((item) => item.id !== guildId && !item.managed)
+      .filter((item) => {
+        const permissions = parsePermissions(item.permissions);
+        return (permissions & ADMINISTRATOR) === ADMINISTRATOR
+          || (permissions & MANAGE_GUILD) === MANAGE_GUILD
+          || (permissions & MANAGE_MESSAGES) === MANAGE_MESSAGES
+          || (permissions & MODERATE_MEMBERS) === MODERATE_MEMBERS;
+      })
+      .map((item) => ({
+        allow: String(VIEW_CHANNEL | SEND_MESSAGES | READ_MESSAGE_HISTORY),
+        deny: "0",
+        id: item.id,
+        type: 0
+      }))
+  ];
+  const filterChannel = channels.find((item) => item.type === 0 && item.name === "♻・filter")
+    ?? await discordPost<DiscordChannel>(`/guilds/${guildId}/channels`, botToken, {
+      name: "♻・filter",
+      permission_overwrites: filterOverwrites,
+      type: 0
+    }, "SafeBot: canal filter criado automaticamente");
+  const logChannel = channels.find((item) => item.type === 0 && item.name === "📋・selfbot-logs")
+    ?? await discordPost<DiscordChannel>(`/guilds/${guildId}/channels`, botToken, {
+      name: "📋・selfbot-logs",
+      permission_overwrites: logOverwrites,
+      type: 0
+    }, "SafeBot: canal de logs criado automaticamente");
+
+  guildLiveOptionsCache.delete(createLiveOptionsCacheKey(guildId, botToken));
+  return { filterChannelId: filterChannel.id, logChannelId: logChannel.id, roleId: role.id };
+}
 
 export async function getGuildLiveOptions(
   guildId: string,
@@ -792,6 +872,40 @@ async function discordFetch<TResponse>(path: string, token: string, attempt = 0)
 
   if (!response.ok) {
     throw new DiscordApiRequestError(`Discord API respondeu ${response.status} em ${path}.`, response.status);
+  }
+
+  return (await response.json()) as TResponse;
+}
+
+async function discordPost<TResponse>(
+  path: string,
+  token: string,
+  body: unknown,
+  reason: string,
+  attempt = 0
+): Promise<TResponse> {
+  const response = await fetch(`${DISCORD_API_URL}${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bot ${token}`,
+      "Content-Type": "application/json",
+      "X-Audit-Log-Reason": encodeURIComponent(reason)
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (response.status === 429 && attempt < MAX_DISCORD_RATE_LIMIT_RETRIES) {
+    await wait(Math.min(await readDiscordRetryAfterMs(response), MAX_DISCORD_RETRY_DELAY_MS));
+    return discordPost<TResponse>(path, token, body, reason, attempt + 1);
+  }
+
+  if (!response.ok) {
+    throw new DiscordApiRequestError(
+      response.status === 403
+        ? "O bot nao possui permissao para criar canais ou cargos neste servidor."
+        : `Discord API respondeu ${response.status} ao criar a estrutura SafeBot.`,
+      response.status
+    );
   }
 
   return (await response.json()) as TResponse;
