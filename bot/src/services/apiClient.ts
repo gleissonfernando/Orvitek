@@ -1460,6 +1460,11 @@ export type FivemFacAbsence = {
   updatedAt: string;
 };
 
+export type FivemFacLifecycleResult = {
+  absence: FivemFacAbsence;
+  changed: boolean;
+};
+
 export type FivemFacHistoryResetResult = {
   actorId: string;
   botId: string;
@@ -3144,17 +3149,17 @@ export class ApiClient {
   }
 
   async markFivemFacAbsenceStarted(absenceId: string, roleAdded = true) {
-    const { data } = await this.http.post<{ absence: FivemFacAbsence }>(`/fivem/bot/fac/absences/${absenceId}/start`, {
+    const { data } = await this.http.post<FivemFacLifecycleResult>(`/fivem/bot/fac/absences/${absenceId}/start`, {
       roleAdded
     });
-    return data.absence;
+    return data;
   }
 
   async markFivemFacAbsenceFinished(absenceId: string, roleRemoved = true) {
-    const { data } = await this.http.post<{ absence: FivemFacAbsence }>(`/fivem/bot/fac/absences/${absenceId}/finish`, {
+    const { data } = await this.http.post<FivemFacLifecycleResult>(`/fivem/bot/fac/absences/${absenceId}/finish`, {
       roleRemoved
     });
-    return data.absence;
+    return data;
   }
 
   async getActiveMissionToolsConfigs() {

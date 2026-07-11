@@ -73,6 +73,11 @@ export type FivemFacDashboardDto = {
   settings: FivemFacSettingsDto;
 };
 
+export type FivemFacLifecycleResult = {
+  absence: FivemFacAbsenceDto;
+  changed: boolean;
+};
+
 export type FivemFacHistoryResetResult = {
   actorId: string;
   botId: string;
@@ -631,7 +636,11 @@ export async function approveFivemFacAbsence(input: ModerateFivemFacAbsenceInput
 
   ensureApprover(settings, input.moderatorRoleIds);
 
-  if (absence.status !== "pending" && absence.status !== "approved") {
+  if (absence.status === "approved") {
+    return toAbsenceDto(absence);
+  }
+
+  if (absence.status !== "pending") {
     throw createFacError("Apenas solicitacoes pendentes podem ser aprovadas.", 409);
   }
 
@@ -934,19 +943,27 @@ export async function listFivemFacDueAbsences(botId: string, today = currentDate
   return absences.map(toAbsenceDto);
 }
 
-export async function markFivemFacAbsenceStarted(absenceId: string, botId: string, roleAdded = true) {
+export async function markFivemFacAbsenceStarted(absenceId: string, botId: string, roleAdded = true): Promise<FivemFacLifecycleResult> {
   const { fivemFacAbsences } = await getMongoCollections();
   const absence = await findModeratableAbsence(absenceId, botId);
 
-  if (absence.status !== "approved" && absence.status !== "active") {
+  if (absence.status === "active") {
+    return {
+      absence: toAbsenceDto(absence),
+      changed: false
+    };
+  }
+
+  if (absence.status !== "approved") {
     throw createFacError("Ausencia nao esta aprovada para iniciar.", 409);
   }
 
   const now = new Date();
-  await fivemFacAbsences.updateOne(
+  const result = await fivemFacAbsences.updateOne(
     {
       _id: absenceId,
-      botId
+      botId,
+      status: "approved"
     },
     {
       $set: {
@@ -967,6 +984,13 @@ export async function markFivemFacAbsenceStarted(absenceId: string, botId: strin
     throw createFacError("Ausencia nao encontrada.", 404);
   }
 
+  if (!result.modifiedCount) {
+    return {
+      absence: updated,
+      changed: false
+    };
+  }
+
   const log = await createFacLog({
     botId,
     guildId: updated.guildId,
@@ -982,22 +1006,31 @@ export async function markFivemFacAbsenceStarted(absenceId: string, botId: strin
   });
 
   emitFacAbsenceEvent("started", updated, log);
-  return updated;
+  return {
+    absence: updated,
+    changed: true
+  };
 }
 
-export async function markFivemFacAbsenceFinished(absenceId: string, botId: string, roleRemoved = true) {
+export async function markFivemFacAbsenceFinished(absenceId: string, botId: string, roleRemoved = true): Promise<FivemFacLifecycleResult> {
   const { fivemFacAbsences } = await getMongoCollections();
   const absence = await findModeratableAbsence(absenceId, botId);
 
   if (absence.status === "finished" || absence.status === "closed" || absence.status === "rejected") {
-    return toAbsenceDto(absence);
+    return {
+      absence: toAbsenceDto(absence),
+      changed: false
+    };
   }
 
   const now = new Date();
-  await fivemFacAbsences.updateOne(
+  const result = await fivemFacAbsences.updateOne(
     {
       _id: absenceId,
-      botId
+      botId,
+      status: {
+        $in: ["active", "approved"]
+      }
     },
     {
       $set: {
@@ -1018,6 +1051,13 @@ export async function markFivemFacAbsenceFinished(absenceId: string, botId: stri
     throw createFacError("Ausencia nao encontrada.", 404);
   }
 
+  if (!result.modifiedCount) {
+    return {
+      absence: updated,
+      changed: false
+    };
+  }
+
   const log = await createFacLog({
     botId,
     guildId: updated.guildId,
@@ -1033,7 +1073,10 @@ export async function markFivemFacAbsenceFinished(absenceId: string, botId: stri
   });
 
   emitFacAbsenceEvent("finished", updated, log);
-  return updated;
+  return {
+    absence: updated,
+    changed: true
+  };
 }
 
 export function currentDateKey() {

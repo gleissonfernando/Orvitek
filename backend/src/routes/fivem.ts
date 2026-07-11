@@ -1069,9 +1069,9 @@ fivemRouter.post("/bot/fac/absences/:absenceId/start", requireBot, async (req, r
     const botId = await readRequiredBotId(req);
     await assertBotFacLicense(botId);
 
-    return res.json({
-      absence: await markFivemFacAbsenceStarted(absenceId, botId, input.roleAdded !== false)
-    });
+    const result = await markFivemFacAbsenceStarted(absenceId, botId, input.roleAdded !== false);
+
+    return res.json(result);
   } catch (error) {
     return next(error);
   }
@@ -1084,9 +1084,9 @@ fivemRouter.post("/bot/fac/absences/:absenceId/finish", requireBot, async (req, 
     const botId = await readRequiredBotId(req);
     await assertBotFacLicense(botId);
 
-    return res.json({
-      absence: await markFivemFacAbsenceFinished(absenceId, botId, input.roleRemoved !== false)
-    });
+    const result = await markFivemFacAbsenceFinished(absenceId, botId, input.roleRemoved !== false);
+
+    return res.json(result);
   } catch (error) {
     return next(error);
   }

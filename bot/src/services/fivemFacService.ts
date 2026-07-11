@@ -25,7 +25,7 @@ import {
 } from "discord.js";
 import { env, isBotModuleEnabled } from "../config/env";
 import type { BotContext } from "../types";
-import type { FivemFacAbsence, FivemFacSettings } from "./apiClient";
+import type { FivemFacAbsence, FivemFacLifecycleResult, FivemFacSettings } from "./apiClient";
 import { assertPanelChannelPermissions } from "./panelDeliveryService";
 
 const FAC_PREFIX = "fivem_fac";
@@ -418,7 +418,8 @@ async function confirmAbsenceRequest(interaction: ButtonInteraction, context: Bo
 
     if (absence.status === "approved") {
       await sendFacLog(guild, settings, "Solicitacao autoaprovada", absence, "automatic");
-      absence = await startApprovedAbsenceIfDue(guild, context, settings, absence, "automatic");
+      const startedResult = await startApprovedAbsenceIfDue(guild, context, settings, absence, "automatic");
+      absence = startedResult.absence;
     }
 
     await sendFacLog(guild, settings, "Solicitacao criada", absence, interaction.user.id);
@@ -529,10 +530,15 @@ async function approveAbsence(interaction: ButtonInteraction, context: BotContex
       moderatorRoleIds: interactionRoleIds(interaction)
     });
 
-    absence = await startApprovedAbsenceIfDue(guild, context, settings, absence, interaction.user.id);
+    const startedResult = await startApprovedAbsenceIfDue(guild, context, settings, absence, interaction.user.id);
+    absence = startedResult.absence;
     await updateAbsenceMessage(interaction, settings, absence);
-    await sendFacLog(guild, settings, "Solicitacao aprovada", absence, interaction.user.id);
-    await notifyAbsenceUser(guild, absence, settings.messages.approved);
+    if (!startedResult.changed) {
+      await sendFacLog(guild, settings, "Solicitacao aprovada", absence, interaction.user.id);
+      await notifyAbsenceUser(guild, absence, settings.messages.approved);
+    } else {
+      await notifyAbsenceUser(guild, absence, settings.messages.started);
+    }
     await interaction.editReply(facNoticePayload({
       accentColor: 0x22c55e,
       description: absence.status === "active"
@@ -823,37 +829,45 @@ async function processDueAbsence(client: Client, context: BotContext, absence: F
 
   if (current.status === "approved" && current.startDate <= today) {
     const roleAdded = await addAbsenceRole(guild, settings, current);
-    current = await context.api.markFivemFacAbsenceStarted(current.id, roleAdded);
-    await sendFacLog(guild, settings, roleAdded ? "Cargo adicionado" : "Ausencia iniciada sem cargo", current, null);
-    await sendFacLog(guild, settings, "Ausencia iniciada", current, null);
-    await notifyAbsenceUser(guild, current, settings.messages.started);
-    await updateStoredAbsenceMessage(guild, current);
+    const result = await context.api.markFivemFacAbsenceStarted(current.id, roleAdded);
+    current = result.absence;
+    if (result.changed) {
+      await sendFacLog(guild, settings, roleAdded ? "Ausencia iniciada com cargo" : "Ausencia iniciada sem cargo", current, null);
+      await notifyAbsenceUser(guild, current, settings.messages.started);
+      await updateStoredAbsenceMessage(guild, current);
+    }
   }
 
   if ((current.status === "active" || current.status === "approved") && current.endDate <= today) {
     const roleRemoved = await removeAbsenceRole(guild, settings, current);
-    current = await context.api.markFivemFacAbsenceFinished(current.id, roleRemoved);
-    await sendFacLog(guild, settings, roleRemoved ? "Cargo removido" : "Ausencia finalizada sem cargo", current, null);
-    await sendFacLog(guild, settings, "Ausencia finalizada", current, null);
-    await notifyAbsenceUser(guild, current, settings.messages.finished);
-    await updateStoredAbsenceMessage(guild, current);
+    const result = await context.api.markFivemFacAbsenceFinished(current.id, roleRemoved);
+    current = result.absence;
+    if (result.changed) {
+      await sendFacLog(guild, settings, roleRemoved ? "Ausencia finalizada com cargo removido" : "Ausencia finalizada sem cargo", current, null);
+      await notifyAbsenceUser(guild, current, settings.messages.finished);
+      await updateStoredAbsenceMessage(guild, current);
+    }
   }
 }
 
-async function startApprovedAbsenceIfDue(guild: Guild, context: BotContext, settings: FivemFacSettings, absence: FivemFacAbsence, actorId: string | null) {
+async function startApprovedAbsenceIfDue(guild: Guild, context: BotContext, settings: FivemFacSettings, absence: FivemFacAbsence, actorId: string | null): Promise<FivemFacLifecycleResult> {
   if (absence.status !== "approved" || absence.startDate > currentDateKey()) {
-    return absence;
+    return {
+      absence,
+      changed: false
+    };
   }
 
   const roleAdded = await addAbsenceRole(guild, settings, absence).catch(async (error) => {
     await sendFacLog(guild, settings, "Falha ao adicionar cargo", absence, actorId, errorMessage(error));
     return false;
   });
-  const started = await context.api.markFivemFacAbsenceStarted(absence.id, roleAdded);
-  await sendFacLog(guild, settings, roleAdded ? "Cargo adicionado" : "Ausencia iniciada sem cargo", started, actorId);
-  await sendFacLog(guild, settings, "Ausencia iniciada", started, actorId);
-  await updateStoredAbsenceMessage(guild, started);
-  return started;
+  const result = await context.api.markFivemFacAbsenceStarted(absence.id, roleAdded);
+  if (result.changed) {
+    await sendFacLog(guild, settings, roleAdded ? "Ausencia iniciada com cargo" : "Ausencia iniciada sem cargo", result.absence, actorId);
+    await updateStoredAbsenceMessage(guild, result.absence);
+  }
+  return result;
 }
 
 async function addAbsenceRole(guild: Guild, settings: FivemFacSettings, absence: FivemFacAbsence) {
