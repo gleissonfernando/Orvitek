@@ -10,7 +10,7 @@ process.env.PORT ||= process.env.TRANSCRIPT_PORT || "8080";
 process.env.TRANSCRIPT_PORT ||= process.env.PORT;
 process.env.TRANSCRIPT_BASE_URL ||= process.env.SITE_ORIGIN || process.env.FRONTEND_URL || process.env.BACKEND_URL || "";
 process.env.BOT_API_TOKEN ||= packedConfigValue("BOT_API_TOKEN") || randomBytes(32).toString("hex");
-process.env.START_REGISTERED_DEV_BOTS ||= packedConfigValue("START_REGISTERED_DEV_BOTS") || (discloudStartEnablesDevBots() ? "true" : "");
+process.env.START_REGISTERED_DEV_BOTS ||= packedConfigValue("START_REGISTERED_DEV_BOTS") || "";
 process.env.BACKEND_API_URL = `http://127.0.0.1:${process.env.PORT}/api`;
 process.env.BACKEND_SOCKET_URL = `http://127.0.0.1:${process.env.PORT}`;
 
@@ -60,23 +60,6 @@ function packedConfigValue(key) {
     return value === null || value === undefined ? "" : String(value).trim();
   } catch {
     return "";
-  }
-}
-
-function discloudStartEnablesDevBots() {
-  try {
-    const config = readFileSync("discloud.config", "utf8");
-    const start = config
-      .split(/\r?\n/)
-      .find((line) => line.trim().startsWith("START="))
-      ?.split("=")
-      .slice(1)
-      .join("=")
-      .trim();
-
-    return start === "npm run start:discloud" || /\bSTART_REGISTERED_DEV_BOTS=true\b/.test(start ?? "");
-  } catch {
-    return false;
   }
 }
 

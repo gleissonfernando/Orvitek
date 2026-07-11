@@ -14,7 +14,7 @@ const requiredDiscloud = {
   RAM: "1024",
   VERSION: "latest",
   BUILD: "npm install && npm run build",
-  START: "npm run start:discloud"
+  START: "npm start"
 };
 
 const checks = [];
@@ -125,14 +125,18 @@ check("contrato de token interno do bot", () => {
 
 check("scripts de start multiplataforma", () => {
   const pkg = JSON.parse(readProjectFile("package.json"));
-  const startDiscloud = String(pkg.scripts?.["start:discloud"] ?? "");
+  const start = String(pkg.scripts?.start ?? "");
 
-  if (!startDiscloud || !startDiscloud.includes("node scripts/start-production.mjs")) {
-    fail("package.json precisa iniciar a Discloud por scripts/start-production.mjs.");
+  if (!start || !start.includes("node scripts/start-production.mjs")) {
+    fail("package.json precisa iniciar por scripts/start-production.mjs.");
   }
 
-  if (/^[A-Z0-9_]+=/.test(startDiscloud)) {
-    fail("package.json start:discloud nao pode usar variavel inline; isso quebra em Windows.");
+  if (pkg.scripts?.["start:discloud"]) {
+    fail("package.json nao deve depender de start:discloud; use npm start no discloud.config.");
+  }
+
+  if (/^[A-Z0-9_]+=/.test(start)) {
+    fail("package.json start nao pode usar variavel inline; isso quebra em Windows.");
   }
 });
 
