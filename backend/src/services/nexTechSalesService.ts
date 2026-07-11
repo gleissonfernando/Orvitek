@@ -175,10 +175,12 @@ const PRODUCT_IMAGE_EXTENSIONS: Record<string, string> = {
 };
 
 export type ProcessWebhookInput = {
+  dataId?: string | null;
   eventId?: string | null;
   eventType?: string | null;
   payload: unknown;
   rawBody: string;
+  requestId?: string | null;
   signature?: string | null;
 };
 
@@ -690,9 +692,11 @@ export async function createProductCheckout(storeId: string, slug: string, input
   });
   const saleId = randomUUID();
   const successUrl = buildProductPaymentSuccessUrl(settings.storeId, product.slug, saleId);
-  const checkoutUrl = buildProviderCheckoutUrl(provider, {
+  const checkout = await buildProviderCheckout(provider, settings, {
     amountCents: plan.priceCents,
     currency: settings.currency,
+    payerEmail: normalizeNullable(input.buyerEmail),
+    planName: plan.name,
     productName: product.name,
     saleId,
     successUrl
@@ -713,13 +717,13 @@ export async function createProductCheckout(storeId: string, slug: string, input
     paymentGatewayId: provider.gatewayId,
     paymentProviderId: provider.id,
     paymentProviderLabel: provider.label,
-    checkoutUrl,
+    checkoutUrl: checkout.checkoutUrl,
     successUrl,
     productId: product._id,
     productName: product.name,
     productPlanType: input.planType,
     productSlug: product.slug,
-    externalReference: null,
+    externalReference: checkout.externalReference,
     status: "pending",
     notes: `Checkout publico ${input.planType}`,
     paidAt: null,
@@ -732,7 +736,7 @@ export async function createProductCheckout(storeId: string, slug: string, input
 
   await nexTechSales.insertOne(sale);
   return {
-    checkoutUrl,
+    checkoutUrl: checkout.checkoutUrl,
     gatewayId: provider.gatewayId,
     instructions: provider.instructions,
     provider: provider.provider,
@@ -822,8 +826,18 @@ export async function processNexTechPaymentWebhook(storeId: string, gatewayId: s
     };
   }
 
-  const signatureValid = validateWebhookSignature(provider.webhookSecretEncrypted ?? null, input.rawBody, input.signature ?? null);
+  const webhookDataId = normalizeNullable(input.dataId) ?? normalizeNullable(input.eventId) ?? readWebhookDataId(input.payload);
+  const signatureValid = validateWebhookSignature(provider, {
+    dataId: webhookDataId,
+    rawBody: input.rawBody,
+    requestId: input.requestId ?? null,
+    signature: input.signature ?? null
+  });
   const now = new Date();
+  const saleIdFromPayload = readWebhookSaleId(input.payload);
+  let processed = false;
+  let saleId = saleIdFromPayload;
+  let paymentStatus: string | null = null;
 
   await nexTechWebhookLogs.insertOne({
     _id: randomUUID(),
@@ -832,11 +846,11 @@ export async function processNexTechPaymentWebhook(storeId: string, gatewayId: s
     ownerUserId: settings.ownerUserId,
     storeId: settings.storeId,
     paymentGatewayId: provider.gatewayId,
-    eventId: normalizeNullable(input.eventId),
+    eventId: normalizeNullable(input.eventId) ?? webhookDataId,
     eventType: normalizeNullable(input.eventType) ?? "payment.webhook",
     signatureValid,
-    processed: signatureValid,
-    saleId: readWebhookSaleId(input.payload),
+    processed: false,
+    saleId,
     createdAt: now
   });
 
@@ -848,11 +862,41 @@ export async function processNexTechPaymentWebhook(storeId: string, gatewayId: s
     };
   }
 
+  if (provider.provider === "mercadopago" && webhookDataId && isPaymentWebhook(input.eventType, input.payload)) {
+    const payment = await getMercadoPagoPayment(provider, webhookDataId).catch(() => null);
+    saleId = readMercadoPagoExternalReference(payment) ?? saleId;
+    paymentStatus = readMercadoPagoStatus(payment);
+
+    if (saleId && paymentStatus) {
+      processed = await applyMercadoPagoPaymentStatus(settings, saleId, paymentStatus);
+    }
+  }
+
+  if (processed || saleId || paymentStatus) {
+    await nexTechWebhookLogs.updateOne(
+      {
+        ownerUserId: settings.ownerUserId,
+        paymentGatewayId: provider.gatewayId,
+        storeId: settings.storeId,
+        eventId: normalizeNullable(input.eventId) ?? webhookDataId,
+        createdAt: now
+      },
+      {
+        $set: {
+          processed,
+          saleId
+        }
+      }
+    );
+  }
+
   return {
     accepted: true,
     ownerUserId: settings.ownerUserId,
+    processed,
+    saleId,
     storeId: settings.storeId,
-    statusCode: 202
+    statusCode: 200
   };
 }
 
@@ -967,18 +1011,55 @@ function buildProductPaymentSuccessUrl(storeId: string, slug: string, saleId: st
   return url.toString();
 }
 
-function buildProviderCheckoutUrl(
+function buildProductPaymentResultUrl(storeId: string, saleId: string, status: "failure" | "pending") {
+  const origin = env.SITE_ORIGIN || env.FRONTEND_URL || env.BACKEND_URL;
+  const path = `/nex-tech/${encodeURIComponent(storeId)}`;
+
+  if (!origin) {
+    return `${path}?saleId=${encodeURIComponent(saleId)}&status=${status}`;
+  }
+
+  const url = new URL(path, origin);
+  url.searchParams.set("saleId", saleId);
+  url.searchParams.set("status", status);
+  return url.toString();
+}
+
+function buildMercadoPagoNotificationUrl(storeId: string, gatewayId: string) {
+  const origin = env.BACKEND_URL || env.SITE_ORIGIN || env.FRONTEND_URL;
+
+  if (!origin) {
+    return null;
+  }
+
+  return new URL(
+    `/api/nex-tech-sales/webhooks/${encodeURIComponent(storeId)}/${encodeURIComponent(gatewayId)}`,
+    origin
+  ).toString();
+}
+
+async function buildProviderCheckout(
   provider: MongoNexTechSalesPaymentProvider,
+  settings: MongoNexTechSalesSettings,
   context: {
     amountCents: number;
     currency: "BRL" | "USD" | "EUR";
+    payerEmail: string | null;
+    planName: string;
     productName: string;
     saleId: string;
     successUrl: string;
   }
 ) {
+  if (provider.provider === "mercadopago") {
+    return createMercadoPagoPreference(provider, settings, context);
+  }
+
   if (provider.provider !== "custom" || !provider.publicKey) {
-    return null;
+    return {
+      checkoutUrl: null,
+      externalReference: context.saleId
+    };
   }
 
   try {
@@ -990,10 +1071,166 @@ function buildProviderCheckoutUrl(
     url.searchParams.set("amountCents", String(context.amountCents));
     url.searchParams.set("currency", context.currency);
     url.searchParams.set("product", context.productName);
-    return url.toString();
+    return {
+      checkoutUrl: url.toString(),
+      externalReference: context.saleId
+    };
   } catch {
-    return null;
+    return {
+      checkoutUrl: null,
+      externalReference: context.saleId
+    };
   }
+}
+
+async function createMercadoPagoPreference(
+  provider: MongoNexTechSalesPaymentProvider,
+  settings: MongoNexTechSalesSettings,
+  context: {
+    amountCents: number;
+    currency: "BRL" | "USD" | "EUR";
+    payerEmail: string | null;
+    planName: string;
+    productName: string;
+    saleId: string;
+    successUrl: string;
+  }
+) {
+  const accessToken = decryptProviderSecret(provider, "Access Token do Mercado Pago nao configurado.");
+  const failureUrl = buildProductPaymentResultUrl(settings.storeId, context.saleId, "failure");
+  const pendingUrl = buildProductPaymentResultUrl(settings.storeId, context.saleId, "pending");
+  const notificationUrl = provider.webhookUrl || buildMercadoPagoNotificationUrl(settings.storeId, provider.gatewayId);
+  const body = {
+    auto_return: "approved",
+    back_urls: {
+      failure: failureUrl,
+      pending: pendingUrl,
+      success: context.successUrl
+    },
+    external_reference: context.saleId,
+    items: [
+      {
+        currency_id: context.currency,
+        description: context.planName,
+        id: context.saleId,
+        quantity: 1,
+        title: context.productName,
+        unit_price: centsToMoney(context.amountCents)
+      }
+    ],
+    ...(notificationUrl ? { notification_url: notificationUrl } : {}),
+    ...(context.payerEmail ? { payer: { email: context.payerEmail } } : {})
+  };
+
+  const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
+    body: JSON.stringify(body),
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+  const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
+
+  if (!response.ok) {
+    throw createNexTechSalesError(readMercadoPagoError(payload) ?? "Mercado Pago recusou a criacao da preferencia.", 502);
+  }
+
+  const checkoutUrl = readStringField(payload, "init_point") ?? readStringField(payload, "sandbox_init_point");
+
+  if (!checkoutUrl) {
+    throw createNexTechSalesError("Mercado Pago nao retornou a URL do checkout.", 502);
+  }
+
+  return {
+    checkoutUrl,
+    externalReference: readStringField(payload, "id") ?? context.saleId
+  };
+}
+
+async function getMercadoPagoPayment(provider: MongoNexTechSalesPaymentProvider, paymentId: string) {
+  const accessToken = decryptProviderSecret(provider, "Access Token do Mercado Pago nao configurado.");
+  const response = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(paymentId)}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`
+    }
+  });
+  const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
+
+  if (!response.ok) {
+    throw createNexTechSalesError(readMercadoPagoError(payload) ?? "Nao foi possivel consultar o pagamento no Mercado Pago.", 502);
+  }
+
+  return payload;
+}
+
+async function applyMercadoPagoPaymentStatus(settings: MongoNexTechSalesSettings, saleId: string, paymentStatus: string) {
+  const nextStatus = mercadoPagoStatusToSaleStatus(paymentStatus);
+
+  if (!nextStatus) {
+    return false;
+  }
+
+  const { nexTechSales, nexTechSubscriptions } = await getMongoCollections();
+  const current = await nexTechSales.findOne({
+    _id: saleId,
+    ownerUserId: settings.ownerUserId,
+    storeId: settings.storeId
+  });
+
+  if (!current) {
+    return false;
+  }
+
+  const now = new Date();
+  const paidAt = nextStatus === "paid" ? current.paidAt ?? now : current.paidAt;
+  await nexTechSales.updateOne(
+    {
+      _id: saleId,
+      ownerUserId: settings.ownerUserId,
+      storeId: settings.storeId
+    },
+    {
+      $set: {
+        paidAt,
+        status: nextStatus,
+        updatedAt: now,
+        updatedBy: null
+      }
+    }
+  );
+
+  if (nextStatus === "paid" && current.planId) {
+    await nexTechSubscriptions.updateOne(
+      {
+        saleId,
+        ownerUserId: settings.ownerUserId,
+        storeId: settings.storeId
+      },
+      {
+        $set: {
+          status: "active",
+          updatedAt: now
+        },
+        $setOnInsert: {
+          _id: randomUUID(),
+          botId: settings.botId,
+          createdAt: now,
+          customerId: current.customerId,
+          expiresAt: null,
+          guildId: settings.guildId,
+          ownerUserId: settings.ownerUserId,
+          planId: current.planId,
+          saleId,
+          startsAt: paidAt ?? now,
+          storeId: settings.storeId
+        }
+      },
+      { upsert: true }
+    );
+  }
+
+  return true;
 }
 
 async function upsertCustomer(
@@ -1049,19 +1286,36 @@ function normalizeNullable(value: string | null | undefined) {
   return normalized || null;
 }
 
-function validateWebhookSignature(secretEncrypted: string | null, rawBody: string, signature: string | null) {
-  if (!secretEncrypted) {
+function validateWebhookSignature(
+  provider: MongoNexTechSalesPaymentProvider,
+  input: {
+    dataId: string | null;
+    rawBody: string;
+    requestId: string | null;
+    signature: string | null;
+  }
+) {
+  if (!provider.webhookSecretEncrypted) {
     return true;
   }
 
-  if (!signature) {
+  if (!input.signature) {
     return false;
   }
 
   try {
-    const secret = decryptSecret(secretEncrypted);
-    const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
-    const normalizedSignature = signature.replace(/^sha256=/i, "").trim();
+    const secret = decryptSecret(provider.webhookSecretEncrypted);
+    const expected = provider.provider === "mercadopago"
+      ? createMercadoPagoWebhookSignature(secret, input)
+      : createHmac("sha256", secret).update(input.rawBody).digest("hex");
+    const normalizedSignature = provider.provider === "mercadopago"
+      ? readMercadoPagoSignaturePart(input.signature, "v1")
+      : input.signature.replace(/^sha256=/i, "").trim();
+
+    if (!normalizedSignature) {
+      return false;
+    }
+
     const expectedBuffer = Buffer.from(expected, "hex");
     const receivedBuffer = Buffer.from(normalizedSignature, "hex");
 
@@ -1069,6 +1323,40 @@ function validateWebhookSignature(secretEncrypted: string | null, rawBody: strin
   } catch {
     return false;
   }
+}
+
+function createMercadoPagoWebhookSignature(
+  secret: string,
+  input: {
+    dataId: string | null;
+    requestId: string | null;
+    signature: string | null;
+  }
+) {
+  const ts = readMercadoPagoSignaturePart(input.signature, "ts");
+
+  if (!input.dataId || !input.requestId || !ts) {
+    return "";
+  }
+
+  const manifest = `id:${input.dataId};request-id:${input.requestId};ts:${ts};`;
+  return createHmac("sha256", secret).update(manifest).digest("hex");
+}
+
+function readMercadoPagoSignaturePart(signature: string | null, key: string) {
+  if (!signature) {
+    return null;
+  }
+
+  for (const part of signature.split(",")) {
+    const [partKey, ...valueParts] = part.split("=");
+
+    if (partKey?.trim() === key) {
+      return valueParts.join("=").trim();
+    }
+  }
+
+  return null;
 }
 
 function readWebhookSaleId(payload: unknown) {
@@ -1080,6 +1368,89 @@ function readWebhookSaleId(payload: unknown) {
   const saleId = record.saleId ?? record.sale_id ?? record.external_reference ?? record.externalReference;
 
   return typeof saleId === "string" ? saleId : null;
+}
+
+function readWebhookDataId(payload: unknown) {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const record = payload as Record<string, unknown>;
+  const data = record.data;
+
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const id = (data as Record<string, unknown>).id;
+    return typeof id === "string" || typeof id === "number" ? String(id) : null;
+  }
+
+  return null;
+}
+
+function isPaymentWebhook(eventType: string | null | undefined, payload: unknown) {
+  const normalizedType = eventType?.toLowerCase() ?? "";
+
+  if (normalizedType === "payment" || normalizedType.startsWith("payment.")) {
+    return true;
+  }
+
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const record = payload as Record<string, unknown>;
+  return record.type === "payment" || (typeof record.action === "string" && record.action.startsWith("payment."));
+}
+
+function readMercadoPagoExternalReference(payload: Record<string, unknown> | null) {
+  return readStringField(payload, "external_reference");
+}
+
+function readMercadoPagoStatus(payload: Record<string, unknown> | null) {
+  return readStringField(payload, "status");
+}
+
+function mercadoPagoStatusToSaleStatus(status: string): MongoNexTechSaleStatus | null {
+  switch (status) {
+    case "approved":
+    case "accredited":
+      return "paid";
+    case "cancelled":
+    case "rejected":
+      return "cancelled";
+    case "refunded":
+    case "charged_back":
+      return "refunded";
+    case "pending":
+    case "in_process":
+    case "in_mediation":
+      return "pending";
+    default:
+      return null;
+  }
+}
+
+function centsToMoney(cents: number) {
+  return Math.max(0, Math.round(cents)) / 100;
+}
+
+function decryptProviderSecret(provider: MongoNexTechSalesPaymentProvider, message: string) {
+  if (!provider.secretEncrypted) {
+    throw createNexTechSalesError(message, 400);
+  }
+
+  return decryptSecret(provider.secretEncrypted);
+}
+
+function readMercadoPagoError(payload: Record<string, unknown> | null) {
+  const message = readStringField(payload, "message");
+  const error = readStringField(payload, "error");
+
+  return message ?? error;
+}
+
+function readStringField(payload: Record<string, unknown> | null, key: string) {
+  const value = payload?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function productFieldsFromInput(input: SaveProductInput, settings: MongoNexTechSalesSettings): Omit<

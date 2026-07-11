@@ -3182,7 +3182,7 @@ function NexTechSalesWorkspace({
             <Card className="border-zinc-800/80 bg-zinc-950/80 hover:translate-y-0">
               <CardHeader>
                 <CardTitle className="text-white">Pagamentos modulares</CardTitle>
-                <CardDescription>Cada usuario pode cadastrar seu proprio metodo de pagamento.</CardDescription>
+                <CardDescription>Para Mercado Pago, use Checkout Pro: Public Key no campo publico e Access Token no segredo.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -3199,10 +3199,10 @@ function NexTechSalesWorkspace({
                     <option value="paypal">PayPal</option>
                     <option value="custom">Custom</option>
                   </select>
-                  <DevInput label="Chave publica" onChange={(value) => setProviderForm((current) => ({ ...current, publicKey: value }))} value={providerForm.publicKey ?? ""} />
-                  <DevInput label="Segredo/API token" onChange={(value) => setProviderForm((current) => ({ ...current, secret: value }))} value={providerForm.secret ?? ""} />
-                  <DevInput label="Webhook" onChange={(value) => setProviderForm((current) => ({ ...current, webhookUrl: value }))} value={providerForm.webhookUrl ?? ""} />
-                  <DevInput label="Segredo webhook" onChange={(value) => setProviderForm((current) => ({ ...current, webhookSecret: value }))} value={providerForm.webhookSecret ?? ""} />
+                  <DevInput label={providerForm.provider === "mercadopago" ? "Public Key" : "Chave publica"} onChange={(value) => setProviderForm((current) => ({ ...current, publicKey: value }))} value={providerForm.publicKey ?? ""} />
+                  <DevInput label={providerForm.provider === "mercadopago" ? "Access Token" : "Segredo/API token"} onChange={(value) => setProviderForm((current) => ({ ...current, secret: value }))} value={providerForm.secret ?? ""} />
+                  <DevInput label={providerForm.provider === "mercadopago" ? "Webhook opcional" : "Webhook"} onChange={(value) => setProviderForm((current) => ({ ...current, webhookUrl: value }))} value={providerForm.webhookUrl ?? ""} />
+                  <DevInput label={providerForm.provider === "mercadopago" ? "Webhook secret" : "Segredo webhook"} onChange={(value) => setProviderForm((current) => ({ ...current, webhookSecret: value }))} value={providerForm.webhookSecret ?? ""} />
                   <DevInput label="Instrucoes" onChange={(value) => setProviderForm((current) => ({ ...current, instructions: value }))} value={providerForm.instructions ?? ""} />
                 </div>
                 <Button disabled={saving === "provider"} onClick={() => void handleSaveProvider()}>

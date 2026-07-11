@@ -74,12 +74,16 @@ nexTechSalesRouter.post("/webhooks/:storeId/:gatewayId", async (req, res, next) 
       ?? req.header("x-hub-signature-256")
       ?? req.header("x-signature")
       ?? null;
+    const queryDataId = readString(req.query["data.id"]) ?? readString(req.query.id);
+    const queryType = readString(req.query.type);
 
     const result = await processNexTechPaymentWebhook(params.storeId, params.gatewayId, {
-      eventId: readString(req.body?.id) ?? readString(req.body?.eventId) ?? readString(req.body?.data?.id),
-      eventType: readString(req.body?.type) ?? readString(req.body?.eventType) ?? readString(req.body?.action),
+      dataId: queryDataId ?? readString(req.body?.data?.id),
+      eventId: readString(req.body?.id) ?? readString(req.body?.eventId) ?? queryDataId ?? readString(req.body?.data?.id),
+      eventType: queryType ?? readString(req.body?.type) ?? readString(req.body?.eventType) ?? readString(req.body?.action),
       payload: req.body,
       rawBody,
+      requestId: req.header("x-request-id"),
       signature
     });
 
