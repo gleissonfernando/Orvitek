@@ -168,6 +168,11 @@ export function isPersistentImageUrl(value: string | null | undefined) {
   return Boolean(parsePersistentImageId(value ?? ""));
 }
 
+export function normalizePersistentImageUrl(value: string | null | undefined) {
+  const id = parsePersistentImageId(value ?? "");
+  return id ? publicImageUrl(id) : value ?? "";
+}
+
 export function isLocalUploadUrl(value: string | null | undefined) {
   return /^\/uploads\//.test(value?.trim() ?? "");
 }
@@ -210,7 +215,7 @@ function toDto(image: MongoPersistentImage): StoredImageDto {
     fileName: image.fileName,
     id: image._id,
     mimeType: image.mimeType,
-    publicUrl: image.publicUrl,
+    publicUrl: publicImageUrl(image._id),
     size: image.size,
     storageProvider: image.storageProvider
   };

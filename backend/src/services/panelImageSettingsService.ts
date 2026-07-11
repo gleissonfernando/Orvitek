@@ -14,6 +14,7 @@ import {
   isLocalUploadUrl,
   isPersistentImageUrl,
   migrateLocalImageToPersistent,
+  normalizePersistentImageUrl,
   removePersistentImageByUrl,
   savePersistentImage
 } from "./persistentImageStorageService";
@@ -305,13 +306,14 @@ function resolveLayoutMode(layoutMode: PanelImageLayoutMode, imagePosition: Pane
 
 function normalizeImageUrl(value: string | null | undefined) {
   const normalized = value?.trim() ?? "";
+  const persistentImageUrl = normalizePersistentImageUrl(normalized);
 
-  if (!normalized) {
+  if (!persistentImageUrl) {
     return "";
   }
 
   try {
-    const url = new URL(normalized);
+    const url = new URL(persistentImageUrl);
 
     if (url.protocol !== "https:" && url.protocol !== "http:") {
       return "";
@@ -368,7 +370,7 @@ async function toDtoWithMigration(settings: MongoPanelImageSettings): Promise<Pa
 function toDto(settings: MongoPanelImageSettings): PanelImageSettingsDto {
   const persistentOrRemote = isPersistentImageUrl(settings.imageUrl) || /^https?:\/\//i.test(settings.imageUrl ?? "");
   const imageEnabled = settings.imageEnabled === true && persistentOrRemote;
-  const legacyImageUrl = persistentOrRemote ? settings.imageUrl ?? "" : "";
+  const legacyImageUrl = persistentOrRemote ? normalizeImageUrl(settings.imageUrl) : "";
   return {
     blocks: normalizeBlocks(settings.blocks?.length ? settings.blocks : legacyBlocks(settings.panelId, imageEnabled, legacyImageUrl, settings.imagePosition)),
     botId: settings.botId,
