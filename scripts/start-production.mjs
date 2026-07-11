@@ -31,9 +31,7 @@ function loadRuntimeConfigFile() {
         continue;
       }
 
-      if (!process.env[key]?.trim()) {
-        process.env[key] = typeof value === "string" ? value : String(value);
-      }
+      process.env[key] = typeof value === "string" ? value : String(value);
     }
   } catch (error) {
     console.warn("[start] .nex-tech-runtime-env.json invalido:", error instanceof Error ? error.message : error);
