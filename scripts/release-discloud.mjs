@@ -8,16 +8,17 @@ const appId = readDiscloudAppId();
 
 function run(command, args, options = {}) {
   const useShell = process.platform === "win32";
+  const cwd = options.cwd ?? root;
   const result = useShell
     ? spawnSync([command, ...args.map(quoteShellArg)].join(" "), {
-      cwd: root,
+      cwd,
       env: process.env,
       shell: true,
       stdio: options.capture ? "pipe" : "inherit",
       encoding: "utf8"
     })
     : spawnSync(command, args, {
-    cwd: root,
+    cwd,
     env: process.env,
     shell: false,
     stdio: options.capture ? "pipe" : "inherit",
