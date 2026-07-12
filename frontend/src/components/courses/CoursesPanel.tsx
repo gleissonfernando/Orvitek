@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, FileQuestion, Image, ListChecks, Loader2, Save, ShieldCheck, SlidersHorizontal, Trash2 } from "lucide-react";
+import { BookOpen, FileQuestion, Image, ListChecks, Loader2, PlusCircle, Save, Search, ShieldCheck, SlidersHorizontal, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -125,6 +125,7 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
   const [channelDraft, setChannelDraft] = useState<CourseChannelDraft | null>(null);
   const [examLinkDraft, setExamLinkDraft] = useState<ExamLinkDraft | null>(null);
   const [imageDraft, setImageDraft] = useState({ name: "", type: "main_banner", url: "" });
+  const [proofSearch, setProofSearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [examLoading, setExamLoading] = useState(false);
@@ -134,6 +135,12 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
   const lastChannelSettingsRef = useRef<CourseChannelDraft | null>(null);
 
   const selectedCourse = useMemo(() => dashboard?.courses.find((course) => course.id === selectedCourseId) ?? null, [dashboard, selectedCourseId]);
+  const proofCourses = useMemo(() => {
+    const query = normalizeSearch(proofSearch);
+    const courses = dashboard?.courses ?? [];
+    if (!query) return courses;
+    return courses.filter((course) => normalizeSearch(`${course.name} ${course.code ?? ""} ${course.description ?? ""}`).includes(query));
+  }, [dashboard?.courses, proofSearch]);
   const channelSettingsChanged = useMemo(() => Boolean(dashboard && channelDraft && JSON.stringify(channelDraft) !== JSON.stringify(toChannelDraft(dashboard.settings))), [channelDraft, dashboard]);
   const textChannels = liveOptions?.channels.filter((channel) => ["text", "announcement"].includes(channel.type)) ?? [];
   const categories = liveOptions?.categories ?? [];
@@ -374,6 +381,22 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
     }
   }
 
+  function openNewProofRegistration() {
+    setSelectedCourseId(null);
+    setCourseDraft({
+      ...emptyCourse,
+      buttonLabels: {
+        cancel: "Cancelar Curso",
+        enter: "Entrar no Curso",
+        leave: "Sair do Curso",
+        start: "Realizar Prova"
+      },
+      color: "#FFD500"
+    });
+    setActiveTab("courses");
+    setMessage("Cadastre o curso/prova. Depois de salvar, ele aparece em Configuração de Provas para configurar perguntas e gabarito.");
+  }
+
   async function setSelectedCourseProofMode(enabled: boolean) {
     if (!selectedCourse || !exam || exam.settings.courseId !== selectedCourse.id) return;
     const courseId = selectedCourse.id;
@@ -560,9 +583,42 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
 
       {activeTab === "proofs" ? (
         <Card>
-          <CardHeader><CardTitle>Configuração de Provas</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Provas cadastradas</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-5">
-            <SelectValueField disabled={!canManage || saving} label="Curso" onChange={(courseId) => setSelectedCourseId(courseId)} options={dashboard.courses.map((course) => [course.id, course.name])} value={selectedCourseId ?? ""} />
+            <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+              <div className="space-y-3">
+                <div className="flex flex-col gap-2 sm:flex-row xl:flex-col">
+                  <label className="relative block flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                    <input
+                      className="h-10 w-full rounded-lg border border-zinc-800 bg-black pl-9 pr-3 text-sm text-zinc-100"
+                      onChange={(event) => setProofSearch(event.target.value)}
+                      placeholder="Pesquisar prova..."
+                      value={proofSearch}
+                    />
+                  </label>
+                  <Button disabled={!canManage || saving} onClick={openNewProofRegistration} type="button">
+                    <PlusCircle className="h-4 w-4" />
+                    Cadastrar prova
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {proofCourses.map((course) => (
+                    <ProofRegistryItem
+                      course={course}
+                      isSelected={selectedCourseId === course.id}
+                      key={course.id}
+                      onSelect={() => setSelectedCourseId(course.id)}
+                      selectedExam={selectedCourseId === course.id ? exam : null}
+                    />
+                  ))}
+                  {!proofCourses.length ? <p className="rounded-lg border border-zinc-800 bg-black/30 p-3 text-sm text-zinc-500">Nenhuma prova encontrada.</p> : null}
+                </div>
+              </div>
+              <div className="min-w-0 space-y-5">
+                <SelectValueField disabled={!canManage || saving} label="Prova selecionada" onChange={(courseId) => setSelectedCourseId(courseId)} options={dashboard.courses.map((course) => [course.id, course.name])} value={selectedCourseId ?? ""} />
             {selectedCourse && exam && exam.settings.courseId === selectedCourse.id ? (
               <>
                 <CourseProofModeCard
@@ -636,6 +692,8 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
                 Carregando prova de {selectedCourse.name}...
               </div>
             ) : <p className="text-sm text-zinc-500">Selecione um curso para configurar a prova.</p>}
+              </div>
+            </div>
           </CardContent>
         </Card>
       ) : null}
@@ -721,6 +779,34 @@ function CourseProofModeCard({ course, disabled, enabled, onToggle, questions, s
         </p>
       ) : null}
     </div>
+  );
+}
+
+function ProofRegistryItem({ course, isSelected, onSelect, selectedExam }: {
+  course: Course;
+  isSelected: boolean;
+  onSelect: () => void;
+  selectedExam: CourseExamDashboard | null;
+}) {
+  const selectedStats = selectedExam ? getProofStats(selectedExam.questions) : null;
+  return (
+    <button
+      className={`w-full rounded-lg border p-3 text-left transition ${isSelected ? "border-[#FFD500]/55 bg-[#FFD500]/10 shadow-[0_0_24px_rgba(255,213,0,0.12)]" : "border-zinc-800 bg-black/30 hover:border-[#FFD500]/35 hover:bg-[#FFD500]/5"}`}
+      onClick={onSelect}
+      type="button"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-white">{course.name}</p>
+          <p className="mt-1 truncate text-xs text-zinc-500">{course.code || "sem identificador"}</p>
+        </div>
+        <Badge variant={course.active ? "success" : "muted"}>{course.active ? "Curso ativo" : "Curso off"}</Badge>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {isSelected && selectedExam ? <Badge variant={selectedExam.settings.enabled ? "warning" : "muted"}>{selectedExam.settings.enabled ? "Prova ativa" : "Prova inativa"}</Badge> : <Badge variant="muted">Selecionar</Badge>}
+        {selectedStats ? <Badge variant={selectedStats.complete ? "success" : "warning"}>{selectedStats.active}/{selectedStats.total} perguntas</Badge> : null}
+      </div>
+    </button>
   );
 }
 
@@ -973,4 +1059,8 @@ function parseDecimalNumber(value: unknown, fallback: number) {
 
 function formatDecimalInput(value: number) {
   return String(value).replace(".", ",");
+}
+
+function normalizeSearch(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
