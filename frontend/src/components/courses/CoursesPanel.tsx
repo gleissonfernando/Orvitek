@@ -374,6 +374,24 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
     }
   }
 
+  async function setSelectedCourseProofMode(enabled: boolean) {
+    if (!selectedCourse || !exam || exam.settings.courseId !== selectedCourse.id) return;
+    const courseId = selectedCourse.id;
+    setSaving(true);
+    setError("");
+    try {
+      const settings = await saveCourseExamSettings(botId, guildId, courseId, { enabled });
+      setExam((current) => current && current.settings.courseId === courseId ? { ...current, settings } : current);
+      setMessage(enabled
+        ? `Modo de perguntas ativado para ${selectedCourse.name}.`
+        : `Modo de perguntas desativado para ${selectedCourse.name}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível alterar o modo de perguntas deste curso.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function saveImage() {
     if (!dashboard || !imageDraft.name.trim() || !imageDraft.url.trim()) {
       setError("Informe nome e URL da imagem.");
@@ -547,11 +565,19 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
             <SelectValueField disabled={!canManage || saving} label="Curso" onChange={(courseId) => setSelectedCourseId(courseId)} options={dashboard.courses.map((course) => [course.id, course.name])} value={selectedCourseId ?? ""} />
             {selectedCourse && exam && exam.settings.courseId === selectedCourse.id ? (
               <>
+                <CourseProofModeCard
+                  course={selectedCourse}
+                  disabled={!canManage || saving}
+                  enabled={exam.settings.enabled}
+                  onToggle={(enabled) => void setSelectedCourseProofMode(enabled)}
+                  questions={exam.questions}
+                  saving={saving}
+                />
                 <div className="grid gap-3 md:grid-cols-4">
                   <DecimalInputField disabled={!canManage || saving} label="Nota mínima" onCommit={(minScore) => void saveSelectedExamSettings({ minScore })} value={exam.settings.minScore} />
                   <DecimalInputField disabled={!canManage || saving} label="Nota máxima manual" onCommit={(manualQuestionMaxScore) => void saveSelectedExamSettings({ manualQuestionMaxScore })} value={exam.settings.manualQuestionMaxScore ?? 10} />
                   <ToggleField disabled={!canManage || saving} label="Aprovação sempre manual" onChange={(manualApproval) => void saveSelectedExamSettings({ manualApproval })} value={exam.settings.manualApproval ?? true} />
-                  <ToggleField disabled={!canManage || saving} label="Prova ativa" onChange={(enabled) => void saveSelectedExamSettings({ enabled })} value={exam.settings.enabled} />
+                  <ToggleField disabled={!canManage || saving} label="Modo deste curso ativo" onChange={(enabled) => void setSelectedCourseProofMode(enabled)} value={exam.settings.enabled} />
                   <SelectField disabled={!canManage || saving} label="Categoria dos canais da prova" onChange={(temporaryCategoryId) => void saveSelectedExamSettings({ temporaryCategoryId })} options={categories} value={exam.settings.temporaryCategoryId ?? ""} />
                   <SelectField disabled={!canManage || saving} label="Canal de correção manual" onChange={(correctionChannelId) => void saveSelectedExamSettings({ correctionChannelId })} options={textChannels} value={exam.settings.correctionChannelId ?? ""} />
                   <SelectField disabled={!canManage || saving} label="Canal de resultado da prova" onChange={(resultChannelId) => void saveSelectedExamSettings({ resultChannelId })} options={textChannels} value={exam.settings.resultChannelId ?? ""} />
@@ -658,13 +684,65 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
   );
 }
 
+function CourseProofModeCard({ course, disabled, enabled, onToggle, questions, saving }: {
+  course: Course;
+  disabled?: boolean;
+  enabled: boolean;
+  onToggle: (enabled: boolean) => void;
+  questions: CourseExamQuestion[];
+  saving?: boolean;
+}) {
+  const stats = getProofStats(questions);
+  const statusLabel = enabled ? "Ativo" : "Desativado";
+  return (
+    <div className={`rounded-lg border p-4 ${enabled ? "border-yellow-400/40 bg-yellow-400/10" : "border-zinc-800 bg-black/30"}`}>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-semibold text-white">Modo de perguntas do curso</p>
+            <Badge variant={enabled ? "warning" : "muted"}>{statusLabel}</Badge>
+            <Badge variant={course.active ? "success" : "muted"}>{course.active ? "Curso ativo" : "Curso desativado"}</Badge>
+          </div>
+          <p className="mt-1 text-sm text-zinc-400">
+            Curso selecionado: <span className="font-semibold text-yellow-200">{course.name}</span>. Ao iniciar uma prova deste curso, o bot usa somente as perguntas configuradas aqui.
+          </p>
+          <p className="mt-2 text-xs text-zinc-500">
+            Perguntas ativas: {stats.active} de {stats.total} • Objetivas: {stats.objective} • Discursivas: {stats.written}
+          </p>
+        </div>
+        <Button disabled={disabled} onClick={() => onToggle(!enabled)} type="button" variant={enabled ? "outline" : "default"}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileQuestion className="h-4 w-4" />}
+          {enabled ? "Desativar modo" : "Ativar modo deste curso"}
+        </Button>
+      </div>
+      {!stats.complete ? (
+        <p className="mt-3 rounded-md border border-yellow-400/25 bg-black/30 px-3 py-2 text-xs text-yellow-100">
+          Para ativar, mantenha pelo menos uma pergunta ativa, com enunciado, pontuação e gabarito quando for objetiva.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function ProofCompleteness({ questions }: { questions: CourseExamQuestion[] }) {
-  const objective = questions.filter((question) => question.type === "selection" || question.type === "multiple");
-  const written = questions.filter((question) => question.type === "written");
-  const complete = questions.length > 0
-    && questions.every((question) => question.prompt.trim() && question.points > 0)
+  const stats = getProofStats(questions);
+  return <div className="rounded-lg border border-zinc-800 bg-black/30 p-3 text-sm text-zinc-300">Status da prova: <Badge variant={stats.complete ? "success" : "warning"}>{stats.complete ? "Completa" : "Incompleta"}</Badge> • Perguntas ativas: {stats.active} • Total: {stats.total} • Objetivas: {stats.objective} • Discursivas: {stats.written}</div>;
+}
+
+function getProofStats(questions: CourseExamQuestion[]) {
+  const activeQuestions = questions.filter((question) => question.active !== false);
+  const objective = activeQuestions.filter((question) => question.type === "selection" || question.type === "multiple");
+  const written = activeQuestions.filter((question) => question.type === "written");
+  const complete = activeQuestions.length > 0
+    && activeQuestions.every((question) => question.prompt.trim() && question.points > 0)
     && objective.every((question) => question.alternatives.length >= 2 && hasCorrectAlternative(question));
-  return <div className="rounded-lg border border-zinc-800 bg-black/30 p-3 text-sm text-zinc-300">Status da prova: <Badge variant={complete ? "success" : "warning"}>{complete ? "Completa" : "Incompleta"}</Badge> • Perguntas: {questions.length} • Objetivas: {objective.length} • Discursivas: {written.length}</div>;
+  return {
+    active: activeQuestions.length,
+    complete,
+    objective: objective.length,
+    total: questions.length,
+    written: written.length
+  };
 }
 
 function QuestionCard({ onDelete, onEdit, question }: { onDelete: () => void; onEdit: () => void; question: CourseExamQuestion }) {
