@@ -31,6 +31,7 @@ const SUPPORT_URL = "https://discord.gg/2jCEx3XwMh";
 
 type LoginProps = {
   auth: AuthResponse | null;
+  error?: string | null;
   onLoginDiscord: () => void;
   onVerify: () => void;
   verifying: boolean;
@@ -152,6 +153,7 @@ const steps = [
 
 export function Login({
   auth,
+  error,
   onLoginDiscord,
   onVerify,
   verifying
@@ -232,6 +234,11 @@ export function Login({
             Ver Planos
           </Button>
         </Reveal>
+        {error ? (
+          <Reveal delay={0.45} className="mt-5 w-full max-w-2xl rounded-lg border border-red-500/35 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-100">
+            {error}
+          </Reveal>
+        ) : null}
 
         <Reveal delay={0.5} className="mt-12 w-full max-w-3xl">
           <TerminalMockup />

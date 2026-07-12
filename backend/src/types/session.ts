@@ -13,6 +13,8 @@ export type AuthSessionUser = {
   email: string | null;
   guilds: DashboardGuild[];
   selectedGuildId: string | null;
+  dashboardBotId?: string | null;
+  dashboardBotSlug?: string | null;
   accessLevel: SessionAccessLevel;
   authorized: boolean;
   lastLoginAt: string;

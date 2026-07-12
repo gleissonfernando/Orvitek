@@ -119,6 +119,7 @@ async function ensureVerifiedRoleAccess(req: Request, res: Response, auth: Dashb
   }
 
   const validation = await withAuthMiddlewareTimeout("dashboard_access_recheck", evaluateDashboardAccess(auth.user, {
+    botSlug: auth.user.dashboardBotSlug ?? null,
     discordAccessToken: req.session.discordAccessToken ?? null,
     discordRefreshToken: null,
     onDiscordTokensRefreshed: (tokens) => {

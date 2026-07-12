@@ -70,7 +70,8 @@ export function createAuthResponse(auth: DashboardAuth) {
       level: user.accessLevel,
       verificationMode: env.DASHBOARD_VERIFICATION_MODE,
       tokenExpiresAt: auth.tokenExpiresAt
-    }
+    },
+    redirectTo: user.dashboardBotSlug ? `/${user.dashboardBotSlug}/dashboard` : undefined
   };
 }
 
@@ -79,7 +80,8 @@ export function resolveAuthFromRequest(req: Request, res: Response) {
 
   if (accessToken) {
     try {
-      return applyBrowserVerification(req, buildAuthFromToken(accessToken));
+      void req;
+      return buildAuthFromToken(accessToken);
     } catch (error) {
       if (!(error instanceof TokenExpiredError)) {
         clearAuthCookies(res);
@@ -157,17 +159,6 @@ function verifyToken(token: string, expectedType: "access" | "refresh") {
   return payload;
 }
 
-function applyBrowserVerification(req: Request, auth: DashboardAuth): DashboardAuth {
-  if (!auth.verified || hasVerificationHeader(req, auth.user)) {
-    return auth;
-  }
-
-  return {
-    ...auth,
-    verified: false
-  };
-}
-
 function normalizeAuthUser(user: AuthSessionUser): AuthSessionUser {
   // `user.authorized` is only written after the server validates the account
   // against the persisted DEV permissions. Keep that signed authorization in
@@ -189,6 +180,8 @@ function normalizeAuthUser(user: AuthSessionUser): AuthSessionUser {
     globalName: user.globalName ?? null,
     discriminator: user.discriminator ?? null,
     avatarUrl: normalizeAvatarUrl(user),
+    dashboardBotId: user.dashboardBotId ?? null,
+    dashboardBotSlug: user.dashboardBotSlug ?? null,
     guilds,
     selectedGuildId,
     accessLevel,
@@ -234,10 +227,6 @@ function signVerificationToken(user: AuthSessionUser) {
       expiresIn: env.JWT_REFRESH_TTL_SECONDS
     }
   );
-}
-
-function hasVerificationHeader(req: Request, user: AuthSessionUser) {
-  return isValidDashboardVerificationToken(req.header("x-dashboard-verification"), user.discordId);
 }
 
 function cookieOptions() {

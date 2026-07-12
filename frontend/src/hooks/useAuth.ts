@@ -123,7 +123,9 @@ export function useAuth() {
       setStatus("Acesso liberado.");
       clearAuthCallbackLanding();
       if (!isProtectedPanelPath(window.location.pathname)) {
-        window.location.replace(dashboardUrl());
+        window.location.replace(session.redirectTo ? appUrl(session.redirectTo) : dashboardUrl(session.user.dashboardBotSlug));
+      } else if (session.redirectTo && window.location.pathname !== session.redirectTo) {
+        window.location.replace(appUrl(session.redirectTo));
       }
     } catch (requestError) {
       const validation = readRequestValidation(requestError);

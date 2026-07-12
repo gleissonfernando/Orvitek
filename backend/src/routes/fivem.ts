@@ -668,7 +668,7 @@ fivemRouter.post("/bot/hierarchy/panel-lock", requireBot, async (req, res, next)
       await releaseFivemHierarchyPanelLock(input.guildId, botId, input.panelId, input.instanceId, input.lockToken);
       return res.json({ acquired: false, released: true });
     }
-    return res.json({ acquired: await acquireFivemHierarchyPanelLock(input.guildId, botId, input.panelId, input.instanceId, input.ttlMs ?? 30_000) });
+    return res.json(await acquireFivemHierarchyPanelLock(input.guildId, botId, input.panelId, input.instanceId, input.ttlMs ?? 30_000));
   } catch (error) {
     return next(error);
   }

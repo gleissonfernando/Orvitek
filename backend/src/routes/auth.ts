@@ -200,9 +200,13 @@ function readAccessBotSlug(req: Request) {
   return botSlug && /^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(botSlug) ? botSlug : null;
 }
 
+function scopedBotSlug(req: Request) {
+  return readAccessBotSlug(req) ?? req.session.user?.dashboardBotSlug ?? null;
+}
+
 function accessValidationOptions(req: Request) {
   return {
-    botSlug: readAccessBotSlug(req),
+    botSlug: scopedBotSlug(req),
     discordAccessToken: req.session.discordAccessToken ?? null,
     discordRefreshToken: null,
     onDiscordTokensRefreshed: (tokens: { accessToken: string; refreshToken: string | null }) => {
@@ -460,6 +464,8 @@ authRouter.get("/discord/callback", async (req, res, next) => {
     const user = await withAuthTimeout("dashboard_user_save", saveDiscordUser(discordUser, tokens));
     const sessionBaseUser = {
       ...baseUser,
+      dashboardBotId: verifiedState.type === "bot" ? verifiedState.botId ?? null : null,
+      dashboardBotSlug: botSlugForAccess,
       id: user.id,
       selectedGuildId: user.selectedGuildId && guilds.some((guild) => guild.id === user.selectedGuildId)
         ? user.selectedGuildId
@@ -593,6 +599,7 @@ authRouter.post("/verify", requireAuthenticated, async (req, res, next) => {
     return res.json({
       ...createAuthResponse(verifiedAuth),
       validation,
+      redirectTo: validatedUser.dashboardBotSlug ? `/${validatedUser.dashboardBotSlug}/dashboard` : undefined,
       verificationToken: issueVerificationToken(verifiedAuth.user)
     });
   } catch (error) {

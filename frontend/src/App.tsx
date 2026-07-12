@@ -39,7 +39,7 @@ export function App() {
     }
 
     if (auth?.access.verified && !protectedPanelPath && !publicLandingPath) {
-      window.location.replace(dashboardUrl());
+      window.location.replace(dashboardUrl(auth.user.dashboardBotSlug));
     }
   }, [auth, docsPath, plansPath, productRoute, protectedPanelPath, publicLandingPath, rouletteToken]);
 
@@ -91,8 +91,9 @@ export function App() {
     return (
       <Login
         auth={auth}
+        error={error ?? routeError}
         onLoginDiscord={loginDiscord}
-        onVerify={() => auth?.access.verified ? window.location.assign(dashboardUrl()) : verify()}
+        onVerify={() => auth?.access.verified ? window.location.assign(dashboardUrl(auth.user.dashboardBotSlug)) : verify()}
         verifying={verifying}
       />
     );
@@ -102,6 +103,7 @@ export function App() {
     return (
       <Login
         auth={auth}
+        error={error ?? routeError}
         onLoginDiscord={loginDiscord}
         onVerify={verify}
         verifying={verifying}

@@ -39,6 +39,8 @@ export type AuthUser = {
   email: string | null;
   guilds: DashboardGuild[];
   selectedGuildId: string | null;
+  dashboardBotId?: string | null;
+  dashboardBotSlug?: string | null;
   accessLevel: SessionAccessLevel;
   authorized: boolean;
   lastLoginAt: string;
@@ -85,6 +87,7 @@ export type AuthResponse = {
     tokenExpiresAt: string;
   };
   validation?: AccessValidationResult;
+  redirectTo?: string;
 };
 
 export type BotStatus = {
