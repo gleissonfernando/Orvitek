@@ -49,7 +49,7 @@ export async function publishReportSystemPanelToDiscord(settings: GuildSettingsD
         components: buildReportPanelComponents(settings, options, panelImage),
         footer: {
           image: panelFooterImage(settings, panelImage),
-          text: report.footerText ?? "OrviteK"
+          text: report.footerText ?? "NexTechK"
         }
       })
     ],
@@ -201,7 +201,7 @@ function formatPanelBody(value: string | null | undefined) {
 
 function buildV2Container(input: { accentColor: number; components: unknown[]; footer?: { enabled?: boolean; image?: string | null; text?: string | null } }) {
   const components = [...input.components];
-  const footer = createV2Footer(input.footer ?? { text: "OrviteK" });
+  const footer = createV2Footer(input.footer ?? { text: "NexTechK" });
   if (footer) components.push({ type: 14, divider: true, spacing: 1 }, footer);
   return {
     type: 17,
@@ -212,7 +212,7 @@ function buildV2Container(input: { accentColor: number; components: unknown[]; f
 
 function createV2Footer(footer: { enabled?: boolean; image?: string | null; text?: string | null } | null | undefined) {
   if (!footer || footer.enabled === false) return null;
-  const content = `-# ${footer.text ?? "OrviteK"}`.slice(0, 4000) || "-# ";
+  const content = `-# ${footer.text ?? "NexTechK"}`.slice(0, 4000) || "-# ";
   if (!footer.image) return { type: 10, content };
   return {
     type: 9,

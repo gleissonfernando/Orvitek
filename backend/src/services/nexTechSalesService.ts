@@ -16,6 +16,7 @@ import type {
 import { getMongoCollections } from "../database/mongo";
 import { env } from "../config/env";
 import { createMercadoPagoPreference as createMercadoPagoCheckoutPreference } from "./mercadoPagoService";
+import { devBotRealtimeRoom, emitRealtimeToRoom } from "../realtime/events";
 import { decryptSecret, encryptSecret } from "./secretCryptoService";
 
 export const NEX_TECH_SALES_MODULE_ID = "nex-tech-sales";
@@ -54,6 +55,14 @@ export type NexTechSaleDto = Omit<MongoNexTechSale, "_id" | "createdAt" | "updat
   updatedAt: string;
   paidAt: string | null;
   expiresAt: string | null;
+};
+
+export type NexTechSaleDeliveryResultInput = {
+  deliveredRoleIds?: string[];
+  error?: string | null;
+  messageId?: string | null;
+  saleId: string;
+  status: "delivered" | "partial" | "failed";
 };
 
 export type NexTechSalesDashboardDto = {
@@ -131,6 +140,7 @@ export type SavePaymentProviderInput = {
 export type SavePlanInput = {
   checkoutMessage?: string | null;
   description?: string | null;
+  discordRoleId?: string | null;
   durationDays?: number | null;
   enabled: boolean;
   imageUrl?: string | null;
@@ -419,6 +429,7 @@ export async function saveNexTechSalesPlan(botId: string, guildId: string, planI
         $set: {
           checkoutMessage: normalizeNullable(input.checkoutMessage),
           description: normalizeNullable(input.description),
+          discordRoleId: normalizeSnowflake(input.discordRoleId),
           durationDays: input.durationDays ?? null,
           enabled: input.enabled,
           imageUrl: normalizeNullable(input.imageUrl),
@@ -442,6 +453,7 @@ export async function saveNexTechSalesPlan(botId: string, guildId: string, planI
     storeId: settings.storeId,
     name: input.name.trim(),
     description: normalizeNullable(input.description),
+    discordRoleId: normalizeSnowflake(input.discordRoleId),
     priceCents: input.priceCents,
     durationDays: input.durationDays ?? null,
     enabled: input.enabled,
@@ -620,6 +632,7 @@ export async function saveNexTechSale(botId: string, guildId: string, input: Sav
     productName: null,
     productPlanType: "manual",
     productSlug: null,
+    purchasedRoleId: plan?.discordRoleId ?? null,
     externalReference: normalizeNullable(input.externalReference),
     status: input.status,
     notes: normalizeNullable(input.notes),
@@ -754,6 +767,7 @@ export async function createProductCheckout(storeId: string, slug: string, input
     productName: product.name,
     productPlanType: input.planType,
     productSlug: product.slug,
+    purchasedRoleId: plan.discordRoleId,
     externalReference: checkout.externalReference,
     status: "pending",
     notes: `Checkout publico ${input.planType}`,
@@ -798,6 +812,7 @@ export async function updateNexTechSaleStatus(botId: string, guildId: string, sa
       $set: {
         expiresAt,
         paidAt,
+        purchasedRoleId: sale.purchasedRoleId ?? plan?.discordRoleId ?? null,
         status,
         updatedAt: now,
         updatedBy: actorId
@@ -836,6 +851,34 @@ export async function updateNexTechSaleStatus(botId: string, guildId: string, sa
   }
 
   return updated;
+}
+
+export async function recordNexTechSaleDeliveryResult(botId: string | null, guildId: string, input: NexTechSaleDeliveryResultInput) {
+  if (!botId) {
+    throw createNexTechSalesError("Bot nao identificado para registrar entrega da venda.", 400);
+  }
+
+  const { nexTechSales } = await getMongoCollections();
+  const now = new Date();
+  const deliveredRoleIds = [...new Set((input.deliveredRoleIds ?? []).map((roleId) => roleId.trim()).filter((roleId) => /^\d{5,32}$/.test(roleId)))];
+
+  await nexTechSales.updateOne(
+    { _id: input.saleId, botId, guildId },
+    {
+      $set: {
+        deliveredAt: input.status === "delivered" || input.status === "partial" ? now : null,
+        deliveredRoleIds,
+        deliveryError: normalizeNullable(input.error),
+        deliveryMessageId: normalizeSnowflake(input.messageId),
+        deliveryStatus: input.status,
+        updatedAt: now
+      }
+    }
+  );
+
+  return {
+    ok: true
+  };
 }
 
 export async function processNexTechPaymentWebhook(storeId: string, gatewayId: string, input: ProcessWebhookInput) {
@@ -1326,10 +1369,12 @@ async function applyMercadoPagoPaymentStatus(settings: MongoNexTechSalesSettings
 async function activateNexTechSaleBenefits(settings: MongoNexTechSalesSettings, sale: MongoNexTechSale, now: Date) {
   if (sale.productPlanType === "hosting") {
     await renewLifetimeHosting(settings, sale, now);
+    await queueNexTechSaleDelivery(settings, sale, now);
     return;
   }
 
   if (sale.productPlanType !== "lifetime" && sale.productPlanType !== "monthly") {
+    await queueNexTechSaleDelivery(settings, sale, now);
     return;
   }
 
@@ -1386,6 +1431,72 @@ async function activateNexTechSaleBenefits(settings: MongoNexTechSalesSettings, 
     },
     { upsert: true }
   );
+  await queueNexTechSaleDelivery(settings, sale, now, plan?.discordRoleId ?? null);
+}
+
+async function queueNexTechSaleDelivery(
+  settings: MongoNexTechSalesSettings,
+  sale: MongoNexTechSale,
+  now: Date,
+  fallbackPurchasedRoleId: string | null = null
+) {
+  const { nexTechSales } = await getMongoCollections();
+  const buyerId = normalizeSnowflake(sale.buyerId);
+  const customerRoleId = normalizeSnowflake(settings.customerRoleId);
+  const purchasedRoleId = normalizeSnowflake(sale.purchasedRoleId ?? fallbackPurchasedRoleId);
+
+  if (!buyerId) {
+    await nexTechSales.updateOne(
+      { _id: sale._id, ownerUserId: settings.ownerUserId, storeId: settings.storeId },
+      {
+        $set: {
+          deliveryError: "Comprador sem ID Discord valido.",
+          deliveryStatus: "failed",
+          updatedAt: now
+        }
+      }
+    );
+    return;
+  }
+
+  const current = await nexTechSales.findOne({ _id: sale._id, ownerUserId: settings.ownerUserId, storeId: settings.storeId });
+  if (current?.deliveryStatus === "delivered") {
+    return;
+  }
+
+  if (current?.deliveryAttemptedAt && now.getTime() - current.deliveryAttemptedAt.getTime() < 60_000) {
+    return;
+  }
+
+  await nexTechSales.updateOne(
+    { _id: sale._id, ownerUserId: settings.ownerUserId, storeId: settings.storeId },
+    {
+      $set: {
+        deliveryAttemptedAt: now,
+        deliveryError: null,
+        deliveryStatus: "pending",
+        purchasedRoleId,
+        updatedAt: now
+      }
+    }
+  );
+
+  emitRealtimeToRoom(devBotRealtimeRoom(settings.botId), "nex-tech-sales:sale_paid", {
+    amountCents: sale.amountCents,
+    botId: settings.botId,
+    buyerId,
+    buyerName: sale.buyerName,
+    currency: sale.currency,
+    customerRoleId,
+    guildId: settings.guildId,
+    logChannelId: normalizeSnowflake(settings.logChannelId),
+    planName: sale.planName,
+    productName: sale.productName ?? null,
+    productPlanType: sale.productPlanType ?? null,
+    purchasedRoleId,
+    saleChannelId: normalizeSnowflake(settings.saleChannelId) ?? normalizeSnowflake(settings.logChannelId),
+    saleId: sale._id
+  });
 }
 
 async function renewLifetimeHosting(settings: MongoNexTechSalesSettings, sale: MongoNexTechSale, now: Date) {
@@ -1546,6 +1657,11 @@ async function upsertCustomer(
 function normalizeNullable(value: string | null | undefined) {
   const normalized = value?.trim();
   return normalized || null;
+}
+
+function normalizeSnowflake(value: string | null | undefined) {
+  const normalized = value?.trim() ?? "";
+  return /^\d{5,32}$/.test(normalized) ? normalized : null;
 }
 
 function validateWebhookSignature(
@@ -1755,6 +1871,7 @@ function normalizePlan(
     buttonColor: plan.buttonColor?.trim() || "#7c3aed",
     buttonText: plan.buttonText?.trim() || fallbackButton,
     description: plan.description?.trim() || "",
+    discordRoleId: normalizeSnowflake(plan.discordRoleId),
     enabled: plan.enabled,
     freeHostingDays: Number.isFinite(plan.freeHostingDays) ? Math.max(0, Math.floor(plan.freeHostingDays ?? 0)) : null,
     hostingPriceCents: Number.isFinite(plan.hostingPriceCents) ? Math.max(0, Math.round(plan.hostingPriceCents ?? 0)) : null,

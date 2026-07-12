@@ -29,9 +29,10 @@ import {
 } from "discord.js";
 import { isBotModuleEnabled } from "../config/env";
 import type { BotCommand, BotContext } from "../types";
-import { ensureGuildEmojiCache, resolveComponentEmoji } from "../utils/componentEmoji";
+import { ensureGuildEmojiCache } from "../utils/componentEmoji";
 import type { RhAdminAbsence, RhAdminAdornment, RhAdminSettings } from "./apiClient";
 import { renderComponentsV2Panel } from "./panelVisualRenderer";
+import { systemComponentEmoji, systemEmojiText } from "./systemEmojiService";
 
 const MODULE_ID = "rh-admin";
 const MODULE_DENIED = "O módulo RH Administrativo não está liberado para este servidor. Entre em contato com a administração do bot.";
@@ -411,8 +412,8 @@ function mainPanel(settings: RhAdminSettings, guild: Guild | null | undefined = 
   return renderComponentsV2Panel({
     accentColor: parseColor(settings.color),
     actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(IDS.absence).setEmoji(resolveComponentEmoji(guild, settings.buttonEmojis.absence, "🕒")).setLabel("Solicitar Ausência").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(IDS.adornment).setEmoji(resolveComponentEmoji(guild, settings.buttonEmojis.adornment, "🖼️")).setLabel("Solicitar Adorno").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId(IDS.absence).setEmoji(systemComponentEmoji("calendario", guild)).setLabel("Solicitar Ausência").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(IDS.adornment).setEmoji(systemComponentEmoji("link", guild)).setLabel("Solicitar Adorno").setStyle(ButtonStyle.Secondary)
     )],
     description: settings.panelDescription,
     fields: [
@@ -421,7 +422,7 @@ function mainPanel(settings: RhAdminSettings, guild: Guild | null | undefined = 
     ],
     image: settings.panelBannerUrl ? { imageEnabled: true, imagePosition: "top", imageUrl: settings.panelBannerUrl } : null,
     moduleId: MODULE_ID,
-    title: "RH Administrativo"
+    title: `${systemEmojiText("homem", guild)} RH Administrativo`
   });
 }
 
@@ -430,13 +431,13 @@ function configPanel(settings: RhAdminSettings, notice?: string) {
     accentColor: parseColor(settings.color),
     actions: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(IDS.general).setLabel("Configurações Gerais").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(IDS.channels).setLabel("Canais").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(IDS.roles).setLabel("Permissões").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(IDS.publish).setLabel(`${displayEmoji(settings.buttonEmojis.publish, "📋")} Publicar Painel`).setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId(IDS.close).setLabel("Fechar").setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId(IDS.general).setEmoji(systemComponentEmoji("engrenagem")).setLabel("Configurações Gerais").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(IDS.channels).setEmoji(systemComponentEmoji("discord")).setLabel("Canais").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(IDS.roles).setEmoji(systemComponentEmoji("homem")).setLabel("Permissões").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(IDS.publish).setEmoji(systemComponentEmoji("prancheta")).setLabel("Publicar Painel").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(IDS.close).setEmoji(systemComponentEmoji("porta")).setLabel("Fechar").setStyle(ButtonStyle.Danger)
       ),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IDS.view).setLabel("Ver Configurações Atuais").setStyle(ButtonStyle.Secondary))
+      new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IDS.view).setEmoji(systemComponentEmoji("prancheta_acertos")).setLabel("Ver Configurações Atuais").setStyle(ButtonStyle.Secondary))
     ],
     description: "Configure ausências, adornos, permissões, canais de análise e logs do RH Administrativo.",
     fields: [notice ? `**${notice}**` : "", `Sistema: ${settings.systemName}`, `Painel: ${settings.panelChannelId ? `<#${settings.panelChannelId}>` : "não configurado"}`, `Análise de ausências: ${settings.absenceReviewChannelId ? `<#${settings.absenceReviewChannelId}>` : "não configurado"}`].filter(Boolean),
@@ -456,7 +457,7 @@ function channelsPanel(settings: RhAdminSettings, notice?: string) {
       channelSelect(IDS.selectAdornmentReview, "Canal de envio dos adornos"),
       channelSelect(IDS.selectAdornmentLog, "Canal de logs de adorno"),
       channelSelect(IDS.selectGeneralLog, "Canal de logs gerais"),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IDS.back).setLabel("Voltar").setStyle(ButtonStyle.Secondary))
+      new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IDS.back).setEmoji(systemComponentEmoji("porta")).setLabel("Voltar").setStyle(ButtonStyle.Secondary))
     ],
     description: "Defina onde o RH publica painéis, recebe solicitações e registra auditoria.",
     fields: [notice ? `**${notice}**` : "", `Painel: ${channel(settings.panelChannelId)}`, `Ausências: ${channel(settings.absenceReviewChannelId)} | Logs: ${channel(settings.absenceLogChannelId)}`, `Adornos: ${channel(settings.adornmentReviewChannelId)} | Logs: ${channel(settings.adornmentLogChannelId)}`].filter(Boolean),
@@ -474,7 +475,7 @@ function rolesPanel(settings: RhAdminSettings, notice?: string) {
       new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(new RoleSelectMenuBuilder().setCustomId(IDS.selectApproverRoles).setPlaceholder("Cargos que aprovam ausências").setMinValues(0).setMaxValues(10)),
       new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(new UserSelectMenuBuilder().setCustomId(IDS.selectConfigUsers).setPlaceholder("Usuários que configuram RH").setMinValues(0).setMaxValues(10)),
       new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(new UserSelectMenuBuilder().setCustomId(IDS.selectApproverUsers).setPlaceholder("Usuários que aprovam ausências").setMinValues(0).setMaxValues(10)),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IDS.back).setLabel("Voltar").setStyle(ButtonStyle.Secondary))
+      new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IDS.back).setEmoji(systemComponentEmoji("porta")).setLabel("Voltar").setStyle(ButtonStyle.Secondary))
     ],
     description: "Defina quem configura o RH, quem aprova ausências e qual cargo temporário será aplicado.",
     fields: [notice ? `**${notice}**` : "", `Cargo de ausência: ${settings.absenceRoleId ? `<@&${settings.absenceRoleId}>` : "não configurado"}`, `Configuração: ${mentions(settings.configUserIds, "user")} ${mentions(settings.configRoleIds, "role")}`, `Aprovação: ${mentions(settings.approverUserIds, "user")} ${mentions(settings.approverRoleIds, "role")}`].filter(Boolean),
@@ -486,7 +487,7 @@ function rolesPanel(settings: RhAdminSettings, notice?: string) {
 function summaryPanel(settings: RhAdminSettings) {
   return renderComponentsV2Panel({
     accentColor: parseColor(settings.color),
-    actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IDS.back).setLabel("Voltar").setStyle(ButtonStyle.Secondary))],
+    actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IDS.back).setEmoji(systemComponentEmoji("porta")).setLabel("Voltar").setStyle(ButtonStyle.Secondary))],
     description: "Resumo da configuração atual do RH Administrativo.",
     fields: [
       `Status: ${settings.enabled ? "Ativo" : "Desativado"}\nNome: ${settings.systemName}\nCor: ${settings.color}`,
@@ -504,8 +505,8 @@ function absenceReviewPanel(absence: RhAdminAbsence, settings: RhAdminSettings, 
   return renderComponentsV2Panel({
     accentColor: parseColor(settings.color),
     actions: absence.status === "pending" ? [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`rh_absence_approve:${absence.id}`).setEmoji(resolveComponentEmoji(guild, settings.buttonEmojis.approve, "✅")).setLabel("Aprovar").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`rh_absence_reject:${absence.id}`).setEmoji(resolveComponentEmoji(guild, settings.buttonEmojis.reject, "❌")).setLabel("Recusar").setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId(`rh_absence_approve:${absence.id}`).setEmoji(systemComponentEmoji("visto", guild)).setLabel("Aprovar").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`rh_absence_reject:${absence.id}`).setEmoji(systemComponentEmoji("exclamacao", guild)).setLabel("Recusar").setStyle(ButtonStyle.Danger)
     )] : [],
     description: "Nova solicitação de ausência encaminhada para análise do RH.",
     fields: [
@@ -653,10 +654,6 @@ function isValidImageUrl(value: string, allowAnyUrl: boolean) {
 function parseColor(value: string | null | undefined) {
   const parsed = Number.parseInt((value ?? "").replace("#", ""), 16);
   return Number.isFinite(parsed) ? parsed : 0x1d4ed8;
-}
-
-function displayEmoji(value: string, fallback: string) {
-  return /^[a-zA-Z0-9_]{2,32}$/.test(value.trim()) ? fallback : value;
 }
 
 function channel(id: string | null) {

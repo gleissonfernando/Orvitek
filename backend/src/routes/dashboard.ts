@@ -6,6 +6,7 @@ import { canManageDashboardGuild } from "../services/dashboardGuildAccessService
 import { fetchBotProfile } from "../services/botProfileService";
 import { canAccessDevPanel } from "../services/devAccessService";
 import { canAccessDevBotGuild, getAccessibleDashboardBotBySlug, listAccessibleDashboardBots } from "../services/devBotService";
+import { getMaintenanceState } from "../services/maintenanceService";
 import { mergeAuthorizedBotGuilds } from "../services/statsService";
 import { issueAuthCookies, type DashboardAuth } from "../services/tokenService";
 import { saveSelectedGuild } from "../services/userService";
@@ -13,6 +14,16 @@ import { saveSelectedGuild } from "../services/userService";
 export const dashboardRouter = Router();
 
 dashboardRouter.use(requireAuth);
+
+dashboardRouter.get("/maintenance", async (_req, res, next) => {
+  try {
+    return res.json({
+      maintenance: await getMaintenanceState()
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
 
 dashboardRouter.get("/me", async (_req, res, next) => {
   try {

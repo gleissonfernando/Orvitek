@@ -75,7 +75,7 @@ function PublicPlanCard({ busy, onBuy, plan }: { busy: boolean; onBuy: (paymentM
       </p>
     ) : null}
     {plan.isPurchasable ? <div className="mt-8 grid gap-2 sm:grid-cols-2">
-      <button className="flex h-12 items-center justify-center gap-2 rounded-lg bg-[#FFD500] text-sm font-bold text-black transition hover:bg-[#FFEA70] disabled:cursor-not-allowed disabled:opacity-70" disabled={busy} onClick={() => onBuy("checkout")} type="button">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}Cartão</button>
+      <button className="flex h-12 items-center justify-center gap-2 rounded-lg bg-[#FFD500] text-sm font-bold text-black transition hover:bg-[#FFEA70] disabled:cursor-not-allowed disabled:opacity-70" disabled={busy} onClick={() => onBuy("checkout")} type="button">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}Mercado Pago</button>
       <button className="flex h-12 items-center justify-center gap-2 rounded-lg border border-[#FFD500]/35 bg-[#FFD500]/10 text-sm font-bold text-[#FFEA70] transition hover:bg-[#FFD500]/15 disabled:cursor-not-allowed disabled:opacity-70" disabled={busy} onClick={() => onBuy("pix")} type="button">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}Pix</button>
     </div> : <span className="mt-8 flex h-12 items-center justify-center rounded-lg border border-zinc-700 text-sm font-bold text-zinc-500">Indisponível</span>}
   </article>;

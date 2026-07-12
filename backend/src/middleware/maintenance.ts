@@ -43,6 +43,7 @@ export async function maintenanceMiddleware(req: Request, res: Response, next: N
 
 function isMaintenanceBypass(req: Request) {
   const path = req.path;
+  const method = req.method.toUpperCase();
 
   if (
     path === "/health"
@@ -54,6 +55,20 @@ function isMaintenanceBypass(req: Request) {
     || path.startsWith("/api/dev")
     || path.startsWith("/api/bot/maintenance")
     || path.startsWith("/uploads")
+  ) {
+    return true;
+  }
+
+  if (
+    method === "GET"
+    && (
+      path === "/dashboard"
+      || path.startsWith("/dashboard/")
+      || /^\/[a-z0-9]+(?:-[a-z0-9]+)*\/dashboard(?:\/|$)/i.test(path)
+      || path === "/api/dashboard/me"
+      || path === "/api/dashboard/maintenance"
+      || /^\/api\/dashboard\/[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(path)
+    )
   ) {
     return true;
   }

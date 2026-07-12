@@ -2777,6 +2777,7 @@ export type NexTechSalesPlan = {
   priceCents: number;
   durationDays: number | null;
   enabled: boolean;
+  discordRoleId: string | null;
   moduleIds: string[];
   imageUrl: string | null;
   checkoutMessage: string | null;
@@ -2804,6 +2805,7 @@ export type NexTechProductPlanConfig = {
   buttonColor: string;
   buttonText: string;
   description: string;
+  discordRoleId: string | null;
   enabled: boolean;
   freeHostingDays?: number | null;
   hostingPriceCents?: number | null;
@@ -2872,9 +2874,16 @@ export type NexTechSale = {
   productName?: string | null;
   productPlanType?: "monthly" | "lifetime" | "hosting" | "manual";
   productSlug?: string | null;
+  purchasedRoleId?: string | null;
   storeId: string;
   externalReference: string | null;
   status: NexTechSaleStatus;
+  deliveryStatus?: "pending" | "delivered" | "partial" | "failed" | null;
+  deliveryAttemptedAt?: string | null;
+  deliveredAt?: string | null;
+  deliveredRoleIds?: string[];
+  deliveryMessageId?: string | null;
+  deliveryError?: string | null;
   notes: string | null;
   paidAt: string | null;
   expiresAt: string | null;
@@ -3154,6 +3163,7 @@ export type SaveNexTechPaymentProviderPayload = {
 export type SaveNexTechSalesPlanPayload = {
   checkoutMessage?: string | null;
   description?: string | null;
+  discordRoleId?: string | null;
   durationDays?: number | null;
   enabled: boolean;
   imageUrl?: string | null;
@@ -3220,6 +3230,59 @@ export type DatabaseMaintenanceActionResult = {
 export type DatabaseMaintenanceModuleOption = {
   id: string;
   label: string;
+};
+
+export type SystemEmojiDefinition = {
+  key: string;
+  name: string;
+  fallback: string;
+  label: string;
+  description: string;
+};
+
+export type SystemEmojiConfig = {
+  key: string;
+  name: string;
+  emojiId: string | null;
+  animated: boolean;
+  sourceGuildId: string | null;
+  enabled: boolean;
+  fallback: string;
+  scope: "global" | "bot" | "default";
+  botId: string | null;
+  preview: string;
+  found: boolean;
+  missing: boolean;
+  updatedAt: string | null;
+  lastFoundAt: string | null;
+  lastMissingAt: string | null;
+  lastValidatedAt: string | null;
+  label: string;
+  description: string;
+};
+
+export type SystemEmojiDashboard = {
+  botId: string | null;
+  definitions: SystemEmojiDefinition[];
+  emojis: SystemEmojiConfig[];
+  summary: {
+    total: number;
+    configured: number;
+    found: number;
+    missing: number;
+    disabled: number;
+    fallbacks: number;
+  };
+};
+
+export type SaveSystemEmojiPayload = {
+  animated?: boolean;
+  botId?: string | null;
+  emojiId?: string | null;
+  enabled?: boolean;
+  fallback?: string | null;
+  name?: string | null;
+  sourceGuildId?: string | null;
 };
 
 export type AdvancedModuleConfig = {
@@ -3311,7 +3374,7 @@ export type DevBotStatus =
 export type FivemActionArchitecture = "fac" | "police";
 export type FivemActionSettings = { id: string; botId: string; guildId: string; architecture: FivemActionArchitecture; enabled: boolean; categoryId: string | null; panelChannelId: string | null; actionChannelId: string | null; reportChannelId: string | null; panelMessageId: string | null; panelTitle: string; panelDescription: string; color: string; imageUrl: string | null; imagePosition: "top" | "center" | "bottom" | "none"; lastPanelRequestedAt: string | null; createdAt: string; updatedAt: string };
 export type FivemActionDefinition = { id: string; botId: string; guildId: string; architecture: FivemActionArchitecture; name: string; description: string; emoji: string | null; imageUrl: string | null; color: string; maxParticipants: number; enabled: boolean; order: number; createdAt: string; updatedAt: string };
-export type FivemActionParticipant = { userId: string; username: string; roleIds: string[]; joinedAt: string; leftAt: string | null };
+export type FivemActionParticipant = { userId: string; username: string; roleIds: string[]; position: "confirmed" | "reserve"; joinedAt: string; leftAt: string | null };
 export type FivemActionSession = { id: string; architecture: FivemActionArchitecture; actionId: string; actionName: string; actionDescription: string; actionEmoji: string | null; actionImageUrl: string | null; actionColor: string; openerId: string; openerName: string; channelId: string | null; messageId: string | null; status: "active" | "victory" | "defeat"; maxParticipants: number; participants: FivemActionParticipant[]; startedAt: string; finishedAt: string | null; createdAt: string; updatedAt: string };
 export type FivemActionDashboard = { settings: FivemActionSettings; actions: FivemActionDefinition[]; history: FivemActionSession[] };
 export type PolicePatrolSettings = { id: string; botId: string; guildId: string; enabled: boolean; creatorRoleIds: string[]; viewerRoleIds: string[]; deleteRoleIds: string[]; supervisorRoleIds: string[]; logChannelId: string | null; temporaryCategoryId: string | null; deleteDelayMinutes: number; defaultExportFormat: "html" | "pdf" | "json"; createdAt: string; updatedAt: string };

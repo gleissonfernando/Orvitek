@@ -20,7 +20,7 @@ const productParamsSchema = z.object({
 
 const checkoutSchema = z.object({
   buyerEmail: z.string().email().nullable().optional().or(z.literal("")),
-  buyerId: z.string().max(64).nullable().optional().or(z.literal("")),
+  buyerId: z.string().regex(/^\d{5,32}$/),
   buyerName: z.string().max(100).nullable().optional().or(z.literal("")),
   paymentProviderId: z.string().max(120).nullable().optional(),
   planType: z.enum(["monthly", "lifetime"])

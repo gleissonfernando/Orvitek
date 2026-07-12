@@ -48,6 +48,12 @@ import {
   setMaintenanceMode
 } from "../services/maintenanceService";
 import {
+  ensureSystemEmojiDefaults,
+  getSystemEmojiDashboard,
+  resetSystemEmojiConfig,
+  updateSystemEmojiConfig
+} from "../services/systemEmojiService";
+import {
   canManageDevPermissions,
   deleteDevPermission,
   listDevPermissions,
@@ -163,6 +169,7 @@ const nexTechPaymentProviderSchema = z.object({
 const nexTechSalesPlanSchema = z.object({
   checkoutMessage: z.string().max(1200).nullable().optional().or(z.literal("")),
   description: z.string().max(1200).nullable().optional().or(z.literal("")),
+  discordRoleId: z.string().regex(/^\d{5,32}$/).nullable().optional().or(z.literal("")),
   durationDays: z.number().int().min(1).max(3650).nullable().optional(),
   enabled: z.boolean().default(true),
   imageUrl: z.string().url().max(2048).nullable().optional().or(z.literal("")),
@@ -176,6 +183,7 @@ const productPlanSchema = z.object({
   buttonColor: z.string().min(4).max(24).default("#7c3aed"),
   buttonText: z.string().min(1).max(40),
   description: z.string().max(1200).default(""),
+  discordRoleId: z.string().regex(/^\d{5,32}$/).nullable().optional().or(z.literal("")),
   enabled: z.boolean(),
   name: z.string().min(1).max(100),
   paymentProviderId: z.string().max(120).nullable().optional(),
@@ -241,6 +249,14 @@ const discloudActionSchema = z.object({
 
 const discloudConsoleSchema = z.object({
   command: z.string().min(1).max(300)
+});
+const systemEmojiPatchSchema = z.object({
+  animated: z.boolean().optional(),
+  emojiId: z.string().regex(/^\d{5,32}$/).nullable().optional().or(z.literal("")),
+  enabled: z.boolean().optional(),
+  fallback: z.string().max(16).nullable().optional(),
+  name: z.string().min(2).max(32).nullable().optional(),
+  sourceGuildId: z.string().regex(/^\d{5,32}$/).nullable().optional().or(z.literal(""))
 });
 
 export const devRouter = Router();
@@ -422,6 +438,45 @@ devRouter.post("/maintenance/alert", async (_req, res, next) => {
     return res.json({
       maintenance
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.get("/system-emojis", async (req, res, next) => {
+  try {
+    const botId = typeof req.query.botId === "string" ? req.query.botId : null;
+    return res.json(await getSystemEmojiDashboard(botId));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.post("/system-emojis/sync", async (req, res, next) => {
+  try {
+    const botId = typeof req.body?.botId === "string" ? req.body.botId : typeof req.query.botId === "string" ? req.query.botId : null;
+    return res.json(await ensureSystemEmojiDefaults(botId));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.patch("/system-emojis/:key", async (req, res, next) => {
+  try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+    const botId = typeof req.body?.botId === "string" ? req.body.botId : typeof req.query.botId === "string" ? req.query.botId : null;
+    const input = systemEmojiPatchSchema.parse(req.body ?? {});
+
+    return res.json(await updateSystemEmojiConfig(req.params.key, input, auth.user.discordId, botId));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.post("/system-emojis/:key/reset", async (req, res, next) => {
+  try {
+    const botId = typeof req.body?.botId === "string" ? req.body.botId : typeof req.query.botId === "string" ? req.query.botId : null;
+    return res.json(await resetSystemEmojiConfig(req.params.key, botId));
   } catch (error) {
     return next(error);
   }

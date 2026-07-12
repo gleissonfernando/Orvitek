@@ -27,6 +27,7 @@ import { env, isBotModuleEnabled } from "../config/env";
 import type { BotContext } from "../types";
 import type { FivemFacAbsence, FivemFacLifecycleResult, FivemFacSettings } from "./apiClient";
 import { assertPanelChannelPermissions } from "./panelDeliveryService";
+import { systemComponentEmoji, systemEmojiText, systemStatusEmoji } from "./systemEmojiService";
 
 const FAC_PREFIX = "fivem_fac";
 const REQUEST_BUTTON_ID = `${FAC_PREFIX}:request`;
@@ -1002,14 +1003,14 @@ function buildPanelPayload(settings: FivemFacSettings) {
     {
       type: 10,
       content: [
-        `# ${settings.messages.panelTitle || "📅 Sistema de Ausências FAC"}`,
+        `# ${settings.messages.panelTitle || `${systemEmojiText("calendario")} Sistema de Ausências FAC`}`,
         settings.messages.panelDescription || "Solicite sua ausência de forma organizada. A equipe recebe o pedido em um canal privado, avalia o motivo e o sistema aplica ou remove o cargo automaticamente quando chegar a data correta.",
         "",
         "### Como funciona",
-        "📝 **Solicitação:** informe a data de retorno e o motivo.",
-        "🛡️ **Análise:** a staff aprova ou reprova pelo painel interno.",
-        "🎭 **Cargo:** aplicado somente após aprovação.",
-        "⏰ **Retorno:** removido automaticamente ao fim da ausência."
+        `${systemEmojiText("prancheta_caneta")} **Solicitação:** informe a data de retorno e o motivo.`,
+        `${systemEmojiText("prancheta_acertos")} **Análise:** a staff aprova ou reprova pelo painel interno.`,
+        `${systemEmojiText("homem")} **Cargo:** aplicado somente após aprovação.`,
+        `${systemEmojiText("relogio")} **Retorno:** removido automaticamente ao fim da ausência.`
       ].join("\n")
     }
   ];
@@ -1024,12 +1025,12 @@ function buildPanelPayload(settings: FivemFacSettings) {
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId(REQUEST_BUTTON_ID)
-          .setEmoji("📅")
+          .setEmoji(systemComponentEmoji("calendario"))
           .setLabel("Solicitar ausência")
           .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
           .setCustomId(MINE_BUTTON_ID)
-          .setEmoji("📋")
+          .setEmoji(systemComponentEmoji("prancheta"))
           .setLabel("Minhas ausências")
           .setStyle(ButtonStyle.Secondary)
       )
@@ -1096,7 +1097,7 @@ function facLogPayload(input: { absence: FivemFacAbsence | null; actorId: string
         components: [
           {
             type: 10,
-            content: [`# 🧾 FAC - ${input.title}`, ...lines].filter(Boolean).join("\n")
+            content: [`# ${systemEmojiText("folha")} FAC - ${input.title}`, ...lines].filter(Boolean).join("\n")
           }
         ]
       }
@@ -1142,19 +1143,19 @@ function buildAbsenceReviewPayload(absence: FivemFacAbsence) {
         new ButtonBuilder()
           .setCustomId(`${APPROVE_PREFIX}:${absence.id}`)
           .setDisabled(!pending)
-          .setEmoji("✅")
+          .setEmoji(systemComponentEmoji("visto"))
           .setLabel("Aprovar")
           .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
           .setCustomId(`${REJECT_PREFIX}:${absence.id}`)
           .setDisabled(!pending)
-          .setEmoji("❌")
+          .setEmoji(systemComponentEmoji("exclamacao"))
           .setLabel("Reprovar")
           .setStyle(ButtonStyle.Danger),
         new ButtonBuilder()
           .setCustomId(`${CLOSE_PREFIX}:${absence.id}`)
           .setDisabled(closed)
-          .setEmoji("🔒")
+          .setEmoji(systemComponentEmoji("porta"))
           .setLabel("Encerrar")
           .setStyle(ButtonStyle.Secondary)
       )
@@ -1194,13 +1195,13 @@ function buildRequestSummaryPayload(
           {
             type: 10,
             content: [
-              "# 📋 Revisar solicitação",
+              `# ${systemEmojiText("prancheta")} Revisar solicitação`,
               "Confira os dados antes de enviar para análise da equipe.",
               "",
-              `📅 **Início:** ${formatShortDateOnly(request.startDate)} (automático)`,
-              `🏁 **Retorno:** ${formatShortDateOnly(request.endDate)}`,
-              `⏳ **Duração:** ${absenceDurationDays(request.startDate, request.endDate)} dia(s)`,
-              `📝 **Motivo:** ${truncate(request.reason, 500)}`
+              `${systemEmojiText("calendario")} **Início:** ${formatShortDateOnly(request.startDate)} (automático)`,
+              `${systemEmojiText("relogio")} **Retorno:** ${formatShortDateOnly(request.endDate)}`,
+              `${systemEmojiText("relogio")} **Duração:** ${absenceDurationDays(request.startDate, request.endDate)} dia(s)`,
+              `${systemEmojiText("prancheta_caneta")} **Motivo:** ${truncate(request.reason, 500)}`
             ].join("\n")
           }
         ]
@@ -1208,12 +1209,12 @@ function buildRequestSummaryPayload(
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId(`${CONFIRM_PREFIX}:${token}`)
-          .setEmoji("📨")
+          .setEmoji(systemComponentEmoji("acessar"))
           .setLabel("Enviar solicitação")
           .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
           .setCustomId(`${CANCEL_PREFIX}:${token}`)
-          .setEmoji("↩️")
+          .setEmoji(systemComponentEmoji("porta"))
           .setLabel("Cancelar")
           .setStyle(ButtonStyle.Secondary)
       )
@@ -1405,12 +1406,12 @@ function statusColor(status: FivemFacAbsence["status"]) {
 
 function statusEmoji(status: FivemFacAbsence["status"]) {
   const emojis: Record<FivemFacAbsence["status"], string> = {
-    active: "🟢",
-    approved: "🔵",
-    closed: "🔒",
-    finished: "✅",
-    pending: "🟡",
-    rejected: "🔴"
+    active: systemStatusEmoji("active"),
+    approved: systemStatusEmoji("success"),
+    closed: systemComponentEmoji("porta"),
+    finished: systemStatusEmoji("success"),
+    pending: systemStatusEmoji("pending"),
+    rejected: systemStatusEmoji("danger")
   };
 
   return emojis[status];

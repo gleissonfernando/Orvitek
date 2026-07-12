@@ -12,7 +12,12 @@ import {
   updateDevBotRuntimeStatus
 } from "../services/devBotService";
 import { getMaintenanceState } from "../services/maintenanceService";
+import { recordNexTechSaleDeliveryResult } from "../services/nexTechSalesService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
+import {
+  getSystemEmojiRuntimeConfig,
+  recordSystemEmojiValidation
+} from "../services/systemEmojiService";
 
 export const botDevApiRouter = Router();
 const commandAuthorizationSchema = z.object({
@@ -43,6 +48,23 @@ const tagVerificationStatusSchema = z.object({
   totalErrors: z.number().int().min(0),
   lastError: z.string().max(500).nullable()
 });
+const systemEmojiValidationSchema = z.object({
+  emojis: z.array(z.object({
+    animated: z.boolean().optional(),
+    emojiId: z.string().regex(/^\d{5,32}$/).nullable().optional(),
+    found: z.boolean(),
+    key: z.string().min(1).max(64),
+    name: z.string().min(2).max(32).nullable().optional(),
+    sourceGuildId: z.string().regex(/^\d{5,32}$/).nullable().optional()
+  })).max(100)
+});
+const nexTechSaleDeliveryResultSchema = z.object({
+  deliveredRoleIds: z.array(z.string().regex(/^\d{5,32}$/)).max(20).optional(),
+  error: z.string().max(1000).nullable().optional(),
+  messageId: z.string().regex(/^\d{5,32}$/).nullable().optional(),
+  saleId: z.string().min(1).max(120),
+  status: z.enum(["delivered", "partial", "failed"])
+});
 
 botDevApiRouter.use(requireBot);
 
@@ -51,6 +73,42 @@ botDevApiRouter.get("/maintenance", async (_req, res, next) => {
     return res.json({
       maintenance: await getMaintenanceState()
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+botDevApiRouter.get("/system-emojis", async (req, res, next) => {
+  try {
+    const botId = await resolveRequestBotId(req);
+
+    return res.json(await getSystemEmojiRuntimeConfig(botId));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+botDevApiRouter.post("/system-emojis/validation", async (req, res, next) => {
+  try {
+    const botId = await resolveRequestBotId(req);
+    const input = systemEmojiValidationSchema.parse(req.body ?? {});
+
+    return res.json(await recordSystemEmojiValidation({
+      botId,
+      emojis: input.emojis
+    }));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+botDevApiRouter.post("/guilds/:guildId/nex-tech-sales/delivery-result", async (req, res, next) => {
+  try {
+    const botId = await resolveRequestBotId(req);
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const input = nexTechSaleDeliveryResultSchema.parse(req.body ?? {});
+
+    return res.json(await recordNexTechSaleDeliveryResult(botId, guildId, input));
   } catch (error) {
     return next(error);
   }

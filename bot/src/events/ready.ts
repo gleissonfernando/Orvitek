@@ -25,6 +25,7 @@ import { startImageAntiSpamService } from "../services/imageAntiSpamService";
 import { startKickNotificationMonitor } from "../services/kickNotificationMonitor";
 import { startMaintenanceService } from "../services/maintenanceService";
 import { startMissionToolsService } from "../services/missionToolsService";
+import { startNexTechSalesDeliveryService } from "../services/nexTechSalesDeliveryService";
 import { startManualPaymentService } from "../services/manualPaymentService";
 import { startPriceTableService } from "../services/priceTableService";
 import { startManualRegistrationService } from "../services/manualRegistrationService";
@@ -42,6 +43,7 @@ import { clearRuntimeModuleAuthorization } from "../services/runtimeModuleGuard"
 import { startSelfBotProtectionService } from "../services/selfBotProtectionService";
 import { startSocialNetworkPanelSync } from "../services/socialNetworkPanelService";
 import { startSocialNotificationMonitor } from "../services/socialNotificationMonitor";
+import { validateSystemEmojisOnStartup } from "../services/systemEmojiService";
 import { startTemporaryVoiceService } from "../services/temporaryVoiceService";
 import { startAutomatedLogService } from "../services/automatedLogService";
 import { startTagVerificationService, stopTagVerificationService } from "../services/tagVerificationService";
@@ -68,6 +70,7 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     setRuntimeEnabledModules(runtimeModules, runtimeBotId);
     lastRuntimeModuleSignature = runtimeModuleSignature(runtimeAccess?.active ?? true, runtimeBotId, runtimeModules);
   }
+  void validateSystemEmojisOnStartup(client, context);
   context.socket.onDevModuleUpdated((payload) => {
     if (!runtimeBotId || payload.botId !== runtimeBotId) {
       return;
@@ -100,6 +103,7 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     if (!wasTemporaryVoiceEnabled && isBotModuleEnabled("temporary-voice")) startTemporaryVoiceService(client, context);
     if (isBotModuleEnabled("manual-payments")) startManualPaymentService(client, context);
     if (isBotModuleEnabled("price-tables")) startPriceTableService(client, context);
+    if (isBotModuleEnabled("nex-tech-sales")) startNexTechSalesDeliveryService(client, context);
     if (isBotModuleEnabled("rh-admin")) startRhAdminService(client, context);
     if (isBotModuleEnabled("courses")) startCourseSystemService(client, context);
     if (!wasFivemHierarchyEnabled && isBotModuleEnabled("fivem-hierarchy")) startFivemHierarchyService(client, context);
@@ -194,6 +198,7 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   if (isBotModuleEnabled("fivem-orders") || isBotModuleEnabled("fivem-drugs") || isBotModuleEnabled("fivem-washing")) startFivemOrderService(client, context);
   if (isBotModuleEnabled("manual-payments")) startManualPaymentService(client, context);
   if (isBotModuleEnabled("price-tables")) startPriceTableService(client, context);
+  if (isBotModuleEnabled("nex-tech-sales")) startNexTechSalesDeliveryService(client, context);
   if (isBotModuleEnabled("rh-admin")) startRhAdminService(client, context);
   if (isBotModuleEnabled("courses")) startCourseSystemService(client, context);
   if (isBotModuleEnabled("fivem-hierarchy")) {

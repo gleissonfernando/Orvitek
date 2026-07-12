@@ -21,6 +21,7 @@ import {
 } from "discord.js";
 import type { BotContext } from "../types";
 import type { PriceTable, PriceTableItem } from "./apiClient";
+import { systemComponentEmoji, systemEmojiText } from "./systemEmojiService";
 
 const PREFIX = "price_table";
 
@@ -61,7 +62,12 @@ async function publishPriceTablePanel(guild: Guild, context: BotContext, tableId
 function createPanelPayload(table: PriceTable) {
   const activeItems = table.items.filter((item) => item.active).sort((a, b) => a.order - b.order);
   const sections = table.panelSections;
-  const emoji = table.panelEmojis;
+  const emoji = {
+    advantages: systemEmojiText("trofeu_alt"),
+    products: systemEmojiText("dinheiro"),
+    support: systemEmojiText("interrogacao"),
+    systems: systemEmojiText("caixa")
+  };
   const products = activeItems.slice(0, 20).map((item) => `• **${item.name}** — ${formatPrice(table, item)}${billingSuffix(item)}${item.description ? `\n  ${item.description}` : ""}`).join("\n") || "• Consulte nossa equipe";
   const list = (items: string[]) => items.filter(Boolean).map((item) => `• ${item}`).join("\n") || "• Consulte nossa equipe";
   const separator = () => new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large);
@@ -77,7 +83,7 @@ function createPanelPayload(table: PriceTable) {
     new SectionBuilder().addTextDisplayComponents(
       new TextDisplayBuilder().setContent(`## ${emoji.support} ${sections.supportTitle}\n${sections.supportText}`)
     ).setButtonAccessory(
-      new ButtonBuilder().setCustomId(`${PREFIX}:support:${table.id}`).setLabel(table.buttonText.support || "Abrir Ticket").setStyle(ButtonStyle.Primary)
+      new ButtonBuilder().setCustomId(`${PREFIX}:support:${table.id}`).setEmoji(systemComponentEmoji("acessar")).setLabel(table.buttonText.support || "Abrir Ticket").setStyle(ButtonStyle.Primary)
     )
   );
   if (table.footerText) container.addSeparatorComponents(separator()).addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${table.footerText}`));

@@ -21,7 +21,7 @@ function examplePanel(): FivemHierarchyPanel {
     enabled: true,
     footerEnabled: true,
     footerIconUrl: null,
-    footerText: "OrviteK",
+    footerText: "NexTechK",
     guildId: "67890",
     hierarchies: [{
       active: true,

@@ -33,6 +33,7 @@ import type { BotCommand, BotContext } from "../types";
 import { showModalAndResetSelect } from "../utils/selectMenuReset";
 import { renderComponentsV2Panel, type PanelVisualConfig } from "./panelVisualRenderer";
 import type { Course, CourseEnrollment, CourseExamAnswer, CourseExamAttempt, CourseExamQuestion, CourseExamSettings, CoursePublication, CourseSettings } from "./apiClient";
+import { systemComponentEmoji, systemEmojiText, systemStatusEmoji } from "./systemEmojiService";
 
 type CourseActionInteraction = ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
 
@@ -1254,14 +1255,14 @@ function courseConfigPanel(settings: CourseSettings, panelVisual: PanelVisualCon
     accentColor: 0x2563eb,
     actions: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(IDS.addCourse).setLabel("➕ Cadastrar Curso").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(IDS.editCourse).setLabel("✏️ Editar Curso").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(IDS.channels).setLabel("📡 Canais").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId(IDS.addCourse).setEmoji(systemComponentEmoji("prancheta_caneta")).setLabel("Cadastrar Curso").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(IDS.editCourse).setEmoji(systemComponentEmoji("engrenagem")).setLabel("Editar Curso").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(IDS.channels).setEmoji(systemComponentEmoji("discord")).setLabel("Canais").setStyle(ButtonStyle.Secondary)
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(IDS.sync).setLabel("📝 Provas").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(IDS.managers).setLabel("🛡️ Administradores").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(IDS.close).setLabel("✖️ Fechar").setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId(IDS.sync).setEmoji(systemComponentEmoji("prancheta_acertos")).setLabel("Provas").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(IDS.managers).setEmoji(systemComponentEmoji("homem")).setLabel("Administradores").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(IDS.close).setEmoji(systemComponentEmoji("porta")).setLabel("Fechar").setStyle(ButtonStyle.Danger)
       )
     ],
     description: "Central de operação dos cursos. Configure canais, gestores, publicações e provas sem sair do Discord.",
@@ -1273,7 +1274,7 @@ function courseConfigPanel(settings: CourseSettings, panelVisual: PanelVisualCon
     ],
     image: panelVisual,
     moduleId: "courses",
-    title: "🎓 Sistema de Cursos"
+    title: `${systemEmojiText("trofeu")} Sistema de Cursos`
   });
 }
 
@@ -1283,7 +1284,7 @@ function publicCoursesPanel(settings: CourseSettings, courses: Course[], panelVi
     accentColor: 0x2563eb,
     actions: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(IDS.publicPublish).setLabel("📣 Publicar Curso").setStyle(ButtonStyle.Primary)
+        new ButtonBuilder().setCustomId(IDS.publicPublish).setEmoji(systemComponentEmoji("prancheta")).setLabel("Publicar Curso").setStyle(ButtonStyle.Primary)
       )
     ],
     description: "Painel de trabalho dos instrutores. Use /publicar curso ou o botão abaixo para selecionar um curso cadastrado e publicar o painel individual.",
@@ -1293,7 +1294,7 @@ function publicCoursesPanel(settings: CourseSettings, courses: Course[], panelVi
     ],
     image: panelVisual || resolveCourseImage(settings, "module") || (settings.globalBannerUrl ? { imageEnabled: true, imagePosition: "top", imageUrl: settings.globalBannerUrl } : null),
     moduleId: "courses",
-    title: "🎓 Sistema de Cursos"
+    title: `${systemEmojiText("trofeu")} Sistema de Cursos`
   });
 }
 
@@ -1303,7 +1304,7 @@ function managersPanel(settings: CourseSettings, message?: string) {
     actions: [
       new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(new UserSelectMenuBuilder().setCustomId(IDS.managerUsers).setPlaceholder("Selecione usuários gestores").setMinValues(0).setMaxValues(10)),
       new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(new RoleSelectMenuBuilder().setCustomId(IDS.managerRoles).setPlaceholder("Selecione cargos gestores").setMinValues(0).setMaxValues(10)),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IDS.back).setLabel("Voltar").setStyle(ButtonStyle.Secondary))
+      new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IDS.back).setEmoji(systemComponentEmoji("porta")).setLabel("Voltar").setStyle(ButtonStyle.Secondary))
     ],
     description: "Configure quem poderá supervisionar os cursos, aprovar horários e auxiliar instrutores.",
     fields: [
@@ -1326,7 +1327,7 @@ function channelsPanel(settings: CourseSettings, message?: string) {
       channelSelect(IDS.channelPublish, "Canal padrão de publicação"),
       channelSelect(IDS.channelLogs, "Canal de logs"),
       new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(new RoleSelectMenuBuilder().setCustomId(IDS.generalInstructorRoles).setPlaceholder("Cargo geral dos instrutores").setMinValues(0).setMaxValues(10)),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IDS.back).setLabel("Voltar").setStyle(ButtonStyle.Secondary))
+      new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IDS.back).setEmoji(systemComponentEmoji("porta")).setLabel("Voltar").setStyle(ButtonStyle.Secondary))
     ],
     description: "Defina onde os cursos serão publicados, registrados e auditados.",
     fields: [
@@ -1346,7 +1347,7 @@ function channelsPanel(settings: CourseSettings, message?: string) {
 function responsiblesPanel(course: Course, message: string) {
   return renderComponentsV2Panel({
     accentColor: parseColor(course.color),
-    actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IDS.back).setLabel("Voltar para Configuração de Cursos").setStyle(ButtonStyle.Secondary))],
+    actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IDS.back).setEmoji(systemComponentEmoji("porta")).setLabel("Voltar para Configuração de Cursos").setStyle(ButtonStyle.Secondary))],
     description: "Selecione responsáveis pela dashboard em Cursos ou edite o curso no painel web para definir usuários e cargos instrutores.",
     fields: [`**${message}**`, `Curso: ${course.emoji ?? "📚"} ${course.name}`],
     moduleId: "courses",
@@ -1370,8 +1371,8 @@ function courseEditPanel(course: Course, message: string) {
       new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(new RoleSelectMenuBuilder().setCustomId(`${IDS.courseInstructorRoles}:${course.id}`).setPlaceholder("Selecione cargos autorizados").setMinValues(0).setMaxValues(10)),
       channelSelect,
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`${IDS.editCourseInfo}:${course.id}`).setLabel("✏️ Editar dados").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(IDS.back).setLabel("Voltar").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId(`${IDS.editCourseInfo}:${course.id}`).setEmoji(systemComponentEmoji("prancheta_caneta")).setLabel("Editar dados").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(IDS.back).setEmoji(systemComponentEmoji("porta")).setLabel("Voltar").setStyle(ButtonStyle.Secondary)
       )
     ],
     description: "Edite os dados do curso e configure quem pode publicar. Usuários específicos e cargos autorizados funcionam ao mesmo tempo.",
@@ -1386,7 +1387,7 @@ function courseEditPanel(course: Course, message: string) {
     ],
     image: course.bannerUrl ? { imageEnabled: true, imagePosition: "top", imageUrl: course.bannerUrl } : null,
     moduleId: "courses",
-    title: "✏️ Editar Curso"
+    title: `${systemEmojiText("prancheta_caneta")} Editar Curso`
   });
 }
 
@@ -1446,13 +1447,13 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
     accentColor: parseColor(course.color),
     actions: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`course_join:${publication.id}`).setLabel(`${settings.buttonEmojis.enter ?? "✅"} ${course.buttonLabels.enter || "Entrar no Curso"}`).setStyle(ButtonStyle.Success).setDisabled(!canJoin),
-        new ButtonBuilder().setCustomId(`course_leave:${publication.id}`).setLabel(`${settings.buttonEmojis.leave ?? "🚪"} ${course.buttonLabels.leave || "Sair do Curso"}`).setStyle(ButtonStyle.Secondary).setDisabled(!canLeave)
+        new ButtonBuilder().setCustomId(`course_join:${publication.id}`).setEmoji(systemComponentEmoji("acessar")).setLabel(course.buttonLabels.enter || "Entrar no Curso").setStyle(ButtonStyle.Success).setDisabled(!canJoin),
+        new ButtonBuilder().setCustomId(`course_leave:${publication.id}`).setEmoji(systemComponentEmoji("porta")).setLabel(course.buttonLabels.leave || "Sair do Curso").setStyle(ButtonStyle.Secondary).setDisabled(!canLeave)
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`course_start:${publication.id}`).setLabel(`${settings.buttonEmojis.start ?? "▶️"} Iniciar curso`).setStyle(ButtonStyle.Primary).setDisabled(!canStartClass),
-        new ButtonBuilder().setCustomId(`course_exam_realize:${publication.id}`).setLabel("📝 Realizar prova").setStyle(ButtonStyle.Success).setDisabled(!canStartExam),
-        new ButtonBuilder().setCustomId(`course_cancel:${publication.id}`).setLabel(`${settings.buttonEmojis.cancel ?? "❌"} ${course.buttonLabels.cancel || "Cancelar Curso"}`).setStyle(ButtonStyle.Danger).setDisabled(!canCancel)
+        new ButtonBuilder().setCustomId(`course_start:${publication.id}`).setEmoji(systemComponentEmoji("liga")).setLabel("Iniciar curso").setStyle(ButtonStyle.Primary).setDisabled(!canStartClass),
+        new ButtonBuilder().setCustomId(`course_exam_realize:${publication.id}`).setEmoji(systemComponentEmoji("prancheta_caneta")).setLabel("Realizar prova").setStyle(ButtonStyle.Success).setDisabled(!canStartExam),
+        new ButtonBuilder().setCustomId(`course_cancel:${publication.id}`).setEmoji(systemComponentEmoji("exclamacao")).setLabel(course.buttonLabels.cancel || "Cancelar Curso").setStyle(ButtonStyle.Danger).setDisabled(!canCancel)
       )
     ],
     description: course.publishText || course.description || "Curso disponível para inscrição. Acompanhe o status, entre na lista e aguarde o instrutor iniciar a aula.",
@@ -1487,7 +1488,7 @@ function studentExamWelcomePanel(course: Course, publication: CoursePublication,
     : null;
   const actions = [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`course_exam_begin:${publication.id}:${studentId}`).setLabel("Começar a responder").setStyle(ButtonStyle.Success).setDisabled(disabled)
+      new ButtonBuilder().setCustomId(`course_exam_begin:${publication.id}:${studentId}`).setEmoji(systemComponentEmoji("acessar")).setLabel("Começar a responder").setStyle(ButtonStyle.Success).setDisabled(disabled)
     )
   ];
   if (linkButton) actions.push(new ActionRowBuilder<ButtonBuilder>().addComponents(linkButton));
@@ -1512,38 +1513,38 @@ function studentExamWelcomePanel(course: Course, publication: CoursePublication,
 }
 
 function coursePublicationStatusLabel(publication: CoursePublication, full: boolean) {
-  if (publication.status === "open" && full) return "🟠 Lotado";
+  if (publication.status === "open" && full) return `${systemStatusEmoji("warning")} Lotado`;
   const labels: Record<CoursePublication["status"], string> = {
-    cancelled: "🔴 Cancelado",
-    closed: "✅ Encerrado",
-    finished: "✅ Finalizado",
-    open: "🟢 Inscrições abertas",
-    proof: "📝 Prova em andamento",
-    started: "🔵 Em andamento"
+    cancelled: `${systemStatusEmoji("danger")} Cancelado`,
+    closed: `${systemStatusEmoji("success")} Encerrado`,
+    finished: `${systemStatusEmoji("success")} Finalizado`,
+    open: `${systemStatusEmoji("active")} Inscrições abertas`,
+    proof: `${systemEmojiText("prancheta_caneta")} Prova em andamento`,
+    started: `${systemStatusEmoji("active")} Em andamento`
   };
   return labels[publication.status];
 }
 
 function coursePublicationStatusEmoji(publication: CoursePublication, full: boolean) {
-  if (publication.status === "open" && full) return "🟠";
+  if (publication.status === "open" && full) return systemStatusEmoji("warning");
   const emojis: Record<CoursePublication["status"], string> = {
-    cancelled: "🔴",
-    closed: "✅",
-    finished: "✅",
-    open: "📚",
-    proof: "📝",
-    started: "🔵"
+    cancelled: systemStatusEmoji("danger"),
+    closed: systemStatusEmoji("success"),
+    finished: systemStatusEmoji("success"),
+    open: systemEmojiText("trofeu"),
+    proof: systemEmojiText("prancheta_caneta"),
+    started: systemStatusEmoji("active")
   };
   return emojis[publication.status];
 }
 
 function coursePublicationStatusNotice(course: Course, settings: CourseSettings, publication: CoursePublication, full: boolean) {
-  if (publication.status === "open" && full) return "🟠 **Turma lotada.** Aguarde uma vaga abrir ou uma nova publicação do curso.";
-  if (publication.status === "open") return "🟢 **Inscrições abertas.** Clique em Entrar no Curso para participar.";
-  if (publication.status === "started") return course.startedText || settings.startedMessage || "🔵 **Curso em andamento.** Novas inscrições foram bloqueadas. Alunos inscritos já podem clicar em Realizar prova.";
-  if (publication.status === "proof") return "📝 **Prova disponível.** Alunos inscritos podem clicar em Realizar prova para abrir o canal individual.";
-  if (publication.status === "cancelled") return course.cancelledText || settings.cancelledMessage || "🔴 **Curso cancelado.** Esta publicação não aceita novas ações.";
-  return "✅ **Curso finalizado.** Esta publicação foi encerrada.";
+  if (publication.status === "open" && full) return `${systemStatusEmoji("warning")} **Turma lotada.** Aguarde uma vaga abrir ou uma nova publicação do curso.`;
+  if (publication.status === "open") return `${systemStatusEmoji("active")} **Inscrições abertas.** Clique em Entrar no Curso para participar.`;
+  if (publication.status === "started") return course.startedText || settings.startedMessage || `${systemStatusEmoji("active")} **Curso em andamento.** Novas inscrições foram bloqueadas. Alunos inscritos já podem clicar em Realizar prova.`;
+  if (publication.status === "proof") return `${systemEmojiText("prancheta_caneta")} **Prova disponível.** Alunos inscritos podem clicar em Realizar prova para abrir o canal individual.`;
+  if (publication.status === "cancelled") return course.cancelledText || settings.cancelledMessage || `${systemStatusEmoji("danger")} **Curso cancelado.** Esta publicação não aceita novas ações.`;
+  return `${systemStatusEmoji("success")} **Curso finalizado.** Esta publicação foi encerrada.`;
 }
 
 function examIntroPanel(course: Course, settings: CourseExamSettings) {
@@ -1617,7 +1618,7 @@ function writtenQuestionPanel(course: Course, attempt: CourseExamAttempt, questi
   return renderComponentsV2Panel({
     accentColor: parseColor(course.color),
     actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`course_exam_written:${attempt.id}:${index - 1}`).setLabel("Responder questão").setStyle(ButtonStyle.Success)
+      new ButtonBuilder().setCustomId(`course_exam_written:${attempt.id}:${index - 1}`).setEmoji(systemComponentEmoji("prancheta_caneta")).setLabel("Responder questão").setStyle(ButtonStyle.Success)
     )],
     description: "Abra o modal, envie sua resposta e aguarde a próxima etapa. Depois de enviada, a resposta não poderá ser alterada.",
     fields: [
@@ -1648,7 +1649,7 @@ function examFinishPanel(course: Course, settings: CourseExamSettings, attempt: 
   return renderComponentsV2Panel({
     accentColor: parseColor(course.color),
     actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`course_exam_finish:${attempt.id}`).setLabel("Finalizar Prova").setStyle(ButtonStyle.Success)
+      new ButtonBuilder().setCustomId(`course_exam_finish:${attempt.id}`).setEmoji(systemComponentEmoji("visto")).setLabel("Finalizar Prova").setStyle(ButtonStyle.Success)
     )],
     description: settings.finalMessage,
     fields: [`Curso: ${course.name}`, `Aluno: <@${attempt.studentId}>`],
@@ -1729,8 +1730,8 @@ function examCorrectionPanel(course: Course, courseSettings: CourseSettings, att
   return renderComponentsV2Panel({
     accentColor: parseColor(course.color),
     actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`course_exam_review:approved:${attempt.id}`).setLabel("✅ Aprovar").setStyle(ButtonStyle.Success).setDisabled(reviewed),
-      new ButtonBuilder().setCustomId(`course_exam_review:rejected:${attempt.id}`).setLabel("❌ Reprovar").setStyle(ButtonStyle.Danger).setDisabled(reviewed)
+      new ButtonBuilder().setCustomId(`course_exam_review:approved:${attempt.id}`).setEmoji(systemComponentEmoji("visto")).setLabel("Aprovar").setStyle(ButtonStyle.Success).setDisabled(reviewed),
+      new ButtonBuilder().setCustomId(`course_exam_review:rejected:${attempt.id}`).setEmoji(systemComponentEmoji("exclamacao")).setLabel("Reprovar").setStyle(ButtonStyle.Danger).setDisabled(reviewed)
     )],
     description: `${courseSettings.evaluatorMentionRoleId ? `<@&${courseSettings.evaluatorMentionRoleId}>\n` : ""}Painel de avaliação manual da prova.`,
     fields,

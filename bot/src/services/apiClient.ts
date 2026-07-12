@@ -67,6 +67,32 @@ export type TranscriptCreateResult = {
   };
 };
 
+export type SystemEmojiRuntimeConfig = {
+  botId: string | null;
+  definitions: Array<{ key: string; name: string; fallback: string; label: string; description: string }>;
+  emojis: Array<{
+    key: string;
+    name: string;
+    emojiId: string | null;
+    animated: boolean;
+    sourceGuildId: string | null;
+    enabled: boolean;
+    fallback: string;
+    scope: "global" | "bot" | "default";
+  }>;
+};
+
+export type SystemEmojiValidationPayload = {
+  emojis: Array<{
+    key: string;
+    name?: string | null;
+    emojiId?: string | null;
+    animated?: boolean;
+    found: boolean;
+    sourceGuildId?: string | null;
+  }>;
+};
+
 export type CourseSettings = {
   id: string;
   botId: string | null;
@@ -479,7 +505,7 @@ export type MaintenanceState = {
 export type FivemActionArchitecture = "fac" | "police";
 export type FivemActionSettings = { id: string; botId: string; guildId: string; architecture: FivemActionArchitecture; enabled: boolean; categoryId: string | null; panelChannelId: string | null; actionChannelId: string | null; reportChannelId: string | null; panelMessageId: string | null; panelTitle: string; panelDescription: string; color: string; imageUrl: string | null; imagePosition: "top" | "center" | "bottom" | "none"; lastPanelRequestedAt: string | null; updatedAt: string };
 export type FivemActionDefinition = { id: string; architecture: FivemActionArchitecture; name: string; description: string; emoji: string | null; imageUrl: string | null; color: string; maxParticipants: number; enabled: boolean; order: number };
-export type FivemActionParticipant = { userId: string; username: string; roleIds: string[]; joinedAt: string; leftAt: string | null };
+export type FivemActionParticipant = { userId: string; username: string; roleIds: string[]; position: "confirmed" | "reserve"; joinedAt: string; leftAt: string | null };
 export type FivemActionSession = { id: string; botId: string; guildId: string; architecture: FivemActionArchitecture; actionId: string; actionName: string; actionDescription: string; actionEmoji: string | null; actionImageUrl: string | null; actionColor: string; openerId: string; openerName: string; channelId: string | null; messageId: string | null; status: "active" | "victory" | "defeat"; maxParticipants: number; participants: FivemActionParticipant[]; startedAt: string; finishedAt: string | null };
 export type PolicePatrolSettings = { id: string; botId: string; guildId: string; enabled: boolean; creatorRoleIds: string[]; viewerRoleIds: string[]; deleteRoleIds: string[]; supervisorRoleIds: string[]; logChannelId: string | null; temporaryCategoryId: string | null; deleteDelayMinutes: number; defaultExportFormat: "html" | "pdf" | "json" };
 export type PolicePatrolReport = { id: string; botId: string; guildId: string; officerId: string; officerName: string; authorId: string; authorName: string; patrolType: string | null; initialNotes: string | null; patrolStart: string | null; patrolEnd: string | null; durationMinutes: number | null; channelId: string | null; panelMessageId: string | null; lastAuthorMessageId: string | null; messageCount: number; attachmentCount: number; status: "draft" | "active" | "finished" | "cancelled"; createdAt: string; startedAt: string | null; finishedAt: string | null; deleteAt: string | null };
@@ -2324,6 +2350,27 @@ export class ApiClient {
       timeout: 30_000
     });
     return data.result;
+  }
+
+  async getSystemEmojis() {
+    const { data } = await this.http.get<SystemEmojiRuntimeConfig>("/bot/system-emojis");
+    return data;
+  }
+
+  async reportSystemEmojiValidation(input: SystemEmojiValidationPayload) {
+    const { data } = await this.http.post("/bot/system-emojis/validation", input);
+    return data;
+  }
+
+  async reportNexTechSaleDeliveryResult(guildId: string, input: {
+    deliveredRoleIds?: string[];
+    error?: string | null;
+    messageId?: string | null;
+    saleId: string;
+    status: "delivered" | "partial" | "failed";
+  }) {
+    const { data } = await this.http.post(`/bot/guilds/${guildId}/nex-tech-sales/delivery-result`, input);
+    return data;
   }
 
   async recordGlobalBlacklistSafeBotInfraction(input: {

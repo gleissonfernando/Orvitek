@@ -111,7 +111,7 @@ export function BotRegistrationPage() {
                   <CheckCircle2 className="h-6 w-6 text-emerald-300" />
                   <div>
                     <p className="font-bold text-emerald-100">Bot cadastrado com sucesso</p>
-                    <p className="text-sm text-emerald-100/75">Token configurado com segurança</p>
+                    <p className="text-sm text-emerald-100/75">Obrigado pela confiança. Sua dashboard foi liberada e o token foi configurado com segurança.</p>
                   </div>
                 </div>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">

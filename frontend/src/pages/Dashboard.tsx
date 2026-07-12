@@ -104,8 +104,10 @@ import {
   getApplicationEmojiSettings,
   getApplicationEmojis,
   getClipsConfig,
+  getCustomerPlansDashboard,
   getDashboardBySlug,
   getDashboardMe,
+  getDashboardMaintenanceState,
   getBotGuildConfig,
   getFivemModules,
   getFivemGoals,
@@ -159,6 +161,7 @@ import type {
   BotStatus,
   ClipSent,
   ClipsConfig,
+  CustomerPlansDashboard,
   DashboardBot,
   DashboardGuild,
   DashboardMeGuild,
@@ -194,6 +197,7 @@ import type {
   ManualRegistrationSettings,
   ManualRegistrationSetRole,
   ManualRegistrationSubmission,
+  MaintenanceState,
   SelfBotProtectionSettings,
   ServerBackupDashboard,
   ServerBackupRestoreMode,
@@ -762,6 +766,8 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [clipsRefreshSignal, setClipsRefreshSignal] = useState(0);
   const [botStatus, setBotStatus] = useState<BotStatus>(initialBotStatus);
+  const [customerPlans, setCustomerPlans] = useState<CustomerPlansDashboard | null>(null);
+  const [maintenanceState, setMaintenanceState] = useState<MaintenanceState | null>(null);
   const [savingKey, setSavingKey] = useState<BooleanSettingKey | null>(null);
   const [overviewDetails, setOverviewDetails] = useState<OverviewDetails>(emptyOverviewDetails);
   const [fivemModules, setFivemModules] = useState<FivemModuleDefinition[]>([]);
@@ -808,6 +814,10 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
   const availableModules = useMemo(
     () => moduleCatalog.filter((module) => hasReleasedModule(enabledModules, module.id)),
     [enabledModulesKey]
+  );
+  const selectedBotPlanNotice = useMemo(
+    () => buildSelectedBotPlanNotice(customerPlans, selectedBot),
+    [customerPlans, selectedBot?.id]
   );
 
   useEffect(() => {
@@ -875,6 +885,42 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
   }, [initialBotSlug]);
 
   useEffect(() => {
+    let mounted = true;
+
+    getDashboardMaintenanceState()
+      .then((maintenance) => {
+        if (mounted) setMaintenanceState(maintenance);
+      })
+      .catch(() => {
+        if (mounted) setMaintenanceState(null);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (dashboardProfileLoading || dashboardRouteError) {
+      return;
+    }
+
+    let mounted = true;
+
+    getCustomerPlansDashboard()
+      .then((plansDashboard) => {
+        if (mounted) setCustomerPlans(plansDashboard);
+      })
+      .catch(() => {
+        if (mounted) setCustomerPlans(null);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [dashboardProfileLoading, dashboardRouteError, selectedBot?.id]);
+
+  useEffect(() => {
     if (dashboardProfileLoading || !selectedBot) return;
     if (!isViewAllowed(activeView, enabledModules)) {
       setActiveView("overview");
@@ -932,6 +978,16 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
       return;
     }
 
+    if (maintenanceState?.active) {
+      setSettings(null);
+      setLogs([]);
+      setLives([]);
+      setTickets([]);
+      setOverviewDetails(emptyOverviewDetails);
+      setSettingsLoading(false);
+      return;
+    }
+
     let mounted = true;
 
     setSettingsLoading(true);
@@ -977,7 +1033,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
     return () => {
       mounted = false;
     };
-  }, [activeBotId, dashboardProfileLoading, dashboardRouteError, enabledModulesKey, panelBots.length, selectedGuildId]);
+  }, [activeBotId, dashboardProfileLoading, dashboardRouteError, enabledModulesKey, maintenanceState?.active, panelBots.length, selectedGuildId]);
 
   useEffect(() => {
     const socket = createDashboardSocket();
@@ -999,6 +1055,11 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
         ...current,
         bots: current.bots.map((bot) => bot.id === updatedBot.id ? updatedBot : bot)
       } : current);
+    });
+    socket.on("maintenance:updated", (payload: { state?: MaintenanceState }) => {
+      if (payload.state) {
+        setMaintenanceState(payload.state);
+      }
     });
     socket.on("logs:new", (log: LogEntry) => {
       if (
@@ -1154,6 +1215,13 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
         initial={{ opacity: 0, y: 14 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
       >
+        <DashboardNoticeCenter
+          activeView={activeView}
+          bot={selectedBot}
+          maintenance={maintenanceState}
+          planNotice={selectedBotPlanNotice}
+        />
+
         {activeView !== "overview" ? (
           <UserDashboardHeader
             bot={selectedBot}
@@ -4164,6 +4232,91 @@ function isModuleReleasedForBot(bot: DashboardBot, moduleId: string) {
   }
 
   return moduleReleaseIds(moduleId).some((candidate) => released.has(candidate));
+}
+
+type SelectedBotPlanNotice = {
+  botName: string | null;
+  botUsageText: string | null;
+  planName: string;
+  renewalTone: "muted" | "warning";
+  renewalText: string;
+  workspaceName: string | null;
+};
+
+function DashboardNoticeCenter({
+  activeView,
+  bot,
+  maintenance,
+  planNotice
+}: {
+  activeView: ViewId;
+  bot: DashboardBot | null;
+  maintenance: MaintenanceState | null;
+  planNotice: SelectedBotPlanNotice | null;
+}) {
+  const showMaintenance = Boolean(maintenance?.active);
+  const showPlanNotice = Boolean(planNotice);
+
+  if (!showMaintenance && !showPlanNotice) {
+    return null;
+  }
+
+  return (
+    <section className="grid gap-3">
+      {showMaintenance ? (
+        <Card className="border-amber-400/30 bg-amber-400/10">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
+            <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-bold text-amber-100">Sistema em manutenção</p>
+                <Badge variant="warning">Aviso geral</Badge>
+              </div>
+              <p className="mt-1 text-sm leading-6 text-amber-100/80">
+                A dashboard está disponível somente para consulta enquanto a equipe finaliza a manutenção. A aba DEV não recebe este aviso.
+              </p>
+              <p className="mt-2 text-xs text-amber-100/60">
+                Iniciada em {maintenance?.activatedAt ? formatFullDate(maintenance.activatedAt) : "horário não informado"}.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {showPlanNotice && planNotice ? (
+        <Card className="border-[#FFD500]/25 bg-[#FFD500]/[.06]">
+          <CardContent className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,.65fr)]">
+            <div className="flex min-w-0 gap-3">
+              <Bell className="mt-0.5 h-5 w-5 shrink-0 text-[#FFD500]" />
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-[#FFEA70]">Caixa de avisos da assinatura</p>
+                <p className="mt-1 text-sm leading-6 text-zinc-300">
+                  Obrigado pela confiança. Sua assinatura {planNotice.planName} está ativa{bot?.name ? ` para ${bot.name}` : ""} e os avisos importantes deste bot aparecem aqui.
+                </p>
+                {activeView !== "overview" ? (
+                  <p className="mt-2 text-xs text-zinc-500">Aba atual: {labelForView(activeView)}.</p>
+                ) : null}
+              </div>
+            </div>
+            <div className="grid gap-2 text-sm">
+              <NoticeLine label="Renovação" tone={planNotice.renewalTone} value={planNotice.renewalText} />
+              {planNotice.botUsageText ? <NoticeLine label="Bots" value={planNotice.botUsageText} /> : null}
+              {planNotice.workspaceName ? <NoticeLine label="Workspace" value={planNotice.workspaceName} /> : null}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+    </section>
+  );
+}
+
+function NoticeLine({ label, tone = "muted", value }: { label: string; tone?: "muted" | "warning"; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-black/25 px-3 py-2">
+      <span className="text-xs font-semibold uppercase text-zinc-500">{label}</span>
+      <span className={tone === "warning" ? "text-right font-semibold text-amber-200" : "text-right font-semibold text-zinc-200"}>{value}</span>
+    </div>
+  );
 }
 
 function UserDashboardHeader({
@@ -9195,6 +9348,92 @@ function isViewAllowed(view: ViewId, enabledModules: string[]) {
 
 function liveModulesEnabled(enabledModules: string[]) {
   return enabledModules.includes("live") || enabledModules.includes("kick-integration");
+}
+
+function buildSelectedBotPlanNotice(dashboard: CustomerPlansDashboard | null, bot: DashboardBot | null): SelectedBotPlanNotice | null {
+  if (!dashboard) {
+    return null;
+  }
+
+  const activeSubscriptions = dashboard.subscriptions.filter((subscription) => subscription.status === "active");
+  const workspace = bot
+    ? dashboard.workspaces.find((item) => item.botIds.includes(bot.id) || item.bots?.some((workspaceBot) => workspaceBot.id === bot.id))
+    : dashboard.workspaces[0] ?? null;
+  const subscription = workspace
+    ? activeSubscriptions.find((item) => item.workspaceId === workspace.id) ?? null
+    : activeSubscriptions[0] ?? null;
+
+  if (!subscription) {
+    return null;
+  }
+
+  const plan = dashboard.plans.find((item) => item.id === subscription.planId) ?? null;
+  const renewal = renewalTextForSubscription(subscription, plan?.billingCycle ?? null);
+  const botLimit = subscription.botLimit || plan?.botLimit || 0;
+  const botCount = workspace?.botCount ?? workspace?.bots?.length ?? null;
+
+  return {
+    botName: bot?.name ?? null,
+    botUsageText: botCount !== null && botLimit ? `${botCount}/${botLimit} cadastrados` : null,
+    planName: subscription.plan?.name ?? plan?.name ?? subscription.planSlug,
+    renewalTone: renewal.tone,
+    renewalText: renewal.text,
+    workspaceName: workspace?.name ?? subscription.workspace?.name ?? null
+  };
+}
+
+function renewalTextForSubscription(subscription: CustomerPlansDashboard["subscriptions"][number], billingCycle: string | null) {
+  const hostingDueAt = readNestedString(subscription.metadata, ["hosting", "nextDueAt"]);
+  const dueAt = subscription.endsAt ?? hostingDueAt;
+
+  if (!dueAt) {
+    return {
+      text: billingCycle === "lifetime" ? "Licença vitalícia ativa" : "Sem vencimento cadastrado",
+      tone: "muted" as const
+    };
+  }
+
+  const dueDate = new Date(dueAt);
+  const dueMs = dueDate.getTime();
+  if (!Number.isFinite(dueMs)) {
+    return { text: "Vencimento pendente de atualização", tone: "warning" as const };
+  }
+
+  const days = Math.ceil((dueMs - Date.now()) / 86_400_000);
+  const date = dueDate.toLocaleDateString("pt-BR");
+
+  if (days < 0) {
+    return { text: `Venceu em ${date}`, tone: "warning" as const };
+  }
+
+  if (days <= 7) {
+    return { text: `Renovar até ${date}`, tone: "warning" as const };
+  }
+
+  return { text: `Próxima renovação em ${date}`, tone: "muted" as const };
+}
+
+function readNestedString(value: unknown, path: string[]) {
+  let current: unknown = value;
+  for (const key of path) {
+    if (!current || typeof current !== "object") return null;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return typeof current === "string" && current.trim() ? current.trim() : null;
+}
+
+function labelForView(view: ViewId) {
+  return moduleCatalog.find((item) => item.view === view)?.title ?? view;
+}
+
+function formatFullDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  }).format(new Date(value));
 }
 
 function ensureDashboardGuilds(guilds: DashboardGuild[]) {

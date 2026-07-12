@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Activity, Loader2, Plus, Save, Send, Shield, Trash2 } from "lucide-react";
 import { createFivemAction, deleteFivemAction, getFivemActions, getGuildLiveOptions, publishFivemActionsPanel, saveFivemActionSettings, updateFivemAction, uploadPanelImage } from "../../lib/api";
+import { createDashboardSocket } from "../../lib/socket";
 import type { DashboardGuild, FivemActionArchitecture, FivemActionDashboard, FivemActionDefinition, GuildCategoryOption, GuildChannelOption } from "../../types";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -30,7 +31,27 @@ export function FivemActionsPanel({ botId, canManage, fixedArchitecture, guild }
     }
   }, [fixedArchitecture]);
 
-  useEffect(() => { if (!botId || !guild) { setLoading(false); return; } let active = true; setLoading(true); Promise.all([getFivemActions(guild.id, architecture, botId), getGuildLiveOptions(guild.id, botId)]).then(([data, options]) => { if (active) { setDashboard(data); setChannels(options.channels); setCategories(options.categories ?? []); } }).catch((error) => active && setMessage(readMessage(error))).finally(() => active && setLoading(false)); return () => { active = false; }; }, [architecture, botId, guild?.id]);
+  const reloadDashboard = useCallback(async () => {
+    if (!botId || !guild) return;
+    const [data, options] = await Promise.all([getFivemActions(guild.id, architecture, botId), getGuildLiveOptions(guild.id, botId)]);
+    setDashboard(data);
+    setChannels(options.channels);
+    setCategories(options.categories ?? []);
+  }, [architecture, botId, guild]);
+
+  useEffect(() => { if (!botId || !guild) { setLoading(false); return; } let active = true; setLoading(true); reloadDashboard().catch((error) => active && setMessage(readMessage(error))).finally(() => active && setLoading(false)); return () => { active = false; }; }, [botId, guild?.id, reloadDashboard]);
+
+  useEffect(() => {
+    if (!botId || !guild) return;
+    const socket = createDashboardSocket();
+    const refresh = (payload: { architecture?: FivemActionArchitecture; botId?: string | null; guildId?: string }) => {
+      if (payload.guildId === guild.id && payload.botId === botId && payload.architecture === architecture) {
+        void reloadDashboard().catch((error) => setMessage(readMessage(error)));
+      }
+    };
+    socket.on("fivem:actions:updated", refresh);
+    return () => { socket.off("fivem:actions:updated", refresh); socket.disconnect(); };
+  }, [architecture, botId, guild, reloadDashboard]);
 
   if (!botId || !guild) return <Empty text="Selecione um bot e um servidor para configurar o Sistema de Ações." />;
   if (loading || !dashboard) return <Empty loading text="Carregando Sistema de Ações..." />;

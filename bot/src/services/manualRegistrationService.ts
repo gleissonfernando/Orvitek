@@ -27,6 +27,7 @@ import { showModalAndResetSelect } from "../utils/selectMenuReset";
 import type { ManualRegistrationSettings, ManualRegistrationSubmission } from "./apiClient";
 import { ensureFivemGoalChannelForUser } from "./fivemGoalService";
 import { buildV2Container, renderPanelBlocks } from "./panelVisualRenderer";
+import { systemComponentEmoji } from "./systemEmojiService";
 
 const PREFIX = "manual_registration";
 const formSessions = new Map<string, { answers: Array<{ id: string; label: string; value: string }>; expiresAt: number; guildId: string; page: number; requestedRoleId: string | null; userId: string }>();
@@ -623,7 +624,7 @@ function createPanelPayload(settings: ManualRegistrationSettings) {
   });
   if (!blockComponents.length && imageUrl && ["before_buttons", "above_buttons", "bottom"].includes(imagePosition)) components.push(mediaGallery(imageUrl));
   components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`${PREFIX}:start`).setEmoji(normalizeComponentEmoji(settings.emoji) ?? "📝").setLabel("Iniciar Registro").setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId(`${PREFIX}:start`).setEmoji(normalizeComponentEmoji(settings.emoji) ?? systemComponentEmoji("prancheta_caneta")).setLabel("Iniciar Registro").setStyle(ButtonStyle.Secondary)
   ));
   components.push({ type: 14, divider: true, spacing: 1 });
   components.push({ type: 10, content: settings.footerText ? `-# ${settings.footerText}` : "-# Todos os direitos reservados" });

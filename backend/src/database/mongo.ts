@@ -1934,6 +1934,7 @@ export type MongoFivemActionParticipant = {
   userId: string;
   username: string;
   roleIds: string[];
+  position?: "confirmed" | "reserve";
   joinedAt: Date;
   leftAt: Date | null;
 };
@@ -2615,6 +2616,7 @@ export type MongoNexTechSalesPlan = {
   priceCents: number;
   durationDays: number | null;
   enabled: boolean;
+  discordRoleId: string | null;
   moduleIds: string[];
   imageUrl: string | null;
   checkoutMessage: string | null;
@@ -2642,6 +2644,7 @@ export type MongoNexTechProductPlanConfig = {
   buttonColor: string;
   buttonText: string;
   description: string;
+  discordRoleId: string | null;
   enabled: boolean;
   freeHostingDays?: number | null;
   hostingPriceCents?: number | null;
@@ -2690,6 +2693,7 @@ export type MongoNexTechProduct = {
 
 export type MongoNexTechSaleStatus = "pending" | "paid" | "cancelled" | "refunded";
 export type MongoNexTechSalePlanType = "monthly" | "lifetime" | "hosting" | "manual";
+export type MongoNexTechSaleDeliveryStatus = "pending" | "delivered" | "partial" | "failed";
 
 export type MongoNexTechSale = {
   _id: string;
@@ -2713,8 +2717,15 @@ export type MongoNexTechSale = {
   productName?: string | null;
   productSlug?: string | null;
   productPlanType?: MongoNexTechSalePlanType;
+  purchasedRoleId?: string | null;
   externalReference: string | null;
   status: MongoNexTechSaleStatus;
+  deliveryStatus?: MongoNexTechSaleDeliveryStatus | null;
+  deliveryAttemptedAt?: Date | null;
+  deliveredAt?: Date | null;
+  deliveredRoleIds?: string[];
+  deliveryMessageId?: string | null;
+  deliveryError?: string | null;
   notes: string | null;
   paidAt: Date | null;
   expiresAt: Date | null;
@@ -3371,6 +3382,25 @@ export type MongoMaintenanceLog = {
   message: string;
 };
 
+export type MongoSystemEmoji = {
+  _id: string;
+  key: string;
+  botId: string | null;
+  name: string;
+  emojiId: string | null;
+  animated: boolean;
+  sourceGuildId: string | null;
+  enabled: boolean;
+  fallback: string;
+  updatedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  lastFoundAt?: Date | null;
+  lastMissingAt?: Date | null;
+  lastValidatedAt?: Date | null;
+  lastValidationBotId?: string | null;
+};
+
 export type MongoDashboardAuditLog = {
   _id: string;
   action: string;
@@ -3886,6 +3916,7 @@ export async function getMongoCollections() {
     devPermissions: db.collection<MongoDevPermission>("DevPermission"),
     maintenanceState: db.collection<MongoMaintenanceState>("MaintenanceState"),
     maintenanceLogs: db.collection<MongoMaintenanceLog>("MaintenanceLog"),
+    systemEmojis: db.collection<MongoSystemEmoji>("system_emojis"),
     dashboardAuditLogs: db.collection<MongoDashboardAuditLog>("DashboardAuditLog"),
     panelImageSettings: db.collection<MongoPanelImageSettings>("panel_image_settings"),
     persistentImages: db.collection<MongoPersistentImage>("persistent_images")
@@ -4129,7 +4160,18 @@ async function createMongoIndexes(db: Db) {
     ensureDevBotIndexes(db),
     db.collection<MongoBotGuildConfig>("BotGuildConfig").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
     db.collection<MongoDevPermission>("DevPermission").createIndex({ userId: 1 }, { unique: true }),
+    ensureSystemEmojiIndexes(db),
     ensureDashboardAuditLogIndexes(db)
+  ]);
+}
+
+async function ensureSystemEmojiIndexes(db: Db) {
+  const collection = db.collection<MongoSystemEmoji>("system_emojis");
+
+  await Promise.all([
+    collection.createIndex({ botId: 1, key: 1 }, { unique: true }),
+    collection.createIndex({ updatedAt: -1 }),
+    collection.createIndex({ lastValidatedAt: -1 })
   ]);
 }
 
@@ -4650,6 +4692,7 @@ async function ensureNexTechSalesIndexes(db: Db) {
     db.collection<MongoNexTechSale>("nexTech_sales").createIndex({ ownerUserId: 1, storeId: 1, status: 1, createdAt: -1 }),
     db.collection<MongoNexTechSale>("nexTech_sales").createIndex({ ownerUserId: 1, storeId: 1, buyerId: 1, createdAt: -1 }),
     db.collection<MongoNexTechSale>("nexTech_sales").createIndex({ ownerUserId: 1, storeId: 1, customerId: 1, productId: 1, productPlanType: 1, status: 1 }),
+    db.collection<MongoNexTechSale>("nexTech_sales").createIndex({ botId: 1, guildId: 1, deliveryStatus: 1, updatedAt: -1 }),
     db.collection<MongoNexTechCustomer>("nexTech_customers").createIndex({ ownerUserId: 1, storeId: 1, discordId: 1 }),
     db.collection<MongoNexTechSubscription>("nexTech_subscriptions").createIndex({ ownerUserId: 1, storeId: 1, customerId: 1, status: 1 }),
     db.collection<MongoNexTechSubscription>("nexTech_subscriptions").createIndex({ ownerUserId: 1, storeId: 1, productPlanType: 1, nextHostingDueAt: 1, status: 1 }),

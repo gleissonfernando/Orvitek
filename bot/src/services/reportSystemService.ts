@@ -28,6 +28,7 @@ import {
 import { env } from "../config/env";
 import type { BotContext, GuildSettings, ReportSystemButtonKey, ReportSystemLogKey, ReportSystemSettings } from "../types";
 import { resetSelectMenuMessage, showModalAndResetSelect } from "../utils/selectMenuReset";
+import { systemComponentEmoji, systemEmojiText, systemStatusEmoji } from "./systemEmojiService";
 import type { TicketRecord } from "./apiClient";
 import { getFreshGuildSettings } from "./guildSettingsCache";
 import { renderComponentsV2Panel } from "./panelVisualRenderer";
@@ -663,8 +664,8 @@ async function closeReportChannel(context: BotContext, guild: Guild, settings: G
 function createAnonymousPreparationPayload(settings: GuildSettings, ticket: TicketRecord): MessageCreateOptions {
   const report = settings.reportSystem;
   const actions = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:submit:${ticket.id}`).setLabel("Encaminhar denuncia").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:cancel:${ticket.id}`).setLabel("Cancelar envio da denuncia").setStyle(ButtonStyle.Danger)
+    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:submit:${ticket.id}`).setEmoji(systemComponentEmoji("acessar")).setLabel("Encaminhar denuncia").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:cancel:${ticket.id}`).setEmoji(systemComponentEmoji("porta")).setLabel("Cancelar envio da denuncia").setStyle(ButtonStyle.Danger)
   );
   return renderComponentsV2Panel({
     accentColor: parseColor(report.anonymousEmbedColor),
@@ -737,10 +738,10 @@ function createManagementPayload(settings: GuildSettings, ticket: TicketRecord, 
   const claimed = Boolean(ticket.responsibleUserId);
   const calledBack = Boolean(topic.reporterCalled);
   const actions = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:claim:${ticket.id}`).setLabel(topic.mode === "anonymous" ? "Assumir denuncia" : "Assumir ticket").setStyle(ButtonStyle.Primary).setDisabled(!report.buttons.claim || isArchived || isClosed || (isAnonymous && claimed)),
-    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:call:${ticket.id}`).setLabel("Chamar denunciante de volta").setStyle(ButtonStyle.Secondary).setDisabled(isArchived || isClosed || (isAnonymous && calledBack)),
-    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:archive:${ticket.id}`).setLabel("Arquivar").setStyle(ButtonStyle.Secondary).setDisabled(isArchived || isClosed),
-    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:finish:${ticket.id}`).setLabel("Finalizar").setStyle(ButtonStyle.Danger).setDisabled(isClosed)
+    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:claim:${ticket.id}`).setEmoji(systemComponentEmoji("homem")).setLabel(topic.mode === "anonymous" ? "Assumir denuncia" : "Assumir ticket").setStyle(ButtonStyle.Primary).setDisabled(!report.buttons.claim || isArchived || isClosed || (isAnonymous && claimed)),
+    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:call:${ticket.id}`).setEmoji(systemComponentEmoji("acessar")).setLabel("Chamar denunciante de volta").setStyle(ButtonStyle.Secondary).setDisabled(isArchived || isClosed || (isAnonymous && calledBack)),
+    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:archive:${ticket.id}`).setEmoji(systemComponentEmoji("caixa")).setLabel("Arquivar").setStyle(ButtonStyle.Secondary).setDisabled(isArchived || isClosed),
+    new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:finish:${ticket.id}`).setEmoji(systemComponentEmoji("visto")).setLabel("Finalizar").setStyle(ButtonStyle.Danger).setDisabled(isClosed)
   );
   return renderComponentsV2Panel({
     accentColor: topic.mode === "anonymous" ? 0xf2b84b : parseColor(report.panelColor),
@@ -786,8 +787,8 @@ function confirmPayload(settings: GuildSettings, title: string, description: str
   return renderComponentsV2Panel({
     accentColor: parseColor(settings.reportSystem.panelColor),
     actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(confirmId).setLabel(title).setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId(cancelId).setLabel("Cancelar").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId(confirmId).setEmoji(systemComponentEmoji("perigo")).setLabel(title).setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(cancelId).setEmoji(systemComponentEmoji("porta")).setLabel("Cancelar").setStyle(ButtonStyle.Secondary)
     )],
     description,
     fields: [],
@@ -803,6 +804,7 @@ function anonymousDisabledPayload(categoryId: string) {
     components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`${PUBLIC_PREFIX}:id:${categoryId}:identified`)
+        .setEmoji(systemComponentEmoji("acessar"))
         .setLabel("Abrir Denuncia Identificada")
         .setStyle(ButtonStyle.Primary)
     )],
@@ -824,8 +826,8 @@ async function sendTranscriptPanel(guild: Guild, settings: GuildSettings, topic:
   await (channel as TextChannel).send(renderComponentsV2Panel({
     accentColor: 0xf2b84b,
     actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setLabel("Abrir Transcript").setStyle(ButtonStyle.Link).setURL(url),
-      new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:copylink:${ticket.id}`).setLabel("Copiar Link").setStyle(ButtonStyle.Secondary).setDisabled(true)
+      new ButtonBuilder().setEmoji(systemComponentEmoji("link")).setLabel("Abrir Transcript").setStyle(ButtonStyle.Link).setURL(url),
+      new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:copylink:${ticket.id}`).setEmoji(systemComponentEmoji("link")).setLabel("Copiar Link").setStyle(ButtonStyle.Secondary).setDisabled(true)
     )],
     description: "O atendimento foi finalizado e o transcript foi salvo com seguranca. Apenas pessoas autorizadas neste canal de logs devem acessar este registro.",
     fields: [
@@ -836,17 +838,17 @@ async function sendTranscriptPanel(guild: Guild, settings: GuildSettings, topic:
     ],
     image: report.thumbnailUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: report.thumbnailUrl } : null,
     moduleId: "iab-transcript",
-    title: "📁 Transcript Gerado"
+    title: `${systemEmojiText("folha")} Transcript Gerado`
   })).catch(() => null);
 }
 
 function formatTranscriptStatus(status: string) {
   const normalized = status.toLowerCase();
-  if (normalized.includes("final")) return `🟢 ${status}`;
-  if (normalized.includes("arquiv")) return `⚫ ${status}`;
-  if (normalized.includes("pend")) return `🟡 ${status}`;
-  if (normalized.includes("recus") || normalized.includes("neg")) return `🔴 ${status}`;
-  return `🔒 ${status}`;
+  if (normalized.includes("final")) return `${systemStatusEmoji("active")} ${status}`;
+  if (normalized.includes("arquiv")) return `${systemEmojiText("caixa")} ${status}`;
+  if (normalized.includes("pend")) return `${systemStatusEmoji("pending")} ${status}`;
+  if (normalized.includes("recus") || normalized.includes("neg")) return `${systemStatusEmoji("danger")} ${status}`;
+  return `${systemEmojiText("perigo")} ${status}`;
 }
 
 function formatElapsed(start: Date, end: Date) {

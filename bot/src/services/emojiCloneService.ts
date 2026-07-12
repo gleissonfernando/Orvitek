@@ -280,7 +280,7 @@ export function emojiClonePanelPayload(ephemeral = false) {
         },
         {
           type: 10,
-          content: "🏵️ | Todos os copyrights para OrviteK bots."
+          content: "🏵️ | Todos os copyrights para NexTechK bots."
         }
       ]
     }

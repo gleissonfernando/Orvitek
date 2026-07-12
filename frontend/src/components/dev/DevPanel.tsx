@@ -24,6 +24,7 @@ import {
     ScrollText,
     Search,
     Server,
+    SmilePlus,
     Sparkles,
     Settings,
     ShieldCheck,
@@ -54,8 +55,10 @@ import {
     getDevModules,
     getGuildLiveOptions,
     getNexTechSalesDashboard,
+    getSystemEmojiDashboard,
     resetDatabaseMaintenanceModule,
     resetDatabaseMaintenanceServer,
+    resetSystemEmoji,
     duplicateNexTechProduct,
     restartDevBot,
     saveNexTechPaymentProvider,
@@ -64,12 +67,14 @@ import {
     startAllDevBots,
     stopAllDevBots,
     stopDevBot,
+    syncSystemEmojis,
     updateBotGuildConfig,
     updateDevBotModules,
     updateDevBotToken,
     updateNexTechProduct,
     updateNexTechSaleStatus,
     updateNexTechSalesPlan,
+    saveSystemEmoji,
     uploadNexTechProductBanner
 } from "../../lib/api";
 import { createDashboardSocket } from "../../lib/socket";
@@ -88,6 +93,7 @@ import type {
     DevModuleDefinition,
     GuildChannelOption,
     GuildVoiceChannelOption,
+    NexTechSale,
     NexTechSaleStatus,
     NexTechProduct,
     NexTechProductFeatureKey,
@@ -98,7 +104,9 @@ import type {
     SaveNexTechProductPayload,
     SaveNexTechSalePayload,
     SaveNexTechSalesPlanPayload,
-    SaveNexTechSalesSettingsPayload
+    SaveNexTechSalesSettingsPayload,
+    SystemEmojiConfig,
+    SystemEmojiDashboard
 } from "../../types";
 import { Avatar } from "../ui/avatar";
 import { Badge } from "../ui/badge";
@@ -182,6 +190,7 @@ type BotMenuId =
   | "overview"
   | "favorites"
   | "database-maintenance"
+  | "system-emojis"
   | "settings"
   | "moderation"
   | "tickets"
@@ -762,6 +771,7 @@ export function DevPanel({
       "database-maintenance",
       "favorites",
       "overview",
+      "system-emojis",
       ...flattenBotMenuItems(moduleDashboardCategories(modules)).map((item) => item.id)
     ]);
 
@@ -2022,6 +2032,8 @@ function BotModuleWorkspace({
       ? favoriteModules
       : activeMenuId === "database-maintenance"
         ? []
+      : activeMenuId === "system-emojis"
+        ? []
       : activeCategory
         ? modulesForMenu(activeCategory, modules, true)
         : modules;
@@ -2149,6 +2161,14 @@ function BotModuleWorkspace({
                 onClick={() => onSelectMenu("database-maintenance")}
                 total={0}
               />
+              <BotMenuCategoryButton
+                active={activeMenuId === "system-emojis"}
+                count={0}
+                icon={SmilePlus}
+                label="Emojis do Sistema"
+                onClick={() => onSelectMenu("system-emojis")}
+                total={0}
+              />
               {categories.map((item) => (
                 <BotMenuCategoryButton
                   active={activeMenuId === item.id}
@@ -2168,11 +2188,13 @@ function BotModuleWorkspace({
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h3 className="text-base font-bold text-white">
-                    {normalizedQuery ? "Resultado da busca" : activeMenuId === "favorites" ? "Favoritos" : activeMenuId === "overview" ? "Todos os módulos" : activeCategory?.label ?? "Módulos"}
+                    {normalizedQuery ? "Resultado da busca" : activeMenuId === "system-emojis" ? "Emojis do Sistema" : activeMenuId === "favorites" ? "Favoritos" : activeMenuId === "overview" ? "Todos os módulos" : activeCategory?.label ?? "Módulos"}
                   </h3>
                   <p className="mt-1 text-sm font-medium text-zinc-400">
                     {normalizedQuery
                       ? `Filtrando por "${query.trim()}".`
+                      : activeMenuId === "system-emojis"
+                        ? "Configure emojis personalizados usados nos painéis e respostas do bot."
                       : activeMenuId === "favorites"
                         ? "Módulos marcados com estrela ficam sempre a um clique."
                         : activeCategory?.description ?? "Controle rápido dos módulos deste bot."}
@@ -2195,7 +2217,11 @@ function BotModuleWorkspace({
               <DatabaseMaintenancePanel bot={bot} guilds={guilds} />
             ) : null}
 
-            {activeMenuId === "database-maintenance" && !normalizedQuery ? null : filteredModules.length ? (
+            {activeMenuId === "system-emojis" && !normalizedQuery ? (
+              <SystemEmojisPanel bot={bot} />
+            ) : null}
+
+            {(activeMenuId === "database-maintenance" || activeMenuId === "system-emojis") && !normalizedQuery ? null : filteredModules.length ? (
               <div className="space-y-7">
                 {moduleSections.map((section) => (
                   <section className="scroll-mt-6 space-y-3" id={`bot-menu-section-${section.id}`} key={section.id}>
@@ -2524,6 +2550,218 @@ function DatabaseMaintenancePanel({ bot, guilds }: { bot: DevBot; guilds: Dashbo
   );
 }
 
+type SystemEmojiDraft = {
+  animated: boolean;
+  emojiId: string;
+  enabled: boolean;
+  fallback: string;
+  name: string;
+  sourceGuildId: string;
+};
+
+function SystemEmojisPanel({ bot }: { bot: DevBot }) {
+  const [dashboard, setDashboard] = useState<SystemEmojiDashboard | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, SystemEmojiDraft>>({});
+  const [busy, setBusy] = useState<string | null>("load");
+  const [message, setMessage] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setBusy("load");
+    setMessage(null);
+    try {
+      const data = await getSystemEmojiDashboard(bot.id);
+      setDashboard(data);
+      setDrafts(Object.fromEntries(data.emojis.map((emoji) => [emoji.key, draftFromEmoji(emoji)])));
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Nao foi possivel carregar emojis do sistema.");
+    } finally {
+      setBusy(null);
+    }
+  }, [bot.id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  function updateDraft(key: string, patch: Partial<SystemEmojiDraft>) {
+    setDrafts((current) => ({
+      ...current,
+      [key]: {
+        ...(current[key] ?? { animated: false, emojiId: "", enabled: true, fallback: "", name: key, sourceGuildId: "" }),
+        ...patch
+      }
+    }));
+  }
+
+  async function saveEmoji(emoji: SystemEmojiConfig) {
+    const draft = drafts[emoji.key];
+    if (!draft) return;
+    setBusy(`save:${emoji.key}`);
+    setMessage(null);
+    try {
+      const data = await saveSystemEmoji(emoji.key, {
+        animated: draft.animated,
+        botId: bot.id,
+        emojiId: draft.emojiId.trim() || null,
+        enabled: draft.enabled,
+        fallback: draft.fallback.trim() || emoji.fallback,
+        name: draft.name.trim() || emoji.name,
+        sourceGuildId: draft.sourceGuildId.trim() || null
+      });
+      setDashboard(data);
+      setDrafts(Object.fromEntries(data.emojis.map((item) => [item.key, draftFromEmoji(item)])));
+      setMessage(`Emoji ${emoji.key} atualizado.`);
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Falha ao salvar emoji.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function resetEmoji(emoji: SystemEmojiConfig) {
+    setBusy(`reset:${emoji.key}`);
+    setMessage(null);
+    try {
+      const data = await resetSystemEmoji(emoji.key, bot.id);
+      setDashboard(data);
+      setDrafts(Object.fromEntries(data.emojis.map((item) => [item.key, draftFromEmoji(item)])));
+      setMessage(`Emoji ${emoji.key} voltou para o padrao/global.`);
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Falha ao resetar emoji.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function syncDefaults() {
+    setBusy("sync");
+    setMessage(null);
+    try {
+      const data = await syncSystemEmojis(bot.id);
+      setDashboard(data);
+      setDrafts(Object.fromEntries(data.emojis.map((item) => [item.key, draftFromEmoji(item)])));
+      setMessage("Sincronizacao solicitada. Reinicie ou aguarde o bot validar para marcar encontrados.");
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Falha ao sincronizar emojis.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const summary = dashboard?.summary;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 rounded-lg border border-[#FFD500]/15 bg-black/25 p-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h3 className="text-base font-bold text-white">Emojis do Sistema</h3>
+          <p className="mt-1 text-sm font-medium text-zinc-400">Configuração por bot para painéis Components V2, menus, botões, status e logs.</p>
+        </div>
+        <Button disabled={Boolean(busy)} onClick={() => void syncDefaults()} size="sm">
+          {busy === "sync" ? <Loader2 className="h-4 w-4 animate-spin" /> : <SmilePlus className="h-4 w-4" />} Sincronizar por nome
+        </Button>
+      </div>
+
+      {message ? (
+        <div className="rounded-lg border border-[#FFEA70]/25 bg-[#FFD500]/10 px-4 py-3 text-sm font-semibold text-white">
+          {message}
+        </div>
+      ) : null}
+
+      <div className="grid gap-2 sm:grid-cols-5">
+        <OverviewMetric label="Total" value={String(summary?.total ?? 0)} />
+        <OverviewMetric label="Configurados" value={String(summary?.configured ?? 0)} />
+        <OverviewMetric label="Encontrados" value={String(summary?.found ?? 0)} />
+        <OverviewMetric label="Fallbacks" value={String(summary?.fallbacks ?? 0)} />
+        <OverviewMetric label="Desativados" value={String(summary?.disabled ?? 0)} />
+      </div>
+
+      {busy === "load" ? (
+        <div className="flex min-h-40 items-center justify-center rounded-lg border border-zinc-800 bg-black/30 text-zinc-400">
+          <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 xl:grid-cols-2">
+        {dashboard?.emojis.map((emoji) => {
+          const draft = drafts[emoji.key] ?? draftFromEmoji(emoji);
+          const status = !emoji.enabled ? "Desativado" : emoji.found ? "Encontrado" : emoji.missing ? "Fallback ativo" : emoji.emojiId ? "Aguardando validação" : "Padrão";
+          return (
+            <Card className="border-zinc-800 bg-black/35" key={emoji.key}>
+              <CardHeader className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <CardTitle className="flex items-center gap-2 text-base text-white">
+                      <span className="font-mono text-sm text-[#FFEA70]">{emoji.preview}</span>
+                      <span className="truncate">{emoji.key}</span>
+                    </CardTitle>
+                    <CardDescription>{emoji.description}</CardDescription>
+                  </div>
+                  <Badge variant={emoji.found ? "success" : emoji.missing ? "warning" : emoji.enabled ? "muted" : "danger"}>{status}</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 p-4 pt-0">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="space-y-1 text-xs font-semibold uppercase text-zinc-400">
+                    Nome
+                    <input className="h-10 w-full rounded-lg border border-zinc-800 bg-black px-3 font-mono text-sm text-white outline-none focus:border-[#FFEA70]" onChange={(event) => updateDraft(emoji.key, { name: event.target.value })} value={draft.name} />
+                  </label>
+                  <label className="space-y-1 text-xs font-semibold uppercase text-zinc-400">
+                    Emoji ID
+                    <input className="h-10 w-full rounded-lg border border-zinc-800 bg-black px-3 font-mono text-sm text-white outline-none focus:border-[#FFEA70]" inputMode="numeric" onChange={(event) => updateDraft(emoji.key, { emojiId: event.target.value.replace(/\D/g, "") })} placeholder="1234567890" value={draft.emojiId} />
+                  </label>
+                  <label className="space-y-1 text-xs font-semibold uppercase text-zinc-400">
+                    Servidor origem
+                    <input className="h-10 w-full rounded-lg border border-zinc-800 bg-black px-3 font-mono text-sm text-white outline-none focus:border-[#FFEA70]" inputMode="numeric" onChange={(event) => updateDraft(emoji.key, { sourceGuildId: event.target.value.replace(/\D/g, "") })} placeholder="Guild ID opcional" value={draft.sourceGuildId} />
+                  </label>
+                  <label className="space-y-1 text-xs font-semibold uppercase text-zinc-400">
+                    Fallback
+                    <input className="h-10 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-white outline-none focus:border-[#FFEA70]" maxLength={16} onChange={(event) => updateDraft(emoji.key, { fallback: event.target.value })} value={draft.fallback} />
+                  </label>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950/60 p-3">
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 text-sm font-medium text-zinc-300">
+                      <Switch checked={draft.enabled} onCheckedChange={(checked) => updateDraft(emoji.key, { enabled: checked })} />
+                      Ativo
+                    </label>
+                    <label className="flex items-center gap-2 text-sm font-medium text-zinc-300">
+                      <Switch checked={draft.animated} onCheckedChange={(checked) => updateDraft(emoji.key, { animated: checked })} />
+                      Animado
+                    </label>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button disabled={busy === `reset:${emoji.key}`} onClick={() => void resetEmoji(emoji)} size="sm" variant="outline">
+                      {busy === `reset:${emoji.key}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Resetar
+                    </Button>
+                    <Button disabled={busy === `save:${emoji.key}`} onClick={() => void saveEmoji(emoji)} size="sm">
+                      {busy === `save:${emoji.key}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Salvar
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs font-medium text-zinc-500">
+                  Escopo: {emoji.scope === "bot" ? "bot selecionado" : emoji.scope === "global" ? "global" : "fallback interno"} · Última validação: {emoji.lastValidatedAt ? new Date(emoji.lastValidatedAt).toLocaleString("pt-BR") : "não validado"}
+                </p>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function draftFromEmoji(emoji: SystemEmojiConfig): SystemEmojiDraft {
+  return {
+    animated: emoji.animated,
+    emojiId: emoji.emojiId ?? "",
+    enabled: emoji.enabled,
+    fallback: emoji.fallback,
+    name: emoji.name,
+    sourceGuildId: emoji.sourceGuildId ?? ""
+  };
+}
+
 function BotMenuSummary({
   metrics
 }: {
@@ -2731,6 +2969,7 @@ const defaultProviderForm: SaveNexTechPaymentProviderPayload = {
 const defaultPlanForm: SaveNexTechSalesPlanPayload = {
   checkoutMessage: "",
   description: "",
+  discordRoleId: null,
   durationDays: 30,
   enabled: true,
   imageUrl: "",
@@ -2784,6 +3023,7 @@ const defaultProductForm: SaveNexTechProductPayload = {
       buttonColor: "#FFD500",
       buttonText: "Mensal",
       description: "Hospedagem inclusa. Pagamento recorrente.",
+      discordRoleId: null,
       enabled: true,
       name: "Plano Mensal",
       paymentProviderId: null,
@@ -2795,6 +3035,7 @@ const defaultProductForm: SaveNexTechProductPayload = {
       buttonColor: "#9333ea",
       buttonText: "Vitalicio",
       description: "Licenca permanente do modulo. Apos o periodo gratuito sera cobrada apenas a hospedagem, a partir de R$12,00 por mes.",
+      discordRoleId: null,
       enabled: false,
       name: "Plano Vitalicio",
       freeHostingDays: 30,
@@ -3082,6 +3323,7 @@ function NexTechSalesWorkspace({
     setPlanForm({
       checkoutMessage: plan.checkoutMessage ?? "",
       description: plan.description ?? "",
+      discordRoleId: plan.discordRoleId ?? null,
       durationDays: plan.durationDays,
       enabled: plan.enabled,
       imageUrl: plan.imageUrl ?? "",
@@ -3456,6 +3698,7 @@ function NexTechSalesWorkspace({
                 <DevInput label="Nome do plano" onChange={(value) => setPlanForm((current) => ({ ...current, name: value }))} value={planForm.name} />
                 <DevInput inputMode="numeric" label="Preco em centavos" onChange={(value) => setPlanForm((current) => ({ ...current, priceCents: Number(value.replace(/\D/g, "")) }))} value={String(planForm.priceCents)} />
                 <DevInput inputMode="numeric" label="Duracao em dias" onChange={(value) => setPlanForm((current) => ({ ...current, durationDays: Number(value.replace(/\D/g, "")) || null }))} value={String(planForm.durationDays ?? "")} />
+                <DevInput inputMode="numeric" label="Cargo entregue" onChange={(value) => setPlanForm((current) => ({ ...current, discordRoleId: value.replace(/\D/g, "") || null }))} value={planForm.discordRoleId ?? ""} />
                 <DevInput label="Imagem do plano" onChange={(value) => setPlanForm((current) => ({ ...current, imageUrl: value }))} value={planForm.imageUrl ?? ""} />
                 <DevInput label="Descricao" onChange={(value) => setPlanForm((current) => ({ ...current, description: value }))} value={planForm.description ?? ""} />
                 <DevInput label="Mensagem checkout" onChange={(value) => setPlanForm((current) => ({ ...current, checkoutMessage: value }))} value={planForm.checkoutMessage ?? ""} />
@@ -3526,6 +3769,7 @@ function NexTechSalesWorkspace({
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <Badge variant={sale.status === "paid" ? "success" : sale.status === "cancelled" || sale.status === "refunded" ? "danger" : "muted"}>{saleStatusLabel(sale.status)}</Badge>
+                        {sale.deliveryStatus ? <Badge variant={sale.deliveryStatus === "delivered" ? "success" : sale.deliveryStatus === "failed" ? "danger" : "muted"}>{saleDeliveryStatusLabel(sale.deliveryStatus)}</Badge> : null}
                         {sale.status !== "paid" ? <Button disabled={saving === sale.id} onClick={() => void handleSaleStatus(sale.id, "paid")} size="sm" variant="outline">Marcar paga</Button> : null}
                         {sale.status === "pending" ? <Button disabled={saving === sale.id} onClick={() => void handleSaleStatus(sale.id, "cancelled")} size="sm" variant="destructive">Cancelar</Button> : null}
                       </div>
@@ -3601,6 +3845,7 @@ function ProductPlanEditor({
       <div className="mt-3 grid gap-3">
         <DevInput label="Nome" onChange={(value) => updatePlan("name", value)} value={plan.name} />
         <DevInput inputMode="numeric" label={`Valor em centavos (${currency})`} onChange={(value) => updatePlan("priceCents", Number(value.replace(/\D/g, "")))} value={String(plan.priceCents)} />
+        <DevInput inputMode="numeric" label="Cargo entregue" onChange={(value) => updatePlan("discordRoleId", value.replace(/\D/g, "") || null)} value={plan.discordRoleId ?? ""} />
         {title.toLowerCase().includes("vitalicio") ? (
           <>
             <DevInput inputMode="numeric" label="Hospedagem em centavos" onChange={(value) => updatePlan("hostingPriceCents", Number(value.replace(/\D/g, "")))} value={String(plan.hostingPriceCents ?? 1200)} />
@@ -3688,6 +3933,17 @@ function saleStatusLabel(status: NexTechSaleStatus) {
     paid: "Paga",
     pending: "Pendente",
     refunded: "Reembolsada"
+  };
+
+  return labels[status];
+}
+
+function saleDeliveryStatusLabel(status: NonNullable<NexTechSale["deliveryStatus"]>) {
+  const labels: Record<NonNullable<NexTechSale["deliveryStatus"]>, string> = {
+    delivered: "Cargos entregues",
+    failed: "Entrega falhou",
+    partial: "Entrega parcial",
+    pending: "Entrega pendente"
   };
 
   return labels[status];

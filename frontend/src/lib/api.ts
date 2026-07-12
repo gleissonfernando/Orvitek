@@ -118,6 +118,7 @@ import type {
   SaveRhAdminSettingsPayload,
   SaveSelfBotProtectionSettingsPayload,
   SaveSocialPanelPayload,
+  SaveSystemEmojiPayload,
   SaveVoiceRecorderSettingsPayload,
   ServerBackupDashboard,
   ServerBackupRestorePart,
@@ -136,6 +137,7 @@ import type {
   SocialNotification,
   SocialNotificationsPage,
   SocialPanel,
+  SystemEmojiDashboard,
   Ticket,
   KickClipChannelPreview,
   TwitchClipChannelPreview,
@@ -243,6 +245,11 @@ export async function getDashboardMe() {
 export async function getDashboardBySlug(slug: string) {
   const { data } = await api.get<DashboardMeResponse & { selectedBot: DashboardBot }>(`/dashboard/${encodeURIComponent(slug)}`);
   return data;
+}
+
+export async function getDashboardMaintenanceState() {
+  const { data } = await api.get<{ maintenance: MaintenanceState }>("/dashboard/maintenance");
+  return data.maintenance;
 }
 
 export async function updateSelectedDashboardGuild(selectedGuildId: string, botId?: string | null) {
@@ -2017,6 +2024,34 @@ export async function markPlanPaymentOrderPaidForTest(orderId: string) {
 export async function getDatabaseMaintenanceModules() {
   const { data } = await api.get<{ modules: import("../types").DatabaseMaintenanceModuleOption[] }>("/database-maintenance/modules");
   return data.modules;
+}
+
+export async function getSystemEmojiDashboard(botId?: string | null) {
+  const { data } = await api.get<SystemEmojiDashboard>("/dev/system-emojis", {
+    params: botId ? { botId } : undefined
+  });
+  return data;
+}
+
+export async function saveSystemEmoji(key: string, payload: SaveSystemEmojiPayload) {
+  const { data } = await api.patch<SystemEmojiDashboard>(`/dev/system-emojis/${encodeURIComponent(key)}`, payload, {
+    params: payload.botId ? { botId: payload.botId } : undefined
+  });
+  return data;
+}
+
+export async function resetSystemEmoji(key: string, botId?: string | null) {
+  const { data } = await api.post<SystemEmojiDashboard>(`/dev/system-emojis/${encodeURIComponent(key)}/reset`, {
+    botId: botId ?? null
+  });
+  return data;
+}
+
+export async function syncSystemEmojis(botId?: string | null) {
+  const { data } = await api.post<SystemEmojiDashboard>("/dev/system-emojis/sync", {
+    botId: botId ?? null
+  });
+  return data;
 }
 
 export async function searchDatabaseMaintenanceUsers(botId: string, guildId: string, query: string) {

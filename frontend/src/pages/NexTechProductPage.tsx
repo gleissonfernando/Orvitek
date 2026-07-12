@@ -30,6 +30,7 @@ export function NexTechProductPage({ slug, status = null, storeId }: NexTechProd
   const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
   const [checkoutSuccessUrl, setCheckoutSuccessUrl] = useState<string | null>(null);
   const [checkoutPlan, setCheckoutPlan] = useState<"monthly" | "lifetime" | null>(null);
+  const [buyerId, setBuyerId] = useState("");
   const [buyerName, setBuyerName] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
 
@@ -61,6 +62,10 @@ export function NexTechProductPage({ slug, status = null, storeId }: NexTechProd
 
   async function handleCheckout(planType: "monthly" | "lifetime") {
     if (!page) return;
+    if (!/^\d{5,32}$/.test(buyerId)) {
+      setCheckoutMessage("Informe seu ID Discord para receber os cargos automaticamente.");
+      return;
+    }
 
     setCheckoutPlan(planType);
     setCheckoutMessage(null);
@@ -68,6 +73,7 @@ export function NexTechProductPage({ slug, status = null, storeId }: NexTechProd
     try {
       const result = await checkoutNexTechProduct(page.settings.storeId, page.product.slug, {
         buyerEmail: buyerEmail || null,
+        buyerId,
         buyerName: buyerName || null,
         paymentProviderId: page.product.plans[planType].paymentProviderId ?? page.paymentProviders[0]?.id ?? null,
         planType
@@ -192,6 +198,13 @@ export function NexTechProductPage({ slug, status = null, storeId }: NexTechProd
                   onChange={(event) => setBuyerName(event.target.value)}
                   placeholder="Seu nome"
                   value={buyerName}
+                />
+                <input
+                  className="h-11 w-full rounded-lg border border-zinc-800 bg-black/45 px-3 text-sm text-white outline-none focus:border-[#FFEA70]"
+                  inputMode="numeric"
+                  onChange={(event) => setBuyerId(event.target.value.replace(/\D/g, ""))}
+                  placeholder="Seu ID Discord"
+                  value={buyerId}
                 />
                 <input
                   className="h-11 w-full rounded-lg border border-zinc-800 bg-black/45 px-3 text-sm text-white outline-none focus:border-[#FFEA70]"

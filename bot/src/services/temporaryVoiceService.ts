@@ -29,6 +29,7 @@ import {
 import { isBotModuleEnabled, setRuntimeEnabledModules } from "../config/env";
 import type { BotContext } from "../types";
 import type { TemporaryCall, TemporaryVoiceSettings } from "./apiClient";
+import { systemComponentEmoji, systemEmojiText } from "./systemEmojiService";
 
 const IDs = {
   allow: "tempcall_allow",
@@ -748,27 +749,27 @@ async function publishPanel(guild: Guild, context: BotContext, settings: Tempora
 
 function panelPayload() {
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    button(IDs.private, "🔒", ButtonStyle.Danger),
-    button(IDs.public, "🔓", ButtonStyle.Success),
-    button(IDs.limit, "🖊️", ButtonStyle.Primary),
-    button(IDs.create, "🎧", ButtonStyle.Secondary)
+    button(IDs.private, "perigo", ButtonStyle.Danger),
+    button(IDs.public, "liga", ButtonStyle.Success),
+    button(IDs.limit, "prancheta_caneta", ButtonStyle.Primary),
+    button(IDs.create, "acessar", ButtonStyle.Secondary)
   );
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    button(IDs.allow, "➕", ButtonStyle.Success),
-    button(IDs.disconnect, "➖", ButtonStyle.Secondary),
-    button(IDs.ban, "🛡️", ButtonStyle.Danger),
-    button(IDs.delete, "🗑️", ButtonStyle.Danger)
+    button(IDs.allow, "visto", ButtonStyle.Success),
+    button(IDs.disconnect, "porta", ButtonStyle.Secondary),
+    button(IDs.ban, "perigo", ButtonStyle.Danger),
+    button(IDs.delete, "exclamacao", ButtonStyle.Danger)
   );
 
   const container = new ContainerBuilder()
     .setAccentColor(0x111827)
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent("# 🛡️ Gerenciamento das calls temporárias\nAqui você verá todas as formas de gerenciar sua call temporária."))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(`# ${systemEmojiText("engrenagem")} Gerenciamento das calls temporárias\nAqui você verá todas as formas de gerenciar sua call temporária.`))
     .addSeparatorComponents(new SeparatorBuilder())
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent("## 🖊️ Edição\n🔒 | Deixar privada\n🔓 | Deixar pública\n🖊️ | Alterar limite"))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${systemEmojiText("prancheta_caneta")} Edição\n${systemEmojiText("perigo")} | Deixar privada\n${systemEmojiText("liga")} | Deixar pública\n${systemEmojiText("prancheta_caneta")} | Alterar limite`))
     .addSeparatorComponents(new SeparatorBuilder())
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent("## 🛡️ Gerenciamento\n➕ | Permitir alguém\n➖ | Desconectar alguém\n🛡️ | Banir alguém"))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${systemEmojiText("engrenagem")} Gerenciamento\n${systemEmojiText("visto")} | Permitir alguém\n${systemEmojiText("porta")} | Desconectar alguém\n${systemEmojiText("perigo")} | Banir alguém`))
     .addSeparatorComponents(new SeparatorBuilder())
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent("## 🎧 Gerenciamento da call\n🎧 | Criar call\n🗑️ | Deletar call"))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${systemEmojiText("discord")} Gerenciamento da call\n${systemEmojiText("acessar")} | Criar call\n${systemEmojiText("exclamacao")} | Deletar call`))
     .addActionRowComponents(row1, row2);
 
   return {
@@ -777,8 +778,8 @@ function panelPayload() {
   };
 }
 
-function button(id: string, emoji: string, style: ButtonStyle) {
-  return new ButtonBuilder().setCustomId(id).setEmoji(emoji).setStyle(style);
+function button(id: string, emoji: Parameters<typeof systemComponentEmoji>[0], style: ButtonStyle) {
+  return new ButtonBuilder().setCustomId(id).setEmoji(systemComponentEmoji(emoji)).setStyle(style);
 }
 
 async function logCall(context: BotContext, settings: TemporaryVoiceSettings, call: TemporaryCall, action: string, userId: string) {

@@ -76,6 +76,23 @@ export type ManualPaymentPanelPublishEvent = { botId?: string | null; guildId: s
 export type CoursePanelPublishEvent = { botId?: string | null; guildId: string; settings?: unknown };
 export type RhAdminPanelPublishEvent = { botId?: string | null; guildId: string; settings?: unknown };
 
+export type NexTechSalePaidEvent = {
+  amountCents: number;
+  botId?: string | null;
+  buyerId: string;
+  buyerName?: string | null;
+  currency: "BRL" | "USD" | "EUR";
+  customerRoleId?: string | null;
+  guildId: string;
+  logChannelId?: string | null;
+  planName: string;
+  productName?: string | null;
+  productPlanType?: string | null;
+  purchasedRoleId?: string | null;
+  saleChannelId?: string | null;
+  saleId: string;
+};
+
 export type ManualRegistrationPanelPublishEvent = {
   botId?: string | null;
   guildId: string;
@@ -252,6 +269,7 @@ export class BotSocketClient {
   private manualPaymentPanelPublishHandler: ((payload: ManualPaymentPanelPublishEvent) => void) | null = null;
   private coursePanelPublishHandler: ((payload: CoursePanelPublishEvent) => void) | null = null;
   private rhAdminPanelPublishHandler: ((payload: RhAdminPanelPublishEvent) => void) | null = null;
+  private nexTechSalePaidHandler: ((payload: NexTechSalePaidEvent) => void) | null = null;
   private manualRegistrationPanelPublishHandler: ((payload: ManualRegistrationPanelPublishEvent) => void) | null = null;
   private manualRegistrationExecuteHandler: ((payload: ManualRegistrationExecuteEvent) => void) | null = null;
   private manualRegistrationRemoveHandler: ((payload: ManualRegistrationRemoveEvent) => void) | null = null;
@@ -359,6 +377,7 @@ export class BotSocketClient {
     if (this.manualPaymentPanelPublishHandler) this.socket.on("manual-payments:panel_publish", this.manualPaymentPanelPublishHandler);
     if (this.coursePanelPublishHandler) this.socket.on("courses:panel_publish", this.coursePanelPublishHandler);
     if (this.rhAdminPanelPublishHandler) this.socket.on("rh-admin:panel_publish", this.rhAdminPanelPublishHandler);
+    if (this.nexTechSalePaidHandler) this.socket.on("nex-tech-sales:sale_paid", this.nexTechSalePaidHandler);
 
     if (this.manualRegistrationPanelPublishHandler) {
       this.socket.on("manual-registration:panel_publish", this.manualRegistrationPanelPublishHandler);
@@ -568,6 +587,12 @@ export class BotSocketClient {
     this.rhAdminPanelPublishHandler = handler;
     this.socket?.off("rh-admin:panel_publish");
     this.socket?.on("rh-admin:panel_publish", handler);
+  }
+
+  onNexTechSalePaid(handler: (payload: NexTechSalePaidEvent) => void) {
+    this.nexTechSalePaidHandler = handler;
+    this.socket?.off("nex-tech-sales:sale_paid");
+    this.socket?.on("nex-tech-sales:sale_paid", handler);
   }
 
   onManualRegistrationPanelPublish(handler: (payload: ManualRegistrationPanelPublishEvent) => void) {
