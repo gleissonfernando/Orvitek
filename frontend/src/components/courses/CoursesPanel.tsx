@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, FileQuestion, Image, ListChecks, Loader2, Save, ShieldCheck, SlidersHorizontal, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -129,6 +129,7 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const lastChannelSettingsRef = useRef<CourseChannelDraft | null>(null);
 
   const selectedCourse = useMemo(() => dashboard?.courses.find((course) => course.id === selectedCourseId) ?? null, [dashboard, selectedCourseId]);
   const channelSettingsChanged = useMemo(() => Boolean(dashboard && channelDraft && JSON.stringify(channelDraft) !== JSON.stringify(toChannelDraft(dashboard.settings))), [channelDraft, dashboard]);
@@ -148,7 +149,13 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
   }, [botId, guildId]);
 
   useEffect(() => {
-    setChannelDraft(dashboard ? toChannelDraft(dashboard.settings) : null);
+    const next = dashboard ? toChannelDraft(dashboard.settings) : null;
+    setChannelDraft((current) => {
+      const previous = lastChannelSettingsRef.current;
+      const hasLocalChanges = Boolean(current && previous && JSON.stringify(current) !== JSON.stringify(previous));
+      lastChannelSettingsRef.current = next;
+      return hasLocalChanges ? current : next;
+    });
   }, [dashboard?.settings]);
 
   useEffect(() => {

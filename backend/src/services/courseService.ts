@@ -1592,17 +1592,21 @@ function mapImage(image: MongoCourseImage) {
 
 function cleanSettings(input: CourseSettingsUpdate) {
   const cleaned: Record<string, unknown> = { ...input };
-  cleaned.publishChannelId = input.publishChannelId || null;
-  cleaned.scheduleChannelId = input.scheduleChannelId || null;
-  cleaned.scheduleLogChannelId = input.scheduleLogChannelId || null;
-  cleaned.proofLogChannelId = input.proofLogChannelId || null;
-  cleaned.resultChannelId = input.resultChannelId || null;
-  cleaned.evaluationChannelId = input.evaluationChannelId || null;
-  cleaned.reportChannelId = input.reportChannelId || null;
-  cleaned.logChannelId = input.logChannelId || null;
-  cleaned.adminLogChannelId = input.adminLogChannelId || null;
-  cleaned.temporaryCategoryId = input.temporaryCategoryId || null;
-  cleaned.tempProofCategoryId = input.tempProofCategoryId || null;
+  for (const key of [
+    "publishChannelId",
+    "scheduleChannelId",
+    "scheduleLogChannelId",
+    "proofLogChannelId",
+    "resultChannelId",
+    "evaluationChannelId",
+    "reportChannelId",
+    "logChannelId",
+    "adminLogChannelId",
+    "temporaryCategoryId",
+    "tempProofCategoryId"
+  ] as const) {
+    if (key in input) cleaned[key] = input[key] || null;
+  }
   if ("defaultExpirationHours" in input) {
     cleaned.defaultExpirationHours = input.defaultExpirationHours ?? DEFAULT_COURSE_CHANNEL_EXPIRATION_HOURS;
   }

@@ -802,22 +802,29 @@ async function assertRuntime(botId: string | null, guildId: string) {
 }
 
 function sanitizeSettings(input: z.infer<typeof settingsSchema>) {
-  return {
-    ...input,
-    globalBannerUrl: input.globalBannerUrl || null,
-    logChannelId: input.logChannelId || null,
-    scheduleLogChannelId: input.scheduleLogChannelId || null,
-    proofLogChannelId: input.proofLogChannelId || null,
-    resultChannelId: input.resultChannelId || null,
-    evaluationChannelId: input.evaluationChannelId || null,
-    adminLogChannelId: input.adminLogChannelId || null,
-    tempProofCategoryId: input.tempProofCategoryId || null,
-    evaluatorMentionRoleId: input.evaluatorMentionRoleId || null,
-    resultMentionRoleId: input.resultMentionRoleId || null,
-    publishChannelId: input.publishChannelId || null,
-    reportChannelId: input.reportChannelId || null,
-    reportImageUrl: input.reportImageUrl || null,
-    images: input.images?.map((image) => ({
+  const output: Record<string, unknown> = { ...input };
+  for (const key of [
+    "globalBannerUrl",
+    "logChannelId",
+    "scheduleLogChannelId",
+    "proofLogChannelId",
+    "resultChannelId",
+    "evaluationChannelId",
+    "adminLogChannelId",
+    "tempProofCategoryId",
+    "evaluatorMentionRoleId",
+    "resultMentionRoleId",
+    "publishChannelId",
+    "reportChannelId",
+    "reportImageUrl",
+    "scheduleChannelId",
+    "temporaryCategoryId"
+  ] as const) {
+    if (key in input) output[key] = input[key] || null;
+  }
+
+  if ("images" in input) {
+    output.images = input.images?.map((image) => ({
       id: image.id ?? image._id ?? randomUUID(),
       botId: image.botId ?? null,
       guildId: image.guildId ?? "",
@@ -828,10 +835,10 @@ function sanitizeSettings(input: z.infer<typeof settingsSchema>) {
       createdBy: image.createdBy ?? null,
       active: image.active ?? true,
       default: image.default ?? false
-    })),
-    scheduleChannelId: input.scheduleChannelId || null,
-    temporaryCategoryId: input.temporaryCategoryId || null
-  };
+    }));
+  }
+
+  return output;
 }
 
 function sanitizeCourse(input: Partial<z.infer<typeof courseSchema>>) {
