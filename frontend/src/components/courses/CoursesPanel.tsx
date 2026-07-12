@@ -256,6 +256,26 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
     }
   }
 
+  async function setCourseActive(active: boolean) {
+    if (!selectedCourse) return;
+    const courseId = selectedCourse.id;
+    setSaving(true);
+    setError("");
+    try {
+      const saved = await updateCourseApi(botId, guildId, courseId, { active });
+      setDashboard((current) => current ? {
+        ...current,
+        courses: current.courses.map((course) => course.id === saved.id ? saved : course)
+      } : current);
+      setCourseDraft((current) => ({ ...current, active: saved.active }));
+      setMessage(active ? "Curso ativado." : "Curso desativado.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível alterar o status do curso.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function removeCourse() {
     if (!dashboard || !selectedCourse) return;
     setSaving(true);
@@ -497,6 +517,7 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
               <TextAreaField disabled={!canManage} label="Texto de instrução da prova" onChange={(proofInstructionText) => setCourseDraft({ ...courseDraft, proofInstructionText })} value={courseDraft.proofInstructionText ?? ""} />
               <div className="flex flex-wrap gap-2">
                 <Button disabled={!canManage || saving} onClick={() => void saveCourse()} type="button"><Save className="h-4 w-4" />Salvar</Button>
+                {selectedCourse ? <Button disabled={!canManage || saving} onClick={() => void setCourseActive(!(courseDraft.active ?? true))} type="button" variant="outline">{courseDraft.active ?? true ? "Desativar curso" : "Ativar curso"}</Button> : null}
                 {selectedCourse ? <Button disabled={!canManage || saving} onClick={() => void removeCourse()} type="button" variant="destructive"><Trash2 className="h-4 w-4" />Excluir</Button> : null}
               </div>
             </CardContent>
