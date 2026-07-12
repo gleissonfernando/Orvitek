@@ -1,5 +1,21 @@
 import type { Guild } from "discord.js";
 
+const emojiFetchCache = new Map<string, number>();
+const EMOJI_FETCH_TTL_MS = 60_000;
+
+export async function ensureGuildEmojiCache(guild: Guild | null | undefined) {
+  if (!guild) return;
+
+  const lastFetch = emojiFetchCache.get(guild.id) ?? 0;
+  if (Date.now() - lastFetch < EMOJI_FETCH_TTL_MS && guild.emojis.cache.size > 0) {
+    return;
+  }
+
+  await guild.emojis.fetch().then(() => {
+    emojiFetchCache.set(guild.id, Date.now());
+  }).catch(() => undefined);
+}
+
 export function resolveComponentEmoji(guild: Guild | null | undefined, value: string, fallback: string) {
   const normalized = value.trim();
   if (!normalized) return fallback;

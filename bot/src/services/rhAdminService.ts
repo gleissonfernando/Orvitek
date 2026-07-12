@@ -29,7 +29,7 @@ import {
 } from "discord.js";
 import { isBotModuleEnabled } from "../config/env";
 import type { BotCommand, BotContext } from "../types";
-import { resolveComponentEmoji } from "../utils/componentEmoji";
+import { ensureGuildEmojiCache, resolveComponentEmoji } from "../utils/componentEmoji";
 import type { RhAdminAbsence, RhAdminAdornment, RhAdminSettings } from "./apiClient";
 import { renderComponentsV2Panel } from "./panelVisualRenderer";
 
@@ -239,6 +239,7 @@ async function publishMainPanel(interaction: ButtonInteraction, context: BotCont
   if (!settings.panelChannelId) return interaction.editReply("Canal do painel principal não configurado.");
   const channel = await fetchTextChannel(interaction, settings.panelChannelId);
   if (!channel) return interaction.editReply("Canal do painel principal inválido ou sem permissão.");
+  await ensureGuildEmojiCache(interaction.guild);
   const message = await channel.send(mainPanel(settings, interaction.guild));
   await context.api.saveRhAdminSettings(interaction.guildId!, { mainPanelMessageId: message.id }, interaction.user.id);
   await interaction.editReply("Painel RH Administrativo publicado com sucesso.");
@@ -251,6 +252,7 @@ async function publishDashboardMainPanel(client: Client, context: BotContext, gu
   const guild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
   const channel = await guild?.channels.fetch(settings.panelChannelId).catch(() => null);
   if (!channel?.isTextBased() || !("send" in channel)) throw new Error("RH panel channel is invalid or missing send permission.");
+  await ensureGuildEmojiCache(guild);
   const payload = mainPanel(settings, guild);
   const message = settings.mainPanelMessageId && "messages" in channel
     ? await channel.messages.fetch(settings.mainPanelMessageId).catch(() => null)
@@ -284,6 +286,7 @@ async function submitAbsence(interaction: ModalSubmitInteraction, context: BotCo
   });
   const channel = await fetchTextChannel(interaction, settings.absenceReviewChannelId);
   if (!channel) return interaction.editReply("Canal de análise de ausências inválido ou sem permissão.");
+  await ensureGuildEmojiCache(interaction.guild);
   const message = await channel.send(absenceReviewPanel(absence, settings, interaction.guild));
   await context.api.updateRhAbsenceMessage(interaction.guildId!, absence.id, { reviewChannelId: channel.id, reviewMessageId: message.id });
   await sendRhLog(interaction.guild!, context, settings, `Solicitação de ausência enviada.\nDuração: ${formatAbsenceDuration(absence)}`, interaction.user.id, interaction.user.id, "rh.absence_requested");
@@ -326,6 +329,7 @@ async function approveAbsence(interaction: ButtonInteraction, context: BotContex
   }
   const result = await context.api.decideRhAbsence(interaction.guildId!, absenceId, { actorId: interaction.user.id, isAdministrator, roleIds, status: "approved" });
   const absence = result.absence;
+  await ensureGuildEmojiCache(interaction.guild);
   if (!result.changed) {
     await interaction.message.edit(absenceReviewPanel(absence, settings, interaction.guild)).catch(() => null);
     await interaction.editReply("Esta ausência já foi analisada. Nenhuma nova DM foi enviada.");
@@ -348,6 +352,7 @@ async function rejectAbsence(interaction: ModalSubmitInteraction, context: BotCo
   if (!allowed) return interaction.editReply("Você não tem permissão para analisar solicitações de ausência.");
   const result = await context.api.decideRhAbsence(interaction.guildId!, absenceId, { actorId: interaction.user.id, isAdministrator, rejectionReason: interaction.fields.getTextInputValue("reason"), roleIds, status: "rejected" });
   const absence = result.absence;
+  await ensureGuildEmojiCache(interaction.guild);
   if (!result.changed) {
     await interaction.message?.edit(absenceReviewPanel(absence, settings, interaction.guild)).catch(() => null);
     await interaction.editReply("Esta ausência já foi analisada. Nenhuma nova DM foi enviada.");
