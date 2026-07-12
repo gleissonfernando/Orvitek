@@ -3462,7 +3462,7 @@ export type PlanBillingCycle = "monthly" | "quarterly" | "semiannual" | "annual"
 export type PaymentProvider = "disabled" | "mercadopago";
 export type PlanSubscriptionStatus = "pending" | "active" | "suspended" | "cancelled" | "expired";
 export type PlanWorkspaceStatus = "active" | "suspended" | "cancelled";
-export type PaymentOrderStatus = "interest_registered" | "pending" | "processing" | "paid" | "cancelled" | "expired" | "failed" | "refunded" | "charged_back" | "in_review";
+export type PaymentOrderStatus = "interest_registered" | "created" | "checkout_pending" | "pending" | "processing" | "in_process" | "approved" | "paid" | "cancelled" | "expired" | "rejected" | "failed" | "refunded" | "chargeback" | "charged_back" | "in_review" | "error";
 export type BotCredentialStatus = "stored" | "validated" | "invalid" | "disabled";
 
 export type PlanEntitlement = {
@@ -3520,13 +3520,19 @@ export type Plan = {
 
 export type BotCredential = {
   id: string;
+  avatarUrl?: string | null;
   botClientId: string;
   botName: string;
   createdAt: string;
+  guildIconUrl?: string | null;
+  guildId?: string | null;
+  guildName?: string | null;
   keyVersion: string;
   lastError: string | null;
   lastValidatedAt: string | null;
   ownerUserId: string;
+  primaryAdminDiscordId?: string | null;
+  slug?: string | null;
   status: BotCredentialStatus;
   tokenConfigured: true;
   tokenFingerprint: string;
@@ -3576,22 +3582,36 @@ export type PlanSubscription = {
 
 export type PaymentOrder = {
   id: string;
+  accessActivated?: boolean;
+  accessActivatedAt?: string | null;
   amountInCents: number;
+  approvedAt?: string | null;
+  cancelledAt?: string | null;
   checkoutUrl: string | null;
   createdAt: string;
   currency: "BRL" | "USD" | "EUR";
   discordId: string;
+  environment?: "test" | "production";
+  expiresAt?: string | null;
   externalReference?: string | null;
+  merchantOrderId?: string | null;
   mercadoPagoPaymentId?: string | null;
   notes: string | null;
   paidAt: string | null;
   paymentMethod?: string | null;
+  paymentType?: string | null;
   pixCode: string | null;
   planId: string;
   planSlug: string;
   provider: PaymentProvider;
   providerOrderId: string | null;
   qrCode: string | null;
+  rawProviderStatus?: string | null;
+  refundedAt?: string | null;
+  rejectedAt?: string | null;
+  retryAttempts?: number;
+  sandboxCheckoutUrl?: string | null;
+  statusDetail?: string | null;
   status: PaymentOrderStatus;
   updatedAt: string;
   userId: string;
@@ -3599,10 +3619,18 @@ export type PaymentOrder = {
 
 export type PaymentSettings = {
   id: "global";
+  approvedRedirectUrl?: string | null;
+  botDashboardBaseUrl?: string | null;
+  botRegistrationUrl?: string | null;
+  cancelRedirectUrl?: string | null;
   enabled: boolean;
+  failureRedirectUrl?: string | null;
+  pendingRedirectUrl?: string | null;
+  plansPublicUrl?: string | null;
   provider: PaymentProvider;
   publicKey: string | null;
   secretConfigured: boolean;
+  successRedirectUrl?: string | null;
   updatedAt: string;
   updatedBy: string | null;
   webhookSecretConfigured: boolean;
@@ -3662,9 +3690,17 @@ export type SavePlanPayload = Partial<Omit<Plan, "id" | "createdAt" | "updatedAt
 export type SavePlanFeaturePayload = Omit<PlanFeature, "id" | "createdAt" | "updatedAt">;
 
 export type SavePaymentSettingsPayload = {
+  approvedRedirectUrl?: string | null;
+  botDashboardBaseUrl?: string | null;
+  botRegistrationUrl?: string | null;
+  cancelRedirectUrl?: string | null;
   enabled?: boolean;
+  failureRedirectUrl?: string | null;
+  pendingRedirectUrl?: string | null;
+  plansPublicUrl?: string | null;
   provider?: PaymentProvider;
   publicKey?: string | null;
   secret?: string | null;
+  successRedirectUrl?: string | null;
   webhookSecret?: string | null;
 };

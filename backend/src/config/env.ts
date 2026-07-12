@@ -204,6 +204,27 @@ const envSchema = z
     BOT_API_TOKEN: internalBotToken(),
     PAYMENTS_ENABLED: envBoolean(false),
     PAYMENT_PROVIDER: z.enum(["disabled", "mercadopago"]).default("disabled"),
+    MERCADOPAGO_ENV: z.enum(["test", "production"]).default("production"),
+    MERCADOPAGO_ENABLED: envBoolean(false),
+    MERCADOPAGO_PROD_ACCESS_TOKEN: z.string().optional().default(""),
+    MERCADOPAGO_PROD_PUBLIC_KEY: z.string().optional().default(""),
+    MERCADOPAGO_PROD_WEBHOOK_SECRET: z.string().optional().default(""),
+    MERCADOPAGO_TEST_ACCESS_TOKEN: z.string().optional().default(""),
+    MERCADOPAGO_TEST_PUBLIC_KEY: z.string().optional().default(""),
+    MERCADOPAGO_TEST_WEBHOOK_SECRET: z.string().optional().default(""),
+    APP_PUBLIC_URL: envOptionalUrl("APP_PUBLIC_URL"),
+    FRONTEND_PUBLIC_URL: envOptionalUrl("FRONTEND_PUBLIC_URL"),
+    API_PUBLIC_URL: envOptionalUrl("API_PUBLIC_URL"),
+    MERCADOPAGO_SUCCESS_URL: envOptionalUrl("MERCADOPAGO_SUCCESS_URL"),
+    MERCADOPAGO_PENDING_URL: envOptionalUrl("MERCADOPAGO_PENDING_URL"),
+    MERCADOPAGO_FAILURE_URL: envOptionalUrl("MERCADOPAGO_FAILURE_URL"),
+    MERCADOPAGO_WEBHOOK_URL: envOptionalUrl("MERCADOPAGO_WEBHOOK_URL"),
+    MERCADOPAGO_CURRENCY: z.enum(["BRL", "USD", "EUR"]).default("BRL"),
+    MERCADOPAGO_STATEMENT_DESCRIPTOR: z.string().optional().default(""),
+    MERCADOPAGO_CHECKOUT_EXPIRATION_MINUTES: z.coerce.number().int().min(5).max(1440).default(30),
+    MERCADOPAGO_MAX_INSTALLMENTS: z.coerce.number().int().min(1).max(24).optional(),
+    MERCADOPAGO_BINARY_MODE: envBoolean(false),
+    PAYMENTS_ALLOW_LIVE_CHARGES: envBoolean(false),
     PLAN_TOKEN_ENCRYPTION_KEY: z.string().optional().default(""),
     PLAN_TOKEN_FINGERPRINT_KEY: z.string().optional().default(""),
     PLAN_TOKEN_KEY_VERSION: z.string().optional().default("v1"),
@@ -299,6 +320,13 @@ const envSchema = z
       SITE_ORIGIN: oauthFrontendUrl,
       FRONTEND_URL: oauthFrontendUrl,
       BACKEND_URL: oauthFrontendUrl,
+      APP_PUBLIC_URL: value.APP_PUBLIC_URL || oauthFrontendUrl,
+      FRONTEND_PUBLIC_URL: value.FRONTEND_PUBLIC_URL || oauthFrontendUrl,
+      API_PUBLIC_URL: value.API_PUBLIC_URL || (oauthFrontendUrl ? `${oauthFrontendUrl}/api` : ""),
+      MERCADOPAGO_SUCCESS_URL: value.MERCADOPAGO_SUCCESS_URL || (oauthFrontendUrl ? `${oauthFrontendUrl}/pagamento/sucesso` : ""),
+      MERCADOPAGO_PENDING_URL: value.MERCADOPAGO_PENDING_URL || (oauthFrontendUrl ? `${oauthFrontendUrl}/pagamento/pendente` : ""),
+      MERCADOPAGO_FAILURE_URL: value.MERCADOPAGO_FAILURE_URL || (oauthFrontendUrl ? `${oauthFrontendUrl}/pagamento/falha` : ""),
+      MERCADOPAGO_WEBHOOK_URL: value.MERCADOPAGO_WEBHOOK_URL || (oauthFrontendUrl ? `${oauthFrontendUrl}/api/payments/mercadopago/webhook` : ""),
       TRANSCRIPT_BASE_URL: normalizedTranscriptBaseUrl || oauthFrontendUrl,
       TRANSCRIPT_PORT: value.TRANSCRIPT_PORT ?? value.PORT,
       DISCORD_REDIRECT_URI: effectiveDiscordRedirect,
@@ -323,6 +351,9 @@ process.env.MONGODB_URI = env.MONGODB_URI;
 process.env.SITE_ORIGIN = env.SITE_ORIGIN;
 process.env.FRONTEND_URL = env.FRONTEND_URL;
 process.env.BACKEND_URL = env.BACKEND_URL;
+process.env.APP_PUBLIC_URL = env.APP_PUBLIC_URL;
+process.env.FRONTEND_PUBLIC_URL = env.FRONTEND_PUBLIC_URL;
+process.env.API_PUBLIC_URL = env.API_PUBLIC_URL;
 process.env.APP_BASE_URL = env.APP_BASE_URL;
 process.env.TRANSCRIPT_BASE_URL = env.TRANSCRIPT_BASE_URL;
 process.env.TRANSCRIPT_PORT = String(env.TRANSCRIPT_PORT);

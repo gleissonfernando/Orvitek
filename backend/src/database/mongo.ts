@@ -3374,15 +3374,22 @@ export type MongoPlanSubscriptionStatus = "pending" | "active" | "suspended" | "
 export type MongoPlanWorkspaceStatus = "active" | "suspended" | "cancelled";
 export type MongoPlanPaymentOrderStatus =
   | "interest_registered"
+  | "created"
+  | "checkout_pending"
   | "pending"
   | "processing"
+  | "in_process"
+  | "approved"
   | "paid"
   | "cancelled"
   | "expired"
+  | "rejected"
   | "failed"
   | "refunded"
+  | "chargeback"
   | "charged_back"
-  | "in_review";
+  | "in_review"
+  | "error";
 export type MongoBotCredentialStatus = "stored" | "validated" | "invalid" | "disabled";
 
 export type MongoPlanEntitlement = {
@@ -3487,14 +3494,20 @@ export type MongoWorkspaceMember = {
 export type MongoBotCredential = {
   _id: string;
   authTag: string;
+  avatarUrl?: string | null;
   botClientId: string;
   botName: string;
   createdAt: Date;
   encryptedDataKey: string;
+  guildIconUrl?: string | null;
+  guildId?: string | null;
+  guildName?: string | null;
   iv: string;
   keyVersion: string;
   lastError: string | null;
   lastValidatedAt: Date | null;
+  primaryAdminDiscordId?: string | null;
+  slug?: string | null;
   ownerUserId: string;
   status: MongoBotCredentialStatus;
   tokenCiphertext: string;
@@ -3505,17 +3518,25 @@ export type MongoBotCredential = {
 
 export type MongoPaymentOrder = {
   _id: string;
+  accessActivated?: boolean;
+  accessActivatedAt?: Date | null;
   amountInCents: number;
+  approvedAt?: Date | null;
+  cancelledAt?: Date | null;
   checkoutUrl: string | null;
   createdAt: Date;
   currency: "BRL" | "USD" | "EUR";
   discordId: string;
+  environment?: "test" | "production";
+  expiresAt?: Date | null;
   externalReference?: string | null;
   idempotencyKey?: string | null;
+  merchantOrderId?: string | null;
   mercadoPagoPaymentId?: string | null;
   notes: string | null;
   paidAt: Date | null;
   paymentMethod?: string | null;
+  paymentType?: string | null;
   pixCode: string | null;
   planId: string;
   planSnapshot?: Record<string, unknown>;
@@ -3523,6 +3544,14 @@ export type MongoPaymentOrder = {
   provider: MongoPaymentProvider;
   providerOrderId: string | null;
   qrCode: string | null;
+  rawProviderStatus?: string | null;
+  refundedAt?: Date | null;
+  rejectedAt?: Date | null;
+  retryAttempts?: number;
+  sandboxCheckoutUrl?: string | null;
+  statusDetail?: string | null;
+  statusHistory?: Array<{ at: Date; from: MongoPlanPaymentOrderStatus | null; source: string; status: MongoPlanPaymentOrderStatus }>;
+  webhookSafeResponse?: Record<string, unknown> | null;
   status: MongoPlanPaymentOrderStatus;
   updatedAt: Date;
   userId: string;
@@ -3530,24 +3559,37 @@ export type MongoPaymentOrder = {
 
 export type MongoPaymentEvent = {
   _id: string;
+  attempts?: number;
   createdAt: Date;
+  environment?: "test" | "production";
   eventId: string | null;
   eventType: string;
+  lastError?: string | null;
   orderId: string | null;
   payloadHash: string;
   processedAt: Date | null;
   provider: MongoPaymentProvider;
+  requestId?: string | null;
+  paymentId?: string | null;
   result?: string | null;
   signatureValid?: boolean;
-  status: "received" | "ignored" | "processed" | "failed";
+  status: "received" | "processing" | "ignored" | "processed" | "failed";
 };
 
 export type MongoPaymentSettings = {
   _id: "global";
+  approvedRedirectUrl?: string | null;
+  botDashboardBaseUrl?: string | null;
+  botRegistrationUrl?: string | null;
+  cancelRedirectUrl?: string | null;
   enabled: boolean;
+  failureRedirectUrl?: string | null;
+  pendingRedirectUrl?: string | null;
+  plansPublicUrl?: string | null;
   provider: MongoPaymentProvider;
   publicKey: string | null;
   secretEncrypted: string | null;
+  successRedirectUrl?: string | null;
   updatedAt: Date;
   updatedBy: string | null;
   webhookSecretEncrypted: string | null;
@@ -4084,20 +4126,26 @@ async function ensurePlanIndexes(db: Db) {
     db.collection<MongoPlanSubscription>("plan_subscriptions").createIndex({ userId: 1, status: 1, updatedAt: -1 }),
     db.collection<MongoPlanSubscription>("plan_subscriptions").createIndex({ planId: 1, status: 1, updatedAt: -1 }),
     db.collection<MongoPlanSubscription>("plan_subscriptions").createIndex({ workspaceId: 1 }),
+    db.collection<MongoPlanSubscription>("plan_subscriptions").createIndex({ "metadata.paymentOrderId": 1 }, { sparse: true, unique: true }),
     db.collection<MongoPlanWorkspace>("plan_workspaces").createIndex({ ownerDiscordId: 1, status: 1, updatedAt: -1 }),
     db.collection<MongoPlanWorkspace>("plan_workspaces").createIndex({ slug: 1 }, { unique: true }),
     db.collection<MongoWorkspaceMember>("workspace_members").createIndex({ workspaceId: 1, discordId: 1 }, { unique: true }),
     db.collection<MongoWorkspaceMember>("workspace_members").createIndex({ discordId: 1, workspaceId: 1 }),
     db.collection<MongoBotCredential>("bot_credentials").createIndex({ workspaceId: 1, createdAt: -1 }),
     db.collection<MongoBotCredential>("bot_credentials").createIndex({ workspaceId: 1, botClientId: 1 }, { unique: true }),
+    db.collection<MongoBotCredential>("bot_credentials").createIndex({ slug: 1 }, { sparse: true, unique: true }),
+    db.collection<MongoBotCredential>("bot_credentials").createIndex({ guildId: 1 }, { sparse: true }),
     db.collection<MongoBotCredential>("bot_credentials").createIndex({ tokenFingerprint: 1 }, { unique: true }),
     db.collection<MongoPaymentOrder>("payment_orders").createIndex({ discordId: 1, createdAt: -1 }),
     db.collection<MongoPaymentOrder>("payment_orders").createIndex({ planId: 1, status: 1, createdAt: -1 }),
     db.collection<MongoPaymentOrder>("payment_orders").createIndex({ provider: 1, providerOrderId: 1 }),
+    db.collection<MongoPaymentOrder>("payment_orders").createIndex({ environment: 1, status: 1, createdAt: -1 }),
+    db.collection<MongoPaymentOrder>("payment_orders").createIndex({ environment: 1, mercadoPagoPaymentId: 1 }, { sparse: true }),
     db.collection<MongoPaymentOrder>("payment_orders").createIndex({ idempotencyKey: 1 }, { sparse: true, unique: true }),
     db.collection<MongoPaymentOrder>("payment_orders").createIndex({ externalReference: 1 }, { sparse: true, unique: true }),
     db.collection<MongoPaymentOrder>("payment_orders").createIndex({ mercadoPagoPaymentId: 1 }, { sparse: true }),
     db.collection<MongoPaymentEvent>("payment_events").createIndex({ provider: 1, eventId: 1 }),
+    db.collection<MongoPaymentEvent>("payment_events").createIndex({ provider: 1, environment: 1, paymentId: 1, eventType: 1, requestId: 1 }, { sparse: true }),
     db.collection<MongoPaymentEvent>("payment_events").createIndex({ provider: 1, payloadHash: 1 }),
     db.collection<MongoPaymentEvent>("payment_events").createIndex({ createdAt: -1 }),
     db.collection<MongoPlanAuditLog>("plan_audit_logs").createIndex({ createdAt: -1 }),

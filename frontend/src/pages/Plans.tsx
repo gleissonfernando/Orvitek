@@ -18,7 +18,7 @@ export function PublicPlansPage() {
     setError(null);
 
     try {
-      const result = await createPlanCheckoutInterest(plan.slug);
+      const result = await createPlanCheckoutInterest(plan.id);
       if (result.order.checkoutUrl) {
         window.location.assign(result.order.checkoutUrl);
         return;
@@ -62,7 +62,8 @@ export function PublicPlansPage() {
 
 function PublicPlanCard({ busy, onBuy, plan }: { busy: boolean; onBuy: () => void; plan: Plan }) {
   const price = plan.promotionalPriceInCents ?? plan.priceInCents;
-  const features = [`${plan.botLimit} ${plan.botLimit === 1 ? "bot" : "bots"}`, `${plan.guildLimit} ${plan.guildLimit === 1 ? "servidor" : "servidores"}`, plan.validityDays ? `${plan.validityDays} dias de validade` : "Validade contínua", "Dashboard e módulos do plano"];
+  const includedFeatures = plan.entitlements.filter((feature) => feature.enabled).map((feature) => feature.key.replace(/[._-]+/g, " "));
+  const features = [`${plan.botLimit} ${plan.botLimit === 1 ? "bot" : "bots"}`, `${plan.guildLimit} ${plan.guildLimit === 1 ? "servidor" : "servidores"}`, plan.validityDays ? `${plan.validityDays} dias de validade` : "Validade contínua", ...includedFeatures];
   return <article className={`relative flex flex-col rounded-2xl border bg-[#121212]/95 p-6 ${plan.isRecommended ? "border-[#FFD500]/60 shadow-[0_0_42px_rgba(255,213,0,.16)]" : "border-[#FFD500]/20"}`}>
     {plan.badge || plan.isRecommended ? <span className="absolute right-4 top-4 rounded-full bg-[#FFD500] px-3 py-1 text-xs font-black text-black">{plan.badge || "Recomendado"}</span> : null}
     <p className="text-sm font-semibold text-[#FFEA70]">{cycleLabel(plan.billingCycle)}</p><h2 className="mt-3 pr-24 text-2xl font-black">{plan.name}</h2><p className="mt-3 min-h-12 text-sm leading-6 text-zinc-400">{plan.shortDescription || plan.description}</p>

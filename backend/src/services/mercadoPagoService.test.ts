@@ -29,10 +29,10 @@ test("rejeita assinatura Mercado Pago divergente", () => {
 });
 
 test("mapeia status Mercado Pago para estados internos de pagamento", () => {
-  assert.equal(mercadoPagoStatusToInternal("approved"), "paid");
-  assert.equal(mercadoPagoStatusToInternal("in_process"), "processing");
+  assert.equal(mercadoPagoStatusToInternal("approved"), "approved");
+  assert.equal(mercadoPagoStatusToInternal("in_process"), "in_process");
   assert.equal(mercadoPagoStatusToInternal("pending"), "pending");
   assert.equal(mercadoPagoStatusToInternal("in_mediation"), "in_review");
-  assert.equal(mercadoPagoStatusToInternal("charged_back"), "charged_back");
-  assert.equal(mercadoPagoStatusToInternal("rejected"), "failed");
+  assert.equal(mercadoPagoStatusToInternal("charged_back"), "chargeback");
+  assert.equal(mercadoPagoStatusToInternal("rejected"), "rejected");
 });

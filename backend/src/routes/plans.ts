@@ -10,6 +10,7 @@ import {
   duplicateDevPlan,
   extendSubscription,
   completeTestPaymentOrder,
+  getBotRegistrationStatus,
   getCustomerPaymentOrder,
   getCustomerPlansDashboard,
   getDevPlansDashboard,
@@ -17,6 +18,7 @@ import {
   getWorkspaceDashboard,
   listPublicPlans,
   manualActivateSubscription,
+  registerCustomerBot,
   saveDevPlan,
   saveDevPlanFeature,
   savePaymentSettings,
@@ -33,6 +35,7 @@ export const checkoutRouter = Router();
 export const customerPlansRouter = Router();
 export const workspacePlansRouter = Router();
 export const devPlansRouter = Router();
+export const botRegistrationRouter = Router();
 
 const entitlementSchema = z.object({
   enabled: z.boolean().default(true),
@@ -90,10 +93,18 @@ const manualActivationSchema = z.object({
 });
 
 const paymentSettingsSchema = z.object({
+  approvedRedirectUrl: z.string().url().max(2048).nullable().optional().or(z.literal("")),
+  botDashboardBaseUrl: z.string().url().max(2048).nullable().optional().or(z.literal("")),
+  botRegistrationUrl: z.string().url().max(2048).nullable().optional().or(z.literal("")),
+  cancelRedirectUrl: z.string().url().max(2048).nullable().optional().or(z.literal("")),
   enabled: z.boolean().optional(),
+  failureRedirectUrl: z.string().url().max(2048).nullable().optional().or(z.literal("")),
+  pendingRedirectUrl: z.string().url().max(2048).nullable().optional().or(z.literal("")),
+  plansPublicUrl: z.string().url().max(2048).nullable().optional().or(z.literal("")),
   provider: z.enum(["disabled", "mercadopago"]).optional(),
   publicKey: z.string().max(512).nullable().optional().or(z.literal("")),
   secret: z.string().max(2048).nullable().optional().or(z.literal("")),
+  successRedirectUrl: z.string().url().max(2048).nullable().optional().or(z.literal("")),
   webhookSecret: z.string().max(2048).nullable().optional().or(z.literal(""))
 });
 
@@ -104,6 +115,12 @@ const botCredentialSchema = z.object({
 });
 
 const tokenPatchSchema = z.object({
+  token: z.string().min(20).max(512)
+});
+
+const botRegistrationSchema = z.object({
+  guildId: z.string().regex(/^\d{5,32}$/),
+  slug: z.string().max(80).nullable().optional().or(z.literal("")),
   token: z.string().min(20).max(512)
 });
 
@@ -275,6 +292,27 @@ workspacePlansRouter.delete("/:workspaceId/bots/:credentialId", async (req, res,
     return res.json({
       bot: await deleteWorkspaceBotCredential(req.params.workspaceId, req.params.credentialId, auth, actorFrom(req, auth))
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+botRegistrationRouter.use(requireAuth);
+
+botRegistrationRouter.get("/status", async (_req, res, next) => {
+  try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+    return res.json(await getBotRegistrationStatus(auth));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+botRegistrationRouter.post("/verify", async (req, res, next) => {
+  try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+    const input = botRegistrationSchema.parse(req.body ?? {});
+    return res.status(201).json(await registerCustomerBot(input, auth, actorFrom(req, auth), req.session.discordAccessToken ?? null));
   } catch (error) {
     return next(error);
   }

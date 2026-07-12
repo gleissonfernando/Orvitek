@@ -277,13 +277,54 @@ export async function getCustomerPaymentOrder(orderId: string) {
   return data;
 }
 
-export async function createPlanCheckoutInterest(planSlug: string) {
+export async function createPlanCheckoutInterest(planId: string) {
   const { data } = await api.post<{
+    success?: boolean;
+    orderId?: string;
+    environment?: "test" | "production" | null;
     order: import("../types").PaymentOrder;
     payment: { enabled: boolean; message: string | null; provider: import("../types").PaymentProvider };
     plan: Plan;
-  }>("/checkout", {
-    planSlug
+  }>("/payments/mercadopago/checkout", {
+    planId
+  });
+  return data;
+}
+
+export async function getPaymentOrderStatus(orderId: string) {
+  const { data } = await api.get<{
+    order: import("../types").PaymentOrder;
+    plan: Plan | null;
+    subscription: import("../types").PlanSubscription | null;
+  }>(`/payments/orders/${encodeURIComponent(orderId)}/status`);
+  return data;
+}
+
+export async function retryPaymentOrder(orderId: string) {
+  const { data } = await api.post<{ order: import("../types").PaymentOrder }>(
+    `/payments/orders/${encodeURIComponent(orderId)}/retry`
+  );
+  return data.order;
+}
+
+export async function getBotRegistrationStatus() {
+  const { data } = await api.get<{
+    activeSubscription: import("../types").PlanSubscription | null;
+    canRegister: boolean;
+    dashboardBaseUrl: string;
+    message: string | null;
+    workspace: import("../types").PlanWorkspace | null;
+  }>("/bot-registration/status");
+  return data;
+}
+
+export async function verifyAndRegisterBot(payload: { guildId: string; slug?: string | null; token: string }) {
+  const { data } = await api.post<{
+    bot: BotCredential;
+    dashboardUrl: string;
+    server: { iconUrl: string | null; id: string; name: string };
+  }>("/bot-registration/verify", payload, {
+    timeout: 30000
   });
   return data;
 }

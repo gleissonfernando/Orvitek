@@ -113,7 +113,18 @@ export function DevPlansPanel() {
   const [planForm, setPlanForm] = useState<PlanFormState>(emptyPlanForm);
   const [featureForm, setFeatureForm] = useState<FeatureFormState>(emptyFeatureForm);
   const [activation, setActivation] = useState({ planId: "", userId: "", workspaceName: "" });
-  const [paymentForm, setPaymentForm] = useState({ enabled: false, provider: "disabled" as PaymentProvider, publicKey: "", secret: "", webhookSecret: "" });
+  const [paymentForm, setPaymentForm] = useState({
+    approvedRedirectUrl: "",
+    botDashboardBaseUrl: "",
+    botRegistrationUrl: "",
+    cancelRedirectUrl: "",
+    enabled: false,
+    failureRedirectUrl: "",
+    pendingRedirectUrl: "",
+    plansPublicUrl: "",
+    provider: "disabled" as PaymentProvider,
+    successRedirectUrl: ""
+  });
 
   async function load() {
     setLoading(true);
@@ -124,11 +135,16 @@ export function DevPlansPanel() {
       setDashboard(next);
       setActivation((current) => ({ ...current, planId: current.planId || next.plans[0]?.id || "" }));
       setPaymentForm({
+        approvedRedirectUrl: next.paymentSettings.approvedRedirectUrl ?? "",
+        botDashboardBaseUrl: next.paymentSettings.botDashboardBaseUrl ?? "",
+        botRegistrationUrl: next.paymentSettings.botRegistrationUrl ?? "",
+        cancelRedirectUrl: next.paymentSettings.cancelRedirectUrl ?? "",
         enabled: next.paymentSettings.enabled,
+        failureRedirectUrl: next.paymentSettings.failureRedirectUrl ?? "",
+        pendingRedirectUrl: next.paymentSettings.pendingRedirectUrl ?? "",
+        plansPublicUrl: next.paymentSettings.plansPublicUrl ?? "",
         provider: next.paymentSettings.provider,
-        publicKey: next.paymentSettings.publicKey ?? "",
-        secret: "",
-        webhookSecret: ""
+        successRedirectUrl: next.paymentSettings.successRedirectUrl ?? ""
       });
     } catch (loadError) {
       setError(readError(loadError, "Nao foi possivel carregar o modulo Planos."));
@@ -203,11 +219,16 @@ export function DevPlansPanel() {
   async function handlePaymentSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await withRefresh("payments:save", () => updatePlanPaymentSettings({
+      approvedRedirectUrl: paymentForm.approvedRedirectUrl || null,
+      botDashboardBaseUrl: paymentForm.botDashboardBaseUrl || null,
+      botRegistrationUrl: paymentForm.botRegistrationUrl || null,
+      cancelRedirectUrl: paymentForm.cancelRedirectUrl || null,
       enabled: paymentForm.enabled,
+      failureRedirectUrl: paymentForm.failureRedirectUrl || null,
+      pendingRedirectUrl: paymentForm.pendingRedirectUrl || null,
+      plansPublicUrl: paymentForm.plansPublicUrl || null,
       provider: paymentForm.provider,
-      publicKey: paymentForm.publicKey || null,
-      secret: paymentForm.secret || undefined,
-      webhookSecret: paymentForm.webhookSecret || undefined
+      successRedirectUrl: paymentForm.successRedirectUrl || null
     }), "Configuracao de pagamento atualizada.");
   }
 
@@ -530,7 +551,20 @@ function ManualActivationForm({ activation, busy, onChange, onSubmit, plans }: {
   );
 }
 
-function PaymentSettingsForm({ busy, form, onChange, onSubmit, settings }: { busy: boolean; form: { enabled: boolean; provider: PaymentProvider; publicKey: string; secret: string; webhookSecret: string }; onChange: (value: { enabled: boolean; provider: PaymentProvider; publicKey: string; secret: string; webhookSecret: string }) => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void; settings: DevPlansDashboard["paymentSettings"] }) {
+type PaymentFormState = {
+  approvedRedirectUrl: string;
+  botDashboardBaseUrl: string;
+  botRegistrationUrl: string;
+  cancelRedirectUrl: string;
+  enabled: boolean;
+  failureRedirectUrl: string;
+  pendingRedirectUrl: string;
+  plansPublicUrl: string;
+  provider: PaymentProvider;
+  successRedirectUrl: string;
+};
+
+function PaymentSettingsForm({ busy, form, onChange, onSubmit, settings }: { busy: boolean; form: PaymentFormState; onChange: (value: PaymentFormState) => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void; settings: DevPlansDashboard["paymentSettings"] }) {
   return (
     <Card>
       <CardHeader>
@@ -549,9 +583,19 @@ function PaymentSettingsForm({ busy, form, onChange, onSubmit, settings }: { bus
               {["disabled", "mercadopago"].map((provider) => <option key={provider} value={provider}>{provider}</option>)}
             </select>
           </label>
-          <TextField label="Public key" value={form.publicKey} onChange={(publicKey) => onChange({ ...form, publicKey })} />
-          <TextField label={settings.secretConfigured ? "Secret configurado (preencha para trocar)" : "Secret"} type="password" value={form.secret} onChange={(secret) => onChange({ ...form, secret })} />
-          <TextField label={settings.webhookSecretConfigured ? "Webhook secret configurado (preencha para trocar)" : "Webhook secret"} type="password" value={form.webhookSecret} onChange={(webhookSecret) => onChange({ ...form, webhookSecret })} />
+          <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-3 text-sm text-zinc-300">
+            Credenciais Mercado Pago: public key {settings.publicKey ? "detectada" : "ausente"}, access token {settings.secretConfigured ? "detectado" : "ausente"}, webhook secret {settings.webhookSecretConfigured ? "detectado" : "ausente"}. Configure por variaveis de ambiente.
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <TextField label="URL apos pagamento" value={form.successRedirectUrl} onChange={(successRedirectUrl) => onChange({ ...form, successRedirectUrl })} />
+            <TextField label="URL pagamento aprovado" value={form.approvedRedirectUrl} onChange={(approvedRedirectUrl) => onChange({ ...form, approvedRedirectUrl })} />
+            <TextField label="URL pagamento pendente" value={form.pendingRedirectUrl} onChange={(pendingRedirectUrl) => onChange({ ...form, pendingRedirectUrl })} />
+            <TextField label="URL pagamento recusado" value={form.failureRedirectUrl} onChange={(failureRedirectUrl) => onChange({ ...form, failureRedirectUrl })} />
+            <TextField label="URL cancelamento checkout" value={form.cancelRedirectUrl} onChange={(cancelRedirectUrl) => onChange({ ...form, cancelRedirectUrl })} />
+            <TextField label="URL publica de planos" value={form.plansPublicUrl} onChange={(plansPublicUrl) => onChange({ ...form, plansPublicUrl })} />
+            <TextField label="URL cadastro do bot" value={form.botRegistrationUrl} onChange={(botRegistrationUrl) => onChange({ ...form, botRegistrationUrl })} />
+            <TextField label="URL base dashboards" value={form.botDashboardBaseUrl} onChange={(botDashboardBaseUrl) => onChange({ ...form, botDashboardBaseUrl })} />
+          </div>
           <Button disabled={busy} type="submit">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Salvar pagamentos

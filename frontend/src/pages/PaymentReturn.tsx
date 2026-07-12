@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, ArrowRight, CheckCircle2, Clock3, CreditCard, Home, Loader2, ShieldCheck } from "lucide-react";
-import { getCustomerPaymentOrder } from "../lib/api";
+import { getPaymentOrderStatus, retryPaymentOrder } from "../lib/api";
 import type { PaymentOrder } from "../types";
 
 type PaymentReturnStatus = "success" | "pending" | "failure";
@@ -55,21 +55,52 @@ export function PaymentReturnPage({ status }: PaymentReturnPageProps) {
   useEffect(() => {
     if (!orderReference) return;
     let cancelled = false;
-    setLoadingOrder(true);
-    getCustomerPaymentOrder(orderReference)
-      .then((result) => {
-        if (!cancelled) setOrder(result.order);
-      })
-      .catch(() => {
+    let attempts = 0;
+    let timer: number | undefined;
+
+    async function loadStatus() {
+      attempts += 1;
+      setLoadingOrder(true);
+      try {
+        const result = await getPaymentOrderStatus(orderReference as string);
+        if (cancelled) return;
+        setOrder(result.order);
+        setOrderError(null);
+        if (!isFinalOrderStatus(result.order.status) && attempts < 12) {
+          timer = window.setTimeout(loadStatus, 5000);
+        }
+      } catch {
         if (!cancelled) setOrderError("Nao foi possivel consultar o pedido interno agora.");
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoadingOrder(false);
-      });
+      }
+    }
+
+    setLoadingOrder(true);
+    void loadStatus();
     return () => {
       cancelled = true;
+      if (timer) window.clearTimeout(timer);
     };
   }, [orderReference]);
+
+  async function handleRetry() {
+    if (!order) return;
+    setOrderError(null);
+    setLoadingOrder(true);
+    try {
+      const next = await retryPaymentOrder(order.id);
+      if (next.checkoutUrl) {
+        window.location.assign(next.checkoutUrl);
+        return;
+      }
+      setOrder(next);
+    } catch {
+      setOrderError("Nao foi possivel criar uma nova tentativa de checkout.");
+    } finally {
+      setLoadingOrder(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[#070707] px-4 py-8 text-white sm:px-6 lg:px-8">
@@ -107,14 +138,19 @@ export function PaymentReturnPage({ status }: PaymentReturnPageProps) {
           ) : null}
 
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <a className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#FFD500] px-4 text-sm font-bold text-black transition hover:bg-[#FFEA70]" href="/dashboard">
+            <a className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#FFD500] px-4 text-sm font-bold text-black transition hover:bg-[#FFEA70]" href="/cadastrar-bot">
               <CreditCard className="h-4 w-4" />
-              Abrir painel
+              Cadastrar bot
             </a>
             <a className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-zinc-700 px-4 text-sm font-bold text-zinc-200 transition hover:border-[#FFD500]/40 hover:text-[#FFEA70]" href="/planos">
               Ver planos
               <ArrowRight className="h-4 w-4" />
             </a>
+            {order && canRetry(order.status) ? (
+              <button className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-zinc-700 px-4 text-sm font-bold text-zinc-200 transition hover:border-[#FFD500]/40 hover:text-[#FFEA70]" onClick={() => void handleRetry()} type="button">
+                Tentar novamente
+              </button>
+            ) : null}
           </div>
         </section>
 
@@ -128,10 +164,18 @@ export function PaymentReturnPage({ status }: PaymentReturnPageProps) {
 }
 
 function statusFromOrder(orderStatus: PaymentOrder["status"], fallback: PaymentReturnStatus): PaymentReturnStatus {
-  if (orderStatus === "paid") return "success";
-  if (["pending", "processing", "in_review"].includes(orderStatus)) return "pending";
-  if (["cancelled", "expired", "failed", "refunded", "charged_back"].includes(orderStatus)) return "failure";
+  if (orderStatus === "paid" || orderStatus === "approved") return "success";
+  if (["created", "checkout_pending", "pending", "processing", "in_process", "in_review"].includes(orderStatus)) return "pending";
+  if (["cancelled", "expired", "failed", "rejected", "refunded", "charged_back", "chargeback"].includes(orderStatus)) return "failure";
   return fallback;
+}
+
+function isFinalOrderStatus(status: PaymentOrder["status"]) {
+  return ["approved", "paid", "rejected", "failed", "cancelled", "expired", "refunded", "chargeback", "charged_back", "error"].includes(status);
+}
+
+function canRetry(status: PaymentOrder["status"]) {
+  return ["rejected", "failed", "cancelled", "expired", "error"].includes(status);
 }
 
 function formatMoney(cents: number, currency: PaymentOrder["currency"]) {

@@ -8,7 +8,7 @@ import {
   type MercadoPagoPreferenceResult
 } from "./mercadoPagoService";
 
-export type ProviderPaymentStatus = "pending" | "processing" | "paid" | "cancelled" | "expired" | "failed" | "refunded" | "charged_back" | "in_review";
+export type ProviderPaymentStatus = "pending" | "in_process" | "approved" | "cancelled" | "expired" | "rejected" | "refunded" | "chargeback" | "in_review" | "error";
 
 export type ProviderPayment = {
   amountInCents: number;
@@ -16,7 +16,9 @@ export type ProviderPayment = {
   externalReference: string | null;
   id: string;
   method: string | null;
+  paymentType: string | null;
   raw: MercadoPagoPayment;
+  rawStatus: string;
   status: ProviderPaymentStatus;
   statusDetail: string | null;
 };
@@ -49,13 +51,17 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
   async getPayment(paymentId: string): Promise<ProviderPayment> {
     const raw = await getMercadoPagoPayment(this.accessToken, paymentId);
     const providerStatus = readString(raw.status) ?? "unknown";
+    const paymentMethodId = readString(raw.payment_method_id);
+    const paymentTypeId = readString(raw.payment_type_id);
     return {
       amountInCents: moneyToCents(raw.transaction_amount),
       currency: readString(raw.currency_id),
       externalReference: readString(raw.external_reference),
       id: readString(raw.id) ?? paymentId,
-      method: readString(raw.payment_method_id) ?? readString(raw.payment_type_id),
+      method: paymentMethodId ?? paymentTypeId,
+      paymentType: paymentTypeId,
       raw,
+      rawStatus: providerStatus,
       status: mercadoPagoStatusToInternal(providerStatus) as ProviderPaymentStatus,
       statusDetail: readString(raw.status_detail)
     };
