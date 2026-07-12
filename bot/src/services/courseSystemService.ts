@@ -1050,7 +1050,7 @@ async function cancelExamIdentification(interaction: ButtonInteraction, context:
     return;
   }
   await context.api.releaseCourseExamStart(interaction.guildId!, bundle.attempt.publicationId, interaction.user.id).catch(() => null);
-  await sendCourseLog(interaction, await context.api.getCourseSettings(interaction.guildId!), `Prova cancelada pelo aluno\nTentativa: ${attemptId}\nAluno: <@${interaction.user.id}>`).catch(() => null);
+  await sendCourseLog(interaction, await context.api.getCourseSettings(interaction.guildId!), `Prova cancelada pelo aluno\nTentativa: ${attemptId}\nAluno: <@${interaction.user.id}>\n${examStudentIdentificationSummary(bundle.attempt)}`).catch(() => null);
   if (interaction.channel?.isTextBased() && "delete" in interaction.channel) {
     await interaction.editReply("Prova cancelada. O canal temporário será encerrado.");
     await (interaction.channel as TextChannel).delete("Prova cancelada pelo aluno.").catch(() => null);
@@ -1144,7 +1144,7 @@ async function confirmExamAnswer(interaction: ButtonInteraction, context: BotCon
     context.api.getCourseExamRuntime(interaction.guildId!, updated.attempt.courseId)
   ]);
   const selectedText = question.alternatives.filter((alternative) => selectedAlternativeIds.includes(alternative.id)).map((alternative) => alternative.text).join("; ");
-  await sendCourseLog(interaction, await context.api.getCourseSettings(interaction.guildId!), `📝 Pergunta respondida\nTentativa: ${attemptId}\nAluno: <@${updated.attempt.studentId}>\nPergunta: ${question.prompt}\nResposta: ${selectedText}`);
+  await sendCourseLog(interaction, await context.api.getCourseSettings(interaction.guildId!), `📝 Pergunta respondida\nTentativa: ${attemptId}\nAluno: <@${updated.attempt.studentId}>\n${examStudentIdentificationSummary(updated.attempt)}\nPergunta: ${question.prompt}\nResposta: ${selectedText}`);
   await sendExamQuestion(interaction.channel as TextChannel, runtime.settings, course, updated.attempt, updated.questions);
 }
 
@@ -1205,7 +1205,7 @@ async function submitWrittenAnswer(interaction: ModalSubmitInteraction, context:
     context.api.getCourse(interaction.guildId!, updated.attempt.courseId),
     context.api.getCourseExamRuntime(interaction.guildId!, updated.attempt.courseId)
   ]);
-  await sendCourseLog(interaction, await context.api.getCourseSettings(interaction.guildId!), `📝 Pergunta discursiva respondida\nTentativa: ${attemptId}\nAluno: <@${updated.attempt.studentId}>\nPergunta: ${question.prompt}`);
+  await sendCourseLog(interaction, await context.api.getCourseSettings(interaction.guildId!), `📝 Pergunta discursiva respondida\nTentativa: ${attemptId}\nAluno: <@${updated.attempt.studentId}>\n${examStudentIdentificationSummary(updated.attempt)}\nPergunta: ${question.prompt}`);
   await interaction.editReply("Resposta salva.");
   if (channel?.isTextBased() && "send" in channel) {
     await sendExamQuestion(channel as TextChannel, runtime.settings, course, updated.attempt, updated.questions);
@@ -1324,6 +1324,7 @@ async function completeExamReview(interaction: ButtonInteraction | ModalSubmitIn
   ]);
   await editExamCorrectionPanel(interaction, context, course, courseSettings, runtime.settings, reviewed, bundle.questions, bundle.answers);
   await sendExamResultPanel(interaction, courseSettings, runtime.settings, course, reviewed);
+  await sendCourseLog(interaction, courseSettings, `Prova corrigida\nTentativa: ${attemptId}\nAluno: <@${reviewed.studentId}>\n${examStudentIdentificationSummary(reviewed)}\nResultado: ${status === "approved" ? "Aprovado" : "Reprovado"}\nNota automática: ${formatScore(reviewed.automaticScore ?? reviewed.score)}\nNota manual: ${formatScore(reviewed.manualScore ?? 0)}\nNota final: ${formatScore(reviewed.finalScore ?? reviewed.score)}\nAvaliador: <@${interaction.user.id}>`).catch(() => null);
   const student = await interaction.guild!.members.fetch(reviewed.studentId).catch(() => null);
   await student?.send(examDecisionDm(course, runtime.settings, reviewed, status)).catch(() => null);
   const publication = await context.api.getCoursePublication(interaction.guildId!, reviewed.publicationId).catch(() => null);
@@ -2016,6 +2017,7 @@ async function sendExamResultPanel(interaction: ButtonInteraction | ModalSubmitI
     fields: [
       [
         `Nome do aluno: <@${attempt.studentId}>`,
+        ...examStudentIdentificationLines(attempt),
         `Curso: ${course.name}`,
         `Nota automática: ${formatScore(attempt.automaticScore ?? attempt.score)}`,
         `Nota manual: ${formatScore(attempt.manualScore ?? 0)}`,
@@ -2040,6 +2042,7 @@ function examCorrectionPanel(course: Course, attempt: CourseExamAttempt, questio
   const fields = [
     [
       `Aluno: <@${attempt.studentId}>`,
+      ...examStudentIdentificationLines(attempt),
       `Curso: ${course.name}`,
       `Instrutor: <@${attempt.instructorId}>`,
       `Início: <t:${Math.floor(new Date(attempt.startedAt).getTime() / 1000)}:F>`,
@@ -2083,6 +2086,35 @@ function examReviewStatusLabel(attempt: CourseExamAttempt) {
   if (attempt.result === "approved" || attempt.status === "approved") return `${systemStatusEmoji("success")} Aprovado`;
   if (attempt.result === "rejected" || attempt.status === "rejected") return `${systemStatusEmoji("danger")} Reprovado`;
   return "Aguardando Correção";
+}
+
+function examStudentIdentificationLines(attempt: CourseExamAttempt) {
+  const identification = attempt.studentIdentification;
+  if (!identification) {
+    return ["Dados informados: não preenchidos"];
+  }
+
+  return [
+    "Dados informados:",
+    `Nome RP: ${identification.rpFullName || "não informado"}`,
+    `Patente: ${studentRankLabel(identification.currentRank)}`,
+    `ID: ${identification.rpId || "não informado"}`,
+    `Discord: ${identification.discordDisplayName || identification.discordUsername || "não informado"} (${identification.discordUserId})`,
+    `Nick no servidor: ${identification.guildNickname || "não informado"}`
+  ];
+}
+
+function examStudentIdentificationSummary(attempt: CourseExamAttempt) {
+  const identification = attempt.studentIdentification;
+  if (!identification) return "Dados informados: não preenchidos";
+  return `Dados informados: ${identification.rpFullName || "nome não informado"} | Patente: ${studentRankLabel(identification.currentRank)} | ID: ${identification.rpId || "não informado"}`;
+}
+
+function studentRankLabel(rank: string | null | undefined) {
+  if (rank === "CADET") return "Cadete";
+  if (rank === "OFFICER") return "Oficial";
+  if (rank === "SENIOR_OFFICER") return "Oficial Sênior";
+  return "não informada";
 }
 
 function examDecisionDm(course: Course, settings: CourseExamSettings, attempt: CourseExamAttempt, status: "approved" | "rejected") {
@@ -2160,6 +2192,7 @@ async function sendExamDetailedLog(interaction: { guild: ChatInputCommandInterac
         `ID do curso: ${course.id}`,
         `Instrutor: <@${attempt.instructorId}>`,
         `Participante: <@${attempt.studentId}>`,
+        ...examStudentIdentificationLines(attempt),
         `Questões: ${questions.length}`,
         `Acertos: ${attempt.objectiveCorrect}`,
         `Erros: ${attempt.objectiveWrong}`,
