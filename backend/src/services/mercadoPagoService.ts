@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { OrderResponse } from "mercadopago/dist/clients/order/commonTypes";
 import type { CreateOrderRequest } from "mercadopago/dist/clients/order/create/types";
+import type { PaymentCreateRequest } from "mercadopago/dist/clients/payment/create/types";
 import type { PreferenceRequest } from "mercadopago/dist/clients/preference/commonTypes";
 import { getMercadoPagoSdkClient } from "./payments/mercadoPagoClient";
 
@@ -55,6 +56,39 @@ export type CreateMercadoPagoPixOrderInput = {
   payerEmail?: string | null;
   paymentExpiration?: Date | null;
   statementDescriptor?: string | null;
+};
+
+export type CreateMercadoPagoPixPaymentInput = {
+  accessToken: string;
+  amountInCents: number;
+  currencyId: "BRL" | "USD" | "EUR";
+  description: string;
+  externalReference: string;
+  idempotencyKey?: string | null;
+  itemId: string;
+  itemTitle: string;
+  metadata?: Record<string, string | number | boolean | null>;
+  notificationUrl?: string | null;
+  payerEmail?: string | null;
+  paymentExpiration?: Date | null;
+  statementDescriptor?: string | null;
+};
+
+export type MercadoPagoPixPaymentResult = {
+  amountInCents: number;
+  currency: string | null;
+  externalReference: string | null;
+  paymentId: string;
+  paymentMethod: string | null;
+  paymentType: string | null;
+  pixCode: string | null;
+  qrCode: string | null;
+  raw: MercadoPagoPayment;
+  rawStatus: string;
+  status: string;
+  statusDetail: string | null;
+  ticketUrl: string | null;
+  transactionId: string | null;
 };
 
 export type MercadoPagoPixOrderResult = {
@@ -142,6 +176,49 @@ export async function createMercadoPagoPixOrder(input: CreateMercadoPagoPixOrder
   });
 
   return normalizeMercadoPagoOrder(payload as MercadoPagoOrder);
+}
+
+export function buildMercadoPagoPixPaymentBody(input: Omit<CreateMercadoPagoPixPaymentInput, "accessToken" | "idempotencyKey">): PaymentCreateRequest {
+  const amountInCents = normalizeCents(input.amountInCents);
+
+  return removeUndefined({
+    additional_info: {
+      items: [{
+        id: trimRequired(input.itemId, "ID do item Mercado Pago"),
+        quantity: 1,
+        title: trimRequired(input.itemTitle, "Titulo do item Mercado Pago"),
+        unit_price: centsToMoney(amountInCents)
+      }]
+    },
+    date_of_expiration: input.paymentExpiration ? input.paymentExpiration.toISOString() : undefined,
+    description: trimRequired(input.description, "Descricao Mercado Pago"),
+    external_reference: trimRequired(input.externalReference, "Referencia externa Mercado Pago"),
+    metadata: {
+      ...safePreferenceMetadata(input.metadata),
+      protected_amount_cents: amountInCents,
+      protected_by: "nextech_backend"
+    },
+    notification_url: trimOptional(input.notificationUrl),
+    payer: {
+      email: trimRequired(input.payerEmail ?? "cliente@nextech.discloud.app", "Email Mercado Pago")
+    },
+    payment_method_id: "pix",
+    statement_descriptor: trimOptional(input.statementDescriptor),
+    transaction_amount: centsToMoney(amountInCents)
+  }) as PaymentCreateRequest;
+}
+
+export async function createMercadoPagoPixPayment(input: CreateMercadoPagoPixPaymentInput): Promise<MercadoPagoPixPaymentResult> {
+  const body = buildMercadoPagoPixPaymentBody(input);
+  const { payment } = getMercadoPagoSdkClient(input.accessToken);
+  const payload = await payment.create({
+    body,
+    requestOptions: input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : undefined
+  }).catch((error: unknown) => {
+    throw mercadoPagoError(readSdkError(error) ?? "Mercado Pago recusou a criacao do Pix.", 503);
+  });
+
+  return normalizeMercadoPagoPixPayment(payload as unknown as MercadoPagoPayment);
 }
 
 export async function getMercadoPagoOrder(accessToken: string, orderId: string): Promise<MercadoPagoPixOrderResult> {
@@ -363,6 +440,34 @@ function normalizeMercadoPagoOrder(raw: MercadoPagoOrder): MercadoPagoPixOrderRe
   return result;
 }
 
+function normalizeMercadoPagoPixPayment(raw: MercadoPagoPayment): MercadoPagoPixPaymentResult {
+  const transactionData = readNestedRecord(raw, ["point_of_interaction", "transaction_data"]);
+  const paymentId = readAnyStringField(raw, "id") ?? "";
+  const rawStatus = readStringField(raw, "status") ?? "unknown";
+  const result: MercadoPagoPixPaymentResult = {
+    amountInCents: moneyToCents(raw.transaction_amount),
+    currency: readStringField(raw, "currency_id"),
+    externalReference: readStringField(raw, "external_reference"),
+    paymentId,
+    paymentMethod: readStringField(raw, "payment_method_id"),
+    paymentType: readStringField(raw, "payment_type_id"),
+    pixCode: readStringField(transactionData, "qr_code"),
+    qrCode: readStringField(transactionData, "qr_code_base64"),
+    raw,
+    rawStatus,
+    status: mercadoPagoStatusToInternal(rawStatus),
+    statusDetail: readStringField(raw, "status_detail"),
+    ticketUrl: readStringField(transactionData, "ticket_url"),
+    transactionId: readStringField(transactionData, "transaction_id")
+  };
+
+  if (!result.paymentId) {
+    throw mercadoPagoError("Mercado Pago nao retornou o ID do pagamento Pix.", 503);
+  }
+
+  return result;
+}
+
 function firstOrderPayment(raw: unknown) {
   const transactions = readRecord(raw, "transactions");
   const payments = Array.isArray(transactions?.payments) ? transactions.payments : [];
@@ -382,6 +487,21 @@ function readNestedString(payload: unknown, path: string[]) {
     current = (current as Record<string, unknown>)[key];
   }
   return typeof current === "string" && current.trim() ? current.trim() : null;
+}
+
+function readNestedRecord(payload: unknown, path: string[]) {
+  let current: unknown = payload;
+  for (const key of path) {
+    if (!current || typeof current !== "object") return null;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current && typeof current === "object" && !Array.isArray(current) ? current as Record<string, unknown> : null;
+}
+
+function readAnyStringField(payload: unknown, key: string) {
+  const value = payload && typeof payload === "object" ? (payload as Record<string, unknown>)[key] : null;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function moneyToCents(value: unknown) {

@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildMercadoPagoPixOrderBody, mercadoPagoOrderStatusToInternal, mercadoPagoStatusToInternal, validateMercadoPagoWebhookSignature } from "./mercadoPagoService";
+import { buildMercadoPagoPixOrderBody, buildMercadoPagoPixPaymentBody, mercadoPagoOrderStatusToInternal, mercadoPagoStatusToInternal, validateMercadoPagoWebhookSignature } from "./mercadoPagoService";
 
 test("valida assinatura oficial do webhook Mercado Pago", () => {
   const secret = "test-secret";
@@ -63,6 +63,31 @@ test("monta payload de order Pix Mercado Pago", () => {
   assert.equal(body.transactions?.payments?.[0]?.payment_method?.id, "pix");
   assert.equal(body.transactions?.payments?.[0]?.payment_method?.type, "bank_transfer");
   assert.equal(body.transactions?.payments?.[0]?.payment_method?.statement_descriptor, undefined);
+});
+
+test("monta payload de pagamento Pix Mercado Pago", () => {
+  const body = buildMercadoPagoPixPaymentBody({
+    amountInCents: 12990,
+    currencyId: "BRL",
+    description: "Plano Pro",
+    externalReference: "order-123",
+    itemId: "plan-pro",
+    itemTitle: "Plano Pro",
+    metadata: { source: "test" },
+    notificationUrl: "https://example.com/api/payments/mercadopago/webhook",
+    payerEmail: "cliente@example.com",
+    paymentExpiration: new Date("2026-07-12T06:00:00.000Z"),
+    statementDescriptor: "NEXTECH"
+  });
+
+  assert.equal(body.external_reference, "order-123");
+  assert.equal(body.transaction_amount, 129.9);
+  assert.equal(body.payment_method_id, "pix");
+  assert.equal(body.payer?.email, "cliente@example.com");
+  assert.equal(body.notification_url, "https://example.com/api/payments/mercadopago/webhook");
+  assert.equal(body.metadata?.source, "test");
+  assert.equal(body.metadata?.protected_amount_cents, 12990);
+  assert.equal(body.additional_info?.items?.[0]?.id, "plan-pro");
 });
 
 test("mapeia status de order Pix pelo pagamento interno", () => {

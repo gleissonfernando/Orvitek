@@ -38,6 +38,8 @@ type CheckoutBuyer = {
   userId: string;
 };
 
+export type CheckoutPaymentMethod = "checkout" | "pix";
+
 export type SavePlanInput = {
   badge?: string | null;
   billingCycle?: MongoPlanBillingCycle;
@@ -297,30 +299,30 @@ export async function getPublicPlan(slug: string) {
   return plan ? toPlanDto(plan) : null;
 }
 
-export async function createPublicCheckoutInterest(planSlug: string, actor: PlanActor) {
+export async function createPublicCheckoutInterest(planSlug: string, actor: PlanActor, paymentMethod: CheckoutPaymentMethod = "checkout") {
   const anonymousId = `pending:${randomUUID()}`;
   return createCheckoutInterestForBuyer(planSlug, {
     discordId: anonymousId,
     email: null,
     name: null,
     userId: anonymousId
-  }, actor, { checkExistingSubscription: false, reusePendingOrder: false });
+  }, actor, { checkExistingSubscription: false, paymentMethod, reusePendingOrder: false });
 }
 
-export async function createCheckoutInterest(planSlug: string, auth: DashboardAuth, actor: PlanActor) {
+export async function createCheckoutInterest(planSlug: string, auth: DashboardAuth, actor: PlanActor, paymentMethod: CheckoutPaymentMethod = "checkout") {
   return createCheckoutInterestForBuyer(planSlug, {
     discordId: auth.user.discordId,
     email: auth.user.email ?? null,
     name: auth.user.globalName || auth.user.username || null,
     userId: auth.user.id || auth.user.discordId
-  }, actor, { checkExistingSubscription: true, reusePendingOrder: true });
+  }, actor, { checkExistingSubscription: true, paymentMethod, reusePendingOrder: true });
 }
 
 async function createCheckoutInterestForBuyer(
   planSlug: string,
   buyer: CheckoutBuyer,
   actor: PlanActor,
-  options: { checkExistingSubscription: boolean; reusePendingOrder: boolean }
+  options: { checkExistingSubscription: boolean; paymentMethod: CheckoutPaymentMethod; reusePendingOrder: boolean }
 ) {
   await ensurePlanSeed();
   const { paymentOrders, plans, planSubscriptions } = await getMongoCollections();
@@ -370,9 +372,9 @@ async function createCheckoutInterestForBuyer(
       provider: selectedProvider,
       status: { $in: ["created", "checkout_pending", "pending", "in_process", "in_review"] },
       $or: [
-        { checkoutUrl: { $ne: null } },
-        { pixCode: { $ne: null } },
-        { providerOrderId: { $ne: null } }
+        options.paymentMethod === "pix"
+          ? { pixCode: { $ne: null } }
+          : { checkoutUrl: { $ne: null } }
       ]
     })
     : null;
@@ -451,14 +453,15 @@ async function createCheckoutInterestForBuyer(
   await paymentOrders.insertOne(order);
 
   if (paymentsEnabled && shouldCreateCheckout) {
-    const checkout = await createMercadoPagoPlanCheckoutPreference(plan, order, buyer).catch(async (error: unknown) => {
-      const message = error instanceof Error ? error.message : "Falha ao criar preference Mercado Pago.";
+    const checkout = await createMercadoPagoPlanPayment(plan, order, buyer, options.paymentMethod).catch(async (error: unknown) => {
+      const message = error instanceof Error ? error.message : `Falha ao criar ${options.paymentMethod === "pix" ? "Pix" : "preference"} Mercado Pago.`;
       console.error("[payments] Mercado Pago checkout preference failed", {
         amountInCents: order.amountInCents,
         currency: order.currency,
         environment: order.environment,
         error: cleanLogString(message),
         orderId: order._id,
+        paymentMethod: options.paymentMethod,
         planId: plan._id,
         planSlug: plan.slug,
         provider: order.provider,
@@ -486,17 +489,18 @@ async function createCheckoutInterestForBuyer(
       throw httpError("Nao foi possivel iniciar o pagamento. Tente novamente em alguns instantes.", 503);
     });
     order.checkoutUrl = checkout.checkoutUrl;
-    order.notes = "Preference Mercado Pago criada. Redirecione o comprador para o checkout.";
-    order.paymentMethod = null;
-    order.paymentType = null;
-    order.pixCode = null;
-    order.providerOrderId = checkout.preferenceId;
-    order.qrCode = null;
-    order.rawProviderStatus = "preference_created";
+    order.notes = checkout.notes;
+    order.paymentMethod = checkout.paymentMethod;
+    order.paymentType = checkout.paymentType;
+    order.pixCode = checkout.pixCode;
+    order.providerOrderId = checkout.providerOrderId;
+    order.qrCode = checkout.qrCode;
+    order.rawProviderStatus = checkout.rawProviderStatus;
     order.sandboxCheckoutUrl = checkout.sandboxCheckoutUrl;
-    order.statusDetail = null;
+    order.statusDetail = checkout.statusDetail;
+    order.mercadoPagoPaymentId = checkout.mercadoPagoPaymentId;
     order.webhookSafeResponse = null;
-    order.statusHistory = appendStatusHistory(order, "pending", "mercadopago_preference_created");
+    order.statusHistory = appendStatusHistory(order, "pending", checkout.statusSource);
     order.status = "pending";
     order.updatedAt = new Date();
     await paymentOrders.updateOne(
@@ -507,6 +511,7 @@ async function createCheckoutInterestForBuyer(
           notes: order.notes,
           paymentMethod: order.paymentMethod,
           paymentType: order.paymentType,
+          mercadoPagoPaymentId: order.mercadoPagoPaymentId,
           pixCode: order.pixCode,
           providerOrderId: order.providerOrderId,
           qrCode: order.qrCode,
@@ -667,13 +672,13 @@ export async function retryPaymentOrder(orderId: string, auth: DashboardAuth, ac
     status: "created",
     updatedAt: now
   };
-  const checkout = await createMercadoPagoPlanCheckoutPreference(plan, retryOrder, {
+  const checkout = await createMercadoPagoPlanPayment(plan, retryOrder, {
     discordId: auth.user.discordId,
     email: auth.user.email ?? null,
     name: auth.user.globalName || auth.user.username || null,
     userId: auth.user.id || auth.user.discordId
-  });
-  const statusHistory = appendStatusHistory(retryOrder, "pending", "mercadopago_retry_preference_created");
+  }, order.pixCode || order.paymentMethod === "pix" ? "pix" : "checkout");
+  const statusHistory = appendStatusHistory(retryOrder, "pending", `retry_${checkout.statusSource}`);
   const updated = await paymentOrders.findOneAndUpdate(
     { _id: order._id, discordId: auth.user.discordId },
     {
@@ -681,17 +686,18 @@ export async function retryPaymentOrder(orderId: string, auth: DashboardAuth, ac
         checkoutUrl: checkout.checkoutUrl,
         expiresAt: retryOrder.expiresAt,
         idempotencyKey: retryOrder.idempotencyKey,
-        notes: "Nova preference Mercado Pago criada para tentativa de checkout.",
-        paymentMethod: null,
-        paymentType: null,
-        pixCode: null,
-        providerOrderId: checkout.preferenceId,
-        qrCode: null,
-        rawProviderStatus: "preference_created",
+        mercadoPagoPaymentId: checkout.mercadoPagoPaymentId,
+        notes: checkout.notes,
+        paymentMethod: checkout.paymentMethod,
+        paymentType: checkout.paymentType,
+        pixCode: checkout.pixCode,
+        providerOrderId: checkout.providerOrderId,
+        qrCode: checkout.qrCode,
+        rawProviderStatus: checkout.rawProviderStatus,
         retryAttempts: retryOrder.retryAttempts,
         sandboxCheckoutUrl: checkout.sandboxCheckoutUrl,
         status: "pending",
-        statusDetail: null,
+        statusDetail: checkout.statusDetail,
         statusHistory,
         webhookSafeResponse: null,
         updatedAt: new Date()
@@ -737,13 +743,13 @@ export async function retryPublicPaymentOrder(orderId: string, actor: PlanActor)
     status: "created",
     updatedAt: now
   };
-  const checkout = await createMercadoPagoPlanCheckoutPreference(plan, retryOrder, {
+  const checkout = await createMercadoPagoPlanPayment(plan, retryOrder, {
     discordId: order.discordId,
     email: null,
     name: null,
     userId: order.userId
-  });
-  const statusHistory = appendStatusHistory(retryOrder, "pending", "mercadopago_public_retry_preference_created");
+  }, order.pixCode || order.paymentMethod === "pix" ? "pix" : "checkout");
+  const statusHistory = appendStatusHistory(retryOrder, "pending", `public_retry_${checkout.statusSource}`);
   const updated = await paymentOrders.findOneAndUpdate(
     { _id: order._id, discordId: order.discordId },
     {
@@ -751,17 +757,18 @@ export async function retryPublicPaymentOrder(orderId: string, actor: PlanActor)
         checkoutUrl: checkout.checkoutUrl,
         expiresAt: retryOrder.expiresAt,
         idempotencyKey: retryOrder.idempotencyKey,
-        notes: "Nova preference Mercado Pago criada para tentativa de checkout.",
-        paymentMethod: null,
-        paymentType: null,
-        pixCode: null,
-        providerOrderId: checkout.preferenceId,
-        qrCode: null,
-        rawProviderStatus: "preference_created",
+        mercadoPagoPaymentId: checkout.mercadoPagoPaymentId,
+        notes: checkout.notes,
+        paymentMethod: checkout.paymentMethod,
+        paymentType: checkout.paymentType,
+        pixCode: checkout.pixCode,
+        providerOrderId: checkout.providerOrderId,
+        qrCode: checkout.qrCode,
+        rawProviderStatus: checkout.rawProviderStatus,
         retryAttempts: retryOrder.retryAttempts,
         sandboxCheckoutUrl: checkout.sandboxCheckoutUrl,
         status: "pending",
-        statusDetail: null,
+        statusDetail: checkout.statusDetail,
         statusHistory,
         webhookSafeResponse: null,
         updatedAt: new Date()
@@ -2379,6 +2386,93 @@ async function createMercadoPagoPlanCheckoutPreference(
     },
     notificationUrl: mercadoPagoConfig.webhookUrl || buildAppUrl("/api/payments/mercadopago/webhook"),
     payerEmail: mercadoPagoPayerEmail(buyer),
+    statementDescriptor: mercadoPagoConfig.statementDescriptor
+  });
+}
+
+type PlanPaymentCreationResult = {
+  checkoutUrl: string | null;
+  mercadoPagoPaymentId: string | null;
+  notes: string;
+  paymentMethod: string | null;
+  paymentType: string | null;
+  pixCode: string | null;
+  providerOrderId: string | null;
+  qrCode: string | null;
+  rawProviderStatus: string | null;
+  sandboxCheckoutUrl: string | null;
+  statusDetail: string | null;
+  statusSource: string;
+};
+
+async function createMercadoPagoPlanPayment(
+  plan: MongoPlan,
+  order: MongoPaymentOrder,
+  buyer: CheckoutBuyer,
+  paymentMethod: CheckoutPaymentMethod
+): Promise<PlanPaymentCreationResult> {
+  if (paymentMethod === "pix") {
+    const pix = await createMercadoPagoPlanPixPayment(plan, order, buyer);
+    return {
+      checkoutUrl: null,
+      mercadoPagoPaymentId: pix.paymentId,
+      notes: "Pagamento Pix criado no Mercado Pago. Exiba QR Code ou codigo copia e cola.",
+      paymentMethod: pix.paymentMethod ?? "pix",
+      paymentType: pix.paymentType ?? "bank_transfer",
+      pixCode: pix.pixCode,
+      providerOrderId: null,
+      qrCode: pix.qrCode,
+      rawProviderStatus: pix.rawStatus,
+      sandboxCheckoutUrl: null,
+      statusDetail: pix.statusDetail,
+      statusSource: "mercadopago_pix_created"
+    };
+  }
+
+  const preference = await createMercadoPagoPlanCheckoutPreference(plan, order, buyer);
+  return {
+    checkoutUrl: preference.checkoutUrl,
+    mercadoPagoPaymentId: null,
+    notes: "Preference Mercado Pago criada. Redirecione o comprador para o checkout.",
+    paymentMethod: null,
+    paymentType: null,
+    pixCode: null,
+    providerOrderId: preference.preferenceId,
+    qrCode: null,
+    rawProviderStatus: "preference_created",
+    sandboxCheckoutUrl: preference.sandboxCheckoutUrl,
+    statusDetail: null,
+    statusSource: "mercadopago_preference_created"
+  };
+}
+
+async function createMercadoPagoPlanPixPayment(
+  plan: MongoPlan,
+  order: MongoPaymentOrder,
+  buyer: CheckoutBuyer
+) {
+  if (order.provider !== "mercadopago") {
+    throw httpError("Provider de pagamento nao suportado para Pix automatico.", 400);
+  }
+  const mercadoPagoConfig = requireMercadoPagoOperational();
+  const provider = new MercadoPagoPaymentProvider(requireMercadoPagoAccessToken(mercadoPagoConfig), mercadoPagoConfig.webhookSecret);
+  return provider.createPixPayment({
+    amountInCents: order.amountInCents,
+    currencyId: plan.currency,
+    description: plan.shortDescription || plan.description || plan.name,
+    externalReference: order._id,
+    idempotencyKey: order.idempotencyKey,
+    itemId: plan._id,
+    itemTitle: plan.name,
+    metadata: {
+      payment_order_id: order._id,
+      plan_id: plan._id,
+      plan_slug: plan.slug,
+      source: "plans_pix"
+    },
+    notificationUrl: mercadoPagoConfig.webhookUrl || buildAppUrl("/api/payments/mercadopago/webhook"),
+    payerEmail: mercadoPagoPayerEmail(buyer),
+    paymentExpiration: order.expiresAt ?? null,
     statementDescriptor: mercadoPagoConfig.statementDescriptor
   });
 }

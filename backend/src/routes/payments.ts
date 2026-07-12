@@ -23,6 +23,7 @@ export const paymentWebhooksRouter = Router();
 export const paymentAdminRouter = Router();
 
 const checkoutSchema = z.object({
+  paymentMethod: z.enum(["checkout", "pix"]).default("checkout"),
   planId: z.string().min(1).max(120)
 });
 
@@ -31,7 +32,7 @@ const orderIdSchema = z.string().min(8).max(120);
 paymentsRouter.post("/mercadopago/checkout", checkoutRateLimit, async (req, res, next) => {
   try {
     const input = checkoutSchema.parse(req.body ?? {});
-    const result = await createPublicCheckoutInterest(input.planId, actorFrom(req));
+    const result = await createPublicCheckoutInterest(input.planId, actorFrom(req), input.paymentMethod);
     return sendCheckoutResult(res, result);
   } catch (error) {
     return next(error);
@@ -41,7 +42,7 @@ paymentsRouter.post("/mercadopago/checkout", checkoutRateLimit, async (req, res,
 paymentsRouter.post("/create-checkout", checkoutRateLimit, async (req, res, next) => {
   try {
     const input = checkoutSchema.parse(req.body ?? {});
-    const result = await createPublicCheckoutInterest(input.planId, actorFrom(req));
+    const result = await createPublicCheckoutInterest(input.planId, actorFrom(req), input.paymentMethod);
     return sendCheckoutResult(res, result);
   } catch (error) {
     return next(error);
@@ -52,7 +53,7 @@ paymentsRouter.post("/mercadopago/checkout/authenticated", requireAuthenticated,
   try {
     const auth = res.locals.dashboardAuth as DashboardAuth;
     const input = checkoutSchema.parse(req.body ?? {});
-    const result = await createCheckoutInterest(input.planId, auth, actorFrom(req, auth));
+    const result = await createCheckoutInterest(input.planId, auth, actorFrom(req, auth), input.paymentMethod);
     return sendCheckoutResult(res, result);
   } catch (error) {
     return next(error);

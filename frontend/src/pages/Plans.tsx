@@ -1,4 +1,4 @@
-import { ArrowLeft, Bot, Check, CreditCard, Loader2, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, Bot, Check, CreditCard, Loader2, QrCode, ShieldCheck, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPlanCheckoutInterest, getPublicPlans } from "../lib/api";
 import type { Plan } from "../types";
@@ -13,12 +13,12 @@ export function PublicPlansPage() {
     void getPublicPlans().then(setPlans).catch(() => setError("Não foi possível carregar os planos agora.")).finally(() => setLoading(false));
   }, []);
 
-  async function handleBuy(plan: Plan) {
+  async function handleBuy(plan: Plan, paymentMethod: "checkout" | "pix" = "checkout") {
     setBusyPlanSlug(plan.slug);
     setError(null);
 
     try {
-      const result = await createPlanCheckoutInterest(plan.id);
+      const result = await createPlanCheckoutInterest(plan.id, paymentMethod);
       if (result.order.checkoutUrl) {
         window.location.assign(result.order.checkoutUrl);
         return;
@@ -51,7 +51,7 @@ export function PublicPlansPage() {
         </section>
         {loading ? <div className="flex min-h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#FFD500]" /></div> : null}
         {error ? <div className="mx-auto max-w-xl rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-center text-sm text-red-200">{error}</div> : null}
-        {!loading && !error ? <section aria-label="Planos disponíveis" className="grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">{plans.map((plan) => <PublicPlanCard busy={busyPlanSlug === plan.slug} key={plan.id} onBuy={() => void handleBuy(plan)} plan={plan} />)}</section> : null}
+        {!loading && !error ? <section aria-label="Planos disponíveis" className="grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">{plans.map((plan) => <PublicPlanCard busy={busyPlanSlug === plan.slug} key={plan.id} onBuy={(paymentMethod) => void handleBuy(plan, paymentMethod)} plan={plan} />)}</section> : null}
         {!loading && !error && !plans.length ? <p className="py-20 text-center text-zinc-500">Nenhum plano público disponível no momento.</p> : null}
         <div className="mx-auto mt-16 flex max-w-3xl items-start gap-3 rounded-xl border border-[#FFD500]/15 bg-[#FFD500]/[.05] p-5 text-sm leading-6 text-zinc-400"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#FFD500]" /><p>Esta página mostra somente informações públicas. Tokens, pagamentos e dados administrativos não são enviados ao navegador.</p></div>
       </div>
@@ -59,7 +59,7 @@ export function PublicPlansPage() {
   );
 }
 
-function PublicPlanCard({ busy, onBuy, plan }: { busy: boolean; onBuy: () => void; plan: Plan }) {
+function PublicPlanCard({ busy, onBuy, plan }: { busy: boolean; onBuy: (paymentMethod: "checkout" | "pix") => void; plan: Plan }) {
   const price = plan.promotionalPriceInCents ?? plan.priceInCents;
   const includedFeatures = plan.entitlements.filter((feature) => feature.enabled).map((feature) => feature.key.replace(/[._-]+/g, " "));
   const features = [`${plan.botLimit} ${plan.botLimit === 1 ? "bot" : "bots"}`, `${plan.guildLimit} ${plan.guildLimit === 1 ? "servidor" : "servidores"}`, plan.validityDays ? `${plan.validityDays} dias de validade` : "Validade contínua", ...includedFeatures];
@@ -69,14 +69,16 @@ function PublicPlanCard({ busy, onBuy, plan }: { busy: boolean; onBuy: () => voi
     <div className="mt-6"><span className="text-4xl font-black text-[#FFD500]">{formatPrice(price, plan.currency)}</span><span className="text-sm text-zinc-500"> {price ? cycleSuffix(plan.billingCycle) : ""}</span></div>
     {plan.promotionalPriceInCents !== null && plan.promotionalPriceInCents < plan.priceInCents ? <p className="mt-1 text-sm text-zinc-600 line-through">{formatPrice(plan.priceInCents, plan.currency)}</p> : null}
     <ul className="mt-7 space-y-3">{features.map((feature) => <li className="flex gap-3 text-sm text-zinc-300" key={feature}><Check className="h-4 w-4 shrink-0 text-[#FFD500]" />{feature}</li>)}</ul>
-    {plan.isPurchasable ? <button className="mt-8 flex h-12 items-center justify-center gap-2 rounded-lg bg-[#FFD500] text-sm font-bold text-black transition hover:bg-[#FFEA70] disabled:cursor-not-allowed disabled:opacity-70" disabled={busy} onClick={onBuy} type="button">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}{purchaseLabel(plan)}</button> : <span className="mt-8 flex h-12 items-center justify-center rounded-lg border border-zinc-700 text-sm font-bold text-zinc-500">Indisponível</span>}
+    {plan.isPurchasable ? <div className="mt-8 grid gap-2 sm:grid-cols-2">
+      <button className="flex h-12 items-center justify-center gap-2 rounded-lg bg-[#FFD500] text-sm font-bold text-black transition hover:bg-[#FFEA70] disabled:cursor-not-allowed disabled:opacity-70" disabled={busy} onClick={() => onBuy("checkout")} type="button">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}Cartão</button>
+      <button className="flex h-12 items-center justify-center gap-2 rounded-lg border border-[#FFD500]/35 bg-[#FFD500]/10 text-sm font-bold text-[#FFEA70] transition hover:bg-[#FFD500]/15 disabled:cursor-not-allowed disabled:opacity-70" disabled={busy} onClick={() => onBuy("pix")} type="button">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}Pix</button>
+    </div> : <span className="mt-8 flex h-12 items-center justify-center rounded-lg border border-zinc-700 text-sm font-bold text-zinc-500">Indisponível</span>}
   </article>;
 }
 
 function formatPrice(value: number, currency: Plan["currency"]) { return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value / 100); }
 function cycleLabel(cycle: Plan["billingCycle"]) { return ({ monthly: "Mensal", quarterly: "Trimestral", semiannual: "Semestral", annual: "Anual", lifetime: "Vitalício", custom: "Personalizado" } as Record<Plan["billingCycle"], string>)[cycle]; }
 function cycleSuffix(cycle: Plan["billingCycle"]) { return ({ monthly: "/mês", quarterly: "/trimestre", semiannual: "/semestre", annual: "/ano", lifetime: "pagamento único", custom: "" } as Record<Plan["billingCycle"], string>)[cycle]; }
-function purchaseLabel(plan: Plan) { return /interesse/i.test(plan.buttonText) ? "Comprar plano" : plan.buttonText || "Comprar plano"; }
 function readError(error: unknown, fallback: string) {
   const candidate = error as { response?: { data?: { message?: string } }; message?: string };
   return candidate.response?.data?.message || candidate.message || fallback;

@@ -277,7 +277,7 @@ export async function getCustomerPaymentOrder(orderId: string) {
   return data;
 }
 
-export async function createPlanCheckoutInterest(planId: string) {
+export async function createPlanCheckoutInterest(planId: string, paymentMethod: "checkout" | "pix" = "checkout") {
   const { data } = await api.post<{
     success?: boolean;
     orderId?: string;
@@ -286,6 +286,7 @@ export async function createPlanCheckoutInterest(planId: string) {
     payment: { enabled: boolean; message: string | null; provider: import("../types").PaymentProvider };
     plan: Plan;
   }>("/payments/mercadopago/checkout", {
+    paymentMethod,
     planId
   });
   return data;
