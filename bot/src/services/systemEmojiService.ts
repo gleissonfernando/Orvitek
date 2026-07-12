@@ -39,6 +39,9 @@ type GuildSystemEmojiCache = {
 
 const runtimeEmojis = new Map<string, RuntimeEmoji>();
 const guildEmojiCaches = new Map<string, GuildSystemEmojiCache>();
+const fixedSystemEmojiKeyById = new Map<string, SystemEmojiKey>(
+  Object.entries(FIXED_SYSTEM_EMOJI_BY_KEY).map(([key, item]) => [item.emojiId, key as SystemEmojiKey])
+);
 
 const unicodeReplacementPairs: Array<[RegExp, SystemEmojiKey]> = [
   [/✅|✔️|✔/g, "visto"],
@@ -143,10 +146,6 @@ export function getGuildSystemEmojiCache(guildId: string) {
 
 export function systemEmojiText(key: SystemEmojiKey, guild?: Guild | null, client?: Client | null) {
   const emoji = runtimeEmoji(key);
-  if (emoji.enabled && emoji.emojiId) {
-    return `<${emoji.animated ? "a" : ""}:${emoji.name}:${emoji.emojiId}>`;
-  }
-
   const cached = guild ? guildEmojiCaches.get(guild.id)?.emojis.get(key) : null;
   if (cached?.found) {
     return cached.markdown;
@@ -156,6 +155,11 @@ export function systemEmojiText(key: SystemEmojiKey, guild?: Guild | null, clien
 
   if (emoji.enabled && resolved) {
     return `<${resolved.animated ? "a" : ""}:${resolved.name}:${resolved.id}>`;
+  }
+
+  if (emoji.enabled && emoji.emojiId && client) {
+    const fromClient = client.emojis.cache.get(emoji.emojiId);
+    if (fromClient) return `<${fromClient.animated ? "a" : ""}:${fromClient.name}:${fromClient.id}>`;
   }
 
   return emoji.fallback;
@@ -196,7 +200,14 @@ export function systemStatusEmoji(status: "success" | "warning" | "danger" | "ac
 }
 
 export function replaceSystemEmojis(input: string, guild?: Guild | null, client?: Client | null) {
-  return unicodeReplacementPairs.reduce((text, [pattern, key]) => text.replace(pattern, systemEmojiText(key, guild, client)), normalizeFixedSystemEmojiText(input));
+  return unicodeReplacementPairs.reduce((text, [pattern, key]) => text.replace(pattern, systemEmojiText(key, guild, client)), replaceFixedSystemEmojiMarkdown(input, guild, client));
+}
+
+function replaceFixedSystemEmojiMarkdown(input: string, guild?: Guild | null, client?: Client | null) {
+  return normalizeFixedSystemEmojiText(input).replace(/<a?:([a-zA-Z0-9_]{2,32}):(\d{5,32})>/g, (match, _name: string, emojiId: string) => {
+    const key = fixedSystemEmojiKeyById.get(emojiId);
+    return key ? systemEmojiText(key, guild, client) : match;
+  });
 }
 
 function cachedEmoji(key: SystemEmojiKey, name: string, fallback: string, emoji: GuildEmoji | null): CachedGuildEmoji {
