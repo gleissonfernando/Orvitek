@@ -197,18 +197,27 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
     setError("");
     try {
       const settings = await saveCourseSettings(botId, guildId, patch);
-      setDashboard({ ...dashboard, settings });
+      setDashboard((current) => current ? { ...current, settings } : current);
       setMessage("Configurações salvas.");
+      return settings;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível salvar as configurações.");
+      return null;
     } finally {
       setSaving(false);
     }
   }
 
   async function saveChannelSettings() {
-    if (!channelDraft) return;
-    await saveSettings(channelDraft);
+    if (!dashboard || !channelDraft) return;
+    const patch = changedChannelSettings(channelDraft, dashboard.settings);
+    if (!Object.keys(patch).length) return;
+    const settings = await saveSettings(patch);
+    if (settings) {
+      const nextDraft = toChannelDraft(settings);
+      lastChannelSettingsRef.current = nextDraft;
+      setChannelDraft(nextDraft);
+    }
   }
 
   function updateChannelDraft(patch: Partial<CourseChannelDraft>) {
@@ -719,6 +728,15 @@ function toChannelDraft(settings: CoursesDashboard["settings"]): CourseChannelDr
     scheduleLogChannelId: settings.scheduleLogChannelId ?? null,
     tempProofCategoryId: settings.tempProofCategoryId ?? null
   };
+}
+
+function changedChannelSettings(draft: CourseChannelDraft, settings: CoursesDashboard["settings"]) {
+  const current = toChannelDraft(settings);
+  const patch: Partial<CourseChannelDraft> = {};
+  (Object.keys(draft) as Array<keyof CourseChannelDraft>).forEach((key) => {
+    if (draft[key] !== current[key]) patch[key] = draft[key] as never;
+  });
+  return patch;
 }
 
 function InputField({ disabled, label, onChange, value }: { disabled?: boolean; label: string; onChange: (value: string) => void; value: string }) {
