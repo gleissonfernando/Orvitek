@@ -1,17 +1,35 @@
 import { ArrowLeft, Bot, Check, CreditCard, Loader2, ShieldCheck, Sparkles } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPlanCheckoutInterest, getPublicPlans } from "../lib/api";
 import type { Plan } from "../types";
+
+const PENDING_CHECKOUT_PLAN_KEY = "nextech.pendingPlanCheckout";
 
 export function PublicPlansPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyPlanSlug, setBusyPlanSlug] = useState<string | null>(null);
+  const resumedCheckout = useRef(false);
 
   useEffect(() => {
     void getPublicPlans().then(setPlans).catch(() => setError("Não foi possível carregar os planos agora.")).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (loading || resumedCheckout.current || new URLSearchParams(window.location.search).get("auth") !== "callback") {
+      return;
+    }
+
+    resumedCheckout.current = true;
+    const pendingPlanId = window.sessionStorage.getItem(PENDING_CHECKOUT_PLAN_KEY);
+    window.sessionStorage.removeItem(PENDING_CHECKOUT_PLAN_KEY);
+    const pendingPlan = plans.find((plan) => plan.id === pendingPlanId);
+
+    if (pendingPlan) {
+      void handleBuy(pendingPlan);
+    }
+  }, [loading, plans]);
 
   async function handleBuy(plan: Plan) {
     setBusyPlanSlug(plan.slug);
@@ -28,7 +46,8 @@ export function PublicPlansPage() {
     } catch (requestError) {
       const status = (requestError as { response?: { status?: number } }).response?.status;
       if (status === 401 || status === 403) {
-        window.location.assign("/auth/discord/dashboard");
+        window.sessionStorage.setItem(PENDING_CHECKOUT_PLAN_KEY, plan.id);
+        window.location.assign("/auth/discord/customer?returnTo=/planos");
         return;
       }
       setError(readError(requestError, "Não foi possível iniciar o checkout agora."));

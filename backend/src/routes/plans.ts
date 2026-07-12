@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { Request } from "express";
 import { z } from "zod";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requireAuthenticated } from "../middleware/auth";
 import { getMongoCollections } from "../database/mongo";
 import {
   createCheckoutInterest,
@@ -153,7 +153,7 @@ plansRouter.get("/:slug", async (req, res, next) => {
   }
 });
 
-checkoutRouter.post("/", requireAuth, async (req, res, next) => {
+checkoutRouter.post("/", requireAuthenticated, async (req, res, next) => {
   try {
     const auth = res.locals.dashboardAuth as DashboardAuth;
     const input = checkoutPayloadSchema.parse(req.body ?? {});
@@ -163,7 +163,7 @@ checkoutRouter.post("/", requireAuth, async (req, res, next) => {
   }
 });
 
-checkoutRouter.post("/plans/:planSlug", requireAuth, async (req, res, next) => {
+checkoutRouter.post("/plans/:planSlug", requireAuthenticated, async (req, res, next) => {
   try {
     const auth = res.locals.dashboardAuth as DashboardAuth;
     const planSlug = z.string().min(1).max(120).parse(req.params.planSlug);
@@ -173,7 +173,7 @@ checkoutRouter.post("/plans/:planSlug", requireAuth, async (req, res, next) => {
   }
 });
 
-customerPlansRouter.use(requireAuth);
+customerPlansRouter.use(requireAuthenticated);
 
 customerPlansRouter.get("/plans-dashboard", async (_req, res, next) => {
   try {
@@ -297,7 +297,7 @@ workspacePlansRouter.delete("/:workspaceId/bots/:credentialId", async (req, res,
   }
 });
 
-botRegistrationRouter.use(requireAuth);
+botRegistrationRouter.use(requireAuthenticated);
 
 botRegistrationRouter.get("/status", async (_req, res, next) => {
   try {

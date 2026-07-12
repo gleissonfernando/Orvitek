@@ -69,7 +69,7 @@ async function createOAuthState(req: Request, input: {
   botId?: string;
   botSlug?: string;
   returnTo: string;
-  type: "dev" | "bot" | "dashboard";
+  type: "dev" | "bot" | "dashboard" | "customer";
 }) {
   const payload = {
     ...input,
@@ -102,7 +102,7 @@ type SignedOAuthState = {
   expiresAt: number;
   nonce: string;
   returnTo: string;
-  type: "dev" | "bot" | "dashboard";
+  type: "dev" | "bot" | "dashboard" | "customer";
   ua: string;
 };
 
@@ -134,7 +134,7 @@ function verifyOAuthState(state: string): SignedOAuthState | null {
       typeof parsed.expiresAt !== "number" ||
       typeof parsed.nonce !== "string" ||
       typeof parsed.returnTo !== "string" ||
-      (parsed.type !== "dev" && parsed.type !== "bot" && parsed.type !== "dashboard") ||
+      (parsed.type !== "dev" && parsed.type !== "bot" && parsed.type !== "dashboard" && parsed.type !== "customer") ||
       typeof parsed.ua !== "string"
     ) {
       return null;
@@ -152,6 +152,10 @@ function isAllowedReturnTo(returnTo: string, botSlug?: string | null) {
   }
 
   if (returnTo === "/dashboard") {
+    return true;
+  }
+
+  if (returnTo === "/planos" || returnTo === "/cadastrar-bot") {
     return true;
   }
 
@@ -290,6 +294,34 @@ authRouter.get("/discord/dashboard", async (req, res, next) => {
   }
 });
 
+authRouter.get("/discord/customer", async (req, res, next) => {
+  if (isApiAuthMount(req)) {
+    const queryIndex = req.originalUrl.indexOf("?");
+    const query = queryIndex >= 0 ? req.originalUrl.slice(queryIndex) : "";
+
+    return res.redirect(canonicalAuthUrl("/discord/customer", query));
+  }
+
+  if (!ensureOAuthConfigured(res)) {
+    return;
+  }
+
+  try {
+    const requestedReturnTo = typeof req.query.returnTo === "string" ? req.query.returnTo : "/planos";
+    const returnTo = isAllowedReturnTo(requestedReturnTo) ? requestedReturnTo : "/planos";
+    const state = await createOAuthState(req, {
+      type: "customer",
+      returnTo
+    });
+    const diagnostics = getDiscordOAuthDiagnostics();
+    console.info(`[auth] login Discord iniciado: type=customer returnTo=${returnTo} client_id=${diagnostics.clientId} redirect_uri=${diagnostics.redirectUri}.`);
+
+    return res.redirect(buildDiscordAuthUrl(state));
+  } catch (error) {
+    return next(error);
+  }
+});
+
 authRouter.get("/discord/bot/:slug", async (req, res, next) => {
   if (isApiAuthMount(req)) {
     const queryIndex = req.originalUrl.indexOf("?");
@@ -405,6 +437,32 @@ authRouter.get("/discord/callback", async (req, res, next) => {
 
     let botSlugForAccess: string | null = null;
     let redirectTo = verifiedState.returnTo;
+
+    if (verifiedState.type === "customer") {
+      const user = await withAuthTimeout("customer_user_save", saveDiscordUser(discordUser, tokens));
+      const customerUser = {
+        ...baseUser,
+        dashboardBotId: null,
+        dashboardBotSlug: null,
+        id: user.id,
+        selectedGuildId: user.selectedGuildId && guilds.some((guild) => guild.id === user.selectedGuildId)
+          ? user.selectedGuildId
+          : baseUser.selectedGuildId,
+        lastLoginAt: user.lastLoginAt?.toISOString?.() ?? baseUser.lastLoginAt
+      };
+
+      req.session.user = customerUser;
+      req.session.verified = false;
+      req.session.oauthState = undefined;
+      req.session.discordAccessToken = tokens.access_token;
+      req.session.discordRefreshToken = undefined;
+      req.session.accessValidatedAt = Date.now();
+
+      issueAuthCookies(res, req.session.user, false);
+      await saveSession(req);
+      console.info(`[auth] oauth: sessao de cliente criada para ${discordUser.id}; redirect=${redirectTo}.`);
+      return res.redirect(authCallbackLandingUrl(redirectTo));
+    }
 
     if (verifiedState.type === "bot") {
       if (!verifiedState.botId || !verifiedState.botSlug) {

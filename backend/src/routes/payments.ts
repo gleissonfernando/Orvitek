@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { NextFunction, Request, Response } from "express";
 import { z } from "zod";
-import { requireAdminAccess, requireAuth } from "../middleware/auth";
+import { requireAdminAccess, requireAuth, requireAuthenticated } from "../middleware/auth";
 import {
   createCheckoutInterest,
   getAdminPaymentOrder,
@@ -25,7 +25,7 @@ const checkoutSchema = z.object({
 
 const orderIdSchema = z.string().min(8).max(120);
 
-paymentsRouter.post("/mercadopago/checkout", requireAuth, checkoutRateLimit, async (req, res, next) => {
+paymentsRouter.post("/mercadopago/checkout", requireAuthenticated, checkoutRateLimit, async (req, res, next) => {
   try {
     const auth = res.locals.dashboardAuth as DashboardAuth;
     const input = checkoutSchema.parse(req.body ?? {});
@@ -44,7 +44,7 @@ paymentsRouter.post("/mercadopago/checkout", requireAuth, checkoutRateLimit, asy
   }
 });
 
-paymentsRouter.get("/orders/:orderId/status", requireAuth, statusRateLimit, async (req, res, next) => {
+paymentsRouter.get("/orders/:orderId/status", requireAuthenticated, statusRateLimit, async (req, res, next) => {
   try {
     const auth = res.locals.dashboardAuth as DashboardAuth;
     const orderId = orderIdSchema.parse(req.params.orderId);
@@ -54,7 +54,7 @@ paymentsRouter.get("/orders/:orderId/status", requireAuth, statusRateLimit, asyn
   }
 });
 
-paymentsRouter.post("/orders/:orderId/retry", requireAuth, checkoutRateLimit, async (req, res, next) => {
+paymentsRouter.post("/orders/:orderId/retry", requireAuthenticated, checkoutRateLimit, async (req, res, next) => {
   try {
     const auth = res.locals.dashboardAuth as DashboardAuth;
     const orderId = orderIdSchema.parse(req.params.orderId);
@@ -64,7 +64,7 @@ paymentsRouter.post("/orders/:orderId/retry", requireAuth, checkoutRateLimit, as
   }
 });
 
-paymentsRouter.get("/me", requireAuth, async (_req, res, next) => {
+paymentsRouter.get("/me", requireAuthenticated, async (_req, res, next) => {
   try {
     const auth = res.locals.dashboardAuth as DashboardAuth;
     return res.json(await listMyPaymentOrders(auth));
