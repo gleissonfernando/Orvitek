@@ -125,10 +125,10 @@ function StatusNotice({ error, finalStatus, loading, order }: { error: string | 
     return <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-500/25 bg-red-500/10 p-4 text-sm text-red-200"><AlertCircle className="mt-0.5 h-5 w-5" />{error}</div>;
   }
   if (order?.status === "approved") {
-    return <div className="mt-5 flex items-start gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm text-emerald-200"><CheckCircle2 className="mt-0.5 h-5 w-5" />Pagamento aprovado. Redirecionando para conectar o Discord.</div>;
+    return <div className="mt-5 flex items-start gap-3 rounded-xl border border-[#FFD500]/25 bg-[#FFD500]/10 p-4 text-sm text-[#FFEA70]"><CheckCircle2 className="mt-0.5 h-5 w-5" />Pagamento aprovado. Redirecionando para conectar o Discord.</div>;
   }
   if (finalStatus) {
-    return <div className="mt-5 flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-200"><AlertCircle className="mt-0.5 h-5 w-5" />Este pedido foi finalizado com status {statusLabel(order?.status ?? "error")}.</div>;
+    return <div className="mt-5 flex items-start gap-3 rounded-xl border border-[#FFD500]/25 bg-[#FFD500]/10 p-4 text-sm text-[#FFEA70]"><AlertCircle className="mt-0.5 h-5 w-5" />Este pedido foi finalizado com status {statusLabel(order?.status ?? "error")}.</div>;
   }
   return <div className="mt-5 flex items-start gap-3 rounded-xl border border-[#FFD500]/20 bg-[#FFD500]/10 p-4 text-sm text-[#FFEA70]">{loading ? <Loader2 className="mt-0.5 h-5 w-5 animate-spin" /> : <Clock3 className="mt-0.5 h-5 w-5" />}Aguardando confirmacao do Mercado Pago.</div>;
 }

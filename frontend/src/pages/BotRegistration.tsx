@@ -106,12 +106,12 @@ export function BotRegistrationPage() {
             ) : null}
 
             {result ? (
-              <div className="mt-8 rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-5">
+              <div className="mt-8 rounded-lg border border-[#FFD500]/25 bg-[#FFD500]/10 p-5">
                 <div className="flex items-center gap-3">
-                  <CheckCircle2 className="h-6 w-6 text-emerald-300" />
+                  <CheckCircle2 className="h-6 w-6 text-[#FFD500]" />
                   <div>
-                    <p className="font-bold text-emerald-100">Bot cadastrado com sucesso</p>
-                    <p className="text-sm text-emerald-100/75">Obrigado pela confiança. Sua dashboard foi liberada e o token foi configurado com segurança.</p>
+                    <p className="font-bold text-[#FFEA70]">Bot cadastrado com sucesso</p>
+                    <p className="text-sm text-zinc-300">Obrigado pela confiança. Sua dashboard foi liberada e o token foi configurado com segurança.</p>
                   </div>
                 </div>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">

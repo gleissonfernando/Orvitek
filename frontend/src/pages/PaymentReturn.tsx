@@ -24,14 +24,14 @@ const statusConfig: Record<PaymentReturnStatus, {
     title: "Nao conseguimos confirmar sua compra"
   },
   pending: {
-    accent: "text-amber-300",
+    accent: "text-[#FFEA70]",
     icon: Clock3,
     label: "Pagamento em analise",
     message: "Recebemos o retorno do Mercado Pago e a confirmacao pode levar alguns minutos.",
     title: "Seu pagamento esta pendente"
   },
   success: {
-    accent: "text-emerald-300",
+    accent: "text-[#FFD500]",
     icon: CheckCircle2,
     label: "Pagamento confirmado",
     message: "O pedido interno foi confirmado pelo backend. Se a ativacao ainda nao aparecer, atualize o painel em alguns instantes.",
@@ -136,7 +136,7 @@ export function PaymentReturnPage({ status }: PaymentReturnPageProps) {
           </div>
           {loadingOrder || orderError ? (
             <div className="mt-4 flex items-center gap-2 rounded-lg border border-zinc-800 bg-black/20 px-4 py-3 text-sm text-zinc-300">
-              {loadingOrder ? <Loader2 className="h-4 w-4 animate-spin text-[#FFD500]" /> : <AlertCircle className="h-4 w-4 text-amber-300" />}
+              {loadingOrder ? <Loader2 className="h-4 w-4 animate-spin text-[#FFD500]" /> : <AlertCircle className="h-4 w-4 text-[#FFEA70]" />}
               {loadingOrder ? "Consultando status oficial salvo no backend..." : orderError}
             </div>
           ) : null}
