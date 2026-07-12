@@ -73,11 +73,9 @@ export type SavePaymentSettingsInput = {
   botDashboardBaseUrl?: string | null;
   botRegistrationUrl?: string | null;
   cancelRedirectUrl?: string | null;
-  enabled?: boolean;
   failureRedirectUrl?: string | null;
   pendingRedirectUrl?: string | null;
   plansPublicUrl?: string | null;
-  provider?: MongoPaymentProvider;
   publicKey?: string | null;
   secret?: string | null;
   successRedirectUrl?: string | null;
@@ -305,9 +303,8 @@ export async function createCheckoutInterest(planSlug: string, auth: DashboardAu
     throw httpError("Plano nao encontrado.", 404);
   }
 
-  const settings = await ensurePaymentSettings();
   const mercadoPagoConfig = getMercadoPagoRuntimeConfig();
-  const selectedProvider: MongoPaymentProvider = settings.enabled ? settings.provider : "disabled";
+  const selectedProvider = resolveEnvPaymentProvider();
   const paymentsEnabled = selectedProvider === "mercadopago" && mercadoPagoConfig.enabled;
   const now = new Date();
   const amountInCents = plan.promotionalPriceInCents ?? plan.priceInCents;
@@ -1024,7 +1021,7 @@ export async function getDevPlansDashboard() {
       activePlans: planRows.filter((plan) => plan.isActive).length,
       activeSubscriptions: subscriptionRows.filter((subscription) => subscription.status === "active").length,
       interestOrders: orderRows.filter((order) => order.status === "interest_registered").length,
-      paymentsEnabled: settings.enabled && settings.provider !== "disabled",
+      paymentsEnabled: isResolvedPaymentProviderEnabled(resolveEnvPaymentProvider(), getMercadoPagoRuntimeConfig()),
       publicPlans: planRows.filter((plan) => plan.isPublic).length,
       workspaces: workspaceRows.length
     },
@@ -2062,17 +2059,19 @@ export async function savePaymentSettings(input: SavePaymentSettingsInput, actor
   const { paymentSettings } = await getMongoCollections();
   const current = await ensurePaymentSettings();
   const now = new Date();
+  const mercadoPagoConfig = getMercadoPagoRuntimeConfig();
+  const envProvider = resolveEnvPaymentProvider();
   const patch: Partial<MongoPaymentSettings> = {
     approvedRedirectUrl: input.approvedRedirectUrl === undefined ? current.approvedRedirectUrl ?? null : normalizeValidUrl(input.approvedRedirectUrl, "URL de pagamento aprovado"),
     botDashboardBaseUrl: input.botDashboardBaseUrl === undefined ? current.botDashboardBaseUrl ?? null : normalizeValidUrl(input.botDashboardBaseUrl, "URL base das dashboards"),
     botRegistrationUrl: input.botRegistrationUrl === undefined ? current.botRegistrationUrl ?? null : normalizeValidUrl(input.botRegistrationUrl, "URL de cadastro do bot"),
     cancelRedirectUrl: input.cancelRedirectUrl === undefined ? current.cancelRedirectUrl ?? null : normalizeValidUrl(input.cancelRedirectUrl, "URL de cancelamento"),
-    enabled: input.enabled ?? current.enabled,
+    enabled: isResolvedPaymentProviderEnabled(envProvider, mercadoPagoConfig),
     failureRedirectUrl: input.failureRedirectUrl === undefined ? current.failureRedirectUrl ?? null : normalizeValidUrl(input.failureRedirectUrl, "URL de pagamento recusado"),
     pendingRedirectUrl: input.pendingRedirectUrl === undefined ? current.pendingRedirectUrl ?? null : normalizeValidUrl(input.pendingRedirectUrl, "URL de pagamento pendente"),
     plansPublicUrl: input.plansPublicUrl === undefined ? current.plansPublicUrl ?? null : normalizeValidUrl(input.plansPublicUrl, "URL publica de planos"),
-    provider: input.provider ?? current.provider,
-    publicKey: getMercadoPagoRuntimeConfig().publicKey,
+    provider: envProvider,
+    publicKey: mercadoPagoConfig.publicKey,
     successRedirectUrl: input.successRedirectUrl === undefined ? current.successRedirectUrl ?? null : normalizeValidUrl(input.successRedirectUrl, "URL de redirecionamento apos pagamento"),
     updatedAt: now,
     updatedBy: actor.id
@@ -2108,18 +2107,20 @@ async function ensurePaymentSettings(): Promise<MongoPaymentSettings> {
   }
 
   const now = new Date();
+  const mercadoPagoConfig = getMercadoPagoRuntimeConfig();
+  const envProvider = resolveEnvPaymentProvider();
   const settings: MongoPaymentSettings = {
     _id: "global",
     approvedRedirectUrl: env.MERCADOPAGO_SUCCESS_URL || buildAppUrl("/pagamento/sucesso"),
     botDashboardBaseUrl: buildAppUrl("/dashboard/"),
     botRegistrationUrl: buildAppUrl("/cadastrar-bot"),
     cancelRedirectUrl: buildAppUrl("/pagamento/falha"),
-    enabled: env.MERCADOPAGO_ENABLED,
+    enabled: isResolvedPaymentProviderEnabled(envProvider, mercadoPagoConfig),
     failureRedirectUrl: env.MERCADOPAGO_FAILURE_URL || buildAppUrl("/pagamento/falha"),
     pendingRedirectUrl: env.MERCADOPAGO_PENDING_URL || buildAppUrl("/pagamento/pendente"),
     plansPublicUrl: buildAppUrl("/planos"),
-    provider: env.MERCADOPAGO_ENABLED ? "mercadopago" : env.PAYMENT_PROVIDER,
-    publicKey: getMercadoPagoRuntimeConfig().publicKey,
+    provider: envProvider,
+    publicKey: mercadoPagoConfig.publicKey,
     secretEncrypted: null,
     successRedirectUrl: env.MERCADOPAGO_SUCCESS_URL || buildAppUrl("/pagamento/sucesso"),
     updatedAt: now,
@@ -2694,18 +2695,31 @@ function toPaymentOrderDto(order: MongoPaymentOrder): PaymentOrderDto {
 function toPaymentSettingsDto(settings: MongoPaymentSettings): PaymentSettingsDto {
   const { _id, secretEncrypted, updatedAt, webhookSecretEncrypted, ...rest } = settings;
   const mercadoPagoConfig = getMercadoPagoRuntimeConfig();
+  const provider = resolveEnvPaymentProvider();
   void secretEncrypted;
   void webhookSecretEncrypted;
   return {
     ...rest,
-    enabled: mercadoPagoConfig.enabled,
+    enabled: isResolvedPaymentProviderEnabled(provider, mercadoPagoConfig),
     id: _id,
-    provider: mercadoPagoConfig.enabled ? "mercadopago" : rest.provider,
+    provider,
     publicKey: mercadoPagoConfig.publicKey,
     secretConfigured: mercadoPagoConfig.credentialsConfigured,
     updatedAt: updatedAt.toISOString(),
     webhookSecretConfigured: mercadoPagoConfig.webhookConfigured
   };
+}
+
+function resolveEnvPaymentProvider(): MongoPaymentProvider {
+  if (!env.PAYMENTS_ENABLED) {
+    return "disabled";
+  }
+
+  return env.PAYMENT_PROVIDER;
+}
+
+function isResolvedPaymentProviderEnabled(provider: MongoPaymentProvider, mercadoPagoConfig: ReturnType<typeof getMercadoPagoRuntimeConfig>) {
+  return provider === "mercadopago" && mercadoPagoConfig.enabled;
 }
 
 function toAuditLogDto(log: MongoPlanAuditLog) {

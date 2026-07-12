@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { env } from "../config/env";
+import { getMercadoPagoHealth } from "../config/payments";
 import { getMongoDb } from "../database/mongo";
 import { getRedisClient } from "../database/redis";
 import { metricsSnapshot } from "../services/monitoringService";
@@ -185,13 +186,24 @@ function mailHealth() {
 }
 
 function paymentsHealth() {
-  const enabled = env.PAYMENTS_ENABLED && env.PAYMENT_PROVIDER !== "disabled";
-  const supported = env.PAYMENT_PROVIDER === "disabled" || env.PAYMENT_PROVIDER === "mercadopago";
+  const provider = env.PAYMENTS_ENABLED ? env.PAYMENT_PROVIDER : "disabled";
+  const supported = provider === "disabled" || provider === "mercadopago";
+
+  if (provider === "mercadopago") {
+    const mercadoPago = getMercadoPagoHealth();
+    return {
+      enabled: mercadoPago.enabled,
+      ok: mercadoPago.status === "operational",
+      provider,
+      status: mercadoPago.status,
+      mercadoPago
+    };
+  }
 
   return {
-    enabled,
-    ok: !enabled || supported,
-    provider: env.PAYMENT_PROVIDER,
-    status: !enabled ? "disabled" : supported ? "configured" : "unsupported_provider"
+    enabled: false,
+    ok: supported,
+    provider,
+    status: supported ? "disabled" : "unsupported_provider"
   };
 }

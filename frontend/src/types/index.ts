@@ -3694,11 +3694,9 @@ export type SavePaymentSettingsPayload = {
   botDashboardBaseUrl?: string | null;
   botRegistrationUrl?: string | null;
   cancelRedirectUrl?: string | null;
-  enabled?: boolean;
   failureRedirectUrl?: string | null;
   pendingRedirectUrl?: string | null;
   plansPublicUrl?: string | null;
-  provider?: PaymentProvider;
   publicKey?: string | null;
   secret?: string | null;
   successRedirectUrl?: string | null;

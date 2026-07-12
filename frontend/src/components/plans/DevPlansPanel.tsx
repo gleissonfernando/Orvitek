@@ -33,7 +33,7 @@ import {
   updateDevPlanFeature,
   updatePlanPaymentSettings
 } from "../../lib/api";
-import type { DevPlansDashboard, PaymentProvider, Plan, PlanFeature, SavePlanPayload } from "../../types";
+import type { DevPlansDashboard, Plan, PlanFeature, SavePlanPayload } from "../../types";
 
 type TabId = "overview" | "plans" | "features" | "subscriptions" | "orders" | "payments" | "logs";
 
@@ -118,11 +118,9 @@ export function DevPlansPanel() {
     botDashboardBaseUrl: "",
     botRegistrationUrl: "",
     cancelRedirectUrl: "",
-    enabled: false,
     failureRedirectUrl: "",
     pendingRedirectUrl: "",
     plansPublicUrl: "",
-    provider: "disabled" as PaymentProvider,
     successRedirectUrl: ""
   });
 
@@ -139,11 +137,9 @@ export function DevPlansPanel() {
         botDashboardBaseUrl: next.paymentSettings.botDashboardBaseUrl ?? "",
         botRegistrationUrl: next.paymentSettings.botRegistrationUrl ?? "",
         cancelRedirectUrl: next.paymentSettings.cancelRedirectUrl ?? "",
-        enabled: next.paymentSettings.enabled,
         failureRedirectUrl: next.paymentSettings.failureRedirectUrl ?? "",
         pendingRedirectUrl: next.paymentSettings.pendingRedirectUrl ?? "",
         plansPublicUrl: next.paymentSettings.plansPublicUrl ?? "",
-        provider: next.paymentSettings.provider,
         successRedirectUrl: next.paymentSettings.successRedirectUrl ?? ""
       });
     } catch (loadError) {
@@ -223,11 +219,9 @@ export function DevPlansPanel() {
       botDashboardBaseUrl: paymentForm.botDashboardBaseUrl || null,
       botRegistrationUrl: paymentForm.botRegistrationUrl || null,
       cancelRedirectUrl: paymentForm.cancelRedirectUrl || null,
-      enabled: paymentForm.enabled,
       failureRedirectUrl: paymentForm.failureRedirectUrl || null,
       pendingRedirectUrl: paymentForm.pendingRedirectUrl || null,
       plansPublicUrl: paymentForm.plansPublicUrl || null,
-      provider: paymentForm.provider,
       successRedirectUrl: paymentForm.successRedirectUrl || null
     }), "Configuracao de pagamento atualizada.");
   }
@@ -556,11 +550,9 @@ type PaymentFormState = {
   botDashboardBaseUrl: string;
   botRegistrationUrl: string;
   cancelRedirectUrl: string;
-  enabled: boolean;
   failureRedirectUrl: string;
   pendingRedirectUrl: string;
   plansPublicUrl: string;
-  provider: PaymentProvider;
   successRedirectUrl: string;
 };
 
@@ -569,22 +561,12 @@ function PaymentSettingsForm({ busy, form, onChange, onSubmit, settings }: { bus
     <Card>
       <CardHeader>
         <CardTitle>Configuracao de pagamentos</CardTitle>
-        <CardDescription>Padrao seguro: provider disabled e sem cobranca falsa.</CardDescription>
+        <CardDescription>Ativacao e provider sao definidos somente pelas variaveis de ambiente.</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="grid max-w-2xl gap-3" onSubmit={onSubmit}>
-          <label className="flex items-center gap-2 text-sm text-zinc-300">
-            <input checked={form.enabled} onChange={(event) => onChange({ ...form, enabled: event.target.checked })} type="checkbox" />
-            Habilitar pagamentos
-          </label>
-          <label className="grid gap-1 text-sm">
-            <span className="text-zinc-300">Provider</span>
-            <select className="h-11 rounded-lg border border-zinc-800 bg-black px-3 text-white outline-none focus:border-[#FFD500]/50" onChange={(event) => onChange({ ...form, provider: event.target.value as PaymentProvider })} value={form.provider}>
-              {["disabled", "mercadopago"].map((provider) => <option key={provider} value={provider}>{provider}</option>)}
-            </select>
-          </label>
           <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-3 text-sm text-zinc-300">
-            Credenciais Mercado Pago: public key {settings.publicKey ? "detectada" : "ausente"}, access token {settings.secretConfigured ? "detectado" : "ausente"}, webhook secret {settings.webhookSecretConfigured ? "detectado" : "ausente"}. Configure por variaveis de ambiente.
+            Pagamentos {settings.enabled ? "ativos" : "desativados"} via {settings.provider}. Credenciais Mercado Pago: public key {settings.publicKey ? "detectada" : "ausente"}, access token {settings.secretConfigured ? "detectado" : "ausente"}, webhook secret {settings.webhookSecretConfigured ? "detectado" : "ausente"}.
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <TextField label="URL apos pagamento" value={form.successRedirectUrl} onChange={(successRedirectUrl) => onChange({ ...form, successRedirectUrl })} />
