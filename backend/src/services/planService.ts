@@ -15,7 +15,9 @@ import type {
   MongoPlanWorkspace
 } from "../database/mongo";
 import { getMongoCollections } from "../database/mongo";
-import { encryptSecret } from "./secretCryptoService";
+import { buildAppUrl } from "../config/appUrl";
+import { createMercadoPagoPreference } from "./mercadoPagoService";
+import { decryptSecret, encryptSecret } from "./secretCryptoService";
 import type { DashboardAuth } from "./tokenService";
 
 export type PlanActor = {
@@ -268,11 +270,12 @@ export async function createCheckoutInterest(planSlug: string, auth: DashboardAu
   }
 
   const settings = await ensurePaymentSettings();
-  const paymentsEnabled = settings.enabled && env.PAYMENTS_ENABLED && settings.provider !== "disabled" && env.PAYMENT_PROVIDER !== "disabled";
+  const paymentsEnabled = settings.enabled && settings.provider !== "disabled";
   const now = new Date();
+  const amountInCents = plan.promotionalPriceInCents ?? plan.priceInCents;
   const order: MongoPaymentOrder = {
     _id: randomUUID(),
-    amountInCents: plan.promotionalPriceInCents ?? plan.priceInCents,
+    amountInCents,
     checkoutUrl: null,
     createdAt: now,
     currency: plan.currency,
@@ -291,6 +294,13 @@ export async function createCheckoutInterest(planSlug: string, auth: DashboardAu
     updatedAt: now,
     userId: auth.user.id || auth.user.discordId
   };
+
+  if (paymentsEnabled && plan.isPurchasable && amountInCents > 0) {
+    const checkout = await createMercadoPagoPlanPreference(settings, plan, order, auth);
+    order.checkoutUrl = checkout.checkoutUrl;
+    order.notes = "Pedido criado no Mercado Pago. Continue pelo link de checkout.";
+    order.providerOrderId = checkout.preferenceId;
+  }
 
   await paymentOrders.insertOne(order);
   await writePlanAudit({
@@ -978,6 +988,40 @@ async function ensurePaymentSettings(): Promise<MongoPaymentSettings> {
 
   await paymentSettings.updateOne({ _id: "global" }, { $setOnInsert: settings }, { upsert: true });
   return settings;
+}
+
+async function createMercadoPagoPlanPreference(
+  settings: MongoPaymentSettings,
+  plan: MongoPlan,
+  order: MongoPaymentOrder,
+  auth: DashboardAuth
+) {
+  if (settings.provider !== "mercadopago") {
+    throw httpError("Provider de pagamento nao suportado para checkout automatico.", 400);
+  }
+  if (!settings.secretEncrypted) {
+    throw httpError("Access Token do Mercado Pago nao configurado.", 400);
+  }
+
+  return createMercadoPagoPreference({
+    accessToken: decryptSecret(settings.secretEncrypted),
+    backUrls: {
+      failure: buildAppUrl("/pagamento/falha"),
+      pending: buildAppUrl("/pagamento/pendente"),
+      success: buildAppUrl("/pagamento/sucesso")
+    },
+    externalReference: order._id,
+    items: [
+      {
+        currencyId: plan.currency,
+        description: plan.shortDescription || plan.description || plan.name,
+        id: plan._id,
+        title: plan.name,
+        unitPriceInCents: order.amountInCents
+      }
+    ],
+    payerEmail: auth.user.email
+  });
 }
 
 async function assertWorkspaceAccess(workspaceId: string, auth: DashboardAuth) {

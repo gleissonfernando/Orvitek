@@ -14,6 +14,7 @@ import type {
 } from "../database/mongo";
 import { getMongoCollections } from "../database/mongo";
 import { env } from "../config/env";
+import { createMercadoPagoPreference as createMercadoPagoCheckoutPreference } from "./mercadoPagoService";
 import { decryptSecret, encryptSecret } from "./secretCryptoService";
 
 export const NEX_TECH_SALES_MODULE_ID = "nex-tech-sales";
@@ -1052,7 +1053,7 @@ async function buildProviderCheckout(
   }
 ) {
   if (provider.provider === "mercadopago") {
-    return createMercadoPagoPreference(provider, settings, context);
+    return createMercadoPagoProductPreference(provider, settings, context);
   }
 
   if (provider.provider !== "custom" || !provider.publicKey) {
@@ -1083,7 +1084,7 @@ async function buildProviderCheckout(
   }
 }
 
-async function createMercadoPagoPreference(
+async function createMercadoPagoProductPreference(
   provider: MongoNexTechSalesPaymentProvider,
   settings: MongoNexTechSalesSettings,
   context: {
@@ -1100,51 +1101,33 @@ async function createMercadoPagoPreference(
   const failureUrl = buildProductPaymentResultUrl(settings.storeId, context.saleId, "failure");
   const pendingUrl = buildProductPaymentResultUrl(settings.storeId, context.saleId, "pending");
   const notificationUrl = provider.webhookUrl || buildMercadoPagoNotificationUrl(settings.storeId, provider.gatewayId);
-  const body = {
-    auto_return: "approved",
-    back_urls: {
+
+  const checkout = await createMercadoPagoCheckoutPreference({
+    accessToken,
+    backUrls: {
       failure: failureUrl,
       pending: pendingUrl,
       success: context.successUrl
     },
-    external_reference: context.saleId,
+    externalReference: context.saleId,
     items: [
       {
-        currency_id: context.currency,
+        currencyId: context.currency,
         description: context.planName,
         id: context.saleId,
-        quantity: 1,
         title: context.productName,
-        unit_price: centsToMoney(context.amountCents)
+        unitPriceInCents: context.amountCents
       }
     ],
-    ...(notificationUrl ? { notification_url: notificationUrl } : {}),
-    ...(context.payerEmail ? { payer: { email: context.payerEmail } } : {})
-  };
-
-  const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
-    body: JSON.stringify(body),
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json"
-    },
-    method: "POST"
+    notificationUrl,
+    payerEmail: context.payerEmail
+  }).catch((error) => {
+    throw createNexTechSalesError(error instanceof Error ? error.message : "Mercado Pago recusou a criacao da preferencia.", (error as { statusCode?: number })?.statusCode ?? 502);
   });
-  const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
-
-  if (!response.ok) {
-    throw createNexTechSalesError(readMercadoPagoError(payload) ?? "Mercado Pago recusou a criacao da preferencia.", 502);
-  }
-
-  const checkoutUrl = readStringField(payload, "init_point") ?? readStringField(payload, "sandbox_init_point");
-
-  if (!checkoutUrl) {
-    throw createNexTechSalesError("Mercado Pago nao retornou a URL do checkout.", 502);
-  }
 
   return {
-    checkoutUrl,
-    externalReference: readStringField(payload, "id") ?? context.saleId
+    checkoutUrl: checkout.checkoutUrl,
+    externalReference: checkout.preferenceId
   };
 }
 
@@ -1427,10 +1410,6 @@ function mercadoPagoStatusToSaleStatus(status: string): MongoNexTechSaleStatus |
     default:
       return null;
   }
-}
-
-function centsToMoney(cents: number) {
-  return Math.max(0, Math.round(cents)) / 100;
 }
 
 function decryptProviderSecret(provider: MongoNexTechSalesPaymentProvider, message: string) {

@@ -2,10 +2,11 @@ import {
   ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, MessageFlags, ModalBuilder,
   PermissionFlagsBits, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, UserSelectMenuBuilder,
   type ButtonInteraction, type ChatInputCommandInteraction, type Client, type GuildMember, type Interaction,
-  type Message, type ModalSubmitInteraction, type StringSelectMenuInteraction, type UserSelectMenuInteraction
+  type Guild, type Message, type ModalSubmitInteraction, type StringSelectMenuInteraction, type UserSelectMenuInteraction
 } from "discord.js";
 import { isBotModuleEnabled } from "../config/env";
 import type { BotContext } from "../types";
+import { resolveComponentEmoji } from "../utils/componentEmoji";
 import { resetSelectMenuMessage } from "../utils/selectMenuReset";
 import type { PolicePatrolMessage, PolicePatrolReport, PolicePatrolSettings } from "./apiClient";
 import { renderComponentsV2Panel, type PanelVisualConfig } from "./panelVisualRenderer";
@@ -38,7 +39,7 @@ export async function createPolicePatrolFromCommand(interaction: ChatInputComman
   ];
   const channel = await interaction.guild.channels.create({ name: `relatorio-${slug(officer.username)}-${report.id.slice(0, 4)}`, type: ChannelType.GuildText, parent: settings.temporaryCategoryId ?? undefined, permissionOverwrites: overwrites, reason: `Relatório policial ${report.id}` });
   const visuals = await getPanelVisualSlots(context, interaction.guild.id, "police-patrol-reports");
-  const panel = await channel.send(initialPanel(report, visuals));
+  const panel = await channel.send(initialPanel(report, visuals, interaction.guild));
   await context.api.setPolicePatrolChannel(report.id, channel.id, panel.id);
   await interaction.editReply(`Canal criado: <#${channel.id}>.`);
 }
@@ -96,7 +97,7 @@ async function showStartModal(interaction: ButtonInteraction, reportId: string) 
 async function startReport(interaction: ModalSubmitInteraction, context: BotContext, reportId: string) {
   await interaction.deferReply({ ephemeral: true });
   const report = await context.api.startPolicePatrolReport(reportId, { actorId: interaction.user.id, patrolStart: interaction.fields.getTextInputValue("start").trim(), patrolEnd: interaction.fields.getTextInputValue("end").trim() });
-  await updatePanel(interaction, activePanel(report));
+  await updatePanel(interaction, activePanel(report, interaction.guild));
   await interaction.editReply("Agora descreva tudo que aconteceu. Envie quantas mensagens desejar; todas serão salvas automaticamente.");
 }
 
@@ -130,7 +131,7 @@ async function exportDefaultReport(interaction: ButtonInteraction, context: BotC
 
 async function deleteReport(interaction: ButtonInteraction, context: BotContext, reportId: string) { const settings = await context.api.getPolicePatrolSettings(interaction.guildId!); const member = interaction.member as GuildMember; if (!hasRoleOrAdmin(member, settings.deleteRoleIds)) { await interaction.reply({ content: "Somente administradores autorizados podem excluir.", ephemeral: true }); return; } await context.api.deletePolicePatrolReport(reportId, interaction.user.id); await interaction.reply({ content: "Relatório excluído permanentemente.", ephemeral: true }); }
 
-async function sendLog(interaction: ButtonInteraction, context: BotContext, settings: PolicePatrolSettings, report: PolicePatrolReport) { if (!settings.logChannelId || !interaction.guild) return; const channel = await interaction.guild.channels.fetch(settings.logChannelId).catch(() => null); if (!channel?.isTextBased() || channel.isDMBased()) return; const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${PREFIX}:view:${report.id}`).setLabel("Ver Relatório").setEmoji("📄").setStyle(ButtonStyle.Primary), new ButtonBuilder().setCustomId(`${PREFIX}:export:${report.id}`).setLabel("Exportar").setEmoji("🗂️").setStyle(ButtonStyle.Secondary)); await channel.send({ components: [{ type: 17, accent_color: 0x2563eb, components: [{ type: 10, content: `# Novo relatório registrado\n**Policial:** <@${report.officerId}>\n**Autor:** <@${report.authorId}>\n**Tempo:** ${duration(report.durationMinutes)}\n**Data:** <t:${Math.floor(Date.parse(report.createdAt) / 1000)}:D>` }, buttons] }], flags: MessageFlags.IsComponentsV2 }); }
+async function sendLog(interaction: ButtonInteraction, context: BotContext, settings: PolicePatrolSettings, report: PolicePatrolReport) { if (!settings.logChannelId || !interaction.guild) return; const channel = await interaction.guild.channels.fetch(settings.logChannelId).catch(() => null); if (!channel?.isTextBased() || channel.isDMBased()) return; const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${PREFIX}:view:${report.id}`).setLabel("Ver Relatório").setEmoji(resolveComponentEmoji(interaction.guild, "prancheta", "📄")).setStyle(ButtonStyle.Primary), new ButtonBuilder().setCustomId(`${PREFIX}:export:${report.id}`).setLabel("Exportar").setEmoji(resolveComponentEmoji(interaction.guild, "caixa", "🗂️")).setStyle(ButtonStyle.Secondary)); await channel.send({ components: [{ type: 17, accent_color: 0x2563eb, components: [{ type: 10, content: `# Novo relatório registrado\n**Policial:** <@${report.officerId}>\n**Autor:** <@${report.authorId}>\n**Tempo:** ${duration(report.durationMinutes)}\n**Data:** <t:${Math.floor(Date.parse(report.createdAt) / 1000)}:D>` }, buttons] }], flags: MessageFlags.IsComponentsV2 }); }
 
 async function updatePanel(interaction: any, payload: any) { if (!interaction.message) return; await interaction.message.edit(payload).catch(() => null); }
 async function cleanupDueChannels(client: Client, context: BotContext) { const reports = await context.api.getPolicePatrolChannelsDue().catch(() => []); for (const report of reports) { if (!report.channelId) continue; const guild = await client.guilds.fetch(report.guildId).catch(() => null); const channel = await guild?.channels.fetch(report.channelId).catch(() => null); await channel?.delete(`Relatório ${report.status} arquivado`).catch(() => null); await context.api.clearPolicePatrolChannel(report.id).catch(() => null); } }
@@ -146,8 +147,8 @@ async function getPanelVisualSlots(context: BotContext, guildId: string, basePan
   });
 }
 
-function initialPanel(report: PolicePatrolReport, visuals: PanelVisualConfig[] = []) {
-  const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${PREFIX}:start:${report.id}`).setLabel("Iniciar Relatório").setEmoji("▶️").setStyle(ButtonStyle.Success), new ButtonBuilder().setCustomId(`${PREFIX}:cancel:${report.id}`).setLabel("Cancelar Relatório").setEmoji("❌").setStyle(ButtonStyle.Danger));
+function initialPanel(report: PolicePatrolReport, visuals: PanelVisualConfig[] = [], guild: Guild | null | undefined = null) {
+  const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${PREFIX}:start:${report.id}`).setLabel("Iniciar Relatório").setEmoji(resolveComponentEmoji(guild, "liga", "▶️")).setStyle(ButtonStyle.Success), new ButtonBuilder().setCustomId(`${PREFIX}:cancel:${report.id}`).setLabel("Cancelar Relatório").setEmoji(resolveComponentEmoji(guild, "porta", "❌")).setStyle(ButtonStyle.Danger));
   return renderComponentsV2Panel({
     accentColor: 0x2563eb,
     actions: [buttons],
@@ -159,7 +160,7 @@ function initialPanel(report: PolicePatrolReport, visuals: PanelVisualConfig[] =
     title: "Relatório de Patrulhamento"
   });
 }
-function activePanel(report: PolicePatrolReport) { const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${PREFIX}:finish:${report.id}`).setLabel("Finalizar Relatório").setEmoji("✅").setStyle(ButtonStyle.Success), new ButtonBuilder().setCustomId(`${PREFIX}:continue:${report.id}`).setLabel("Continuar Escrevendo").setEmoji("📝").setStyle(ButtonStyle.Primary), new ButtonBuilder().setCustomId(`${PREFIX}:cancel:${report.id}`).setLabel("Cancelar").setEmoji("❌").setStyle(ButtonStyle.Danger)); return { components: [{ type: 17, accent_color: 0x2563eb, components: [{ type: 10, content: `# Relatório em andamento\n**Policial:** <@${report.officerId}>\n**Responsável:** <@${report.authorId}>\n**Horário:** ${report.patrolStart} até ${report.patrolEnd}\n\nEnvie quantas mensagens, imagens e anexos precisar.` }, buttons] }], flags: MessageFlags.IsComponentsV2 as const }; }
+function activePanel(report: PolicePatrolReport, guild: Guild | null | undefined = null) { const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${PREFIX}:finish:${report.id}`).setLabel("Finalizar Relatório").setEmoji(resolveComponentEmoji(guild, "visto", "✅")).setStyle(ButtonStyle.Success), new ButtonBuilder().setCustomId(`${PREFIX}:continue:${report.id}`).setLabel("Continuar Escrevendo").setEmoji(resolveComponentEmoji(guild, "prancheta_caneta", "📝")).setStyle(ButtonStyle.Primary), new ButtonBuilder().setCustomId(`${PREFIX}:cancel:${report.id}`).setLabel("Cancelar").setEmoji(resolveComponentEmoji(guild, "porta", "❌")).setStyle(ButtonStyle.Danger)); return { components: [{ type: 17, accent_color: 0x2563eb, components: [{ type: 10, content: `# Relatório em andamento\n**Policial:** <@${report.officerId}>\n**Responsável:** <@${report.authorId}>\n**Horário:** ${report.patrolStart} até ${report.patrolEnd}\n\nEnvie quantas mensagens, imagens e anexos precisar.` }, buttons] }], flags: MessageFlags.IsComponentsV2 as const }; }
 function finishedPanel(report: PolicePatrolReport) { return { components: [{ type: 17, accent_color: report.status === "finished" ? 0x22c55e : 0xef4444, components: [{ type: 10, content: `# Relatório ${report.status === "finished" ? "finalizado" : "cancelado"}\n**Policial:** <@${report.officerId}>\n**Responsável:** <@${report.authorId}>\n**Mensagens:** ${report.messageCount}\n**Tempo:** ${duration(report.durationMinutes)}` }] }], flags: MessageFlags.IsComponentsV2 as const }; }
 function reportText(report: PolicePatrolReport, messages: PolicePatrolMessage[]) { return `# RELATÓRIO DE PATRULHAMENTO\n**Policial avaliado:** <@${report.officerId}>\n**Responsável:** <@${report.authorId}>\n**Início:** ${report.patrolStart ?? "-"}\n**Fim:** ${report.patrolEnd ?? "-"}\n**Tempo total:** ${duration(report.durationMinutes)}\n**Mensagens:** ${report.messageCount}\n**Anexos:** ${report.attachmentCount}\n\n## Descrição\n${messages.map((item) => `• ${item.content || "[mídia/anexo]"}${item.attachments.map((file) => `\n  ↳ ${file.url}`).join("")}${item.stickers.map((sticker) => `\n  ↳ Sticker: ${sticker.name}`).join("")}${item.embeds.length ? `\n  ↳ ${item.embeds.length} embed(s) armazenada(s)` : ""}`).join("\n\n") || "Sem descrição."}`; }
 function reportHtml(report: PolicePatrolReport, messages: PolicePatrolMessage[]) { return `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Relatório ${escapeHtml(report.id)}</title><style>body{font:16px Arial;max-width:900px;margin:40px auto;line-height:1.5}article{border-bottom:1px solid #ddd;padding:12px 0}img{max-width:100%}</style><h1>Relatório de Patrulhamento</h1><p><b>Policial:</b> ${escapeHtml(report.officerName)}<br><b>Responsável:</b> ${escapeHtml(report.authorName)}<br><b>Horário:</b> ${report.patrolStart ?? "-"}–${report.patrolEnd ?? "-"}<br><b>Tempo:</b> ${duration(report.durationMinutes)}</p>${messages.map((item) => `<article><time>${escapeHtml(item.createdAt)}</time><p>${escapeHtml(item.content).replace(/\n/g, "<br>")}</p>${item.attachments.map((file) => `<p><a href="${escapeHtml(file.url)}">${escapeHtml(file.name)}</a></p>`).join("")}</article>`).join("")}</html>`; }

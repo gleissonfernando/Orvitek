@@ -73,6 +73,10 @@ export function PlansPanel() {
     try {
       const result = await createPlanCheckoutInterest(plan.slug);
       setNotice(result.payment.message || "Interesse registrado.");
+      if (result.order.checkoutUrl) {
+        window.location.href = result.order.checkoutUrl;
+        return;
+      }
       await load();
     } catch (requestError) {
       setError(readError(requestError, "Nao foi possivel registrar interesse no plano."));

@@ -7,6 +7,7 @@ import { DocsPage } from "./pages/Docs";
 import { GiveawayRoulettePage } from "./pages/GiveawayRoulette";
 import { Login } from "./pages/Login";
 import { NexTechProductPage } from "./pages/NexTechProductPage";
+import { PaymentReturnPage } from "./pages/PaymentReturn";
 import { PublicPlansPage } from "./pages/Plans";
 import { useAuth } from "./hooks/useAuth";
 import { dashboardSlugFromPath, dashboardUrl, isDashboardRoutePath } from "./lib/urls";
@@ -25,6 +26,7 @@ export function App() {
   const publicLandingPath = path === "/";
   const docsPath = path === "/docs" || path.startsWith("/docs/");
   const plansPath = path === "/planos" || path.startsWith("/planos/");
+  const paymentReturnStatus = paymentReturnStatusFromPath(path);
   const rouletteToken = rouletteTokenFromPath(path);
   const productRoute = nexTechProductRouteFromPath(path);
   const routeError = readAuthError();
@@ -34,17 +36,17 @@ export function App() {
   const protectedPanelPath = dashboardPath || devPanelPath;
 
   useEffect(() => {
-    if (rouletteToken || productRoute || docsPath || plansPath) {
+    if (rouletteToken || productRoute || docsPath || plansPath || paymentReturnStatus) {
       return;
     }
 
     if (auth?.access.verified && !protectedPanelPath && !publicLandingPath) {
       window.location.replace(dashboardUrl(auth.user.dashboardBotSlug));
     }
-  }, [auth, docsPath, plansPath, productRoute, protectedPanelPath, publicLandingPath, rouletteToken]);
+  }, [auth, docsPath, paymentReturnStatus, plansPath, productRoute, protectedPanelPath, publicLandingPath, rouletteToken]);
 
   useEffect(() => {
-    if (rouletteToken || productRoute || docsPath || plansPath) {
+    if (rouletteToken || productRoute || docsPath || plansPath || paymentReturnStatus) {
       return;
     }
 
@@ -53,10 +55,10 @@ export function App() {
     }
 
     loginDiscord();
-  }, [auth, protectedPanelPath, docsPath, error, loading, loginDiscord, plansPath, productRoute, routeError, rouletteToken]);
+  }, [auth, protectedPanelPath, docsPath, error, loading, loginDiscord, paymentReturnStatus, plansPath, productRoute, routeError, rouletteToken]);
 
   useEffect(() => {
-    if (rouletteToken || productRoute || docsPath || plansPath) {
+    if (rouletteToken || productRoute || docsPath || plansPath || paymentReturnStatus) {
       return;
     }
 
@@ -65,7 +67,7 @@ export function App() {
     }
 
     verify();
-  }, [auth, authCallbackLanding, docsPath, plansPath, productRoute, rouletteToken, verify, verifying]);
+  }, [auth, authCallbackLanding, docsPath, paymentReturnStatus, plansPath, productRoute, rouletteToken, verify, verifying]);
 
   if (docsPath) {
     return <DocsPage />;
@@ -73,6 +75,10 @@ export function App() {
 
   if (plansPath) {
     return <PublicPlansPage />;
+  }
+
+  if (paymentReturnStatus) {
+    return <PaymentReturnPage status={paymentReturnStatus} />;
   }
 
   if (rouletteToken) {
@@ -183,6 +189,14 @@ function nexTechProductRouteFromPath(path: string) {
     status: status === "sucesso" ? "success" as const : null,
     storeId
   };
+}
+
+function paymentReturnStatusFromPath(path: string) {
+  if (path === "/pagamento/sucesso") return "success" as const;
+  if (path === "/pagamento/pendente") return "pending" as const;
+  if (path === "/pagamento/falha") return "failure" as const;
+
+  return null;
 }
 
 function devViewFromPath(path: string): "bots" | "connected" | "bot-menu" | "cloning" | "sales" | "plans" | "discloud" | "fivem" | "police" | "logs" | "access" | "maintenance" {

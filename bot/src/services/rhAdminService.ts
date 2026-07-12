@@ -16,6 +16,7 @@ import {
   type ChannelSelectMenuInteraction,
   type ChatInputCommandInteraction,
   type Client,
+  type Guild,
   type GuildMember,
   type Interaction,
   type InteractionReplyOptions,
@@ -28,6 +29,7 @@ import {
 } from "discord.js";
 import { isBotModuleEnabled } from "../config/env";
 import type { BotCommand, BotContext } from "../types";
+import { resolveComponentEmoji } from "../utils/componentEmoji";
 import type { RhAdminAbsence, RhAdminAdornment, RhAdminSettings } from "./apiClient";
 import { renderComponentsV2Panel } from "./panelVisualRenderer";
 
@@ -237,7 +239,7 @@ async function publishMainPanel(interaction: ButtonInteraction, context: BotCont
   if (!settings.panelChannelId) return interaction.editReply("Canal do painel principal não configurado.");
   const channel = await fetchTextChannel(interaction, settings.panelChannelId);
   if (!channel) return interaction.editReply("Canal do painel principal inválido ou sem permissão.");
-  const message = await channel.send(mainPanel(settings));
+  const message = await channel.send(mainPanel(settings, interaction.guild));
   await context.api.saveRhAdminSettings(interaction.guildId!, { mainPanelMessageId: message.id }, interaction.user.id);
   await interaction.editReply("Painel RH Administrativo publicado com sucesso.");
 }
@@ -249,7 +251,7 @@ async function publishDashboardMainPanel(client: Client, context: BotContext, gu
   const guild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
   const channel = await guild?.channels.fetch(settings.panelChannelId).catch(() => null);
   if (!channel?.isTextBased() || !("send" in channel)) throw new Error("RH panel channel is invalid or missing send permission.");
-  const payload = mainPanel(settings);
+  const payload = mainPanel(settings, guild);
   const message = settings.mainPanelMessageId && "messages" in channel
     ? await channel.messages.fetch(settings.mainPanelMessageId).catch(() => null)
     : null;
@@ -282,7 +284,7 @@ async function submitAbsence(interaction: ModalSubmitInteraction, context: BotCo
   });
   const channel = await fetchTextChannel(interaction, settings.absenceReviewChannelId);
   if (!channel) return interaction.editReply("Canal de análise de ausências inválido ou sem permissão.");
-  const message = await channel.send(absenceReviewPanel(absence, settings));
+  const message = await channel.send(absenceReviewPanel(absence, settings, interaction.guild));
   await context.api.updateRhAbsenceMessage(interaction.guildId!, absence.id, { reviewChannelId: channel.id, reviewMessageId: message.id });
   await sendRhLog(interaction.guild!, context, settings, `Solicitação de ausência enviada.\nDuração: ${formatAbsenceDuration(absence)}`, interaction.user.id, interaction.user.id, "rh.absence_requested");
   await interaction.editReply("Sua solicitação de ausência foi enviada para análise do RH.");
@@ -325,12 +327,12 @@ async function approveAbsence(interaction: ButtonInteraction, context: BotContex
   const result = await context.api.decideRhAbsence(interaction.guildId!, absenceId, { actorId: interaction.user.id, isAdministrator, roleIds, status: "approved" });
   const absence = result.absence;
   if (!result.changed) {
-    await interaction.message.edit(absenceReviewPanel(absence, settings)).catch(() => null);
+    await interaction.message.edit(absenceReviewPanel(absence, settings, interaction.guild)).catch(() => null);
     await interaction.editReply("Esta ausência já foi analisada. Nenhuma nova DM foi enviada.");
     return;
   }
   await applyAbsenceRole(interaction, context, absence, settings);
-  await interaction.message.edit(absenceReviewPanel(absence, settings)).catch(() => null);
+  await interaction.message.edit(absenceReviewPanel(absence, settings, interaction.guild)).catch(() => null);
   await dmAbsenceApproved(interaction, absence, settings);
   await sendRhLog(interaction.guild!, context, settings, `Ausência aprovada.\nDuração: ${formatAbsenceDuration(absence)}`, absence.userId, interaction.user.id, "rh.absence_approved");
   await interaction.editReply("Ausência aprovada.");
@@ -347,11 +349,11 @@ async function rejectAbsence(interaction: ModalSubmitInteraction, context: BotCo
   const result = await context.api.decideRhAbsence(interaction.guildId!, absenceId, { actorId: interaction.user.id, isAdministrator, rejectionReason: interaction.fields.getTextInputValue("reason"), roleIds, status: "rejected" });
   const absence = result.absence;
   if (!result.changed) {
-    await interaction.message?.edit(absenceReviewPanel(absence, settings)).catch(() => null);
+    await interaction.message?.edit(absenceReviewPanel(absence, settings, interaction.guild)).catch(() => null);
     await interaction.editReply("Esta ausência já foi analisada. Nenhuma nova DM foi enviada.");
     return;
   }
-  await interaction.message?.edit(absenceReviewPanel(absence, settings)).catch(() => null);
+  await interaction.message?.edit(absenceReviewPanel(absence, settings, interaction.guild)).catch(() => null);
   await dmAbsenceRejected(interaction, absence, settings);
   await sendRhLog(interaction.guild!, context, settings, "Ausência recusada.", absence.userId, interaction.user.id, "rh.absence_rejected");
   await interaction.editReply("Ausência recusada.");
@@ -400,12 +402,12 @@ function logDueAbsenceError(error: unknown) {
   console.warn("[rh-admin] falha ao processar ausencias vencidas:", error instanceof Error ? error.message : error);
 }
 
-function mainPanel(settings: RhAdminSettings) {
+function mainPanel(settings: RhAdminSettings, guild: Guild | null | undefined = null) {
   return renderComponentsV2Panel({
     accentColor: parseColor(settings.color),
     actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(IDS.absence).setLabel(`${settings.buttonEmojis.absence} Solicitar Ausência`).setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(IDS.adornment).setLabel(`${settings.buttonEmojis.adornment} Solicitar Adorno`).setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId(IDS.absence).setEmoji(resolveComponentEmoji(guild, settings.buttonEmojis.absence, "🕒")).setLabel("Solicitar Ausência").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(IDS.adornment).setEmoji(resolveComponentEmoji(guild, settings.buttonEmojis.adornment, "🖼️")).setLabel("Solicitar Adorno").setStyle(ButtonStyle.Secondary)
     )],
     description: settings.panelDescription,
     fields: [
@@ -426,7 +428,7 @@ function configPanel(settings: RhAdminSettings, notice?: string) {
         new ButtonBuilder().setCustomId(IDS.general).setLabel("Configurações Gerais").setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId(IDS.channels).setLabel("Canais").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId(IDS.roles).setLabel("Permissões").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(IDS.publish).setLabel(`${settings.buttonEmojis.publish} Publicar Painel`).setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(IDS.publish).setLabel(`${displayEmoji(settings.buttonEmojis.publish, "📋")} Publicar Painel`).setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId(IDS.close).setLabel("Fechar").setStyle(ButtonStyle.Danger)
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IDS.view).setLabel("Ver Configurações Atuais").setStyle(ButtonStyle.Secondary))
@@ -492,13 +494,13 @@ function summaryPanel(settings: RhAdminSettings) {
   });
 }
 
-function absenceReviewPanel(absence: RhAdminAbsence, settings: RhAdminSettings) {
+function absenceReviewPanel(absence: RhAdminAbsence, settings: RhAdminSettings, guild: Guild | null | undefined = null) {
   const status = absence.status === "pending" ? "Aguardando análise" : absence.status === "approved" ? "Aprovada" : absence.status === "rejected" ? "Recusada" : "Finalizada";
   return renderComponentsV2Panel({
     accentColor: parseColor(settings.color),
     actions: absence.status === "pending" ? [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`rh_absence_approve:${absence.id}`).setLabel(`${settings.buttonEmojis.approve} Aprovar`).setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`rh_absence_reject:${absence.id}`).setLabel(`${settings.buttonEmojis.reject} Recusar`).setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId(`rh_absence_approve:${absence.id}`).setEmoji(resolveComponentEmoji(guild, settings.buttonEmojis.approve, "✅")).setLabel("Aprovar").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`rh_absence_reject:${absence.id}`).setEmoji(resolveComponentEmoji(guild, settings.buttonEmojis.reject, "❌")).setLabel("Recusar").setStyle(ButtonStyle.Danger)
     )] : [],
     description: "Nova solicitação de ausência encaminhada para análise do RH.",
     fields: [
@@ -646,6 +648,10 @@ function isValidImageUrl(value: string, allowAnyUrl: boolean) {
 function parseColor(value: string | null | undefined) {
   const parsed = Number.parseInt((value ?? "").replace("#", ""), 16);
   return Number.isFinite(parsed) ? parsed : 0x1d4ed8;
+}
+
+function displayEmoji(value: string, fallback: string) {
+  return /^[a-zA-Z0-9_]{2,32}$/.test(value.trim()) ? fallback : value;
 }
 
 function channel(id: string | null) {

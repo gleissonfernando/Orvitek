@@ -89,16 +89,7 @@ export async function getRhAdminSettings(botId: string | null, guildId: string) 
     mentionAdornmentUser: true,
     allowNonDirectImageLinks: true,
     checkIntervalMinutes: 30,
-    buttonEmojis: {
-      absence: "🕒",
-      adornment: "🖼️",
-      approve: "✅",
-      reject: "❌",
-      back: "↩️",
-      save: "💾",
-      publish: "📋",
-      logs: "📌"
-    },
+    buttonEmojis: { ...defaultButtonEmojis },
     mainPanelMessageId: null,
     mainPanelPublishedAt: null,
     lastPanelRequestedAt: null,
@@ -348,6 +339,17 @@ export function isRhApprover(settings: RhAdminSettingsDto, userId: string, roleI
     || isRhManager(settings, userId, roleIds, false);
 }
 
+const defaultButtonEmojis = {
+  absence: "relogio",
+  adornment: "homem",
+  approve: "visto",
+  reject: "porta",
+  back: "↩️",
+  save: "💾",
+  publish: "prancheta",
+  logs: "prancheta_caneta"
+};
+
 function mapSettings(settings: MongoRhAdminSettings) {
   return {
     id: settings._id,
@@ -386,7 +388,15 @@ function mapSettings(settings: MongoRhAdminSettings) {
     mentionAdornmentUser: settings.mentionAdornmentUser,
     allowNonDirectImageLinks: settings.allowNonDirectImageLinks,
     checkIntervalMinutes: settings.checkIntervalMinutes,
-    buttonEmojis: settings.buttonEmojis,
+    buttonEmojis: {
+      ...settings.buttonEmojis,
+      absence: defaultButtonEmojis.absence,
+      adornment: defaultButtonEmojis.adornment,
+      approve: defaultButtonEmojis.approve,
+      reject: defaultButtonEmojis.reject,
+      publish: defaultButtonEmojis.publish,
+      logs: defaultButtonEmojis.logs
+    },
     mainPanelMessageId: settings.mainPanelMessageId,
     mainPanelPublishedAt: settings.mainPanelPublishedAt?.toISOString() ?? null,
     lastPanelRequestedAt: settings.lastPanelRequestedAt?.toISOString() ?? null,
