@@ -2150,10 +2150,19 @@ async function createMercadoPagoPlanPixOrder(
     idempotencyKey: order.idempotencyKey,
     itemId: plan._id,
     itemTitle: plan.name,
-    payerEmail: auth.user.email,
+    payerEmail: mercadoPagoPayerEmail(auth),
     paymentExpiration: order.expiresAt ?? null,
     statementDescriptor: mercadoPagoConfig.statementDescriptor
   });
+}
+
+function mercadoPagoPayerEmail(auth: DashboardAuth) {
+  const email = auth.user.email?.trim();
+  if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return email;
+  }
+
+  return `discord-${auth.user.discordId}@nextech.discloud.app`;
 }
 
 async function assertWorkspaceAccess(workspaceId: string, auth: DashboardAuth) {

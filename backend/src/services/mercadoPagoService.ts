@@ -132,7 +132,7 @@ export function buildMercadoPagoPixOrderBody(input: Omit<CreateMercadoPagoPixOrd
       payments: [
         removeUndefined({
           amount,
-          date_of_expiration: input.paymentExpiration ? input.paymentExpiration.toISOString() : undefined,
+          expiration_time: input.paymentExpiration ? paymentExpirationDuration(input.paymentExpiration) : undefined,
           payment_method: removeUndefined({
             id: "pix",
             statement_descriptor: trimOptional(input.statementDescriptor),
@@ -273,6 +273,19 @@ function centsToDecimalString(cents: number) {
   return (Math.max(0, Math.round(cents)) / 100).toFixed(2);
 }
 
+function paymentExpirationDuration(expiresAt: Date) {
+  const minMs = 30 * 60_000;
+  const maxMs = 30 * 24 * 60 * 60_000;
+  const durationMs = Math.min(Math.max(expiresAt.getTime() - Date.now(), minMs), maxMs);
+  const totalSeconds = Math.ceil(durationMs / 1000);
+  const days = Math.floor(totalSeconds / 86_400);
+  const hours = Math.floor((totalSeconds % 86_400) / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return `P${days ? `${days}D` : ""}T${hours ? `${hours}H` : ""}${minutes ? `${minutes}M` : ""}${seconds ? `${seconds}S` : ""}`;
+}
+
 function trimRequired(value: string, label: string) {
   const trimmed = value.trim();
   if (!trimmed) throw mercadoPagoError(`${label} vazio.`, 400);
@@ -399,8 +412,29 @@ function safePreferenceMetadata(metadata?: Record<string, string | number | bool
 }
 
 function readSdkError(error: unknown) {
-  const candidate = error as { message?: string; cause?: Array<{ description?: string; message?: string }> };
-  return candidate.cause?.[0]?.description ?? candidate.cause?.[0]?.message ?? candidate.message ?? null;
+  const candidate = error as {
+    error?: string;
+    message?: string;
+    cause?: Array<{ code?: string; description?: string; message?: string }>;
+    errors?: Array<{ code?: string; message?: string }>;
+    status?: number;
+  };
+  const cause = candidate.cause?.[0];
+  const nestedError = candidate.errors?.[0];
+  const detail = cause?.description ?? cause?.message ?? nestedError?.message ?? candidate.message ?? candidate.error ?? null;
+  const code = cause?.code ?? nestedError?.code ?? null;
+  const status = candidate.status ? `status ${candidate.status}` : null;
+  const suffix = [code ? `code ${code}` : null, status].filter(Boolean).join(", ");
+
+  if (detail) {
+    return suffix ? `${detail} (${suffix})` : detail;
+  }
+
+  if (error && typeof error === "object") {
+    return JSON.stringify(error).slice(0, 500);
+  }
+
+  return null;
 }
 
 function isMercadoPagoCheckoutUrl(value: string) {

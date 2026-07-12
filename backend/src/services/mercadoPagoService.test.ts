@@ -57,7 +57,8 @@ test("monta payload de order Pix Mercado Pago", () => {
   assert.equal(body.currency, "BRL");
   assert.equal(body.payer?.email, "cliente@example.com");
   assert.equal(body.transactions?.payments?.[0]?.amount, "129.90");
-  assert.equal(body.transactions?.payments?.[0]?.date_of_expiration, "2026-07-12T06:00:00.000Z");
+  assert.equal(typeof body.transactions?.payments?.[0]?.expiration_time, "string");
+  assert.match(body.transactions?.payments?.[0]?.expiration_time ?? "", /^P(?:\d+D)?T(?:\d+H)?(?:\d+M)?(?:\d+S)?$/);
   assert.equal(body.transactions?.payments?.[0]?.payment_method?.id, "pix");
   assert.equal(body.transactions?.payments?.[0]?.payment_method?.type, "bank_transfer");
   assert.equal(body.transactions?.payments?.[0]?.payment_method?.statement_descriptor, "NEXTECH");
