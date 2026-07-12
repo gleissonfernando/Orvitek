@@ -79,6 +79,7 @@ writeFileSync(path.join(target, "package.json"), `${JSON.stringify({
     ioredis: "^5.4.2",
     jsonwebtoken: "^9.0.3",
     "libsodium-wrappers": "^0.8.4",
+    mercadopago: "^3.2.0",
     mongodb: "^6.12.0",
     morgan: "^1.10.0",
     multer: "^2.0.2",
