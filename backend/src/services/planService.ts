@@ -88,6 +88,7 @@ export type SavePaymentSettingsInput = {
   publicKey?: string | null;
   secret?: string | null;
   successRedirectUrl?: string | null;
+  supportDiscordUrl?: string | null;
   webhookSecret?: string | null;
 };
 
@@ -185,71 +186,177 @@ const FEATURE_SEEDS: SavePlanFeatureInput[] = [
   { category: "streamer", key: "streamer.twitch_alerts", name: "Alertas Twitch", description: "Alertas de live, clips e eventos de stream.", order: 10 },
   { category: "streamer", key: "streamer.kick_alerts", name: "Alertas Kick", description: "Monitoramento de lives e notificacoes Kick.", order: 20 },
   { category: "streamer", key: "streamer.clip_automation", name: "Automacao de clips", description: "Registro e ranking de clips por comunidade.", order: 30 },
+  { category: "streamer", key: "streamer.giveaways", name: "Sorteios", description: "Sorteios, campanhas e premiacoes da comunidade.", order: 31 },
+  { category: "streamer", key: "streamer.vip", name: "Sistema VIP", description: "Controle de beneficios VIP para comunidades de stream.", order: 32 },
+  { category: "streamer", key: "streamer.ranking", name: "Ranking", description: "Rankings de engajamento e atividades.", order: 33 },
+  { category: "streamer", key: "streamer.ai", name: "IA", description: "Recursos assistidos por IA para operacao da comunidade.", order: 34 },
   { category: "fivem", key: "fivem.finance", name: "Financeiro FiveM", description: "Controle de transacoes, metas e auditoria financeira.", order: 40 },
   { category: "fivem", key: "fivem.orders", name: "Encomendas RP", description: "Pedidos, familias, drogas, armas e personalizados.", order: 50 },
   { category: "fivem", key: "fivem.hierarchy", name: "Hierarquia FiveM", description: "Paineis de hierarquia e cargos por faccao/corporacao.", order: 60 },
+  { category: "fivem", key: "fivem.police", name: "Policia RP", description: "Recursos para corporacoes, patentes, metas e plantao.", order: 61 },
+  { category: "fivem", key: "fivem.faction", name: "Faccao RP", description: "Recursos para faccoes, membros, metas e estoque.", order: 62 },
   { category: "discord", key: "discord.logs", name: "Logs Discord", description: "Logs do site e do Discord em tempo real.", order: 70 },
   { category: "discord", key: "discord.tickets", name: "Tickets", description: "Atendimento, transcripts e paineis de suporte.", order: 80 },
   { category: "discord", key: "discord.courses", name: "Cursos", description: "Cursos, provas e publicacoes para equipes.", order: 90 },
+  { category: "discord", key: "discord.dashboard", name: "Dashboard", description: "Painel web para configuracao e acompanhamento.", order: 91 },
   { category: "security", key: "security.anti_ban", name: "Anti Ban", description: "Protecao contra acoes administrativas indevidas.", order: 100 },
   { category: "security", key: "security.self_bot", name: "SelfBot Protection", description: "Deteccao e mitigacao de selfbots.", order: 110 },
+  { category: "security", key: "security.role_protection", name: "Protecao de cargos", description: "Protecao contra alteracoes indevidas de cargos e permissoes.", order: 111 },
   { category: "support", key: "support.priority", name: "Suporte prioritario", description: "Atendimento prioritario para operacao critica.", order: 120 }
 ];
 
 const PLAN_SEEDS: SavePlanInput[] = [
   {
-    badge: "Para criadores",
+    badge: "Sem hospedagem",
     botLimit: 1,
     color: "#FFD500",
-    description: "Plano inicial para streamers que precisam automatizar alertas, clips e integracoes sociais.",
-    entitlements: entitlementsFor(["streamer.twitch_alerts", "streamer.kick_alerts", "streamer.clip_automation", "discord.logs"]),
+    description: "Plano basico para streamers. Hospedagem nao inclusa.",
+    entitlements: entitlementsFor(["streamer.twitch_alerts", "streamer.kick_alerts", "streamer.clip_automation", "discord.dashboard"]),
     guildLimit: 1,
     icon: "radio",
     isActive: true,
     isPublic: true,
-    isPurchasable: false,
-    name: "Streamer",
+    isPurchasable: true,
+    name: "Streamer Basico",
     order: 10,
-    priceInCents: 0,
-    shortDescription: "Alertas e automacao para comunidades de stream.",
-    slug: "streamer"
+    priceInCents: 2800,
+    shortDescription: "Sistema streamer basico sem hospedagem.",
+    slug: "streamer-basico",
+    validityDays: 30
   },
   {
-    badge: "RP",
+    badge: "Completo sem hospedagem",
+    botLimit: 1,
+    color: "#FFD500",
+    description: "Plano completo para streamers com sorteios, VIP, ranking, IA e dashboard completa. Hospedagem nao inclusa.",
+    entitlements: entitlementsFor(["streamer.twitch_alerts", "streamer.kick_alerts", "streamer.clip_automation", "streamer.giveaways", "streamer.vip", "streamer.ranking", "streamer.ai", "discord.dashboard", "discord.logs", "support.priority"]),
+    guildLimit: 1,
+    icon: "radio",
+    isActive: true,
+    isPublic: true,
+    isPurchasable: true,
+    isRecommended: true,
+    name: "Streamer Completo",
+    order: 20,
+    priceInCents: 5000,
+    shortDescription: "Sistema streamer completo sem hospedagem.",
+    slug: "streamer-completo",
+    validityDays: 30
+  },
+  {
+    badge: "Sem hospedagem",
     botLimit: 1,
     color: "#3DDC84",
-    description: "Pacote para servidores FiveM com financeiro, encomendas, hierarquia, metas e logs.",
-    entitlements: entitlementsFor(["fivem.finance", "fivem.orders", "fivem.hierarchy", "discord.logs", "support.priority"]),
-    guildLimit: 2,
+    description: "Plano basico para sistema de Policia RP. Hospedagem nao inclusa.",
+    entitlements: entitlementsFor(["fivem.police", "fivem.hierarchy", "discord.logs", "discord.dashboard"]),
+    guildLimit: 1,
     icon: "building",
     isActive: true,
     isPublic: true,
-    isPurchasable: false,
-    isRecommended: true,
-    name: "FiveM",
-    order: 20,
-    priceInCents: 0,
-    shortDescription: "Gestao completa para operacoes FiveM.",
-    slug: "fivem"
+    isPurchasable: true,
+    name: "Policia RP Basico",
+    order: 30,
+    priceInCents: 2800,
+    shortDescription: "Sistema policia RP basico sem hospedagem.",
+    slug: "policia-rp-basico",
+    validityDays: 30
   },
   {
-    badge: "Gestao",
-    botLimit: 2,
+    badge: "Completo sem hospedagem",
+    botLimit: 1,
+    color: "#3DDC84",
+    description: "Plano completo para Policia RP com financeiro, hierarquia, metas, logs e suporte prioritario. Hospedagem nao inclusa.",
+    entitlements: entitlementsFor(["fivem.police", "fivem.finance", "fivem.orders", "fivem.hierarchy", "discord.logs", "discord.dashboard", "support.priority"]),
+    guildLimit: 1,
+    icon: "building",
+    isActive: true,
+    isPublic: true,
+    isPurchasable: true,
+    isRecommended: true,
+    name: "Policia RP Completo",
+    order: 40,
+    priceInCents: 5000,
+    shortDescription: "Sistema policia RP completo sem hospedagem.",
+    slug: "policia-rp-completo",
+    validityDays: 30
+  },
+  {
+    badge: "Sem hospedagem",
+    botLimit: 1,
     color: "#FFEA70",
-    description: "Plano para administracao de comunidades Discord com tickets, logs, cursos e seguranca.",
-    entitlements: entitlementsFor(["discord.logs", "discord.tickets", "discord.courses", "security.anti_ban", "security.self_bot"]),
-    guildLimit: 3,
+    description: "Plano basico para sistema de Faccao RP. Hospedagem nao inclusa.",
+    entitlements: entitlementsFor(["fivem.faction", "fivem.orders", "discord.logs", "discord.dashboard"]),
+    guildLimit: 1,
+    icon: "users",
+    isActive: true,
+    isPublic: true,
+    isPurchasable: true,
+    name: "Faccao RP Basico",
+    order: 50,
+    priceInCents: 2800,
+    shortDescription: "Sistema faccao RP basico sem hospedagem.",
+    slug: "faccao-rp-basico",
+    validityDays: 30
+  },
+  {
+    badge: "Completo sem hospedagem",
+    botLimit: 1,
+    color: "#FFEA70",
+    description: "Plano completo para Faccao RP com encomendas, financeiro, metas, logs e suporte prioritario. Hospedagem nao inclusa.",
+    entitlements: entitlementsFor(["fivem.faction", "fivem.finance", "fivem.orders", "fivem.hierarchy", "discord.logs", "discord.dashboard", "support.priority"]),
+    guildLimit: 1,
+    icon: "users",
+    isActive: true,
+    isPublic: true,
+    isPurchasable: true,
+    isRecommended: true,
+    name: "Faccao RP Completo",
+    order: 60,
+    priceInCents: 5000,
+    shortDescription: "Sistema faccao RP completo sem hospedagem.",
+    slug: "faccao-rp-completo",
+    validityDays: 30
+  },
+  {
+    badge: "Sem hospedagem",
+    botLimit: 1,
+    color: "#8B5CF6",
+    description: "Plano basico para protecao de cargos e acoes administrativas. Hospedagem nao inclusa.",
+    entitlements: entitlementsFor(["security.role_protection", "security.anti_ban", "discord.logs"]),
+    guildLimit: 1,
     icon: "shield",
     isActive: true,
     isPublic: true,
-    isPurchasable: false,
-    name: "Discord Management",
-    order: 30,
-    priceInCents: 0,
-    shortDescription: "Moderacao, atendimento e operacao para servidores Discord.",
-    slug: "discord-management"
+    isPurchasable: true,
+    name: "Protecao de Cargos Basico",
+    order: 70,
+    priceInCents: 2800,
+    shortDescription: "Protecao de cargos basica sem hospedagem.",
+    slug: "protecao-cargos-basico",
+    validityDays: 30
+  },
+  {
+    badge: "Completo sem hospedagem",
+    botLimit: 1,
+    color: "#8B5CF6",
+    description: "Plano completo para protecao de cargos, anti-ban, selfbot protection, logs e suporte prioritario. Hospedagem nao inclusa.",
+    entitlements: entitlementsFor(["security.role_protection", "security.anti_ban", "security.self_bot", "discord.logs", "discord.dashboard", "support.priority"]),
+    guildLimit: 1,
+    icon: "shield",
+    isActive: true,
+    isPublic: true,
+    isPurchasable: true,
+    isRecommended: true,
+    name: "Protecao de Cargos Completo",
+    order: 80,
+    priceInCents: 5000,
+    shortDescription: "Protecao de cargos completa sem hospedagem.",
+    slug: "protecao-cargos-completo",
+    validityDays: 30
   }
 ];
+
+const LEGACY_PUBLIC_PLAN_SLUGS = ["streamer", "fivem", "discord-management"];
 
 export async function ensurePlanSeed() {
   const { planFeatures, plans } = await getMongoCollections();
@@ -283,6 +390,11 @@ export async function ensurePlanSeed() {
     },
     { upsert: true }
   )));
+
+  await plans.updateMany(
+    { slug: { $in: LEGACY_PUBLIC_PLAN_SLUGS } },
+    { $set: { isPublic: false, isPurchasable: false, updatedAt: now } }
+  );
 }
 
 export async function listPublicPlans() {
@@ -2287,6 +2399,7 @@ export async function savePaymentSettings(input: SavePaymentSettingsInput, actor
     provider: envProvider,
     publicKey: mercadoPagoConfig.publicKey,
     successRedirectUrl: input.successRedirectUrl === undefined ? current.successRedirectUrl ?? null : normalizeValidUrl(input.successRedirectUrl, "URL de redirecionamento apos pagamento"),
+    supportDiscordUrl: input.supportDiscordUrl === undefined ? current.supportDiscordUrl ?? null : normalizeValidUrl(input.supportDiscordUrl, "URL do Discord de suporte"),
     updatedAt: now,
     updatedBy: actor.id
   };
@@ -2337,6 +2450,7 @@ async function ensurePaymentSettings(): Promise<MongoPaymentSettings> {
     publicKey: mercadoPagoConfig.publicKey,
     secretEncrypted: null,
     successRedirectUrl: env.MERCADOPAGO_SUCCESS_URL || buildAppUrl("/pagamento/sucesso"),
+    supportDiscordUrl: null,
     updatedAt: now,
     updatedBy: null,
     webhookSecretEncrypted: null

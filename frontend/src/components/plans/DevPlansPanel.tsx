@@ -121,7 +121,8 @@ export function DevPlansPanel() {
     failureRedirectUrl: "",
     pendingRedirectUrl: "",
     plansPublicUrl: "",
-    successRedirectUrl: ""
+    successRedirectUrl: "",
+    supportDiscordUrl: ""
   });
 
   async function load() {
@@ -140,7 +141,8 @@ export function DevPlansPanel() {
         failureRedirectUrl: next.paymentSettings.failureRedirectUrl ?? "",
         pendingRedirectUrl: next.paymentSettings.pendingRedirectUrl ?? "",
         plansPublicUrl: next.paymentSettings.plansPublicUrl ?? "",
-        successRedirectUrl: next.paymentSettings.successRedirectUrl ?? ""
+        successRedirectUrl: next.paymentSettings.successRedirectUrl ?? "",
+        supportDiscordUrl: next.paymentSettings.supportDiscordUrl ?? ""
       });
     } catch (loadError) {
       setError(readError(loadError, "Nao foi possivel carregar o modulo Planos."));
@@ -222,7 +224,8 @@ export function DevPlansPanel() {
       failureRedirectUrl: paymentForm.failureRedirectUrl || null,
       pendingRedirectUrl: paymentForm.pendingRedirectUrl || null,
       plansPublicUrl: paymentForm.plansPublicUrl || null,
-      successRedirectUrl: paymentForm.successRedirectUrl || null
+      successRedirectUrl: paymentForm.successRedirectUrl || null,
+      supportDiscordUrl: paymentForm.supportDiscordUrl || null
     }), "Configuracao de pagamento atualizada.");
   }
 
@@ -458,7 +461,7 @@ function PlanEditor({ busy, form, onChange, onSubmit }: { busy: boolean; form: P
           <TextField label="Descricao curta" value={form.shortDescription} onChange={(shortDescription) => onChange({ ...form, shortDescription })} />
           <TextArea label="Descricao" value={form.description} onChange={(description) => onChange({ ...form, description })} />
           <div className="grid gap-3 sm:grid-cols-2">
-            <TextField label="Preco em centavos" value={form.priceInCents} onChange={(priceInCents) => onChange({ ...form, priceInCents })} />
+            <TextField label="Preco mensal (R$)" value={form.priceInCents} onChange={(priceInCents) => onChange({ ...form, priceInCents })} />
             <TextField label="Ordem" value={form.order} onChange={(order) => onChange({ ...form, order })} />
             <TextField label="Limite de bots" value={form.botLimit} onChange={(botLimit) => onChange({ ...form, botLimit })} />
             <TextField label="Limite de servidores" value={form.guildLimit} onChange={(guildLimit) => onChange({ ...form, guildLimit })} />
@@ -554,6 +557,7 @@ type PaymentFormState = {
   pendingRedirectUrl: string;
   plansPublicUrl: string;
   successRedirectUrl: string;
+  supportDiscordUrl: string;
 };
 
 function PaymentSettingsForm({ busy, form, onChange, onSubmit, settings }: { busy: boolean; form: PaymentFormState; onChange: (value: PaymentFormState) => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void; settings: DevPlansDashboard["paymentSettings"] }) {
@@ -577,6 +581,7 @@ function PaymentSettingsForm({ busy, form, onChange, onSubmit, settings }: { bus
             <TextField label="URL publica de planos" value={form.plansPublicUrl} onChange={(plansPublicUrl) => onChange({ ...form, plansPublicUrl })} />
             <TextField label="URL cadastro do bot" value={form.botRegistrationUrl} onChange={(botRegistrationUrl) => onChange({ ...form, botRegistrationUrl })} />
             <TextField label="URL base dashboards" value={form.botDashboardBaseUrl} onChange={(botDashboardBaseUrl) => onChange({ ...form, botDashboardBaseUrl })} />
+            <TextField label="Discord de suporte" value={form.supportDiscordUrl} onChange={(supportDiscordUrl) => onChange({ ...form, supportDiscordUrl })} />
           </div>
           <Button disabled={busy} type="submit">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -657,7 +662,7 @@ function planToForm(plan: Plan): PlanFormState {
     isRecommended: plan.isRecommended,
     name: plan.name,
     order: String(plan.order),
-    priceInCents: String(plan.priceInCents),
+    priceInCents: centsToCurrencyInput(plan.priceInCents),
     shortDescription: plan.shortDescription,
     slug: plan.slug,
     validityDays: plan.validityDays ? String(plan.validityDays) : ""
@@ -699,11 +704,22 @@ function planPayloadFromForm(form: PlanFormState): SavePlanPayload {
     isRecommended: form.isRecommended,
     name: form.name,
     order: Number(form.order || 0),
-    priceInCents: Number(form.priceInCents || 0),
+    priceInCents: currencyInputToCents(form.priceInCents),
     shortDescription: form.shortDescription,
     slug: form.slug || undefined,
     validityDays: form.validityDays ? Number(form.validityDays) : null
   };
+}
+
+function centsToCurrencyInput(value: number) {
+  return (Math.max(0, Math.round(value)) / 100).toFixed(2).replace(".", ",");
+}
+
+function currencyInputToCents(value: string) {
+  const cleaned = value.replace(/[^\d,.-]/g, "");
+  const normalized = cleaned.includes(",") ? cleaned.replace(/\./g, "").replace(",", ".") : cleaned;
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0;
 }
 
 function canMarkOrderPaidForTest(status: string) {

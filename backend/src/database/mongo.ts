@@ -3590,6 +3590,7 @@ export type MongoPaymentSettings = {
   publicKey: string | null;
   secretEncrypted: string | null;
   successRedirectUrl?: string | null;
+  supportDiscordUrl?: string | null;
   updatedAt: Date;
   updatedBy: string | null;
   webhookSecretEncrypted: string | null;

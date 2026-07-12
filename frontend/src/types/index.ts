@@ -3631,6 +3631,7 @@ export type PaymentSettings = {
   publicKey: string | null;
   secretConfigured: boolean;
   successRedirectUrl?: string | null;
+  supportDiscordUrl?: string | null;
   updatedAt: string;
   updatedBy: string | null;
   webhookSecretConfigured: boolean;
@@ -3700,5 +3701,6 @@ export type SavePaymentSettingsPayload = {
   publicKey?: string | null;
   secret?: string | null;
   successRedirectUrl?: string | null;
+  supportDiscordUrl?: string | null;
   webhookSecret?: string | null;
 };
