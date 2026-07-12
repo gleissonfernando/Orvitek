@@ -1,7 +1,7 @@
 import { AlertCircle, ArrowLeft, CheckCircle2, Clipboard, Clock3, Loader2, QrCode } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { getPaymentOrderStatus } from "../lib/api";
-import type { PaymentOrder, Plan, PlanSubscription } from "../types";
+import type { PaymentOrder, Plan } from "../types";
 
 type PixPaymentPageProps = {
   orderId: string;
@@ -13,13 +13,13 @@ export function PixPaymentPage({ orderId }: PixPaymentPageProps) {
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState<PaymentOrder | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
-  const [subscription, setSubscription] = useState<PlanSubscription | null>(null);
   const finalStatus = order ? isFinalStatus(order.status) : false;
   const qrImage = useMemo(() => normalizeQrImage(order?.qrCode), [order?.qrCode]);
 
   useEffect(() => {
     let cancelled = false;
     let timer: number | undefined;
+    let redirectTimer: number | undefined;
     let attempts = 0;
 
     async function load() {
@@ -29,10 +29,13 @@ export function PixPaymentPage({ orderId }: PixPaymentPageProps) {
         if (cancelled) return;
         setOrder(result.order);
         setPlan(result.plan);
-        setSubscription(result.subscription);
         setError(null);
 
-        if (!isFinalStatus(result.order.status) && attempts < 40) {
+        if (result.order.status === "approved" || result.order.status === "paid") {
+          redirectTimer = window.setTimeout(() => {
+            window.location.assign(`/cadastrar-bot?orderId=${encodeURIComponent(result.order.id)}`);
+          }, 900);
+        } else if (!isFinalStatus(result.order.status) && attempts < 40) {
           timer = window.setTimeout(load, 5000);
         }
       } catch (requestError) {
@@ -48,6 +51,7 @@ export function PixPaymentPage({ orderId }: PixPaymentPageProps) {
     return () => {
       cancelled = true;
       if (timer) window.clearTimeout(timer);
+      if (redirectTimer) window.clearTimeout(redirectTimer);
     };
   }, [orderId]);
 
@@ -83,7 +87,7 @@ export function PixPaymentPage({ orderId }: PixPaymentPageProps) {
               <PaymentLine label="Expira em" value={order?.expiresAt ? new Date(order.expiresAt).toLocaleString("pt-BR") : "Nao informado"} />
             </div>
 
-            <StatusNotice error={error} finalStatus={finalStatus} loading={loading} order={order} subscription={subscription} />
+            <StatusNotice error={error} finalStatus={finalStatus} loading={loading} order={order} />
           </div>
 
           <div className="rounded-xl border border-[#FFD500]/20 bg-[#111]/95 p-5 shadow-[0_0_42px_rgba(255,213,0,.10)]">
@@ -116,12 +120,12 @@ export function PixPaymentPage({ orderId }: PixPaymentPageProps) {
   );
 }
 
-function StatusNotice({ error, finalStatus, loading, order, subscription }: { error: string | null; finalStatus: boolean; loading: boolean; order: PaymentOrder | null; subscription: PlanSubscription | null }) {
+function StatusNotice({ error, finalStatus, loading, order }: { error: string | null; finalStatus: boolean; loading: boolean; order: PaymentOrder | null }) {
   if (error) {
     return <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-500/25 bg-red-500/10 p-4 text-sm text-red-200"><AlertCircle className="mt-0.5 h-5 w-5" />{error}</div>;
   }
   if (order?.status === "approved") {
-    return <div className="mt-5 flex items-start gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm text-emerald-200"><CheckCircle2 className="mt-0.5 h-5 w-5" />Pagamento aprovado{subscription ? " e assinatura ativada." : "."}</div>;
+    return <div className="mt-5 flex items-start gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm text-emerald-200"><CheckCircle2 className="mt-0.5 h-5 w-5" />Pagamento aprovado. Redirecionando para conectar o Discord.</div>;
   }
   if (finalStatus) {
     return <div className="mt-5 flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-200"><AlertCircle className="mt-0.5 h-5 w-5" />Este pedido foi finalizado com status {statusLabel(order?.status ?? "error")}.</div>;

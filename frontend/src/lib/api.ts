@@ -307,14 +307,16 @@ export async function retryPaymentOrder(orderId: string) {
   return data.order;
 }
 
-export async function getBotRegistrationStatus() {
+export async function getBotRegistrationStatus(orderId?: string | null) {
   const { data } = await api.get<{
     activeSubscription: import("../types").PlanSubscription | null;
     canRegister: boolean;
     dashboardBaseUrl: string;
     message: string | null;
     workspace: import("../types").PlanWorkspace | null;
-  }>("/bot-registration/status");
+  }>("/bot-registration/status", {
+    params: orderId ? { orderId } : undefined
+  });
   return data;
 }
 

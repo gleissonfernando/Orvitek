@@ -159,6 +159,10 @@ function isAllowedReturnTo(returnTo: string, botSlug?: string | null) {
     return true;
   }
 
+  if (/^\/cadastrar-bot\?orderId=[a-zA-Z0-9:-]{8,120}$/.test(returnTo)) {
+    return true;
+  }
+
   return Boolean(
     botSlug &&
     /^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(botSlug) &&

@@ -12,6 +12,7 @@ type RegistrationStatus = {
 };
 
 export function BotRegistrationPage() {
+  const approvedOrderId = new URLSearchParams(window.location.search).get("orderId");
   const [status, setStatus] = useState<RegistrationStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,18 +24,19 @@ export function BotRegistrationPage() {
   const [result, setResult] = useState<{ bot: BotCredential; dashboardUrl: string; server: { iconUrl: string | null; id: string; name: string } } | null>(null);
 
   useEffect(() => {
-    getBotRegistrationStatus()
+    getBotRegistrationStatus(approvedOrderId)
       .then(setStatus)
       .catch((requestError) => {
         const response = requestError as { response?: { status?: number } };
         if (response.response?.status === 401 || response.response?.status === 403) {
-          window.location.assign("/auth/discord/dashboard");
+          const returnTo = approvedOrderId ? `/cadastrar-bot?orderId=${encodeURIComponent(approvedOrderId)}` : "/cadastrar-bot";
+          window.location.assign(`/auth/discord/customer?returnTo=${encodeURIComponent(returnTo)}`);
           return;
         }
         setError(readError(requestError, "Nao foi possivel carregar sua assinatura."));
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [approvedOrderId]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

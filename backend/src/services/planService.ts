@@ -31,6 +31,13 @@ export type PlanActor = {
   userAgent?: string | null;
 };
 
+type CheckoutBuyer = {
+  discordId: string;
+  email: string | null;
+  name: string | null;
+  userId: string;
+};
+
 export type SavePlanInput = {
   badge?: string | null;
   billingCycle?: MongoPlanBillingCycle;
@@ -290,7 +297,31 @@ export async function getPublicPlan(slug: string) {
   return plan ? toPlanDto(plan) : null;
 }
 
+export async function createPublicCheckoutInterest(planSlug: string, actor: PlanActor) {
+  const anonymousId = `pending:${randomUUID()}`;
+  return createCheckoutInterestForBuyer(planSlug, {
+    discordId: anonymousId,
+    email: null,
+    name: null,
+    userId: anonymousId
+  }, actor, { checkExistingSubscription: false, reusePendingOrder: false });
+}
+
 export async function createCheckoutInterest(planSlug: string, auth: DashboardAuth, actor: PlanActor) {
+  return createCheckoutInterestForBuyer(planSlug, {
+    discordId: auth.user.discordId,
+    email: auth.user.email ?? null,
+    name: auth.user.globalName || auth.user.username || null,
+    userId: auth.user.id || auth.user.discordId
+  }, actor, { checkExistingSubscription: true, reusePendingOrder: true });
+}
+
+async function createCheckoutInterestForBuyer(
+  planSlug: string,
+  buyer: CheckoutBuyer,
+  actor: PlanActor,
+  options: { checkExistingSubscription: boolean; reusePendingOrder: boolean }
+) {
   await ensurePlanSeed();
   const { paymentOrders, plans, planSubscriptions } = await getMongoCollections();
   const plan = await plans.findOne({
@@ -309,11 +340,13 @@ export async function createCheckoutInterest(planSlug: string, auth: DashboardAu
   const now = new Date();
   const amountInCents = plan.promotionalPriceInCents ?? plan.priceInCents;
   const shouldCreateCheckout = plan.isPurchasable && amountInCents > 0;
-  const existingActiveSubscription = await planSubscriptions.findOne({
-    discordId: auth.user.discordId,
-    planId: plan._id,
-    status: "active"
-  });
+  const existingActiveSubscription = options.checkExistingSubscription
+    ? await planSubscriptions.findOne({
+      discordId: buyer.discordId,
+      planId: plan._id,
+      status: "active"
+    })
+    : null;
 
   if (existingActiveSubscription) {
     throw httpError("Voce ja possui uma assinatura ativa para este plano.", 409);
@@ -326,11 +359,11 @@ export async function createCheckoutInterest(planSlug: string, auth: DashboardAu
   const checkoutExpiresAt = shouldCreateCheckout
     ? new Date(now.getTime() + mercadoPagoConfig.checkoutExpirationMinutes * 60_000)
     : null;
-  const reusableOrder = paymentsEnabled && shouldCreateCheckout
+  const reusableOrder = options.reusePendingOrder && paymentsEnabled && shouldCreateCheckout
     ? await paymentOrders.findOne({
       amountInCents,
       currency: plan.currency,
-      discordId: auth.user.discordId,
+      discordId: buyer.discordId,
       environment: mercadoPagoConfig.environment,
       expiresAt: { $gt: now },
       planId: plan._id,
@@ -347,8 +380,8 @@ export async function createCheckoutInterest(planSlug: string, auth: DashboardAu
   if (reusableOrder) {
     await writePlanAudit({
       ...actor,
-      id: auth.user.discordId,
-      name: auth.user.globalName || auth.user.username
+      id: buyer.discordId,
+      name: buyer.name
     }, "checkout_reused_pending_order", "payment", reusableOrder._id, {
       planSlug: plan.slug,
       provider: reusableOrder.provider,
@@ -377,7 +410,7 @@ export async function createCheckoutInterest(planSlug: string, auth: DashboardAu
     checkoutUrl: null,
     createdAt: now,
     currency: plan.currency,
-    discordId: auth.user.discordId,
+    discordId: buyer.discordId,
     environment: mercadoPagoConfig.environment,
     expiresAt: checkoutExpiresAt,
     externalReference: null,
@@ -411,14 +444,14 @@ export async function createCheckoutInterest(planSlug: string, auth: DashboardAu
       status: paymentsEnabled && shouldCreateCheckout ? "created" : "interest_registered"
     }],
     updatedAt: now,
-    userId: auth.user.id || auth.user.discordId
+    userId: buyer.userId
   };
   order.externalReference = order._id;
 
   await paymentOrders.insertOne(order);
 
   if (paymentsEnabled && shouldCreateCheckout) {
-    const checkout = await createMercadoPagoPlanPixOrder(plan, order, auth).catch(async (error: unknown) => {
+    const checkout = await createMercadoPagoPlanPixOrder(plan, order, buyer).catch(async (error: unknown) => {
       const message = error instanceof Error ? error.message : "Falha ao criar order Pix Mercado Pago.";
       order.notes = "Falha ao criar order Pix Mercado Pago.";
       order.status = "error";
@@ -478,8 +511,8 @@ export async function createCheckoutInterest(planSlug: string, auth: DashboardAu
 
   await writePlanAudit({
     ...actor,
-    id: auth.user.discordId,
-    name: auth.user.globalName || auth.user.username
+    id: buyer.discordId,
+    name: buyer.name
   }, "checkout_interest", "payment", order._id, {
     planSlug: plan.slug,
     provider: order.provider,
@@ -551,6 +584,23 @@ export async function getCustomerPaymentOrder(orderId: string, auth: DashboardAu
   };
 }
 
+export async function getPublicPaymentOrderStatus(orderId: string) {
+  const { paymentOrders, planSubscriptions, planWorkspaces, plans } = await getMongoCollections();
+  const order = await paymentOrders.findOne({ _id: orderId });
+  if (!order) throw httpError("Pedido nao encontrado.", 404);
+  const [plan, subscription] = await Promise.all([
+    plans.findOne({ _id: order.planId }),
+    planSubscriptions.findOne({ "metadata.paymentOrderId": order._id } as Partial<MongoPlanSubscription>)
+  ]);
+  const workspace = subscription?.workspaceId ? await planWorkspaces.findOne({ _id: subscription.workspaceId }) : null;
+
+  return {
+    order: sanitizePaymentOrderForUser(order),
+    plan: plan ? toPlanDto(plan) : null,
+    subscription: subscription ? toSubscriptionDto(subscription, plan, workspace) : null
+  };
+}
+
 export async function getPaymentOrderStatus(orderId: string, auth: DashboardAuth) {
   const { paymentOrders, planSubscriptions, planWorkspaces, plans } = await getMongoCollections();
   const order = await paymentOrders.findOne({ _id: orderId, discordId: auth.user.discordId });
@@ -604,10 +654,85 @@ export async function retryPaymentOrder(orderId: string, auth: DashboardAuth, ac
     status: "created",
     updatedAt: now
   };
-  const checkout = await createMercadoPagoPlanPixOrder(plan, retryOrder, auth);
+  const checkout = await createMercadoPagoPlanPixOrder(plan, retryOrder, {
+    discordId: auth.user.discordId,
+    email: auth.user.email ?? null,
+    name: auth.user.globalName || auth.user.username || null,
+    userId: auth.user.id || auth.user.discordId
+  });
   const statusHistory = appendStatusHistory(retryOrder, "checkout_pending", "mercadopago_retry_order_created");
   const updated = await paymentOrders.findOneAndUpdate(
     { _id: order._id, discordId: auth.user.discordId },
+    {
+      $set: {
+        checkoutUrl: null,
+        expiresAt: retryOrder.expiresAt,
+        idempotencyKey: retryOrder.idempotencyKey,
+        notes: "Nova order Pix Mercado Pago criada para tentativa de checkout.",
+        paymentMethod: checkout.paymentMethod,
+        paymentType: checkout.paymentType,
+        pixCode: checkout.pixCode,
+        providerOrderId: checkout.orderId,
+        qrCode: checkout.qrCode,
+        rawProviderStatus: checkout.rawStatus,
+        retryAttempts: retryOrder.retryAttempts,
+        sandboxCheckoutUrl: null,
+        status: "checkout_pending",
+        statusDetail: checkout.statusDetail,
+        statusHistory,
+        webhookSafeResponse: safeOrderWebhookResponse(checkout.raw),
+        updatedAt: new Date()
+      }
+    },
+    { returnDocument: "after" }
+  );
+  await writePlanAudit(actor, "payment_checkout_retried", "payment", order._id, {
+    retryAttempts: retryOrder.retryAttempts
+  });
+  return {
+    order: sanitizePaymentOrderForUser(updated ?? retryOrder)
+  };
+}
+
+export async function retryPublicPaymentOrder(orderId: string, actor: PlanActor) {
+  const { paymentOrders, plans } = await getMongoCollections();
+  const order = await paymentOrders.findOne({ _id: orderId });
+  if (!order) throw httpError("Pedido nao encontrado.", 404);
+  if (!isPendingPaymentDiscordId(order.discordId)) {
+    throw httpError("Este pedido ja esta vinculado a uma conta Discord.", 409);
+  }
+  if (isFinalPaymentStatus(order.status)) throw httpError("Pedido finalizado nao pode ser reenviado ao checkout.", 409);
+  if ((order.retryAttempts ?? 0) >= 3) throw httpError("Limite de tentativas deste pedido atingido.", 429);
+  if (order.expiresAt && order.expiresAt > new Date() && (order.checkoutUrl || order.pixCode || order.providerOrderId)) {
+    throw httpError("Checkout atual ainda esta valido.", 409);
+  }
+
+  const plan = await plans.findOne({ _id: order.planId });
+  if (!plan) throw httpError("Plano do pedido nao encontrado.", 404);
+
+  const now = new Date();
+  const mercadoPagoConfig = requireMercadoPagoOperational();
+  const retryOrder: MongoPaymentOrder = {
+    ...order,
+    checkoutUrl: null,
+    expiresAt: new Date(now.getTime() + mercadoPagoConfig.checkoutExpirationMinutes * 60_000),
+    idempotencyKey: randomUUID(),
+    pixCode: null,
+    providerOrderId: null,
+    qrCode: null,
+    retryAttempts: (order.retryAttempts ?? 0) + 1,
+    status: "created",
+    updatedAt: now
+  };
+  const checkout = await createMercadoPagoPlanPixOrder(plan, retryOrder, {
+    discordId: order.discordId,
+    email: null,
+    name: null,
+    userId: order.userId
+  });
+  const statusHistory = appendStatusHistory(retryOrder, "checkout_pending", "mercadopago_public_retry_order_created");
+  const updated = await paymentOrders.findOneAndUpdate(
+    { _id: order._id, discordId: order.discordId },
     {
       $set: {
         checkoutUrl: null,
@@ -774,7 +899,66 @@ export async function createWorkspaceBotCredential(workspaceId: string, input: B
   return toBotCredentialDto(credential);
 }
 
-export async function getBotRegistrationStatus(auth: DashboardAuth) {
+async function claimApprovedPaymentOrder(orderId: string, auth: DashboardAuth, actor: PlanActor) {
+  const { paymentOrders, plans } = await getMongoCollections();
+  const order = await paymentOrders.findOne({ _id: orderId });
+  if (!order) throw httpError("Pedido aprovado nao encontrado.", 404);
+  if (order.status !== "approved" && order.status !== "paid") {
+    throw httpError("Este pedido ainda nao foi aprovado pelo Mercado Pago.", 409);
+  }
+  if (order.provider !== "mercadopago") {
+    throw httpError("Pedido sem pagamento Mercado Pago aprovado.", 409);
+  }
+  if (!isPendingPaymentDiscordId(order.discordId) && order.discordId !== auth.user.discordId) {
+    throw httpError("Este pedido ja esta vinculado a outra conta Discord.", 409);
+  }
+
+  const plan = await plans.findOne({ _id: order.planId });
+  if (!plan) throw httpError("Plano do pedido nao encontrado.", 404);
+
+  const now = new Date();
+  const linkedOrder = isPendingPaymentDiscordId(order.discordId)
+    ? await paymentOrders.findOneAndUpdate(
+      { _id: order._id, discordId: order.discordId },
+      {
+        $set: {
+          discordId: auth.user.discordId,
+          notes: order.notes ?? "Pagamento aprovado vinculado a conta Discord.",
+          updatedAt: now,
+          userId: auth.user.id || auth.user.discordId
+        }
+      },
+      { returnDocument: "after" }
+    )
+    : order;
+
+  const orderToActivate = linkedOrder ?? {
+    ...order,
+    discordId: auth.user.discordId,
+    updatedAt: now,
+    userId: auth.user.id || auth.user.discordId
+  };
+  const subscription = await activatePaidOrderOnce(orderToActivate, plan, {
+    ...actor,
+    id: auth.user.discordId,
+    name: auth.user.globalName || auth.user.username || null
+  }, "discord_connection_after_payment");
+
+  await writePlanAudit({
+    ...actor,
+    id: auth.user.discordId,
+    name: auth.user.globalName || auth.user.username || null
+  }, "payment_claimed_after_discord_login", "payment", order._id, {
+    planSlug: plan.slug,
+    subscriptionId: subscription?.id ?? null
+  });
+}
+
+export async function getBotRegistrationStatus(auth: DashboardAuth, approvedOrderId?: string | null) {
+  if (approvedOrderId) {
+    await claimApprovedPaymentOrder(approvedOrderId, auth, systemPaymentActor());
+  }
+
   const dashboard = await getCustomerPlansDashboard(auth);
   const activeSubscriptions = dashboard.subscriptions.filter((subscription) => subscription.status === "active");
   const availableWorkspace = dashboard.workspaces.find((workspace) => {
@@ -1475,13 +1659,18 @@ export async function processMercadoPagoWebhook(input: MercadoPagoWebhookInput) 
 
       const updatedOrder = await applyOfficialMercadoPagoOrderToOrder(order, mercadoOrder, "mercadopago_order_webhook");
       let subscription = null;
-      if (updatedOrder.status === "approved") {
+      if (updatedOrder.status === "approved" && !isPendingPaymentDiscordId(updatedOrder.discordId)) {
         const plan = await plans.findOne({ _id: order.planId });
         if (!plan) {
           await markPaymentEvent(insertedEvent._id, "failed", "Plano do pedido nao encontrado.", order._id);
           throw httpError("Plano do pedido nao encontrado.", 404);
         }
         subscription = await activatePaidOrderOnce(updatedOrder, plan, systemPaymentActor(), "mercadopago_order_webhook");
+      } else if (updatedOrder.status === "approved") {
+        await writePlanAudit(systemPaymentActor(), "payment_approved_waiting_discord_connection", "payment", order._id, {
+          mercadoPagoOrderId: mercadoOrder.orderId,
+          mercadoPagoPaymentId: mercadoOrder.paymentId
+        });
       }
 
       await markPaymentEvent(insertedEvent._id, "processed", `Order processada: ${mercadoOrder.rawStatus}.`, order._id);
@@ -1595,13 +1784,18 @@ export async function processMercadoPagoWebhook(input: MercadoPagoWebhookInput) 
     await paymentOrders.updateOne({ _id: order._id }, { $set: update });
 
     let subscription = null;
-    if (nextStatus === "approved") {
+    if (nextStatus === "approved" && !isPendingPaymentDiscordId(order.discordId)) {
       const plan = await plans.findOne({ _id: order.planId });
       if (!plan) {
         await markPaymentEvent(insertedEvent._id, "failed", "Plano do pedido nao encontrado.", order._id);
         throw httpError("Plano do pedido nao encontrado.", 404);
       }
       subscription = await activatePaidOrderOnce({ ...order, ...update, status: nextStatus }, plan, systemPaymentActor(), "mercadopago_webhook");
+    } else if (nextStatus === "approved") {
+      await writePlanAudit(systemPaymentActor(), "payment_approved_waiting_discord_connection", "payment", order._id, {
+        mercadoPagoPaymentId: paymentId,
+        paymentMethod
+      });
     }
 
     await markPaymentEvent(insertedEvent._id, "processed", `Status processado: ${status}.`, order._id);
@@ -2135,7 +2329,7 @@ async function ensurePaymentSettings(): Promise<MongoPaymentSettings> {
 async function createMercadoPagoPlanPixOrder(
   plan: MongoPlan,
   order: MongoPaymentOrder,
-  auth: DashboardAuth
+  buyer: CheckoutBuyer
 ) {
   if (order.provider !== "mercadopago") {
     throw httpError("Provider de pagamento nao suportado para checkout automatico.", 400);
@@ -2150,19 +2344,20 @@ async function createMercadoPagoPlanPixOrder(
     idempotencyKey: order.idempotencyKey,
     itemId: plan._id,
     itemTitle: plan.name,
-    payerEmail: mercadoPagoPayerEmail(auth),
+    payerEmail: mercadoPagoPayerEmail(buyer),
     paymentExpiration: order.expiresAt ?? null,
     statementDescriptor: mercadoPagoConfig.statementDescriptor
   });
 }
 
-function mercadoPagoPayerEmail(auth: DashboardAuth) {
-  const email = auth.user.email?.trim();
+function mercadoPagoPayerEmail(buyer: CheckoutBuyer) {
+  const email = buyer.email?.trim();
   if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return email;
   }
 
-  return `discord-${auth.user.discordId}@nextech.discloud.app`;
+  const normalizedId = buyer.discordId.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
+  return `checkout-${normalizedId}@nextech.discloud.app`;
 }
 
 async function assertWorkspaceAccess(workspaceId: string, auth: DashboardAuth) {
@@ -2498,6 +2693,10 @@ function isFinalPaymentStatus(status: MongoPlanPaymentOrderStatus) {
     "charged_back",
     "error"
   ]).has(status);
+}
+
+function isPendingPaymentDiscordId(discordId: string) {
+  return discordId.startsWith("pending:");
 }
 
 function sanitizePaymentOrderForUser(order: MongoPaymentOrder): PaymentOrderDto {

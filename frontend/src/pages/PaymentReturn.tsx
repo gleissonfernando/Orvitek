@@ -142,9 +142,9 @@ export function PaymentReturnPage({ status }: PaymentReturnPageProps) {
           ) : null}
 
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <a className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#FFD500] px-4 text-sm font-bold text-black transition hover:bg-[#FFEA70]" href="/cadastrar-bot">
+            <a className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#FFD500] px-4 text-sm font-bold text-black transition hover:bg-[#FFEA70]" href={orderReference ? `/cadastrar-bot?orderId=${encodeURIComponent(orderReference)}` : "/cadastrar-bot"}>
               <CreditCard className="h-4 w-4" />
-              Cadastrar bot
+              Conectar Discord
             </a>
             <a className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-zinc-700 px-4 text-sm font-bold text-zinc-200 transition hover:border-[#FFD500]/40 hover:text-[#FFEA70]" href="/planos">
               Ver planos

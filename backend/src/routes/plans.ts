@@ -86,6 +86,8 @@ const checkoutPayloadSchema = z.object({
   planSlug: z.string().min(1).max(120)
 });
 
+const orderIdSchema = z.string().min(8).max(120);
+
 const manualActivationSchema = z.object({
   planId: z.string().min(8).max(120),
   userId: z.string().regex(/^\d{5,32}$/),
@@ -300,7 +302,10 @@ botRegistrationRouter.use(requireAuthenticated);
 botRegistrationRouter.get("/status", async (_req, res, next) => {
   try {
     const auth = res.locals.dashboardAuth as DashboardAuth;
-    return res.json(await getBotRegistrationStatus(auth));
+    const orderId = typeof _req.query.orderId === "string" && _req.query.orderId.trim()
+      ? orderIdSchema.parse(_req.query.orderId)
+      : null;
+    return res.json(await getBotRegistrationStatus(auth, orderId));
   } catch (error) {
     return next(error);
   }

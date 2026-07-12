@@ -4,12 +4,15 @@ import { z } from "zod";
 import { requireAdminAccess, requireAuth, requireAuthenticated } from "../middleware/auth";
 import {
   createCheckoutInterest,
+  createPublicCheckoutInterest,
   getAdminPaymentOrder,
   getPaymentOrderStatus,
+  getPublicPaymentOrderStatus,
   listAdminPaymentOrders,
   listMyPaymentOrders,
   processMercadoPagoWebhook,
   reconcilePaymentOrder,
+  retryPublicPaymentOrder,
   retryPaymentOrder,
   type PlanActor
 } from "../services/planService";
@@ -25,7 +28,25 @@ const checkoutSchema = z.object({
 
 const orderIdSchema = z.string().min(8).max(120);
 
-paymentsRouter.post("/mercadopago/checkout", requireAuthenticated, checkoutRateLimit, async (req, res, next) => {
+paymentsRouter.post("/mercadopago/checkout", checkoutRateLimit, async (req, res, next) => {
+  try {
+    const input = checkoutSchema.parse(req.body ?? {});
+    const result = await createPublicCheckoutInterest(input.planId, actorFrom(req));
+    return res.status(201).json({
+      success: true,
+      orderId: result.order.id,
+      environment: result.order.environment ?? null,
+      checkoutUrl: result.order.checkoutUrl,
+      order: result.order,
+      payment: result.payment,
+      plan: result.plan
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+paymentsRouter.post("/mercadopago/checkout/authenticated", requireAuthenticated, checkoutRateLimit, async (req, res, next) => {
   try {
     const auth = res.locals.dashboardAuth as DashboardAuth;
     const input = checkoutSchema.parse(req.body ?? {});
@@ -44,7 +65,16 @@ paymentsRouter.post("/mercadopago/checkout", requireAuthenticated, checkoutRateL
   }
 });
 
-paymentsRouter.get("/orders/:orderId/status", requireAuthenticated, statusRateLimit, async (req, res, next) => {
+paymentsRouter.get("/orders/:orderId/status", statusRateLimit, async (req, res, next) => {
+  try {
+    const orderId = orderIdSchema.parse(req.params.orderId);
+    return res.json(await getPublicPaymentOrderStatus(orderId));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+paymentsRouter.get("/orders/:orderId/status/authenticated", requireAuthenticated, statusRateLimit, async (req, res, next) => {
   try {
     const auth = res.locals.dashboardAuth as DashboardAuth;
     const orderId = orderIdSchema.parse(req.params.orderId);
@@ -54,7 +84,16 @@ paymentsRouter.get("/orders/:orderId/status", requireAuthenticated, statusRateLi
   }
 });
 
-paymentsRouter.post("/orders/:orderId/retry", requireAuthenticated, checkoutRateLimit, async (req, res, next) => {
+paymentsRouter.post("/orders/:orderId/retry", checkoutRateLimit, async (req, res, next) => {
+  try {
+    const orderId = orderIdSchema.parse(req.params.orderId);
+    return res.json(await retryPublicPaymentOrder(orderId, actorFrom(req)));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+paymentsRouter.post("/orders/:orderId/retry/authenticated", requireAuthenticated, checkoutRateLimit, async (req, res, next) => {
   try {
     const auth = res.locals.dashboardAuth as DashboardAuth;
     const orderId = orderIdSchema.parse(req.params.orderId);
