@@ -2349,7 +2349,8 @@ async function ensurePaymentSettings(): Promise<MongoPaymentSettings> {
 async function createMercadoPagoPlanCheckoutPreference(
   plan: MongoPlan,
   order: MongoPaymentOrder,
-  buyer: CheckoutBuyer
+  buyer: CheckoutBuyer,
+  paymentMethod: CheckoutPaymentMethod = "checkout"
 ) {
   if (order.provider !== "mercadopago") {
     throw httpError("Provider de pagamento nao suportado para checkout automatico.", 400);
@@ -2366,7 +2367,9 @@ async function createMercadoPagoPlanCheckoutPreference(
     },
     binaryMode: mercadoPagoConfig.binaryMode,
     dateOfExpiration: order.expiresAt ?? null,
+    defaultPaymentMethodId: paymentMethod === "pix" ? "pix" : undefined,
     environment: mercadoPagoConfig.environment,
+    excludedPaymentTypes: paymentMethod === "pix" ? ["credit_card", "debit_card", "ticket", "atm"] : undefined,
     externalReference: order._id,
     idempotencyKey: order.idempotencyKey,
     items: [{
@@ -2382,7 +2385,7 @@ async function createMercadoPagoPlanCheckoutPreference(
       payment_order_id: order._id,
       plan_id: plan._id,
       plan_slug: plan.slug,
-      source: "plans_checkout"
+      source: paymentMethod === "pix" ? "plans_pix_preference" : "plans_checkout"
     },
     notificationUrl: mercadoPagoConfig.webhookUrl || buildAppUrl("/api/payments/mercadopago/webhook"),
     payerEmail: mercadoPagoPayerEmail(buyer),
@@ -2412,24 +2415,49 @@ async function createMercadoPagoPlanPayment(
   paymentMethod: CheckoutPaymentMethod
 ): Promise<PlanPaymentCreationResult> {
   if (paymentMethod === "pix") {
-    const pix = await createMercadoPagoPlanPixPayment(plan, order, buyer);
-    return {
-      checkoutUrl: null,
-      mercadoPagoPaymentId: pix.paymentId,
-      notes: "Pagamento Pix criado no Mercado Pago. Exiba QR Code ou codigo copia e cola.",
-      paymentMethod: pix.paymentMethod ?? "pix",
-      paymentType: pix.paymentType ?? "bank_transfer",
-      pixCode: pix.pixCode,
-      providerOrderId: null,
-      qrCode: pix.qrCode,
-      rawProviderStatus: pix.rawStatus,
-      sandboxCheckoutUrl: null,
-      statusDetail: pix.statusDetail,
-      statusSource: "mercadopago_pix_created"
-    };
+    try {
+      const pix = await createMercadoPagoPlanPixPayment(plan, order, buyer);
+      return {
+        checkoutUrl: null,
+        mercadoPagoPaymentId: pix.paymentId,
+        notes: "Pagamento Pix criado no Mercado Pago. Exiba QR Code ou codigo copia e cola.",
+        paymentMethod: pix.paymentMethod ?? "pix",
+        paymentType: pix.paymentType ?? "bank_transfer",
+        pixCode: pix.pixCode,
+        providerOrderId: null,
+        qrCode: pix.qrCode,
+        rawProviderStatus: pix.rawStatus,
+        sandboxCheckoutUrl: null,
+        statusDetail: pix.statusDetail,
+        statusSource: "mercadopago_pix_created"
+      };
+    } catch (error) {
+      if (!isMercadoPagoLiveCredentialRestriction(error)) throw error;
+      console.warn("[payments] Mercado Pago Pix direto bloqueado; usando preference Pix", {
+        error: cleanLogString(error instanceof Error ? error.message : String(error)),
+        orderId: order._id,
+        planId: plan._id,
+        timestamp: new Date().toISOString()
+      });
+      const preference = await createMercadoPagoPlanCheckoutPreference(plan, order, buyer, "pix");
+      return {
+        checkoutUrl: preference.checkoutUrl,
+        mercadoPagoPaymentId: null,
+        notes: "Preference Pix Mercado Pago criada. Redirecione o comprador para o checkout Pix.",
+        paymentMethod: "pix",
+        paymentType: "bank_transfer",
+        pixCode: null,
+        providerOrderId: preference.preferenceId,
+        qrCode: null,
+        rawProviderStatus: "preference_created",
+        sandboxCheckoutUrl: preference.sandboxCheckoutUrl,
+        statusDetail: "pix_preference_fallback",
+        statusSource: "mercadopago_pix_preference_created"
+      };
+    }
   }
 
-  const preference = await createMercadoPagoPlanCheckoutPreference(plan, order, buyer);
+  const preference = await createMercadoPagoPlanCheckoutPreference(plan, order, buyer, "checkout");
   return {
     checkoutUrl: preference.checkoutUrl,
     mercadoPagoPaymentId: null,
@@ -2444,6 +2472,13 @@ async function createMercadoPagoPlanPayment(
     statusDetail: null,
     statusSource: "mercadopago_preference_created"
   };
+}
+
+function isMercadoPagoLiveCredentialRestriction(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+  return normalized.includes("unauthorized use of live credentials")
+    || (normalized.includes("code 7") && normalized.includes("status 401"));
 }
 
 async function createMercadoPagoPlanPixPayment(

@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildMercadoPagoPixOrderBody, buildMercadoPagoPixPaymentBody, mercadoPagoOrderStatusToInternal, mercadoPagoStatusToInternal, validateMercadoPagoWebhookSignature } from "./mercadoPagoService";
+import { buildMercadoPagoPixOrderBody, buildMercadoPagoPixPaymentBody, buildMercadoPagoPreferenceBody, mercadoPagoOrderStatusToInternal, mercadoPagoStatusToInternal, validateMercadoPagoWebhookSignature } from "./mercadoPagoService";
 
 test("valida assinatura oficial do webhook Mercado Pago", () => {
   const secret = "test-secret";
@@ -88,6 +88,39 @@ test("monta payload de pagamento Pix Mercado Pago", () => {
   assert.equal(body.metadata?.source, "test");
   assert.equal(body.metadata?.protected_amount_cents, 12990);
   assert.equal(body.additional_info?.items?.[0]?.id, "plan-pro");
+});
+
+test("monta preference Pix Mercado Pago com metodo padrao", () => {
+  const body = buildMercadoPagoPreferenceBody({
+    accessToken: "token",
+    backUrls: {
+      failure: "https://example.com/falha",
+      pending: "https://example.com/pendente",
+      success: "https://example.com/sucesso"
+    },
+    defaultPaymentMethodId: "pix",
+    excludedPaymentTypes: ["credit_card", "debit_card", "ticket", "atm"],
+    externalReference: "order-123",
+    items: [{
+      currencyId: "BRL",
+      id: "plan-pro",
+      title: "Plano Pro",
+      unitPriceInCents: 12990
+    }],
+    maxInstallments: 1,
+    notificationUrl: "https://example.com/api/payments/mercadopago/webhook",
+    payerEmail: "cliente@example.com"
+  });
+
+  assert.equal(body.payment_methods?.default_payment_method_id, "pix");
+  assert.deepEqual(body.payment_methods?.excluded_payment_types, [
+    { id: "credit_card" },
+    { id: "debit_card" },
+    { id: "ticket" },
+    { id: "atm" }
+  ]);
+  assert.equal(body.payment_methods?.installments, 1);
+  assert.equal(body.external_reference, "order-123");
 });
 
 test("mapeia status de order Pix pelo pagamento interno", () => {

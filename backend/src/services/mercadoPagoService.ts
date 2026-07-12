@@ -26,7 +26,9 @@ export type CreateMercadoPagoPreferenceInput = {
   backUrls: MercadoPagoBackUrls;
   binaryMode?: boolean;
   dateOfExpiration?: Date | null;
+  defaultPaymentMethodId?: string | null;
   environment?: "test" | "production";
+  excludedPaymentTypes?: string[] | null;
   externalReference: string;
   idempotencyKey?: string | null;
   items: MercadoPagoPreferenceItemInput[];
@@ -108,7 +110,7 @@ export type MercadoPagoPixOrderResult = {
 };
 
 export async function createMercadoPagoPreference(input: CreateMercadoPagoPreferenceInput): Promise<MercadoPagoPreferenceResult> {
-  const body = buildProtectedPreferenceBody(input);
+  const body = buildMercadoPagoPreferenceBody(input);
   const { preference } = getMercadoPagoSdkClient(input.accessToken);
   const payload = await preference.create({
     body,
@@ -273,7 +275,7 @@ function parseSignature(signature?: string | null) {
   return parts;
 }
 
-function buildProtectedPreferenceBody(input: CreateMercadoPagoPreferenceInput): PreferenceRequest {
+export function buildMercadoPagoPreferenceBody(input: CreateMercadoPagoPreferenceInput): PreferenceRequest {
   const items = input.items.map((item) => {
     const unitPriceInCents = normalizeCents(item.unitPriceInCents);
     const quantity = normalizeQuantity(item.quantity ?? 1);
@@ -291,6 +293,7 @@ function buildProtectedPreferenceBody(input: CreateMercadoPagoPreferenceInput): 
   if (!items.length) {
     throw mercadoPagoError("Preferencia Mercado Pago precisa ter ao menos um item.", 400);
   }
+  const paymentMethods = buildPreferencePaymentMethods(input);
 
   return removeUndefined({
     auto_return: input.autoReturn ?? "approved",
@@ -307,9 +310,23 @@ function buildProtectedPreferenceBody(input: CreateMercadoPagoPreferenceInput): 
     },
     notification_url: trimOptional(input.notificationUrl),
     payer: input.payerEmail ? { email: input.payerEmail } : undefined,
-    payment_methods: input.maxInstallments ? { installments: input.maxInstallments } : undefined,
+    payment_methods: paymentMethods,
     statement_descriptor: trimOptional(input.statementDescriptor)
   });
+}
+
+function buildPreferencePaymentMethods(input: CreateMercadoPagoPreferenceInput): PreferenceRequest["payment_methods"] {
+  const excludedPaymentTypes = (input.excludedPaymentTypes ?? [])
+    .map((id) => trimOptional(id))
+    .filter((id): id is string => Boolean(id))
+    .map((id) => ({ id }));
+  const methods = removeUndefined({
+    default_payment_method_id: trimOptional(input.defaultPaymentMethodId),
+    excluded_payment_types: excludedPaymentTypes.length ? excludedPaymentTypes : undefined,
+    installments: input.maxInstallments && input.maxInstallments > 0 ? input.maxInstallments : undefined
+  });
+
+  return Object.keys(methods).length ? methods : undefined;
 }
 
 function normalizeCents(value: number) {
