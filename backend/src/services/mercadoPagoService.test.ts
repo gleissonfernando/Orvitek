@@ -90,7 +90,7 @@ test("monta payload de pagamento Pix Mercado Pago", () => {
   assert.equal(body.additional_info?.items?.[0]?.id, "plan-pro");
 });
 
-test("monta preference Pix Mercado Pago com metodo padrao", () => {
+test("monta preference Pix Mercado Pago com tipos restritos", () => {
   const body = buildMercadoPagoPreferenceBody({
     accessToken: "token",
     backUrls: {
@@ -98,7 +98,6 @@ test("monta preference Pix Mercado Pago com metodo padrao", () => {
       pending: "https://example.com/pendente",
       success: "https://example.com/sucesso"
     },
-    defaultPaymentMethodId: "pix",
     excludedPaymentTypes: ["credit_card", "debit_card", "ticket", "atm"],
     externalReference: "order-123",
     items: [{
@@ -112,7 +111,7 @@ test("monta preference Pix Mercado Pago com metodo padrao", () => {
     payerEmail: "cliente@example.com"
   });
 
-  assert.equal(body.payment_methods?.default_payment_method_id, "pix");
+  assert.equal(body.payment_methods?.default_payment_method_id, undefined);
   assert.deepEqual(body.payment_methods?.excluded_payment_types, [
     { id: "credit_card" },
     { id: "debit_card" },

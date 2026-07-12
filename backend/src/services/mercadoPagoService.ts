@@ -26,7 +26,6 @@ export type CreateMercadoPagoPreferenceInput = {
   backUrls: MercadoPagoBackUrls;
   binaryMode?: boolean;
   dateOfExpiration?: Date | null;
-  defaultPaymentMethodId?: string | null;
   environment?: "test" | "production";
   excludedPaymentTypes?: string[] | null;
   externalReference: string;
@@ -321,7 +320,6 @@ function buildPreferencePaymentMethods(input: CreateMercadoPagoPreferenceInput):
     .filter((id): id is string => Boolean(id))
     .map((id) => ({ id }));
   const methods = removeUndefined({
-    default_payment_method_id: trimOptional(input.defaultPaymentMethodId),
     excluded_payment_types: excludedPaymentTypes.length ? excludedPaymentTypes : undefined,
     installments: input.maxInstallments && input.maxInstallments > 0 ? input.maxInstallments : undefined
   });
