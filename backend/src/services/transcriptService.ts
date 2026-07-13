@@ -8,6 +8,7 @@ const HASH_ITERATIONS = 120_000;
 const HASH_KEY_LENGTH = 32;
 const HASH_DIGEST = "sha256";
 const DEFAULT_TEMP_PASSWORD_TTL_HOURS = 72;
+const TRANSCRIPT_TTL_DAYS = 365;
 const TEMP_PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*-_";
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1"]);
 
@@ -58,8 +59,9 @@ export async function createTranscript(input: TranscriptInput) {
     transcriptId
   });
   const temporaryPassword = input.generateTemporaryPassword === false ? null : generateTemporaryPassword();
-  const expiresAt = temporaryPassword
-    ? new Date(now.getTime() + Math.max(1, input.temporaryPasswordTtlHours ?? DEFAULT_TEMP_PASSWORD_TTL_HOURS) * 60 * 60 * 1000)
+  const transcriptExpiresAt = new Date(now.getTime() + TRANSCRIPT_TTL_DAYS * 24 * 60 * 60 * 1000);
+  const temporaryPasswordExpiresAt = temporaryPassword
+    ? new Date(now.getTime() + DEFAULT_TEMP_PASSWORD_TTL_HOURS * 60 * 60 * 1000)
     : null;
   const normalizedMessages = (input.messages ?? []).map((message) => ({
     ...message,
@@ -97,7 +99,7 @@ export async function createTranscript(input: TranscriptInput) {
     status: input.status ?? (input.isPartial ? "Incompleto" : "Finalizado"),
     createdAt: toDate(input.createdAt) ?? now,
     closedAt: toDate(input.closedAt) ?? now,
-    expiresAt,
+    expiresAt: transcriptExpiresAt,
     isPartial: Boolean(input.isPartial),
     partialReason: input.partialReason ?? null,
     accessCount: 0,
@@ -142,7 +144,7 @@ export async function createTranscript(input: TranscriptInput) {
       transcriptId,
       passwordHash: hashSecret(temporaryPassword),
       type: "temporary",
-      expiresAt,
+      expiresAt: temporaryPasswordExpiresAt,
       revokedAt: null,
       createdAt: now
     });
@@ -172,7 +174,7 @@ export async function createTranscript(input: TranscriptInput) {
     publicUrl,
     transcriptId
   });
-  return { publicUrl, transcript: summary, temporaryPassword, temporaryPasswordExpiresAt: expiresAt?.toISOString() ?? null };
+  return { publicUrl, transcript: summary, temporaryPassword, temporaryPasswordExpiresAt: temporaryPasswordExpiresAt?.toISOString() ?? null };
 }
 
 export function buildTranscriptPublicUrl(transcriptId: string) {
@@ -343,7 +345,8 @@ export async function createNewTemporaryPassword(transcriptId: string, ttlHours 
   if (!transcript) return null;
 
   const password = generateTemporaryPassword();
-  const expiresAt = new Date(Date.now() + Math.max(1, ttlHours) * 60 * 60 * 1000);
+  void ttlHours;
+  const expiresAt = new Date(Date.now() + DEFAULT_TEMP_PASSWORD_TTL_HOURS * 60 * 60 * 1000);
   await collections.transcriptPasswords.insertOne({
     _id: randomUUID(),
     transcriptId,
@@ -353,7 +356,6 @@ export async function createNewTemporaryPassword(transcriptId: string, ttlHours 
     revokedAt: null,
     createdAt: new Date()
   });
-  await collections.transcripts.updateOne({ _id: transcriptId }, { $set: { expiresAt } });
   return { password, expiresAt: expiresAt.toISOString() };
 }
 

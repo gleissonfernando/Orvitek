@@ -683,7 +683,6 @@ async function finishReport(context: BotContext, guild: Guild, settings: GuildSe
     ownerId: topic.openerId,
     participants: participantsFromMessages(messages, topic, settings),
     responsibleUserId: ticket.responsibleUserId ?? null,
-    temporaryPasswordTtlHours: 24 * 365,
     ticketId: ticket.id,
     type: "Denuncia"
   });

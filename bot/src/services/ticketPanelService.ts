@@ -269,8 +269,7 @@ async function handleTicketAction(interaction: ButtonInteraction, context: BotCo
           new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("reason").setLabel("Motivo do fechamento").setRequired(true).setStyle(TextInputStyle.Paragraph).setMaxLength(900)),
           new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("result").setLabel("Resultado da análise").setRequired(true).setStyle(TextInputStyle.Paragraph).setMaxLength(900)),
           new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("notes").setLabel("Observações internas").setRequired(false).setStyle(TextInputStyle.Paragraph).setMaxLength(900)),
-          new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("generatePassword").setLabel("Gerar senha temporária? Sim/Não").setRequired(true).setStyle(TextInputStyle.Short).setValue("Sim").setMaxLength(3)),
-          new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("ttl").setLabel("Validade da senha temporária em horas").setRequired(true).setStyle(TextInputStyle.Short).setValue("72").setMaxLength(4))
+          new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("generatePassword").setLabel("Gerar senha temporária por 3 dias? Sim/Não").setRequired(true).setStyle(TextInputStyle.Short).setValue("Sim").setMaxLength(3))
         )
     );
     return;
@@ -350,7 +349,6 @@ async function handleTicketCloseModal(interaction: ModalSubmitInteraction, conte
     ownerId: ticket.ownerId ?? ticket.openerId,
     participants: buildParticipants(messages, ticket.openerId, ticket.responsibleUserId),
     responsibleUserId: ticket.responsibleUserId,
-    temporaryPasswordTtlHours: Number(interaction.fields.getTextInputValue("ttl")) || 72,
     ticketId,
     type: ticket.categoryName?.toLowerCase().includes("den") ? "Denuncia" : "Ticket"
   });

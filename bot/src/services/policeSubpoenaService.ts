@@ -514,7 +514,6 @@ async function createSubpoenaTranscript(context: BotContext, guild: Guild, setti
     ownerId: state.targetId,
     participants: subpoenaParticipantsFromMessages(messages, settings, state),
     responsibleUserId: state.responsibleId || null,
-    temporaryPasswordTtlHours: 24 * 365,
     ticketId: `subpoena:${state.channelId}`,
     type: "Outro"
   });
