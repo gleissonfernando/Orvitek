@@ -390,7 +390,7 @@ export async function saveCourseExamAnswer(botId: string | null, guildId: string
   const writtenAnswer = question.type === "written" ? input.writtenAnswer?.trim().slice(0, 3000) || "" : null;
   if (question.type === "written" && !writtenAnswer) return null;
   const correct = question.type === "selection"
-    ? Boolean(selectedAlternative?.isCorrect ?? selectedAlternativeId === question.correctAlternativeId)
+    ? Boolean(selectedAlternative?.isCorrect || Number(selectedAlternative?.score ?? 0) > 0 || selectedAlternativeId === question.correctAlternativeId)
     : question.type === "multiple"
       ? sameSet(selectedAlternativeIds, correctIds(question))
       : question.correctText
@@ -576,7 +576,7 @@ function mapQuestion(question: MongoCourseExamQuestion) {
     points: question.points,
     alternatives: question.alternatives,
     correctAlternativeId: question.correctAlternativeId,
-    correctAlternativeIds: question.correctAlternativeIds ?? correctIds(question),
+    correctAlternativeIds: question.correctAlternativeIds?.length ? question.correctAlternativeIds : correctIds(question),
     correctText: question.correctText ?? null,
     placeholder: question.placeholder,
     active: question.active,
@@ -717,8 +717,8 @@ function normalizeCorrectList(value: unknown): string[] {
       : [];
   return [...new Set(source.flatMap((item) => {
     if (typeof item === "string") return [item.trim()];
-    const option = item as { id?: unknown; isCorrect?: unknown };
-    return option.isCorrect === true ? [String(option.id ?? "").trim()] : [];
+    const option = item as { id?: unknown; isCorrect?: unknown; score?: unknown };
+    return option.isCorrect === true || Number(option.score ?? 0) > 0 ? [String(option.id ?? "").trim()] : [];
   }).filter(Boolean).map((item) => item.slice(0, 80)))];
 }
 
@@ -729,7 +729,7 @@ function normalizeQuestionType(value: unknown): MongoCourseExamQuestion["type"] 
 function correctIds(question: Pick<MongoCourseExamQuestion, "alternatives" | "correctAlternativeId" | "correctAlternativeIds">) {
   const fromList = question.correctAlternativeIds?.filter(Boolean) ?? [];
   if (fromList.length) return [...new Set(fromList)];
-  const fromAlternatives = question.alternatives.filter((alternative) => alternative.isCorrect).map((alternative) => alternative.id);
+  const fromAlternatives = question.alternatives.filter((alternative) => alternative.isCorrect || Number(alternative.score ?? 0) > 0).map((alternative) => alternative.id);
   if (fromAlternatives.length) return [...new Set(fromAlternatives)];
   return question.correctAlternativeId ? [question.correctAlternativeId] : [];
 }

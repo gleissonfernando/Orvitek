@@ -2148,7 +2148,7 @@ function formatAnswerSummary(question: CourseExamQuestion, answer: CourseExamAns
   }
   const alternatives = answer?.alternativesSnapshot?.length ? answer.alternativesSnapshot : question.alternatives;
   const selectedIds = answer?.selectedAlternativeIds?.length ? answer.selectedAlternativeIds : answer?.selectedAlternativeId ? [answer.selectedAlternativeId] : [];
-  const expectedIds = question.correctAlternativeIds?.length ? question.correctAlternativeIds : question.alternatives.filter((alternative) => alternative.isCorrect || alternative.id === question.correctAlternativeId).map((alternative) => alternative.id);
+  const expectedIds = question.correctAlternativeIds?.length ? question.correctAlternativeIds : question.alternatives.filter((alternative) => isExpectedAlternative(question, alternative)).map((alternative) => alternative.id);
   return [
     `QUESTÃO ${String(index).padStart(2, "0")}`,
     answer?.questionText || question.prompt,
@@ -2478,10 +2478,17 @@ function validateRuntimeProof(questions: CourseExamQuestion[]) {
     if (!question.points || question.points <= 0) return { ok: false, message: `A pergunta ${index + 1} precisa ter pontuação configurada.` };
     if (question.type === "selection" || question.type === "multiple") {
       if (question.alternatives.length < 2) return { ok: false, message: `A pergunta ${index + 1} precisa ter pelo menos 2 alternativas.` };
-      if (!question.alternatives.some((alternative) => alternative.isCorrect || alternative.id === question.correctAlternativeId || question.correctAlternativeIds?.includes(alternative.id))) return { ok: false, message: `A pergunta ${index + 1} precisa ter uma alternativa correta definida.` };
+      if (!question.alternatives.some((alternative) => isExpectedAlternative(question, alternative))) return { ok: false, message: `A pergunta ${index + 1} precisa ter uma alternativa correta definida.` };
     }
   }
   return { ok: true, message: "Prova completa." };
+}
+
+function isExpectedAlternative(question: CourseExamQuestion, alternative: CourseExamQuestion["alternatives"][number]) {
+  return alternative.isCorrect === true
+    || Number(alternative.score ?? 0) > 0
+    || alternative.id === question.correctAlternativeId
+    || question.correctAlternativeIds?.includes(alternative.id);
 }
 
 function resolveCourseImage(settings: CourseSettings, type: string) {

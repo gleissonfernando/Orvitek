@@ -974,7 +974,7 @@ function normalizeQuestion(question: SaveCourseExamQuestionPayload) {
   const questionNumber = Math.max(1, Math.min(100, Number(question.questionNumber ?? 1)));
   const alternatives = question.type === "written" ? [] : (question.alternatives ?? []).filter((option) => option.text?.trim()).map((option, index) => ({ ...option, id: option.id || String.fromCharCode(65 + index), order: index, value: option.value || option.id || String.fromCharCode(65 + index), score: parseDecimalNumber(option.score, 0) }));
   const correctAlternativeIds = question.type === "multiple"
-    ? alternatives.filter((option) => option.isCorrect || question.correctAlternativeIds?.includes(option.id)).map((option) => option.id)
+    ? alternatives.filter((option) => option.isCorrect || Number(option.score ?? 0) > 0 || question.correctAlternativeIds?.includes(option.id)).map((option) => option.id)
     : [];
   return {
     ...question,
@@ -1044,7 +1044,8 @@ function hasCorrectAlternative(question: CourseExamQuestion) {
 }
 
 function isCorrectAlternative(question: CourseExamQuestion, optionId: string) {
-  return question.correctAlternativeIds?.includes(optionId) || question.correctAlternativeId === optionId || question.alternatives.find((option) => option.id === optionId)?.isCorrect === true;
+  const option = question.alternatives.find((item) => item.id === optionId);
+  return question.correctAlternativeIds?.includes(optionId) || question.correctAlternativeId === optionId || option?.isCorrect === true || Number(option?.score ?? 0) > 0;
 }
 
 function updateOption(options: SaveCourseExamQuestionPayload["alternatives"], index: number, patch: Record<string, unknown>) {
