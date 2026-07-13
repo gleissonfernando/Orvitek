@@ -443,22 +443,25 @@ function casePanel(settings: GuildSettings, state: CaseState, guild: Guild | nul
     `**Criado em:** ${formatSubpoenaPanelDate(state.createdAt)}`
   ].join("\n").slice(0, 4000);
 
-  return renderComponentsV2Panel({
+  return withTopLevelActions(renderComponentsV2Panel({
     accentColor: color(settings.reportSystem.panelColor),
-    actions: [actions],
+    actions: [],
     description,
     fields: [],
     guild,
     image: settings.reportSystem.subpoenaPanelBannerUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: settings.reportSystem.subpoenaPanelBannerUrl } : null,
     moduleId: "police-subpoena",
     title: "Intimação"
-  });
+  }), [actions]);
 }
 
 async function sendTargetDm(target: GuildMember, settings: GuildSettings, state: CaseState, channel: TextChannel) {
-  return target.send(renderComponentsV2Panel({
+  const actions = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setEmoji(systemComponentEmoji("acessar", channel.guild)).setLabel("Acessar intimação").setStyle(ButtonStyle.Link).setURL(`https://discord.com/channels/${channel.guildId}/${channel.id}`)
+  );
+  return target.send(withTopLevelActions(renderComponentsV2Panel({
     accentColor: color(settings.reportSystem.panelColor),
-    actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setEmoji(systemComponentEmoji("acessar", channel.guild)).setLabel("Acessar intimação").setStyle(ButtonStyle.Link).setURL(`https://discord.com/channels/${channel.guildId}/${channel.id}`))],
+    actions: [],
     description: settings.reportSystem.subpoenaDmText,
     fields: [
       `Olá, **${target.displayName}**.\nVocê recebeu uma intimação institucional.`,
@@ -468,7 +471,7 @@ async function sendTargetDm(target: GuildMember, settings: GuildSettings, state:
     image: settings.reportSystem.dmBannerUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: settings.reportSystem.dmBannerUrl } : null,
     moduleId: "police-subpoena-dm",
     title: `${systemEmojiText("alerta", channel.guild)} Aviso de Intimação`
-  })).then(() => true, () => false);
+  }), [actions])).then(() => true, () => false);
 }
 
 async function sendCompetenceLog(guild: Guild, settings: GuildSettings, state: CaseState, executorId: string, description: string) {
@@ -528,12 +531,13 @@ async function sendSubpoenaTranscriptPanel(guild: Guild, settings: GuildSettings
   const attachmentCount = messages.reduce((total, message) => total + message.attachments.length, 0);
   const participants = new Set(messages.map((message) => message.authorId).filter(Boolean));
   const expiresAt = transcript.temporaryPasswordExpiresAt ?? transcript.transcript.expiresAt;
-  await (channel as TextChannel).send(renderComponentsV2Panel({
+  const actions = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setEmoji(systemComponentEmoji("acessar", guild)).setLabel("Abrir Transcript").setStyle(ButtonStyle.Link).setURL(url),
+    new ButtonBuilder().setEmoji(systemComponentEmoji("prancheta", guild)).setLabel("Baixar Transcript").setStyle(ButtonStyle.Link).setURL(downloadUrl)
+  );
+  await (channel as TextChannel).send(withTopLevelActions(renderComponentsV2Panel({
     accentColor: color(settings.reportSystem.panelColor),
-    actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setEmoji(systemComponentEmoji("acessar", guild)).setLabel("Abrir Transcript").setStyle(ButtonStyle.Link).setURL(url),
-      new ButtonBuilder().setEmoji(systemComponentEmoji("prancheta", guild)).setLabel("Baixar Transcript").setStyle(ButtonStyle.Link).setURL(downloadUrl)
-    )],
+    actions: [],
     description: "A intimação foi encerrada e o canal temporário foi apagado. O transcript foi salvo para auditoria autorizada.",
     fields: [
       `**Intimação**\n**Canal:** ${state.channelId}\n**Status:** ${status}\n**Órgão:** ${COMPETENCE_LABEL[state.finalCompetence]}`,
@@ -545,7 +549,7 @@ async function sendSubpoenaTranscriptPanel(guild: Guild, settings: GuildSettings
     image: settings.reportSystem.subpoenaPanelBannerUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: settings.reportSystem.subpoenaPanelBannerUrl } : null,
     moduleId: "police-subpoena-transcript",
     title: `${systemEmojiText("folha", guild)} Transcript de Intimação`
-  })).catch(() => null);
+  }), [actions])).catch(() => null);
 }
 
 async function sendCompetenceDestinationNotice(guild: Guild, settings: GuildSettings, state: CaseState, executorId: string, subpoenaChannel: TextChannel) {
@@ -568,7 +572,15 @@ async function sendCompetenceDestinationNotice(guild: Guild, settings: GuildSett
 }
 
 function panel(settings: GuildSettings | null, title: string, description: string, actions: unknown[], guild: Guild | null = null) {
-  return renderComponentsV2Panel({ accentColor: color(settings?.reportSystem.panelColor), actions, description, fields: [], guild, image: null, moduleId: "police-subpoena-flow", title: `${systemEmojiText("prancheta", guild)} ${title}` });
+  return withTopLevelActions(renderComponentsV2Panel({ accentColor: color(settings?.reportSystem.panelColor), actions: [], description, fields: [], guild, image: null, moduleId: "police-subpoena-flow", title: `${systemEmojiText("prancheta", guild)} ${title}` }), actions);
+}
+
+function withTopLevelActions<T extends ReturnType<typeof renderComponentsV2Panel>>(payload: T, actions: unknown[] = []): T {
+  if (!actions.length) return payload;
+  return {
+    ...payload,
+    components: [...(payload.components ?? []), ...actions]
+  } as T;
 }
 
 function targetSelectedPanel(settings: GuildSettings, competence: Competence, target: GuildMember) {
