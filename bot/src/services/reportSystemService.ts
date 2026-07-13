@@ -291,31 +291,35 @@ async function handlePublicReportSelect(interaction: StringSelectMenuInteraction
   }
 
   if (!report.allowAnonymousReports) {
-    await interaction.reply({ ...anonymousDisabledPayload(selectedCategoryId), flags: MessageFlags.Ephemeral });
+    await interaction.reply({ ...anonymousDisabledPayload(selectedCategoryId), flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
     void resetSelectMenuMessage(interaction);
     return;
   }
 
   await interaction.reply({
-    components: [
-      {
-        type: 17,
-        accent_color: parseColor(report.panelColor),
-        components: [
-          { type: 10, content: replaceSystemEmojis(`# ${category.emoji ?? systemEmojiText("alerta", interaction.guild)} ${category.name}\nEscolha a modalidade da denúncia. A modalidade anônima protege a identidade no canal operacional, mantendo auditoria real apenas nos logs autorizados.`, interaction.guild) },
-          new ActionRowBuilder<ButtonBuilder>().addComponents(
-            new ButtonBuilder()
-              .setCustomId(`${PUBLIC_PREFIX}:id:${selectedCategoryId}:identified`)
-              .setLabel("Denuncia Identificada")
-              .setStyle(ButtonStyle.Primary),
-            new ButtonBuilder()
-              .setCustomId(`${PUBLIC_PREFIX}:id:${selectedCategoryId}:anonymous`)
-              .setLabel("Denuncia Anonima")
-              .setStyle(ButtonStyle.Secondary)
-          )
-        ]
-      }
-    ],
+    ...reportComponentsV2Panel({
+      accentColor: parseColor(report.panelColor),
+      actions: [
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`${PUBLIC_PREFIX}:id:${selectedCategoryId}:identified`)
+            .setEmoji(systemComponentEmoji("homem", interaction.guild))
+            .setLabel("Denuncia Identificada")
+            .setStyle(ButtonStyle.Primary),
+          new ButtonBuilder()
+            .setCustomId(`${PUBLIC_PREFIX}:id:${selectedCategoryId}:anonymous`)
+            .setEmoji(systemComponentEmoji("fantasma", interaction.guild))
+            .setLabel("Denuncia Anonima")
+            .setStyle(ButtonStyle.Secondary)
+        )
+      ],
+      description: "Escolha a modalidade da denúncia. A modalidade anônima protege a identidade no canal operacional, mantendo auditoria real apenas nos logs autorizados.",
+      fields: [],
+      guild: interaction.guild,
+      image: report.thumbnailUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: report.thumbnailUrl } : null,
+      moduleId: "iab-mode",
+      title: `${category.emoji ?? systemEmojiText("alerta", interaction.guild)} ${category.name}`
+    }),
     flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
   });
   void resetSelectMenuMessage(interaction);
@@ -346,7 +350,7 @@ async function handlePublicReportButton(interaction: ButtonInteraction, context:
     }
     const mode = customId === LEGACY_ANONYMOUS_BUTTON_ID ? "anonymous" : "identified";
     if (mode === "anonymous" && !settings.reportSystem.allowAnonymousReports) {
-      await interaction.reply({ ...anonymousDisabledPayload(category.id), flags: MessageFlags.Ephemeral });
+      await interaction.reply({ ...anonymousDisabledPayload(category.id), flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
       return;
     }
     await openReportFromPanel(interaction, context, category.id, mode);
@@ -615,7 +619,7 @@ async function callReporter(interaction: ButtonInteraction, context: BotContext,
   const user = await interaction.client.users.fetch(topic.openerId).catch(() => null);
   if (user) {
     await user.send({
-      ...renderComponentsV2Panel({
+      ...reportComponentsV2Panel({
         accentColor: parseColor(settings.reportSystem.panelColor),
         actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setLabel("Acessar denuncia").setStyle(ButtonStyle.Link).setURL(url))],
         description: settings.reportSystem.subpoenaDmText || "Voce foi chamado de volta para complementar uma denuncia anonima.\nSua identidade continuara protegida no atendimento.\nAcesse o canal temporario para responder as informacoes solicitadas.",
@@ -721,7 +725,7 @@ function createAnonymousPreparationPayload(settings: GuildSettings, ticket: Tick
     new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:submit:${ticket.id}`).setEmoji(systemComponentEmoji("acessar")).setLabel("Encaminhar denuncia").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:cancel:${ticket.id}`).setEmoji(systemComponentEmoji("porta")).setLabel("Cancelar envio da denuncia").setStyle(ButtonStyle.Danger)
   );
-  return renderComponentsV2Panel({
+  return reportComponentsV2Panel({
     accentColor: parseColor(report.anonymousEmbedColor),
     actions: [actions],
     description: "Este canal privado serve apenas para preparar a denuncia antes de enviar para a equipe responsavel.",
@@ -738,7 +742,7 @@ function createAnonymousPreparationPayload(settings: GuildSettings, ticket: Tick
 
 function createReporterCalledPayload(settings: GuildSettings, ticket: TicketRecord, topic: ReportTopic, guild: Guild | null = null): MessageCreateOptions {
   const report = settings.reportSystem;
-  return renderComponentsV2Panel({
+  return reportComponentsV2Panel({
     accentColor: parseColor(topic.mode === "anonymous" ? report.anonymousEmbedColor : report.panelColor),
     actions: [],
     description: topic.mode === "anonymous"
@@ -799,7 +803,7 @@ function createManagementPayload(settings: GuildSettings, ticket: TicketRecord, 
     new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:archive:${ticket.id}`).setEmoji(systemComponentEmoji("caixa", guild)).setLabel("Arquivar").setStyle(ButtonStyle.Secondary).setDisabled(isArchived || isClosed),
     new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:finish:${ticket.id}`).setEmoji(systemComponentEmoji("visto", guild)).setLabel("Finalizar").setStyle(ButtonStyle.Danger).setDisabled(isClosed)
   );
-  return renderComponentsV2Panel({
+  return reportComponentsV2Panel({
     accentColor: topic.mode === "anonymous" ? 0xf2b84b : parseColor(report.panelColor),
     actions: [actions],
     description: topic.mode === "anonymous"
@@ -838,29 +842,31 @@ function createFallbackReportControlPayload(settings: GuildSettings, ticket: Tic
   const preparing = topic.status === "preparing";
   const actions = preparing
     ? new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:submit:${ticket.id}`).setLabel("Encaminhar denuncia").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:cancel:${ticket.id}`).setLabel("Cancelar envio").setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:submit:${ticket.id}`).setEmoji(systemComponentEmoji("acessar")).setLabel("Encaminhar denuncia").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:cancel:${ticket.id}`).setEmoji(systemComponentEmoji("porta")).setLabel("Cancelar envio").setStyle(ButtonStyle.Danger)
     )
     : new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:claim:${ticket.id}`).setLabel(topic.mode === "anonymous" ? "Assumir denuncia" : "Assumir ticket").setStyle(ButtonStyle.Primary).setDisabled(!settings.reportSystem.buttons.claim || Boolean(ticket.responsibleUserId)),
-      new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:call:${ticket.id}`).setLabel("Chamar denunciante").setStyle(ButtonStyle.Secondary).setDisabled(Boolean(topic.reporterCalled) || !ticket.responsibleUserId),
-      new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:archive:${ticket.id}`).setLabel("Arquivar").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:finish:${ticket.id}`).setLabel("Finalizar").setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:claim:${ticket.id}`).setEmoji(systemComponentEmoji("homem")).setLabel(topic.mode === "anonymous" ? "Assumir denuncia" : "Assumir ticket").setStyle(ButtonStyle.Primary).setDisabled(!settings.reportSystem.buttons.claim || Boolean(ticket.responsibleUserId)),
+      new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:call:${ticket.id}`).setEmoji(systemComponentEmoji("acessar")).setLabel("Chamar denunciante").setStyle(ButtonStyle.Secondary).setDisabled(Boolean(topic.reporterCalled) || !ticket.responsibleUserId),
+      new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:archive:${ticket.id}`).setEmoji(systemComponentEmoji("caixa")).setLabel("Arquivar").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:finish:${ticket.id}`).setEmoji(systemComponentEmoji("visto")).setLabel("Finalizar").setStyle(ButtonStyle.Danger)
     );
 
-  return {
-    allowedMentions: { parse: [] },
-    components: [actions],
-    content: [
-      preparing ? "## Preparacao da Denuncia Anonima" : "## Painel de Gerenciamento da Denuncia",
+  return reportComponentsV2Panel({
+    accentColor: parseColor(preparing ? settings.reportSystem.anonymousEmbedColor : settings.reportSystem.panelColor),
+    actions: [actions],
+    description: preparing ? "Envie as provas neste canal e clique em Encaminhar denuncia quando terminar." : "Use os botoes abaixo para assumir, arquivar ou finalizar a denuncia.",
+    fields: [
       `Ticket: ${ticket.id}`,
       "Equipe responsavel: Sigilosa",
       `Status: ${statusLabel}`,
       `Denunciante: ${topic.mode === "anonymous" ? "Anonimo" : `<@${topic.openerId}>`}`,
-      stats ? `Mensagens: ${stats.messageCount} | Anexos: ${stats.attachmentCount}` : null,
-      preparing ? "Envie as provas neste canal e clique em Encaminhar denuncia quando terminar." : "Use os botoes abaixo para assumir, arquivar ou finalizar a denuncia."
-    ].filter(Boolean).join("\n")
-  };
+      stats ? `Mensagens: ${stats.messageCount} | Anexos: ${stats.attachmentCount}` : null
+    ].filter(Boolean) as string[],
+    image: null,
+    moduleId: "iab-control-fallback",
+    title: preparing ? "Preparacao da Denuncia Anonima" : "Painel de Gerenciamento da Denuncia"
+  });
 }
 
 async function recoverOpenReportPanels(client: Client, context: BotContext) {
@@ -895,14 +901,23 @@ async function recoverReportPanelInChannel(channel: TextChannel, context: BotCon
     await logIabEvent(context, channel.guild, settings, topic, "Painel pendente", "Nao consegui ler mensagens para verificar/restaurar o painel interno. Verifique permissao Ver Canal, Ler Historico e Enviar Mensagens.", context.client.user?.id ?? null);
     return;
   }
-  if (messages?.some((message) => message.author.id === context.client.user?.id && messageHasReportControl(message))) {
-    return;
-  }
 
   const ticket = await context.api.getTicket(topic.ticketId).catch(() => null)
     ?? await context.api.getTicketByChannel(channel.id).catch(() => null);
   if (!ticket) {
     await logIabEvent(context, channel.guild, settings, topic, "Painel pendente", "Nao encontrei o ticket salvo para restaurar o painel interno deste canal.", context.client.user?.id ?? null);
+    return;
+  }
+
+  const currentPanel = messages.find((message) => message.author.id === context.client.user?.id && messageHasReportControl(message));
+  if (currentPanel) {
+    if (!messageIsComponentsV2(currentPanel)) {
+      const payload = topic.status === "preparing"
+        ? createAnonymousPreparationPayload(settings, ticket, channel.guild)
+        : createManagementPayload(settings, ticket, topic, "Aberto", undefined, channel.guild);
+      await currentPanel.edit(payload as never).catch(() => null);
+      await logIabEvent(context, channel.guild, settings, topic, "Painel atualizado", "Painel interno antigo da denuncia foi convertido para Components V2 automaticamente.", context.client.user?.id ?? null);
+    }
     return;
   }
 
@@ -922,6 +937,10 @@ function messageHasReportControl(message: Message) {
   return message.components.some((component) => componentHasReportControl(component.toJSON()));
 }
 
+function messageIsComponentsV2(message: Message) {
+  return message.flags.has(MessageFlags.IsComponentsV2);
+}
+
 function componentHasReportControl(component: unknown): boolean {
   if (!component || typeof component !== "object") return false;
   const record = component as Record<string, unknown>;
@@ -939,8 +958,21 @@ function withManagementMention(settings: GuildSettings, payload: MessageCreateOp
   };
 }
 
+function reportComponentsV2Panel(input: Parameters<typeof renderComponentsV2Panel>[0]) {
+  const actions = input.actions ?? [];
+  return withTopLevelActions(renderComponentsV2Panel({ ...input, actions: [] }), actions);
+}
+
+function withTopLevelActions<T extends ReturnType<typeof renderComponentsV2Panel>>(payload: T, actions: unknown[] = []): T {
+  if (!actions.length) return payload;
+  return {
+    ...payload,
+    components: [...(payload.components ?? []), ...actions]
+  } as T;
+}
+
 function confirmPayload(settings: GuildSettings, title: string, description: string, confirmId: string, cancelId: string): MessageCreateOptions {
-  return renderComponentsV2Panel({
+  return reportComponentsV2Panel({
     accentColor: parseColor(settings.reportSystem.panelColor),
     actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(confirmId).setEmoji(systemComponentEmoji("perigo")).setLabel(title).setStyle(ButtonStyle.Danger),
@@ -955,17 +987,21 @@ function confirmPayload(settings: GuildSettings, title: string, description: str
 }
 
 function anonymousDisabledPayload(categoryId: string) {
-  return {
-    allowedMentions: { parse: [] },
-    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+  return reportComponentsV2Panel({
+    accentColor: 0xf2b84b,
+    actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`${PUBLIC_PREFIX}:id:${categoryId}:identified`)
         .setEmoji(systemComponentEmoji("acessar"))
         .setLabel("Abrir Denuncia Identificada")
         .setStyle(ButtonStyle.Primary)
     )],
-    content: ANONYMOUS_DISABLED_MESSAGE
-  };
+    description: ANONYMOUS_DISABLED_MESSAGE,
+    fields: [],
+    image: null,
+    moduleId: "iab-anonymous-disabled",
+    title: "Denuncia identificada"
+  });
 }
 
 async function sendTranscriptPanel(guild: Guild, settings: GuildSettings, topic: ReportTopic, ticket: TicketRecord, transcript: Awaited<ReturnType<BotContext["api"]["createTranscript"]>>, status: string, messages: Awaited<ReturnType<typeof collectTranscriptMessages>>) {
@@ -980,7 +1016,7 @@ async function sendTranscriptPanel(guild: Guild, settings: GuildSettings, topic:
   const attachmentCount = messages.reduce((total, message) => total + message.attachments.length, 0);
   const participants = new Set(messages.map((message) => message.authorId).filter(Boolean));
   const expiresAt = transcript.temporaryPasswordExpiresAt ?? transcript.transcript.expiresAt;
-  await (channel as TextChannel).send(renderComponentsV2Panel({
+  await (channel as TextChannel).send(reportComponentsV2Panel({
     accentColor: 0xf2b84b,
     actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setEmoji(systemComponentEmoji("link", guild)).setLabel("Abrir Transcript").setStyle(ButtonStyle.Link).setURL(url),
@@ -1042,7 +1078,7 @@ async function logIabEvent(context: BotContext, guild: Guild, settings: GuildSet
   const channelId = reportCompetenceLogChannelId(report, topic.competence);
   const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
   if (!channel?.isTextBased() || !("send" in channel)) return;
-  await (channel as TextChannel).send(renderComponentsV2Panel({
+  await (channel as TextChannel).send(reportComponentsV2Panel({
     accentColor: parseColor(topic.mode === "anonymous" ? report.anonymousEmbedColor : report.panelColor),
     actions: [],
     description: message,
@@ -1295,7 +1331,7 @@ function createOpenedReportPayload(settings: GuildSettings, input: { categoryNam
     new ButtonBuilder().setCustomId(`${PUBLIC_PREFIX}:ack:close`).setLabel(BUTTON_LABELS.close).setStyle(ButtonStyle.Danger).setDisabled(!report.buttons.close)
   );
 
-  return renderComponentsV2Panel({
+  return reportComponentsV2Panel({
     accentColor: parseColor(input.mode === "anonymous" ? report.anonymousEmbedColor : report.panelColor),
     actions: [actions],
     description: report.openMessage,
@@ -1435,7 +1471,7 @@ function createAdminPayload(settings: GuildSettings, section: string) {
     sectionText(section, report)
   ];
 
-  return renderComponentsV2Panel({
+  return reportComponentsV2Panel({
     accentColor: parseColor(report.panelColor),
     actions: sectionActions(section, report),
     description: "IAB Config. Configure cargos, categorias, logs, banners, órgãos e publicação do painel. As alterações são salvas na mesma configuração usada pela dashboard.",
@@ -1670,7 +1706,7 @@ async function saveAndRefresh(interaction: Interaction, context: BotContext, set
 }
 
 function createPublishPayload(settings: GuildSettings) {
-  return renderComponentsV2Panel({
+  return reportComponentsV2Panel({
     accentColor: parseColor(settings.reportSystem.panelColor),
     actions: [channelRow("publish-to", "Canal para publicar", [ChannelType.GuildText, ChannelType.GuildAnnouncement])],
     description: "Selecione o canal onde o painel de denuncias sera publicado.",
@@ -1700,7 +1736,7 @@ function createReportPanelPayload(settings: GuildSettings): MessageCreateOptions
     return optionBuilder;
   });
   const action = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(PANEL_SELECT_ID).setPlaceholder(report.panelPlaceholder).addOptions(options));
-  return renderComponentsV2Panel({
+  return reportComponentsV2Panel({
     accentColor: parseColor(report.panelColor),
     actions: [action],
     description: report.panelDescription,
