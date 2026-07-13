@@ -2195,10 +2195,12 @@ async function sendExamDetailedLog(interaction: { guild: ChatInputCommandInterac
         `Participante: <@${attempt.studentId}>`,
         ...examStudentIdentificationLines(attempt),
         `Questões: ${questions.length}`,
+        `Questões respondidas: ${answers.length}`,
         `Acertos: ${attempt.objectiveCorrect}`,
         `Erros: ${attempt.objectiveWrong}`,
         `Pontuação: ${formatScore(attempt.score)}/${formatScore(attempt.maxScore)}`,
         `Porcentagem: ${formatScore(attempt.percent)}%`,
+        `Resultado: ${examReviewStatusLabel(attempt)}`,
         `Início: <t:${Math.floor(new Date(attempt.startedAt).getTime() / 1000)}:F>`,
         `Finalização: <t:${Math.floor(finishedAt.getTime() / 1000)}:F>`,
         `Tempo utilizado: ${formatExamDuration(attempt.startedAt, attempt.finishedAt)}`,
@@ -2471,7 +2473,7 @@ function validateRuntimeProof(questions: CourseExamQuestion[]) {
   for (let index = 0; index < ordered.length; index += 1) {
     const question = ordered[index];
     if (!question?.prompt.trim()) return { ok: false, message: `A pergunta ${index + 1} precisa ter texto configurado.` };
-    if (!question.points || question.points <= 0) return { ok: false, message: `A pergunta ${index + 1} precisa ter nota máxima configurada.` };
+    if (!question.points || question.points <= 0) return { ok: false, message: `A pergunta ${index + 1} precisa ter pontuação configurada.` };
     if (question.type === "selection" || question.type === "multiple") {
       if (question.alternatives.length < 2) return { ok: false, message: `A pergunta ${index + 1} precisa ter pelo menos 2 alternativas.` };
       if (!question.alternatives.some((alternative) => alternative.isCorrect || alternative.id === question.correctAlternativeId || question.correctAlternativeIds?.includes(alternative.id))) return { ok: false, message: `A pergunta ${index + 1} precisa ter uma alternativa correta definida.` };

@@ -449,7 +449,7 @@ export async function finalizeCourseExamAttempt(botId: string | null, guildId: s
   const percent = maxScore > 0 ? Math.round((score / maxScore) * 10000) / 100 : 0;
   const pendingManualCorrection = answers.some((answer) => answer.correct == null);
   const automaticResult = !pendingManualCorrection
-    ? (percent >= Number(examSettings?.minScore ?? 0) ? "approved" as const : "rejected" as const)
+    ? (score >= Number(examSettings?.minScore ?? 0) ? "approved" as const : "rejected" as const)
     : null;
   const nextStatus = automaticResult ?? "awaiting_review";
   const now = new Date();

@@ -721,12 +721,10 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
                   saving={saving}
                 />
                 <div className="grid gap-3 md:grid-cols-4">
-                  <DecimalInputField disabled={!canManage || saving} label="Nota mínima" onCommit={(minScore) => void saveSelectedExamSettings({ minScore })} value={exam.settings.minScore} />
-                  <DecimalInputField disabled={!canManage || saving} label="Nota máxima manual" onCommit={(manualQuestionMaxScore) => void saveSelectedExamSettings({ manualQuestionMaxScore })} value={exam.settings.manualQuestionMaxScore ?? 10} />
-                  <ToggleField disabled={!canManage || saving} label="Aprovação sempre manual" onChange={(manualApproval) => void saveSelectedExamSettings({ manualApproval })} value={exam.settings.manualApproval ?? true} />
+                  <DecimalInputField disabled={!canManage || saving} label="Nota mínima (pontos)" onCommit={(minScore) => void saveSelectedExamSettings({ minScore })} value={exam.settings.minScore} />
                   <ToggleField disabled={!canManage || saving} label="Modo deste curso ativo" onChange={(enabled) => void setSelectedCourseProofMode(enabled)} value={exam.settings.enabled} />
                   <SelectField disabled={!canManage || saving} label="Categoria dos canais da prova" onChange={(temporaryCategoryId) => void saveSelectedExamSettings({ temporaryCategoryId })} options={categories} value={exam.settings.temporaryCategoryId ?? ""} />
-                  <SelectField disabled={!canManage || saving} label="Canal de correção manual" onChange={(correctionChannelId) => void saveSelectedExamSettings({ correctionChannelId })} options={textChannels} value={exam.settings.correctionChannelId ?? ""} />
+                  <SelectField disabled={!canManage || saving} label="Canal de avaliação" onChange={(correctionChannelId) => void saveSelectedExamSettings({ correctionChannelId })} options={textChannels} value={exam.settings.correctionChannelId ?? ""} />
                   <SelectField disabled={!canManage || saving} label="Canal de resultado da prova" onChange={(resultChannelId) => void saveSelectedExamSettings({ resultChannelId })} options={textChannels} value={exam.settings.resultChannelId ?? ""} />
                   <SelectField disabled={!canManage || saving} label="Canal de logs da prova" onChange={(logChannelId) => void saveSelectedExamSettings({ logChannelId })} options={textChannels} value={exam.settings.logChannelId ?? ""} />
                 </div>
@@ -752,7 +750,7 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
                   <div className="grid gap-3 md:grid-cols-3">
                     <InputField disabled={!canManage || saving} label="Número da pergunta" onChange={(value) => setQuestionDraft({ ...questionDraft, questionNumber: Number(value) || 1, order: Math.max(0, (Number(value) || 1) - 1) })} value={String(questionDraft.questionNumber ?? 1)} />
                     <SelectValueField disabled={!canManage || saving} label="Tipo" onChange={(type) => setQuestionDraft({ ...questionDraft, type: type as "selection" | "multiple" | "written" })} options={[["selection", "Objetiva"], ["multiple", "Múltipla escolha"], ["written", "Discursiva"]]} value={questionDraft.type} />
-                    <DecimalInputField disabled={!canManage || saving} label="Nota máxima" onCommit={(points) => setQuestionDraft({ ...questionDraft, points })} value={questionDraft.points ?? 10} />
+                    <DecimalInputField disabled={!canManage || saving} label="Valor da questão (pontos)" onCommit={(points) => setQuestionDraft({ ...questionDraft, points })} value={questionDraft.points ?? 10} />
                   </div>
                   <div className="mt-3 space-y-3">
                     <TextAreaField disabled={!canManage || saving} label="Pergunta" onChange={(prompt) => setQuestionDraft({ ...questionDraft, prompt })} value={questionDraft.prompt} />
@@ -762,7 +760,6 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
                         {(questionDraft.alternatives ?? []).map((option, index) => (
                           <div className="rounded-lg border border-zinc-800 p-3" key={option.id ?? index}>
                             <InputField disabled={!canManage || saving} label={`Resposta ${index + 1}`} onChange={(text) => setQuestionDraft({ ...questionDraft, alternatives: updateOption(questionDraft.alternatives, index, { text }) })} value={option.text} />
-                            <DecimalInputField disabled={!canManage || saving} label="Pontuação" onCommit={(score) => setQuestionDraft({ ...questionDraft, alternatives: updateOption(questionDraft.alternatives, index, { score }) })} value={option.score ?? 0} />
                             <ToggleField disabled={!canManage || saving} label="Correta" onChange={(checked) => setQuestionDraft(toggleCorrectAlternative(questionDraft, option.id, index, checked))} value={Boolean(option.isCorrect)} />
                           </div>
                         ))}
@@ -897,7 +894,7 @@ function ProofRegistryItem({ course, isSelected, onEdit, onSelect, selectedExam 
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
         {isSelected && selectedExam ? <Badge variant={selectedExam.settings.enabled ? "warning" : "muted"}>{selectedExam.settings.enabled ? "Prova ativa" : "Prova inativa"}</Badge> : <Badge variant="muted">Selecionar</Badge>}
         {selectedStats ? <Badge variant={selectedStats.complete ? "success" : "warning"}>{selectedStats.active}/{selectedStats.total} perguntas</Badge> : <Badge variant="muted">Perguntas ao editar</Badge>}
-        {selectedStats ? <Badge variant="default">Nota max: {formatScoreValue(selectedStats.maxScore)}</Badge> : null}
+        {selectedStats ? <Badge variant="default">Pontuação max: {formatScoreValue(selectedStats.maxScore)}</Badge> : null}
       </div>
       <p className="mt-3 text-xs text-zinc-500">Curso vinculado: <span className="text-zinc-300">{course.name}</span></p>
       <div className="mt-4 flex flex-wrap gap-2">
@@ -938,8 +935,8 @@ function QuestionCard({ onDelete, onEdit, question }: { onDelete: () => void; on
         <p className="font-semibold text-white">Pergunta {question.questionNumber ?? question.order + 1}: {question.prompt}</p>
         <Badge variant={question.type === "written" ? "warning" : "success"}>{question.type === "written" ? "Discursiva" : question.type === "multiple" ? "Múltipla escolha" : "Objetiva"}</Badge>
       </div>
-      <p className="mt-1 text-xs text-zinc-500">Nota máxima: {question.points}</p>
-      {question.type !== "written" ? <p className="mt-2 text-xs text-zinc-400">{question.alternatives.map((option) => `${option.id}) ${option.text} - ${option.score ?? 0} pontos${isCorrectAlternative(question, option.id) ? " - correta" : ""}`).join(" | ")}</p> : <p className="mt-2 text-xs text-zinc-400">Resposta correta: {question.correctText || "não configurada"}</p>}
+      <p className="mt-1 text-xs text-zinc-500">Valor da questão: {question.points} ponto(s)</p>
+      {question.type !== "written" ? <p className="mt-2 text-xs text-zinc-400">{question.alternatives.map((option) => `${option.id}) ${option.text}${isCorrectAlternative(question, option.id) ? " - correta" : ""}`).join(" | ")}</p> : <p className="mt-2 text-xs text-zinc-400">Resposta correta: {question.correctText || "não configurada"}</p>}
       <div className="mt-3 flex gap-2">
         <Button onClick={onEdit} size="sm" type="button" variant="outline">Editar</Button>
         <Button onClick={onDelete} size="sm" type="button" variant="destructive">Excluir</Button>
