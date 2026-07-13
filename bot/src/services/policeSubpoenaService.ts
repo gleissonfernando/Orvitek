@@ -402,20 +402,29 @@ function casePanel(settings: GuildSettings, state: CaseState, guild: Guild | nul
     new ButtonBuilder().setCustomId(`${PREFIX}:remind:${state.channelId}`).setEmoji(systemComponentEmoji("alerta", guild)).setLabel("Enviar lembrete DM").setStyle(ButtonStyle.Primary).setDisabled(state.status !== "open"),
     new ButtonBuilder().setCustomId(`${PREFIX}:note:${state.channelId}`).setEmoji(systemComponentEmoji("prancheta_caneta", guild)).setLabel("Adicionar observação").setStyle(ButtonStyle.Secondary)
   );
+  const description = [
+    "Painel interno sigiloso da intimação. Apenas o órgão competente pode atuar neste caso.",
+    "",
+    `**Usuário intimado:** <@${state.targetId}> (${state.targetDisplayName})`,
+    `**Órgão competente:** ${COMPETENCE_LABEL[state.finalCompetence]}`,
+    "",
+    `**Status:** ${statusLabel(state.status)}`,
+    "",
+    "**Descrição**",
+    state.description || "Não informado",
+    "",
+    `**Criado em:** ${formatSubpoenaPanelDate(state.createdAt)}`
+  ].join("\n").slice(0, 4000);
+
   return renderComponentsV2Panel({
     accentColor: color(settings.reportSystem.panelColor),
     actions: [actions],
-    description: "Painel interno sigiloso da intimação. Apenas o órgão competente pode atuar neste caso.",
-    fields: [
-      `**Usuário intimado:** <@${state.targetId}> (${state.targetDisplayName})\n**Órgão competente:** ${COMPETENCE_LABEL[state.finalCompetence]}`,
-      `**Status:** ${statusLabel(state.status)}`,
-      `**Descrição**\n${state.description}`.slice(0, 1000),
-      `**Criado em:** <t:${Math.floor(new Date(state.createdAt).getTime() / 1000)}:F>`
-    ],
+    description,
+    fields: [],
     guild,
     image: settings.reportSystem.subpoenaPanelBannerUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: settings.reportSystem.subpoenaPanelBannerUrl } : null,
     moduleId: "police-subpoena",
-    title: `${systemEmojiText("alerta", guild)} ${state.title}`
+    title: `📨 Intimação ${state.finalCompetence}`
   });
 }
 
@@ -649,6 +658,19 @@ async function resolveSubpoenaParent(guild: Guild, report: ReportSystemSettings,
 function filterExistingRoles(guild: Guild, roleIds: string[]) { return [...new Set(roleIds)].filter((roleId) => guild.roles.cache.has(roleId)); }
 function logFor(report: ReportSystemSettings, competence: Competence) { return competence === "iab" ? report.iabLogChannelId ?? report.logChannelId : competence === "conselho" ? report.conselhoLogChannelId ?? report.logChannelId : competence === "hcmd" ? report.hcmdLogChannelId ?? report.logChannelId : report.comissarioLogChannelId ?? report.logChannelId; }
 function statusLabel(status: CaseState["status"]) { return status === "open" ? "Aberta" : status === "finished" ? "Finalizada" : "Cancelada"; }
+function formatSubpoenaPanelDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "long",
+    timeZone: "America/Sao_Paulo",
+    weekday: "long",
+    year: "numeric"
+  }).format(date).replace(",", "");
+}
 function color(value?: string | null) { return Number.parseInt(value?.replace("#", "") ?? "", 16) || 0xdc2626; }
 function slug(value: string) { return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80) || "usuario"; }
 async function replyDenied(interaction: Interaction) { if (!interaction.isRepliable()) return; const payload = { content: "Você não possui permissão para atuar nesta intimação.", ephemeral: true }; if (interaction.replied || interaction.deferred) await interaction.followUp(payload).catch(() => null); else await interaction.reply(payload).catch(() => null); }
