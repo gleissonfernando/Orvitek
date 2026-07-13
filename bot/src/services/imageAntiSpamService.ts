@@ -14,6 +14,7 @@ import type {
 } from "./apiClient";
 import { clearRuntimeModuleAuthorization, isRuntimeModuleAuthorized, runtimeScopeKey } from "./runtimeModuleGuard";
 import { canModerateMessage } from "./moderationChannelPolicy";
+import { deleteMessageWithAudit } from "./deletedMessageLogService";
 
 type CachedSettings = {
   expiresAt: number;
@@ -161,7 +162,7 @@ async function processImageMessage(message: Message, context: BotContext) {
     return false;
   }
 
-  const deletion = await deleteMediaSpamMessages(window.messages);
+  const deletion = await deleteMediaSpamMessages(context, window.messages);
   window.incidentKey ??= runtimeScopeKey(guild.id, message.author.id, String(window.startedAt));
 
   const result = await context.api.recordImageAntiSpamIncident({
@@ -221,7 +222,7 @@ function rememberMediaMessage(window: UserWindow, message: Message, media: Media
   }
 }
 
-async function deleteMediaSpamMessages(messages: MediaMessageRef[]): Promise<DeletionResult> {
+async function deleteMediaSpamMessages(context: BotContext, messages: MediaMessageRef[]): Promise<DeletionResult> {
   const errors: string[] = [];
   const messageIds: string[] = [];
   let removedMediaCount = 0;
@@ -233,7 +234,13 @@ async function deleteMediaSpamMessages(messages: MediaMessageRef[]): Promise<Del
     }
 
     try {
-      await entry.message.delete();
+      await deleteMessageWithAudit(context, entry.message, {
+        action: "AUTO_DELETE",
+        deletionType: "AUTOMATIC",
+        module: "Anti-Spam de Imagens",
+        reason: "Midia excedente removida pelo limite configurado.",
+        ruleId: MODULE_ID
+      });
       entry.deleted = true;
       entry.error = null;
       messageIds.push(entry.messageId);

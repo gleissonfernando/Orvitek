@@ -28,6 +28,7 @@ import type {
 import { isRuntimeModuleAuthorized, runtimeScopeKey } from "./runtimeModuleGuard";
 import { applyAutomaticSafeBotInfraction } from "./safeBotWarningService";
 import { canModerateMessage, getModerationSettings } from "./moderationChannelPolicy";
+import { deleteMessageWithAudit } from "./deletedMessageLogService";
 
 const MODULE_ID = "safe-bot";
 const SELF_BOT_ROLE_NAME = "Self Bot";
@@ -521,7 +522,7 @@ async function applyConfiguredPunishment(
   for (const action of sequence) {
     try {
       if (action === "delete_message") {
-        await deleteMessagesOrThrow(messagesToDelete);
+        await deleteMessagesOrThrow(context, messagesToDelete, moduleId, reason);
         actions.push(action);
       } else if (action === "warn") {
         await warnInChannel(member, message, reason);
@@ -1009,18 +1010,24 @@ function detectMessageContent(message: Message): DetectedPayload | null {
   return null;
 }
 
-async function deleteMessages(messages: Message[]) {
+async function deleteMessages(context: BotContext, messages: Message[], moduleId: SelfBotProtectionModuleId, reason: string) {
   await Promise.allSettled(
     [...new Map(messages.map((message) => [message.id, message])).values()]
-      .map((message) => message.delete().catch((error) => {
+      .map((message) => deleteMessageWithAudit(context, message, {
+        action: "AUTO_DELETE",
+        deletionType: "AUTOMATIC",
+        module: "SafeBot",
+        reason,
+        ruleId: moduleId
+      }).catch((error) => {
         console.warn(`[safe-bot] nao foi possivel apagar mensagem ${message.id}:`, errorMessage(error));
       }))
   );
 }
 
-async function deleteMessagesOrThrow(messages: Message[]) {
+async function deleteMessagesOrThrow(context: BotContext, messages: Message[], moduleId: SelfBotProtectionModuleId, reason: string) {
   const uniqueMessages = [...new Map(messages.map((message) => [message.id, message])).values()];
-  const results = await Promise.allSettled(uniqueMessages.map((message) => deleteMessageOrThrow(message)));
+  const results = await Promise.allSettled(uniqueMessages.map((message) => deleteMessageOrThrow(context, message, moduleId, reason)));
   const errors = results
     .map((result, index) => result.status === "rejected"
       ? `${uniqueMessages[index]?.id ?? "mensagem"}: ${errorMessage(result.reason)}`
@@ -1032,12 +1039,18 @@ async function deleteMessagesOrThrow(messages: Message[]) {
   }
 }
 
-async function deleteMessageOrThrow(message: Message) {
+async function deleteMessageOrThrow(context: BotContext, message: Message, moduleId: SelfBotProtectionModuleId, reason: string) {
   if (!message.deletable) {
     throw new Error("O bot nao tem permissao para apagar esta mensagem.");
   }
 
-  await message.delete();
+  await deleteMessageWithAudit(context, message, {
+    action: "AUTO_DELETE",
+    deletionType: "AUTOMATIC",
+    module: "SafeBot",
+    reason,
+    ruleId: moduleId
+  });
 }
 
 async function sendFilterLog(message: Message, runtime: SafeBotRuntime, punishment: SequencePunishmentOutcome) {

@@ -16,6 +16,7 @@ import type {
 import { clearSafeBotSetupCache, ensureSafeBotSetup, ensureSelfBotRole, isSelfBotModuleEnabled } from "./safeBotService";
 import { clearRuntimeModuleAuthorization, isRuntimeModuleAuthorized, runtimeScopeKey } from "./runtimeModuleGuard";
 import { canModerateMessage, getModerationSettings } from "./moderationChannelPolicy";
+import { deleteMessageWithAudit } from "./deletedMessageLogService";
 
 type MessageHistoryEntry = {
   at: number;
@@ -617,7 +618,7 @@ async function applyPunishment(input: {
 
       if (action === "delete_message") {
         if (input.message) {
-          await deleteSourceMessage(input.message);
+          await deleteSourceMessage(input.context, input.message, input.violation);
           actions.push(action);
         }
       } else if (action === "warn") {
@@ -774,12 +775,18 @@ function rememberSecurityActionError(guildId: string, moduleId: SelfBotProtectio
   });
 }
 
-async function deleteSourceMessage(message: Message | undefined) {
+async function deleteSourceMessage(context: BotContext, message: Message | undefined, violation: Violation) {
   if (!message) {
     throw new Error("Mensagem original nao disponivel para apagar.");
   }
 
-  await message.delete();
+  await deleteMessageWithAudit(context, message, {
+    action: "AUTO_DELETE",
+    deletionType: "AUTOMATIC",
+    module: "SelfBot Protection",
+    reason: violation.details,
+    ruleId: violation.moduleId
+  });
 }
 
 async function warnMember(member: GuildMember, message: Message | undefined, details: string) {

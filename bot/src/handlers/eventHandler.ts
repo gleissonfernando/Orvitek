@@ -373,7 +373,8 @@ function shouldHandleMessageCreateEvents() {
     "police-hidden-channel",
     "police-iab",
     "police-subpoenas",
-    "temporary-voice"
+    "temporary-voice",
+    "logs"
   ].some(isBotModuleEnabled)
     || isBotModuleEnabled("image-anti-spam")
     || isLinkAntiSpamEnabled()

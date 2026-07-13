@@ -15,10 +15,15 @@ import { handlePoliceHiddenChannelMessage } from "../services/policeHiddenChanne
 import { handlePoliceSubpoenaMessage } from "../services/policeSubpoenaService";
 import { handleReportSystemMessage } from "../services/reportSystemService";
 import { handleCourseExamMessage } from "../services/courseSystemService";
+import { rememberDeletedMessageSnapshot } from "../services/deletedMessageLogService";
 
 const MUSIC_PREFIX_COMMANDS = new Set(["music", "play", "artist", "pause", "resume", "skip", "stop", "queue", "clearqueue", "nowplaying", "volume", "loop", "shuffle"]);
 
 export async function handleMessageCreate(message: Message, context: BotContext) {
+  await rememberDeletedMessageSnapshot(message).catch((error) => {
+    console.warn("[deleted-message-log] falha ao guardar snapshot:", error instanceof Error ? error.message : error);
+  });
+
   if (await blockMessageIfMaintenance(message, context)) {
     return;
   }

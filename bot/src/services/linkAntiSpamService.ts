@@ -4,6 +4,7 @@ import type { BotContext } from "../types";
 import { logModeration } from "./logService";
 import { isRuntimeModuleAuthorized, runtimeScopeKey } from "./runtimeModuleGuard";
 import { canModerateMessage } from "./moderationChannelPolicy";
+import { deleteMessageWithAudit } from "./deletedMessageLogService";
 
 type UserLinkWindow = {
   expiresAt: number;
@@ -82,7 +83,13 @@ async function processLinkMessage(message: Message, linkCount: number, context: 
   setUserWindow(key, activeWindow);
 
   const retryAfterMs = Math.max(1_000, activeWindow.expiresAt - now);
-  await message.delete().catch((error) => {
+  await deleteMessageWithAudit(context, message, {
+    action: "AUTO_DELETE",
+    deletionType: "AUTOMATIC",
+    module: "Link Anti-Spam",
+    reason: `Link bloqueado: ${linkCount} link(s).`,
+    ruleId: MODULE_ID
+  }).catch((error) => {
     console.warn(
       `[link-anti-spam] nao foi possivel apagar a mensagem ${message.id}:`,
       errorMessage(error)

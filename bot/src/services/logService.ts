@@ -1,6 +1,7 @@
 import type { GuildMember, Message, PartialGuildMember, PartialMessage, ReadonlyCollection, Snowflake, User } from "discord.js";
 import { currentRuntimeBotId } from "../config/env";
 import type { BotContext } from "../types";
+import { registerBulkDeletedMessageLogs, registerDeletedMessageLog } from "./deletedMessageLogService";
 
 export type CreateSystemLogInput = {
   guildId: string;
@@ -42,20 +43,15 @@ export async function logMemberLeave(context: BotContext, member: GuildMember | 
 }
 
 export async function logMessageDelete(context: BotContext, message: Message | PartialMessage) {
-  if (!message.guild || message.author?.bot) {
+  if (!message.guild) {
     return;
   }
 
-  await sendLog(context, {
-    guildId: message.guild.id,
-    userId: message.author?.id,
-    type: "message.delete",
-    message: `Mensagem apagada em #${"name" in message.channel ? message.channel.name : message.channel.id}.`,
-    metadata: {
-      content: message.content || "Content unavailable",
-      channelId: message.channelId,
-      messageId: message.id
-    }
+  await registerDeletedMessageLog(context, {
+    deletionType: "UNKNOWN",
+    message,
+    module: "Logs de mensagens apagadas",
+    reason: "Exclusao detectada pelo evento global messageDelete"
   });
 }
 
@@ -80,6 +76,12 @@ export async function logMessageUpdate(context: BotContext, oldMessage: Message 
 
 export async function logMessageBulkDelete(context: BotContext, messages: ReadonlyCollection<Snowflake, Message | PartialMessage>) {
   const first = messages.first(); if (!first?.guild) return;
+  await registerBulkDeletedMessageLogs(context, messages.values(), {
+    action: "BULK_DELETE",
+    deletionType: "MODERATOR",
+    module: "Logs de mensagens apagadas",
+    reason: "Exclusao em massa"
+  });
   await sendLog(context, { guildId: first.guild.id, type: "message.bulk_delete", message: `${messages.size} messages were deleted in bulk.`, metadata: { channelId: first.channelId, messageIds: [...messages.keys()].slice(0, 100) } });
 }
 

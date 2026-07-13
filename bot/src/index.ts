@@ -62,7 +62,7 @@ if (needsVoiceRecorder || needsMusic || needsVoiceEvents) {
   intents.push(GatewayIntentBits.GuildVoiceStates);
 }
 
-const partials = [Partials.Channel, Partials.User];
+const partials = [Partials.Channel, Partials.GuildMember, Partials.User];
 
 if (needsMessageLogs || (!selfBotModuleEnabled && isBotModuleEnabled("image-anti-spam")) || managedRuntimeBot) {
   partials.push(Partials.Message);
