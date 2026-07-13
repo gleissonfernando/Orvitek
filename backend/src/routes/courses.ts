@@ -246,11 +246,12 @@ const examSettingsSchema = z.object({
   , version: z.number().int().min(1).max(1000).optional()
   , examKey: z.string().max(120).nullable().optional().or(z.literal(""))
 });
+const MAX_EXAM_ALTERNATIVES = 25;
 const examQuestionSchema = z.object({
   active: z.boolean().optional(),
-  alternatives: z.array(z.object({ id: z.string().max(80).optional(), text: z.string().max(500), value: z.string().max(120).optional(), score: decimalNumber(z.number().min(0).max(1000)).optional(), isCorrect: z.boolean().optional(), order: z.number().int().min(0).optional() })).max(10).optional(),
+  alternatives: z.array(z.object({ id: z.string().max(80).optional(), text: z.string().max(500), value: z.string().max(120).optional(), score: decimalNumber(z.number().min(0).max(1000)).optional(), isCorrect: z.boolean().optional(), order: z.number().int().min(0).optional() })).max(MAX_EXAM_ALTERNATIVES).optional(),
   correctAlternativeId: z.string().max(80).nullable().optional(),
-  correctAlternativeIds: z.array(z.string().max(80)).max(10).optional(),
+  correctAlternativeIds: z.array(z.string().max(80)).max(MAX_EXAM_ALTERNATIVES).optional(),
   correctText: z.string().max(1000).nullable().optional().or(z.literal("")),
   description: z.string().max(1200).nullable().optional().or(z.literal("")),
   order: z.number().int().min(0).optional(),
@@ -268,7 +269,7 @@ const answerSchema = z.object({
   questionId: z.string().min(1).nullable().optional(),
   questionIndex: z.number().int().min(0).nullable().optional(),
   selectedAlternativeId: z.string().min(1).max(80).nullable().optional(),
-  selectedAlternativeIds: z.array(z.string().min(1).max(80)).max(10).nullable().optional(),
+  selectedAlternativeIds: z.array(z.string().min(1).max(80)).max(MAX_EXAM_ALTERNATIVES).nullable().optional(),
   writtenAnswer: z.string().max(3000).nullable().optional()
 });
 const identificationSchema = z.object({

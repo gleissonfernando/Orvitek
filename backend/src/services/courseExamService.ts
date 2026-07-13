@@ -9,6 +9,7 @@ const DEFAULT_APPROVAL = "Você foi aprovado na prova do curso.";
 const DEFAULT_REJECTION = "Você foi reprovado na prova do curso.";
 const DEFAULT_EXTERNAL_LINK_TEXT = "Acessar material da prova";
 const DEFAULT_RELEASE_MODE = "immediate";
+const MAX_EXAM_ALTERNATIVES = 25;
 
 type StudentRank = "CADET" | "OFFICER" | "SENIOR_OFFICER";
 
@@ -396,13 +397,7 @@ export async function saveCourseExamAnswer(botId: string | null, guildId: string
       : question.correctText
         ? normalizeWrittenAnswerForCompare(writtenAnswer) === normalizeWrittenAnswerForCompare(question.correctText)
         : null;
-  const pointsEarned = question.type === "multiple"
-    ? calculateMultipleChoiceScore(question, selectedAlternativeIds)
-    : question.type === "selection"
-      ? calculateSelectionScore(question, selectedAlternative)
-    : correct === true
-      ? question.points
-      : 0;
+  const pointsEarned = correct === true ? question.points : 0;
   const maxScore = questionMaxScore(question);
   const now = new Date();
   const doc: MongoCourseExamAnswer = {
@@ -692,10 +687,10 @@ function normalizeAlternatives(value: unknown, type: MongoCourseExamQuestion["ty
   if (type === "written") return [];
   const source = Array.isArray(value) ? value : [];
   return source
-    .slice(0, 10)
+    .slice(0, MAX_EXAM_ALTERNATIVES)
     .map((item, index) => {
       const option = item as { id?: unknown; text?: unknown; value?: unknown; score?: unknown; isCorrect?: unknown; order?: unknown };
-      const id = String(option.id ?? ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"][index] ?? randomUUID()).trim();
+      const id = String(option.id ?? defaultAlternativeId(index)).trim();
       return {
         id,
         text: String(option.text ?? item ?? "").trim(),
@@ -744,38 +739,8 @@ function sameSet(left: string[], right: string[]) {
   return left.every((item) => expected.has(item));
 }
 
-function calculateMultipleChoiceScore(question: MongoCourseExamQuestion, selectedAlternativeIds: string[]) {
-  const expectedIds = correctIds(question);
-  if (!expectedIds.length) return 0;
-  const selected = new Set(selectedAlternativeIds);
-  const fallbackPoints = question.points / expectedIds.length;
-  const points = expectedIds.reduce((total, id) => {
-    if (!selected.has(id)) return total;
-    const alternative = question.alternatives.find((item) => item.id === id);
-    return total + alternativePointValue(alternative, fallbackPoints);
-  }, 0);
-  return Math.min(questionMaxScore(question), roundScore(points));
-}
-
-function calculateSelectionScore(question: MongoCourseExamQuestion, selectedAlternative: MongoCourseExamQuestion["alternatives"][number] | undefined) {
-  if (!selectedAlternative || !isExpectedAlternative(question, selectedAlternative)) return 0;
-  return Math.min(questionMaxScore(question), alternativePointValue(selectedAlternative, question.points));
-}
-
 function questionMaxScore(question: MongoCourseExamQuestion) {
-  if (question.type === "written") return question.points;
-  const expectedIds = correctIds(question);
-  if (!expectedIds.length) return question.points;
-  if (question.type === "selection") {
-    return Math.max(...expectedIds.map((id) => alternativePointValue(question.alternatives.find((item) => item.id === id), question.points)));
-  }
-  const fallbackPoints = question.points / expectedIds.length;
-  return roundScore(expectedIds.reduce((total, id) => total + alternativePointValue(question.alternatives.find((item) => item.id === id), fallbackPoints), 0));
-}
-
-function alternativePointValue(alternative: MongoCourseExamQuestion["alternatives"][number] | undefined, fallback: number) {
-  const score = parseDecimalNumber(alternative?.score, 0);
-  return score > 0 ? score : fallback;
+  return roundScore(question.points);
 }
 
 function isExpectedAlternative(question: Pick<MongoCourseExamQuestion, "alternatives" | "correctAlternativeId" | "correctAlternativeIds">, alternative: MongoCourseExamQuestion["alternatives"][number]) {
@@ -795,6 +760,11 @@ function parseDecimalNumber(value: unknown, fallback: number) {
 
 function roundScore(value: number) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+}
+
+function defaultAlternativeId(index: number) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  return alphabet[index] ?? randomUUID();
 }
 
 function isExamReleased(settings: Pick<MongoCourseExamSettings, "releaseMode" | "releaseAt"> | null | undefined) {

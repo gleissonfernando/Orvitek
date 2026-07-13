@@ -86,6 +86,7 @@ const EXAM_CHANNEL_DELETE_RETRY_DELAY = 5 * 60 * 1000;
 const EXAM_CHANNEL_STATE_RETRY_MAX_DELAY = 60 * 60 * 1000;
 const COURSE_EVENT_DURATION_MS = 24 * 60 * 60 * 1000;
 const MAX_COURSE_EVENT_TIMER_DELAY = 7 * 24 * 60 * 60 * 1000;
+const MAX_EXAM_SELECT_OPTIONS = 25;
 
 let serviceStarted = false;
 const examProvisioning = new Map<string, Promise<string>>();
@@ -95,6 +96,7 @@ const examChannelDeletionGenerations = new Map<string, symbol>();
 const examChannelStateRetryTimers = new Map<string, NodeJS.Timeout>();
 const courseEventLifecycleTimers = new Map<string, { end?: NodeJS.Timeout; start?: NodeJS.Timeout }>();
 const courseEventLifecycleGenerations = new Map<string, symbol>();
+const pendingExamSelections = new Map<string, string[]>();
 
 export function startCourseSystemService(client: Client, context: BotContext) {
   if (serviceStarted) return;
@@ -1330,14 +1332,16 @@ async function selectExamAnswer(interaction: StringSelectMenuInteraction, contex
   }
   await interaction.deferUpdate();
   const selectedAlternativeIds = interaction.values;
+  pendingExamSelections.set(pendingExamSelectionKey(interaction.guildId!, attemptId, questionIndex), selectedAlternativeIds);
   const course = await context.api.getCourse(interaction.guildId!, bundle.attempt.courseId);
   await interaction.message.edit(pendingSelectionQuestionPanel(course, bundle.attempt, question, questionIndex + 1, bundle.questions.length, selectedAlternativeIds)).catch(() => null);
 }
 
 async function confirmExamAnswer(interaction: ButtonInteraction, context: BotContext) {
-  const [, attemptId, questionIndexRaw, selectedRaw] = interaction.customId.split(":");
+  const [, attemptId, questionIndexRaw] = interaction.customId.split(":");
   const questionIndex = Number(questionIndexRaw);
-  const selectedAlternativeIds = (selectedRaw ?? "").split(",").map((item) => item.trim()).filter(Boolean);
+  const selectionKey = pendingExamSelectionKey(interaction.guildId!, attemptId ?? "", questionIndex);
+  const selectedAlternativeIds = pendingExamSelections.get(selectionKey) ?? [];
   if (!attemptId || !Number.isInteger(questionIndex) || !selectedAlternativeIds.length) {
     await interaction.reply({ content: "Responda à questão antes de continuar.", flags: MessageFlags.Ephemeral });
     return;
@@ -1363,6 +1367,7 @@ async function confirmExamAnswer(interaction: ButtonInteraction, context: BotCon
     await interaction.followUp({ content: "Esta questão já foi respondida ou não está mais ativa.", flags: MessageFlags.Ephemeral });
     return;
   }
+  pendingExamSelections.delete(selectionKey);
   await interaction.message.edit(answeredSelectionQuestionPanel(bundle.attempt, question, questionIndex + 1, bundle.questions.length, selectedAlternativeIds)).catch(() => null);
   const updated = await context.api.getCourseExamAttempt(interaction.guildId!, attemptId);
   const [course, runtime] = await Promise.all([
@@ -1451,6 +1456,7 @@ async function retryExamQuestion(interaction: ButtonInteraction, context: BotCon
     return;
   }
   const course = await context.api.getCourse(interaction.guildId!, bundle.attempt.courseId);
+  pendingExamSelections.delete(pendingExamSelectionKey(interaction.guildId!, attemptId ?? "", questionIndex));
   await interaction.update(selectionQuestionPanel(course, bundle.attempt, question, questionIndex + 1, bundle.questions.length));
 }
 
@@ -2117,8 +2123,8 @@ function selectionQuestionPanel(course: Course, attempt: CourseExamAttempt, ques
           .setCustomId(`course_exam_answer:${attempt.id}:${index - 1}`)
           .setPlaceholder(isMultiple ? "Selecione uma ou mais alternativas" : "Selecione uma alternativa")
           .setMinValues(1)
-          .setMaxValues(isMultiple ? Math.min(10, question.alternatives.length) : 1)
-          .addOptions(question.alternatives.slice(0, 10).map((alternative) => ({
+          .setMaxValues(isMultiple ? Math.min(MAX_EXAM_SELECT_OPTIONS, question.alternatives.length) : 1)
+          .addOptions(question.alternatives.slice(0, MAX_EXAM_SELECT_OPTIONS).map((alternative) => ({
             label: `Alternativa ${alternative.id}`.slice(0, 100),
             value: alternative.id,
             description: alternative.text.slice(0, 100)
@@ -2140,7 +2146,7 @@ function pendingSelectionQuestionPanel(course: Course, attempt: CourseExamAttemp
   return renderComponentsV2Panel({
     accentColor: parseColor(course.color),
     actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`course_exam_confirm_answer:${attempt.id}:${index - 1}:${selectedIds.join(",")}`).setEmoji(systemComponentEmoji("visto")).setLabel("Continuar").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`course_exam_confirm_answer:${attempt.id}:${index - 1}`).setEmoji(systemComponentEmoji("visto")).setLabel("Continuar").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`course_exam_retry:${attempt.id}:${index - 1}`).setEmoji(systemComponentEmoji("voltar")).setLabel("Alterar seleção").setStyle(ButtonStyle.Secondary)
     )],
     description: "Revise sua seleção e confirme para salvar. Depois de confirmada, a resposta não poderá ser alterada.",
@@ -2439,17 +2445,7 @@ function questionScoreLine(question: CourseExamQuestion) {
 }
 
 function questionMaxScore(question: CourseExamQuestion) {
-  if (question.type === "written") return Number(question.points) || 0;
-  const expected = question.alternatives.filter((alternative) => isExpectedAlternative(question, alternative));
-  if (!expected.length) return Number(question.points) || 0;
-  if (question.type === "selection") return Math.max(...expected.map((alternative) => alternativeScoreValue(question, alternative)));
-  const fallback = (Number(question.points) || 0) / expected.length;
-  return expected.reduce((total, alternative) => total + alternativeScoreValue(question, alternative, fallback), 0);
-}
-
-function alternativeScoreValue(question: CourseExamQuestion, alternative: CourseExamQuestion["alternatives"][number], fallback = Number(question.points) || 0) {
-  const score = Number(alternative.score ?? 0);
-  return score > 0 ? score : fallback;
+  return Number(question.points) || 0;
 }
 
 function formatScore(value: number | null | undefined) {
@@ -2816,4 +2812,8 @@ function parseColor(value: string | null | undefined) {
 
 function idFromCustomId(customId: string) {
   return customId.split(":")[1] ?? "";
+}
+
+function pendingExamSelectionKey(guildId: string, attemptId: string, questionIndex: number) {
+  return `${guildId}:${attemptId}:${questionIndex}`;
 }
