@@ -980,6 +980,7 @@ function normalizeQuestion(question: SaveCourseExamQuestionPayload) {
     ...question,
     questionNumber,
     order: questionNumber - 1,
+    points: parseDecimalNumber(question.points, 10),
     type: question.type,
     alternatives,
     correctAlternativeId: question.type === "written" ? null : question.type === "multiple" ? null : question.correctAlternativeId ?? alternatives.find((option) => option.isCorrect)?.id ?? null,
@@ -1192,7 +1193,8 @@ function formatDecimalInput(value: number) {
 }
 
 function formatScoreValue(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(".", ",");
+  const score = Number(value ?? 0);
+  return Number.isInteger(score) ? String(score) : score.toFixed(2).replace(/0+$/, "").replace(/\.$/, "").replace(".", ",");
 }
 
 function normalizeSearch(value: string) {

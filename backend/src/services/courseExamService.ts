@@ -118,7 +118,7 @@ export async function createCourseExamQuestion(botId: string | null, guildId: st
     prompt: input.prompt?.trim() || "Nova pergunta",
     title: input.title?.trim() || input.prompt?.trim() || "Nova pergunta",
     description: input.description?.trim() || null,
-    points: Math.max(0, Number(input.points) || 1),
+    points: Math.max(0, parseDecimalNumber(input.points, 1)),
     alternatives: normalizeAlternatives(input.alternatives, normalizeQuestionType(input.type)),
     correctAlternativeId: normalizeQuestionType(input.type) === "written" ? null : normalizeCorrect(input.correctAlternativeId),
     correctAlternativeIds: normalizeQuestionType(input.type) === "multiple" ? normalizeCorrectList(input.correctAlternativeIds ?? input.correctAlternativeId ?? input.alternatives) : [],
@@ -142,7 +142,7 @@ export async function updateCourseExamQuestion(botId: string | null, guildId: st
   if (input.prompt !== undefined) patch.prompt = input.prompt.trim() || "Pergunta";
   if (input.title !== undefined) patch.title = input.title?.trim() || input.prompt?.trim() || "Pergunta";
   if (input.description !== undefined) patch.description = input.description?.trim() || null;
-  if (input.points !== undefined) patch.points = Math.max(0, Number(input.points) || 0);
+  if (input.points !== undefined) patch.points = Math.max(0, parseDecimalNumber(input.points, 0));
   if (input.alternatives !== undefined) patch.alternatives = normalizeAlternatives(input.alternatives, patch.type ?? normalizeQuestionType(input.type));
   if (input.correctAlternativeId !== undefined) patch.correctAlternativeId = patch.type === "written" || input.type === "written" ? null : normalizeCorrect(input.correctAlternativeId);
   if (input.correctAlternativeIds !== undefined || input.alternatives !== undefined || input.type !== undefined) {
@@ -445,8 +445,8 @@ export async function finalizeCourseExamAttempt(botId: string | null, guildId: s
   if (!relevantQuestions.length) return null;
   const answeredQuestionIds = new Set(answers.map((answer) => answer.questionId));
   if (!relevantQuestions.every((question) => answeredQuestionIds.has(question._id))) return null;
-  const maxScore = relevantQuestions.reduce((total, question) => total + question.points, 0);
-  const score = answers.reduce((total, answer) => total + answer.pointsEarned, 0);
+  const maxScore = roundScore(relevantQuestions.reduce((total, question) => total + question.points, 0));
+  const score = roundScore(answers.reduce((total, answer) => total + answer.pointsEarned, 0));
   const objectiveCorrect = answers.filter((answer) => answer.correct === true).length;
   const objectiveWrong = answers.filter((answer) => answer.correct === false).length;
   const writtenCount = answers.filter((answer) => answer.type === "written").length;
@@ -696,7 +696,7 @@ function normalizeAlternatives(value: unknown, type: MongoCourseExamQuestion["ty
         id,
         text: String(option.text ?? item ?? "").trim(),
         value: String(option.value ?? id).trim(),
-        score: Math.max(0, Number(option.score ?? 0) || 0),
+        score: Math.max(0, parseDecimalNumber(option.score, 0)),
         isCorrect: option.isCorrect === true,
         order: Number.isFinite(option.order) ? Number(option.order) : index
       };
@@ -746,7 +746,19 @@ function calculateMultipleChoiceScore(question: MongoCourseExamQuestion, selecte
   const selected = new Set(selectedAlternativeIds);
   const correctSelections = expectedIds.filter((id) => selected.has(id)).length;
   const points = (question.points / expectedIds.length) * correctSelections;
-  return Math.min(question.points, Math.round(points * 100) / 100);
+  return Math.min(question.points, roundScore(points));
+}
+
+function parseDecimalNumber(value: unknown, fallback: number) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : fallback;
+  const normalized = String(value ?? "").trim().replace(",", ".");
+  if (!normalized) return fallback;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function roundScore(value: number) {
+  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 }
 
 function isExamReleased(settings: Pick<MongoCourseExamSettings, "releaseMode" | "releaseAt"> | null | undefined) {
@@ -856,7 +868,7 @@ function normalizeQuestionSnapshot(value: unknown): MongoCourseExamQuestion[] {
       guildId: String(question.guildId ?? ""),
       order: Number.isFinite(question.order) ? Number(question.order) : index,
       placeholder: question.placeholder ?? null,
-      points: Math.max(0, Number(question.points ?? 0) || 0),
+      points: Math.max(0, parseDecimalNumber(question.points, 0)),
       prompt,
       questionNumber: Number.isFinite(question.questionNumber) ? Number(question.questionNumber) : index + 1,
       title: question.title ?? prompt,
