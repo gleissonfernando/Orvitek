@@ -814,7 +814,6 @@ async function validateCourseExamActivation(botId: string | null, guildId: strin
       if (question.alternatives.length < 2) errors.push(`${label} precisa ter pelo menos duas alternativas.`);
       question.alternatives.forEach((alternative) => {
         if (!alternative.text.trim()) errors.push(`${label} possui alternativa ${alternative.id} sem texto.`);
-        if (isIncompleteAlternativeText(alternative.text)) errors.push(`${label} possui alternativa ${alternative.id} incompleta.`);
       });
       const duplicateAlternative = hasDuplicate(question.alternatives.map((item) => item.text.toLowerCase().trim()));
       if (duplicateAlternative) errors.push(`${label} possui alternativas duplicadas.`);
@@ -831,11 +830,6 @@ function hasDuplicate(values: string[]) {
     seen.add(value);
   }
   return false;
-}
-
-function isIncompleteAlternativeText(value: string) {
-  const normalized = value.trim();
-  return normalized.endsWith("...") || normalized.includes("[incomplet") || normalized.includes("INCOMPLET");
 }
 
 function normalizeQuestionSnapshot(value: unknown): MongoCourseExamQuestion[] {
