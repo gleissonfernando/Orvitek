@@ -2412,7 +2412,21 @@ function formatAnswerSummary(question: CourseExamQuestion, answer: CourseExamAns
 }
 
 function questionScoreLine(question: CourseExamQuestion) {
-  return `Valor da questão: ${formatScore(question.points)} ponto(s)`;
+  return `Valor da questão: ${formatScore(questionMaxScore(question))} ponto(s)`;
+}
+
+function questionMaxScore(question: CourseExamQuestion) {
+  if (question.type === "written") return Number(question.points) || 0;
+  const expected = question.alternatives.filter((alternative) => isExpectedAlternative(question, alternative));
+  if (!expected.length) return Number(question.points) || 0;
+  if (question.type === "selection") return Math.max(...expected.map((alternative) => alternativeScoreValue(question, alternative)));
+  const fallback = (Number(question.points) || 0) / expected.length;
+  return expected.reduce((total, alternative) => total + alternativeScoreValue(question, alternative, fallback), 0);
+}
+
+function alternativeScoreValue(question: CourseExamQuestion, alternative: CourseExamQuestion["alternatives"][number], fallback = Number(question.points) || 0) {
+  const score = Number(alternative.score ?? 0);
+  return score > 0 ? score : fallback;
 }
 
 function formatScore(value: number | null | undefined) {
