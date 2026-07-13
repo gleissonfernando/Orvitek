@@ -2128,7 +2128,7 @@ function selectionQuestionPanel(course: Course, attempt: CourseExamAttempt, ques
     ],
     description: question.description || "Selecione sua resposta.",
     fields: [
-      `Curso: ${course.name}\nQuestão ${index} de ${total}`,
+      `Curso: ${course.name}\nQuestão ${index} de ${total}\n${questionScoreLine(question)}`,
       `**${question.prompt}**`,
       question.alternatives.map((alternative) => `( ) ${alternative.text}`).join("\n")
     ],
@@ -2146,7 +2146,7 @@ function pendingSelectionQuestionPanel(course: Course, attempt: CourseExamAttemp
     )],
     description: "Revise sua seleção e confirme para salvar. Depois de confirmada, a resposta não poderá ser alterada.",
     fields: [
-      `Curso: ${course.name}\nQuestão ${index} de ${total}`,
+      `Curso: ${course.name}\nQuestão ${index} de ${total}\n${questionScoreLine(question)}`,
       `**${question.prompt}**`,
       question.alternatives.map((alternative) => `${selectedIds.includes(alternative.id) ? "(X)" : "( )"} ${alternative.text}`).join("\n")
     ],
@@ -2161,7 +2161,7 @@ function answeredSelectionQuestionPanel(attempt: CourseExamAttempt, question: Co
     accentColor: 0x16a34a,
     description: "Resposta registrada com sucesso. Continue para a próxima questão.",
     fields: [
-      `Pergunta ${index}/${total}`,
+      `Pergunta ${index}/${total}\n${questionScoreLine(question)}`,
       `**${question.prompt}**`,
       question.alternatives.map((alternative) => `${selectedIds.includes(alternative.id) ? "(X)" : "( )"} ${alternative.text}`).join("\n")
     ],
@@ -2178,7 +2178,7 @@ function writtenQuestionPanel(course: Course, attempt: CourseExamAttempt, questi
     )],
     description: "Abra o modal, envie sua resposta e aguarde a próxima etapa. Depois de enviada, a resposta não poderá ser alterada.",
     fields: [
-      `Pergunta ${index}/${total}`,
+      `Pergunta ${index}/${total}\n${questionScoreLine(question)}`,
       `**${question.prompt}**`,
       question.description || question.placeholder || "Envie sua resposta em uma mensagem abaixo."
     ],
@@ -2193,7 +2193,7 @@ function answeredWrittenQuestionPanel(attempt: CourseExamAttempt, question: Cour
     accentColor: 0x16a34a,
     description: "Resposta registrada com sucesso. Continue para a próxima questão.",
     fields: [
-      `Pergunta ${index}/${total}`,
+      `Pergunta ${index}/${total}\n${questionScoreLine(question)}`,
       `**${question.prompt}**`
     ],
     moduleId: "courses",
@@ -2385,6 +2385,7 @@ function formatAnswerSummary(question: CourseExamQuestion, answer: CourseExamAns
   if (question.type === "written") {
     return [
       `QUESTÃO ${String(index).padStart(2, "0")}`,
+      questionScoreLine(question),
       question.prompt,
       "",
       answer?.writtenAnswer ? answer.writtenAnswer.slice(0, 900) : "Sem resposta salva.",
@@ -2399,6 +2400,7 @@ function formatAnswerSummary(question: CourseExamQuestion, answer: CourseExamAns
   const expectedIds = question.correctAlternativeIds?.length ? question.correctAlternativeIds : question.alternatives.filter((alternative) => isExpectedAlternative(question, alternative)).map((alternative) => alternative.id);
   return [
     `QUESTÃO ${String(index).padStart(2, "0")}`,
+    questionScoreLine(question),
     answer?.questionText || question.prompt,
     "",
     alternatives.map((alternative) => `${selectedIds.includes(alternative.id) ? "(X)" : "( )"} ${alternative.text}`).join("\n"),
@@ -2407,6 +2409,10 @@ function formatAnswerSummary(question: CourseExamQuestion, answer: CourseExamAns
     `Resultado da questão: ${answer?.correct ? "correta" : pointsEarned > 0 && pointsEarned < maxScore ? "parcialmente correta" : "incorreta"}`,
     `Pontuação obtida: ${formatScore(pointsEarned)} de ${formatScore(maxScore)}`
   ].join("\n").slice(0, 1900);
+}
+
+function questionScoreLine(question: CourseExamQuestion) {
+  return `Valor da questão: ${formatScore(question.points)} ponto(s)`;
 }
 
 function formatScore(value: number | null | undefined) {
