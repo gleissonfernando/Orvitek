@@ -1234,6 +1234,7 @@ export async function createCoursePublication(botId: string | null, guildId: str
     startedAt: null,
     proofStartedBy: null,
     proofStartedAt: null,
+    finishedBy: null,
     finishedAt: null,
     createdAt: now,
     updatedAt: now
@@ -1441,8 +1442,8 @@ export async function setCoursePublicationStatus(botId: string | null, guildId: 
   const publication = await coursePublications.findOne({ _id: publicationId, ...scope(botId, guildId) });
   if (!publication) return null;
   const now = new Date();
-  const expectedStatus = status === "started" ? "open" : status === "proof" ? "started" : null;
-  const transition = await coursePublications.updateOne({ _id: publicationId, ...scope(botId, guildId), ...(expectedStatus ? { status: expectedStatus } : {}) }, {
+  const allowedStatuses = publicationStatusTransitionSources(status);
+  const transition = await coursePublications.updateOne({ _id: publicationId, ...scope(botId, guildId), ...(allowedStatuses ? { status: { $in: allowedStatuses } } : {}) }, {
     $set: {
       cancelledAt: status === "cancelled" ? now : publication.cancelledAt,
       cancelledBy: status === "cancelled" ? actorId : publication.cancelledBy,
@@ -1450,6 +1451,7 @@ export async function setCoursePublicationStatus(botId: string | null, guildId: 
       startedAt: status === "started" ? now : publication.startedAt ?? null,
       proofStartedBy: status === "proof" ? actorId : publication.proofStartedBy ?? null,
       proofStartedAt: status === "proof" ? now : publication.proofStartedAt ?? null,
+      finishedBy: status === "finished" || status === "closed" ? actorId : publication.finishedBy ?? null,
       finishedAt: status === "finished" || status === "closed" ? now : publication.finishedAt ?? null,
       status,
       updatedAt: now
@@ -1470,6 +1472,15 @@ export async function setCoursePublicationStatus(botId: string | null, guildId: 
   await logCourseAction(botId, guildId, `course.${status}`, actorId, publication.courseId, publicationId, { from: publication.status, to: status });
   emitRealtime("courses:publication", { botId, guildId, publicationId });
   return mapPublication(updated ?? publication);
+}
+
+function publicationStatusTransitionSources(status: MongoCoursePublication["status"]): MongoCoursePublication["status"][] | null {
+  if (status === "started") return ["open"];
+  if (status === "proof") return ["started"];
+  if (status === "finished") return ["started", "proof"];
+  if (status === "closed") return ["open", "started", "proof"];
+  if (status === "cancelled") return ["open", "started"];
+  return null;
 }
 
 export async function createScheduleRequest(botId: string | null, guildId: string, input: {
@@ -1693,6 +1704,7 @@ function mapPublication(publication: MongoCoursePublication) {
     startedAt: publication.startedAt?.toISOString() ?? null,
     proofStartedBy: publication.proofStartedBy ?? null,
     proofStartedAt: publication.proofStartedAt?.toISOString() ?? null,
+    finishedBy: publication.finishedBy ?? null,
     finishedAt: publication.finishedAt?.toISOString() ?? null,
     createdAt: publication.createdAt.toISOString(),
     updatedAt: publication.updatedAt.toISOString()

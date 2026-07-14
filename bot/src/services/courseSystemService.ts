@@ -289,6 +289,10 @@ async function handleButton(interaction: ButtonInteraction, context: BotContext)
     await changePublicationStatus(interaction, context, idFromCustomId(interaction.customId), "started");
     return;
   }
+  if (interaction.customId.startsWith("course_finish:")) {
+    await changePublicationStatus(interaction, context, idFromCustomId(interaction.customId), "finished");
+    return;
+  }
   if (interaction.customId.startsWith("course_exam_realize:") || interaction.customId.startsWith("course_exam_start:")) {
     await realizeCourseExam(interaction, context, idFromCustomId(interaction.customId));
     return;
@@ -644,7 +648,7 @@ async function leavePublication(interaction: ButtonInteraction, context: BotCont
   await interaction.editReply("Você saiu do curso com sucesso.");
 }
 
-async function changePublicationStatus(interaction: ButtonInteraction, context: BotContext, publicationId: string, status: "started" | "cancelled") {
+async function changePublicationStatus(interaction: ButtonInteraction, context: BotContext, publicationId: string, status: "started" | "cancelled" | "finished") {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const publication = await context.api.getCoursePublication(interaction.guildId!, publicationId);
   const allowed = status === "started"
@@ -664,8 +668,29 @@ async function changePublicationStatus(interaction: ButtonInteraction, context: 
     await context.api.updateCoursePublicationEvent(interaction.guildId!, updated.id, { discordEventId: updated.discordEventId, discordEventUrl: updated.discordEventUrl, syncError: error instanceof Error ? error.message : String(error) }).catch(() => null);
   });
   await refreshPublicationMessage(interaction, context, updated);
-  await sendPublicationLog(interaction, context, updated, `${status === "started" ? "▶️ Curso iniciado" : "❌ Curso cancelado"}\nResponsável: <@${interaction.user.id}>\nInscritos: ${updated.students.length}\nStatus: ${status}`);
-  await interaction.editReply(status === "started" ? "Curso iniciado. A opção Realizar prova foi liberada aos alunos inscritos." : "Curso cancelado.");
+  if (status === "finished") {
+    await lockFinishedCourseChannel(interaction, context, updated).catch(async (error) => {
+      await sendPublicationLog(interaction, context, updated, `⚠️ Falha ao bloquear canal após finalização\nResponsável: <@${interaction.user.id}>\nErro: ${error instanceof Error ? error.message : String(error)}`).catch(() => null);
+    });
+  }
+  const logTitle = status === "started" ? "▶️ Curso iniciado" : status === "finished" ? "✅ Curso finalizado" : "❌ Curso cancelado";
+  await sendPublicationLog(interaction, context, updated, `${logTitle}\nResponsável: <@${interaction.user.id}>\nInscritos: ${updated.students.length}\nStatus: ${status}${status === "finished" ? `\nDuração: ${formatCourseDuration(updated.startedAt, updated.finishedAt)}` : ""}`);
+  await interaction.editReply(status === "started" ? "Curso iniciado. A opção Realizar prova foi liberada aos alunos inscritos." : status === "finished" ? "Curso finalizado. O painel foi bloqueado e o evento foi encerrado." : "Curso cancelado.");
+}
+
+async function lockFinishedCourseChannel(interaction: ButtonInteraction, context: BotContext, publication: CoursePublication) {
+  const channel = await interaction.guild?.channels.fetch(publication.channelId).catch(() => null);
+  if (!channel || channel.type !== ChannelType.GuildText) return;
+  const me = interaction.guild?.members.me ?? await interaction.guild?.members.fetchMe().catch(() => null);
+  const permissions = me ? channel.permissionsFor(me) : null;
+  if (!permissions?.has(PermissionFlagsBits.ManageChannels)) {
+    await sendPublicationLog(interaction, context, publication, `⚠️ Canal não bloqueado após finalização\nCanal: <#${channel.id}>\nMotivo: o bot não possui permissão Gerenciar Canais.`);
+    return;
+  }
+  await channel.permissionOverwrites.edit(interaction.guild!.roles.everyone.id, {
+    SendMessages: false,
+    SendMessagesInThreads: false
+  }, { reason: `Curso finalizado: ${publication.id}` });
 }
 
 function parseCourseScheduleWindow(dateInput: string, timeInput: string) {
@@ -698,10 +723,10 @@ async function createOrUpdateCourseScheduledEvent(guild: Guild, context: BotCont
   const startAt = new Date(publication.scheduledStartAt);
   const endAt = new Date(publication.scheduledEndAt);
   const payload = {
-    description: courseScheduledEventDescription(course, publication, "Agendado"),
+    description: courseScheduledEventDescription(course, publication, "📅 Agendado"),
     entityMetadata: { location: publication.location },
     entityType: GuildScheduledEventEntityType.External,
-    name: `Curso agendado - ${course.name}`.slice(0, 100),
+    name: `📅 Curso agendado - ${course.name}`.slice(0, 100),
     privacyLevel: GuildScheduledEventPrivacyLevel.GuildOnly,
     scheduledEndTime: endAt,
     scheduledStartTime: startAt
@@ -744,10 +769,21 @@ async function syncCourseScheduledEventStatus(guild: Guild, course: Course, publ
   if (!event) throw new Error("Evento agendado não encontrado no Discord.");
   if (publication.status === "started") {
     await event.edit({
-      description: courseScheduledEventDescription(course, publication, "Curso em andamento"),
-      name: `Curso iniciado - ${course.name}`.slice(0, 100),
+      description: courseScheduledEventDescription(course, publication, "🟢 Curso Iniciado"),
+      name: `🟢 Curso iniciado - ${course.name}`.slice(0, 100),
       status: event.status === GuildScheduledEventStatus.Scheduled ? GuildScheduledEventStatus.Active : undefined
     });
+  } else if (publication.status === "finished") {
+    let currentEvent = event;
+    if (currentEvent.status === GuildScheduledEventStatus.Scheduled) {
+      currentEvent = await currentEvent.edit({ status: GuildScheduledEventStatus.Active }).catch(() => currentEvent);
+    }
+    await currentEvent.edit({
+      description: courseScheduledEventDescription(course, publication, "✅ Curso Finalizado"),
+      name: `✅ Curso finalizado - ${course.name}`.slice(0, 100),
+      status: currentEvent.status === GuildScheduledEventStatus.Completed ? undefined : GuildScheduledEventStatus.Completed
+    });
+    clearCourseEventLifecycle(publication.id);
   } else if (publication.status === "cancelled") {
     await event.edit({
       description: courseScheduledEventDescription(course, publication, "Cancelado"),
@@ -760,21 +796,10 @@ async function syncCourseScheduledEventStatus(guild: Guild, course: Course, publ
 
 function scheduleCourseEventLifecycle(guild: Guild, context: BotContext, publication: CoursePublication, course?: Course | null) {
   clearCourseEventLifecycle(publication.id);
-  if (!publication.discordEventId || !publication.scheduledStartAt || !publication.scheduledEndAt) return;
-  if (["cancelled", "closed", "finished"].includes(publication.status)) return;
-  const generation = Symbol(publication.id);
-  courseEventLifecycleGenerations.set(publication.id, generation);
-  const startAt = Date.parse(publication.scheduledStartAt);
-  const endAt = Date.parse(publication.scheduledEndAt);
-  if (!Number.isFinite(startAt) || !Number.isFinite(endAt)) return;
-  if (Date.now() < endAt) {
-    scheduleCourseEventTimer(publication.id, "start", Math.max(0, startAt - Date.now()), generation, async () => {
-      await runCourseEventTransition(guild, context, publication.id, "start", course);
-    });
-  }
-  scheduleCourseEventTimer(publication.id, "end", Math.max(0, endAt - Date.now()), generation, async () => {
-    await runCourseEventTransition(guild, context, publication.id, "end", course);
-  });
+  void guild;
+  void context;
+  void publication;
+  void course;
 }
 
 function scheduleCourseEventTimer(publicationId: string, kind: "start" | "end", delayMs: number, generation: symbol, action: () => Promise<void>) {
@@ -1946,6 +1971,7 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
   const canLeave = publication.status === "open";
   const canStartClass = publication.status === "open";
   const canStartExam = publication.status === "started" || publication.status === "proof";
+  const canFinishClass = publication.status === "started" || publication.status === "proof";
   const canCancel = !["cancelled", "proof", "finished", "closed"].includes(publication.status);
   const actions = [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -1955,6 +1981,7 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`course_start:${publication.id}`).setEmoji(systemComponentEmoji("liga")).setLabel("Iniciar curso").setStyle(ButtonStyle.Primary).setDisabled(!canStartClass),
       new ButtonBuilder().setCustomId(`course_exam_realize:${publication.id}`).setEmoji(systemComponentEmoji("prancheta_caneta")).setLabel("Realizar prova").setStyle(ButtonStyle.Success).setDisabled(!canStartExam),
+      new ButtonBuilder().setCustomId(`course_finish:${publication.id}`).setEmoji(systemComponentEmoji("visto")).setLabel("Finalizar curso").setStyle(ButtonStyle.Secondary).setDisabled(!canFinishClass),
       new ButtonBuilder().setCustomId(`course_cancel:${publication.id}`).setEmoji(systemComponentEmoji("exclamacao")).setLabel(course.buttonLabels.cancel || "Cancelar Curso").setStyle(ButtonStyle.Danger).setDisabled(!canCancel)
     )
   ];
@@ -1985,6 +2012,7 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
       examProgress.length ? `**Situação das provas:**\n${examProgress.join("\n")}\n\n**Em andamento:** ${enrollments.filter((item) => item.examStatus === "STARTING" || item.examStatus === "IN_PROGRESS").length} | **Concluídas:** ${enrollments.filter((item) => ["COMPLETED", "APPROVED", "FAILED"].includes(item.examStatus)).length}` : "",
       publication.startedAt ? `**Curso iniciado por:** ${publication.startedBy ? `<@${publication.startedBy}>` : `<@${publication.instructorId}>`}\n**Data e horário de início:** ${new Date(publication.startedAt).toLocaleString("pt-BR")}` : "",
       publication.proofStartedAt ? `**Prova liberada por:** ${publication.proofStartedBy ? `<@${publication.proofStartedBy}>` : `<@${publication.instructorId}>`}\n**Data e horário da liberação:** ${new Date(publication.proofStartedAt).toLocaleString("pt-BR")}` : "",
+      publication.finishedAt ? `**Curso finalizado por:** ${publication.finishedBy ? `<@${publication.finishedBy}>` : "-"}\n**Data e horário de encerramento:** ${new Date(publication.finishedAt).toLocaleString("pt-BR")}\n**Duração total:** ${formatCourseDuration(publication.startedAt, publication.finishedAt)}` : "",
       publication.status === "cancelled" ? `**Cancelamento:**\nResponsável: ${publication.cancelledBy ? `<@${publication.cancelledBy}>` : "-"}\nData: ${publication.cancelledAt ? new Date(publication.cancelledAt).toLocaleString("pt-BR") : "-"}` : ""
     ].filter(Boolean),
     image: course.bannerUrl ? { imageEnabled: true, imagePosition: course.imagePosition === "side" ? "side" : course.imagePosition === "footer" ? "footer" : course.imagePosition, imageUrl: course.bannerUrl } : null,
@@ -2109,9 +2137,9 @@ function coursePublicationStatusLabel(publication: CoursePublication, full: bool
     cancelled: `${systemStatusEmoji("danger")} Cancelado`,
     closed: `${systemStatusEmoji("success")} Encerrado`,
     finished: `${systemStatusEmoji("success")} Finalizado`,
-    open: `${systemStatusEmoji("active")} Inscrições abertas`,
+    open: "📅 Agendado",
     proof: `${systemEmojiText("prancheta_caneta")} Prova em andamento`,
-    started: `${systemStatusEmoji("active")} Em andamento`
+    started: "🟢 Curso Iniciado"
   };
   return labels[publication.status];
 }
@@ -2121,21 +2149,21 @@ function coursePublicationStatusEmoji(publication: CoursePublication, full: bool
   const emojis: Record<CoursePublication["status"], string> = {
     cancelled: systemStatusEmoji("danger"),
     closed: systemStatusEmoji("success"),
-    finished: systemStatusEmoji("success"),
-    open: systemEmojiText("trofeu"),
+    finished: "✅",
+    open: "📅",
     proof: systemEmojiText("prancheta_caneta"),
-    started: systemStatusEmoji("active")
+    started: "🟢"
   };
   return emojis[publication.status];
 }
 
 function coursePublicationStatusNotice(course: Course, settings: CourseSettings, publication: CoursePublication, full: boolean) {
   if (publication.status === "open" && full) return `${systemStatusEmoji("warning")} **Turma lotada.** Aguarde uma vaga abrir ou uma nova publicação do curso.`;
-  if (publication.status === "open") return `${systemStatusEmoji("active")} **Inscrições abertas.** Clique em Entrar no Curso para participar.`;
-  if (publication.status === "started") return course.startedText || settings.startedMessage || `${systemStatusEmoji("active")} **Curso em andamento.** Novas inscrições foram bloqueadas. Alunos inscritos já podem clicar em Realizar prova.`;
+  if (publication.status === "open") return `📅 **Agendado.** Clique em Entrar no Curso para participar.`;
+  if (publication.status === "started") return course.startedText || settings.startedMessage || `🟢 **Curso Iniciado.** Novas inscrições foram bloqueadas. Alunos inscritos já podem clicar em Realizar prova.`;
   if (publication.status === "proof") return `${systemEmojiText("prancheta_caneta")} **Prova disponível.** Alunos inscritos podem clicar em Realizar prova para abrir o canal individual.`;
   if (publication.status === "cancelled") return course.cancelledText || settings.cancelledMessage || `${systemStatusEmoji("danger")} **Curso cancelado.** Esta publicação não aceita novas ações.`;
-  return `${systemStatusEmoji("success")} **Curso finalizado.** Esta publicação foi encerrada.`;
+  return `✅ **Curso Finalizado.** Esta publicação foi encerrada e permanece apenas como histórico.`;
 }
 
 function examIntroPanel(course: Course, settings: CourseExamSettings) {
@@ -2762,6 +2790,14 @@ function formatScore(value: number | null | undefined) {
 
 function formatExamDuration(startedAt: string, finishedAt: string | null) {
   if (!finishedAt) return "-";
+  const seconds = Math.max(0, Math.round((new Date(finishedAt).getTime() - new Date(startedAt).getTime()) / 1000));
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}m ${remainingSeconds}s`;
+}
+
+function formatCourseDuration(startedAt: string | null, finishedAt: string | null) {
+  if (!startedAt || !finishedAt) return "-";
   const seconds = Math.max(0, Math.round((new Date(finishedAt).getTime() - new Date(startedAt).getTime()) / 1000));
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;

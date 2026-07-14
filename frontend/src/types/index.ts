@@ -955,6 +955,7 @@ export type CoursePublication = {
   startedAt: string | null;
   proofStartedBy: string | null;
   proofStartedAt: string | null;
+  finishedBy: string | null;
   finishedAt: string | null;
   createdAt: string;
   updatedAt: string;

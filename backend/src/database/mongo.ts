@@ -395,6 +395,7 @@ export type MongoCoursePublication = {
   startedAt?: Date | null;
   proofStartedBy?: string | null;
   proofStartedAt?: Date | null;
+  finishedBy?: string | null;
   finishedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
