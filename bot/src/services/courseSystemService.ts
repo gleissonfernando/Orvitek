@@ -2293,14 +2293,16 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
   const canFinishClass = publication.status === "started" || publication.status === "proof";
   const canCancel = !["cancelled", "proof", "finished", "closed"].includes(publication.status);
   const studentActions = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`course_join:${publication.id}`).setLabel("Entrar").setStyle(ButtonStyle.Success).setDisabled(!canJoin),
-    new ButtonBuilder().setCustomId(`course_leave:${publication.id}`).setLabel("Sair").setStyle(ButtonStyle.Secondary).setDisabled(!canLeave)
+    new ButtonBuilder().setCustomId(`course_join:${publication.id}`).setEmoji("🟢").setLabel("Entrar").setStyle(ButtonStyle.Success).setDisabled(!canJoin),
+    new ButtonBuilder().setCustomId(`course_leave:${publication.id}`).setEmoji("⚫").setLabel("Sair").setStyle(ButtonStyle.Secondary).setDisabled(!canLeave)
   ).toJSON();
-  const adminActions = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`course_start:${publication.id}`).setLabel("Iniciar").setStyle(ButtonStyle.Primary).setDisabled(!canStartClass),
-    new ButtonBuilder().setCustomId(`course_exam_realize:${publication.id}`).setLabel("Prova").setStyle(ButtonStyle.Success).setDisabled(!canStartExam),
-    new ButtonBuilder().setCustomId(`course_finish:${publication.id}`).setLabel("Finalizar").setStyle(ButtonStyle.Secondary).setDisabled(!canFinishClass),
-    new ButtonBuilder().setCustomId(`course_cancel:${publication.id}`).setLabel("Cancelar").setStyle(ButtonStyle.Danger).setDisabled(!canCancel)
+  const adminPrimaryActions = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`course_start:${publication.id}`).setEmoji("🟦").setLabel("Iniciar").setStyle(ButtonStyle.Primary).setDisabled(!canStartClass),
+    new ButtonBuilder().setCustomId(`course_exam_realize:${publication.id}`).setEmoji("🟢").setLabel("Prova").setStyle(ButtonStyle.Success).setDisabled(!canStartExam)
+  ).toJSON();
+  const adminClosingActions = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`course_finish:${publication.id}`).setEmoji("🟠").setLabel("Finalizar").setStyle(ButtonStyle.Secondary).setDisabled(!canFinishClass),
+    new ButtonBuilder().setCustomId(`course_cancel:${publication.id}`).setEmoji("🔴").setLabel("Cancelar").setStyle(ButtonStyle.Danger).setDisabled(!canCancel)
   ).toJSON();
   const examProgress = enrollments
     .filter((enrollment) => ["STARTING", "IN_PROGRESS", "COMPLETED", "APPROVED", "FAILED"].includes(enrollment.examStatus))
@@ -2313,13 +2315,17 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
     });
   const bannerUrl = resolvePanelImageUrl(course.bannerUrl);
   const components: unknown[] = [
-    textBlock("### 🛡️ North Police Department • Instructor Team"),
-    textBlock(`## 📢 ${course.name}`),
     textBlock([
-      `👮 **Instrutor:** <@${publication.instructorId}>`,
-      `📅 **Data:** ${coursePublicationDateLabel(publication)}  •  🕒 **Horário:** ${coursePublicationTimeLabel(publication)}`,
+      "### 🛡 North Police Department • Instructor Team",
+      `## 📢 ${course.name}`
+    ].join("\n")),
+    textBlock([
+      `👨‍🏫 **Instrutor:** <@${publication.instructorId}>`,
+      `📅 **Data:** ${coursePublicationDateLabel(publication)}`,
+      `🕘 **Horário:** ${coursePublicationTimeLabel(publication)}`,
       `📍 **Local:** ${coursePublicationDepartmentLabel(publication)}`,
-      `📌 **Status:** ${statusText}  •  🎟️ **Vagas:** ${publication.students.length}/${publication.capacity}`
+      `📌 **Status:** ${coursePublicationStatusDot(publication, full)} ${statusText}`,
+      `🎟 **Vagas:** ${coursePublicationCapacityBar(publication)}`
     ].join("\n")),
     textBlock(`✅ **Confirmados (${publication.students.length}/${publication.capacity})**\n${students}`),
     separator(),
@@ -2338,11 +2344,12 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
       ].filter(Boolean).join("\n"))
     ] : []),
     separator(),
-    textBlock("📌 Clique em Entrar para participar."),
+    textBlock("🎯 **Participação**\n📌 Clique em Entrar para participar."),
     studentActions,
     separator(),
-    textBlock("Administração"),
-    adminActions,
+    textBlock("⚙ **Administração**"),
+    adminPrimaryActions,
+    adminClosingActions,
     separator()
   ];
   return componentsV2Payload({
@@ -2358,10 +2365,6 @@ function textBlock(content: string) {
 
 function separator() {
   return { type: 14, divider: true, spacing: 1 };
-}
-
-function buttonRow(button: ButtonBuilder) {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(button).toJSON();
 }
 
 function coursePublicationDateLabel(publication: CoursePublication) {
@@ -2522,6 +2525,25 @@ function coursePublicationPlainStatusLabel(publication: CoursePublication, full:
     started: "Curso iniciado"
   };
   return labels[publication.status];
+}
+
+function coursePublicationStatusDot(publication: CoursePublication, full: boolean) {
+  if (publication.status === "open" && full) return "🟠";
+  const dots: Record<CoursePublication["status"], string> = {
+    cancelled: "🔴",
+    closed: "✅",
+    finished: "✅",
+    open: "🟡",
+    proof: "🟢",
+    started: "🟢"
+  };
+  return dots[publication.status];
+}
+
+function coursePublicationCapacityBar(publication: CoursePublication) {
+  const capacity = Math.max(1, publication.capacity);
+  const filled = Math.max(0, Math.min(10, Math.round((publication.students.length / capacity) * 10)));
+  return `${"█".repeat(filled)}${"□".repeat(10 - filled)} ${publication.students.length}/${publication.capacity}`;
 }
 
 function coursePublicationStatusEmoji(publication: CoursePublication, full: boolean) {
