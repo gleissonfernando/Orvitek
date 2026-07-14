@@ -103,6 +103,8 @@ export function startCourseSystemService(client: Client, context: BotContext) {
   if (serviceStarted) return;
   serviceStarted = true;
   context.socket.onCoursePanelPublish((payload) => {
+    const runtimeBotId = (currentRuntimeBotId() ?? env.DASHBOARD_BOT_ID) || null;
+    if (payload.botId && runtimeBotId && payload.botId !== runtimeBotId) return;
     void publishPublicCoursesPanel(client, context, payload.guildId).catch((error) => {
       console.error(`[courses] failed to publish panel in ${payload.guildId}:`, error instanceof Error ? error.message : error);
     });

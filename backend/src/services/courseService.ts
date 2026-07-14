@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { fixedSystemEmojiText } from "../config/systemEmojis";
 import { getMongoCollections, type MongoCourse, type MongoCourseEnrollment, type MongoCourseExamQuestion, type MongoCourseImage, type MongoCoursePublication, type MongoCourseReport, type MongoCourseScheduleRequest, type MongoCourseSettings } from "../database/mongo";
-import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoom } from "../realtime/events";
+import { emitRealtime } from "../realtime/events";
 
 export const COURSES_MODULE_ID = "courses";
 const DEFAULT_COURSE_CHANNEL_EXPIRATION_HOURS = 24;
@@ -1065,7 +1065,7 @@ export async function requestCoursePanelPublish(botId: string, guildId: string, 
   }, { upsert: true });
 
   const nextSettings = await getCourseSettings(botId, guildId);
-  emitRealtimeToRoom(devBotRealtimeRoom(botId), "courses:panel_publish", { botId, guildId, settings: nextSettings });
+  emitRealtime("courses:panel_publish", { botId, guildId, settings: nextSettings });
   await logCourseAction(botId, guildId, "course.panel_publish_requested", actorId, null, null, { channelId: nextSettings.publishChannelId });
   return nextSettings;
 }

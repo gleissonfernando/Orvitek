@@ -12,6 +12,7 @@ import {
   getCourseExamDashboard,
   getCoursesDashboard,
   getGuildLiveOptions,
+  publishCoursePanel,
   reviewCourseExamAttemptApi,
   saveCourseExamSettings,
   saveCourseSettings,
@@ -247,6 +248,30 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
       const nextDraft = toChannelDraft(settings);
       lastChannelSettingsRef.current = nextDraft;
       setChannelDraft(nextDraft);
+    }
+  }
+
+  async function publishGeneralPanel() {
+    if (!dashboard) return;
+    if (channelSettingsChanged) {
+      showError("Salve as alterações dos canais antes de publicar o painel.");
+      return;
+    }
+    if (!dashboard.settings.publishChannelId) {
+      showError("Configure o canal global de publicação antes de publicar o painel.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const settings = await publishCoursePanel(botId, guildId);
+      setDashboard((current) => current ? { ...current, settings } : current);
+      setChannelDraft(toChannelDraft(settings));
+      showSuccess("Publicação do painel solicitada no canal configurado.");
+    } catch (err) {
+      showError(readApiError(err, "Não foi possível publicar o painel de cursos."));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -597,6 +622,9 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
               <Button disabled={!canManage || saving || !channelDraft || !channelSettingsChanged} onClick={() => void saveChannelSettings()} type="button">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 Salvar canais
+              </Button>
+              <Button disabled={!canManage || saving || channelSettingsChanged || !dashboard.settings.publishChannelId} onClick={() => void publishGeneralPanel()} type="button" variant="outline">
+                Publicar painel geral
               </Button>
               <Button disabled={!channelSettingsChanged || saving || !dashboard} onClick={() => setChannelDraft(toChannelDraft(dashboard.settings))} type="button" variant="ghost">Descartar alterações</Button>
               {channelSettingsChanged ? <span className="text-xs text-amber-300">Alterações pendentes.</span> : <span className="text-xs text-zinc-500">Nenhuma alteração pendente.</span>}
