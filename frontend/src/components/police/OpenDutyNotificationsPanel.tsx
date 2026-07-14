@@ -109,8 +109,8 @@ export function OpenDutyNotificationsPanel({ botId, canManage, guild }: Props) {
       <Card>
         <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <CardTitle className="flex items-center gap-2"><BellRing className="h-5 w-5 text-blue-300" />Policia | Notificar / Ponto Aberto</CardTitle>
-            <CardDescription>Configura a DM policial, logs, canal mencionado, alertas de 3 avisos e permissao do comando /notificar.</CardDescription>
+            <CardTitle className="flex items-center gap-2"><BellRing className="h-5 w-5 text-blue-300" />Polícia | Notificar / Ponto Aberto</CardTitle>
+            <CardDescription>Configura a DM policial, logs, canal mencionado, alertas de 3 avisos e permissão do comando /notificar.</CardDescription>
           </div>
           <Button disabled={disabled} onClick={() => void save()} size="sm" type="button">
             {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
@@ -215,10 +215,10 @@ export function OpenDutyNotificationsPanel({ botId, canManage, guild }: Props) {
                 <span>Avisos: {item.counterTotal}</span>
                 {item.alertTriggered ? <span className="text-amber-300">log de multa emitido</span> : null}
               </div>
-              <p className="mt-1">Executor: <span className="text-zinc-100">{item.executorId}</span> | Usuario: <span className="text-zinc-100">{item.targetId}</span></p>
+              <p className="mt-1">Executor: <span className="text-zinc-100">{item.executorId}</span> | Usuário: <span className="text-zinc-100">{item.targetId}</span></p>
             </div>
           ))}
-          {!dashboard.history.length ? <p className="text-sm text-zinc-500">Nenhuma notificacao registrada.</p> : null}
+          {!dashboard.history.length ? <p className="text-sm text-zinc-500">Nenhuma notificação registrada.</p> : null}
         </CardContent>
       </Card>
     </div>

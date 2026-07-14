@@ -418,7 +418,7 @@ async function assertCanReadGuild(req: Request, guildId: string, botId: string |
       guildId,
       userId: user.discordId
     });
-    throw createServiceError("Voce nao tem permissao para visualizar as notificacoes deste servidor.", 403);
+    throw createServiceError("Você não tem permissão para visualizar as notificações deste servidor.", 403);
   }
 }
 

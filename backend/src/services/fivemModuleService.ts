@@ -158,14 +158,14 @@ export const BUILTIN_FIVEM_MODULES: FivemModuleDefinition[] = [
   },
   {
     builtIn: true,
-    description: "Intimacoes, notificacoes, prazos e comprovantes de comparecimento.",
+    description: "Intimações, notificações, prazos e comprovantes de comparecimento.",
     id: "police-subpoenas",
     permissions: "Admin Policia, Investigacao",
-    title: "Intimacao"
+    title: "Intimação"
   },
   {
     builtIn: true,
-    description: "Sistema policial de notificacao de ponto aberto por DM, canal mencionado e auditoria.",
+    description: "Sistema policial de notificação de ponto aberto por DM, canal mencionado e auditoria.",
     id: "police-open-duty",
     permissions: "Admin Policia, Supervisor",
     title: "Notificar / Ponto Aberto"

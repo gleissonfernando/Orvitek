@@ -554,7 +554,7 @@ const moduleCatalog: ModuleDefinition[] = [
   {
     id: "police-open-duty",
     title: "Notificar / Ponto Aberto",
-    description: "Notificacoes policiais por DM, canal mencionado, contador de avisos verbais e alertas administrativos.",
+    description: "Notificações policiais por DM, canal mencionado, contador de avisos verbais e alertas administrativos.",
     icon: Bell,
     view: "police-open-duty"
   },
@@ -4074,7 +4074,7 @@ function fivemUserModules(enabledModules: string[], fivemModules: FivemModuleDef
     { builtIn: true, description: "Envio de mensagens privadas com painel visual e logs.", id: "police-dm", permissions: "Admin Polícia", title: "Barra DM" },
     { builtIn: true, description: "Denuncias anonimas/identificadas com orgaos, logs e auditoria.", id: "police-iab", permissions: "Admin Polícia", title: "Denuncias Corregedoria" },
     { builtIn: true, description: "Intimacoes institucionais com DMs, prazos e competência por órgão.", id: "police-subpoenas", permissions: "Admin Polícia", title: "Intimacao" },
-    { builtIn: true, description: "Notificacoes policiais por DM, canal mencionado, contador de avisos verbais e alertas administrativos.", id: "police-open-duty", permissions: "Admin Polícia", title: "Notificar / Ponto Aberto" }
+    { builtIn: true, description: "Notificações policiais por DM, canal mencionado, contador de avisos verbais e alertas administrativos.", id: "police-open-duty", permissions: "Admin Polícia", title: "Notificar / Ponto Aberto" }
   ];
   const catalog = fivemModules.length ? fivemModules : fallbackCatalog;
   const enabled = new Set(enabledModules.map((moduleId) => moduleId === "fivem-fac" ? "fivem-absences" : moduleId));
@@ -8687,8 +8687,8 @@ function NotificationsView({
     <section className="space-y-5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-white">Notificacoes</h2>
-          <p className="mt-1 text-sm text-zinc-500">Configure os canais do bot selecionado. Cada alteracao salva automaticamente no banco.</p>
+          <h2 className="text-lg font-semibold text-white">Notificações</h2>
+          <p className="mt-1 text-sm text-zinc-500">Configure os canais do bot selecionado. Cada alteração salva automaticamente no banco.</p>
         </div>
         <Badge variant={canManage ? "success" : "muted"}>{canManage ? "Auto-save ativo" : "Somente leitura"}</Badge>
       </div>

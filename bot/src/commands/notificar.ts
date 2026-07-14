@@ -31,9 +31,9 @@ const drafts = new Map<string, NotificationDraft>();
 export const notificarCommand: BotCommand = {
   data: new SlashCommandBuilder()
     .setName("notificar")
-    .setDescription("Envia notificacao oficial de ponto aberto.")
-    .addUserOption((option) => option.setName("usuario").setDescription("Usuario que recebera a notificacao.").setRequired(false))
-    .addStringOption((option) => option.setName("acao").setDescription("Acoes do sistema.").addChoices({ name: "config", value: "config" }).setRequired(false)),
+    .setDescription("Envia notificação oficial de ponto aberto.")
+    .addUserOption((option) => option.setName("usuario").setDescription("Usuário que receberá a notificação.").setRequired(false))
+    .addStringOption((option) => option.setName("acao").setDescription("Ações do sistema.").addChoices({ name: "config", value: "config" }).setRequired(false)),
   moduleId: MODULE_ID,
   async execute(interaction, context) {
     if (interaction.options.getString("acao") === "config") {
@@ -43,7 +43,7 @@ export const notificarCommand: BotCommand = {
 
     const target = interaction.options.getUser("usuario");
     if (!target) {
-      await interaction.reply({ content: "Informe o usuario que recebera a notificacao.", ephemeral: true });
+      await interaction.reply({ content: "Informe o usuário que receberá a notificação.", ephemeral: true });
       return;
     }
 
@@ -162,10 +162,10 @@ async function sendDraft(interaction: ButtonInteraction, context: BotContext, dr
 
 async function editDraft(interaction: ButtonInteraction, context: BotContext, draftId: string) {
   const draft = await resolveDraft(interaction, context, draftId);
-  if (!draft) return interaction.reply({ content: "Nao consegui recuperar os dados deste painel. Execute /notificar novamente.", ephemeral: true });
+  if (!draft) return interaction.reply({ content: "Não consegui recuperar os dados deste painel. Execute /notificar novamente.", ephemeral: true });
   await interaction.showModal(new ModalBuilder()
     .setCustomId(`${PREFIX}:modal:${draftId}`)
-    .setTitle("Editar notificacao")
+    .setTitle("Editar notificação")
     .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder()
       .setCustomId("message")
       .setLabel("Mensagem da DM")
@@ -276,7 +276,7 @@ async function sendAlert(interaction: ButtonInteraction, settings: OpenDutySetti
   await channel.send(panel(settings, {
     description: `${settings.alertMessage}\n\nO contador foi zerado automaticamente e uma nova contagem foi iniciada.`,
     fields: [
-      `**Usuario:** <@${target.id}>\n**ID:** ${target.id}\n**Progresso:** ${Math.min(total, 3)}/3\n**Ultima notificacao:** <t:${Math.floor(Date.now() / 1000)}:F>`
+      `**Usuário:** <@${target.id}>\n**ID:** ${target.id}\n**Progresso:** ${Math.min(total, 3)}/3\n**Última notificação:** <t:${Math.floor(Date.now() / 1000)}:F>`
     ],
     title: "Alerta de Multa - 3/3 Avisos"
   })).catch(() => null);

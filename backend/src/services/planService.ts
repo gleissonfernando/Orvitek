@@ -184,7 +184,7 @@ export type MercadoPagoWebhookInput = {
 
 const FEATURE_SEEDS: SavePlanFeatureInput[] = [
   { category: "streamer", key: "streamer.twitch_alerts", name: "Alertas Twitch", description: "Alertas de live, clips e eventos de stream.", order: 10 },
-  { category: "streamer", key: "streamer.kick_alerts", name: "Alertas Kick", description: "Monitoramento de lives e notificacoes Kick.", order: 20 },
+  { category: "streamer", key: "streamer.kick_alerts", name: "Alertas Kick", description: "Monitoramento de lives e notificações Kick.", order: 20 },
   { category: "streamer", key: "streamer.clip_automation", name: "Automacao de clips", description: "Registro e ranking de clips por comunidade.", order: 30 },
   { category: "streamer", key: "streamer.giveaways", name: "Sorteios", description: "Sorteios, campanhas e premiacoes da comunidade.", order: 31 },
   { category: "streamer", key: "streamer.vip", name: "Sistema VIP", description: "Controle de beneficios VIP para comunidades de stream.", order: 32 },

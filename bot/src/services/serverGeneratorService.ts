@@ -443,7 +443,7 @@ function generateStreamerPlan(input: GeneratorInput, random: RandomSource, syste
       channels: textChannels(input, [
         ["📌・regras", "Regras, conduta e informacoes importantes."],
         ["📣・avisos", "Avisos oficiais da live e da comunidade."],
-        ["🔴・lives", "Notificacoes quando a live estiver online."]
+        ["🔴・lives", "Notificações quando a live estiver online."]
       ])
     },
     {

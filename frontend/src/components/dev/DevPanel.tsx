@@ -178,7 +178,7 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "police-patrol-reports", label: "Policia - Relatorios de Patrulhamento" },
   { id: "police-dm", label: "Policia - DM Policial" },
   { id: "police-subpoenas", label: "Policia - Intimacao" },
-  { id: "police-open-duty", label: "Policia - Notificar / Ponto Aberto" },
+  { id: "police-open-duty", label: "Polícia - Notificar / Ponto Aberto" },
   { id: "fivem-fac", label: "FiveM - FAC Ausencia" },
   { id: "avisos", label: "Mensagens e Personalização" }
 ];
@@ -593,8 +593,8 @@ const botMenuItems: BotMenuItem[] = [
       },
       {
         id: "police-subpoenas",
-        label: "Intimacao",
-        description: "Intimacoes, prazos e notificacoes",
+        label: "Intimação",
+        description: "Intimações, prazos e notificações",
         icon: ScrollText,
         moduleIds: ["police-subpoenas"]
       },
