@@ -95,27 +95,8 @@ type ReportTopic = {
 export function startReportSystemService(client: Client, context: BotContext) {
   if (reportSystemServiceStarted) return;
   reportSystemServiceStarted = true;
-
-  const recover = () => {
-    void recoverOpenReportPanels(client, context).catch((error) => {
-      console.error("[iab] falha ao recuperar paineis internos:", error instanceof Error ? error.message : error);
-    });
-  };
-
-  if (client.isReady()) recover();
-  else client.once("ready", recover);
-
-  client.on("channelCreate", (channel) => {
-    if (channel.type !== ChannelType.GuildText || !channel.topic?.startsWith(TOPIC_PREFIX)) return;
-    setTimeout(() => {
-      void recoverReportPanelFromChannel(channel as TextChannel, context).catch((error) => {
-        console.error("[iab] falha ao recuperar painel em canal criado:", error instanceof Error ? error.message : error);
-      });
-    }, 3_000).unref();
-  });
-
-  const timer = setInterval(recover, 5 * 60_000);
-  timer.unref();
+  void client;
+  void context;
 }
 
 export async function openReportSystemAdmin(interaction: ChatInputCommandInteraction, context: BotContext) {

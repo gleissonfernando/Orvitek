@@ -2595,6 +2595,14 @@ async function upsertExamCorrectionPanel(interaction: CourseGuildContext, contex
         return false;
       }
     }
+    await sendCourseLog(interaction, courseSettings, `Painel de correção antigo não encontrado; novo painel não foi recriado automaticamente\nTentativa: ${attempt.id}\nCanal: <#${channel.id}>\nMensagem antiga: ${attempt.correctionMessageId}\nCurso: ${course.name}\nAluno: <@${attempt.studentId}>`).catch(() => null);
+    logCourseFlow("exam_correction_panel_not_recreated_missing_existing_message", { attemptId: attempt.id, channelId: channel.id, messageId: attempt.correctionMessageId, courseId: course.id, guildId: interaction.guildId });
+    return false;
+  }
+  if (attempt.correctionSentAt) {
+    await sendCourseLog(interaction, courseSettings, `Painel de correção já havia sido enviado; novo painel não foi recriado automaticamente\nTentativa: ${attempt.id}\nCanal: <#${channel.id}>\nCurso: ${course.name}\nAluno: <@${attempt.studentId}>`).catch(() => null);
+    logCourseFlow("exam_correction_panel_not_recreated_existing_delivery", { attemptId: attempt.id, channelId: channel.id, courseId: course.id, guildId: interaction.guildId });
+    return false;
   }
   const message = await channel.send(payload).catch(async (error) => {
     logCourseFlowError("exam_correction_panel_send_failed", error, { attemptId: attempt.id, channelId: channel.id, courseId: course.id, guildId: interaction.guildId });
