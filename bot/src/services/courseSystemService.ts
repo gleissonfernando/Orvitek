@@ -143,19 +143,13 @@ export function startCourseSystemService(client: Client, context: BotContext) {
         console.error(`[courses] failed to persist removed exam channel ${channel.id}:`, error instanceof Error ? error.message : error);
       });
   });
-  const refreshExistingPanels = () => {
-    void refreshActiveCoursePublicationPanels(client, context).catch((error) => {
-      console.error("[courses] failed to refresh active publication panels:", error instanceof Error ? error.message : error);
-    });
-    void restorePendingExamCorrectionPanels(client, context).catch((error) => {
-      console.error("[courses] failed to restore pending exam correction panels:", error instanceof Error ? error.message : error);
-    });
+  const restoreRuntimeState = () => {
     void restoreTemporaryExamChannelCleanup(client, context).catch((error) => {
       console.error("[courses] failed to restore temporary exam channel cleanup:", error instanceof Error ? error.message : error);
     });
   };
-  if (client.isReady()) refreshExistingPanels();
-  else client.once("ready", refreshExistingPanels);
+  if (client.isReady()) restoreRuntimeState();
+  else client.once("ready", restoreRuntimeState);
 }
 
 export const courseCommand: BotCommand = {
@@ -1899,50 +1893,6 @@ async function publishPublicCoursesPanel(client: Client, context: BotContext, gu
     ? await message.edit(payload)
     : await (channel as TextChannel).send(payload);
   await context.api.updateCoursePanelMessage(guildId, nextMessage.id);
-}
-
-async function refreshActiveCoursePublicationPanels(client: Client, context: BotContext) {
-  for (const guild of client.guilds.cache.values()) {
-    const publications = await Promise.all([
-      context.api.listCoursePublications(guild.id, "open").catch(() => []),
-      context.api.listCoursePublications(guild.id, "started").catch(() => []),
-      context.api.listCoursePublications(guild.id, "proof").catch(() => [])
-    ]);
-    for (const publication of publications.flat()) {
-      await refreshPublicationMessageByRecord({ guild, guildId: guild.id }, context, publication);
-      const course = await context.api.getCourse(guild.id, publication.courseId).catch(() => null);
-      scheduleCourseEventLifecycle(guild, context, publication, course);
-    }
-  }
-}
-
-async function restorePendingExamCorrectionPanels(client: Client, context: BotContext) {
-  for (const guild of client.guilds.cache.values()) {
-    const attempts = await context.api.listPendingCourseExamCorrections(guild.id).catch((error) => {
-      console.error(`[courses] failed to list pending exam corrections for ${guild.id}:`, error instanceof Error ? error.message : error);
-      return [];
-    });
-    if (!attempts.length) continue;
-    logCourseFlow("exam_correction_restore_scan", { attempts: attempts.length, guildId: guild.id });
-    for (const attempt of attempts) {
-      const [course, bundle] = await Promise.all([
-        context.api.getCourse(guild.id, attempt.courseId).catch((error) => {
-          logCourseFlowError("exam_correction_restore_course_failed", error, { attemptId: attempt.id, courseId: attempt.courseId, guildId: guild.id });
-          return null;
-        }),
-        context.api.getCourseExamAttempt(guild.id, attempt.id).catch((error) => {
-          logCourseFlowError("exam_correction_restore_bundle_failed", error, { attemptId: attempt.id, courseId: attempt.courseId, guildId: guild.id });
-          return null;
-        })
-      ]);
-      if (!course || !bundle) continue;
-      const sent = await upsertExamCorrectionPanel({ guild, guildId: guild.id }, context, course, bundle.attempt, bundle.questions, bundle.answers).catch((error) => {
-        logCourseFlowError("exam_correction_restore_send_failed", error, { attemptId: attempt.id, courseId: attempt.courseId, guildId: guild.id });
-        return false;
-      });
-      logCourseFlow(sent ? "exam_correction_restored" : "exam_correction_restore_not_sent", { attemptId: attempt.id, courseId: attempt.courseId, guildId: guild.id });
-    }
-  }
 }
 
 async function restoreTemporaryExamChannelCleanup(client: Client, context: BotContext) {
