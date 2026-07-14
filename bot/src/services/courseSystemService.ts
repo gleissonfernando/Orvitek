@@ -729,21 +729,6 @@ async function publishCourse(interaction: ModalSubmitInteraction, context: BotCo
     scheduledFor: `${scheduleWindow.displayDate} ${time}`.trim(),
     scheduledStartAt: scheduleWindow.startAt.toISOString()
   });
-  let publicationWithEvent = publication;
-  try {
-    publicationWithEvent = await createOrUpdateCourseScheduledEvent(interaction.guild!, context, course, publication);
-  } catch (error) {
-    const message = scheduledEventErrorMessage(error);
-    logCourseFlowError("scheduled_event_create", error, {
-      courseId: course.id,
-      guildId: interaction.guildId,
-      publicationId: publication.id,
-      scheduledEndAt: publication.scheduledEndAt,
-      scheduledStartAt: publication.scheduledStartAt
-    });
-    publicationWithEvent = await context.api.updateCoursePublicationEvent(interaction.guildId!, publication.id, { discordEventId: null, discordEventUrl: null, syncError: message });
-    await sendCourseLog(interaction, settings, `Falha ao criar evento do Discord\nCurso: ${course.name}\nPublicação: ${publication.id}\nErro: ${message}`).catch(() => null);
-  }
   let existingMessage = publication.messageId && "messages" in channel
     ? await channel.messages.fetch(publication.messageId).catch(() => null)
     : null;
@@ -757,11 +742,27 @@ async function publishCourse(interaction: ModalSubmitInteraction, context: BotCo
     existingMessage = await channel.messages.fetch(previousOpen.messageId).catch(() => null);
   }
   const message = existingMessage
-    ? await existingMessage.edit(coursePublicationPanel(course, publicationWithEvent, settings, interaction.guild!))
-    : await (channel as TextChannel).send(coursePublicationPanel(course, publicationWithEvent, settings, interaction.guild!));
-  await context.api.updateCoursePublicationMessage(interaction.guildId!, publication.id, message.id);
-  await sendCourseLog(interaction, settings, `Curso agendado\nCurso: ${course.name}${course.code ? ` (${course.code})` : ""}\nInstrutor: <@${interaction.user.id}>\nCanal: <#${targetChannelId}>\nHorário: ${publicationWithEvent.scheduledFor}\nDP: ${publicationWithEvent.dpNameSnapshot ?? publicationWithEvent.location}\nVagas: ${publicationWithEvent.capacity}\nEvento do Discord: ${publicationWithEvent.discordEventId ? "criado" : "não criado"}`);
-  await interaction.editReply(publicationWithEvent.discordEventId ? "Curso agendado com sucesso." : "Curso agendado com painel publicado, mas o evento do Discord não foi criado. Verifique os logs.");
+    ? await existingMessage.edit(coursePublicationPanel(course, publication, settings, interaction.guild!))
+    : await (channel as TextChannel).send(coursePublicationPanel(course, publication, settings, interaction.guild!));
+  const publicationWithPanel = await context.api.updateCoursePublicationMessage(interaction.guildId!, publication.id, message.id);
+  let publicationWithEvent = publicationWithPanel;
+  try {
+    publicationWithEvent = await createOrUpdateCourseScheduledEvent(interaction.guild!, context, course, publicationWithPanel);
+  } catch (error) {
+    const errorMessage = scheduledEventErrorMessage(error);
+    logCourseFlowError("scheduled_event_create", error, {
+      courseId: course.id,
+      guildId: interaction.guildId,
+      messageId: message.id,
+      publicationId: publicationWithPanel.id,
+      scheduledEndAt: publicationWithPanel.scheduledEndAt,
+      scheduledStartAt: publicationWithPanel.scheduledStartAt
+    });
+    publicationWithEvent = await context.api.updateCoursePublicationEvent(interaction.guildId!, publicationWithPanel.id, { discordEventId: null, discordEventUrl: null, syncError: errorMessage }) ?? publicationWithPanel;
+    await sendCourseLog(interaction, settings, `Falha ao criar evento do Discord\nCurso: ${course.name}\nPublicação: ${publicationWithPanel.id}\nPainel: ${message.id}\nErro: ${errorMessage}`).catch(() => null);
+  }
+  await sendCourseLog(interaction, settings, `Curso agendado\nCurso: ${course.name}${course.code ? ` (${course.code})` : ""}\nInstrutor: <@${interaction.user.id}>\nCanal: <#${targetChannelId}>\nPainel: ${message.id}\nHorário: ${publicationWithEvent.scheduledFor}\nDP: ${publicationWithEvent.dpNameSnapshot ?? publicationWithEvent.location}\nVagas: ${publicationWithEvent.capacity}\nEvento do Discord: ${publicationWithEvent.discordEventId ? "criado" : "não criado"}`);
+  await interaction.editReply(publicationWithEvent.discordEventId ? "✅ Curso agendado, painel publicado e evento criado com sucesso." : "❌ Não foi possível concluir a publicação do curso. O painel foi publicado, mas o evento do Discord não foi criado. Verifique os logs.");
 }
 
 async function editCourseInfo(interaction: ModalSubmitInteraction, context: BotContext, courseId: string) {
