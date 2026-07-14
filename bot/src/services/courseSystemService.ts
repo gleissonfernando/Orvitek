@@ -2282,21 +2282,23 @@ function selectCoursePanel(description: string, customId: string, courses: Cours
 
 function coursePublicationPanel(course: Course, publication: CoursePublication, settings: CourseSettings, guild: { members: { cache: Map<string, GuildMember> } }, enrollments: CourseEnrollment[] = []) {
   void guild;
-  const students = publication.students.map((id, index) => `${index + 1}. <@${id}>`).join("\n") || "Nenhum aluno inscrito ainda.";
+  void settings;
+  const students = publication.students.map((id, index) => `${index + 1}. <@${id}>`).join("\n") || "Nenhum aluno confirmado.";
   const full = publication.students.length >= publication.capacity;
-  const statusText = coursePublicationStatusLabel(publication, full);
-  const statusNotice = coursePublicationStatusNotice(course, settings, publication, full);
+  const statusText = coursePublicationPlainStatusLabel(publication, full);
   const canJoin = publication.status === "open" && !full;
   const canLeave = publication.status === "open";
   const canStartClass = publication.status === "open";
   const canStartExam = publication.status === "started" || publication.status === "proof";
   const canFinishClass = publication.status === "started" || publication.status === "proof";
   const canCancel = !["cancelled", "proof", "finished", "closed"].includes(publication.status);
-  const joinAction = buttonRow(new ButtonBuilder().setCustomId(`course_join:${publication.id}`).setLabel("Entrar").setStyle(ButtonStyle.Success).setDisabled(!canJoin));
-  const leaveAction = buttonRow(new ButtonBuilder().setCustomId(`course_leave:${publication.id}`).setLabel("Sair").setStyle(ButtonStyle.Secondary).setDisabled(!canLeave));
-  const startAction = buttonRow(new ButtonBuilder().setCustomId(`course_start:${publication.id}`).setLabel("Iniciar").setStyle(ButtonStyle.Primary).setDisabled(!canStartClass));
+  const studentActions = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`course_join:${publication.id}`).setLabel("Entrar").setStyle(ButtonStyle.Success).setDisabled(!canJoin),
+    new ButtonBuilder().setCustomId(`course_leave:${publication.id}`).setLabel("Sair").setStyle(ButtonStyle.Secondary).setDisabled(!canLeave)
+  ).toJSON();
+  const startAction = buttonRow(new ButtonBuilder().setCustomId(`course_start:${publication.id}`).setLabel("Iniciar Curso").setStyle(ButtonStyle.Primary).setDisabled(!canStartClass));
   const examAction = buttonRow(new ButtonBuilder().setCustomId(`course_exam_realize:${publication.id}`).setLabel("Realizar Prova").setStyle(ButtonStyle.Success).setDisabled(!canStartExam));
-  const finishAction = buttonRow(new ButtonBuilder().setCustomId(`course_finish:${publication.id}`).setLabel("Finalizar").setStyle(ButtonStyle.Secondary).setDisabled(!canFinishClass));
+  const finishAction = buttonRow(new ButtonBuilder().setCustomId(`course_finish:${publication.id}`).setLabel("Finalizar Curso").setStyle(ButtonStyle.Secondary).setDisabled(!canFinishClass));
   const cancelAction = buttonRow(new ButtonBuilder().setCustomId(`course_cancel:${publication.id}`).setLabel("Cancelar").setStyle(ButtonStyle.Danger).setDisabled(!canCancel));
   const examProgress = enrollments
     .filter((enrollment) => ["STARTING", "IN_PROGRESS", "COMPLETED", "APPROVED", "FAILED"].includes(enrollment.examStatus))
@@ -2309,29 +2311,17 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
     });
   const bannerUrl = resolvePanelImageUrl(course.bannerUrl);
   const components: unknown[] = [
-    ...(bannerUrl ? [{ type: 12, items: [{ media: { url: bannerUrl }, description: course.name }] }] : []),
-    textBlock(`# 📚 ${course.name.toUpperCase()}\n${course.code ? `${course.code} • ` : ""}Curso Oficial`),
+    textBlock("## 🛡️ North Police Department • Instructor Team"),
+    textBlock(`# 📢 CURSO\n${course.name}`),
+    textBlock(`## 👮 INSTRUTOR\n<@${publication.instructorId}>`),
+    textBlock(`## 📅 DATA\n${coursePublicationDateLabel(publication)}`),
+    textBlock(`## 🕒 HORÁRIO\n${coursePublicationTimeLabel(publication)}`),
+    textBlock(`## 📍 LOCAL\n${coursePublicationDepartmentLabel(publication)}`),
+    textBlock(`## 📌 STATUS\n${statusText}`),
+    textBlock(`## 🎟️ VAGAS\n${publication.students.length}/${publication.capacity}`),
+    textBlock(`## ✅ CONFIRMADOS (${publication.students.length}/${publication.capacity})\n${students}`),
     separator(),
-    textBlock(`## 📖 Sobre o Curso\n\n${course.publishText || course.description || "Curso disponível para inscrição. Acompanhe o status, entre na lista e aguarde o instrutor iniciar a aula."}`),
-    separator(),
-    textBlock(`## 📋 Regulamento\n\n${coursePublicationRules(course)}`),
-    separator(),
-    textBlock([
-      "## 📅 Informações",
-      "",
-      `👤 **Instrutor:** <@${publication.instructorId}>`,
-      `🏢 **DP:** ${coursePublicationDepartmentLabel(publication)}`,
-      `📅 **Data:** ${coursePublicationDateLabel(publication)}`,
-      `🕒 **Horário:** ${coursePublicationTimeLabel(publication)}`,
-      `👥 **Vagas:** ${publication.students.length}/${publication.capacity}`,
-      `📌 **Status:** ${statusText}`,
-      "",
-      statusNotice
-    ].filter((line): line is string => line !== null).join("\n")),
-    separator(),
-    textBlock(`## 📝 Observações\n\n${publication.notes || "Sem observações."}`),
-    separator(),
-    textBlock(`## 👥 Alunos Inscritos\n\n${students}`),
+    ...(bannerUrl ? [{ type: 12, items: [{ media: { url: bannerUrl }, description: "Banner do Curso" }] }] : []),
     ...(examProgress.length ? [
       separator(),
       textBlock(`## 🧾 Situação das Provas\n\n${examProgress.join("\n")}\n\n**Em andamento:** ${enrollments.filter((item) => item.examStatus === "STARTING" || item.examStatus === "IN_PROGRESS").length} | **Concluídas:** ${enrollments.filter((item) => ["COMPLETED", "APPROVED", "FAILED"].includes(item.examStatus)).length}`)
@@ -2346,10 +2336,10 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
       ].filter(Boolean).join("\n"))
     ] : []),
     separator(),
-    joinAction,
-    leaveAction,
+    textBlock("📌 Clique em Entrar para participar."),
+    studentActions,
     separator(),
-    textBlock("## Administração"),
+    textBlock("Administração"),
     startAction,
     examAction,
     finishAction,
@@ -2373,24 +2363,6 @@ function separator() {
 
 function buttonRow(button: ButtonBuilder) {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(button).toJSON();
-}
-
-function coursePublicationRules(course: Course) {
-  const configured = course.proofInstructionText?.trim();
-  if (configured) {
-    return configured
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .slice(0, 8)
-      .map((line) => line.startsWith("•") || line.startsWith("-") ? line : `• ${line}`)
-      .join("\n");
-  }
-  return [
-    "• Siga as orientações do instrutor.",
-    "• Mantenha sua inscrição ativa no painel.",
-    "• Aguarde a liberação da prova quando o curso iniciar."
-  ].join("\n");
 }
 
 function coursePublicationDateLabel(publication: CoursePublication) {
@@ -2536,6 +2508,19 @@ function coursePublicationStatusLabel(publication: CoursePublication, full: bool
     open: "📅 Agendado",
     proof: `${systemEmojiText("prancheta_caneta")} Prova em andamento`,
     started: "🟢 Curso Iniciado"
+  };
+  return labels[publication.status];
+}
+
+function coursePublicationPlainStatusLabel(publication: CoursePublication, full: boolean) {
+  if (publication.status === "open" && full) return "Lotado";
+  const labels: Record<CoursePublication["status"], string> = {
+    cancelled: "Cancelado",
+    closed: "Encerrado",
+    finished: "Finalizado",
+    open: "Agendado",
+    proof: "Prova em andamento",
+    started: "Curso iniciado"
   };
   return labels[publication.status];
 }
