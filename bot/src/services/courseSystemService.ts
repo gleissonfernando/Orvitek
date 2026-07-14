@@ -1483,16 +1483,14 @@ async function finishExam(interaction: ButtonInteraction, context: BotContext) {
     await interaction.followUp({ content: "A prova já foi finalizada ou ainda possui questões pendentes.", flags: MessageFlags.Ephemeral });
     return;
   }
-  const [course, settings, runtime] = await Promise.all([
+  const [course, settings] = await Promise.all([
     context.api.getCourse(interaction.guildId!, result.attempt.courseId),
-    context.api.getCourseSettings(interaction.guildId!),
-    context.api.getCourseExamRuntime(interaction.guildId!, result.attempt.courseId)
+    context.api.getCourseSettings(interaction.guildId!)
   ]);
   await interaction.message.edit({ components: [] }).catch(() => null);
   await interaction.followUp({ content: "Prova finalizada. A equipe responsável recebeu o resultado.", flags: MessageFlags.Ephemeral });
   const postFinalizeResults = await Promise.allSettled([
     sendExamCorrectionPanel(interaction, context, course, result.attempt, result.questions, result.answers),
-    sendExamResultPanel(interaction, settings, runtime.settings, course, result.attempt, result.questions, result.answers),
     sendExamDetailedLog(interaction, settings, course, result.attempt, result.questions, result.answers),
     context.api.getCoursePublication(interaction.guildId!, result.attempt.publicationId)
       .then((publication) => refreshPublicationMessageByRecord(interaction, context, publication))
