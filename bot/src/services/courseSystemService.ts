@@ -1427,7 +1427,6 @@ async function confirmExamAnswer(interaction: ButtonInteraction, context: BotCon
     context.api.getCourse(interaction.guildId!, updated.attempt.courseId),
     context.api.getCourseExamRuntime(interaction.guildId!, updated.attempt.courseId)
   ]);
-  await upsertExamCorrectionPanel(interaction, context, course, updated.attempt, updated.questions, updated.answers).catch(() => null);
   await sendExamQuestion(interaction.channel as TextChannel, runtime.settings, course, updated.attempt, updated.questions);
 }
 
@@ -1488,7 +1487,6 @@ async function submitWrittenAnswer(interaction: ModalSubmitInteraction, context:
     context.api.getCourse(interaction.guildId!, updated.attempt.courseId),
     context.api.getCourseExamRuntime(interaction.guildId!, updated.attempt.courseId)
   ]);
-  await upsertExamCorrectionPanel(interaction, context, course, updated.attempt, updated.questions, updated.answers).catch(() => null);
   await interaction.editReply("Resposta registrada com sucesso. Continue para a próxima questão.");
   if (channel?.isTextBased() && "send" in channel) {
     await sendExamQuestion(channel as TextChannel, runtime.settings, course, updated.attempt, updated.questions);
@@ -2383,6 +2381,10 @@ async function sendExamCorrectionPanel(interaction: ButtonInteraction, context: 
 }
 
 async function upsertExamCorrectionPanel(interaction: CourseGuildContext, context: BotContext, course: Course, attempt: CourseExamAttempt, questions: CourseExamQuestion[], answers: CourseExamAnswer[]) {
+  if (!["finished", "awaiting_review", "manual_reviewed"].includes(attempt.status)) {
+    logCourseFlow("exam_correction_panel_skipped_unfinished_attempt", { attemptId: attempt.id, courseId: attempt.courseId, guildId: interaction.guildId, status: attempt.status });
+    return false;
+  }
   const runtime = await context.api.getCourseExamRuntime(interaction.guildId!, attempt.courseId);
   const courseSettings = await context.api.getCourseSettings(interaction.guildId!);
   const configuredIds = examCorrectionChannelIds(courseSettings, runtime.settings);
