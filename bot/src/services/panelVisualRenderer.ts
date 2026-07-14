@@ -87,7 +87,7 @@ export function renderComponentsV2Panel(input: {
   if (!blockComponents.length && (media || extraMedia.length) && position === "middle") pushMedia();
   fields.slice(split).forEach((content) => components.push({ type: 10, content }));
   if (!blockComponents.length && (media || extraMedia.length) && ["before_buttons", "above_buttons"].includes(position)) pushMedia();
-  components.push(...actions);
+  components.push(...actions.map(serializeComponentBuilder));
   if (!blockComponents.length && (media || extraMedia.length) && position === "bottom") pushMedia();
 
   const footer = mergeFooter(input.footer, footerImage);
@@ -125,6 +125,13 @@ export function buildV2Container(input: { accentColor?: number; components: unkn
     ...(typeof input.accentColor === "number" ? { accent_color: input.accentColor } : {}),
     components
   };
+}
+
+function serializeComponentBuilder(component: unknown) {
+  if (component && typeof component === "object" && "toJSON" in component && typeof component.toJSON === "function") {
+    return component.toJSON();
+  }
+  return component;
 }
 
 export function renderPanelFromBlocks(input: { accentColor: number; blocks: PanelBlock[]; footer?: ComponentsV2FooterConfig }) {
