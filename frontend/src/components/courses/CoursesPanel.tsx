@@ -36,6 +36,8 @@ type ExamLinkDraft = Pick<CourseExamDashboard["settings"], "externalLinkDescript
 
 const COURSE_EMOJI = "<:trofeu:1525682256654504087>";
 const MAX_EXAM_ALTERNATIVES = 25;
+const EXAM_TOTAL_SCORE = 10;
+const MAX_QUESTION_SCORE = 1;
 
 const tabs: Array<{ id: TabId; icon: typeof Image; label: string }> = [
   { id: "images", icon: Image, label: "Banners e Imagens" },
@@ -101,7 +103,7 @@ const emptyQuestion: SaveCourseExamQuestionPayload = {
   alternatives: [
     { id: "A", text: "", score: 0, isCorrect: false, order: 0 },
     { id: "B", text: "", score: 0, isCorrect: false, order: 1 },
-    { id: "C", text: "", score: 10, isCorrect: true, order: 2 },
+    { id: "C", text: "", score: 1, isCorrect: true, order: 2 },
     { id: "D", text: "", score: 0, isCorrect: false, order: 3 }
   ],
   correctAlternativeId: "C",
@@ -111,7 +113,7 @@ const emptyQuestion: SaveCourseExamQuestionPayload = {
   order: 0,
   questionNumber: 1,
   placeholder: "Escreva sua resposta final...",
-  points: 10,
+  points: 1,
   prompt: "",
   type: "selection"
 };
@@ -501,7 +503,7 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
   async function reviewExamAttempt(attemptId: string, status: "approved" | "rejected") {
     if (!selectedCourse || !exam || exam.settings.courseId !== selectedCourse.id) return;
     const manualScore = status === "approved"
-      ? parseDecimalNumber(window.prompt("Nota manual adicional da prova", "0") ?? "0", 0)
+      ? Math.max(0, parseDecimalNumber(window.prompt("Nota manual adicional da prova", "0") ?? "0", 0))
       : 0;
     const rejectionReason = status === "rejected" ? window.prompt("Motivo da reprovação (opcional)", "") || null : null;
     setSaving(true);
@@ -796,7 +798,7 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
                   <div className="grid gap-3 md:grid-cols-3">
                     <InputField disabled={!canManage || saving} label="Número da pergunta" onChange={(value) => setQuestionDraft({ ...questionDraft, questionNumber: Number(value) || 1, order: Math.max(0, (Number(value) || 1) - 1) })} value={String(questionDraft.questionNumber ?? 1)} />
                     <SelectValueField disabled={!canManage || saving} label="Tipo" onChange={(type) => setQuestionDraft({ ...questionDraft, type: type as "selection" | "multiple" | "written" })} options={[["selection", "Objetiva"], ["multiple", "Múltipla escolha"], ["written", "Discursiva"]]} value={questionDraft.type} />
-                    <DecimalInputField disabled={!canManage || saving} label="Valor da questão (pontos)" onCommit={(points) => setQuestionDraft({ ...questionDraft, points })} value={questionDraft.points ?? 10} />
+                    <DecimalInputField disabled={!canManage || saving} label="Valor da questão (pontos)" onCommit={(points) => setQuestionDraft({ ...questionDraft, points })} value={questionDraft.points ?? MAX_QUESTION_SCORE} />
                   </div>
                   <div className="mt-3 space-y-3">
                     <TextAreaField disabled={!canManage || saving} label="Pergunta" onChange={(prompt) => setQuestionDraft({ ...questionDraft, prompt })} value={questionDraft.prompt} />
@@ -822,7 +824,7 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
                                 </Button>
                               </div>
                               <ToggleField disabled={!canManage || saving} label="Correta" onChange={(checked) => setQuestionDraft(toggleCorrectAlternative(questionDraft, option.id, index, checked))} value={Boolean(option.isCorrect)} />
-                              <DecimalInputField disabled={!canManage || saving || !isDraftCorrectAlternative(questionDraft, option.id, option)} label="Nota desta resposta" onCommit={(score) => setQuestionDraft({ ...questionDraft, alternatives: updateOption(questionDraft.alternatives, index, { score }) })} value={parseDecimalNumber(option.score, 0)} />
+                              <DecimalInputField disabled={!canManage || saving} label="Nota desta resposta" onCommit={(score) => setQuestionDraft({ ...questionDraft, alternatives: updateOption(questionDraft.alternatives, index, { score }) })} value={parseDecimalNumber(option.score, 0)} />
                             </div>
                           ))}
                         </div>
@@ -1052,7 +1054,7 @@ function getProofStats(questions: CourseExamQuestion[]) {
   return {
     active: activeQuestions.length,
     complete,
-    maxScore: activeQuestions.reduce((total, question) => total + questionMaxScore(question), 0),
+    maxScore: EXAM_TOTAL_SCORE,
     objective: objective.length,
     total: questions.length,
     written: written.length
@@ -1105,7 +1107,7 @@ function normalizeQuestion(question: SaveCourseExamQuestionPayload) {
   const questionNumber = Math.max(1, Math.min(100, Number(question.questionNumber ?? 1)));
   const alternatives = question.type === "written" ? [] : (question.alternatives ?? []).filter((option) => option.text?.trim()).slice(0, MAX_EXAM_ALTERNATIVES).map((option, index) => {
     const id = option.id || alternativeIdForIndex(index);
-    return { ...option, id, order: index, value: option.value || id, score: parseDecimalNumber(option.score, 0) };
+    return { ...option, id, order: index, value: option.value || id, score: Math.max(0, parseDecimalNumber(option.score, 0)) };
   });
   const correctAlternativeIds = question.type === "multiple"
     ? alternatives.filter((option) => option.isCorrect || Number(option.score ?? 0) > 0 || question.correctAlternativeIds?.includes(option.id)).map((option) => option.id)
@@ -1114,7 +1116,7 @@ function normalizeQuestion(question: SaveCourseExamQuestionPayload) {
     ...question,
     questionNumber,
     order: questionNumber - 1,
-    points: parseDecimalNumber(question.points, 10),
+    points: Math.max(0, parseDecimalNumber(question.points, MAX_QUESTION_SCORE)),
     type: question.type,
     alternatives,
     correctAlternativeId: question.type === "written" ? null : question.type === "multiple" ? null : question.correctAlternativeId ?? alternatives.find((option) => option.isCorrect)?.id ?? null,
@@ -1162,7 +1164,7 @@ function toggleCorrectAlternative(question: SaveCourseExamQuestionPayload, optio
     return {
       ...question,
       alternatives: (question.alternatives ?? []).map((item, itemIndex) => itemIndex === index
-        ? { ...item, isCorrect: checked, score: checked ? parseDecimalNumber(item.score, question.points ?? 10) : 0 }
+        ? { ...item, isCorrect: checked, score: checked ? Math.max(0, parseDecimalNumber(item.score, MAX_QUESTION_SCORE)) : 0 }
         : { ...item, isCorrect: Boolean(item.isCorrect) }),
       correctAlternativeId: null,
       correctAlternativeIds: [...current]
@@ -1173,7 +1175,7 @@ function toggleCorrectAlternative(question: SaveCourseExamQuestionPayload, optio
     correctAlternativeId: checked ? optionId : question.correctAlternativeId === optionId ? null : question.correctAlternativeId,
     correctAlternativeIds: [],
     alternatives: (question.alternatives ?? []).map((item, itemIndex) => itemIndex === index
-      ? { ...item, isCorrect: checked, score: checked ? parseDecimalNumber(item.score, question.points ?? 10) : 0 }
+      ? { ...item, isCorrect: checked, score: checked ? Math.max(0, parseDecimalNumber(item.score, MAX_QUESTION_SCORE)) : 0 }
       : { ...item, isCorrect: false, score: 0 })
   };
 }
@@ -1214,17 +1216,15 @@ function isCorrectAlternative(question: CourseExamQuestion, optionId: string) {
 }
 
 function questionMaxScore(question: CourseExamQuestion) {
-  if (question.type === "written") return Number(question.points) || 0;
+  if (question.type === "written") return Math.max(0, parseDecimalNumber(question.points, 0));
   const correctOptions = question.alternatives.filter((option) => isCorrectAlternative(question, option.id));
-  if (!correctOptions.length) return Number(question.points) || 0;
-  if (question.type === "selection") return Math.max(...correctOptions.map((option) => alternativeScoreValue(question, option)));
-  const fallback = (Number(question.points) || 0) / correctOptions.length;
-  return correctOptions.reduce((total, option) => total + alternativeScoreValue(question, option, fallback), 0);
+  if (!correctOptions.length) return Math.max(0, parseDecimalNumber(question.points, 0));
+  if (question.type === "selection") return correctOptions.map((option) => alternativeScoreValue(question, option)).reduce((highest, score) => score > highest ? score : highest, 0);
+  return decimalSum(correctOptions.map((option) => alternativeScoreValue(question, option)));
 }
 
 function alternativeScoreValue(question: CourseExamQuestion, option: CourseExamQuestion["alternatives"][number], fallback = Number(question.points) || 0) {
-  const score = parseDecimalNumber(option.score, 0);
-  return score > 0 ? score : fallback;
+  return Math.max(0, parseDecimalNumber(option.score, fallback));
 }
 
 function updateOption(options: SaveCourseExamQuestionPayload["alternatives"], index: number, patch: Record<string, unknown>) {
@@ -1379,13 +1379,49 @@ function parseDecimalNumber(value: unknown, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function decimalSum(values: unknown[]) {
+  const parts = values.map((value) => decimalParts(value));
+  const scale = parts.reduce((highest, part) => part.scale > highest ? part.scale : highest, 0);
+  const multiplier = (partScale: number) => 10n ** BigInt(scale - partScale);
+  const units = parts.reduce((total, part) => total + part.units * multiplier(part.scale), 0n);
+  return decimalPartsToNumber({ scale, units });
+}
+
+function decimalParts(value: unknown) {
+  const text = decimalText(value);
+  const negative = text.startsWith("-");
+  const unsigned = negative || text.startsWith("+") ? text.slice(1) : text;
+  const [integerPart = "0", decimalPart = ""] = unsigned.split(".");
+  const digits = `${integerPart.replace(/^0+(?=\d)/, "") || "0"}${decimalPart}`;
+  const units = BigInt(digits || "0") * (negative ? -1n : 1n);
+  return { scale: decimalPart.length, units };
+}
+
+function decimalText(value: unknown) {
+  const raw = typeof value === "number"
+    ? Number.isFinite(value) ? value.toString() : "0"
+    : String(value ?? "0").trim().replace(",", ".");
+  if (!/[eE]/.test(raw)) return raw || "0";
+  return Number(raw).toFixed(20).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function decimalPartsToNumber(input: { scale: number; units: bigint }) {
+  const negative = input.units < 0n;
+  const absolute = (negative ? -input.units : input.units).toString().padStart(input.scale + 1, "0");
+  if (input.scale === 0) return Number(`${negative ? "-" : ""}${absolute}`);
+  const integerPart = absolute.slice(0, -input.scale) || "0";
+  const decimalPart = absolute.slice(-input.scale);
+  return Number(`${negative ? "-" : ""}${integerPart}.${decimalPart}`);
+}
+
 function formatDecimalInput(value: number) {
   return String(value).replace(".", ",");
 }
 
 function formatScoreValue(value: number) {
   const score = Number(value ?? 0);
-  return Number.isInteger(score) ? String(score) : score.toFixed(2).replace(/0+$/, "").replace(/\.$/, "").replace(".", ",");
+  if (!Number.isFinite(score)) return "0,0";
+  return Number.isInteger(score) ? `${score},0` : score.toString().replace(".", ",");
 }
 
 function proofResultLabel(attempt: CourseExamDashboard["attempts"][number]) {

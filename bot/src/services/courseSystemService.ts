@@ -93,6 +93,8 @@ const EXAM_CHANNEL_STATE_RETRY_MAX_DELAY = 60 * 60 * 1000;
 const COURSE_EVENT_DURATION_MS = 24 * 60 * 60 * 1000;
 const MAX_COURSE_EVENT_TIMER_DELAY = 7 * 24 * 60 * 60 * 1000;
 const MAX_EXAM_SELECT_OPTIONS = 25;
+const EXAM_TOTAL_SCORE = 10;
+const MAX_QUESTION_SCORE = 1;
 
 const startedCourseClients = new WeakSet<Client>();
 const examProvisioning = new Map<string, Promise<string>>();
@@ -1602,8 +1604,8 @@ async function approveExamWithManualScore(interaction: ModalSubmitInteraction, c
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const attemptId = idFromCustomId(interaction.customId);
   const rawScore = interaction.fields.getTextInputValue("manualScore").trim().replace(",", ".");
-  if (!/^\d+(?:\.\d{1,2})?$/.test(rawScore)) {
-    await interaction.editReply("Informe uma nota numérica válida, como 0, 7 ou 15.");
+  if (!/^\d+(?:\.\d+)?$/.test(rawScore)) {
+    await interaction.editReply("Informe uma nota numérica válida, como 0, 0.5 ou 1.0.");
     return;
   }
   const manualScore = Number(rawScore);
@@ -1622,16 +1624,29 @@ async function completeExamReview(interaction: ButtonInteraction | ModalSubmitIn
     return null;
   }
   if (bundle.attempt.result) {
-    await interaction.editReply("Esta prova já foi corrigida.");
+    const [course, runtime, courseSettings] = await Promise.all([
+      context.api.getCourse(interaction.guildId!, bundle.attempt.courseId),
+      context.api.getCourseExamRuntime(interaction.guildId!, bundle.attempt.courseId),
+      context.api.getCourseSettings(interaction.guildId!)
+    ]);
+    await editExamCorrectionPanel(interaction, context, course, courseSettings, runtime.settings, bundle.attempt, bundle.questions, bundle.answers);
+    await interaction.editReply("Esta prova já foi corrigida e o painel foi atualizado.");
     return null;
   }
   const reviewed = await context.api.reviewCourseExamAttempt(interaction.guildId!, attemptId, { actorId: interaction.user.id, manualScore, status });
+  if (!reviewed) {
+    await interaction.editReply("Esta prova já foi corrigida ou não pode mais ser analisada.");
+    return null;
+  }
   const [course, runtime, courseSettings] = await Promise.all([
     context.api.getCourse(interaction.guildId!, reviewed.courseId),
     context.api.getCourseExamRuntime(interaction.guildId!, reviewed.courseId),
     context.api.getCourseSettings(interaction.guildId!)
   ]);
-  await editExamCorrectionPanel(interaction, context, course, courseSettings, runtime.settings, reviewed, bundle.questions, bundle.answers);
+  const correctionPanelUpdated = await editExamCorrectionPanel(interaction, context, course, courseSettings, runtime.settings, reviewed, bundle.questions, bundle.answers);
+  if (!correctionPanelUpdated) {
+    await sendCourseLog(interaction, courseSettings, `Falha ao desativar botões do painel de correção\nTentativa: ${attemptId}\nCurso: ${course.name}\nAluno: <@${reviewed.studentId}>`).catch(() => null);
+  }
   const resultDelivery = await sendExamResultPanel(interaction, courseSettings, runtime.settings, course, reviewed, bundle.questions, bundle.answers);
   if (resultDelivery.ok && resultDelivery.channelId && resultDelivery.messageId) {
     await context.api.setCourseExamResultDelivery(interaction.guildId!, reviewed.id, { channelId: resultDelivery.channelId, messageId: resultDelivery.messageId }).catch((error) => logCourseFlowError("exam_result_delivery_persist_failed", error, { attemptId: reviewed.id, channelId: resultDelivery.channelId, messageId: resultDelivery.messageId }));
@@ -2111,7 +2126,7 @@ function studentExamWelcomePanel(course: Course, publication: CoursePublication,
       `**Instrutor:** <@${publication.instructorId}>`,
       `**Início:** ${new Date().toLocaleString("pt-BR")}`,
       `**Prova:** Prova de ${course.name}`,
-      `**Questões:** ${questions.length}\n**Tempo limite:** ${settings.maxTimeMinutes ? `${settings.maxTimeMinutes} minuto(s)` : "não configurado"}\n**Pontuação total:** ${formatScore(questions.reduce((total, question) => total + question.points, 0))}\n**Nota mínima:** ${formatScore(settings.minScore)}`,
+      `**Questões:** ${questions.length}\n**Tempo limite:** ${settings.maxTimeMinutes ? `${settings.maxTimeMinutes} minuto(s)` : "não configurado"}\n**Pontuação total:** ${formatScore(EXAM_TOTAL_SCORE)}\n**Nota mínima:** ${formatScore(settings.minScore)}`,
       settings.externalLinkEnabled && settings.externalLinkDescription ? `**Material:** ${settings.externalLinkDescription}` : "",
       "Respostas enviadas não poderão ser alteradas."
     ].filter(Boolean),
@@ -2412,13 +2427,20 @@ async function editExamCorrectionPanel(interaction: ButtonInteraction | ModalSub
   const payload = examCorrectionPanel(course, attempt, questions, answers, interaction.guild, courseSettings.evaluatorMentionRoleId);
   const sourceMessage = "message" in interaction ? interaction.message : null;
   if (sourceMessage?.editable) {
-    await sourceMessage.edit(payload).catch(() => null);
-    return;
+    const updated = await sourceMessage.edit(payload).then(() => true).catch((error) => {
+      logCourseFlowError("exam_correction_source_message_edit_failed", error, { attemptId: attempt.id, messageId: sourceMessage.id });
+      return false;
+    });
+    if (updated) return true;
   }
-  if (!attempt.correctionMessageId) return;
+  if (!attempt.correctionMessageId) return false;
   const channel = await fetchFirstTextChannel(interaction, examCorrectionChannelIds(courseSettings, examSettings));
   const message = await channel?.messages.fetch(attempt.correctionMessageId).catch(() => null);
-  await message?.edit(payload).catch(() => null);
+  if (!message) return false;
+  return message.edit(payload).then(() => true).catch((error) => {
+    logCourseFlowError("exam_correction_stored_message_edit_failed", error, { attemptId: attempt.id, channelId: channel?.id, messageId: attempt.correctionMessageId });
+    return false;
+  });
 }
 
 async function sendExamResultPanel(
@@ -2658,7 +2680,7 @@ async function sendFinalExamLog(interaction: ButtonInteraction | ModalSubmitInte
 }
 
 function examCorrectionPanel(course: Course, attempt: CourseExamAttempt, questions: CourseExamQuestion[], answers: CourseExamAnswer[], guild?: Guild | null, mentionRoleId?: string | null) {
-  const reviewed = attempt.result === "approved" || attempt.result === "rejected";
+  const reviewed = attempt.result === "approved" || attempt.result === "rejected" || attempt.status === "approved" || attempt.status === "rejected";
   const reviewable = ["finished", "awaiting_review", "manual_reviewed"].includes(attempt.status);
   const finalScore = attempt.finalScore ?? attempt.automaticScore ?? attempt.score;
   const status = reviewed
@@ -2681,8 +2703,8 @@ function examCorrectionPanel(course: Course, attempt: CourseExamAttempt, questio
   return renderComponentsV2Panel({
     accentColor: parseColor(course.color),
     actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`course_exam_review:approved:${attempt.id}`).setLabel("✅ Aprovar aluno").setStyle(ButtonStyle.Success).setDisabled(reviewed || !reviewable),
-      new ButtonBuilder().setCustomId(`course_exam_review:rejected:${attempt.id}`).setLabel("❌ Reprovar aluno").setStyle(ButtonStyle.Danger).setDisabled(reviewed || !reviewable)
+      new ButtonBuilder().setCustomId(`course_exam_review:approved:${attempt.id}`).setLabel("Aprova aluno").setStyle(ButtonStyle.Success).setDisabled(reviewed || !reviewable),
+      new ButtonBuilder().setCustomId(`course_exam_review:rejected:${attempt.id}`).setLabel("Reprova aluno").setStyle(ButtonStyle.Danger).setDisabled(reviewed || !reviewable)
     )],
     description: reviewable ? "Aguardando análise da equipe responsável." : "Avaliação já analisada.",
     fields,
@@ -2862,7 +2884,7 @@ function formatAnswerSummary(question: CourseExamQuestion, answer: CourseExamAns
     ].join("\n").slice(0, 1900);
   }
   const pointsEarned = Number(answer?.pointsEarned ?? 0);
-  const maxScore = Number(answer?.maxScore ?? question.points ?? 0);
+  const maxScore = Number(answer?.maxScore ?? questionMaxScore(question));
   if (question.type === "written") {
     const status = answer?.correct === true ? "✅ Correta" : answer?.correct === false ? "❌ Incorreta" : "🟡 Correção manual";
     return [
@@ -2873,7 +2895,7 @@ function formatAnswerSummary(question: CourseExamQuestion, answer: CourseExamAns
       `Resposta do aluno: ${answer?.writtenAnswer ? answer.writtenAnswer.slice(0, 900) : "Sem resposta salva."}`,
       `Resposta correta: ${question.correctText || "não configurada"}`,
       `Status: ${status}`,
-      `Pontuação obtida: ${formatScore(pointsEarned)} de ${formatScore(question.points)}`
+      `Pontuação obtida: ${formatScore(pointsEarned)} de ${formatScore(maxScore)}`
     ].join("\n").slice(0, 1900);
   }
   const alternatives = answer?.alternativesSnapshot?.length ? answer.alternativesSnapshot : question.alternatives;
@@ -2899,22 +2921,57 @@ function questionScoreLine(question: CourseExamQuestion) {
 }
 
 function questionMaxScore(question: CourseExamQuestion) {
-  if (question.type === "written") return Number(question.points) || 0;
+  if (question.type === "written") return Math.max(0, Number(question.points) || 0);
   const expected = question.alternatives.filter((alternative) => isExpectedAlternative(question, alternative));
-  if (!expected.length) return Number(question.points) || 0;
-  if (question.type === "selection") return Math.max(...expected.map((alternative) => alternativeScoreValue(question, alternative)));
-  const fallback = (Number(question.points) || 0) / expected.length;
-  return expected.reduce((total, alternative) => total + alternativeScoreValue(question, alternative, fallback), 0);
+  if (!expected.length) return Math.max(0, Number(question.points) || 0);
+  if (question.type === "selection") return expected.map((alternative) => alternativeScoreValue(question, alternative)).reduce((highest, score) => score > highest ? score : highest, 0);
+  return decimalSum(expected.map((alternative) => alternativeScoreValue(question, alternative)));
 }
 
 function alternativeScoreValue(question: CourseExamQuestion, alternative: CourseExamQuestion["alternatives"][number], fallback = Number(question.points) || 0) {
-  const score = Number(alternative.score ?? 0);
-  return score > 0 ? score : fallback;
+  const score = Number(alternative.score ?? fallback);
+  return Math.max(0, Number.isFinite(score) ? score : fallback);
+}
+
+function decimalSum(values: unknown[]) {
+  const parts = values.map((value) => decimalParts(value));
+  const scale = parts.reduce((highest, part) => part.scale > highest ? part.scale : highest, 0);
+  const multiplier = (partScale: number) => 10n ** BigInt(scale - partScale);
+  const units = parts.reduce((total, part) => total + part.units * multiplier(part.scale), 0n);
+  return decimalPartsToNumber({ scale, units });
+}
+
+function decimalParts(value: unknown) {
+  const text = decimalText(value);
+  const negative = text.startsWith("-");
+  const unsigned = negative || text.startsWith("+") ? text.slice(1) : text;
+  const [integerPart = "0", decimalPart = ""] = unsigned.split(".");
+  const digits = `${integerPart.replace(/^0+(?=\d)/, "") || "0"}${decimalPart}`;
+  const units = BigInt(digits || "0") * (negative ? -1n : 1n);
+  return { scale: decimalPart.length, units };
+}
+
+function decimalText(value: unknown) {
+  const raw = typeof value === "number"
+    ? Number.isFinite(value) ? value.toString() : "0"
+    : String(value ?? "0").trim().replace(",", ".");
+  if (!/[eE]/.test(raw)) return raw || "0";
+  return Number(raw).toFixed(20).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function decimalPartsToNumber(input: { scale: number; units: bigint }) {
+  const negative = input.units < 0n;
+  const absolute = (negative ? -input.units : input.units).toString().padStart(input.scale + 1, "0");
+  if (input.scale === 0) return Number(`${negative ? "-" : ""}${absolute}`);
+  const integerPart = absolute.slice(0, -input.scale) || "0";
+  const decimalPart = absolute.slice(-input.scale);
+  return Number(`${negative ? "-" : ""}${integerPart}.${decimalPart}`);
 }
 
 function formatScore(value: number | null | undefined) {
   const score = Number(value ?? 0);
-  return Number.isInteger(score) ? String(score) : score.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+  if (!Number.isFinite(score)) return "0,0";
+  return Number.isInteger(score) ? `${score},0` : score.toString().replace(".", ",");
 }
 
 function formatExamDuration(startedAt: string, finishedAt: string | null) {

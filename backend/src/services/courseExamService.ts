@@ -9,6 +9,9 @@ const DEFAULT_APPROVAL = "Você foi aprovado na prova do curso.";
 const DEFAULT_REJECTION = "Você foi reprovado na prova do curso.";
 const DEFAULT_EXTERNAL_LINK_TEXT = "Acessar material da prova";
 const DEFAULT_RELEASE_MODE = "immediate";
+const EXAM_TOTAL_SCORE = 10;
+const DEFAULT_MIN_SCORE = 6;
+const MAX_QUESTION_SCORE = 1;
 const MAX_EXAM_ALTERNATIVES = 25;
 
 type StudentRank = "CADET" | "OFFICER" | "SENIOR_OFFICER";
@@ -58,7 +61,7 @@ export async function getCourseExamSettings(botId: string | null, guildId: strin
     guildId,
     courseId,
     enabled: false,
-    minScore: 7,
+    minScore: DEFAULT_MIN_SCORE,
     maxTimeMinutes: null,
     correctionChannelId: null,
     resultChannelId: null,
@@ -70,7 +73,7 @@ export async function getCourseExamSettings(botId: string | null, guildId: strin
     finalMessage: DEFAULT_FINAL,
     approvalMessage: DEFAULT_APPROVAL,
     rejectionMessage: DEFAULT_REJECTION,
-    manualQuestionMaxScore: 10,
+    manualQuestionMaxScore: MAX_QUESTION_SCORE,
     manualApproval: true,
     automaticApproval: false,
     releaseMode: DEFAULT_RELEASE_MODE,
@@ -119,7 +122,7 @@ export async function createCourseExamQuestion(botId: string | null, guildId: st
     prompt: input.prompt?.trim() || "Nova pergunta",
     title: input.title?.trim() || input.prompt?.trim() || "Nova pergunta",
     description: input.description?.trim() || null,
-    points: Math.max(0, parseDecimalNumber(input.points, 1)),
+    points: normalizeQuestionPoints(input.points),
     alternatives: normalizeAlternatives(input.alternatives, normalizeQuestionType(input.type)),
     correctAlternativeId: normalizeQuestionType(input.type) === "written" ? null : normalizeCorrect(input.correctAlternativeId),
     correctAlternativeIds: normalizeQuestionType(input.type) === "multiple" ? normalizeCorrectList(input.correctAlternativeIds ?? input.correctAlternativeId ?? input.alternatives) : [],
@@ -143,7 +146,7 @@ export async function updateCourseExamQuestion(botId: string | null, guildId: st
   if (input.prompt !== undefined) patch.prompt = input.prompt.trim() || "Pergunta";
   if (input.title !== undefined) patch.title = input.title?.trim() || input.prompt?.trim() || "Pergunta";
   if (input.description !== undefined) patch.description = input.description?.trim() || null;
-  if (input.points !== undefined) patch.points = Math.max(0, parseDecimalNumber(input.points, 0));
+  if (input.points !== undefined) patch.points = normalizeQuestionPoints(input.points);
   if (input.alternatives !== undefined) patch.alternatives = normalizeAlternatives(input.alternatives, patch.type ?? normalizeQuestionType(input.type));
   if (input.correctAlternativeId !== undefined) patch.correctAlternativeId = patch.type === "written" || input.type === "written" ? null : normalizeCorrect(input.correctAlternativeId);
   if (input.correctAlternativeIds !== undefined || input.alternatives !== undefined || input.type !== undefined) {
@@ -469,12 +472,12 @@ export async function finalizeCourseExamAttempt(botId: string | null, guildId: s
     await logCourseAction(botId, guildId, "course.exam_finalize_blocked", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, answered: answers.length, missingQuestionIds, reason: "pending_answers" });
     return null;
   }
-  const maxScore = roundScore(relevantQuestions.reduce((total, question) => total + questionMaxScore(question), 0));
-  const score = roundScore(answers.reduce((total, answer) => total + answer.pointsEarned, 0));
+  const maxScore = EXAM_TOTAL_SCORE;
+  const score = decimalSum(answers.map((answer) => answer.pointsEarned));
   const objectiveCorrect = answers.filter((answer) => answer.correct === true).length;
   const objectiveWrong = answers.filter((answer) => answer.correct === false).length;
   const writtenCount = answers.filter((answer) => answer.type === "written").length;
-  const percent = maxScore > 0 ? Math.round((score / maxScore) * 10000) / 100 : 0;
+  const percent = decimalMultiplyByInteger(score, 10);
   const nextStatus = "awaiting_review";
   const now = new Date();
   await logCourseAction(botId, guildId, "course.exam_score_calculated", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, maxScore, objectiveCorrect, objectiveWrong, percent, score, result: null });
@@ -524,9 +527,9 @@ export async function reviewCourseExamAttempt(botId: string | null, guildId: str
   const existing = await courseExamAttempts.findOne(reviewableFilter);
   if (!existing) return null;
   const automaticScore = Number(existing.automaticScore ?? existing.score ?? 0) || 0;
-  const manualScore = Math.max(0, Number(manualScoreInput ?? existing.manualScore ?? 0) || 0);
-  const finalScore = automaticScore + manualScore;
-  const percent = existing.maxScore > 0 ? Math.round((finalScore / existing.maxScore) * 10000) / 100 : 0;
+  const manualScore = Math.max(0, parseDecimalNumber(manualScoreInput ?? existing.manualScore ?? 0, 0));
+  const finalScore = decimalSum([automaticScore, manualScore]);
+  const percent = decimalMultiplyByInteger(finalScore, 10);
   const decided = await courseExamAttempts.updateOne(reviewableFilter, {
     $set: { automaticScore, correctedAt: now, correctedBy: reviewerId, finalScore, manualScore, percent, rejectionReason: rejectionReason || null, result: status, score: finalScore, status, updatedAt: now }
   });
@@ -572,7 +575,7 @@ function mapSettings(settings: MongoCourseExamSettings) {
     guildId: settings.guildId,
     courseId: settings.courseId,
     enabled: settings.enabled,
-    minScore: settings.minScore,
+    minScore: DEFAULT_MIN_SCORE,
     maxTimeMinutes: settings.maxTimeMinutes,
     correctionChannelId: null,
     resultChannelId: null,
@@ -584,7 +587,7 @@ function mapSettings(settings: MongoCourseExamSettings) {
     finalMessage: settings.finalMessage,
     approvalMessage: settings.approvalMessage,
     rejectionMessage: settings.rejectionMessage,
-    manualQuestionMaxScore: settings.manualQuestionMaxScore ?? 10,
+    manualQuestionMaxScore: settings.manualQuestionMaxScore ?? MAX_QUESTION_SCORE,
     manualApproval: true,
     automaticApproval: false,
     releaseMode: settings.releaseMode ?? DEFAULT_RELEASE_MODE,
@@ -706,8 +709,8 @@ async function cleanSettings(botId: string | null, guildId: string, courseId: st
   delete patch.temporaryCategoryId;
   delete patch.logChannelId;
   if ("maxTimeMinutes" in input) patch.maxTimeMinutes = input.maxTimeMinutes ? Math.max(1, Number(input.maxTimeMinutes)) : null;
-  if ("minScore" in input) patch.minScore = Math.max(0, Number(input.minScore ?? 7));
-  if ("manualQuestionMaxScore" in input) patch.manualQuestionMaxScore = Math.max(0, Number(input.manualQuestionMaxScore ?? 10));
+  if ("minScore" in input) patch.minScore = DEFAULT_MIN_SCORE;
+  if ("manualQuestionMaxScore" in input) patch.manualQuestionMaxScore = Math.max(0, parseDecimalNumber(input.manualQuestionMaxScore, MAX_QUESTION_SCORE));
   patch.manualApproval = true;
   patch.automaticApproval = false;
   if ("releaseMode" in input) patch.releaseMode = input.releaseMode === "scheduled" || input.releaseMode === "instructor" ? input.releaseMode : "immediate";
@@ -777,7 +780,7 @@ function normalizeQuestionType(value: unknown): MongoCourseExamQuestion["type"] 
 function correctIds(question: Pick<MongoCourseExamQuestion, "alternatives" | "correctAlternativeId" | "correctAlternativeIds">) {
   const fromList = question.correctAlternativeIds?.filter(Boolean) ?? [];
   if (fromList.length) return [...new Set(fromList)];
-  const fromAlternatives = question.alternatives.filter((alternative) => alternative.isCorrect || Number(alternative.score ?? 0) > 0).map((alternative) => alternative.id);
+  const fromAlternatives = question.alternatives.filter((alternative) => alternative.isCorrect || parseDecimalNumber(alternative.score, 0) > 0).map((alternative) => alternative.id);
   if (fromAlternatives.length) return [...new Set(fromAlternatives)];
   return question.correctAlternativeId ? [question.correctAlternativeId] : [];
 }
@@ -789,37 +792,36 @@ function sameSet(left: string[], right: string[]) {
 }
 
 function calculateMultipleChoiceScore(question: MongoCourseExamQuestion, selectedAlternativeIds: string[]) {
-  const expectedIds = correctIds(question);
-  if (!expectedIds.length) return 0;
-  const selected = new Set(selectedAlternativeIds);
-  const fallbackPoints = question.points / expectedIds.length;
-  const points = expectedIds.reduce((total, id) => {
-    if (!selected.has(id)) return total;
-    const alternative = question.alternatives.find((item) => item.id === id);
-    return total + alternativePointValue(alternative, fallbackPoints);
-  }, 0);
-  return Math.min(questionMaxScore(question), roundScore(points));
+  return decimalSum(selectedAlternativeIds.map((id) => selectedAlternativeScore(question, question.alternatives.find((item) => item.id === id))));
 }
 
 function calculateSelectionScore(question: MongoCourseExamQuestion, selectedAlternative: MongoCourseExamQuestion["alternatives"][number] | undefined) {
-  if (!selectedAlternative || !isExpectedAlternative(question, selectedAlternative)) return 0;
-  return Math.min(questionMaxScore(question), alternativePointValue(selectedAlternative, question.points));
+  return selectedAlternativeScore(question, selectedAlternative);
 }
 
 function questionMaxScore(question: MongoCourseExamQuestion) {
-  if (question.type === "written") return roundScore(question.points);
+  if (question.type === "written") return normalizeQuestionPoints(question.points);
   const expectedIds = correctIds(question);
-  if (!expectedIds.length) return roundScore(question.points);
-  if (question.type === "selection") {
-    return roundScore(Math.max(...expectedIds.map((id) => alternativePointValue(question.alternatives.find((item) => item.id === id), question.points))));
-  }
-  const fallbackPoints = question.points / expectedIds.length;
-  return roundScore(expectedIds.reduce((total, id) => total + alternativePointValue(question.alternatives.find((item) => item.id === id), fallbackPoints), 0));
+  if (!expectedIds.length) return normalizeQuestionPoints(question.points);
+  const values = expectedIds.map((id) => alternativePointValue(question.alternatives.find((item) => item.id === id), 0));
+  if (question.type === "selection") return values.reduce((highest, value) => value > highest ? value : highest, 0);
+  return decimalSum(values);
+}
+
+function selectedAlternativeScore(question: MongoCourseExamQuestion, alternative: MongoCourseExamQuestion["alternatives"][number] | undefined) {
+  if (!alternative) return 0;
+  const score = parseDecimalNumber(alternative.score, 0);
+  if (isExpectedAlternative(question, alternative)) return Math.max(0, score);
+  return 0;
 }
 
 function alternativePointValue(alternative: MongoCourseExamQuestion["alternatives"][number] | undefined, fallback: number) {
-  const score = parseDecimalNumber(alternative?.score, 0);
-  return score > 0 ? score : fallback;
+  if (!alternative) return fallback;
+  return Math.max(0, parseDecimalNumber(alternative.score, fallback));
+}
+
+function normalizeQuestionPoints(value: unknown) {
+  return Math.max(0, parseDecimalNumber(value, MAX_QUESTION_SCORE));
 }
 
 function isExpectedAlternative(question: Pick<MongoCourseExamQuestion, "alternatives" | "correctAlternativeId" | "correctAlternativeIds">, alternative: MongoCourseExamQuestion["alternatives"][number]) {
@@ -837,8 +839,58 @@ function parseDecimalNumber(value: unknown, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function roundScore(value: number) {
-  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+function decimalSum(values: unknown[]) {
+  const parts = values.map((value) => decimalParts(value));
+  const scale = parts.reduce((highest, part) => part.scale > highest ? part.scale : highest, 0);
+  const multiplier = (partScale: number) => 10n ** BigInt(scale - partScale);
+  const units = parts.reduce((total, part) => total + part.units * multiplier(part.scale), 0n);
+  return decimalPartsToNumber({ scale, units });
+}
+
+function decimalMultiplyByInteger(value: unknown, multiplier: number) {
+  const part = decimalParts(value);
+  return decimalPartsToNumber({ scale: part.scale, units: part.units * BigInt(multiplier) });
+}
+
+function decimalParts(value: unknown) {
+  const text = decimalText(value);
+  const negative = text.startsWith("-");
+  const unsigned = negative || text.startsWith("+") ? text.slice(1) : text;
+  const [integerPart = "0", decimalPart = ""] = unsigned.split(".");
+  const digits = `${integerPart.replace(/^0+(?=\d)/, "") || "0"}${decimalPart}`;
+  const units = BigInt(digits || "0") * (negative ? -1n : 1n);
+  return { scale: decimalPart.length, units };
+}
+
+function decimalText(value: unknown) {
+  const raw = typeof value === "number"
+    ? Number.isFinite(value) ? value.toString() : "0"
+    : String(value ?? "0").trim().replace(",", ".");
+  if (!/[eE]/.test(raw)) return raw || "0";
+  return expandExponentialDecimal(raw);
+}
+
+function expandExponentialDecimal(value: string) {
+  const [coefficient = "0", exponentText = "0"] = value.toLowerCase().split("e");
+  const exponent = Number(exponentText);
+  if (!Number.isInteger(exponent)) return "0";
+  const negative = coefficient.startsWith("-");
+  const unsigned = negative || coefficient.startsWith("+") ? coefficient.slice(1) : coefficient;
+  const [integerPart = "0", decimalPart = ""] = unsigned.split(".");
+  const digits = `${integerPart}${decimalPart}`.replace(/^0+(?=\d)/, "") || "0";
+  const decimalIndex = integerPart.length + exponent;
+  if (decimalIndex <= 0) return `${negative ? "-" : ""}0.${"0".repeat(-decimalIndex)}${digits}`;
+  if (decimalIndex >= digits.length) return `${negative ? "-" : ""}${digits}${"0".repeat(decimalIndex - digits.length)}`;
+  return `${negative ? "-" : ""}${digits.slice(0, decimalIndex)}.${digits.slice(decimalIndex)}`;
+}
+
+function decimalPartsToNumber(input: { scale: number; units: bigint }) {
+  const negative = input.units < 0n;
+  const absolute = (negative ? -input.units : input.units).toString().padStart(input.scale + 1, "0");
+  if (input.scale === 0) return Number(`${negative ? "-" : ""}${absolute}`);
+  const integerPart = absolute.slice(0, -input.scale) || "0";
+  const decimalPart = absolute.slice(-input.scale);
+  return Number(`${negative ? "-" : ""}${integerPart}.${decimalPart}`);
 }
 
 function defaultAlternativeId(index: number) {
