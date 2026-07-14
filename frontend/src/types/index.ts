@@ -1165,7 +1165,7 @@ export type CoursesDashboard = {
 
 export type SaveCourseSettingsPayload = Partial<Omit<CourseSettings, "id" | "botId" | "guildId" | "updatedAt">>;
 export type SaveCoursePayload = Partial<Omit<Course, "id" | "botId" | "guildId" | "createdAt" | "updatedAt" | "publishChannelId">> & { name: string };
-export type SaveCourseExamSettingsPayload = Partial<Omit<CourseExamSettings, "id" | "botId" | "guildId" | "courseId" | "updatedAt" | "correctionChannelId" | "logChannelId" | "resultChannelId" | "temporaryCategoryId">>;
+export type SaveCourseExamSettingsPayload = Partial<Omit<CourseExamSettings, "id" | "botId" | "guildId" | "courseId" | "updatedAt" | "automaticApproval" | "correctionChannelId" | "logChannelId" | "manualApproval" | "resultChannelId" | "temporaryCategoryId">>;
 export type SaveCourseExamQuestionPayload = Partial<Omit<CourseExamQuestion, "id" | "botId" | "guildId" | "courseId" | "createdAt" | "updatedAt">> & { prompt: string; type: "selection" | "multiple" | "written" };
 
 export type RhAdminSettings = {

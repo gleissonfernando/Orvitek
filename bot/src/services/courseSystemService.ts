@@ -2355,7 +2355,7 @@ async function examResultPanel(interaction: ButtonInteraction | ModalSubmitInter
         `Cargo: ${studentRankLabel(identification?.currentRank)}`,
         `Curso: ${course.name}`,
         `Instrutor: <@${attempt.instructorId}>`,
-        `Avaliador: ${attempt.correctedBy && attempt.correctedBy !== "automatic" ? `<@${attempt.correctedBy}>` : attempt.correctedBy === "automatic" ? "Automático" : "não informado"}`,
+        `Avaliador: ${attempt.correctedBy && attempt.correctedBy !== "automatic" ? `<@${attempt.correctedBy}>` : "não informado"}`,
         `Cargo notificado: ${mentionRoleId ? `<@&${mentionRoleId}>` : "não configurado"}`,
         `Data/Hora: <t:${timestamp}:F>`
       ].join("\n"),

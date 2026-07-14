@@ -444,8 +444,6 @@ export async function finalizeCourseExamAttempt(botId: string | null, guildId: s
   ]);
   if (!attempt) return null;
   await logCourseAction(botId, guildId, "course.exam_correction_started", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId });
-  const examSettings = await collections.courseExamSettings.findOne({ _id: attempt.examId ?? "", ...scope(botId, guildId) })
-    ?? await collections.courseExamSettings.findOne({ ...scope(botId, guildId), courseId: attempt.courseId });
   const relevantQuestions = attemptQuestions(attempt);
   if (!relevantQuestions.length) return null;
   const answeredQuestionIds = new Set(answers.map((answer) => answer.questionId));
@@ -456,26 +454,21 @@ export async function finalizeCourseExamAttempt(botId: string | null, guildId: s
   const objectiveWrong = answers.filter((answer) => answer.correct === false).length;
   const writtenCount = answers.filter((answer) => answer.type === "written").length;
   const percent = maxScore > 0 ? Math.round((score / maxScore) * 10000) / 100 : 0;
-  const pendingManualCorrection = answers.some((answer) => answer.correct == null);
-  const requiresManualApproval = examSettings?.automaticApproval !== true && examSettings?.manualApproval !== false;
-  const automaticResult = !pendingManualCorrection && !requiresManualApproval
-    ? (score >= Number(examSettings?.minScore ?? 0) ? "approved" as const : "rejected" as const)
-    : null;
-  const nextStatus = automaticResult ?? "awaiting_review";
+  const nextStatus = "awaiting_review";
   const now = new Date();
-  await logCourseAction(botId, guildId, "course.exam_score_calculated", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, maxScore, objectiveCorrect, objectiveWrong, percent, score, result: automaticResult });
+  await logCourseAction(botId, guildId, "course.exam_score_calculated", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, maxScore, objectiveCorrect, objectiveWrong, percent, score, result: null });
   const updatedStatus = await collections.courseExamAttempts.updateOne({ _id: attemptId, ...scope(botId, guildId), status: "in_progress" }, {
     $set: {
       automaticScore: score,
-      correctedAt: automaticResult ? now : null,
-      correctedBy: automaticResult ? "automatic" : null,
-      finalScore: automaticResult ? score : null,
+      correctedAt: null,
+      correctedBy: null,
+      finalScore: null,
       finishedAt: now,
       maxScore,
       objectiveCorrect,
       objectiveWrong,
       percent,
-      result: automaticResult,
+      result: null,
       score,
       status: nextStatus,
       updatedAt: now,
@@ -484,11 +477,11 @@ export async function finalizeCourseExamAttempt(botId: string | null, guildId: s
   });
   if (updatedStatus.matchedCount === 0) return null;
   const updated = await collections.courseExamAttempts.findOne({ _id: attemptId, ...scope(botId, guildId) });
-  await logCourseAction(botId, guildId, "course.exam_result_saved", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, maxScore, percent, result: automaticResult, score });
+  await logCourseAction(botId, guildId, "course.exam_result_saved", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, maxScore, percent, result: null, score });
   await logCourseAction(botId, guildId, "course.exam_finished", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, percent, score });
   await collections.courseEnrollments.updateOne(
     { ...scope(botId, guildId), publicationId: attempt.publicationId, studentId: attempt.studentId },
-    { $set: { examStatus: automaticResult === "approved" ? "APPROVED" : automaticResult === "rejected" ? "FAILED" : "COMPLETED", attemptId, examChannelId: attempt.channelId, score, correctAnswers: objectiveCorrect, completedAt: now, result: automaticResult, updatedAt: now } }
+    { $set: { examStatus: "COMPLETED", attemptId, examChannelId: attempt.channelId, score, correctAnswers: objectiveCorrect, completedAt: now, result: null, updatedAt: now } }
   );
   emitRealtime("courses:publication", { botId, guildId, publicationId: attempt.publicationId });
   return updated ? { answers: answers.map(mapAnswer), attempt: mapAttempt(updated), questions: relevantQuestions.map(mapQuestion) } : null;
@@ -550,8 +543,8 @@ function mapSettings(settings: MongoCourseExamSettings) {
     approvalMessage: settings.approvalMessage,
     rejectionMessage: settings.rejectionMessage,
     manualQuestionMaxScore: settings.manualQuestionMaxScore ?? 10,
-    manualApproval: settings.manualApproval ?? true,
-    automaticApproval: settings.automaticApproval ?? false,
+    manualApproval: true,
+    automaticApproval: false,
     releaseMode: settings.releaseMode ?? DEFAULT_RELEASE_MODE,
     releaseAt: settings.releaseAt?.toISOString() ?? null,
     attemptLimit: settings.attemptLimit ?? null,
@@ -668,8 +661,8 @@ async function cleanSettings(botId: string | null, guildId: string, courseId: st
   if ("maxTimeMinutes" in input) patch.maxTimeMinutes = input.maxTimeMinutes ? Math.max(1, Number(input.maxTimeMinutes)) : null;
   if ("minScore" in input) patch.minScore = Math.max(0, Number(input.minScore ?? 7));
   if ("manualQuestionMaxScore" in input) patch.manualQuestionMaxScore = Math.max(0, Number(input.manualQuestionMaxScore ?? 10));
-  if ("manualApproval" in input) patch.manualApproval = input.manualApproval ?? true;
-  if ("automaticApproval" in input) patch.automaticApproval = input.automaticApproval ?? false;
+  patch.manualApproval = true;
+  patch.automaticApproval = false;
   if ("releaseMode" in input) patch.releaseMode = input.releaseMode === "scheduled" || input.releaseMode === "instructor" ? input.releaseMode : "immediate";
   if ("releaseAt" in input) {
     const releaseAt = input.releaseAt ? new Date(input.releaseAt) : null;

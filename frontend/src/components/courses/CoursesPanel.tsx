@@ -773,8 +773,6 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
                 <div className="grid gap-3 md:grid-cols-4">
                   <DecimalInputField disabled={!canManage || saving} label="Nota mínima (pontos)" onCommit={(minScore) => void saveSelectedExamSettings({ minScore })} value={exam.settings.minScore} />
                   <ToggleField disabled={!canManage || saving} label="Modo deste curso ativo" onChange={(enabled) => void setSelectedCourseProofMode(enabled)} value={exam.settings.enabled} />
-                  <ToggleField disabled={!canManage || saving} label="Aprovação manual" onChange={(manualApproval) => void saveSelectedExamSettings({ automaticApproval: manualApproval ? false : exam.settings.automaticApproval, manualApproval })} value={exam.settings.manualApproval} />
-                  <ToggleField disabled={!canManage || saving} label="Aprovação automática" onChange={(automaticApproval) => void saveSelectedExamSettings({ automaticApproval, manualApproval: automaticApproval ? false : exam.settings.manualApproval })} value={exam.settings.automaticApproval} />
                 </div>
                 {examLinkDraft ? (
                   <div className="rounded-lg border border-zinc-800 bg-black/30 p-4">
