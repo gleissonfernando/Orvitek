@@ -2274,16 +2274,12 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
   const canStartExam = publication.status === "started" || publication.status === "proof";
   const canFinishClass = publication.status === "started" || publication.status === "proof";
   const canCancel = !["cancelled", "proof", "finished", "closed"].includes(publication.status);
-  const studentActions = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`course_join:${publication.id}`).setLabel("Entrar").setStyle(ButtonStyle.Success).setDisabled(!canJoin),
-    new ButtonBuilder().setCustomId(`course_leave:${publication.id}`).setLabel("Sair").setStyle(ButtonStyle.Secondary).setDisabled(!canLeave)
-  );
-  const adminActions = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`course_start:${publication.id}`).setLabel("Iniciar").setStyle(ButtonStyle.Primary).setDisabled(!canStartClass),
-    new ButtonBuilder().setCustomId(`course_exam_realize:${publication.id}`).setLabel("Realizar Prova").setStyle(ButtonStyle.Success).setDisabled(!canStartExam),
-    new ButtonBuilder().setCustomId(`course_finish:${publication.id}`).setLabel("Finalizar").setStyle(ButtonStyle.Secondary).setDisabled(!canFinishClass),
-    new ButtonBuilder().setCustomId(`course_cancel:${publication.id}`).setLabel("Cancelar").setStyle(ButtonStyle.Danger).setDisabled(!canCancel)
-  );
+  const joinAction = buttonRow(new ButtonBuilder().setCustomId(`course_join:${publication.id}`).setLabel("Entrar").setStyle(ButtonStyle.Success).setDisabled(!canJoin));
+  const leaveAction = buttonRow(new ButtonBuilder().setCustomId(`course_leave:${publication.id}`).setLabel("Sair").setStyle(ButtonStyle.Secondary).setDisabled(!canLeave));
+  const startAction = buttonRow(new ButtonBuilder().setCustomId(`course_start:${publication.id}`).setLabel("Iniciar").setStyle(ButtonStyle.Primary).setDisabled(!canStartClass));
+  const examAction = buttonRow(new ButtonBuilder().setCustomId(`course_exam_realize:${publication.id}`).setLabel("Realizar Prova").setStyle(ButtonStyle.Success).setDisabled(!canStartExam));
+  const finishAction = buttonRow(new ButtonBuilder().setCustomId(`course_finish:${publication.id}`).setLabel("Finalizar").setStyle(ButtonStyle.Secondary).setDisabled(!canFinishClass));
+  const cancelAction = buttonRow(new ButtonBuilder().setCustomId(`course_cancel:${publication.id}`).setLabel("Cancelar").setStyle(ButtonStyle.Danger).setDisabled(!canCancel));
   const examProgress = enrollments
     .filter((enrollment) => ["STARTING", "IN_PROGRESS", "COMPLETED", "APPROVED", "FAILED"].includes(enrollment.examStatus))
     .map((enrollment) => {
@@ -2332,10 +2328,14 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
       ].filter(Boolean).join("\n"))
     ] : []),
     separator(),
-    studentActions.toJSON(),
+    joinAction,
+    leaveAction,
     separator(),
     textBlock("## Administração"),
-    adminActions.toJSON(),
+    startAction,
+    examAction,
+    finishAction,
+    cancelAction,
     separator()
   ];
   return componentsV2Payload({
@@ -2351,6 +2351,10 @@ function textBlock(content: string) {
 
 function separator() {
   return { type: 14, divider: true, spacing: 1 };
+}
+
+function buttonRow(button: ButtonBuilder) {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(button).toJSON();
 }
 
 function coursePublicationRules(course: Course) {
