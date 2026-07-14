@@ -415,10 +415,12 @@ function mainPanel(settings: RhAdminSettings, guild: Guild | null | undefined = 
       new ButtonBuilder().setCustomId(IDS.absence).setEmoji(systemComponentEmoji("calendario", guild)).setLabel("Solicitar Ausência").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(IDS.adornment).setEmoji(systemComponentEmoji("link", guild)).setLabel("Solicitar Adorno").setStyle(ButtonStyle.Secondary)
     )],
-    description: settings.panelDescription,
+    description: "Bem-vindo ao sistema de Recursos Humanos.\nUtilize este painel para registrar uma ausência temporária ou solicitar um adorno para sua identidade.",
     fields: [
-      "**Solicitação de Ausência**\nUse esta opção caso precise se ausentar temporariamente das atividades da corporação.\nInforme a data de início e retorno nos formatos `DD/MM` ou `DD/MM/AAAA`.",
-      `**Solicitação de Adorno**\n${settings.adornmentDescription}\nA imagem deve ser enviada por link direto ou URL válida de imagem.`
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n## 📌 Antes de continuar\nLeia atentamente as informações abaixo antes de enviar sua solicitação.",
+      "──────────────────────────────\n## 📅 Solicitação de Ausência\nRegistre um afastamento temporário das atividades da corporação.\n\n**Informações obrigatórias**\n• Data de início: `DD/MM`\n• Data de retorno: `DD/MM/AAAA`\n• Motivo da ausência",
+      `──────────────────────────────\n## 🎖️ Solicitação de Adorno\n${settings.adornmentDescription}\n\n**Requisitos**\n• Envie a numeração in-game.\n• Informe um link direto da imagem.\n• A imagem deve estar pública e acessível.\n• O pedido será analisado pelo RH.`,
+      "──────────────────────────────\n**Ações disponíveis**\nUse os botões abaixo para iniciar sua solicitação."
     ],
     image: settings.panelBannerUrl ? { imageEnabled: true, imagePosition: "top", imageUrl: settings.panelBannerUrl } : null,
     moduleId: MODULE_ID,
