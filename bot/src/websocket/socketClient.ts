@@ -74,6 +74,7 @@ export type FivemOrderStatusUpdatedEvent = { actorId?: string | null; botId?: st
 export type PriceTablePanelPublishEvent = { botId?: string | null; guildId: string; tableId: string };
 export type ManualPaymentPanelPublishEvent = { botId?: string | null; guildId: string };
 export type CoursePanelPublishEvent = { botId?: string | null; guildId: string; settings?: unknown };
+export type CourseExamReviewedEvent = { actorId?: string | null; attemptId: string; botId?: string | null; courseId: string; guildId: string; status: "approved" | "rejected" };
 export type RhAdminPanelPublishEvent = { botId?: string | null; guildId: string; settings?: unknown };
 export type TicketPanelPublishEvent = { botId?: string | null; guildId: string; settings?: unknown };
 
@@ -269,6 +270,7 @@ export class BotSocketClient {
   private priceTablePanelPublishHandler: ((payload: PriceTablePanelPublishEvent) => void) | null = null;
   private manualPaymentPanelPublishHandler: ((payload: ManualPaymentPanelPublishEvent) => void) | null = null;
   private coursePanelPublishHandler: ((payload: CoursePanelPublishEvent) => void) | null = null;
+  private courseExamReviewedHandler: ((payload: CourseExamReviewedEvent) => void) | null = null;
   private rhAdminPanelPublishHandler: ((payload: RhAdminPanelPublishEvent) => void) | null = null;
   private ticketPanelPublishHandler: ((payload: TicketPanelPublishEvent) => void) | null = null;
   private nexTechSalePaidHandler: ((payload: NexTechSalePaidEvent) => void) | null = null;
@@ -378,6 +380,7 @@ export class BotSocketClient {
     if (this.priceTablePanelPublishHandler) this.socket.on("price-tables:panel_publish", this.priceTablePanelPublishHandler);
     if (this.manualPaymentPanelPublishHandler) this.socket.on("manual-payments:panel_publish", this.manualPaymentPanelPublishHandler);
     if (this.coursePanelPublishHandler) this.socket.on("courses:panel_publish", this.coursePanelPublishHandler);
+    if (this.courseExamReviewedHandler) this.socket.on("courses:exam_reviewed", this.courseExamReviewedHandler);
     if (this.rhAdminPanelPublishHandler) this.socket.on("rh-admin:panel_publish", this.rhAdminPanelPublishHandler);
     if (this.ticketPanelPublishHandler) this.socket.on("tickets:panel_publish", this.ticketPanelPublishHandler);
     if (this.nexTechSalePaidHandler) this.socket.on("nex-tech-sales:sale_paid", this.nexTechSalePaidHandler);
@@ -584,6 +587,12 @@ export class BotSocketClient {
     this.coursePanelPublishHandler = handler;
     this.socket?.off("courses:panel_publish");
     this.socket?.on("courses:panel_publish", handler);
+  }
+
+  onCourseExamReviewed(handler: (payload: CourseExamReviewedEvent) => void) {
+    this.courseExamReviewedHandler = handler;
+    this.socket?.off("courses:exam_reviewed");
+    this.socket?.on("courses:exam_reviewed", handler);
   }
 
   onRhAdminPanelPublish(handler: (payload: RhAdminPanelPublishEvent) => void) {

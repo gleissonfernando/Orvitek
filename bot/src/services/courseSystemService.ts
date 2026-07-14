@@ -34,6 +34,7 @@ import {
   type ChannelSelectMenuInteraction
 } from "discord.js";
 import type { BotCommand, BotContext } from "../types";
+import { currentRuntimeBotId, env } from "../config/env";
 import { showModalAndResetSelect } from "../utils/selectMenuReset";
 import { renderComponentsV2Panel, type PanelVisualConfig } from "./panelVisualRenderer";
 import type { Course, CourseEnrollment, CourseExamAnswer, CourseExamAttempt, CourseExamQuestion, CourseExamSettings, CoursePublication, CourseSettings } from "./apiClient";
@@ -104,6 +105,11 @@ export function startCourseSystemService(client: Client, context: BotContext) {
   context.socket.onCoursePanelPublish((payload) => {
     void publishPublicCoursesPanel(client, context, payload.guildId).catch((error) => {
       console.error(`[courses] failed to publish panel in ${payload.guildId}:`, error instanceof Error ? error.message : error);
+    });
+  });
+  context.socket.onCourseExamReviewed((payload) => {
+    void publishDashboardReviewedExamResult(client, context, payload).catch((error) => {
+      console.error(`[courses] failed to publish dashboard exam review ${payload.attemptId}:`, error instanceof Error ? error.message : error);
     });
   });
   client.on("channelDelete", (channel) => {
@@ -1569,6 +1575,37 @@ async function completeExamReview(interaction: ButtonInteraction | ModalSubmitIn
   const publication = await context.api.getCoursePublication(interaction.guildId!, reviewed.publicationId).catch(() => null);
   if (publication) await refreshPublicationMessageByRecord(interaction, context, publication);
   return reviewed;
+}
+
+async function publishDashboardReviewedExamResult(
+  client: Client,
+  context: BotContext,
+  payload: { actorId?: string | null; attemptId: string; botId?: string | null; courseId: string; guildId: string; status: "approved" | "rejected" }
+) {
+  const runtimeBotId = (currentRuntimeBotId() ?? env.DASHBOARD_BOT_ID) || null;
+  if (payload.botId && runtimeBotId && payload.botId !== runtimeBotId) return;
+
+  const guild = client.guilds.cache.get(payload.guildId) ?? await client.guilds.fetch(payload.guildId).catch(() => null);
+  if (!guild) return;
+
+  const bundle = await context.api.getCourseExamAttempt(payload.guildId, payload.attemptId).catch(() => null);
+  if (!bundle || bundle.attempt.courseId !== payload.courseId || !bundle.attempt.result) return;
+
+  const [course, runtime, courseSettings] = await Promise.all([
+    context.api.getCourse(payload.guildId, payload.courseId),
+    context.api.getCourseExamRuntime(payload.guildId, payload.courseId),
+    context.api.getCourseSettings(payload.guildId)
+  ]);
+  const reviewed = bundle.attempt;
+  const interaction = { guild, guildId: guild.id } as unknown as ButtonInteraction;
+
+  await editExamCorrectionPanel(interaction, context, course, courseSettings, runtime.settings, reviewed, bundle.questions, bundle.answers);
+  await sendExamResultPanel(interaction, courseSettings, runtime.settings, course, reviewed, bundle.questions, bundle.answers);
+  await sendCourseLog(interaction, courseSettings, `Prova corrigida pela dashboard\nTentativa: ${payload.attemptId}\nAluno: <@${reviewed.studentId}>\n${examStudentIdentificationSummary(reviewed)}\nResultado: ${payload.status === "approved" ? "Aprovado" : "Reprovado"}\nNota automática: ${formatScore(reviewed.automaticScore ?? reviewed.score)}\nNota manual: ${formatScore(reviewed.manualScore ?? 0)}\nNota final: ${formatScore(reviewed.finalScore ?? reviewed.score)}\nAvaliador: ${payload.actorId ? `<@${payload.actorId}>` : "Dashboard"}`).catch(() => null);
+  const student = await guild.members.fetch(reviewed.studentId).catch(() => null);
+  await student?.send(examDecisionDm(course, runtime.settings, reviewed, payload.status)).catch(() => null);
+  const publication = await context.api.getCoursePublication(payload.guildId, reviewed.publicationId).catch(() => null);
+  if (publication) await refreshPublicationMessageByRecord(interaction, context, publication);
 }
 
 async function refreshPublicationMessage(interaction: ButtonInteraction, context: BotContext, publication: CoursePublication) {

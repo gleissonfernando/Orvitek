@@ -4,6 +4,7 @@ import { z } from "zod";
 import { isBotRequest, requireAuthOrBot, requireBot } from "../middleware/auth";
 import { canManageDashboardGuild, canReadDashboardGuild } from "../services/dashboardGuildAccessService";
 import { authorizeBotRuntimeModule, canReadDevBotModule, canUseDevBotModule } from "../services/devBotService";
+import { emitRealtime } from "../realtime/events";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
 import {
   COURSES_MODULE_ID,
@@ -430,6 +431,23 @@ coursesRouter.post("/:guildId/courses/:courseId/exam/questions/reorder", async (
     if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para reordenar perguntas." });
     const { questionIds } = reorderExamQuestionsSchema.parse(req.body ?? {});
     return res.json({ questions: await reorderCourseExamQuestions(botId, guildId, routeParam(req, "courseId"), questionIds, res.locals.dashboardAuth.user.discordId) });
+  } catch (error) { return next(error); }
+});
+
+coursesRouter.post("/:guildId/courses/:courseId/exam/attempts/:attemptId/review", async (req, res, next) => {
+  try {
+    const guildId = snowflake.parse(req.params.guildId);
+    const botId = await resolveRequestBotId(req);
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para corrigir provas." });
+    const attemptId = routeParam(req, "attemptId");
+    const courseId = routeParam(req, "courseId");
+    const bundle = await getCourseExamAttemptBundle(botId, guildId, attemptId);
+    if (!bundle || bundle.attempt.courseId !== courseId) return res.status(404).json({ message: "Tentativa nao encontrada." });
+    const parsed = reviewSchema.parse({ ...(req.body ?? {}), actorId: res.locals.dashboardAuth.user.discordId });
+    const attempt = await reviewCourseExamAttempt(botId, guildId, attemptId, parsed.actorId, parsed.status, parsed.rejectionReason, parsed.manualScore);
+    if (!attempt) return res.status(404).json({ message: "Tentativa nao encontrada." });
+    emitRealtime("courses:exam_reviewed", { actorId: parsed.actorId, attemptId, botId, courseId, guildId, status: parsed.status });
+    return res.json({ attempt });
   } catch (error) { return next(error); }
 });
 

@@ -12,6 +12,7 @@ import {
   getCourseExamDashboard,
   getCoursesDashboard,
   getGuildLiveOptions,
+  reviewCourseExamAttemptApi,
   saveCourseExamSettings,
   saveCourseSettings,
   updateCourseApi,
@@ -473,6 +474,28 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
     }
   }
 
+  async function reviewExamAttempt(attemptId: string, status: "approved" | "rejected") {
+    if (!selectedCourse || !exam || exam.settings.courseId !== selectedCourse.id) return;
+    const manualScore = status === "approved"
+      ? parseDecimalNumber(window.prompt("Nota manual adicional da prova", "0") ?? "0", 0)
+      : 0;
+    const rejectionReason = status === "rejected" ? window.prompt("Motivo da reprovação (opcional)", "") || null : null;
+    setSaving(true);
+    setError("");
+    try {
+      const attempt = await reviewCourseExamAttemptApi(botId, guildId, selectedCourse.id, attemptId, { manualScore, rejectionReason, status });
+      setExam((current) => current && current.settings.courseId === selectedCourse.id
+        ? { ...current, attempts: current.attempts.map((item) => item.id === attempt.id ? attempt : item) }
+        : current);
+      showSuccess(status === "approved" ? "Prova aprovada pela dashboard." : "Prova reprovada pela dashboard.");
+      await loadExam(selectedCourse.id);
+    } catch (err) {
+      showError(readApiError(err, "Não foi possível corrigir a prova."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function saveImage() {
     if (!dashboard || !imageDraft.name.trim() || !imageDraft.url.trim()) {
       showError("Informe nome e URL da imagem.");
@@ -798,7 +821,7 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
                     <QuestionCard key={question.id} question={question} onDelete={() => void deleteCourseExamQuestionApi(botId, guildId, selectedCourse.id, question.id).then(() => setExam((current) => current && current.settings.courseId === selectedCourse.id ? { ...current, questions: current.questions.filter((item) => item.id !== question.id) } : current))} onEdit={() => { setEditingQuestionId(question.id); setQuestionDraft(toQuestionPayload(question)); }} />
                   ))}
                 </div>
-                <ProofResultsPanel attempts={exam.attempts} course={selectedCourse} />
+                <ProofResultsPanel attempts={exam.attempts} canManage={canManage} course={selectedCourse} disabled={saving} onReview={reviewExamAttempt} />
               </>
             ) : selectedCourse && examLoading ? (
               <div className="flex min-h-24 items-center gap-3 rounded-lg border border-zinc-800 bg-black/30 p-4 text-sm text-zinc-400">
@@ -931,7 +954,13 @@ function ProofCompleteness({ questions }: { questions: CourseExamQuestion[] }) {
   return <div className="rounded-lg border border-zinc-800 bg-black/30 p-3 text-sm text-zinc-300">Status da prova: <Badge variant={stats.complete ? "success" : "warning"}>{stats.complete ? "Completa" : "Incompleta"}</Badge> • Perguntas ativas: {stats.active} • Total: {stats.total} • Objetivas: {stats.objective} • Discursivas: {stats.written}</div>;
 }
 
-function ProofResultsPanel({ attempts, course }: { attempts: CourseExamDashboard["attempts"]; course: Course }) {
+function ProofResultsPanel({ attempts, canManage, course, disabled, onReview }: {
+  attempts: CourseExamDashboard["attempts"];
+  canManage: boolean;
+  course: Course;
+  disabled?: boolean;
+  onReview: (attemptId: string, status: "approved" | "rejected") => void;
+}) {
   const results = [...attempts]
     .filter((attempt) => attempt.status !== "in_progress" && attempt.finishedAt)
     .sort((a, b) => new Date(b.finishedAt ?? b.updatedAt).getTime() - new Date(a.finishedAt ?? a.updatedAt).getTime());
@@ -953,6 +982,7 @@ function ProofResultsPanel({ attempts, course }: { attempts: CourseExamDashboard
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         {results.map((attempt) => {
           const identification = attempt.studentIdentification;
+          const reviewable = !attempt.result && ["finished", "awaiting_review", "manual_reviewed"].includes(attempt.status);
           return (
             <div className="rounded-lg border border-zinc-800 bg-black/40 p-3 text-sm text-zinc-300" key={attempt.id}>
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -972,6 +1002,16 @@ function ProofResultsPanel({ attempts, course }: { attempts: CourseExamDashboard
                 <p>Tempo: <span className="text-zinc-200">{formatAttemptDuration(attempt.startedAt, attempt.finishedAt)}</span></p>
                 <p>Tentativa: <span className="text-zinc-200">{attempt.attemptNumber ?? 1}</span></p>
               </div>
+              {reviewable ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button disabled={!canManage || disabled} onClick={() => onReview(attempt.id, "approved")} size="sm" type="button">
+                    Aprovar
+                  </Button>
+                  <Button disabled={!canManage || disabled} onClick={() => onReview(attempt.id, "rejected")} size="sm" type="button" variant="destructive">
+                    Reprovar
+                  </Button>
+                </div>
+              ) : null}
             </div>
           );
         })}

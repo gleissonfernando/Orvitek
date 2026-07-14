@@ -2379,6 +2379,15 @@ export async function deleteCourseExamQuestionApi(botId: string, guildId: string
   return data.question;
 }
 
+export async function reviewCourseExamAttemptApi(botId: string, guildId: string, courseId: string, attemptId: string, payload: { manualScore?: number | null; rejectionReason?: string | null; status: "approved" | "rejected" }) {
+  const { data } = await api.post<{ attempt: CourseExamDashboard["attempts"][number] }>(
+    `/courses/${encodeURIComponent(guildId)}/courses/${encodeURIComponent(courseId)}/exam/attempts/${encodeURIComponent(attemptId)}/review`,
+    payload,
+    { params: botParams(botId) }
+  );
+  return data.attempt;
+}
+
 export async function duplicateCourseExamQuestionApi(botId: string, guildId: string, courseId: string, questionId: string) {
   const { data } = await api.post<{ question: CourseExamQuestion }>(
     `/courses/${encodeURIComponent(guildId)}/courses/${encodeURIComponent(courseId)}/exam/questions/${encodeURIComponent(questionId)}/duplicate`,
