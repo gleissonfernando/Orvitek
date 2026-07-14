@@ -397,7 +397,13 @@ export async function saveCourseExamAnswer(botId: string | null, guildId: string
       : question.correctText
         ? normalizeWrittenAnswerForCompare(writtenAnswer) === normalizeWrittenAnswerForCompare(question.correctText)
         : null;
-  const pointsEarned = correct === true ? question.points : 0;
+  const pointsEarned = question.type === "multiple"
+    ? calculateMultipleChoiceScore(question, selectedAlternativeIds)
+    : question.type === "selection"
+      ? calculateSelectionScore(question, selectedAlternative)
+      : correct === true
+        ? question.points
+        : 0;
   const maxScore = questionMaxScore(question);
   const now = new Date();
   const doc: MongoCourseExamAnswer = {
@@ -739,8 +745,38 @@ function sameSet(left: string[], right: string[]) {
   return left.every((item) => expected.has(item));
 }
 
+function calculateMultipleChoiceScore(question: MongoCourseExamQuestion, selectedAlternativeIds: string[]) {
+  const expectedIds = correctIds(question);
+  if (!expectedIds.length) return 0;
+  const selected = new Set(selectedAlternativeIds);
+  const fallbackPoints = question.points / expectedIds.length;
+  const points = expectedIds.reduce((total, id) => {
+    if (!selected.has(id)) return total;
+    const alternative = question.alternatives.find((item) => item.id === id);
+    return total + alternativePointValue(alternative, fallbackPoints);
+  }, 0);
+  return Math.min(questionMaxScore(question), roundScore(points));
+}
+
+function calculateSelectionScore(question: MongoCourseExamQuestion, selectedAlternative: MongoCourseExamQuestion["alternatives"][number] | undefined) {
+  if (!selectedAlternative || !isExpectedAlternative(question, selectedAlternative)) return 0;
+  return Math.min(questionMaxScore(question), alternativePointValue(selectedAlternative, question.points));
+}
+
 function questionMaxScore(question: MongoCourseExamQuestion) {
-  return roundScore(question.points);
+  if (question.type === "written") return roundScore(question.points);
+  const expectedIds = correctIds(question);
+  if (!expectedIds.length) return roundScore(question.points);
+  if (question.type === "selection") {
+    return roundScore(Math.max(...expectedIds.map((id) => alternativePointValue(question.alternatives.find((item) => item.id === id), question.points))));
+  }
+  const fallbackPoints = question.points / expectedIds.length;
+  return roundScore(expectedIds.reduce((total, id) => total + alternativePointValue(question.alternatives.find((item) => item.id === id), fallbackPoints), 0));
+}
+
+function alternativePointValue(alternative: MongoCourseExamQuestion["alternatives"][number] | undefined, fallback: number) {
+  const score = parseDecimalNumber(alternative?.score, 0);
+  return score > 0 ? score : fallback;
 }
 
 function isExpectedAlternative(question: Pick<MongoCourseExamQuestion, "alternatives" | "correctAlternativeId" | "correctAlternativeIds">, alternative: MongoCourseExamQuestion["alternatives"][number]) {

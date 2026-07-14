@@ -100,7 +100,7 @@ const emptyQuestion: SaveCourseExamQuestionPayload = {
   alternatives: [
     { id: "A", text: "", score: 0, isCorrect: false, order: 0 },
     { id: "B", text: "", score: 0, isCorrect: false, order: 1 },
-    { id: "C", text: "", score: 0, isCorrect: true, order: 2 },
+    { id: "C", text: "", score: 10, isCorrect: true, order: 2 },
     { id: "D", text: "", score: 0, isCorrect: false, order: 3 }
   ],
   correctAlternativeId: "C",
@@ -761,7 +761,7 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
                     {questionDraft.type !== "written" ? (
                       <div className="space-y-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-xs text-zinc-400">Marque as respostas corretas. A nota aplicada vem de Valor da questão.</p>
+                          <p className="text-xs text-zinc-400">Marque as respostas corretas e informe a nota de cada uma.</p>
                           <Button disabled={!canManage || saving || (questionDraft.alternatives ?? []).length >= MAX_EXAM_ALTERNATIVES} onClick={() => setQuestionDraft(addQuestionAlternative(questionDraft))} size="sm" type="button" variant="outline">
                             <PlusCircle className="h-4 w-4" />
                             Adicionar alternativa
@@ -779,6 +779,7 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
                                 </Button>
                               </div>
                               <ToggleField disabled={!canManage || saving} label="Correta" onChange={(checked) => setQuestionDraft(toggleCorrectAlternative(questionDraft, option.id, index, checked))} value={Boolean(option.isCorrect)} />
+                              <DecimalInputField disabled={!canManage || saving || !isDraftCorrectAlternative(questionDraft, option.id, option)} label="Nota desta resposta" onCommit={(score) => setQuestionDraft({ ...questionDraft, alternatives: updateOption(questionDraft.alternatives, index, { score }) })} value={parseDecimalNumber(option.score, 0)} />
                             </div>
                           ))}
                         </div>
@@ -955,7 +956,7 @@ function QuestionCard({ onDelete, onEdit, question }: { onDelete: () => void; on
         <Badge variant={question.type === "written" ? "warning" : "success"}>{question.type === "written" ? "Discursiva" : question.type === "multiple" ? "Múltipla escolha" : "Objetiva"}</Badge>
       </div>
       <p className="mt-1 text-xs text-zinc-500">Pontuação máxima: {formatScoreValue(questionMaxScore(question))} ponto(s)</p>
-      {question.type !== "written" ? <p className="mt-2 text-xs text-zinc-400">{question.alternatives.map((option) => `${option.id}) ${option.text}${isCorrectAlternative(question, option.id) ? " - correta" : ""}`).join(" | ")}</p> : <p className="mt-2 text-xs text-zinc-400">Resposta correta: {question.correctText || "não configurada"}</p>}
+      {question.type !== "written" ? <p className="mt-2 text-xs text-zinc-400">{question.alternatives.map((option) => `${option.id}) ${option.text}${isCorrectAlternative(question, option.id) ? ` - correta (${formatScoreValue(alternativeScoreValue(question, option))} pts)` : ""}`).join(" | ")}</p> : <p className="mt-2 text-xs text-zinc-400">Resposta correta: {question.correctText || "não configurada"}</p>}
       <div className="mt-3 flex gap-2">
         <Button onClick={onEdit} size="sm" type="button" variant="outline">Editar</Button>
         <Button onClick={onDelete} size="sm" type="button" variant="destructive">Excluir</Button>
@@ -1050,7 +1051,7 @@ function toggleCorrectAlternative(question: SaveCourseExamQuestionPayload, optio
     return {
       ...question,
       alternatives: (question.alternatives ?? []).map((item, itemIndex) => itemIndex === index
-        ? { ...item, isCorrect: checked, score: checked ? parseDecimalNumber(item.score, 0) : 0 }
+        ? { ...item, isCorrect: checked, score: checked ? parseDecimalNumber(item.score, question.points ?? 10) : 0 }
         : { ...item, isCorrect: Boolean(item.isCorrect) }),
       correctAlternativeId: null,
       correctAlternativeIds: [...current]
@@ -1061,9 +1062,13 @@ function toggleCorrectAlternative(question: SaveCourseExamQuestionPayload, optio
     correctAlternativeId: checked ? optionId : question.correctAlternativeId === optionId ? null : question.correctAlternativeId,
     correctAlternativeIds: [],
     alternatives: (question.alternatives ?? []).map((item, itemIndex) => itemIndex === index
-      ? { ...item, isCorrect: checked, score: checked ? parseDecimalNumber(item.score, 0) : 0 }
+      ? { ...item, isCorrect: checked, score: checked ? parseDecimalNumber(item.score, question.points ?? 10) : 0 }
       : { ...item, isCorrect: false, score: 0 })
   };
+}
+
+function isDraftCorrectAlternative(question: SaveCourseExamQuestionPayload, optionId: string, option: NonNullable<SaveCourseExamQuestionPayload["alternatives"]>[number]) {
+  return question.correctAlternativeIds?.includes(optionId) || question.correctAlternativeId === optionId || option.isCorrect === true || parseDecimalNumber(option.score, 0) > 0;
 }
 
 function addQuestionAlternative(question: SaveCourseExamQuestionPayload) {
@@ -1098,7 +1103,17 @@ function isCorrectAlternative(question: CourseExamQuestion, optionId: string) {
 }
 
 function questionMaxScore(question: CourseExamQuestion) {
-  return Number(question.points) || 0;
+  if (question.type === "written") return Number(question.points) || 0;
+  const correctOptions = question.alternatives.filter((option) => isCorrectAlternative(question, option.id));
+  if (!correctOptions.length) return Number(question.points) || 0;
+  if (question.type === "selection") return Math.max(...correctOptions.map((option) => alternativeScoreValue(question, option)));
+  const fallback = (Number(question.points) || 0) / correctOptions.length;
+  return correctOptions.reduce((total, option) => total + alternativeScoreValue(question, option, fallback), 0);
+}
+
+function alternativeScoreValue(question: CourseExamQuestion, option: CourseExamQuestion["alternatives"][number], fallback = Number(question.points) || 0) {
+  const score = parseDecimalNumber(option.score, 0);
+  return score > 0 ? score : fallback;
 }
 
 function updateOption(options: SaveCourseExamQuestionPayload["alternatives"], index: number, patch: Record<string, unknown>) {
