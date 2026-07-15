@@ -81,7 +81,7 @@ async function processPanelRequests(client: Client, context: BotContext) {
     const configs = await context.api.getActiveFivemActionConfigs();
     for (const config of configs) {
       if (!config.lastPanelRequestedAt) continue;
-      const key = `${config.guildId}:${config.architecture}`;
+      const key = `${config.botId}:${config.guildId}:${config.architecture}`;
       if (handledRequests.get(key) === config.lastPanelRequestedAt) continue;
       await publishMainPanel(client, context, config);
       handledRequests.set(key, config.lastPanelRequestedAt);
@@ -197,9 +197,15 @@ async function publishMainPanel(client: Client, context: BotContext, config: Fiv
   const payload = { components: [{ type: 17, accent_color: parseColor(config.color), components: [...contentComponents, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select), ...navigation] }], flags: MessageFlags.IsComponentsV2 as const };
   if (config.panelMessageId) {
     const message = await channel.messages.fetch(config.panelMessageId).catch(() => null);
-    if (!message) return;
-    await message.edit(payload);
-    return;
+    if (message) {
+      try {
+        await message.edit(payload);
+        return;
+      } catch (error) {
+        console.warn(`[fivem-actions] falha ao editar painel salvo; publicando nova mensagem guild=${config.guildId} architecture=${config.architecture} message=${config.panelMessageId}:`, errorMessage(error));
+      }
+    }
+    console.warn(`[fivem-actions] painel salvo nao encontrado; publicando nova mensagem guild=${config.guildId} architecture=${config.architecture} message=${config.panelMessageId}`);
   }
   const message = await channel.send(payload);
   await context.api.updateFivemActionPanelState({ guildId: config.guildId, architecture: config.architecture, panelMessageId: message.id });
