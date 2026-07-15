@@ -8,6 +8,7 @@ import { emojiClonerCommand } from "./emojiCloner";
 import { gravarCommand } from "./gravar";
 import { fivemOrdersCommand } from "./fivemOrders";
 import { fivemFinanceCommand } from "./fivemFinance";
+import { acoesConfigCommand } from "../services/fivemActionService";
 import { lavagemCommand } from "./lavagem";
 import { hierarchyCommand } from "../services/fivemHierarchyService";
 import { setCommand } from "./manualRegistration";
@@ -42,6 +43,7 @@ export function createCommandCollection() {
     gravarCommand,
     fivemFinanceCommand,
     fivemOrdersCommand,
+    acoesConfigCommand,
     lavagemCommand,
     hierarchyCommand,
     setCommand,

@@ -3275,6 +3275,16 @@ export class ApiClient {
     return data;
   }
 
+  async saveFivemActionSettings(guildId: string, architecture: FivemActionArchitecture, input: Partial<FivemActionSettings>, actorId?: string | null) {
+    const { data } = await this.http.patch<{ settings: FivemActionSettings }>(`/fivem-actions/bot/${guildId}/${architecture}/settings`, input, { headers: actorId ? { "x-actor-id": actorId } : undefined });
+    return data.settings;
+  }
+
+  async requestFivemActionPanelPublish(guildId: string, architecture: FivemActionArchitecture, actorId?: string | null) {
+    const { data } = await this.http.post<{ settings: FivemActionSettings }>(`/fivem-actions/bot/${guildId}/${architecture}/publish`, undefined, { headers: actorId ? { "x-actor-id": actorId } : undefined });
+    return data.settings;
+  }
+
   async updateFivemActionPanelState(input: { guildId: string; architecture: FivemActionArchitecture; panelMessageId: string | null }) {
     const { data } = await this.http.post<{ settings: FivemActionSettings }>("/fivem-actions/bot/panel-state", input); return data.settings;
   }

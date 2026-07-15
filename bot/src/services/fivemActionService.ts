@@ -1,10 +1,10 @@
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, MessageFlags,
-  StringSelectMenuBuilder, type Client, type GuildMember, type Interaction,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelSelectMenuBuilder, ChannelType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder,
+  StringSelectMenuBuilder, type ChannelSelectMenuInteraction, type ChatInputCommandInteraction, type Client, type GuildMember, type Interaction,
   type StringSelectMenuInteraction
 } from "discord.js";
 import { isBotModuleEnabled } from "../config/env";
-import type { BotContext } from "../types";
+import type { BotCommand, BotContext } from "../types";
 import { resetSelectMenuMessage } from "../utils/selectMenuReset";
 import type { FivemActionArchitecture, FivemActionMode, FivemActionSession, FivemActionSettings } from "./apiClient";
 import { resolvePanelImageUrl, type PanelVisualConfig } from "./panelVisualRenderer";
@@ -15,6 +15,34 @@ const MODULE_BY_ARCHITECTURE: Record<FivemActionArchitecture, string> = { fac: "
 const handledRequests = new Map<string, string>();
 let polling = false;
 
+export const acoesConfigCommand: BotCommand = {
+  data: new SlashCommandBuilder()
+    .setName("acoesconfig")
+    .setDescription("Configura o Sistema de Ações pelo Discord.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addStringOption((option) => option
+      .setName("tipo")
+      .setDescription("Sistema que deseja configurar.")
+      .addChoices({ name: "Facções", value: "fac" }, { name: "Polícia", value: "police" })),
+  async execute(interaction: ChatInputCommandInteraction, context: BotContext) {
+    if (!interaction.guildId || !interaction.guild) {
+      await interaction.reply({ content: "Use este comando dentro de um servidor.", ephemeral: true });
+      return;
+    }
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+      await interaction.reply({ content: "Você precisa de Gerenciar Servidor para configurar o Sistema de Ações.", ephemeral: true });
+      return;
+    }
+    const requestedArchitecture = interaction.options.getString("tipo") as FivemActionArchitecture | null;
+    const architecture = requestedArchitecture ?? (isFivemActionRuntimeEnabled("fac") ? "fac" : "police");
+    if (!isFivemActionRuntimeEnabled(architecture)) {
+      await interaction.reply({ content: architecture === "police" ? "Ações policiais não liberadas para este bot." : "Ações FAC não liberadas para este bot.", ephemeral: true });
+      return;
+    }
+    await interaction.reply(await actionConfigPanel(context, interaction.guildId, architecture, true));
+  }
+};
+
 export function startFivemActionService(client: Client, context: BotContext) {
   if (!isFivemActionRuntimeEnabled()) return;
   void processPanelRequests(client, context);
@@ -23,11 +51,19 @@ export function startFivemActionService(client: Client, context: BotContext) {
 }
 
 export async function handleFivemActionInteraction(interaction: Interaction, context: BotContext) {
-  if (!(interaction.isButton() || interaction.isStringSelectMenu()) || !interaction.customId.startsWith(`${PREFIX}:`)) return false;
+  if (!(interaction.isButton() || interaction.isStringSelectMenu() || interaction.isChannelSelectMenu()) || !interaction.customId.startsWith(`${PREFIX}:`)) return false;
   if (!isFivemActionRuntimeEnabled()) { await interaction.reply({ content: "Sistema de Ações não liberado para este bot.", ephemeral: true }); return true; }
   if (!interaction.guildId || !interaction.guild) { await interaction.reply({ content: "Use este sistema dentro de um servidor.", ephemeral: true }); return true; }
   const [, action, id] = interaction.customId.split(":");
-  if (interaction.isStringSelectMenu() && action === "open") await openAction(interaction, context);
+  if (!action) {
+    await interaction.reply({ content: "Interação inválida.", ephemeral: true });
+    return true;
+  }
+  if (interaction.isButton() && action === "config") await showActionConfig(interaction, context, id as FivemActionArchitecture);
+  else if (interaction.isButton() && action === "config_channels") await showActionChannelConfig(interaction, context, id as FivemActionArchitecture);
+  else if (interaction.isButton() && action === "config_publish") await requestActionPanelPublish(interaction, context, id as FivemActionArchitecture);
+  else if (interaction.isChannelSelectMenu() && action.startsWith("channel_")) await saveActionChannel(interaction, context, action, id as FivemActionArchitecture);
+  else if (interaction.isStringSelectMenu() && action === "open") await openAction(interaction, context);
   else if (interaction.isButton() && action === "mode") await createActionWithMode(interaction, context, id!);
   else if (interaction.isButton() && action === "join") await changeParticipant(interaction, context, id!, true);
   else if (interaction.isButton() && action === "leave") await changeParticipant(interaction, context, id!, false);
@@ -52,6 +88,93 @@ async function processPanelRequests(client: Client, context: BotContext) {
     }
   } catch (error) { console.warn("[fivem-actions] falha ao processar painéis:", errorMessage(error)); }
   finally { polling = false; }
+}
+
+async function actionConfigPanel(context: BotContext, guildId: string, architecture: FivemActionArchitecture, ephemeral = false) {
+  const dashboard = await context.api.getFivemActionDashboard(guildId, architecture);
+  const { settings, actions } = dashboard;
+  const label = architecture === "police" ? "Polícia" : "FAC";
+  const configuredChannels = [settings.panelChannelId, settings.actionChannelId, settings.reportChannelId].filter(Boolean).length;
+  const content = [
+    `# ⚙️ Sistema de Ações - ${label}`,
+    "Configurações feitas aqui usam o mesmo banco da dashboard.",
+    "",
+    `**Canais configurados:** ${configuredChannels}/3`,
+    `**Ações cadastradas:** ${actions.filter((action) => action.enabled).length}`,
+    `**Painel publicado:** ${settings.panelMessageId ? "Sim" : "Não"}`,
+    `**Status:** ${settings.enabled ? "Ativo" : "Inativo"}`
+  ].join("\n");
+  const architectureRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`${PREFIX}:config:fac`).setLabel("FAC").setStyle(architecture === "fac" ? ButtonStyle.Primary : ButtonStyle.Secondary).setDisabled(!isFivemActionRuntimeEnabled("fac")),
+    new ButtonBuilder().setCustomId(`${PREFIX}:config:police`).setLabel("Polícia").setStyle(architecture === "police" ? ButtonStyle.Primary : ButtonStyle.Secondary).setDisabled(!isFivemActionRuntimeEnabled("police"))
+  );
+  const actionRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`${PREFIX}:config_channels:${architecture}`).setLabel("Configurar canais").setEmoji("📺").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`${PREFIX}:config_publish:${architecture}`).setLabel(settings.panelMessageId ? "Atualizar painel" : "Publicar painel").setEmoji("📌").setStyle(ButtonStyle.Success).setDisabled(!settings.panelChannelId || !settings.actionChannelId || !actions.length),
+    new ButtonBuilder().setCustomId(`${PREFIX}:config:${architecture}`).setLabel("Atualizar visão").setEmoji("🔄").setStyle(ButtonStyle.Secondary)
+  );
+
+  return {
+    components: [{ type: 17, accent_color: parseColor(settings.color), components: [{ type: 10, content }, architectureRow, actionRow] }],
+    flags: (ephemeral ? MessageFlags.Ephemeral : 0) | MessageFlags.IsComponentsV2
+  };
+}
+
+async function showActionConfig(interaction: any, context: BotContext, architecture: FivemActionArchitecture) {
+  if (!canManageActionsFromDiscord(interaction)) return void await interaction.reply({ content: "Você precisa de Gerenciar Servidor para configurar o Sistema de Ações.", ephemeral: true });
+  const payload = await actionConfigPanel(context, interaction.guildId, architecture, true);
+  if (interaction.replied || interaction.deferred) await interaction.editReply(payload);
+  else await interaction.update(payload);
+}
+
+async function showActionChannelConfig(interaction: any, context: BotContext, architecture: FivemActionArchitecture) {
+  if (!canManageActionsFromDiscord(interaction)) return void await interaction.reply({ content: "Você precisa de Gerenciar Servidor para configurar canais.", ephemeral: true });
+  const dashboard = await context.api.getFivemActionDashboard(interaction.guildId, architecture);
+  const { settings } = dashboard;
+  const content = [
+    `# 📺 Canais - ${architecture === "police" ? "Polícia" : "FAC"}`,
+    "Selecione cada canal abaixo. Cada alteração é salva imediatamente no mesmo banco da dashboard.",
+    "",
+    `**Painel inicial:** ${settings.panelChannelId ? `<#${settings.panelChannelId}>` : "não configurado"}`,
+    `**Participação:** ${settings.actionChannelId ? `<#${settings.actionChannelId}>` : "não configurado"}`,
+    `**Relatórios:** ${settings.reportChannelId ? `<#${settings.reportChannelId}>` : "não configurado"}`
+  ].join("\n");
+  const payload = {
+    components: [{
+      type: 17,
+      accent_color: parseColor(settings.color),
+      components: [
+        { type: 10, content },
+        new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(new ChannelSelectMenuBuilder().setCustomId(`${PREFIX}:channel_panel:${architecture}`).setPlaceholder("Canal do painel inicial").setChannelTypes(ChannelType.GuildText).setMinValues(1).setMaxValues(1)),
+        new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(new ChannelSelectMenuBuilder().setCustomId(`${PREFIX}:channel_action:${architecture}`).setPlaceholder("Canal de participação").setChannelTypes(ChannelType.GuildText).setMinValues(1).setMaxValues(1)),
+        new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(new ChannelSelectMenuBuilder().setCustomId(`${PREFIX}:channel_report:${architecture}`).setPlaceholder("Canal de resultados e relatórios").setChannelTypes(ChannelType.GuildText).setMinValues(1).setMaxValues(1)),
+        new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${PREFIX}:config:${architecture}`).setLabel("Voltar").setEmoji("↩️").setStyle(ButtonStyle.Secondary))
+      ]
+    }],
+    flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
+  };
+  await interaction.update(payload);
+}
+
+async function saveActionChannel(interaction: ChannelSelectMenuInteraction, context: BotContext, action: string, architecture: FivemActionArchitecture) {
+  if (!canManageActionsFromDiscord(interaction)) return void await interaction.reply({ content: "Você precisa de Gerenciar Servidor para configurar canais.", ephemeral: true });
+  await interaction.deferUpdate();
+  const channelId = interaction.values[0] ?? null;
+  const patch = action === "channel_panel"
+    ? { panelChannelId: channelId }
+    : action === "channel_action"
+      ? { actionChannelId: channelId }
+      : { reportChannelId: channelId };
+  await context.api.saveFivemActionSettings(interaction.guildId!, architecture, patch, interaction.user.id);
+  await interaction.editReply(await actionConfigPanel(context, interaction.guildId!, architecture, true));
+}
+
+async function requestActionPanelPublish(interaction: any, context: BotContext, architecture: FivemActionArchitecture) {
+  if (!canManageActionsFromDiscord(interaction)) return void await interaction.reply({ content: "Você precisa de Gerenciar Servidor para publicar painéis.", ephemeral: true });
+  await interaction.deferUpdate();
+  await context.api.requestFivemActionPanelPublish(interaction.guildId, architecture, interaction.user.id);
+  await processPanelRequests(interaction.client, context);
+  await interaction.editReply(await actionConfigPanel(context, interaction.guildId, architecture, true));
 }
 
 async function publishMainPanel(client: Client, context: BotContext, config: FivemActionSettings) {
@@ -320,6 +443,10 @@ function actionStatusLabel(status: FivemActionSession["status"], guild: Paramete
   if (status === "victory") return `${systemStatusEmoji("success", guild)} Finalizada - Vitória`;
   if (status === "defeat") return `${systemStatusEmoji("danger", guild)} Finalizada - Derrota`;
   return `${systemStatusEmoji("danger", guild)} Cancelada`;
+}
+
+function canManageActionsFromDiscord(interaction: { memberPermissions?: { has(permission: bigint): boolean } | null }) {
+  return Boolean(interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild));
 }
 
 async function getPanelVisualSlots(context: BotContext, guildId: string, basePanelId: string) {
