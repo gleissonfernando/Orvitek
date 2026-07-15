@@ -869,11 +869,9 @@ async function leavePublication(interaction: ButtonInteraction, context: BotCont
 async function changePublicationStatus(interaction: ButtonInteraction, context: BotContext, publicationId: string, status: "started" | "cancelled" | "finished") {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const publication = await context.api.getCoursePublication(interaction.guildId!, publicationId);
-  const allowed = status === "started"
-    ? publication.instructorId === interaction.user.id
-    : await canManagePublication(interaction, context, publication);
+  const allowed = publication.instructorId === interaction.user.id;
   if (!allowed) {
-    await interaction.editReply(status === "started" ? "Somente o instrutor que criou esta turma pode iniciar o curso." : "Você não possui permissão para usar este sistema.");
+    await interaction.editReply("Somente o instrutor que abriu este curso pode iniciar, finalizar ou cancelar.");
     return;
   }
   const updated = await context.api.setCoursePublicationStatus(interaction.guildId!, publicationId, status, interaction.user.id).catch(() => null);
@@ -1010,6 +1008,9 @@ async function createOrUpdateCourseScheduledEvent(guild: Guild, context: BotCont
     eventId = event.id;
     await assertCourseScheduledEventExists(guild, eventId, publication.id);
   }
+  await activateCourseScheduledEventAfterScheduling(guild, eventId, course, publication).catch((error) => {
+    console.warn(`[courses] evento ${eventId} criado, mas não foi possível iniciar automaticamente no agendamento da publicação ${publication.id}:`, error instanceof Error ? error.message : error);
+  });
   const updated = await context.api.updateCoursePublicationEvent(guild.id, publication.id, {
     discordEventId: eventId,
     discordEventUrl: scheduledEventUrl(guild.id, eventId),
@@ -1017,6 +1018,24 @@ async function createOrUpdateCourseScheduledEvent(guild: Guild, context: BotCont
   });
   if (updated) scheduleCourseEventLifecycle(guild, context, updated, course);
   return updated;
+}
+
+async function activateCourseScheduledEventAfterScheduling(guild: Guild, eventId: string, course: Course, publication: CoursePublication) {
+  const event = await guild.scheduledEvents.fetch(eventId).catch(() => null);
+  if (!event || event.status !== GuildScheduledEventStatus.Scheduled) return;
+  const plannedEndAt = publication.scheduledEndAt ? new Date(publication.scheduledEndAt) : null;
+  const startAt = new Date(Date.now() + 1_000);
+  const minimumEndAt = new Date(startAt.getTime() + 60_000);
+  const endAt = plannedEndAt && plannedEndAt.getTime() > minimumEndAt.getTime()
+    ? plannedEndAt
+    : new Date(startAt.getTime() + COURSE_EVENT_DURATION_MS);
+  await event.edit({
+    description: courseScheduledEventDescription(course, publication, "🟢 Curso iniciado"),
+    name: `🟢 Curso iniciado - ${course.name}`.slice(0, 100),
+    scheduledEndTime: endAt,
+    scheduledStartTime: startAt,
+    status: GuildScheduledEventStatus.Active
+  });
 }
 
 async function assertCourseScheduledEventExists(guild: Guild, eventId: string, publicationId: string) {
