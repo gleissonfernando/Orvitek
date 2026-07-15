@@ -6197,6 +6197,8 @@ function PoliceIabPanel({
                 isSelected={selectedOrg?.id === category.id}
                 key={`${category.id}-${index}`}
                 onConfigure={() => setSelectedOrgId(category.id)}
+                onRemove={() => removeCategory(index)}
+                removeDisabled={disabled || draft.categories.length <= 1}
                 roles={options.roles}
                 ticketDestinations={channelAndCategoryOptions}
               />
@@ -6212,8 +6214,10 @@ function PoliceIabPanel({
               index={selectedOrgIndex}
               onPatch={(patchValue) => patchCategory(selectedOrgIndex, patchValue)}
               onRemove={() => removeCategory(selectedOrgIndex)}
+              onSave={() => void save()}
               removeDisabled={disabled || draft.categories.length <= 1}
               roles={options.roles}
+              saving={saving}
               ticketDestinations={channelAndCategoryOptions}
             />
           ) : null}
@@ -6229,6 +6233,8 @@ function OrgaoSummaryCard({
   index,
   isSelected,
   onConfigure,
+  onRemove,
+  removeDisabled,
   roles,
   ticketDestinations
 }: {
@@ -6237,6 +6243,8 @@ function OrgaoSummaryCard({
   index: number;
   isSelected: boolean;
   onConfigure: () => void;
+  onRemove: () => void;
+  removeDisabled: boolean;
   roles: GuildLiveOptions["roles"];
   ticketDestinations: Array<{ id: string; name: string }>;
 }) {
@@ -6262,10 +6270,15 @@ function OrgaoSummaryCard({
           <p><span className="text-zinc-500">Logs:</span> {logName}</p>
         </div>
       </div>
-      <Button className="mt-4 w-full" onClick={onConfigure} size="sm" type="button" variant={isSelected ? "default" : "outline"}>
-        <Edit3 className="mr-2 h-4 w-4" />
-        Configurar
-      </Button>
+      <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
+        <Button className="w-full" onClick={onConfigure} size="sm" type="button" variant={isSelected ? "default" : "outline"}>
+          <Edit3 className="mr-2 h-4 w-4" />
+          Configurar
+        </Button>
+        <Button disabled={removeDisabled} onClick={onRemove} size="icon" title="Apagar orgao" type="button" variant="outline">
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 }
@@ -6278,8 +6291,10 @@ function OrgaoConfigPanel({
   index,
   onPatch,
   onRemove,
+  onSave,
   removeDisabled,
   roles,
+  saving,
   ticketDestinations
 }: {
   category: ReportSystemCategory;
@@ -6289,8 +6304,10 @@ function OrgaoConfigPanel({
   index: number;
   onPatch: (patchValue: Partial<ReportSystemCategory>) => void;
   onRemove: () => void;
+  onSave: () => void;
   removeDisabled: boolean;
   roles: GuildLiveOptions["roles"];
+  saving: boolean;
   ticketDestinations: Array<{ id: string; name: string }>;
 }) {
   const escalationTarget = escalationOptions.find((option) => option.id === category.escalateToCategoryId);
@@ -6338,10 +6355,16 @@ function OrgaoConfigPanel({
           <input checked={category.enabled} disabled={disabled} onChange={(event) => onPatch({ enabled: event.target.checked })} type="checkbox" />
           Ativo
         </label>
-        <Button disabled={removeDisabled} onClick={onRemove} size="sm" title="Remover orgao" type="button" variant="outline">
-          <Trash2 className="mr-2 h-4 w-4" />
-          Remover
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button disabled={disabled || saving} onClick={onSave} size="sm" type="button">
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+            Salvar alteracoes
+          </Button>
+          <Button disabled={removeDisabled} onClick={onRemove} size="sm" title="Apagar orgao" type="button" variant="outline">
+            <Trash2 className="mr-2 h-4 w-4" />
+            Apagar orgao
+          </Button>
+        </div>
       </div>
     </div>
   );
