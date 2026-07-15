@@ -334,14 +334,17 @@ async function handlePublicReportButton(interaction: ButtonInteraction, context:
       await interaction.reply({ ...anonymousDisabledPayload(category.id), flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
       return;
     }
-    await openReportFromPanel(interaction, context, category.id, mode);
+    await interaction.showModal(createPublicReportModal(category.id, mode, category.name));
     return;
   }
 
   const [, action, categoryId, mode, extra] = customId.split(":");
   if (action === "id") {
     if (!categoryId) return safeReply(interaction, "Opcao de denuncia invalida.");
-    await openReportFromPanel(interaction, context, categoryId, mode === "anonymous" ? "anonymous" : "identified");
+    const settings = await getFreshGuildSettings(context, interaction.guildId!, interaction.client.user?.id);
+    const category = settings.reportSystem.categories.find((item) => item.enabled && item.id === categoryId);
+    if (!category) return safeReply(interaction, "Opcao de denuncia invalida.");
+    await interaction.showModal(createPublicReportModal(category.id, mode === "anonymous" ? "anonymous" : "identified", category.name));
     return;
   }
 
@@ -1168,7 +1171,7 @@ function createPublicReportModal(categoryId: string, mode: "anonymous" | "identi
     .setTitle(mode === "anonymous" ? "Denuncia anonima" : "Denuncia identificada")
     .addComponents(
       inputRow("summary", "Resumo da denuncia", categoryName, TextInputStyle.Short, 120),
-      inputRow("reported", "Denunciado(s) ou envolvidos", "", TextInputStyle.Short, 180, false),
+      inputRow("reported", "Denunciado(s) por mencao ou ID", "", TextInputStyle.Short, 180),
       inputRow("description", "Descreva o ocorrido", "", TextInputStyle.Paragraph, 1800),
       inputRow("evidence", "Provas / links / observacoes", "", TextInputStyle.Paragraph, 1000, false)
     );
@@ -1207,9 +1210,24 @@ async function submitPublicReport(interaction: ModalSubmitInteraction, context: 
     return;
   }
 
+  let destinationCategory = category;
+  try {
+    const denouncedRoleIds = await resolveDenouncedRoleIds(interaction, reported);
+    const forwarding = await context.api.resolveHierarchyForwarding(interaction.guildId!, denouncedRoleIds);
+    const configuredCategory = report.categories.find((item) => item.enabled && item.id === forwarding.destinationCategoryId);
+    if (!configuredCategory) {
+      await interaction.editReply("O destino configurado para este cargo nao esta ativo nos orgaos da Corregedoria.");
+      return;
+    }
+    destinationCategory = configuredCategory;
+  } catch (error) {
+    await interaction.editReply(errorMessage(error) ?? "Nao existe um destino configurado para este cargo. Acesse Dashboard -> Corregedoria -> Encaminhamento Hierarquico.");
+    return;
+  }
+
   const channel = await createReportChannel(interaction.guild!, settings, {
-    categoryId: category.id,
-    categoryName: category.name,
+    categoryId: destinationCategory.id,
+    categoryName: destinationCategory.name,
     mode,
     openerId: interaction.user.id,
     summary
@@ -1221,20 +1239,20 @@ async function submitPublicReport(interaction: ModalSubmitInteraction, context: 
   }
 
   const ticket = await context.api.createTicket({
-    allowedRoleIds: reportCompetenceRoleIds(report, reportCompetence(category.id, category.name)),
-    categoryId: category.id,
-    categoryName: category.name,
+    allowedRoleIds: reportCompetenceRoleIds(report, reportCompetence(destinationCategory.id, destinationCategory.name)),
+    categoryId: destinationCategory.id,
+    categoryName: destinationCategory.name,
     channelId: channel.id,
     guildId: interaction.guildId!,
     openerId: interaction.user.id,
     status: mode === "anonymous" ? "PENDING" : "OPEN",
-    subject: `${mode === "anonymous" ? "Denuncia anonima" : "Denuncia identificada"} - ${category.name}`
+    subject: `${mode === "anonymous" ? "Denuncia anonima" : "Denuncia identificada"} - ${destinationCategory.name}`
   });
   const topic: ReportTopic = {
-    categoryId: category.id,
-    categoryName: category.name,
+    categoryId: destinationCategory.id,
+    categoryName: destinationCategory.name,
     channelId: channel.id,
-    competence: reportCompetence(category.id, category.name),
+    competence: reportCompetence(destinationCategory.id, destinationCategory.name),
     mode,
     openerId: interaction.user.id,
     status: mode === "anonymous" ? "preparing" : "open",
@@ -1253,9 +1271,9 @@ async function submitPublicReport(interaction: ModalSubmitInteraction, context: 
   await sendReportControlPanel(channel, context, settings, ticket.ticket, topic, mode === "anonymous" ? "Preparacao" : "Aberto", interaction.guild);
 
   await sendReportLog(interaction.guild!, settings, {
-    categoryName: category.name,
+    categoryName: destinationCategory.name,
     channelId: channel.id,
-    competence: reportCompetence(category.id, category.name),
+    competence: reportCompetence(destinationCategory.id, destinationCategory.name),
     mode,
     openerId: interaction.user.id,
     summary
@@ -1266,6 +1284,42 @@ async function submitPublicReport(interaction: ModalSubmitInteraction, context: 
       ? `Canal privado criado para preparar sua denuncia: <#${channel.id}>`
       : `Sua denuncia foi aberta: <#${channel.id}>`
   );
+}
+
+async function resolveDenouncedRoleIds(interaction: ModalSubmitInteraction, reported: string) {
+  const guild = interaction.guild;
+  if (!guild) return [];
+
+  const roleIds = new Set<string>();
+  const userIds = new Set<string>();
+
+  for (const match of reported.matchAll(/<@&(\d{5,32})>/g)) {
+    if (match[1]) roleIds.add(match[1]);
+  }
+
+  for (const match of reported.matchAll(/<@!?(\d{5,32})>/g)) {
+    if (match[1]) userIds.add(match[1]);
+  }
+
+  for (const match of reported.matchAll(/\b\d{5,32}\b/g)) {
+    const id = match[0];
+    if (guild.roles.cache.has(id)) roleIds.add(id);
+    else userIds.add(id);
+  }
+
+  for (const userId of userIds) {
+    const member = await guild.members.fetch(userId).catch(() => null);
+    if (!member) continue;
+    for (const role of member.roles.cache.values()) {
+      if (role.id !== guild.id) roleIds.add(role.id);
+    }
+  }
+
+  if (!roleIds.size) {
+    throw new Error("Informe o denunciado por mencao ou ID para identificar o cargo.");
+  }
+
+  return [...roleIds];
 }
 
 async function createReportChannel(guild: Guild, settings: GuildSettings, input: { categoryId: string; categoryName: string; mode: "anonymous" | "identified"; openerId: string; summary: string }) {
@@ -1439,6 +1493,15 @@ async function safeReply(interaction: Interaction, content: string) {
 
 function fieldValue(interaction: ModalSubmitInteraction, id: string) {
   return interaction.fields.getTextInputValue(id).trim();
+}
+
+function errorMessage(error: unknown) {
+  if (typeof error === "object" && error && "response" in error) {
+    const response = (error as { response?: { data?: { message?: unknown } } }).response;
+    if (typeof response?.data?.message === "string") return response.data.message;
+  }
+  if (error instanceof Error) return error.message;
+  return String(error);
 }
 
 function createAdminPayload(settings: GuildSettings, section: string) {

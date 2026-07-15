@@ -13,7 +13,9 @@ import {
   ChevronRight,
   CircleDollarSign,
   Clock3,
+  Copy,
   CreditCard,
+  Edit3,
   EyeOff,
   Film,
   Gift,
@@ -26,6 +28,7 @@ import {
   Mic2,
   Music2,
   PlayCircle,
+  Plus,
   SmilePlus,
   Plug,
   Radio,
@@ -135,6 +138,11 @@ import {
   getXMonitor,
   patchGuildSettings,
   publishReportSystemPanel,
+  listHierarchyForwardingRules,
+  createHierarchyForwardingRule,
+  updateHierarchyForwardingRule,
+  duplicateHierarchyForwardingRule,
+  deleteHierarchyForwardingRule,
   publishFivemGoalPanel,
   publishManualRegistrationPanel,
   publishRulesPanel,
@@ -193,6 +201,7 @@ import type {
   GuildRoleOption,
   GuildSettings,
   GuildVoiceChannelOption,
+  HierarchyForwardingRule,
   ReportSystemCategory,
   EmojiCloneRemoteEmoji,
   EmojiLibraryItem,
@@ -5920,8 +5929,15 @@ function PoliceIabPanel({
 }) {
   const [draft, setDraft] = useState<GuildSettings["reportSystem"] | null>(settings?.reportSystem ?? null);
   const [options, setOptions] = useState<GuildLiveOptions>({ categories: [], channels: [], roles: [], voiceChannels: [] });
+  const [forwardingRules, setForwardingRules] = useState<HierarchyForwardingRule[]>([]);
+  const [forwardingDraft, setForwardingDraft] = useState<{ denouncedRoleId: string; destinationCategoryId: string; enabled: boolean }>({ denouncedRoleId: "", destinationCategoryId: "", enabled: true });
+  const [editingForwardingId, setEditingForwardingId] = useState<string | null>(null);
+  const [forwardingQuery, setForwardingQuery] = useState("");
+  const [forwardingFilter, setForwardingFilter] = useState<"all" | "active" | "inactive" | "missing">("all");
+  const [forwardingSort, setForwardingSort] = useState<"role" | "destination" | "date" | "status">("role");
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [savingForwarding, setSavingForwarding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const disabled = !guild || !settings || !draft || !canManage || saving || publishing;
 
@@ -5947,6 +5963,45 @@ function PoliceIabPanel({
 
     return () => {
       mounted = false;
+    };
+  }, [botId, guild]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    if (!guild) {
+      setForwardingRules([]);
+      return;
+    }
+
+    listHierarchyForwardingRules(guild.id, botId)
+      .then((rules) => {
+        if (mounted) setForwardingRules(rules);
+      })
+      .catch(() => {
+        if (mounted) setMessage("Nao foi possivel carregar o encaminhamento hierarquico.");
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [botId, guild]);
+
+  useEffect(() => {
+    if (!guild) return;
+
+    const socket = createDashboardSocket();
+    const refresh = (payload: { botId?: string | null; guildId?: string }) => {
+      if (payload.guildId !== guild.id || (payload.botId ?? null) !== (botId ?? null)) return;
+      void listHierarchyForwardingRules(guild.id, botId)
+        .then(setForwardingRules)
+        .catch(() => undefined);
+    };
+
+    socket.on("corregedoria:forwarding_updated", refresh);
+
+    return () => {
+      socket.disconnect();
     };
   }, [botId, guild]);
 
@@ -6046,6 +6101,82 @@ function PoliceIabPanel({
     }
   }
 
+  async function saveForwardingRule() {
+    if (!guild || disabled || savingForwarding || !forwardingDraft.denouncedRoleId || !forwardingDraft.destinationCategoryId) return;
+
+    setSavingForwarding(true);
+    setMessage(null);
+
+    try {
+      const rule = editingForwardingId
+        ? await updateHierarchyForwardingRule(guild.id, editingForwardingId, forwardingDraft, botId)
+        : await createHierarchyForwardingRule(guild.id, forwardingDraft, botId);
+      setForwardingRules((current) => editingForwardingId
+        ? current.map((item) => item.id === rule.id ? rule : item)
+        : [rule, ...current]);
+      setForwardingDraft({ denouncedRoleId: "", destinationCategoryId: "", enabled: true });
+      setEditingForwardingId(null);
+      setMessage("Encaminhamento hierarquico salvo.");
+    } catch (error) {
+      setMessage(readResponseMessage(error) ?? "Nao foi possivel salvar o encaminhamento.");
+    } finally {
+      setSavingForwarding(false);
+    }
+  }
+
+  function editForwardingRule(rule: HierarchyForwardingRule) {
+    setEditingForwardingId(rule.id);
+    setForwardingDraft({
+      denouncedRoleId: rule.denouncedRoleId,
+      destinationCategoryId: rule.destinationCategoryId,
+      enabled: rule.enabled
+    });
+  }
+
+  async function toggleForwardingRule(rule: HierarchyForwardingRule) {
+    if (!guild || disabled || savingForwarding) return;
+    setSavingForwarding(true);
+    setMessage(null);
+    try {
+      const updated = await updateHierarchyForwardingRule(guild.id, rule.id, { enabled: !rule.enabled }, botId);
+      setForwardingRules((current) => current.map((item) => item.id === updated.id ? updated : item));
+    } catch (error) {
+      setMessage(readResponseMessage(error) ?? "Nao foi possivel alterar o status do encaminhamento.");
+    } finally {
+      setSavingForwarding(false);
+    }
+  }
+
+  async function duplicateForwarding(rule: HierarchyForwardingRule) {
+    if (!guild || disabled || savingForwarding) return;
+    setSavingForwarding(true);
+    setMessage(null);
+    try {
+      const duplicated = await duplicateHierarchyForwardingRule(guild.id, rule.id, botId);
+      setForwardingRules((current) => [duplicated, ...current]);
+      setMessage("Encaminhamento duplicado como inativo.");
+    } catch (error) {
+      setMessage(readResponseMessage(error) ?? "Nao foi possivel duplicar o encaminhamento.");
+    } finally {
+      setSavingForwarding(false);
+    }
+  }
+
+  async function removeForwarding(rule: HierarchyForwardingRule) {
+    if (!guild || disabled || savingForwarding) return;
+    setSavingForwarding(true);
+    setMessage(null);
+    try {
+      await deleteHierarchyForwardingRule(guild.id, rule.id, botId);
+      setForwardingRules((current) => current.filter((item) => item.id !== rule.id));
+      setMessage("Encaminhamento removido.");
+    } catch (error) {
+      setMessage(readResponseMessage(error) ?? "Nao foi possivel remover o encaminhamento.");
+    } finally {
+      setSavingForwarding(false);
+    }
+  }
+
   if (loading || !draft) {
     return (
       <Card>
@@ -6059,6 +6190,18 @@ function PoliceIabPanel({
 
   const channels = options.channels;
   const categories = options.categories ?? [];
+  const reportCategoryOptions = draft.categories.map((category) => ({ id: category.id, name: category.name }));
+  const activeForwardingRoleIds = new Set(forwardingRules.filter((rule) => rule.enabled).map((rule) => rule.denouncedRoleId));
+  const missingForwardingRoles = options.roles.filter((role) => !activeForwardingRoleIds.has(role.id));
+  const visibleForwardingRules = forwardingRules
+    .filter((rule) => {
+      if (forwardingFilter === "active" && !rule.enabled) return false;
+      if (forwardingFilter === "inactive" && rule.enabled) return false;
+      if (forwardingFilter === "missing") return false;
+      const haystack = `${roleName(options.roles, rule.denouncedRoleId)} ${categoryName(reportCategoryOptions, rule.destinationCategoryId)} ${rule.enabled ? "ativo" : "inativo"}`.toLowerCase();
+      return haystack.includes(forwardingQuery.trim().toLowerCase());
+    })
+    .sort((a, b) => compareForwarding(a, b, forwardingSort, options.roles, reportCategoryOptions));
   const channelAndCategoryOptions = [
     ...categories.map((category) => ({ id: category.id, name: category.name })),
     ...channels.map((channel) => ({ id: channel.id, name: channel.name }))
@@ -6161,6 +6304,92 @@ function PoliceIabPanel({
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
+              <CardTitle>Encaminhamento Hierarquico</CardTitle>
+              <CardDescription>Define qual orgao recebe a denuncia conforme o cargo do denunciado.</CardDescription>
+            </div>
+            <Badge variant="muted">{forwardingRules.filter((rule) => rule.enabled).length} ativo(s)</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 lg:grid-cols-[1fr_1fr_120px_auto]">
+            <FivemResourceSelect disabled={disabled || savingForwarding} label="Cargo denunciado" onChange={(value) => setForwardingDraft((current) => ({ ...current, denouncedRoleId: value ?? "" }))} options={options.roles.map((role) => ({ id: role.id, name: role.name }))} placeholder="Selecionar cargo" prefix="" value={forwardingDraft.denouncedRoleId || null} />
+            <FivemResourceSelect disabled={disabled || savingForwarding} label="Encaminhar para" onChange={(value) => setForwardingDraft((current) => ({ ...current, destinationCategoryId: value ?? "" }))} options={reportCategoryOptions} placeholder="Selecionar orgao" prefix="" value={forwardingDraft.destinationCategoryId || null} />
+            <label className="flex h-10 items-center gap-2 self-end rounded-md border border-zinc-800 px-3 text-xs text-zinc-300">
+              <input checked={forwardingDraft.enabled} disabled={disabled || savingForwarding} onChange={(event) => setForwardingDraft((current) => ({ ...current, enabled: event.target.checked }))} type="checkbox" />
+              Ativo
+            </label>
+            <Button disabled={disabled || savingForwarding || !forwardingDraft.denouncedRoleId || !forwardingDraft.destinationCategoryId} onClick={() => void saveForwardingRule()} type="button">
+              {savingForwarding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : editingForwardingId ? <Edit3 className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+              {editingForwardingId ? "Salvar" : "Novo"}
+            </Button>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <TicketField disabled={disabled || savingForwarding} label="Buscar" onChange={setForwardingQuery} value={forwardingQuery} />
+            <label className="block text-xs font-medium text-zinc-400">
+              Filtro
+              <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100 outline-none" disabled={disabled || savingForwarding} onChange={(event) => setForwardingFilter(event.target.value as typeof forwardingFilter)} value={forwardingFilter}>
+                <option value="all">Todos</option>
+                <option value="active">Ativos</option>
+                <option value="inactive">Inativos</option>
+                <option value="missing">Sem destino</option>
+              </select>
+            </label>
+            <label className="block text-xs font-medium text-zinc-400">
+              Ordenar por
+              <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100 outline-none" disabled={disabled || savingForwarding} onChange={(event) => setForwardingSort(event.target.value as typeof forwardingSort)} value={forwardingSort}>
+                <option value="role">Cargo</option>
+                <option value="destination">Destino</option>
+                <option value="date">Data</option>
+                <option value="status">Status</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            {forwardingFilter === "missing"
+              ? missingForwardingRoles
+                  .filter((role) => role.name.toLowerCase().includes(forwardingQuery.trim().toLowerCase()))
+                  .map((role) => (
+                    <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={role.id}>
+                      <p className="text-xs uppercase text-zinc-500">Cargo denunciado</p>
+                      <p className="mt-1 text-sm font-semibold text-white">{role.name}</p>
+                      <p className="mt-3 text-xs uppercase text-zinc-500">Encaminhar para</p>
+                      <p className="mt-1 text-sm text-amber-200">Sem destino configurado</p>
+                    </div>
+                  ))
+              : visibleForwardingRules.map((rule) => (
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4" key={rule.id}>
+                    <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr]">
+                      <div>
+                        <p className="text-xs uppercase text-zinc-500">Cargo denunciado</p>
+                        <p className="mt-1 text-sm font-semibold text-white">{roleName(options.roles, rule.denouncedRoleId)}</p>
+                      </div>
+                      <div className="flex items-center justify-center text-zinc-500">↓</div>
+                      <div>
+                        <p className="text-xs uppercase text-zinc-500">Encaminhar para</p>
+                        <p className="mt-1 text-sm font-semibold text-white">{categoryName(reportCategoryOptions, rule.destinationCategoryId)}</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+                      <Badge variant={rule.enabled ? "success" : "muted"}>{rule.enabled ? "Ativo" : "Inativo"}</Badge>
+                      <div className="flex items-center gap-2">
+                        <Button disabled={disabled || savingForwarding} onClick={() => editForwardingRule(rule)} size="icon" title="Editar" type="button" variant="outline"><Edit3 className="h-4 w-4" /></Button>
+                        <Button disabled={disabled || savingForwarding} onClick={() => void duplicateForwarding(rule)} size="icon" title="Duplicar" type="button" variant="outline"><Copy className="h-4 w-4" /></Button>
+                        <Button disabled={disabled || savingForwarding} onClick={() => void toggleForwardingRule(rule)} size="sm" type="button" variant="outline">{rule.enabled ? "Desativar" : "Ativar"}</Button>
+                        <Button disabled={disabled || savingForwarding} onClick={() => void removeForwarding(rule)} size="icon" title="Excluir" type="button" variant="outline"><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-red-500/10 bg-zinc-950/70">
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
               <CardTitle>Orgaos e setores</CardTitle>
               <CardDescription>Cada opcao aparece no menu publico e pode apontar para um canal/categoria propria.</CardDescription>
             </div>
@@ -6239,6 +6468,27 @@ function normalizeReportCategory(category: ReportSystemCategory, index: number):
     name,
     order: Number(category.order) || index + 1
   };
+}
+
+function roleName(roles: GuildRoleOption[], roleId: string) {
+  return roles.find((role) => role.id === roleId)?.name ?? roleId;
+}
+
+function categoryName(categories: Array<{ id: string; name: string }>, categoryId: string) {
+  return categories.find((category) => category.id === categoryId)?.name ?? categoryId;
+}
+
+function compareForwarding(
+  a: HierarchyForwardingRule,
+  b: HierarchyForwardingRule,
+  sort: "role" | "destination" | "date" | "status",
+  roles: GuildRoleOption[],
+  categories: Array<{ id: string; name: string }>
+) {
+  if (sort === "date") return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+  if (sort === "status") return Number(b.enabled) - Number(a.enabled);
+  if (sort === "destination") return categoryName(categories, a.destinationCategoryId).localeCompare(categoryName(categories, b.destinationCategoryId));
+  return roleName(roles, a.denouncedRoleId).localeCompare(roleName(roles, b.denouncedRoleId));
 }
 
 type TicketPanelDraft = Pick<

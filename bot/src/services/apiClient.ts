@@ -41,6 +41,17 @@ export type TicketRecord = {
   closedAt?: string | null;
 };
 
+export type HierarchyForwardingRule = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  denouncedRoleId: string;
+  destinationCategoryId: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type TranscriptCreateResult = {
   publicUrl: string;
   temporaryPassword: string | null;
@@ -2139,6 +2150,13 @@ export class ApiClient {
   }) {
     const { data } = await this.http.post("/tickets", input);
     return data as { ticket: TicketRecord };
+  }
+
+  async resolveHierarchyForwarding(guildId: string, denouncedRoleIds: string[]) {
+    const { data } = await this.http.post<{ rule: HierarchyForwardingRule }>(`/report-forwarding/bot/${guildId}/resolve`, {
+      denouncedRoleIds
+    });
+    return data.rule;
   }
 
   async getTicketByChannel(channelId: string) {

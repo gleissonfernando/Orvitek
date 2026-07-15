@@ -23,7 +23,7 @@ export const app = express();
 const frontendDistPath = path.resolve(__dirname, "../../frontend/dist");
 const frontendIndexPath = path.join(frontendDistPath, "index.html");
 const uploadsPath = path.resolve(__dirname, "../uploads");
-const corsOrigin = env.APP_BASE_URL;
+const corsOrigin = env.FRONTEND_URL || true;
 
 ensureFrontendBuild();
 
@@ -95,7 +95,7 @@ if (fs.existsSync(frontendIndexPath)) {
   app.get("*", (_req, res) => {
     res.json({
       message: "Frontend build ausente. Execute npm run build antes de servir o painel.",
-      name: "Painel de NexTech Systems Bots API",
+      name: "Painel de NexTechK Bots API",
       status: "online"
     });
   });

@@ -55,6 +55,7 @@ import type {
   GlobalBlacklistDashboard,
   GlobalBlacklistSafeBotSettings,
   GuildLiveOptions,
+  HierarchyForwardingRule,
   KickChannelPreview,
   KickIntegrationStatus,
   KickNotification,
@@ -932,6 +933,40 @@ export async function publishReportSystemPanel(guildId: string, botId?: string |
     timeout: 15000
   });
   return data.settings;
+}
+
+export async function listHierarchyForwardingRules(guildId: string, botId?: string | null) {
+  const { data } = await api.get<{ rules: HierarchyForwardingRule[] }>(`/report-forwarding/${guildId}`, {
+    params: botParams(botId)
+  });
+  return data.rules;
+}
+
+export async function createHierarchyForwardingRule(guildId: string, input: Pick<HierarchyForwardingRule, "denouncedRoleId" | "destinationCategoryId" | "enabled">, botId?: string | null) {
+  const { data } = await api.post<{ rule: HierarchyForwardingRule }>(`/report-forwarding/${guildId}`, input, {
+    params: botParams(botId)
+  });
+  return data.rule;
+}
+
+export async function updateHierarchyForwardingRule(guildId: string, ruleId: string, input: Partial<Pick<HierarchyForwardingRule, "denouncedRoleId" | "destinationCategoryId" | "enabled">>, botId?: string | null) {
+  const { data } = await api.patch<{ rule: HierarchyForwardingRule }>(`/report-forwarding/${guildId}/${ruleId}`, input, {
+    params: botParams(botId)
+  });
+  return data.rule;
+}
+
+export async function duplicateHierarchyForwardingRule(guildId: string, ruleId: string, botId?: string | null) {
+  const { data } = await api.post<{ rule: HierarchyForwardingRule }>(`/report-forwarding/${guildId}/${ruleId}/duplicate`, undefined, {
+    params: botParams(botId)
+  });
+  return data.rule;
+}
+
+export async function deleteHierarchyForwardingRule(guildId: string, ruleId: string, botId?: string | null) {
+  await api.delete(`/report-forwarding/${guildId}/${ruleId}`, {
+    params: botParams(botId)
+  });
 }
 
 export async function publishTicketPanel(guildId: string, botId?: string | null) {

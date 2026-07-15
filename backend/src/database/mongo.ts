@@ -165,6 +165,20 @@ export type MongoTicket = {
   closedAt: Date | null;
 };
 
+export type MongoHierarchyForwardingRule = {
+  _id: string;
+  botId: string | null;
+  guildId: string;
+  denouncedRoleId: string;
+  destinationCategoryId: string;
+  enabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  createdById: string | null;
+  updatedById: string | null;
+  deletedAt?: Date | null;
+};
+
 export type MongoTranscriptMessage = {
   id: string;
   authorAvatarUrl: string | null;
@@ -3933,6 +3947,7 @@ export async function getMongoCollections() {
     guilds: db.collection<MongoGuild>("Guild"),
     guildSettings: db.collection<MongoGuildSettings>("GuildSettings"),
     safeBotMessageStates: db.collection<MongoSafeBotMessageState>("safe_bot_message_states"),
+    hierarchyForwarding: db.collection<MongoHierarchyForwardingRule>("hierarchy_forwarding"),
     tickets: db.collection<MongoTicket>("Ticket"),
     transcripts: db.collection<MongoTranscript>("transcripts"),
     transcriptPasswords: db.collection<MongoTranscriptPassword>("transcript_passwords"),
@@ -4132,6 +4147,11 @@ async function createMongoIndexes(db: Db) {
     db.collection<MongoTicket>("Ticket").createIndex({ guildId: 1, createdAt: -1 }),
     db.collection<MongoTicket>("Ticket").createIndex({ botId: 1, guildId: 1, channelId: 1 }),
     db.collection<MongoTicket>("Ticket").createIndex({ botId: 1, guildId: 1, status: 1, createdAt: -1 }),
+    db.collection<MongoHierarchyForwardingRule>("hierarchy_forwarding").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoHierarchyForwardingRule>("hierarchy_forwarding").createIndex(
+      { botId: 1, guildId: 1, denouncedRoleId: 1 },
+      { unique: true, partialFilterExpression: { enabled: true, deletedAt: null } }
+    ),
     db.collection<MongoTranscript>("transcripts").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
     db.collection<MongoTranscript>("transcripts").createIndex({ ticketId: 1 }),
     db.collection<MongoTranscriptPassword>("transcript_passwords").createIndex({ transcriptId: 1, type: 1, createdAt: -1 }),

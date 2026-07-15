@@ -238,6 +238,19 @@ export type ReportSystemCategory = {
 export type ReportSystemStatus = { color: string; id: string; name: string; order: number };
 export type ReportSystemButtonKey = "claim" | "reply" | "status" | "requestEvidence" | "addMember" | "removeMember" | "transcript" | "close" | "reopen" | "delete";
 export type ReportSystemLogKey = "opened" | "closed" | "replies" | "statusChanged" | "messagesDeleted" | "anonymous" | "admin";
+export type HierarchyForwardingRule = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  denouncedRoleId: string;
+  destinationCategoryId: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdById: string | null;
+  updatedById: string | null;
+};
+
 export type ReportSystemSettings = {
   adminRoleIds: string[];
   allowAnonymousReports: boolean;
