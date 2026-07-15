@@ -510,32 +510,38 @@ export async function finalizeCourseExamAttempt(botId: string | null, guildId: s
   }
   const guardedScore = hasAnyScoredAnswer ? capExamScore(score) : 0;
   const percent = decimalMultiplyByInteger(guardedScore, 10);
-  const nextStatus = "awaiting_review";
   const now = new Date();
+  const settings = await collections.courseExamSettings.findOne({ _id: attempt.examId ?? "", ...scope(botId, guildId) })
+    ?? await collections.courseExamSettings.findOne({ ...scope(botId, guildId), courseId: attempt.courseId });
+  const minimumScore = examMinimumScore(settings, maxScore);
+  const result: "approved" | "rejected" = guardedScore >= minimumScore ? "approved" : "rejected";
   await logCourseAction(botId, guildId, "course.exam_score_calculated", attempt.studentId, attempt.courseId, attempt.publicationId, {
     attemptId,
     detail: scoredAnswers.map((answer) => ({ correct: answer.correct, pointsEarned: answer.pointsEarned, questionId: answer.questionId, selectedAlternativeId: answer.selectedAlternativeId, selectedAlternativeIds: answer.selectedAlternativeIds ?? [] })),
     maxScore,
+    minimumScore,
     objectiveCorrect,
     objectiveWrong,
     percent,
     score: guardedScore,
-    result: null
+    result
   });
   const updatedStatus = await collections.courseExamAttempts.updateOne({ _id: attemptId, ...scope(botId, guildId), status: "in_progress" }, {
     $set: {
       automaticScore: guardedScore,
-      correctedAt: null,
-      correctedBy: null,
-      finalScore: null,
+      correctedAt: now,
+      correctedBy: attempt.instructorId,
+      finalScore: guardedScore,
       finishedAt: now,
+      manualScore: 0,
       maxScore,
       objectiveCorrect,
       objectiveWrong,
       percent,
-      result: null,
+      rejectionReason: null,
+      result,
       score: guardedScore,
-      status: nextStatus,
+      status: result,
       updatedAt: now,
       writtenCount
     }
@@ -545,12 +551,17 @@ export async function finalizeCourseExamAttempt(botId: string | null, guildId: s
     return null;
   }
   const updated = await collections.courseExamAttempts.findOne({ _id: attemptId, ...scope(botId, guildId) });
-  await logCourseAction(botId, guildId, "course.exam_result_saved", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, maxScore, percent, result: null, score: guardedScore });
+  await logCourseAction(botId, guildId, "course.exam_result_saved", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, maxScore, minimumScore, percent, result, score: guardedScore });
   await logCourseAction(botId, guildId, "course.exam_finished", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, percent, score: guardedScore });
   await collections.courseEnrollments.updateOne(
     { ...scope(botId, guildId), publicationId: attempt.publicationId, studentId: attempt.studentId },
-    { $set: { examStatus: "COMPLETED", attemptId, examChannelId: attempt.channelId, score: guardedScore, correctAnswers: objectiveCorrect, completedAt: now, result: null, updatedAt: now } }
+    { $set: { examStatus: result === "approved" ? "APPROVED" : "FAILED", attemptId, examChannelId: attempt.channelId, score: guardedScore, correctAnswers: objectiveCorrect, completedAt: now, correctedBy: attempt.instructorId, result, updatedAt: now } }
   );
+  if (result === "approved") {
+    await recordApprovedCourseHistoryFromAttempt(botId, guildId, attemptId).catch((error) => {
+      console.error("[courses] failed to record approved course history:", error instanceof Error ? error.message : error);
+    });
+  }
   emitRealtime("courses:publication", { botId, guildId, publicationId: attempt.publicationId });
   return updated ? { answers: scoredAnswers.map(mapAnswer), attempt: mapAttempt(updated), questions: relevantQuestions.map(mapQuestion) } : null;
 }
@@ -621,12 +632,12 @@ function mapSettings(settings: MongoCourseExamSettings) {
     guildId: settings.guildId,
     courseId: settings.courseId,
     enabled: settings.enabled,
-    minScore: DEFAULT_MIN_SCORE,
+    minScore: settings.minScore ?? DEFAULT_MIN_SCORE,
     maxTimeMinutes: settings.maxTimeMinutes,
-    correctionChannelId: null,
-    resultChannelId: null,
-    temporaryCategoryId: null,
-    logChannelId: null,
+    correctionChannelId: settings.correctionChannelId ?? null,
+    resultChannelId: settings.resultChannelId ?? null,
+    temporaryCategoryId: settings.temporaryCategoryId ?? null,
+    logChannelId: settings.logChannelId ?? null,
     deleteWrittenAnswers: settings.deleteWrittenAnswers,
     allowCurrentQuestionReview: settings.allowCurrentQuestionReview,
     initialMessage: settings.initialMessage,
@@ -634,8 +645,8 @@ function mapSettings(settings: MongoCourseExamSettings) {
     approvalMessage: settings.approvalMessage,
     rejectionMessage: settings.rejectionMessage,
     manualQuestionMaxScore: settings.manualQuestionMaxScore ?? MAX_QUESTION_SCORE,
-    manualApproval: true,
-    automaticApproval: false,
+    manualApproval: settings.manualApproval ?? true,
+    automaticApproval: settings.automaticApproval ?? false,
     releaseMode: settings.releaseMode ?? DEFAULT_RELEASE_MODE,
     releaseAt: settings.releaseAt?.toISOString() ?? null,
     attemptLimit: settings.attemptLimit ?? null,
@@ -750,15 +761,15 @@ function mapAnswer(answer: MongoCourseExamAnswer) {
 
 async function cleanSettings(botId: string | null, guildId: string, courseId: string, input: Partial<CourseExamSettingsDto>) {
   const patch: Record<string, unknown> = { ...input };
-  delete patch.correctionChannelId;
-  delete patch.resultChannelId;
-  delete patch.temporaryCategoryId;
-  delete patch.logChannelId;
   if ("maxTimeMinutes" in input) patch.maxTimeMinutes = input.maxTimeMinutes ? Math.max(1, Number(input.maxTimeMinutes)) : null;
-  if ("minScore" in input) patch.minScore = DEFAULT_MIN_SCORE;
+  if ("minScore" in input) patch.minScore = Math.max(0, Math.min(1000, parseDecimalNumber(input.minScore, DEFAULT_MIN_SCORE)));
   if ("manualQuestionMaxScore" in input) patch.manualQuestionMaxScore = Math.max(0, parseDecimalNumber(input.manualQuestionMaxScore, MAX_QUESTION_SCORE));
-  patch.manualApproval = true;
-  patch.automaticApproval = false;
+  if ("correctionChannelId" in input) patch.correctionChannelId = normalizeNullableText(input.correctionChannelId, 32);
+  if ("resultChannelId" in input) patch.resultChannelId = normalizeNullableText(input.resultChannelId, 32);
+  if ("temporaryCategoryId" in input) patch.temporaryCategoryId = normalizeNullableText(input.temporaryCategoryId, 32);
+  if ("logChannelId" in input) patch.logChannelId = normalizeNullableText(input.logChannelId, 32);
+  if ("manualApproval" in input) patch.manualApproval = input.manualApproval === true;
+  if ("automaticApproval" in input) patch.automaticApproval = input.automaticApproval === true;
   if ("releaseMode" in input) patch.releaseMode = input.releaseMode === "scheduled" || input.releaseMode === "instructor" ? input.releaseMode : "immediate";
   if ("releaseAt" in input) {
     const releaseAt = input.releaseAt ? new Date(input.releaseAt) : null;
@@ -895,7 +906,12 @@ function capExamScore(score: number) {
 
 function isObjectiveAnswerFullyScored(question: MongoCourseExamQuestion, pointsEarned: number) {
   const maxScore = questionMaxScore(question);
-  return maxScore > 0 && pointsEarned >= maxScore;
+  return maxScore > 0 && pointsEarned > 0;
+}
+
+function examMinimumScore(settings: Pick<MongoCourseExamSettings, "minScore"> | null | undefined, maxScore: number) {
+  const configuredMinimum = Math.max(0, parseDecimalNumber(settings?.minScore, DEFAULT_MIN_SCORE));
+  return configuredMinimum > maxScore ? (configuredMinimum / 100) * maxScore : configuredMinimum;
 }
 
 function normalizeQuestionScoring<T extends MongoCourseExamQuestion>(question: T): T {

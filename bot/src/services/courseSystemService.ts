@@ -1963,30 +1963,24 @@ async function finishExam(interaction: ButtonInteraction, context: BotContext) {
     await interaction.followUp({ content: finalizeFailureMessage, flags: MessageFlags.Ephemeral });
     return;
   }
-  const [course, settings, runtime] = await Promise.all([
+  const [course, settings] = await Promise.all([
     context.api.getCourse(interaction.guildId!, result.attempt.courseId),
-    context.api.getCourseSettings(interaction.guildId!),
-    context.api.getCourseExamRuntime(interaction.guildId!, result.attempt.courseId)
+    context.api.getCourseSettings(interaction.guildId!)
   ]);
   await interaction.message.edit({ components: [] }).catch(() => null);
   logCourseFlow("exam_finalize_saved", { attemptId, courseId: result.attempt.courseId, guildId: interaction.guildId, score: result.attempt.score, percent: result.attempt.percent, answers: result.answers.length });
-  const automaticStatus = automaticExamStatus(result.attempt, runtime.settings);
-  const reviewed = await context.api.reviewCourseExamAttempt(interaction.guildId!, attemptId, {
-    actorId: result.attempt.instructorId,
-    manualScore: 0,
-    status: automaticStatus
-  }).catch(async (error) => {
-    logCourseFlowError("exam_auto_review_failed", error, { attemptId, courseId: result.attempt.courseId, guildId: interaction.guildId });
-    await sendCourseLog(interaction, settings, `Falha ao corrigir prova automaticamente\nTentativa: ${attemptId}\nCurso: ${course.name}\nAluno: <@${result.attempt.studentId}>\nErro: ${errorDetails(error)}`).catch(() => null);
-    return null;
-  });
-  if (!reviewed) {
-    await interaction.followUp({ content: "Prova finalizada, mas a correção automática não pôde ser concluída. Verifique os logs do sistema.", flags: MessageFlags.Ephemeral });
+  const reviewed = result.attempt;
+  if (reviewed.result !== "approved" && reviewed.result !== "rejected") {
+    await sendCourseLog(interaction, settings, `Prova finalizada sem resultado persistido\nTentativa: ${attemptId}\nCurso: ${course.name}\nAluno: <@${result.attempt.studentId}>`).catch(() => null);
+    await interaction.followUp({ content: "Prova corrigida, mas o resultado final não foi persistido. Verifique os logs do sistema.", flags: MessageFlags.Ephemeral });
     return;
   }
   const resultDelivery = await sendExamResultPanel(interaction, settings, course, reviewed, result.questions, result.answers);
   if (resultDelivery.ok && resultDelivery.channelId && resultDelivery.messageId) {
     await context.api.setCourseExamResultDelivery(interaction.guildId!, reviewed.id, { channelId: resultDelivery.channelId, messageId: resultDelivery.messageId }).catch((error) => logCourseFlowError("exam_result_delivery_persist_failed", error, { attemptId: reviewed.id, channelId: resultDelivery.channelId, messageId: resultDelivery.messageId }));
+  } else {
+    await interaction.followUp({ content: "Prova corrigida, mas não consegui enviar o resultado no canal configurado. Verifique o canal de resultado e as permissões do bot.", flags: MessageFlags.Ephemeral });
+    return;
   }
   await sendFinalExamLog(interaction, settings, course, reviewed, result.questions, result.answers, result.attempt.instructorId);
   await sendCourseLog(interaction, settings, examResultLogMessage(interaction.guildId!, course, reviewed, result.attempt.instructorId, "Correção automática")).catch(() => null);
@@ -3394,14 +3388,19 @@ async function examResultPanel(interaction: ButtonInteraction | ModalSubmitInter
   const timestamp = Math.floor(new Date(attempt.correctedAt ?? attempt.finishedAt ?? attempt.updatedAt).getTime() / 1000);
   const finalScore = attempt.finalScore ?? attempt.score;
   const status = examFinalStatusLabel(attempt);
+  const rpName = attempt.studentIdentification?.rpFullName?.trim() || "Não informado";
   return renderComponentsV2Panel({
     accentColor: examResultAccent(attempt),
     description: "Resultado final da avaliação.",
     fields: [
       [
         `**Aluno**\n${member?.displayName ?? `<@${attempt.studentId}>`}`,
+        `**ID do aluno**\n${attempt.studentId}`,
+        `**Nome RP**\n${rpName}`,
         `**Instrutor**\n${instructor?.displayName ?? `<@${attempt.instructorId}>`}`,
+        `**ID do instrutor**\n${attempt.instructorId}`,
         `**Curso**\n${course.name}`,
+        `**ID da prova**\n${attempt.id}`,
         `**Nota**\n${formatScore(finalScore)} / ${formatScore(attempt.maxScore)}`
       ].join("\n\n"),
       [
@@ -3891,7 +3890,7 @@ function formatAnswerSummary(question: CourseExamQuestion, answer: CourseExamAns
   const expectedIds = question.correctAlternativeIds?.length ? question.correctAlternativeIds : question.alternatives.filter((alternative) => isExpectedAlternative(question, alternative)).map((alternative) => alternative.id);
   const selectedTexts = alternatives.filter((alternative) => selectedIds.includes(alternative.id)).map((alternative) => alternative.text);
   const expectedTexts = alternatives.filter((alternative) => expectedIds.includes(alternative.id)).map((alternative) => `${alternative.id} (${formatScore(alternativeScoreValue(question, alternative))}) ${alternative.text}`);
-  const status = answer?.correct || (maxScore > 0 && pointsEarned >= maxScore) ? "✅ Correta" : pointsEarned > 0 && pointsEarned < maxScore ? "🟡 Parcialmente correta" : "❌ Incorreta";
+  const status = answer?.correct || pointsEarned > 0 ? "✅ Correta" : "❌ Incorreta";
   return [
     `QUESTÃO ${String(index).padStart(2, "0")}`,
     questionScoreLine(question),
