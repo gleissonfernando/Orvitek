@@ -873,9 +873,6 @@ async function publishCourse(interaction: ModalSubmitInteraction, context: BotCo
     await interaction.editReply("❌ O evento do Discord foi criado, mas o painel não pôde ser postado. O evento foi encerrado automaticamente; verifique permissões do canal e os logs.");
     return;
   }
-  await sendCoursePublicationMention(channel as TextChannel, settings).catch((error) => {
-    console.warn(`[courses] failed to send course mention after panel guild=${interaction.guildId} channel=${targetChannelId}:`, error instanceof Error ? error.message : error);
-  });
   const publicationWithPanel = await context.api.updateCoursePublicationMessage(interaction.guildId!, publication.id, message.id);
   await recordInstructorTrackingEvent(interaction.guild!, context, course, publicationWithPanel, "started", interaction.user.id);
   await sendCourseLog(interaction, settings, `Curso agendado\nCurso: ${course.name}${course.code ? ` (${course.code})` : ""}\nInstrutor: <@${interaction.user.id}>\nCanal: <#${targetChannelId}>\nPainel: ${message.id}\nHorário: ${publicationWithPanel.scheduledFor}\nDP: ${publicationWithPanel.dpNameSnapshot ?? publicationWithPanel.location}\nVagas: ${publicationWithPanel.capacity}\nEvento do Discord: ${eventStarted ? "criado e iniciado automaticamente no envio do modal" : "criado"}`);
@@ -2699,9 +2696,10 @@ function selectCoursePanel(description: string, customId: string, courses: Cours
   });
 }
 
-function coursePublicationPanel(course: Course, publication: CoursePublication, settings: CourseSettings, guild: { members: { cache: Map<string, GuildMember> } }, enrollments: CourseEnrollment[] = []) {
+function coursePublicationPanel(course: Course, publication: CoursePublication, settings: CourseSettings, guild: { members: { cache: Map<string, GuildMember> } }, enrollments: CourseEnrollment[] = [], allowPublicationMention = false) {
   void guild;
-  void settings;
+  const publicationMentionRoleId = settings.publicationMentionRoleId;
+  const publicationMention = publicationMentionRoleId ? `<@&${publicationMentionRoleId}>` : null;
   const students = publication.students.map((id, index) => `${index + 1}. <@${id}>`).join("\n") || "Nenhum aluno confirmado.";
   const full = publication.students.length >= publication.capacity;
   const statusText = coursePublicationPlainStatusLabel(publication, full);
@@ -2735,9 +2733,10 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
   const bannerUrl = resolvePanelImageUrl(course.bannerUrl);
   const components: unknown[] = [
     textBlock([
+      publicationMention,
       "### 🛡 North Police Department • Instructor Team",
       `## 📢 ${course.name}`
-    ].join("\n")),
+    ].filter(Boolean).join("\n")),
     textBlock([
       `👨‍🏫 **Instrutor:** <@${publication.instructorId}>`,
       `📅 **Data:** ${coursePublicationDateLabel(publication)}`,
@@ -2773,6 +2772,7 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
   ];
   return componentsV2Payload({
     accentColor: parseColor(course.color),
+    allowedMentions: allowPublicationMention && publicationMentionRoleId ? { roles: [publicationMentionRoleId] } : { parse: [] as never[] },
     components,
     footer: "© NexTech Systems"
   }) as ReturnType<typeof renderComponentsV2Panel>;
@@ -2786,8 +2786,8 @@ function separator() {
   return { type: 14, divider: true, spacing: 1 };
 }
 
-function coursePublicationInitialPost(course: Course, publication: CoursePublication, settings: CourseSettings, guild: { members: { cache: Map<string, GuildMember> } }) {
-  return coursePublicationPanel(course, publication, settings, guild);
+function coursePublicationInitialPost(course: Course, publication: CoursePublication, settings: CourseSettings, guild: { members: { cache: Map<string, GuildMember> } }, allowPublicationMention = false) {
+  return coursePublicationPanel(course, publication, settings, guild, [], allowPublicationMention);
 }
 
 async function assertCoursePanelChannelPermissions(
@@ -2882,12 +2882,12 @@ async function sendOrEditCoursePublicationPanel(
   settings: CourseSettings,
   guild: { members: { cache: Map<string, GuildMember> } }
 ) {
-  const payload = coursePublicationInitialPost(course, publication, settings, guild);
+  const payload = coursePublicationInitialPost(course, publication, settings, guild, !existingMessage);
   try {
     return existingMessage ? await existingMessage.edit(payload) : await channel.send(payload);
   } catch (error) {
     console.error(`[courses] failed to ${existingMessage ? "edit" : "send"} course panel publication=${publication.id} channel=${channel.id}; falling back to legacy panel:`, error instanceof Error ? error.stack ?? error.message : error);
-    const fallback = coursePublicationFallbackPanel(course, publication);
+    const fallback = coursePublicationFallbackPanel(course, publication, settings, !existingMessage);
     if (existingMessage) {
       return existingMessage.edit(fallback).catch(() => channel.send(fallback));
     }
@@ -2895,7 +2895,7 @@ async function sendOrEditCoursePublicationPanel(
   }
 }
 
-function coursePublicationFallbackPanel(course: Course, publication: CoursePublication) {
+function coursePublicationFallbackPanel(course: Course, publication: CoursePublication, settings: CourseSettings, allowPublicationMention = false) {
   const full = publication.students.length >= publication.capacity;
   const canJoin = publication.status === "open" && !full;
   const canLeave = publication.status === "open";
@@ -2904,9 +2904,11 @@ function coursePublicationFallbackPanel(course: Course, publication: CoursePubli
   const canFinishClass = publication.status === "started" || publication.status === "proof";
   const canCancel = !["cancelled", "proof", "finished", "closed"].includes(publication.status);
   const students = publication.students.map((id, index) => `${index + 1}. <@${id}>`).join("\n") || "Nenhum aluno confirmado.";
+  const publicationMentionRoleId = settings.publicationMentionRoleId;
   return {
-    allowedMentions: { parse: [] as never[] },
+    allowedMentions: allowPublicationMention && publicationMentionRoleId ? { roles: [publicationMentionRoleId] } : { parse: [] as never[] },
     content: [
+      publicationMentionRoleId ? `<@&${publicationMentionRoleId}>` : null,
       `🛡 **North Police Department • Instructor Team**`,
       ``,
       `📢 **${course.name}**`,
@@ -2922,7 +2924,7 @@ function coursePublicationFallbackPanel(course: Course, publication: CoursePubli
       students,
       ``,
       `📌 Clique em Entrar para participar.`
-    ].join("\n"),
+    ].filter((line): line is string => line !== null).join("\n"),
     components: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(`course_join:${publication.id}`).setEmoji("🟢").setLabel("Entrar").setStyle(ButtonStyle.Success).setDisabled(!canJoin),
@@ -2938,15 +2940,6 @@ function coursePublicationFallbackPanel(course: Course, publication: CoursePubli
       )
     ]
   };
-}
-
-async function sendCoursePublicationMention(channel: TextChannel, settings: CourseSettings) {
-  const roleId = settings.publicationMentionRoleId;
-  if (!roleId) return null;
-  return channel.send({
-    allowedMentions: { roles: [roleId] },
-    content: `<@&${roleId}>`
-  });
 }
 
 function coursePublicationDateLabel(publication: CoursePublication) {
