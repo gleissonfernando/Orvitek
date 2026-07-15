@@ -813,8 +813,9 @@ async function publishCourse(interaction: ModalSubmitInteraction, context: BotCo
     console.warn(`[courses] failed to send course mention after panel guild=${interaction.guildId} channel=${targetChannelId}:`, error instanceof Error ? error.message : error);
   });
   const publicationWithPanel = await context.api.updateCoursePublicationMessage(interaction.guildId!, publication.id, message.id);
-  await sendCourseLog(interaction, settings, `Curso agendado\nCurso: ${course.name}${course.code ? ` (${course.code})` : ""}\nInstrutor: <@${interaction.user.id}>\nCanal: <#${targetChannelId}>\nPainel: ${message.id}\nHorário: ${publicationWithPanel.scheduledFor}\nDP: ${publicationWithPanel.dpNameSnapshot ?? publicationWithPanel.location}\nVagas: ${publicationWithPanel.capacity}\nEvento do Discord: criado`);
-  await interaction.editReply("✅ Curso agendado, painel publicado e evento criado com sucesso.");
+  const eventStarted = await startCourseEventAfterPanelPosted(interaction, context, settings, course, publicationWithPanel);
+  await sendCourseLog(interaction, settings, `Curso agendado\nCurso: ${course.name}${course.code ? ` (${course.code})` : ""}\nInstrutor: <@${interaction.user.id}>\nCanal: <#${targetChannelId}>\nPainel: ${message.id}\nHorário: ${publicationWithPanel.scheduledFor}\nDP: ${publicationWithPanel.dpNameSnapshot ?? publicationWithPanel.location}\nVagas: ${publicationWithPanel.capacity}\nEvento do Discord: ${eventStarted ? "criado e iniciado após o painel" : "criado"}`);
+  await interaction.editReply(eventStarted ? "✅ Curso agendado, painel publicado e evento iniciado com sucesso." : "✅ Curso agendado, painel publicado e evento criado com sucesso.");
 }
 
 async function editCourseInfo(interaction: ModalSubmitInteraction, context: BotContext, courseId: string) {
@@ -1008,9 +1009,6 @@ async function createOrUpdateCourseScheduledEvent(guild: Guild, context: BotCont
     eventId = event.id;
     await assertCourseScheduledEventExists(guild, eventId, publication.id);
   }
-  await activateCourseScheduledEventAfterScheduling(guild, eventId, course, publication).catch((error) => {
-    console.warn(`[courses] evento ${eventId} criado, mas não foi possível iniciar automaticamente no agendamento da publicação ${publication.id}:`, error instanceof Error ? error.message : error);
-  });
   const updated = await context.api.updateCoursePublicationEvent(guild.id, publication.id, {
     discordEventId: eventId,
     discordEventUrl: scheduledEventUrl(guild.id, eventId),
@@ -1036,6 +1034,41 @@ async function activateCourseScheduledEventAfterScheduling(guild: Guild, eventId
     scheduledStartTime: startAt,
     status: GuildScheduledEventStatus.Active
   });
+}
+
+async function startCourseEventAfterPanelPosted(
+  interaction: ModalSubmitInteraction,
+  context: BotContext,
+  settings: CourseSettings,
+  course: Course,
+  publication: CoursePublication
+) {
+  if (!publication.discordEventId) return false;
+  try {
+    await activateCourseScheduledEventAfterScheduling(interaction.guild!, publication.discordEventId, course, publication);
+    await context.api.updateCoursePublicationEvent(interaction.guildId!, publication.id, {
+      discordEventId: publication.discordEventId,
+      discordEventUrl: publication.discordEventUrl,
+      syncError: null
+    }).catch(() => null);
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logCourseFlowError("scheduled_event_start_after_panel_failed", error, {
+      courseId: course.id,
+      discordEventId: publication.discordEventId,
+      guildId: interaction.guildId,
+      messageId: publication.messageId,
+      publicationId: publication.id
+    });
+    await context.api.updateCoursePublicationEvent(interaction.guildId!, publication.id, {
+      discordEventId: publication.discordEventId,
+      discordEventUrl: publication.discordEventUrl,
+      syncError: message
+    }).catch(() => null);
+    await sendCourseLog(interaction, settings, `Evento criado, mas não iniciou após postar o painel\nCurso: ${course.name}\nPublicação: ${publication.id}\nPainel: ${publication.messageId ?? "não salvo"}\nEvento: ${publication.discordEventId}\nErro: ${message}`).catch(() => null);
+    return false;
+  }
 }
 
 async function assertCourseScheduledEventExists(guild: Guild, eventId: string, publicationId: string) {
