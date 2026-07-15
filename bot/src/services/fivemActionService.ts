@@ -3,7 +3,7 @@ import {
   StringSelectMenuBuilder, type ChannelSelectMenuInteraction, type ChatInputCommandInteraction, type Client, type GuildMember, type Interaction,
   type StringSelectMenuInteraction
 } from "discord.js";
-import { isBotModuleEnabled } from "../config/env";
+import { isBotModuleEnabled, setRuntimeEnabledModules } from "../config/env";
 import type { BotCommand, BotContext } from "../types";
 import { resetSelectMenuMessage } from "../utils/selectMenuReset";
 import type { FivemActionArchitecture, FivemActionMode, FivemActionSession, FivemActionSettings } from "./apiClient";
@@ -34,12 +34,13 @@ export const acoesConfigCommand: BotCommand = {
       return;
     }
     const requestedArchitecture = interaction.options.getString("tipo") as FivemActionArchitecture | null;
-    const architecture = requestedArchitecture ?? (isFivemActionRuntimeEnabled("fac") ? "fac" : "police");
-    if (!isFivemActionRuntimeEnabled(architecture)) {
-      await interaction.reply({ content: architecture === "police" ? "Ações policiais não liberadas para este bot." : "Ações FAC não liberadas para este bot.", ephemeral: true });
+    await refreshFivemActionRuntimeModules(context).catch(() => null);
+    const resolved = await resolveActionConfigDashboard(context, interaction.guildId, requestedArchitecture);
+    if (!resolved) {
+      await interaction.reply({ content: requestedArchitecture ? actionAccessDeniedMessage(requestedArchitecture) : "Sistema de Ações não liberado para este bot. Ative Ações FAC ou Ações Policiais na dashboard DEV e reinicie o bot.", flags: MessageFlags.Ephemeral });
       return;
     }
-    await interaction.reply(await actionConfigPanel(context, interaction.guildId, architecture, true));
+    await interaction.reply(actionConfigPanel(resolved.dashboard, resolved.architecture, true));
   }
 };
 
@@ -90,8 +91,7 @@ async function processPanelRequests(client: Client, context: BotContext) {
   finally { polling = false; }
 }
 
-async function actionConfigPanel(context: BotContext, guildId: string, architecture: FivemActionArchitecture, ephemeral = false) {
-  const dashboard = await context.api.getFivemActionDashboard(guildId, architecture);
+function actionConfigPanel(dashboard: Awaited<ReturnType<BotContext["api"]["getFivemActionDashboard"]>>, architecture: FivemActionArchitecture, ephemeral = false) {
   const { settings, actions } = dashboard;
   const label = architecture === "police" ? "Polícia" : "FAC";
   const configuredChannels = [settings.panelChannelId, settings.actionChannelId, settings.reportChannelId].filter(Boolean).length;
@@ -122,7 +122,8 @@ async function actionConfigPanel(context: BotContext, guildId: string, architect
 
 async function showActionConfig(interaction: any, context: BotContext, architecture: FivemActionArchitecture) {
   if (!canManageActionsFromDiscord(interaction)) return void await interaction.reply({ content: "Você precisa de Gerenciar Servidor para configurar o Sistema de Ações.", ephemeral: true });
-  const payload = await actionConfigPanel(context, interaction.guildId, architecture, true);
+  const dashboard = await context.api.getFivemActionDashboard(interaction.guildId, architecture);
+  const payload = actionConfigPanel(dashboard, architecture, true);
   if (interaction.replied || interaction.deferred) await interaction.editReply(payload);
   else await interaction.update(payload);
 }
@@ -166,7 +167,8 @@ async function saveActionChannel(interaction: ChannelSelectMenuInteraction, cont
       ? { actionChannelId: channelId }
       : { reportChannelId: channelId };
   await context.api.saveFivemActionSettings(interaction.guildId!, architecture, patch, interaction.user.id);
-  await interaction.editReply(await actionConfigPanel(context, interaction.guildId!, architecture, true));
+  const dashboard = await context.api.getFivemActionDashboard(interaction.guildId!, architecture);
+  await interaction.editReply(actionConfigPanel(dashboard, architecture, true));
 }
 
 async function requestActionPanelPublish(interaction: any, context: BotContext, architecture: FivemActionArchitecture) {
@@ -174,7 +176,8 @@ async function requestActionPanelPublish(interaction: any, context: BotContext, 
   await interaction.deferUpdate();
   await context.api.requestFivemActionPanelPublish(interaction.guildId, architecture, interaction.user.id);
   await processPanelRequests(interaction.client, context);
-  await interaction.editReply(await actionConfigPanel(context, interaction.guildId, architecture, true));
+  const dashboard = await context.api.getFivemActionDashboard(interaction.guildId, architecture);
+  await interaction.editReply(actionConfigPanel(dashboard, architecture, true));
 }
 
 async function publishMainPanel(client: Client, context: BotContext, config: FivemActionSettings) {
@@ -455,6 +458,40 @@ function canManageActionsFromDiscord(interaction: { memberPermissions?: { has(pe
   return Boolean(interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild));
 }
 
+async function refreshFivemActionRuntimeModules(context: BotContext) {
+  const runtime = await context.api.getRuntimeModules();
+  setRuntimeEnabledModules(runtime.active ? runtime.enabledModules : [], runtime.botId);
+}
+
+async function resolveActionConfigDashboard(context: BotContext, guildId: string, requestedArchitecture: FivemActionArchitecture | null) {
+  const candidates: FivemActionArchitecture[] = requestedArchitecture
+    ? [requestedArchitecture]
+    : (["fac", "police"] as FivemActionArchitecture[]).filter((architecture) => isFivemActionRuntimeEnabled(architecture));
+
+  const fallbackCandidates: FivemActionArchitecture[] = candidates.length ? candidates : ["fac", "police"];
+  let lastError: unknown = null;
+  for (const architecture of fallbackCandidates) {
+    try {
+      return { architecture, dashboard: await context.api.getFivemActionDashboard(guildId, architecture) };
+    } catch (error) {
+      lastError = error;
+      const status = httpStatus(error);
+      if (requestedArchitecture || (status && status !== 403 && status !== 404)) break;
+    }
+  }
+
+  if (lastError) {
+    console.warn("[fivem-actions] falha ao abrir /acoesconfig:", httpErrorMessage(lastError));
+  }
+  return null;
+}
+
+function actionAccessDeniedMessage(architecture: FivemActionArchitecture) {
+  return architecture === "police"
+    ? "Ações policiais não liberadas para este bot. Ative o módulo na dashboard DEV e reinicie o bot."
+    : "Ações FAC não liberadas para este bot. Ative o módulo na dashboard DEV e reinicie o bot.";
+}
+
 async function getPanelVisualSlots(context: BotContext, guildId: string, basePanelId: string) {
   const panelIds = [basePanelId, `${basePanelId}-banner-2`, `${basePanelId}-banner-3`];
   const visuals = await Promise.all(panelIds.map((panelId) => context.api.getPanelVisualSettings(guildId, panelId).catch(() => null)));
@@ -485,3 +522,11 @@ function isFivemActionRuntimeEnabled(architecture?: FivemActionArchitecture) {
 function parseColor(value: string) { return Number.parseInt(value.replace("#", ""), 16) || 0x7c3aed; }
 function displayName(member: any) { return member?.displayName ?? member?.user?.globalName ?? member?.user?.username ?? "Usuário"; }
 function errorMessage(error: unknown) { return error instanceof Error ? error.message : String(error); }
+function httpStatus(error: unknown) { return typeof error === "object" && error && "response" in error ? Number((error as { response?: { status?: unknown } }).response?.status) || null : null; }
+function httpErrorMessage(error: unknown) {
+  if (typeof error === "object" && error && "response" in error) {
+    const response = (error as { response?: { data?: { message?: unknown }; status?: unknown } }).response;
+    return `${response?.status ?? "sem_status"} ${typeof response?.data?.message === "string" ? response.data.message : errorMessage(error)}`;
+  }
+  return errorMessage(error);
+}
