@@ -74,7 +74,7 @@ export async function publishReportSystemPanelToDiscord(settings: GuildSettingsD
 
 function parseColor(value: string) {
   const normalized = value.replace("#", "").trim();
-  return /^[0-9a-f]{6}$/i.test(normalized) ? Number.parseInt(normalized, 16) : 0xdc2626;
+  return /^[0-9a-f]{6}$/i.test(normalized) ? Number.parseInt(normalized, 16) : 0xf8c537;
 }
 
 function parseEmoji(value: string) {
@@ -101,62 +101,39 @@ function buildReportPanelComponents(
   const title = `${normalizePanelEmoji(report.panelEmoji ?? fixedSystemEmojiText("alerta"))} ${report.panelTitle}`.trim();
   const image = resolvePanelImage(report.imageUrl, panelImage);
   const components: unknown[] = [];
-  const lead = firstPanelLine(report.panelDescription) || "Registre uma denuncia de forma segura e sigilosa.";
-  const body = formatPanelBody(withoutFirstPanelLine(report.panelDescription));
-  const info = formatPanelBody(report.infoMessage);
-  const titleText = `# ${title}\n-# ${lead}`.slice(0, 4000);
+  const lead = firstPanelLine(report.panelDescription) || "Sistema institucional de denuncias sigilosas.";
+  const description = cleanPanelText(report.panelDescription) || "Selecione o orgao competente para abrir uma denuncia com seguranca.";
+  const info = cleanPanelText(report.infoMessage) || "As denuncias serao analisadas exclusivamente pela equipe autorizada.";
 
   const pushImage = () => {
     if (image.mainUrl) components.push(mediaBlock(image.mainUrl, title));
   };
 
-  if (image.mainUrl && ["top", "banner"].includes(image.position)) pushImage();
-
-  if (image.mainUrl && ["thumbnail", "side"].includes(image.position)) {
-    components.push({
-      type: 9,
-      components: [{ type: 10, content: titleText }],
-      accessory: { type: 11, media: { url: image.mainUrl }, description: title }
-    });
-  } else {
-    components.push({ type: 10, content: titleText });
-  }
-
-  if (image.mainUrl && image.position === "below_title") pushImage();
-  if (body) components.push({ type: 10, content: body });
-  if (image.mainUrl && image.position === "middle") pushImage();
-
-  components.push({
-    type: 10,
-    content: report.allowAnonymousReports
-      ? "### Modo de abertura\nA denuncia anonima esta disponivel. Voce tambem pode seguir identificado quando essa opcao aparecer."
-      : "### Modo de abertura\n**A denuncia anonima esta desativada.** Abra o ticket com identificacao; seu nome aparecera no atendimento."
-  });
-
-  if (info) {
-    components.push({ type: 14, divider: true, spacing: 1 });
-    components.push({ type: 10, content: `### Sigilo institucional\n${info}`.slice(0, 4000) });
-  }
-
-  if (image.mainUrl && ["before_buttons", "above_buttons"].includes(image.position)) pushImage();
-
-  components.push({ type: 14, divider: true, spacing: 1 });
-  components.push({ type: 10, content: "### Abrir denuncia\nSelecione o orgao competente no menu abaixo." });
+  if (image.mainUrl) pushImage();
+  components.push({ type: 10, content: reportPanelHero(title, lead) });
+  components.push(separator(2));
+  components.push({ type: 10, content: reportPanelCard("📋", "Informacoes", description) });
+  components.push(separator(1));
+  components.push({ type: 10, content: reportPanelSteps() });
+  components.push(separator(1));
+  components.push({ type: 10, content: reportModeCard(report.allowAnonymousReports) });
+  components.push(separator(1));
+  components.push({ type: 10, content: reportPanelCard("🔒", "Sigilo Institucional", info, "VERIFICADO") });
+  components.push(separator(2));
+  components.push({ type: 10, content: reportOpenCard(options.length) });
   components.push({
     type: 1,
     components: [
       {
         type: 3,
         custom_id: PANEL_SELECT_ID,
-        placeholder: report.panelPlaceholder.slice(0, 150),
+        placeholder: selectPlaceholder(report.panelPlaceholder),
         min_values: 1,
         max_values: 1,
         options
       }
     ]
   });
-
-  if (image.mainUrl && image.position === "bottom") pushImage();
 
   return components;
 }
@@ -192,23 +169,70 @@ function firstPanelLine(value: string | null | undefined) {
   return (value ?? "").split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? "";
 }
 
-function withoutFirstPanelLine(value: string | null | undefined) {
-  const lines = (value ?? "").split(/\r?\n/);
-  const firstIndex = lines.findIndex((line) => line.trim());
-  if (firstIndex >= 0) lines.splice(firstIndex, 1);
-  return lines.join("\n");
-}
-
-function formatPanelBody(value: string | null | undefined) {
+function cleanPanelText(value: string | null | undefined) {
   const lines = (value ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (!lines.length) return "";
-  return lines.map((line) => {
-    const normalized = line.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    if (/^(como funciona|importante|sigilo|privacidade|orientacoes|regras)$/i.test(normalized)) {
-      return `### ${line}`;
-    }
-    return line;
-  }).join("\n").slice(0, 4000);
+  return lines.join("\n").slice(0, 1200);
+}
+
+function reportPanelHero(title: string, lead: string) {
+  return [
+    `# ${title}`,
+    `-# ${lead}`,
+    "",
+    "**CONFIDENCIAL** • Sistema institucional • Auditoria autorizada"
+  ].join("\n").slice(0, 4000);
+}
+
+function reportPanelCard(icon: string, title: string, text: string, badge?: string) {
+  return [
+    `## ${icon} ${title}${badge ? `  \`${badge}\`` : ""}`,
+    "",
+    text
+  ].join("\n").slice(0, 4000);
+}
+
+function reportPanelSteps() {
+  return [
+    "## 📘 Como funciona",
+    "",
+    "`01` 🏛️ Escolha o orgao responsavel.",
+    "`02` 👤 Defina se a denuncia sera identificada ou anonima.",
+    "`03` 📎 Envie resumo, denunciado, descricao e provas.",
+    "`04` 📋 Revise as informacoes no canal privado.",
+    "`05` ✅ Confirme o envio quando estiver pronto.",
+    "`06` 🛡️ Aguarde a analise da equipe autorizada."
+  ].join("\n");
+}
+
+function reportModeCard(anonymousEnabled: boolean) {
+  return [
+    "## 🌐 Modo de abertura",
+    "",
+    "✅ **Identificada**",
+    "Sua identidade fica visivel para a equipe responsavel pelo atendimento.",
+    "",
+    anonymousEnabled
+      ? "👤 **Anonima**\nSua identidade permanece oculta durante a analise operacional."
+      : "👤 **Anonima indisponivel**\nEste servidor aceita apenas denuncias identificadas no momento."
+  ].join("\n").slice(0, 4000);
+}
+
+function reportOpenCard(optionCount: number) {
+  return [
+    "## 📂 Abrir denuncia",
+    "",
+    `🏛️ Selecione o orgao responsavel no menu abaixo. ${optionCount} opcao(oes) disponivel(is).`
+  ].join("\n");
+}
+
+function selectPlaceholder(value: string) {
+  const text = value.trim() || "Selecione o orgao responsavel";
+  return `🏛️ ${text}`.slice(0, 150);
+}
+
+function separator(spacing: 1 | 2 = 1) {
+  return { type: 14, divider: true, spacing };
 }
 
 function buildV2Container(input: { accentColor: number; components: unknown[]; footer?: { enabled?: boolean; image?: string | null; text?: string | null } }) {

@@ -32,7 +32,7 @@ import { resetSelectMenuMessage, showModalAndResetSelect } from "../utils/select
 import { replaceSystemEmojis, systemComponentEmoji, systemEmojiText, systemStatusEmoji } from "./systemEmojiService";
 import type { TicketRecord } from "./apiClient";
 import { getFreshGuildSettings } from "./guildSettingsCache";
-import { renderComponentsV2Panel } from "./panelVisualRenderer";
+import { buildV2Container, renderComponentsV2Panel, resolvePanelImageUrl } from "./panelVisualRenderer";
 import { resolveTranscriptDownloadUrl, resolveTranscriptUrl } from "./transcriptUrlService";
 
 const PREFIX = "iab_admin";
@@ -1860,17 +1860,120 @@ function createReportPanelPayload(settings: GuildSettings): MessageCreateOptions
     if (item.emoji) optionBuilder.setEmoji(replaceSystemEmojis(item.emoji));
     return optionBuilder;
   });
-  const action = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(PANEL_SELECT_ID).setPlaceholder(report.panelPlaceholder).addOptions(options));
-  return reportComponentsV2Panel({
-    accentColor: parseColor(report.panelColor),
-    actions: [action],
-    description: report.panelDescription,
-    fields: [report.infoMessage].filter(Boolean),
-    footer: { text: report.footerText ?? "© NexTech Systems" },
-    image: report.imageUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: report.imageUrl } : null,
-    moduleId: "iab-panel",
-    title: replaceSystemEmojis(`${report.panelEmoji ?? systemEmojiText("alerta")} ${report.panelTitle}`.trim())
-  });
+  const action = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(PANEL_SELECT_ID)
+      .setPlaceholder(reportPanelSelectPlaceholder(report.panelPlaceholder))
+      .addOptions(options)
+  );
+  const title = replaceSystemEmojis(`${report.panelEmoji ?? systemEmojiText("alerta")} ${report.panelTitle}`.trim());
+  const components = buildPublicReportPanelComponents(settings, title, action.toJSON());
+
+  return {
+    allowedMentions: { parse: [] },
+    components: [
+      buildV2Container({
+        accentColor: parseColor(report.panelColor),
+        components,
+        footer: { text: report.footerText ?? "© NexTech Systems" }
+      })
+    ],
+    flags: MessageFlags.IsComponentsV2
+  };
+}
+
+function buildPublicReportPanelComponents(settings: GuildSettings, title: string, action: unknown) {
+  const report = settings.reportSystem;
+  const components: unknown[] = [];
+  const lead = firstReportPanelLine(report.panelDescription) || "Sistema institucional de denuncias sigilosas.";
+  const description = cleanReportPanelText(report.panelDescription) || "Selecione o orgao competente para abrir uma denuncia com seguranca.";
+  const info = cleanReportPanelText(report.infoMessage) || "As denuncias serao analisadas exclusivamente pela equipe autorizada.";
+  const imageUrl = resolvePanelImageUrl(report.imageUrl);
+
+  if (imageUrl) components.push({ type: 12, items: [{ media: { url: imageUrl }, description: title }] });
+  components.push({ type: 10, content: reportPanelHero(title, lead) });
+  components.push(reportPanelSeparator(2));
+  components.push({ type: 10, content: reportPanelCard("📋", "Informacoes", description) });
+  components.push(reportPanelSeparator(1));
+  components.push({ type: 10, content: reportPanelSteps() });
+  components.push(reportPanelSeparator(1));
+  components.push({ type: 10, content: reportModeCard(report.allowAnonymousReports) });
+  components.push(reportPanelSeparator(1));
+  components.push({ type: 10, content: reportPanelCard("🔒", "Sigilo Institucional", info, "VERIFICADO") });
+  components.push(reportPanelSeparator(2));
+  components.push({ type: 10, content: reportOpenCard(report.categories.filter((item) => item.enabled).length) });
+  components.push(action);
+  return components;
+}
+
+function firstReportPanelLine(value: string | null | undefined) {
+  return (value ?? "").split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? "";
+}
+
+function cleanReportPanelText(value: string | null | undefined) {
+  const lines = (value ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (!lines.length) return "";
+  return lines.join("\n").slice(0, 1200);
+}
+
+function reportPanelHero(title: string, lead: string) {
+  return [
+    `# ${title}`,
+    `-# ${lead}`,
+    "",
+    "**CONFIDENCIAL** • Sistema institucional • Auditoria autorizada"
+  ].join("\n").slice(0, 4000);
+}
+
+function reportPanelCard(icon: string, title: string, text: string, badge?: string) {
+  return [
+    `## ${icon} ${title}${badge ? `  \`${badge}\`` : ""}`,
+    "",
+    text
+  ].join("\n").slice(0, 4000);
+}
+
+function reportPanelSteps() {
+  return [
+    "## 📘 Como funciona",
+    "",
+    "`01` 🏛️ Escolha o orgao responsavel.",
+    "`02` 👤 Defina se a denuncia sera identificada ou anonima.",
+    "`03` 📎 Envie resumo, denunciado, descricao e provas.",
+    "`04` 📋 Revise as informacoes no canal privado.",
+    "`05` ✅ Confirme o envio quando estiver pronto.",
+    "`06` 🛡️ Aguarde a analise da equipe autorizada."
+  ].join("\n");
+}
+
+function reportModeCard(anonymousEnabled: boolean) {
+  return [
+    "## 🌐 Modo de abertura",
+    "",
+    "✅ **Identificada**",
+    "Sua identidade fica visivel para a equipe responsavel pelo atendimento.",
+    "",
+    anonymousEnabled
+      ? "👤 **Anonima**\nSua identidade permanece oculta durante a analise operacional."
+      : "👤 **Anonima indisponivel**\nEste servidor aceita apenas denuncias identificadas no momento."
+  ].join("\n").slice(0, 4000);
+}
+
+function reportOpenCard(optionCount: number) {
+  return [
+    "## 📂 Abrir denuncia",
+    "",
+    `🏛️ Selecione o orgao responsavel no menu abaixo. ${optionCount} opcao(oes) disponivel(is).`
+  ].join("\n");
+}
+
+function reportPanelSelectPlaceholder(value: string) {
+  const text = value.trim() || "Selecione o orgao responsavel";
+  return `🏛️ ${text}`.slice(0, 150);
+}
+
+function reportPanelSeparator(spacing: 1 | 2 = 1) {
+  return { type: 14, divider: true, spacing };
 }
 
 function canManageReportSystem(member: GuildMember, report: ReportSystemSettings) {
@@ -1922,5 +2025,5 @@ function slug(value: string) {
 
 function parseColor(value: string | null | undefined) {
   const parsed = Number.parseInt(value?.replace("#", "") ?? "", 16);
-  return Number.isFinite(parsed) ? parsed : 0xdc2626;
+  return Number.isFinite(parsed) ? parsed : 0xf8c537;
 }

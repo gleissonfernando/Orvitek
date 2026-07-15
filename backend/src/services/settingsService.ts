@@ -1182,7 +1182,7 @@ function defaultReportSystemSettings(): ReportSystemSettingsDto {
     name: "IAB",
     openMessage: "Sua denúncia foi aberta. Envie as informações, provas e aguarde a equipe autorizada.",
     panelChannelId: null,
-    panelColor: "#dc2626",
+    panelColor: "#F8C537",
     panelDescription: "Selecione o órgão competente para abrir uma denúncia ou intimação com segurança. Denúncias anônimas preservam a identidade no canal operacional; logs autorizados mantêm auditoria real.",
     panelEmoji: fixedSystemEmojiText("alerta"),
     panelPlaceholder: "Selecione o órgão competente",
