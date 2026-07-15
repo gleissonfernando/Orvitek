@@ -7,7 +7,6 @@ import {
   GuildScheduledEventEntityType,
   GuildScheduledEventPrivacyLevel,
   GuildScheduledEventStatus,
-  LabelBuilder,
   MessageFlags,
   ModalBuilder,
   OverwriteType,
@@ -660,10 +659,6 @@ async function showPublicationModal(interaction: StringSelectMenuInteraction, co
     await interaction.reply(ephemeralText("Nenhuma DP ativa cadastrada. Cadastre uma DP na configuração de cursos antes de agendar."));
     return;
   }
-  if (departments.length > 25) {
-    await interaction.reply(ephemeralText("Existem mais de 25 DPs ativas. O select do Discord em modal suporta no máximo 25 opções; desative ou remova DPs antigas antes de agendar."));
-    return;
-  }
   await showModalAndResetSelect(interaction, publicationModal(course, departments, mode));
 }
 
@@ -685,22 +680,25 @@ async function publishCourse(interaction: ModalSubmitInteraction, context: BotCo
   }
   const date = interaction.fields.getTextInputValue("date").trim();
   const time = interaction.fields.getTextInputValue("time").trim();
+  const departmentInput = modalTextValue(interaction, "department").trim();
   const departmentId = selectedModalStringValue(interaction, IDS.publicationDepartmentSelect);
   const capacity = Number(interaction.fields.getTextInputValue("capacity").trim());
   if (!Number.isInteger(capacity) || capacity < 1 || capacity > 1000000) {
     await interaction.editReply("Informe uma quantidade de vagas válida.");
     return;
   }
-  if (!date || !time || !departmentId) {
+  if (!date || !time || (!departmentId && !departmentInput)) {
     await interaction.editReply("Informe data, horário e DP do curso.");
     return;
   }
-  const department = (await context.api.listCourseDepartments(interaction.guildId!, true).catch((error) => {
+  const activeDepartments = await context.api.listCourseDepartments(interaction.guildId!, true).catch((error) => {
     console.error(`[courses] failed to validate selected DP guild=${interaction.guildId} user=${interaction.user.id} dpId=${departmentId}:`, error instanceof Error ? error.stack ?? error.message : error);
     return [];
-  })).find((item) => item.id === departmentId);
+  });
+  const department = resolveCourseDepartment(activeDepartments, departmentId, departmentInput);
   if (!department) {
-    await interaction.editReply("A DP selecionada não existe mais, está desativada ou pertence a outro servidor. Abra o modal novamente e selecione uma DP ativa.");
+    const available = activeDepartments.map((item) => item.name).slice(0, 10).join(", ") || "nenhuma";
+    await interaction.editReply(`A DP informada não existe mais, está desativada ou pertence a outro servidor. DPs ativas: ${available}.`);
     return;
   }
   const scheduleWindow = parseCourseScheduleWindow(date, time);
@@ -3454,30 +3452,16 @@ async function persistFinishedExamChannelState(channel: TextChannel, studentId: 
 }
 
 function publicationModal(course: Course, departments: CourseDepartment[], mode: "publicacao" | "agendamento" = "publicacao") {
+  const defaultDepartment = departments.find((department) => course.location && department.name.localeCompare(course.location, "pt-BR", { sensitivity: "accent" }) === 0) ?? departments[0];
   return new ModalBuilder()
     .setCustomId(`course_publish_modal:${course.id}`)
     .setTitle(mode === "agendamento" ? "Agendar Curso" : "Publicar Curso")
-    .addLabelComponents(
-      inputLabel("date", "Data do curso (DD/MM)", TextInputStyle.Short, true, 5),
-      inputLabel("time", "Início (HH:mm)", TextInputStyle.Short, true, 40),
-      new LabelBuilder()
-        .setLabel("DP")
-        .setDescription("Selecione a DP onde o curso será realizado")
-        .setStringSelectMenuComponent(
-          new StringSelectMenuBuilder()
-            .setCustomId(IDS.publicationDepartmentSelect)
-            .setPlaceholder("Selecione uma DP")
-            .setMinValues(1)
-            .setMaxValues(1)
-            .addOptions(departments.map((department) => ({
-              default: Boolean(course.location && department.name.localeCompare(course.location, "pt-BR", { sensitivity: "accent" }) === 0),
-              description: "DP ativa cadastrada para cursos",
-              label: department.name.slice(0, 100),
-              value: department.id
-            })))
-        ),
-      inputLabel("capacity", "Quantidade de pessoas/vagas", TextInputStyle.Short, true, 10, String(course.maxStudents ?? 30)),
-      inputLabel("notes", "Observações", TextInputStyle.Paragraph, false, 900)
+    .addComponents(
+      inputRow("date", "Data do curso (DD/MM)", TextInputStyle.Short, true, 5),
+      inputRow("time", "Horário (HH:mm)", TextInputStyle.Short, true, 5),
+      inputRow("department", "Local/DP", TextInputStyle.Short, true, 100, (defaultDepartment?.name ?? course.location ?? "").slice(0, 100)),
+      inputRow("capacity", "Quantidade de pessoas/vagas", TextInputStyle.Short, true, 10, String(course.maxStudents ?? 30)),
+      inputRow("notes", "Observações", TextInputStyle.Paragraph, false, 900)
     );
 }
 
@@ -3500,12 +3484,6 @@ function inputRow(customId: string, label: string, style: TextInputStyle, requir
   return new ActionRowBuilder<TextInputBuilder>().addComponents(input);
 }
 
-function inputLabel(customId: string, label: string, style: TextInputStyle, required: boolean, maxLength: number, value?: string) {
-  const input = new TextInputBuilder().setCustomId(customId).setStyle(style).setRequired(required).setMaxLength(maxLength);
-  if (value) input.setValue(value);
-  return new LabelBuilder().setLabel(label).setTextInputComponent(input);
-}
-
 function selectedModalStringValue(interaction: ModalSubmitInteraction, customId: string) {
   try {
     const values = interaction.fields.getStringSelectValues(customId);
@@ -3513,6 +3491,33 @@ function selectedModalStringValue(interaction: ModalSubmitInteraction, customId:
   } catch {
     return null;
   }
+}
+
+function modalTextValue(interaction: ModalSubmitInteraction, customId: string) {
+  try {
+    return interaction.fields.getTextInputValue(customId);
+  } catch {
+    return "";
+  }
+}
+
+function resolveCourseDepartment(departments: CourseDepartment[], departmentId: string | null, departmentInput: string) {
+  if (departmentId) {
+    const selected = departments.find((department) => department.id === departmentId);
+    if (selected) return selected;
+  }
+  const normalizedInput = normalizeCourseDepartmentChoice(departmentInput);
+  if (!normalizedInput) return null;
+  return departments.find((department) => normalizeCourseDepartmentChoice(department.name) === normalizedInput) ?? null;
+}
+
+function normalizeCourseDepartmentChoice(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
 function courseDepartmentApiErrorMessage(error: unknown) {
