@@ -1173,7 +1173,7 @@ function normalizeQuestion(question: SaveCourseExamQuestionPayload) {
     return { ...option, id, order: index, value: option.value || id, score: Math.max(0, parseDecimalNumber(option.score, 0)) };
   });
   const correctAlternativeIds = question.type === "multiple"
-    ? alternatives.filter((option) => option.isCorrect || Number(option.score ?? 0) > 0 || question.correctAlternativeIds?.includes(option.id)).map((option) => option.id)
+    ? alternatives.filter((option) => option.isCorrect === true).map((option) => option.id)
     : [];
   return {
     ...question,
@@ -1182,7 +1182,7 @@ function normalizeQuestion(question: SaveCourseExamQuestionPayload) {
     points: Math.max(0, parseDecimalNumber(question.points, MAX_QUESTION_SCORE)),
     type: question.type,
     alternatives,
-    correctAlternativeId: question.type === "written" ? null : question.type === "multiple" ? null : question.correctAlternativeId ?? alternatives.find((option) => option.isCorrect)?.id ?? null,
+    correctAlternativeId: question.type === "written" ? null : question.type === "multiple" ? null : alternatives.find((option) => option.isCorrect === true)?.id ?? null,
     correctAlternativeIds,
     correctText: question.type === "written" ? question.correctText?.trim() || null : null
   } satisfies SaveCourseExamQuestionPayload;
@@ -1244,7 +1244,7 @@ function toggleCorrectAlternative(question: SaveCourseExamQuestionPayload, optio
 }
 
 function isDraftCorrectAlternative(question: SaveCourseExamQuestionPayload, optionId: string, option: NonNullable<SaveCourseExamQuestionPayload["alternatives"]>[number]) {
-  return question.correctAlternativeIds?.includes(optionId) || question.correctAlternativeId === optionId || option.isCorrect === true || parseDecimalNumber(option.score, 0) > 0;
+  return question.correctAlternativeIds?.includes(optionId) || question.correctAlternativeId === optionId || option.isCorrect === true;
 }
 
 function addQuestionAlternative(question: SaveCourseExamQuestionPayload) {
@@ -1275,7 +1275,9 @@ function hasCorrectAlternative(question: CourseExamQuestion) {
 
 function isCorrectAlternative(question: CourseExamQuestion, optionId: string) {
   const option = question.alternatives.find((item) => item.id === optionId);
-  return question.correctAlternativeIds?.includes(optionId) || question.correctAlternativeId === optionId || option?.isCorrect === true || Number(option?.score ?? 0) > 0;
+  const hasExplicitFlags = question.alternatives.some((item) => typeof item.isCorrect === "boolean");
+  if (hasExplicitFlags) return option?.isCorrect === true;
+  return question.correctAlternativeIds?.includes(optionId) || question.correctAlternativeId === optionId;
 }
 
 function questionMaxScore(question: CourseExamQuestion) {

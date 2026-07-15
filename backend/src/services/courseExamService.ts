@@ -473,18 +473,49 @@ export async function finalizeCourseExamAttempt(botId: string | null, guildId: s
     await logCourseAction(botId, guildId, "course.exam_finalize_blocked", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, answered: answers.length, missingQuestionIds, reason: "pending_answers" });
     return null;
   }
+  const questionById = new Map(relevantQuestions.map((question) => [question._id, question]));
+  const scoredAnswers = answers.map((answer) => {
+    const question = questionById.get(answer.questionId);
+    return question ? { ...answer, ...recalculateAnswerScore(question, answer) } : answer;
+  });
+  const scoreCorrections = scoredAnswers
+    .filter((answer, index) => answer.pointsEarned !== answers[index]?.pointsEarned || answer.correct !== answers[index]?.correct || answer.maxScore !== answers[index]?.maxScore)
+    .map((answer) => ({
+      updateOne: {
+        filter: { _id: answer._id, ...scope(botId, guildId), attemptId },
+        update: { $set: { correct: answer.correct, maxScore: answer.maxScore, pointsEarned: answer.pointsEarned } }
+      }
+    }));
+  if (scoreCorrections.length) {
+    await collections.courseExamAnswers.bulkWrite(scoreCorrections);
+    await logCourseAction(botId, guildId, "course.exam_answer_scores_recalculated", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, correctedAnswers: scoreCorrections.length });
+  }
   const maxScore = EXAM_TOTAL_SCORE;
-  const score = decimalSum(answers.map((answer) => answer.pointsEarned));
-  const objectiveCorrect = answers.filter((answer) => answer.correct === true).length;
-  const objectiveWrong = answers.filter((answer) => answer.correct === false).length;
-  const writtenCount = answers.filter((answer) => answer.type === "written").length;
-  const percent = decimalMultiplyByInteger(score, 10);
+  const score = decimalSum(scoredAnswers.map((answer) => answer.pointsEarned));
+  const objectiveCorrect = scoredAnswers.filter((answer) => answer.correct === true).length;
+  const objectiveWrong = scoredAnswers.filter((answer) => answer.correct === false).length;
+  const writtenCount = scoredAnswers.filter((answer) => answer.type === "written").length;
+  const hasAnyScoredAnswer = scoredAnswers.some((answer) => answer.pointsEarned > 0);
+  if (!hasAnyScoredAnswer && score > 0) {
+    await logCourseAction(botId, guildId, "course.exam_score_guard_zero_correct", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, originalScore: score });
+  }
+  const guardedScore = hasAnyScoredAnswer ? score : 0;
+  const percent = decimalMultiplyByInteger(guardedScore, 10);
   const nextStatus = "awaiting_review";
   const now = new Date();
-  await logCourseAction(botId, guildId, "course.exam_score_calculated", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, maxScore, objectiveCorrect, objectiveWrong, percent, score, result: null });
+  await logCourseAction(botId, guildId, "course.exam_score_calculated", attempt.studentId, attempt.courseId, attempt.publicationId, {
+    attemptId,
+    detail: scoredAnswers.map((answer) => ({ correct: answer.correct, pointsEarned: answer.pointsEarned, questionId: answer.questionId, selectedAlternativeId: answer.selectedAlternativeId, selectedAlternativeIds: answer.selectedAlternativeIds ?? [] })),
+    maxScore,
+    objectiveCorrect,
+    objectiveWrong,
+    percent,
+    score: guardedScore,
+    result: null
+  });
   const updatedStatus = await collections.courseExamAttempts.updateOne({ _id: attemptId, ...scope(botId, guildId), status: "in_progress" }, {
     $set: {
-      automaticScore: score,
+      automaticScore: guardedScore,
       correctedAt: null,
       correctedBy: null,
       finalScore: null,
@@ -494,7 +525,7 @@ export async function finalizeCourseExamAttempt(botId: string | null, guildId: s
       objectiveWrong,
       percent,
       result: null,
-      score,
+      score: guardedScore,
       status: nextStatus,
       updatedAt: now,
       writtenCount
@@ -505,14 +536,14 @@ export async function finalizeCourseExamAttempt(botId: string | null, guildId: s
     return null;
   }
   const updated = await collections.courseExamAttempts.findOne({ _id: attemptId, ...scope(botId, guildId) });
-  await logCourseAction(botId, guildId, "course.exam_result_saved", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, maxScore, percent, result: null, score });
-  await logCourseAction(botId, guildId, "course.exam_finished", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, percent, score });
+  await logCourseAction(botId, guildId, "course.exam_result_saved", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, maxScore, percent, result: null, score: guardedScore });
+  await logCourseAction(botId, guildId, "course.exam_finished", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, percent, score: guardedScore });
   await collections.courseEnrollments.updateOne(
     { ...scope(botId, guildId), publicationId: attempt.publicationId, studentId: attempt.studentId },
-    { $set: { examStatus: "COMPLETED", attemptId, examChannelId: attempt.channelId, score, correctAnswers: objectiveCorrect, completedAt: now, result: null, updatedAt: now } }
+    { $set: { examStatus: "COMPLETED", attemptId, examChannelId: attempt.channelId, score: guardedScore, correctAnswers: objectiveCorrect, completedAt: now, result: null, updatedAt: now } }
   );
   emitRealtime("courses:publication", { botId, guildId, publicationId: attempt.publicationId });
-  return updated ? { answers: answers.map(mapAnswer), attempt: mapAttempt(updated), questions: relevantQuestions.map(mapQuestion) } : null;
+  return updated ? { answers: scoredAnswers.map(mapAnswer), attempt: mapAttempt(updated), questions: relevantQuestions.map(mapQuestion) } : null;
 }
 
 export async function reviewCourseExamAttempt(botId: string | null, guildId: string, attemptId: string, reviewerId: string, status: "approved" | "rejected", rejectionReason?: string | null, manualScoreInput?: number | null) {
@@ -775,7 +806,7 @@ function normalizeCorrectList(value: unknown): string[] {
   return [...new Set(source.flatMap((item) => {
     if (typeof item === "string") return [item.trim()];
     const option = item as { id?: unknown; isCorrect?: unknown; score?: unknown };
-    return option.isCorrect === true || parseDecimalNumber(option.score, 0) > 0 ? [String(option.id ?? "").trim()] : [];
+    return option.isCorrect === true ? [String(option.id ?? "").trim()] : [];
   }).filter(Boolean).map((item) => item.slice(0, 80)))];
 }
 
@@ -784,9 +815,11 @@ function normalizeQuestionType(value: unknown): MongoCourseExamQuestion["type"] 
 }
 
 function correctIds(question: Pick<MongoCourseExamQuestion, "alternatives" | "correctAlternativeId" | "correctAlternativeIds">) {
+  const hasExplicitFlags = question.alternatives.some((alternative) => typeof alternative.isCorrect === "boolean");
+  const fromAlternatives = question.alternatives.filter((alternative) => alternative.isCorrect === true).map((alternative) => alternative.id);
+  if (hasExplicitFlags) return [...new Set(fromAlternatives)];
   const fromList = question.correctAlternativeIds?.filter(Boolean) ?? [];
   if (fromList.length) return [...new Set(fromList)];
-  const fromAlternatives = question.alternatives.filter((alternative) => alternative.isCorrect || parseDecimalNumber(alternative.score, 0) > 0).map((alternative) => alternative.id);
   if (fromAlternatives.length) return [...new Set(fromAlternatives)];
   return question.correctAlternativeId ? [question.correctAlternativeId] : [];
 }
@@ -805,6 +838,34 @@ function calculateSelectionScore(question: MongoCourseExamQuestion, selectedAlte
   return selectedAlternativeScore(question, selectedAlternative);
 }
 
+function recalculateAnswerScore(question: MongoCourseExamQuestion, answer: MongoCourseExamAnswer) {
+  if (question.type === "selection") {
+    const selectedAlternative = question.alternatives.find((alternative) => alternative.id === answer.selectedAlternativeId);
+    const correct = Boolean(selectedAlternative && isExpectedAlternative(question, selectedAlternative));
+    return {
+      correct,
+      maxScore: questionMaxScore(question),
+      pointsEarned: calculateSelectionScore(question, selectedAlternative)
+    };
+  }
+  if (question.type === "multiple") {
+    const selectedAlternativeIds = answer.selectedAlternativeIds ?? [];
+    return {
+      correct: sameSet(selectedAlternativeIds, correctIds(question)),
+      maxScore: questionMaxScore(question),
+      pointsEarned: calculateMultipleChoiceScore(question, selectedAlternativeIds)
+    };
+  }
+  const correct = question.correctText
+    ? normalizeWrittenAnswerForCompare(answer.writtenAnswer ?? "") === normalizeWrittenAnswerForCompare(question.correctText)
+    : answer.correct;
+  return {
+    correct,
+    maxScore: questionMaxScore(question),
+    pointsEarned: correct === true ? normalizeQuestionPoints(question.points) : 0
+  };
+}
+
 function questionMaxScore(question: MongoCourseExamQuestion) {
   if (question.type === "written") return normalizeQuestionPoints(question.points);
   const expectedIds = correctIds(question);
@@ -817,6 +878,7 @@ function questionMaxScore(question: MongoCourseExamQuestion) {
 function selectedAlternativeScore(question: MongoCourseExamQuestion, alternative: MongoCourseExamQuestion["alternatives"][number] | undefined) {
   if (!alternative) return 0;
   const score = parseDecimalNumber(alternative.score, 0);
+  // Objective questions score from the selected correct alternatives only; question.points is not a fallback for alternatives.
   if (isExpectedAlternative(question, alternative)) return Math.max(0, score);
   return 0;
 }
@@ -831,10 +893,7 @@ function normalizeQuestionPoints(value: unknown) {
 }
 
 function isExpectedAlternative(question: Pick<MongoCourseExamQuestion, "alternatives" | "correctAlternativeId" | "correctAlternativeIds">, alternative: MongoCourseExamQuestion["alternatives"][number]) {
-  return alternative.isCorrect === true
-    || parseDecimalNumber(alternative.score, 0) > 0
-    || alternative.id === question.correctAlternativeId
-    || question.correctAlternativeIds?.includes(alternative.id);
+  return correctIds(question).includes(alternative.id);
 }
 
 function parseDecimalNumber(value: unknown, fallback: number) {
