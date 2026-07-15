@@ -1198,6 +1198,9 @@ function validateQuestionPayload(question: SaveCourseExamQuestionPayload) {
     if (alternatives.length > MAX_EXAM_ALTERNATIVES) return `A pergunta pode ter no máximo ${MAX_EXAM_ALTERNATIVES} alternativas.`;
     const longAlternative = alternatives.find((option) => option.text.length > 500);
     if (longAlternative) return `A alternativa ${longAlternative.id ?? ""} pode ter no máximo 500 caracteres.`.trim();
+    const maxScore = Math.max(0, parseDecimalNumber(question.points, MAX_QUESTION_SCORE));
+    const correctScore = decimalSum(alternatives.filter((option) => isDraftCorrectAlternative(question, option.id, option)).map((option) => parseDecimalNumber(option.score, 0)));
+    if (correctScore > maxScore + 1e-9) return "A soma das alternativas corretas excede o valor permitido para esta questão.";
   }
   return "";
 }
@@ -1281,14 +1284,10 @@ function isCorrectAlternative(question: CourseExamQuestion, optionId: string) {
 }
 
 function questionMaxScore(question: CourseExamQuestion) {
-  if (question.type === "written") return Math.max(0, parseDecimalNumber(question.points, 0));
-  const correctOptions = question.alternatives.filter((option) => isCorrectAlternative(question, option.id));
-  if (!correctOptions.length) return Math.max(0, parseDecimalNumber(question.points, 0));
-  if (question.type === "selection") return correctOptions.map((option) => alternativeScoreValue(question, option)).reduce((highest, score) => score > highest ? score : highest, 0);
-  return decimalSum(correctOptions.map((option) => alternativeScoreValue(question, option)));
+  return Math.max(0, parseDecimalNumber(question.points, 0));
 }
 
-function alternativeScoreValue(question: CourseExamQuestion, option: CourseExamQuestion["alternatives"][number], fallback = Number(question.points) || 0) {
+function alternativeScoreValue(_question: CourseExamQuestion, option: CourseExamQuestion["alternatives"][number], fallback = 0) {
   return Math.max(0, parseDecimalNumber(option.score, fallback));
 }
 

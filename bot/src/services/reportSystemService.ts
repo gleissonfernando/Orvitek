@@ -334,7 +334,7 @@ async function handlePublicReportButton(interaction: ButtonInteraction, context:
       await interaction.reply({ ...anonymousDisabledPayload(category.id), flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
       return;
     }
-    await interaction.showModal(createPublicReportModal(category.id, mode, category.name));
+    await openReportFromPanel(interaction, context, category.id, mode);
     return;
   }
 
@@ -344,7 +344,7 @@ async function handlePublicReportButton(interaction: ButtonInteraction, context:
     const settings = await getFreshGuildSettings(context, interaction.guildId!, interaction.client.user?.id);
     const category = settings.reportSystem.categories.find((item) => item.enabled && item.id === categoryId);
     if (!category) return safeReply(interaction, "Opcao de denuncia invalida.");
-    await interaction.showModal(createPublicReportModal(category.id, mode === "anonymous" ? "anonymous" : "identified", category.name));
+    await openReportFromPanel(interaction, context, category.id, mode === "anonymous" ? "anonymous" : "identified");
     return;
   }
 
@@ -404,7 +404,7 @@ async function openReportFromPanel(interaction: StringSelectMenuInteraction | Bu
     status: mode === "anonymous" ? "PENDING" : "OPEN",
     subject: `${mode === "anonymous" ? "Denuncia anonima" : "Denuncia identificada"} - ${category.name}`
   });
-  const topic = makeTopic({
+  const topic: ReportTopic = {
     categoryId: category.id,
     categoryName: category.name,
     channelId: channel.id,
@@ -413,18 +413,28 @@ async function openReportFromPanel(interaction: StringSelectMenuInteraction | Bu
     openerId: interaction.user.id,
     status: mode === "anonymous" ? "preparing" : "open",
     ticketId: ticket.ticket.id
+  };
+  await channel.setTopic(makeTopic(topic)).catch(() => null);
+
+  await sendReportOpeningInstructions(channel, settings, topic, interaction.guild);
+  await sendReportLog(interaction.guild!, settings, {
+    categoryName: category.name,
+    channelId: channel.id,
+    competence: reportCompetence(category.id, category.name),
+    mode,
+    openerId: interaction.user.id,
+    summary: category.name
   });
-  await channel.setTopic(topic).catch(() => null);
 
   if (mode === "anonymous") {
-    await sendReportControlPanel(channel, context, settings, ticket.ticket, topicFromString(topic)!, "Preparacao", interaction.guild);
-    await logIabEvent(context, interaction.guild!, settings, topicFromString(topic)!, "Criado", `Denuncia anonima criada em preparacao por ${interaction.user.tag}.`, interaction.user.id);
+    await sendReportControlPanel(channel, context, settings, ticket.ticket, topic, "Preparacao", interaction.guild);
+    await logIabEvent(context, interaction.guild!, settings, topic, "Criado", `Denuncia anonima criada em preparacao por ${interaction.user.tag}.`, interaction.user.id);
     await interaction.editReply(`Canal privado criado para preparar sua denuncia: <#${channel.id}>`);
     return;
   }
 
-  await sendReportControlPanel(channel, context, settings, ticket.ticket, topicFromString(topic)!, "Aberto", interaction.guild);
-  await logIabEvent(context, interaction.guild!, settings, topicFromString(topic)!, "Criado", `Denuncia identificada criada por ${interaction.user.tag}.`, interaction.user.id);
+  await sendReportControlPanel(channel, context, settings, ticket.ticket, topic, "Aberto", interaction.guild);
+  await logIabEvent(context, interaction.guild!, settings, topic, "Criado", `Denuncia identificada criada por ${interaction.user.tag}.`, interaction.user.id);
   await interaction.editReply(`Denuncia identificada aberta: <#${channel.id}>`);
 }
 
@@ -1354,6 +1364,32 @@ async function createReportChannel(guild: Guild, settings: GuildSettings, input:
     reason: `Denuncia ${input.mode} aberta por ${input.openerId}: ${input.summary}`,
     type: ChannelType.GuildText
   });
+}
+
+async function sendReportOpeningInstructions(channel: TextChannel, settings: GuildSettings, topic: ReportTopic, guild: Guild | null = null) {
+  await channel.send(reportComponentsV2Panel({
+    accentColor: parseColor(topic.mode === "anonymous" ? settings.reportSystem.anonymousEmbedColor : settings.reportSystem.panelColor),
+    actions: [],
+    description: [
+      "Utilize este canal para registrar todas as informacoes referentes a denuncia.",
+      "",
+      "Envie:",
+      "",
+      "- Resumo",
+      "- Denunciado",
+      "- Descricao detalhada",
+      "- Provas (imagens, videos ou links)",
+      "",
+      "Apos enviar todas as informacoes, aguarde um responsavel assumir o atendimento."
+    ].join("\n"),
+    fields: [
+      `**Orgao:** ${topic.categoryName}\n**Modo:** ${topic.mode === "anonymous" ? "Anonima" : "Identificada"}\n**Denunciante:** ${topic.mode === "anonymous" ? settings.reportSystem.anonymousReporterName : `<@${topic.openerId}>`}`
+    ],
+    guild,
+    image: settings.reportSystem.thumbnailUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: settings.reportSystem.thumbnailUrl } : null,
+    moduleId: "iab-report-opened",
+    title: `${settings.reportSystem.panelEmoji ?? systemEmojiText("alerta", guild)} Nova denuncia`
+  })).catch(() => null);
 }
 
 function createOpenedReportPayload(settings: GuildSettings, input: { categoryName: string; description: string; evidence: string; mode: "anonymous" | "identified"; openerId: string; reported: string; summary: string }): MessageCreateOptions {

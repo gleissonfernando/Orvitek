@@ -3433,7 +3433,7 @@ async function showExamResultAnswers(interaction: ButtonInteraction, context: Bo
   }
   const course = await context.api.getCourse(interaction.guildId!, bundle.attempt.courseId);
   const answerByQuestion = new Map(bundle.answers.map((answer) => [answer.questionId, answer]));
-  const fields = bundle.questions.map((question, index) => formatAnswerSummary(question, answerByQuestion.get(question.id), index + 1));
+  const fields = bundle.questions.map((question, index) => formatAnswerSummary(question, answerByQuestion.get(question.id), index + 1, accumulatedExamScore(bundle.questions, answerByQuestion, index)));
   await replyWithResultChunks(interaction, course, "Respostas da Prova", `Tentativa: ${bundle.attempt.id}\nAluno: <@${bundle.attempt.studentId}>`, fields);
 }
 
@@ -3503,7 +3503,10 @@ async function replyWithResultChunks(interaction: ButtonInteraction, course: Cou
 async function sendExamQuestionContinuationMessages(channel: TextChannel, interaction: CourseGuildContext, course: Course, attempt: CourseExamAttempt, questions: CourseExamQuestion[], answers: CourseExamAnswer[], title: string, startIndex: number) {
   if (questions.length <= startIndex) return;
   const answerByQuestion = new Map(answers.map((answer) => [answer.questionId, answer]));
-  const fields = questions.slice(startIndex).map((question, itemIndex) => formatAnswerSummary(question, answerByQuestion.get(question.id), startIndex + itemIndex + 1));
+  const fields = questions.slice(startIndex).map((question, itemIndex) => {
+    const questionIndex = startIndex + itemIndex;
+    return formatAnswerSummary(question, answerByQuestion.get(question.id), questionIndex + 1, accumulatedExamScore(questions, answerByQuestion, questionIndex));
+  });
   const description = `Tentativa: ${attempt.id}\nAluno: <@${attempt.studentId}>`;
   const chunks = chunkDisplayFields(fields, title, description);
   for (let index = 0; index < chunks.length; index += 1) {
@@ -3857,7 +3860,7 @@ function displayTextLength(value: string) {
   return [...String(value ?? "")].length;
 }
 
-function formatAnswerSummary(question: CourseExamQuestion, answer: CourseExamAnswer | undefined, index: number) {
+function formatAnswerSummary(question: CourseExamQuestion, answer: CourseExamAnswer | undefined, index: number, accumulatedScore?: number) {
   if (!answer) {
     return [
       `QUESTÃO ${String(index).padStart(2, "0")}`,
@@ -3879,15 +3882,16 @@ function formatAnswerSummary(question: CourseExamQuestion, answer: CourseExamAns
       `Resposta do aluno: ${answer?.writtenAnswer ? answer.writtenAnswer.slice(0, 900) : "Sem resposta salva."}`,
       `Resposta correta: ${question.correctText || "não configurada"}`,
       `Status: ${status}`,
-      `Pontuação obtida: ${formatScore(pointsEarned)} de ${formatScore(maxScore)}`
+      `Pontuação obtida: ${formatScore(pointsEarned)} de ${formatScore(maxScore)}`,
+      accumulatedScore !== undefined ? `Total acumulado: ${formatScore(accumulatedScore)} de ${formatScore(EXAM_TOTAL_SCORE)}` : null
     ].join("\n").slice(0, 1900);
   }
   const alternatives = answer?.alternativesSnapshot?.length ? answer.alternativesSnapshot : question.alternatives;
   const selectedIds = answer?.selectedAlternativeIds?.length ? answer.selectedAlternativeIds : answer?.selectedAlternativeId ? [answer.selectedAlternativeId] : [];
   const expectedIds = question.correctAlternativeIds?.length ? question.correctAlternativeIds : question.alternatives.filter((alternative) => isExpectedAlternative(question, alternative)).map((alternative) => alternative.id);
   const selectedTexts = alternatives.filter((alternative) => selectedIds.includes(alternative.id)).map((alternative) => alternative.text);
-  const expectedTexts = alternatives.filter((alternative) => expectedIds.includes(alternative.id)).map((alternative) => alternative.text);
-  const status = answer?.correct ? "✅ Correta" : pointsEarned > 0 && pointsEarned < maxScore ? "🟡 Parcialmente correta" : "❌ Incorreta";
+  const expectedTexts = alternatives.filter((alternative) => expectedIds.includes(alternative.id)).map((alternative) => `${alternative.id} (${formatScore(alternativeScoreValue(question, alternative))}) ${alternative.text}`);
+  const status = answer?.correct || (maxScore > 0 && pointsEarned >= maxScore) ? "✅ Correta" : pointsEarned > 0 && pointsEarned < maxScore ? "🟡 Parcialmente correta" : "❌ Incorreta";
   return [
     `QUESTÃO ${String(index).padStart(2, "0")}`,
     questionScoreLine(question),
@@ -3896,7 +3900,8 @@ function formatAnswerSummary(question: CourseExamQuestion, answer: CourseExamAns
     `Resposta do aluno: ${selectedTexts.length ? selectedTexts.join(" | ") : "Sem resposta salva."}`,
     `Resposta correta: ${expectedTexts.length ? expectedTexts.join(" | ") : expectedIds.length ? expectedIds.join(", ") : "não configurada"}`,
     `Status: ${status}`,
-    `Pontuação obtida: ${formatScore(pointsEarned)} de ${formatScore(maxScore)}`
+    `Pontuação obtida: ${formatScore(pointsEarned)} de ${formatScore(maxScore)}`,
+    accumulatedScore !== undefined ? `Total acumulado: ${formatScore(accumulatedScore)} de ${formatScore(EXAM_TOTAL_SCORE)}` : null
   ].join("\n").slice(0, 1900);
 }
 
@@ -3905,16 +3910,16 @@ function questionScoreLine(question: CourseExamQuestion) {
 }
 
 function questionMaxScore(question: CourseExamQuestion) {
-  if (question.type === "written") return Math.max(0, Number(question.points) || 0);
-  const expected = question.alternatives.filter((alternative) => isExpectedAlternative(question, alternative));
-  if (!expected.length) return Math.max(0, Number(question.points) || 0);
-  if (question.type === "selection") return expected.map((alternative) => alternativeScoreValue(question, alternative)).reduce((highest, score) => score > highest ? score : highest, 0);
-  return decimalSum(expected.map((alternative) => alternativeScoreValue(question, alternative)));
+  return Math.max(0, Number(question.points) || 0);
 }
 
-function alternativeScoreValue(question: CourseExamQuestion, alternative: CourseExamQuestion["alternatives"][number], fallback = Number(question.points) || 0) {
+function alternativeScoreValue(_question: CourseExamQuestion, alternative: CourseExamQuestion["alternatives"][number], fallback = 0) {
   const score = Number(alternative.score ?? fallback);
   return Math.max(0, Number.isFinite(score) ? score : fallback);
+}
+
+function accumulatedExamScore(questions: CourseExamQuestion[], answerByQuestion: Map<string, CourseExamAnswer>, throughIndex: number) {
+  return Math.min(EXAM_TOTAL_SCORE, decimalSum(questions.slice(0, throughIndex + 1).map((question) => answerByQuestion.get(question.id)?.pointsEarned ?? 0)));
 }
 
 function decimalSum(values: unknown[]) {

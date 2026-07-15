@@ -6191,6 +6191,7 @@ function PoliceIabPanel({
   const channels = options.channels;
   const categories = options.categories ?? [];
   const reportCategoryOptions = draft.categories.map((category) => ({ id: category.id, name: category.name }));
+  const escalationSteps = reportEscalationSteps(draft);
   const activeForwardingRoleIds = new Set(forwardingRules.filter((rule) => rule.enabled).map((rule) => rule.denouncedRoleId));
   const missingForwardingRoles = options.roles.filter((role) => !activeForwardingRoleIds.has(role.id));
   const visibleForwardingRules = forwardingRules
@@ -6251,6 +6252,8 @@ function PoliceIabPanel({
           <TicketArea disabled={disabled} label="Descricao do painel" onChange={(value) => patch({ panelDescription: value })} value={draft.panelDescription} />
           <TicketArea disabled={disabled} label="Mensagem apos abrir denuncia" onChange={(value) => patch({ openMessage: value })} value={draft.openMessage} />
 
+          <ReportEscalationStepper steps={escalationSteps} />
+
           <div className="grid gap-3 md:grid-cols-2">
             <FivemChannelSelect channels={channels} disabled={disabled} label="Canal do painel" onChange={(value) => patch({ panelChannelId: value })} placeholder="Selecionar canal" value={draft.panelChannelId} />
             <FivemResourceSelect disabled={disabled} label="Categoria temporaria dos tickets" onChange={(value) => patch({ categoryId: value })} options={categories.map((category) => ({ id: category.id, name: category.name }))} placeholder="Selecionar categoria" prefix="📁" value={draft.categoryId} />
@@ -6269,8 +6272,8 @@ function PoliceIabPanel({
 
           <div className="rounded-lg border border-red-500/10 bg-black/30 p-4">
             <div className="mb-4">
-              <h3 className="text-sm font-semibold text-white">Sistema de Competência das Intimações e Denúncias</h3>
-              <p className="mt-1 text-xs text-zinc-500">Configura os órgãos que podem abrir, visualizar e atuar em cada intimação. Oficiais vão para IAB; IAB vai para Conselho; Conselho vai para High Command; High Command vai para Alto Comando.</p>
+              <h3 className="text-sm font-semibold text-white">Cadeia de Escalonamento</h3>
+              <p className="mt-1 text-xs text-zinc-500">Oficiais vao para IAB; IAB vai para Conselho; Conselho vai para High Command; High Command vai para Alto Comando.</p>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <MultiRoleSelect disabled={disabled} label="Quem pode usar /intimacao" onChange={(values) => patch({ competenceCommandRoleIds: values })} roles={options.roles} values={draft.competenceCommandRoleIds} />
@@ -6280,10 +6283,10 @@ function PoliceIabPanel({
               <TicketArea disabled={disabled} label="Texto padrão da DM" onChange={(value) => patch({ subpoenaDmText: value })} value={draft.subpoenaDmText} />
             </div>
             <div className="mt-4 grid gap-3 lg:grid-cols-2">
-              <CompetenceConfig channels={channels} destinations={channelAndCategoryOptions} disabled={disabled} label="IAB" logChannelId={draft.iabLogChannelId} categoryId={draft.iabCategoryId} onCategory={(iabCategoryId) => patch({ iabCategoryId })} onLog={(iabLogChannelId) => patch({ iabLogChannelId })} onRoles={(iabRoleIds) => patch({ iabRoleIds })} roles={options.roles} roleIds={draft.iabRoleIds} />
-              <CompetenceConfig channels={channels} destinations={channelAndCategoryOptions} disabled={disabled} label="Conselho" logChannelId={draft.conselhoLogChannelId} categoryId={draft.conselhoCategoryId} onCategory={(conselhoCategoryId) => patch({ conselhoCategoryId })} onLog={(conselhoLogChannelId) => patch({ conselhoLogChannelId })} onRoles={(conselhoRoleIds) => patch({ conselhoRoleIds })} roles={options.roles} roleIds={draft.conselhoRoleIds} />
-              <CompetenceConfig channels={channels} destinations={channelAndCategoryOptions} disabled={disabled} label="High Command / HCMD" logChannelId={draft.hcmdLogChannelId} categoryId={draft.hcmdCategoryId} onCategory={(hcmdCategoryId) => patch({ hcmdCategoryId })} onLog={(hcmdLogChannelId) => patch({ hcmdLogChannelId })} onRoles={(hcmdRoleIds) => patch({ hcmdRoleIds })} roles={options.roles} roleIds={draft.hcmdRoleIds} />
-              <CompetenceConfig channels={channels} destinations={channelAndCategoryOptions} disabled={disabled} label="Alto Comando" logChannelId={draft.comissarioLogChannelId} categoryId={draft.comissarioCategoryId} onCategory={(comissarioCategoryId) => patch({ comissarioCategoryId })} onLog={(comissarioLogChannelId) => patch({ comissarioLogChannelId })} onRoles={(comissarioRoleIds) => patch({ comissarioRoleIds })} roles={options.roles} roleIds={draft.comissarioRoleIds} />
+              <CompetenceConfig channels={channels} destinations={channelAndCategoryOptions} disabled={disabled} judgesLabel="julga denuncias contra: Oficiais" label="IAB" logChannelId={draft.iabLogChannelId} categoryId={draft.iabCategoryId} onCategory={(iabCategoryId) => patch({ iabCategoryId })} onLog={(iabLogChannelId) => patch({ iabLogChannelId })} onRoles={(iabRoleIds) => patch({ iabRoleIds })} roles={options.roles} roleIds={draft.iabRoleIds} stepId="escalation-iab" stepNumber={1} />
+              <CompetenceConfig channels={channels} destinations={channelAndCategoryOptions} disabled={disabled} judgesLabel="julga denuncias contra: IAB" label="Conselho" logChannelId={draft.conselhoLogChannelId} categoryId={draft.conselhoCategoryId} onCategory={(conselhoCategoryId) => patch({ conselhoCategoryId })} onLog={(conselhoLogChannelId) => patch({ conselhoLogChannelId })} onRoles={(conselhoRoleIds) => patch({ conselhoRoleIds })} roles={options.roles} roleIds={draft.conselhoRoleIds} stepId="escalation-conselho" stepNumber={2} />
+              <CompetenceConfig channels={channels} destinations={channelAndCategoryOptions} disabled={disabled} judgesLabel="julga denuncias contra: Conselho" label="High Command / HCMD" logChannelId={draft.hcmdLogChannelId} categoryId={draft.hcmdCategoryId} onCategory={(hcmdCategoryId) => patch({ hcmdCategoryId })} onLog={(hcmdLogChannelId) => patch({ hcmdLogChannelId })} onRoles={(hcmdRoleIds) => patch({ hcmdRoleIds })} roles={options.roles} roleIds={draft.hcmdRoleIds} stepId="escalation-hcmd" stepNumber={3} />
+              <CompetenceConfig channels={channels} destinations={channelAndCategoryOptions} disabled={disabled} judgesLabel="julga denuncias contra: High Command" label="Alto Comando" logChannelId={draft.comissarioLogChannelId} categoryId={draft.comissarioCategoryId} onCategory={(comissarioCategoryId) => patch({ comissarioCategoryId })} onLog={(comissarioLogChannelId) => patch({ comissarioLogChannelId })} onRoles={(comissarioRoleIds) => patch({ comissarioRoleIds })} roles={options.roles} roleIds={draft.comissarioRoleIds} stepId="escalation-comissario" stepNumber={4} />
             </div>
           </div>
 
@@ -6305,7 +6308,7 @@ function PoliceIabPanel({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <CardTitle>Encaminhamento Hierarquico</CardTitle>
-              <CardDescription>Define qual orgao recebe a denuncia conforme o cargo do denunciado.</CardDescription>
+              <CardDescription>Define qual orgao recebe a denuncia conforme o cargo do denunciado. Regra oficial: Oficial para IAB, IAB para Conselho, Conselho para Alto Comando, Alto Comando para Comissario.</CardDescription>
             </div>
             <Badge variant="muted">{forwardingRules.filter((rule) => rule.enabled).length} ativo(s)</Badge>
           </div>
@@ -6400,7 +6403,10 @@ function PoliceIabPanel({
           {draft.categories.map((category, index) => (
             <div className="grid gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-3 xl:grid-cols-[90px_1fr_1fr_1fr_120px_auto] " key={`${category.id}-${index}`}>
               <TicketField disabled={disabled} label="Emoji" onChange={(value) => patchCategory(index, { emoji: value })} value={category.emoji ?? ""} />
-              <TicketField disabled={disabled} label="Nome" onChange={(value) => patchCategory(index, { id: slugTicketOption(value, index), name: value })} value={category.name} />
+              <div className="space-y-2">
+                <TicketField disabled={disabled} label="Nome" onChange={(value) => patchCategory(index, { id: slugTicketOption(value, index), name: value })} value={category.name} />
+                <Badge variant="muted">{reportCategoryEscalationLabel(category, escalationSteps)}</Badge>
+              </div>
               <TicketField disabled={disabled} label="Descricao" onChange={(value) => patchCategory(index, { description: value })} value={category.description ?? ""} />
               <FivemResourceSelect disabled={disabled} label="Canal/categoria" onChange={(value) => patchCategory(index, { channelOrCategoryId: value })} options={channelAndCategoryOptions} placeholder="Padrao do sistema" value={category.channelOrCategoryId} />
               <TicketField disabled={disabled} label="Cor" onChange={(value) => patchCategory(index, { color: value })} type="color" value={category.color} />
@@ -6421,23 +6427,72 @@ function PoliceIabPanel({
   );
 }
 
+type ReportEscalationStep = {
+  destinationId: string | null;
+  id: string;
+  label: string;
+  target: string;
+};
+
+function reportEscalationSteps(report: GuildSettings["reportSystem"]): ReportEscalationStep[] {
+  return [
+    { destinationId: report.iabCategoryId, id: "iab", label: "I.A.B.", target: "escalation-iab" },
+    { destinationId: report.conselhoCategoryId, id: "conselho", label: "Conselho", target: "escalation-conselho" },
+    { destinationId: report.hcmdCategoryId, id: "hcmd", label: "Alto Comando", target: "escalation-hcmd" },
+    { destinationId: report.comissarioCategoryId, id: "comissario", label: "Comissario", target: "escalation-comissario" }
+  ];
+}
+
+function ReportEscalationStepper({ steps }: { steps: ReportEscalationStep[] }) {
+  return (
+    <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
+      <p className="text-sm font-semibold text-white">Fluxo de escalonamento</p>
+      <div className="mt-3 grid gap-2 md:grid-cols-5">
+        <button className="rounded-md border border-zinc-800 bg-[#09090b] px-3 py-2 text-left text-xs text-zinc-300" onClick={() => document.getElementById(steps[0]?.target ?? "")?.scrollIntoView({ behavior: "smooth", block: "center" })} type="button">
+          Oficial
+        </button>
+        {steps.map((step) => (
+          <button className="rounded-md border border-zinc-800 bg-[#09090b] px-3 py-2 text-left text-xs text-zinc-300" key={step.id} onClick={() => document.getElementById(step.target)?.scrollIntoView({ behavior: "smooth", block: "center" })} type="button">
+            {step.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function reportCategoryEscalationLabel(category: ReportSystemCategory, steps: ReportEscalationStep[]) {
+  const direct = steps.find((step) => step.destinationId && step.destinationId === category.channelOrCategoryId);
+  if (direct) return `-> ${direct.label}`;
+  const normalized = `${category.id} ${category.name}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (normalized.includes("oficial") || normalized.includes("ouvidoria") || normalized.includes("duvida") || normalized.includes("auditoria")) return "-> I.A.B.";
+  if (normalized.includes("iab")) return "-> Conselho";
+  if (normalized.includes("council") || normalized.includes("conselho")) return "-> Alto Comando";
+  if (normalized.includes("high") || normalized.includes("hcmd") || normalized.includes("alto")) return "-> Comissario";
+  return "Fluxo manual";
+}
+
 function CompetenceConfig({
   categoryId,
   channels,
   destinations,
   disabled,
+  judgesLabel,
   label,
   logChannelId,
   onCategory,
   onLog,
   onRoles,
   roles,
-  roleIds
+  roleIds,
+  stepId,
+  stepNumber
 }: {
   categoryId: string | null;
   channels: GuildLiveOptions["channels"];
   destinations: Array<{ id: string; name: string }>;
   disabled: boolean;
+  judgesLabel: string;
   label: string;
   logChannelId: string | null;
   onCategory: (value: string | null) => void;
@@ -6445,10 +6500,15 @@ function CompetenceConfig({
   onRoles: (value: string[]) => void;
   roles: GuildLiveOptions["roles"];
   roleIds: string[];
+  stepId: string;
+  stepNumber: number;
 }) {
   return (
-    <div className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-950 p-3">
-      <p className="text-sm font-semibold text-white">{label}</p>
+    <div className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-950 p-3" id={stepId}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-white">{stepNumber}. {label}</p>
+        <Badge variant="muted">{judgesLabel}</Badge>
+      </div>
       <MultiRoleSelect disabled={disabled} label={`Cargos ${label}`} onChange={onRoles} roles={roles} values={roleIds} />
       <FivemResourceSelect disabled={disabled} label={`Canal/categoria ${label}`} onChange={onCategory} options={destinations} placeholder="Destino padrão" value={categoryId} />
       <FivemChannelSelect channels={channels} disabled={disabled} label={`Logs ${label}`} onChange={onLog} placeholder="Canal padrão de logs" value={logChannelId} />
