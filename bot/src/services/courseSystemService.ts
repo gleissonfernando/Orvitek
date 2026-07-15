@@ -480,8 +480,7 @@ async function handleStringSelect(interaction: StringSelectMenuInteraction, cont
     return;
   }
   if (interaction.customId === IDS.publishSelect) {
-    const course = await context.api.getCourse(interaction.guildId!, courseId);
-    await showPublicationModal(interaction, context, course);
+    await handlePublicationSelection(interaction, context, courseId, "publicacao");
     return;
   }
   if (interaction.customId === IDS.editSelect) {
@@ -490,8 +489,7 @@ async function handleStringSelect(interaction: StringSelectMenuInteraction, cont
     return;
   }
   if (interaction.customId === IDS.scheduleSelect) {
-    const course = await context.api.getCourse(interaction.guildId!, courseId);
-    await showPublicationModal(interaction, context, course, "agendamento");
+    await handlePublicationSelection(interaction, context, courseId, "agendamento");
     return;
   }
   if (interaction.customId === IDS.departmentSelect) {
@@ -510,6 +508,56 @@ async function handleStringSelect(interaction: StringSelectMenuInteraction, cont
   if (interaction.customId === IDS.proofSelect) {
     await replyDeactivatedPanel(interaction);
   }
+}
+
+async function handlePublicationSelection(
+  interaction: StringSelectMenuInteraction,
+  context: BotContext,
+  courseId: string,
+  mode: "publicacao" | "agendamento"
+) {
+  try {
+    const course = await context.api.getCourse(interaction.guildId!, courseId).catch((error) => {
+      logCourseFlowError("publication_course_load_failed", error, {
+        courseId,
+        guildId: interaction.guildId,
+        mode,
+        userId: interaction.user.id
+      });
+      return null;
+    });
+
+    if (!course) {
+      await replyToCourseSelect(interaction, "Curso não encontrado. Reabra o comando /curso agendamento e selecione o curso novamente.");
+      return;
+    }
+
+    if (!(await canManageCourse(interaction, context, course.id))) {
+      await replyToCourseSelect(interaction, "Você não possui permissão para agendar este curso. Confira se o cargo está vinculado ao curso ou aos instrutores gerais.");
+      return;
+    }
+
+    await showPublicationModal(interaction, context, course, mode);
+  } catch (error) {
+    logCourseFlowError("publication_modal_open_failed", error, {
+      courseId,
+      customId: interaction.customId,
+      guildId: interaction.guildId,
+      mode,
+      roleIds: memberRoleIds(interaction.member),
+      userId: interaction.user.id
+    });
+    await replyToCourseSelect(interaction, "Não foi possível abrir o agendamento deste curso. O erro foi registrado nos logs; tente novamente em alguns segundos.");
+  }
+}
+
+async function replyToCourseSelect(interaction: StringSelectMenuInteraction, content: string) {
+  const payload = ephemeralText(content);
+  if (interaction.replied || interaction.deferred) {
+    await interaction.followUp(payload).catch(() => null);
+    return;
+  }
+  await interaction.reply(payload).catch(() => null);
 }
 
 async function handleUserSelect(interaction: UserSelectMenuInteraction, context: BotContext) {
