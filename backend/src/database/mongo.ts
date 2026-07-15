@@ -645,6 +645,78 @@ export type MongoCourseExamAnswer = {
   answeredAt: Date;
 };
 
+export type MongoCourseInstructorSettings = {
+  _id: string;
+  botId: string | null;
+  guildId: string;
+  enabled: boolean;
+  authorizedRoleIds: string[];
+  logChannelId: string | null;
+  autoWeeklyReset: boolean;
+  timezone: string;
+  updatedAt: Date;
+  updatedBy: string | null;
+};
+
+export type MongoCourseInstructorEvent = {
+  _id: string;
+  botId: string | null;
+  guildId: string;
+  instructorId: string;
+  instructorName: string;
+  courseId: string;
+  courseName: string;
+  publicationId: string | null;
+  status: "started" | "cancelled" | "finished" | "closed";
+  statusLabel: string;
+  weekKey: string;
+  weekNumber: number;
+  year: number;
+  date: string;
+  time: string;
+  timestamp: Date;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoCourseHistorySettings = {
+  _id: string;
+  botId: string | null;
+  guildId: string;
+  enabled: boolean;
+  viewRoleIds: string[];
+  removeRoleIds: string[];
+  logChannelId: string | null;
+  retentionDays: number | null;
+  updatedAt: Date;
+  updatedBy: string | null;
+};
+
+export type MongoCourseStudentHistory = {
+  _id: string;
+  botId: string | null;
+  guildId: string;
+  studentId: string;
+  studentName: string;
+  instructorId: string;
+  instructorName: string;
+  courseId: string;
+  courseName: string;
+  publicationId: string | null;
+  attemptId: string | null;
+  score: number;
+  result: "approved";
+  status: "approved";
+  date: string;
+  time: string;
+  timestamp: Date;
+  removedAt?: Date | null;
+  removedBy?: string | null;
+  removalReason?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type MongoOpenDutyCounterMode = "accumulate" | "reset_after_3" | "cycles";
 
 export type MongoOpenDutySettings = {
@@ -3865,6 +3937,10 @@ export async function getMongoCollections() {
     courseExamQuestions: db.collection<MongoCourseExamQuestion>("course_exam_questions"),
     courseExamAttempts: db.collection<MongoCourseExamAttempt>("course_exam_attempts"),
     courseExamAnswers: db.collection<MongoCourseExamAnswer>("course_exam_answers"),
+    courseInstructorSettings: db.collection<MongoCourseInstructorSettings>("course_instructor_settings"),
+    courseInstructorEvents: db.collection<MongoCourseInstructorEvent>("course_instructor_events"),
+    courseHistorySettings: db.collection<MongoCourseHistorySettings>("course_history_settings"),
+    courseStudentHistory: db.collection<MongoCourseStudentHistory>("course_student_history"),
     openDutySettings: db.collection<MongoOpenDutySettings>("open_duty_settings"),
     openDutyCounters: db.collection<MongoOpenDutyWarningCounter>("open_duty_counters"),
     openDutyNotifications: db.collection<MongoOpenDutyNotification>("open_duty_notifications"),
@@ -4073,6 +4149,18 @@ async function createMongoIndexes(db: Db) {
     db.collection<MongoCourseExamAttempt>("course_exam_attempts").createIndex({ botId: 1, guildId: 1, publicationId: 1, studentId: 1, startedAt: -1 }),
     db.collection<MongoCourseExamAttempt>("course_exam_attempts").createIndex({ botId: 1, guildId: 1, channelId: 1, status: 1 }),
     db.collection<MongoCourseExamAnswer>("course_exam_answers").createIndex({ botId: 1, guildId: 1, attemptId: 1, questionId: 1 }),
+    db.collection<MongoCourseInstructorSettings>("course_instructor_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    db.collection<MongoCourseInstructorEvent>("course_instructor_events").createIndex({ botId: 1, guildId: 1, weekKey: 1, instructorId: 1, timestamp: -1 }),
+    db.collection<MongoCourseInstructorEvent>("course_instructor_events").createIndex(
+      { botId: 1, guildId: 1, publicationId: 1, status: 1 },
+      { unique: true, partialFilterExpression: { publicationId: { $type: "string" } } }
+    ),
+    db.collection<MongoCourseHistorySettings>("course_history_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    db.collection<MongoCourseStudentHistory>("course_student_history").createIndex({ botId: 1, guildId: 1, studentId: 1, timestamp: -1 }),
+    db.collection<MongoCourseStudentHistory>("course_student_history").createIndex(
+      { botId: 1, guildId: 1, attemptId: 1 },
+      { unique: true, partialFilterExpression: { attemptId: { $type: "string" } } }
+    ),
     db.collection<MongoOpenDutySettings>("open_duty_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
     db.collection<MongoOpenDutyWarningCounter>("open_duty_counters").createIndex({ botId: 1, guildId: 1, userId: 1 }, { unique: true }),
     db.collection<MongoOpenDutyNotification>("open_duty_notifications").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),

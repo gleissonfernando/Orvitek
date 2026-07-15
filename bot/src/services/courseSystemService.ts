@@ -38,7 +38,7 @@ import type { BotCommand, BotContext } from "../types";
 import { currentRuntimeBotId, env } from "../config/env";
 import { showModalAndResetSelect } from "../utils/selectMenuReset";
 import { componentsV2Payload, renderComponentsV2Panel, resolvePanelImageUrl, type PanelVisualConfig } from "./panelVisualRenderer";
-import type { Course, CourseDepartment, CourseEnrollment, CourseExamAnswer, CourseExamAttempt, CourseExamQuestion, CourseExamSettings, CoursePublication, CourseSettings } from "./apiClient";
+import type { Course, CourseDepartment, CourseEnrollment, CourseExamAnswer, CourseExamAttempt, CourseExamQuestion, CourseExamSettings, CoursePublication, CourseSettings, CourseStudentHistory, CourseStudentHistoryPage, CourseInstructorReport } from "./apiClient";
 import { replaceSystemEmojis, systemComponentEmoji, systemEmojiText, systemStatusEmoji } from "./systemEmojiService";
 
 type CourseActionInteraction = ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
@@ -88,6 +88,9 @@ const IDS = {
   publicReport: "course_public_report",
   sync: "course_config_sync",
   examApproveModal: "course_exam_approve_modal",
+  historyRemoveSelect: "course_history_remove_select",
+  historyRemoveYes: "course_history_remove_yes",
+  historyRemoveNo: "course_history_remove_no",
   proofSelect: "course_proof_select",
   startSelect: "course_start_select"
 } as const;
@@ -108,6 +111,7 @@ const MAX_QUESTION_SCORE = 1;
 
 const startedCourseClients = new WeakSet<Client>();
 const examProvisioning = new Map<string, Promise<string>>();
+const historyRemovalSessions = new Map<string, { history: CourseStudentHistory[]; reason: string | null; studentId: string }>();
 const studentExamStarting = new Map<string, Promise<unknown>>();
 const examChannelDeletionTimers = new Map<string, NodeJS.Timeout>();
 const examChannelDeletionGenerations = new Map<string, symbol>();
@@ -181,6 +185,39 @@ export const publicarCursoCommand: BotCommand = {
   async execute(interaction, context) {
     if (interaction.options.getSubcommand() !== "curso") return;
     await startPublishFlow(interaction, context);
+  }
+};
+
+export const instrutoresCommand: BotCommand = {
+  data: new SlashCommandBuilder()
+    .setName("instrutores")
+    .setDescription("Mostra o desempenho semanal dos instrutores de cursos."),
+  moduleId: "courses",
+  async execute(interaction, context) {
+    await showInstructorsReport(interaction, context);
+  }
+};
+
+export const cursosHistoricoCommand: BotCommand = {
+  data: new SlashCommandBuilder()
+    .setName("cursoshistorico")
+    .setDescription("Mostra o histórico de cursos aprovados.")
+    .addUserOption((option) => option.setName("aluno").setDescription("Aluno para consultar. Se vazio, consulta você.")),
+  moduleId: "courses",
+  async execute(interaction, context) {
+    await showStudentCourseHistory(interaction, context, interaction.options.getUser("aluno")?.id ?? interaction.user.id, 0);
+  }
+};
+
+export const removerCursoHistoricoCommand: BotCommand = {
+  data: new SlashCommandBuilder()
+    .setName("removercurso")
+    .setDescription("Remove um curso do histórico aprovado de um aluno.")
+    .addUserOption((option) => option.setName("aluno").setDescription("Aluno que terá o curso removido.").setRequired(true))
+    .addStringOption((option) => option.setName("motivo").setDescription("Motivo opcional da remoção.").setMaxLength(400)),
+  moduleId: "courses",
+  async execute(interaction, context) {
+    await startRemoveCourseHistoryFlow(interaction, context);
   }
 };
 
@@ -449,6 +486,25 @@ async function handleButton(interaction: ButtonInteraction, context: BotContext)
     await reviewExam(interaction, context);
     return;
   }
+  if (interaction.customId.startsWith("course_history_page:")) {
+    const [, studentId, rawPage] = interaction.customId.split(":");
+    if (!studentId) {
+      await interaction.reply(ephemeralText("Histórico inválido. Use /cursoshistorico novamente."));
+      return;
+    }
+    await showStudentCourseHistory(interaction, context, studentId, Number(rawPage) || 0);
+    return;
+  }
+  if (interaction.customId.startsWith(`${IDS.historyRemoveYes}:`)) {
+    await confirmRemoveCourseHistory(interaction, context);
+    return;
+  }
+  if (interaction.customId.startsWith(`${IDS.historyRemoveNo}:`)) {
+    const sessionId = interaction.customId.split(":")[1] ?? "";
+    historyRemovalSessions.delete(sessionId);
+    await interaction.update(courseNoticePanel("Remoção cancelada", "Nenhum curso foi removido do histórico."));
+    return;
+  }
   if (interaction.customId.startsWith("course_cancel:")) {
     await changePublicationStatus(interaction, context, idFromCustomId(interaction.customId), "cancelled");
     return;
@@ -496,6 +552,10 @@ async function handleStringSelect(interaction: StringSelectMenuInteraction, cont
   if (interaction.customId === IDS.departmentSelect) {
     const departmentId = interaction.values[0] ?? null;
     await interaction.update(departmentsPanel(await context.api.listCourseDepartments(interaction.guildId!), undefined, departmentId));
+    return;
+  }
+  if (interaction.customId.startsWith(`${IDS.historyRemoveSelect}:`)) {
+    await selectCourseHistoryRemoval(interaction);
     return;
   }
   if (interaction.customId === IDS.reportSelect) {
@@ -814,6 +874,7 @@ async function publishCourse(interaction: ModalSubmitInteraction, context: BotCo
   });
   const publicationWithPanel = await context.api.updateCoursePublicationMessage(interaction.guildId!, publication.id, message.id);
   const eventStarted = await startCourseEventAfterPanelPosted(interaction, context, settings, course, publicationWithPanel);
+  await recordInstructorTrackingEvent(interaction.guild!, context, course, publicationWithPanel, "started", interaction.user.id);
   await sendCourseLog(interaction, settings, `Curso agendado\nCurso: ${course.name}${course.code ? ` (${course.code})` : ""}\nInstrutor: <@${interaction.user.id}>\nCanal: <#${targetChannelId}>\nPainel: ${message.id}\nHorário: ${publicationWithPanel.scheduledFor}\nDP: ${publicationWithPanel.dpNameSnapshot ?? publicationWithPanel.location}\nVagas: ${publicationWithPanel.capacity}\nEvento do Discord: ${eventStarted ? "criado e iniciado após o painel" : "criado"}`);
   await interaction.editReply(eventStarted ? "✅ Curso agendado, painel publicado e evento iniciado com sucesso." : "✅ Curso agendado, painel publicado e evento criado com sucesso.");
 }
@@ -891,6 +952,7 @@ async function changePublicationStatus(interaction: ButtonInteraction, context: 
     await sendPublicationLog(interaction, context, updated, `⚠️ Falha ao sincronizar evento do Discord\nResponsável: <@${interaction.user.id}>\nStatus do curso: ${status}\nEvento: ${updated.discordEventId ?? "não vinculado"}\nErro: ${message}`).catch(() => null);
   });
   await refreshPublicationMessage(interaction, context, updated);
+  if (course) await recordInstructorTrackingEvent(interaction.guild!, context, course, updated, status === "cancelled" ? "cancelled" : status === "finished" ? "finished" : "started", interaction.user.id);
   if (status === "finished") {
     await lockFinishedCourseChannel(interaction, context, updated).catch(async (error) => {
       await sendPublicationLog(interaction, context, updated, `⚠️ Falha ao bloquear canal após finalização\nResponsável: <@${interaction.user.id}>\nErro: ${error instanceof Error ? error.message : String(error)}`).catch(() => null);
@@ -914,6 +976,21 @@ async function lockFinishedCourseChannel(interaction: ButtonInteraction, context
     SendMessages: false,
     SendMessagesInThreads: false
   }, { reason: `Curso finalizado: ${publication.id}` });
+}
+
+async function recordInstructorTrackingEvent(guild: Guild, context: BotContext, course: Course, publication: CoursePublication, status: "started" | "cancelled" | "finished" | "closed", actorId: string) {
+  const member = await guild.members.fetch(publication.instructorId).catch(() => null);
+  await context.api.recordCourseInstructorEvent(guild.id, {
+    courseId: course.id,
+    courseName: course.name,
+    instructorId: publication.instructorId,
+    instructorName: member?.displayName ?? member?.user.globalName ?? member?.user.username ?? publication.instructorId,
+    publicationId: publication.id,
+    status,
+    timestamp: new Date().toISOString()
+  }).catch((error) => {
+    console.error(`[courses] failed to record instructor tracking guild=${guild.id} publication=${publication.id} actor=${actorId}:`, error instanceof Error ? error.message : error);
+  });
 }
 
 function parseCourseScheduleWindow(dateInput: string, timeInput: string) {
@@ -2150,6 +2227,120 @@ async function canReviewExam(interaction: CourseActionInteraction, context: BotC
     || await canManageCourse(interaction, context, attempt.courseId);
 }
 
+async function showInstructorsReport(interaction: ChatInputCommandInteraction, context: BotContext) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const [settings, report, courseSettings] = await Promise.all([
+    context.api.getCourseInstructorSettings(interaction.guildId!),
+    context.api.getCourseInstructorReport(interaction.guildId!),
+    context.api.getCourseSettings(interaction.guildId!)
+  ]);
+  if (!settings.enabled) {
+    await interaction.editReply(courseNoticePanel("Instrutores", "O sistema de instrutores está desativado no dashboard."));
+    return;
+  }
+  if (!canUseTrackingFeature(interaction, settings.authorizedRoleIds, courseSettings)) {
+    await interaction.editReply(courseNoticePanel("Sem permissão", "Você não possui permissão para visualizar o painel de instrutores."));
+    return;
+  }
+  await interaction.editReply(instructorsReportPanel(report));
+}
+
+async function showStudentCourseHistory(interaction: ChatInputCommandInteraction | ButtonInteraction, context: BotContext, studentId: string, page = 0) {
+  if (interaction.isButton()) await interaction.deferUpdate();
+  else await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const [settings, courseSettings] = await Promise.all([
+    context.api.getCourseHistorySettings(interaction.guildId!),
+    context.api.getCourseSettings(interaction.guildId!)
+  ]);
+  if (!settings.enabled) {
+    const payload = courseNoticePanel("Histórico de Cursos", "O histórico de cursos está desativado no dashboard.");
+    if (interaction.isButton()) await interaction.editReply(payload);
+    else await interaction.editReply(payload);
+    return;
+  }
+  const canViewOther = canUseTrackingFeature(interaction, settings.viewRoleIds, courseSettings);
+  if (studentId !== interaction.user.id && !canViewOther) {
+    const payload = courseNoticePanel("Sem permissão", "Você só pode consultar seu próprio histórico de cursos.");
+    if (interaction.isButton()) await interaction.editReply(payload);
+    else await interaction.editReply(payload);
+    return;
+  }
+  const [history, member] = await Promise.all([
+    context.api.listCourseStudentHistory(interaction.guildId!, studentId, page),
+    interaction.guild?.members.fetch(studentId).catch(() => null)
+  ]);
+  const payload = studentCourseHistoryPanel(studentId, member?.displayName ?? member?.user.username ?? studentId, history);
+  if (interaction.isButton()) await interaction.editReply(payload);
+  else await interaction.editReply(payload);
+}
+
+async function startRemoveCourseHistoryFlow(interaction: ChatInputCommandInteraction, context: BotContext) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const target = interaction.options.getUser("aluno", true);
+  const reason = interaction.options.getString("motivo")?.trim() || null;
+  const [settings, courseSettings] = await Promise.all([
+    context.api.getCourseHistorySettings(interaction.guildId!),
+    context.api.getCourseSettings(interaction.guildId!)
+  ]);
+  if (!settings.enabled) {
+    await interaction.editReply(courseNoticePanel("Remover Curso", "O histórico de cursos está desativado no dashboard."));
+    return;
+  }
+  if (!canUseTrackingFeature(interaction, settings.removeRoleIds, courseSettings)) {
+    await interaction.editReply(courseNoticePanel("Sem permissão", "Você não possui permissão para remover cursos do histórico."));
+    return;
+  }
+  const history = await context.api.listCourseStudentHistory(interaction.guildId!, target.id, 0);
+  if (!history.items.length) {
+    await interaction.editReply(courseNoticePanel("Remover Curso", `${target} não possui cursos aprovados no histórico.`));
+    return;
+  }
+  const sessionId = interaction.id;
+  historyRemovalSessions.set(sessionId, { history: history.items.slice(0, 25), reason, studentId: target.id });
+  await interaction.editReply(removeCourseHistorySelectPanel(sessionId, target.id, history.items.slice(0, 25)));
+}
+
+async function selectCourseHistoryRemoval(interaction: StringSelectMenuInteraction) {
+  const sessionId = interaction.customId.split(":")[1] ?? "";
+  const session = historyRemovalSessions.get(sessionId);
+  const historyId = interaction.values[0] ?? "";
+  const item = session?.history.find((entry) => entry._id === historyId);
+  if (!session || !item) {
+    await interaction.update(courseNoticePanel("Sessão expirada", "Abra /removercurso novamente para escolher o curso."));
+    return;
+  }
+  await interaction.update(confirmRemoveCourseHistoryPanel(sessionId, item));
+}
+
+async function confirmRemoveCourseHistory(interaction: ButtonInteraction, context: BotContext) {
+  const [, sessionId, historyId] = interaction.customId.split(":");
+  const session = historyRemovalSessions.get(sessionId ?? "");
+  if (!session) {
+    await interaction.update(courseNoticePanel("Sessão expirada", "Abra /removercurso novamente para confirmar a remoção."));
+    return;
+  }
+  const removed = await context.api.removeCourseStudentHistory(interaction.guildId!, historyId ?? "", {
+    actorId: interaction.user.id,
+    reason: session.reason
+  }).catch(() => null);
+  historyRemovalSessions.delete(sessionId ?? "");
+  if (!removed) {
+    await interaction.update(courseNoticePanel("Remover Curso", "Não foi possível remover este curso. Ele pode já ter sido removido."));
+    return;
+  }
+  await interaction.update(courseNoticePanel("Curso removido", `O curso **${removed.courseName}** foi removido do histórico de <@${removed.studentId}>.`));
+}
+
+function canUseTrackingFeature(interaction: CourseActionInteraction, roleIds: string[], courseSettings: CourseSettings) {
+  if (isGuildOwnerOrAdministrator(interaction)) return true;
+  const memberRoles = memberRoleIds(interaction.member);
+  if (roleIds.length > 0) return roleIds.some((roleId) => memberRoles.includes(roleId));
+  return courseSettings.adminUserIds.includes(interaction.user.id)
+    || courseSettings.managerUserIds.includes(interaction.user.id)
+    || courseSettings.adminRoleIds.some((roleId) => memberRoles.includes(roleId))
+    || courseSettings.managerRoleIds.some((roleId) => memberRoles.includes(roleId));
+}
+
 function isGuildOwnerOrAdministrator(interaction: CourseActionInteraction) {
   return interaction.guild?.ownerId === interaction.user.id
     || memberHasPermission(interaction.member, PermissionFlagsBits.Administrator);
@@ -2173,6 +2364,97 @@ function memberHasPermission(member: CourseActionInteraction["member"] | GuildMe
   } catch {
     return false;
   }
+}
+
+function instructorsReportPanel(report: CourseInstructorReport) {
+  const rows = report.instructors.slice(0, 12).map((item, index) =>
+    `**${index + 1}. <@${item.instructorId}>**\n` +
+    `Iniciados: **${item.started}** • Finalizados: **${item.finished}** • Cancelados: **${item.cancelled}** • Encerrados: **${item.closed}**`
+  );
+  return renderComponentsV2Panel({
+    accentColor: 0x2563eb,
+    description: [
+      `Semana: **${report.weekKey}**`,
+      `Instrutores registrados: **${report.instructors.length}**`,
+      "",
+      rows.length ? rows.join("\n\n") : "Nenhum curso registrado nesta semana."
+    ].join("\n"),
+    fields: report.events.slice(0, 8).map((event) => `**${event.statusLabel}**\nCurso: ${event.courseName}\nInstrutor: <@${event.instructorId}>\nData: ${event.date} ${event.time}`),
+    footer: "© NexTech Systems",
+    title: "📊 Instrutores"
+  });
+}
+
+function studentCourseHistoryPanel(studentId: string, studentName: string, history: CourseStudentHistoryPage) {
+  const rows = history.items.map((item, index) =>
+    `**${history.page * history.pageSize + index + 1}. ${item.courseName}**\n` +
+    `Aluno: <@${studentId}>\nInstrutor: <@${item.instructorId}>\nNota: **${formatScore(item.score)}** • Data: ${item.date} ${item.time}`
+  );
+  const previous = Math.max(0, history.page - 1);
+  const next = Math.min(history.totalPages - 1, history.page + 1);
+  return renderComponentsV2Panel({
+    accentColor: 0x16a34a,
+    actions: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`course_history_page:${studentId}:${previous}`).setLabel("Anterior").setStyle(ButtonStyle.Secondary).setDisabled(history.page <= 0),
+        new ButtonBuilder().setCustomId(`course_history_page:${studentId}:${next}`).setLabel("Próxima").setStyle(ButtonStyle.Secondary).setDisabled(history.page >= history.totalPages - 1)
+      )
+    ],
+    description: [
+      `Aluno: **${studentName}**`,
+      `Cursos aprovados: **${history.total}**`,
+      `Página: **${history.page + 1}/${history.totalPages}**`,
+      "",
+      rows.length ? rows.join("\n\n") : "Nenhum curso aprovado encontrado."
+    ].join("\n"),
+    footer: "© NexTech Systems",
+    title: "📚 Histórico de Cursos"
+  });
+}
+
+function removeCourseHistorySelectPanel(sessionId: string, studentId: string, history: CourseStudentHistory[]) {
+  return renderComponentsV2Panel({
+    accentColor: 0xdc2626,
+    actions: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`${IDS.historyRemoveSelect}:${sessionId}`)
+          .setPlaceholder("Selecione o curso para remover")
+          .addOptions(history.slice(0, 25).map((item) => ({
+            description: `${item.date} ${item.time} • Nota ${formatScore(item.score)}`.slice(0, 100),
+            label: item.courseName.slice(0, 100),
+            value: item._id
+          })))
+      )
+    ],
+    description: `Aluno: <@${studentId}>\nSelecione exatamente o curso que será removido do histórico.`,
+    footer: "© NexTech Systems",
+    title: "🗑️ Remover Curso"
+  });
+}
+
+function confirmRemoveCourseHistoryPanel(sessionId: string, item: CourseStudentHistory) {
+  return renderComponentsV2Panel({
+    accentColor: 0xdc2626,
+    actions: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`${IDS.historyRemoveYes}:${sessionId}:${item._id}`).setLabel("SIM").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(`${IDS.historyRemoveNo}:${sessionId}`).setLabel("NÃO").setStyle(ButtonStyle.Secondary)
+      )
+    ],
+    description: `Confirmar remoção do curso **${item.courseName}** do histórico de <@${item.studentId}>?\n\nEssa ação remove somente este curso do histórico do aluno.`,
+    footer: "© NexTech Systems",
+    title: "Confirmar Remoção"
+  });
+}
+
+function courseNoticePanel(title: string, description: string) {
+  return renderComponentsV2Panel({
+    accentColor: 0x2563eb,
+    description,
+    footer: "© NexTech Systems",
+    title
+  });
 }
 
 function courseConfigPanel(settings: CourseSettings, panelVisual: PanelVisualConfig | null = null) {

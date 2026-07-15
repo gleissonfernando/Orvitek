@@ -63,6 +63,16 @@ import {
   updateCourseExamIdentification,
   updateCourseExamQuestion
 } from "../services/courseExamService";
+import {
+  getCourseHistorySettings,
+  getInstructorTrackingSettings,
+  getInstructorWeeklyReport,
+  listStudentCourseHistory,
+  recordInstructorCourseEvent,
+  removeStudentCourseHistory,
+  saveCourseHistorySettings,
+  saveInstructorTrackingSettings
+} from "../services/courseTrackingService";
 
 export const coursesRouter = Router();
 
@@ -295,6 +305,33 @@ const identificationSchema = z.object({
 const reviewSchema = z.object({ actorId: snowflake, manualScore: decimalNumber(z.number().min(0).max(1000)).nullable().optional(), rejectionReason: z.string().max(1000).nullable().optional(), status: z.enum(["approved", "rejected"]) });
 const correctionMessageSchema = z.object({ messageId: snowflake });
 const deliveryMessageSchema = z.object({ channelId: snowflake, messageId: snowflake });
+const instructorTrackingSettingsSchema = z.object({
+  authorizedRoleIds: z.array(snowflake).optional(),
+  autoWeeklyReset: z.boolean().optional(),
+  enabled: z.boolean().optional(),
+  logChannelId: optionalSnowflake,
+  timezone: z.string().trim().min(1).max(80).optional()
+});
+const historySettingsSchema = z.object({
+  enabled: z.boolean().optional(),
+  logChannelId: optionalSnowflake,
+  removeRoleIds: z.array(snowflake).optional(),
+  retentionDays: z.number().int().min(1).max(3650).nullable().optional(),
+  viewRoleIds: z.array(snowflake).optional()
+});
+const instructorEventSchema = z.object({
+  courseId: z.string().min(1).max(120),
+  courseName: z.string().min(1).max(160),
+  instructorId: snowflake,
+  instructorName: z.string().max(120).nullable().optional(),
+  publicationId: z.string().max(120).nullable().optional(),
+  status: z.enum(["started", "cancelled", "finished", "closed"]),
+  timestamp: z.string().datetime().nullable().optional()
+});
+const historyRemoveSchema = z.object({
+  actorId: snowflake,
+  reason: z.string().max(400).nullable().optional()
+});
 
 coursesRouter.use(requireAuthOrBot);
 
@@ -319,6 +356,44 @@ coursesRouter.patch("/:guildId/settings", async (req, res, next) => {
   } catch (error) {
     return next(error);
   }
+});
+
+coursesRouter.get("/:guildId/instructors/settings", async (req, res, next) => {
+  try {
+    const guildId = snowflake.parse(req.params.guildId);
+    const botId = await resolveRequestBotId(req);
+    if (!botId || isBotRequest(req) || !(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para ver configuracao de instrutores." });
+    return res.json({ settings: await getInstructorTrackingSettings(botId, guildId) });
+  } catch (error) { return next(error); }
+});
+
+coursesRouter.patch("/:guildId/instructors/settings", async (req, res, next) => {
+  try {
+    const guildId = snowflake.parse(req.params.guildId);
+    const botId = await resolveRequestBotId(req);
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para configurar instrutores." });
+    const settings = await saveInstructorTrackingSettings(botId, guildId, instructorTrackingSettingsSchema.parse(req.body ?? {}), res.locals.dashboardAuth.user.discordId);
+    return res.json({ settings });
+  } catch (error) { return next(error); }
+});
+
+coursesRouter.get("/:guildId/history/settings", async (req, res, next) => {
+  try {
+    const guildId = snowflake.parse(req.params.guildId);
+    const botId = await resolveRequestBotId(req);
+    if (!botId || isBotRequest(req) || !(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para ver configuracao de historico." });
+    return res.json({ settings: await getCourseHistorySettings(botId, guildId) });
+  } catch (error) { return next(error); }
+});
+
+coursesRouter.patch("/:guildId/history/settings", async (req, res, next) => {
+  try {
+    const guildId = snowflake.parse(req.params.guildId);
+    const botId = await resolveRequestBotId(req);
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para configurar historico." });
+    const settings = await saveCourseHistorySettings(botId, guildId, historySettingsSchema.parse(req.body ?? {}), res.locals.dashboardAuth.user.discordId);
+    return res.json({ settings });
+  } catch (error) { return next(error); }
 });
 
 coursesRouter.post("/:guildId/panel", async (req, res, next) => {
@@ -519,6 +594,58 @@ coursesRouter.get("/bot/:guildId/settings", requireBot, async (req, res, next) =
   } catch (error) {
     return next(error);
   }
+});
+
+coursesRouter.get("/bot/:guildId/instructors/settings", requireBot, async (req, res, next) => {
+  try {
+    const guildId = snowflake.parse(req.params.guildId);
+    const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
+    return res.json({ settings: await getInstructorTrackingSettings(botId, guildId) });
+  } catch (error) { return next(error); }
+});
+
+coursesRouter.get("/bot/:guildId/instructors/report", requireBot, async (req, res, next) => {
+  try {
+    const guildId = snowflake.parse(req.params.guildId);
+    const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
+    return res.json(await getInstructorWeeklyReport(botId, guildId, typeof req.query.weekKey === "string" ? req.query.weekKey : null));
+  } catch (error) { return next(error); }
+});
+
+coursesRouter.post("/bot/:guildId/instructors/events", requireBot, async (req, res, next) => {
+  try {
+    const guildId = snowflake.parse(req.params.guildId);
+    const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
+    return res.status(201).json({ event: await recordInstructorCourseEvent(botId, guildId, instructorEventSchema.parse(req.body ?? {})) });
+  } catch (error) { return next(error); }
+});
+
+coursesRouter.get("/bot/:guildId/history/settings", requireBot, async (req, res, next) => {
+  try {
+    const guildId = snowflake.parse(req.params.guildId);
+    const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
+    return res.json({ settings: await getCourseHistorySettings(botId, guildId) });
+  } catch (error) { return next(error); }
+});
+
+coursesRouter.get("/bot/:guildId/history/:studentId", requireBot, async (req, res, next) => {
+  try {
+    const guildId = snowflake.parse(req.params.guildId);
+    const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
+    const page = Number(req.query.page ?? 0);
+    return res.json(await listStudentCourseHistory(botId, guildId, snowflake.parse(req.params.studentId), Number.isFinite(page) ? page : 0, 5));
+  } catch (error) { return next(error); }
+});
+
+coursesRouter.delete("/bot/:guildId/history/items/:historyId", requireBot, async (req, res, next) => {
+  try {
+    const guildId = snowflake.parse(req.params.guildId);
+    const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
+    const parsed = historyRemoveSchema.parse(req.body ?? {});
+    const item = await removeStudentCourseHistory(botId, guildId, routeParam(req, "historyId"), parsed.actorId, parsed.reason);
+    if (!item) return res.status(404).json({ message: "Historico nao encontrado." });
+    return res.json({ item });
+  } catch (error) { return next(error); }
 });
 
 coursesRouter.get("/bot/:guildId/courses/:courseId/exam", requireBot, async (req, res, next) => {

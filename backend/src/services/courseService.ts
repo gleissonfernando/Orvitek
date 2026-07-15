@@ -11,6 +11,8 @@ const COURSE_DEPARTMENT_NAME_MAX = 80;
 
 export type CourseDashboard = {
   courses: CourseDto[];
+  historySettings?: unknown;
+  instructorTrackingSettings?: unknown;
   publications: CoursePublicationDto[];
   reports: CourseReportDto[];
   scheduleRequests: CourseScheduleRequestDto[];
@@ -47,18 +49,23 @@ export async function getCoursesDashboard(botId: string | null, guildId: string)
   await ensureNpdApproachCourse(botId, guildId);
   await ensureDefaultCourseDepartments(botId, guildId);
   const settings = await getCourseSettings(botId, guildId);
-  const [courses, publications, scheduleRequests, reports, logs, enrollments, departments] = await Promise.all([
+  const { getCourseHistorySettings, getInstructorTrackingSettings } = await import("./courseTrackingService.js");
+  const [courses, publications, scheduleRequests, reports, logs, enrollments, departments, instructorTrackingSettings, historySettings] = await Promise.all([
     collections.courses.find(scope(botId, guildId)).sort({ updatedAt: -1 }).toArray(),
     collections.coursePublications.find(scope(botId, guildId)).sort({ createdAt: -1 }).limit(50).toArray(),
     collections.courseScheduleRequests.find(scope(botId, guildId)).sort({ createdAt: -1 }).limit(50).toArray(),
     collections.courseReports.find(scope(botId, guildId)).sort({ createdAt: -1 }).limit(50).toArray(),
     collections.courseLogs.find(scope(botId, guildId)).sort({ createdAt: -1 }).limit(25).toArray(),
     collections.courseEnrollments.find(scope(botId, guildId)).sort({ updatedAt: -1 }).limit(500).toArray(),
-    collections.courseDepartments.find(scope(botId, guildId)).sort({ active: -1, name: 1 }).toArray()
+    collections.courseDepartments.find(scope(botId, guildId)).sort({ active: -1, name: 1 }).toArray(),
+    getInstructorTrackingSettings(botId, guildId),
+    getCourseHistorySettings(botId, guildId)
   ]);
 
   return {
     courses: courses.map(mapCourse),
+    historySettings,
+    instructorTrackingSettings,
     publications: publications.map(mapPublication),
     reports: reports.map(mapReport),
     scheduleRequests: scheduleRequests.map(mapScheduleRequest),

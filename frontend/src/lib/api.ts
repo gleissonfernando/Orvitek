@@ -20,6 +20,8 @@ import type {
   Course,
   CourseExamDashboard,
   CourseExamQuestion,
+  CourseHistorySettings,
+  CourseInstructorTrackingSettings,
   CoursesDashboard,
   DashboardBot,
   DashboardMeResponse,
@@ -2295,6 +2297,24 @@ export async function getCoursesDashboard(botId: string, guildId: string) {
 export async function saveCourseSettings(botId: string, guildId: string, payload: SaveCourseSettingsPayload) {
   const { data } = await api.patch<{ settings: CoursesDashboard["settings"] }>(
     `/courses/${encodeURIComponent(guildId)}/settings`,
+    payload,
+    { params: botParams(botId) }
+  );
+  return data.settings;
+}
+
+export async function saveCourseInstructorTrackingSettings(botId: string, guildId: string, payload: Partial<CourseInstructorTrackingSettings>) {
+  const { data } = await api.patch<{ settings: CourseInstructorTrackingSettings }>(
+    `/courses/${encodeURIComponent(guildId)}/instructors/settings`,
+    payload,
+    { params: botParams(botId) }
+  );
+  return data.settings;
+}
+
+export async function saveCourseHistorySettings(botId: string, guildId: string, payload: Partial<CourseHistorySettings>) {
+  const { data } = await api.patch<{ settings: CourseHistorySettings }>(
+    `/courses/${encodeURIComponent(guildId)}/history/settings`,
     payload,
     { params: botParams(botId) }
   );

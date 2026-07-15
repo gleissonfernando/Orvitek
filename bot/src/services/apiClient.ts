@@ -400,6 +400,94 @@ export type CourseExamAttempt = {
   updatedAt: string;
 };
 
+export type CourseInstructorSettings = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  enabled: boolean;
+  authorizedRoleIds: string[];
+  logChannelId: string | null;
+  autoWeeklyReset: boolean;
+  timezone: string;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+
+export type CourseInstructorEvent = {
+  id?: string;
+  _id?: string;
+  botId: string | null;
+  guildId: string;
+  instructorId: string;
+  instructorName: string;
+  courseId: string;
+  courseName: string;
+  publicationId: string | null;
+  status: "started" | "cancelled" | "finished" | "closed";
+  statusLabel: string;
+  weekKey: string;
+  weekNumber: number;
+  year: number;
+  date: string;
+  time: string;
+  timestamp: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CourseInstructorReport = {
+  events: CourseInstructorEvent[];
+  instructors: Array<{ instructorId: string; instructorName: string; started: number; cancelled: number; finished: number; closed: number; total: number; lastEventAt: string | null }>;
+  settings: CourseInstructorSettings;
+  weekKey: string;
+};
+
+export type CourseHistorySettings = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  enabled: boolean;
+  viewRoleIds: string[];
+  removeRoleIds: string[];
+  logChannelId: string | null;
+  retentionDays: number | null;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+
+export type CourseStudentHistory = {
+  _id: string;
+  botId: string | null;
+  guildId: string;
+  studentId: string;
+  studentName: string;
+  instructorId: string;
+  instructorName: string;
+  courseId: string;
+  courseName: string;
+  publicationId: string | null;
+  attemptId: string | null;
+  score: number;
+  result: "approved";
+  status: "approved";
+  date: string;
+  time: string;
+  timestamp: string;
+  removedAt: string | null;
+  removedBy?: string | null;
+  removalReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CourseStudentHistoryPage = {
+  items: CourseStudentHistory[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
 export type CourseExamAnswer = {
   id: string;
   botId: string | null;
@@ -2102,6 +2190,48 @@ export class ApiClient {
   async getCourseSettings(guildId: string) {
     const { data } = await this.http.get<{ settings: CourseSettings }>(`/courses/bot/${guildId}/settings`);
     return data.settings;
+  }
+
+  async getCourseInstructorSettings(guildId: string) {
+    const { data } = await this.http.get<{ settings: CourseInstructorSettings }>(`/courses/bot/${guildId}/instructors/settings`);
+    return data.settings;
+  }
+
+  async getCourseInstructorReport(guildId: string, weekKey?: string | null) {
+    const { data } = await this.http.get<CourseInstructorReport>(`/courses/bot/${guildId}/instructors/report`, {
+      params: weekKey ? { weekKey } : undefined
+    });
+    return data;
+  }
+
+  async recordCourseInstructorEvent(guildId: string, input: {
+    courseId: string;
+    courseName: string;
+    instructorId: string;
+    instructorName?: string | null;
+    publicationId?: string | null;
+    status: "started" | "cancelled" | "finished" | "closed";
+    timestamp?: string | null;
+  }) {
+    const { data } = await this.http.post<{ event: CourseInstructorEvent | null }>(`/courses/bot/${guildId}/instructors/events`, input);
+    return data.event;
+  }
+
+  async getCourseHistorySettings(guildId: string) {
+    const { data } = await this.http.get<{ settings: CourseHistorySettings }>(`/courses/bot/${guildId}/history/settings`);
+    return data.settings;
+  }
+
+  async listCourseStudentHistory(guildId: string, studentId: string, page = 0) {
+    const { data } = await this.http.get<CourseStudentHistoryPage>(`/courses/bot/${guildId}/history/${studentId}`, {
+      params: { page }
+    });
+    return data;
+  }
+
+  async removeCourseStudentHistory(guildId: string, historyId: string, input: { actorId: string; reason?: string | null }) {
+    const { data } = await this.http.delete<{ item: CourseStudentHistory }>(`/courses/bot/${guildId}/history/items/${historyId}`, { data: input });
+    return data.item;
   }
 
   async saveCourseSettings(guildId: string, input: Partial<CourseSettings>, actorId?: string | null) {

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getMongoCollections, type MongoCourseExamAnswer, type MongoCourseExamAttempt, type MongoCourseExamQuestion, type MongoCourseExamSettings } from "../database/mongo";
 import { getCourseSettings, logCourseAction } from "./courseService";
+import { recordApprovedCourseHistoryFromAttempt } from "./courseTrackingService";
 import { emitRealtime } from "../realtime/events";
 
 const DEFAULT_INITIAL = "Bem-vindo à prova do curso. Leia cada pergunta com atenção e responda uma etapa por vez.";
@@ -541,6 +542,11 @@ export async function reviewCourseExamAttempt(botId: string | null, guildId: str
     { ...scope(botId, guildId), publicationId: attempt.publicationId, studentId: attempt.studentId },
     { $set: { examStatus: status === "approved" ? "APPROVED" : "FAILED", score: finalScore, result: status, correctedBy: reviewerId, completedAt: attempt.finishedAt ?? now, updatedAt: now } }
   );
+  if (status === "approved") {
+    await recordApprovedCourseHistoryFromAttempt(botId, guildId, attemptId).catch((error) => {
+      console.error("[courses] failed to record approved course history:", error instanceof Error ? error.message : error);
+    });
+  }
   emitRealtime("courses:publication", { botId, guildId, publicationId: attempt.publicationId });
   return mapAttempt(attempt);
 }

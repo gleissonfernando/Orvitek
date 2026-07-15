@@ -1176,8 +1176,36 @@ export type CourseLog = {
   createdAt: string;
 };
 
+export type CourseInstructorTrackingSettings = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  enabled: boolean;
+  authorizedRoleIds: string[];
+  logChannelId: string | null;
+  autoWeeklyReset: boolean;
+  timezone: string;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+
+export type CourseHistorySettings = {
+  id: string;
+  botId: string | null;
+  guildId: string;
+  enabled: boolean;
+  viewRoleIds: string[];
+  removeRoleIds: string[];
+  logChannelId: string | null;
+  retentionDays: number | null;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+
 export type CoursesDashboard = {
   courses: Course[];
+  historySettings: CourseHistorySettings;
+  instructorTrackingSettings: CourseInstructorTrackingSettings;
   publications: CoursePublication[];
   reports: CourseReport[];
   scheduleRequests: CourseScheduleRequest[];

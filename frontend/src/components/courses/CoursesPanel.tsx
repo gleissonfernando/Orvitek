@@ -14,6 +14,8 @@ import {
   getGuildLiveOptions,
   publishCoursePanel,
   reviewCourseExamAttemptApi,
+  saveCourseHistorySettings,
+  saveCourseInstructorTrackingSettings,
   saveCourseExamSettings,
   saveCourseSettings,
   updateCourseApi,
@@ -27,7 +29,7 @@ type CoursesPanelProps = {
   guildId: string;
 };
 
-type TabId = "images" | "channels" | "courses" | "proofs" | "admins" | "logs";
+type TabId = "images" | "channels" | "courses" | "proofs" | "admins" | "tracking" | "logs";
 type CourseChannelDraft = Pick<
   CoursesDashboard["settings"],
   "adminLogChannelId" | "defaultExpirationHours" | "evaluationChannelId" | "evaluatorMentionRoleId" | "proofLogChannelId" | "publicationMentionRoleId" | "publishChannelId" | "resultChannelId" | "resultMentionRoleId" | "tempProofCategoryId"
@@ -45,6 +47,7 @@ const tabs: Array<{ id: TabId; icon: typeof Image; label: string }> = [
   { id: "courses", icon: BookOpen, label: "Cursos Cadastrados" },
   { id: "proofs", icon: FileQuestion, label: "Configuração de Provas" },
   { id: "admins", icon: ShieldCheck, label: "Administradores" },
+  { id: "tracking", icon: ListChecks, label: "Instrutores e Histórico" },
   { id: "logs", icon: ListChecks, label: "Logs do Sistema" }
 ];
 
@@ -235,6 +238,36 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
     } catch (err) {
       showError(err instanceof Error ? err.message : "Não foi possível salvar as configurações.");
       return null;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveInstructorTracking(patch: Partial<CoursesDashboard["instructorTrackingSettings"]>) {
+    if (!dashboard) return;
+    setSaving(true);
+    setError("");
+    try {
+      const instructorTrackingSettings = await saveCourseInstructorTrackingSettings(botId, guildId, patch);
+      setDashboard((current) => current ? { ...current, instructorTrackingSettings } : current);
+      showSuccess("Configurações de instrutores salvas.");
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Não foi possível salvar as configurações de instrutores.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveHistoryTracking(patch: Partial<CoursesDashboard["historySettings"]>) {
+    if (!dashboard) return;
+    setSaving(true);
+    setError("");
+    try {
+      const historySettings = await saveCourseHistorySettings(botId, guildId, patch);
+      setDashboard((current) => current ? { ...current, historySettings } : current);
+      showSuccess("Configurações de histórico salvas.");
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Não foi possível salvar as configurações de histórico.");
     } finally {
       setSaving(false);
     }
@@ -878,6 +911,35 @@ export function CoursesPanel({ botId, canManage, guildId }: CoursesPanelProps) {
             </div>
           </CardContent>
         </Card>
+      ) : null}
+
+      {activeTab === "tracking" ? (
+        <div className="grid gap-4 xl:grid-cols-2">
+          <Card>
+            <CardHeader><CardTitle>Sistema de Instrutores</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <ToggleField disabled={!canManage || saving} label="Sistema ativo" onChange={(enabled) => void saveInstructorTracking({ enabled })} value={dashboard.instructorTrackingSettings.enabled} />
+                <ToggleField disabled={!canManage || saving} label="Reset semanal automático" onChange={(autoWeeklyReset) => void saveInstructorTracking({ autoWeeklyReset })} value={dashboard.instructorTrackingSettings.autoWeeklyReset} />
+                <MultiRoleField disabled={!canManage || saving} label="Cargos que podem usar /instrutores" onChange={(authorizedRoleIds) => void saveInstructorTracking({ authorizedRoleIds })} options={roles} value={dashboard.instructorTrackingSettings.authorizedRoleIds ?? []} />
+                <SelectField disabled={!canManage || saving} label="Canal de logs de instrutores" onChange={(logChannelId) => void saveInstructorTracking({ logChannelId })} options={textChannels} value={dashboard.instructorTrackingSettings.logChannelId ?? ""} />
+                <InputField disabled={!canManage || saving} label="Timezone" onChange={(timezone) => void saveInstructorTracking({ timezone })} value={dashboard.instructorTrackingSettings.timezone || "America/Sao_Paulo"} />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle>Histórico de Cursos</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <ToggleField disabled={!canManage || saving} label="Histórico ativo" onChange={(enabled) => void saveHistoryTracking({ enabled })} value={dashboard.historySettings.enabled} />
+                <MultiRoleField disabled={!canManage || saving} label="Cargos que podem visualizar históricos" onChange={(viewRoleIds) => void saveHistoryTracking({ viewRoleIds })} options={roles} value={dashboard.historySettings.viewRoleIds ?? []} />
+                <MultiRoleField disabled={!canManage || saving} label="Cargos que podem remover cursos" onChange={(removeRoleIds) => void saveHistoryTracking({ removeRoleIds })} options={roles} value={dashboard.historySettings.removeRoleIds ?? []} />
+                <SelectField disabled={!canManage || saving} label="Canal de logs do histórico" onChange={(logChannelId) => void saveHistoryTracking({ logChannelId })} options={textChannels} value={dashboard.historySettings.logChannelId ?? ""} />
+                <NumberInputField disabled={!canManage || saving} label="Retenção opcional em dias" max={3650} min={1} onChange={(retentionDays) => void saveHistoryTracking({ retentionDays })} value={dashboard.historySettings.retentionDays ?? 365} />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       ) : null}
 
       {activeTab === "logs" ? (
