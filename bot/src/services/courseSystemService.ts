@@ -806,6 +806,11 @@ async function publishCourse(interaction: ModalSubmitInteraction, context: BotCo
   } else if (!existingMessage && previousOpen?.messageId && previousOpen.channelId === targetChannelId && "messages" in channel) {
     existingMessage = await channel.messages.fetch(previousOpen.messageId).catch(() => null);
   }
+  if (!existingMessage) {
+    await sendCoursePublicationMention(channel as TextChannel, settings).catch((error) => {
+      console.warn(`[courses] failed to send course mention before panel guild=${interaction.guildId} channel=${targetChannelId}:`, error instanceof Error ? error.message : error);
+    });
+  }
   const message = existingMessage
     ? await existingMessage.edit(coursePublicationPanel(course, publicationWithEvent, settings, interaction.guild!))
     : await (channel as TextChannel).send(coursePublicationInitialPost(course, publicationWithEvent, settings, interaction.guild!));
@@ -2433,14 +2438,16 @@ function separator() {
 }
 
 function coursePublicationInitialPost(course: Course, publication: CoursePublication, settings: CourseSettings, guild: { members: { cache: Map<string, GuildMember> } }) {
-  const payload = coursePublicationPanel(course, publication, settings, guild);
+  return coursePublicationPanel(course, publication, settings, guild);
+}
+
+async function sendCoursePublicationMention(channel: TextChannel, settings: CourseSettings) {
   const roleId = settings.publicationMentionRoleId;
-  if (!roleId) return payload;
-  return {
-    ...payload,
+  if (!roleId) return null;
+  return channel.send({
     allowedMentions: { roles: [roleId] },
     content: `<@&${roleId}>`
-  };
+  });
 }
 
 function coursePublicationDateLabel(publication: CoursePublication) {
