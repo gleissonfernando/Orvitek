@@ -958,7 +958,7 @@ async function validateCourseExamActivation(botId: string | null, guildId: strin
   if (!Number(merged.minScore)) errors.push("Nota mínima não configurada.");
   if (!(courseSettings.tempProofCategoryId || courseSettings.temporaryCategoryId)) errors.push("Categoria de canais temporários não configurada na Configuração de Canais.");
   if (!courseSettings.evaluationChannelId) errors.push("Canal de avaliação/correção não configurado na Configuração de Canais.");
-  if (!courseSettings.resultChannelId) errors.push("Canal de resultados não configurado na Configuração de Canais.");
+  if (!courseSettings.resultChannelId) errors.push("Canal de Resultado das Avaliações não configurado na Configuração de Canais.");
   if (!(courseSettings.proofLogChannelId || courseSettings.adminLogChannelId || courseSettings.logChannelId)) errors.push("Canal de logs não configurado na Configuração de Canais.");
   const orders = new Set<number>();
   questions.forEach((question, index) => {
