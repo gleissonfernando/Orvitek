@@ -105,6 +105,7 @@ const EXAM_CHANNEL_STATE_RETRY_MAX_DELAY = 60 * 60 * 1000;
 const COURSE_EVENT_DURATION_MS = 24 * 60 * 60 * 1000;
 const MAX_COURSE_EVENT_TIMER_DELAY = 7 * 24 * 60 * 60 * 1000;
 const MAX_COURSE_EVENT_LOCATION_LENGTH = 100;
+const COMPONENT_DISPLAY_TEXT_SAFE_LIMIT = 3600;
 const MAX_EXAM_SELECT_OPTIONS = 25;
 const EXAM_TOTAL_SCORE = 10;
 const MAX_QUESTION_SCORE = 1;
@@ -3383,7 +3384,7 @@ async function sendExamResultPanel(
     return null;
   });
   if (!sent) return { ok: false as const };
-  await sendExamQuestionContinuationMessages(channel, interaction, course, attempt, questions, answers, "Resultado da Prova - Questões", 12);
+  await sendExamQuestionContinuationMessages(channel, interaction, course, attempt, questions, answers, "Resultado da Prova - Questões", 0);
   await sendCourseLog(interaction, courseSettings, `Painel de resultado enviado com sucesso\nTentativa: ${attempt.id}\nCanal: <#${channel.id}>\nCurso: ${course.name}\nAluno: <@${attempt.studentId}>\nNota: ${formatScore(attempt.finalScore ?? attempt.score)}/${formatScore(attempt.maxScore)}\nStatus: ${examReviewStatusLabel(attempt)}`).catch(() => null);
   logCourseFlow("exam_result_panel_sent", { attemptId: attempt.id, channelId: channel.id, messageId: sent.id, courseId: course.id, guildId: interaction.guildId });
   return { ok: true as const, channelId: channel.id, messageId: sent.id };
@@ -3396,7 +3397,6 @@ async function examResultPanel(interaction: ButtonInteraction | ModalSubmitInter
   const status = examFinalStatusLabel(attempt);
   const totalQuestions = questions.length || answers.length || attempt.objectiveCorrect + attempt.objectiveWrong + attempt.writtenCount;
   const identification = attempt.studentIdentification;
-  const answerByQuestion = new Map(answers.map((answer) => [answer.questionId, answer]));
   return renderComponentsV2Panel({
     accentColor: examResultAccent(attempt),
     description: "Resultado final da prova avaliada.",
@@ -3419,9 +3419,9 @@ async function examResultPanel(interaction: ButtonInteraction | ModalSubmitInter
         `Aproveitamento: ${formatScore(attempt.percent)}%`,
         `Nota: ${formatScore(finalScore)}/${formatScore(attempt.maxScore)}`,
         `Tempo gasto: ${formatExamDuration(attempt.startedAt, attempt.finishedAt)}`,
-        `Status: ${status}`
-      ].join("\n"),
-      ...questions.slice(0, 12).map((question, index) => formatAnswerSummary(question, answerByQuestion.get(question.id), index + 1))
+        `Status: ${status}`,
+        questions.length ? "Revisão detalhada: enviada nas mensagens abaixo." : "Revisão detalhada: sem questões salvas."
+      ].join("\n")
     ],
     guild: interaction.guild,
     image: member ? { imageEnabled: true, imagePosition: "thumbnail", imageUrl: member.displayAvatarURL({ size: 128 }) } : null,
@@ -3489,8 +3489,7 @@ async function showExamResultDetails(interaction: ButtonInteraction, context: Bo
 }
 
 async function replyWithResultChunks(interaction: ButtonInteraction, course: Course, title: string, description: string, fields: string[]) {
-  const chunks: string[][] = [];
-  for (let index = 0; index < fields.length; index += 6) chunks.push(fields.slice(index, index + 6));
+  const chunks = chunkDisplayFields(fields, title, description);
   const first = chunks.shift() ?? ["Nenhuma resposta encontrada."];
   await interaction.editReply(renderComponentsV2Panel({
     accentColor: parseColor(course.color),
@@ -3515,13 +3514,15 @@ async function replyWithResultChunks(interaction: ButtonInteraction, course: Cou
 async function sendExamQuestionContinuationMessages(channel: TextChannel, interaction: CourseGuildContext, course: Course, attempt: CourseExamAttempt, questions: CourseExamQuestion[], answers: CourseExamAnswer[], title: string, startIndex: number) {
   if (questions.length <= startIndex) return;
   const answerByQuestion = new Map(answers.map((answer) => [answer.questionId, answer]));
-  for (let index = startIndex; index < questions.length; index += 12) {
-    const pageQuestions = questions.slice(index, index + 12);
-    const page = Math.floor(index / 12) + 1;
+  const fields = questions.slice(startIndex).map((question, itemIndex) => formatAnswerSummary(question, answerByQuestion.get(question.id), startIndex + itemIndex + 1));
+  const description = `Tentativa: ${attempt.id}\nAluno: <@${attempt.studentId}>`;
+  const chunks = chunkDisplayFields(fields, title, description);
+  for (let index = 0; index < chunks.length; index += 1) {
+    const page = index + 1;
     const payload = renderComponentsV2Panel({
       accentColor: parseColor(course.color),
-      description: `Tentativa: ${attempt.id}\nAluno: <@${attempt.studentId}>\nPágina ${page}`,
-      fields: pageQuestions.map((question, itemIndex) => formatAnswerSummary(question, answerByQuestion.get(question.id), index + itemIndex + 1)),
+      description: `${description}\nPágina ${page}/${chunks.length}`,
+      fields: chunks[index],
       guild: interaction.guild,
       moduleId: "courses",
       title
@@ -3550,7 +3551,6 @@ async function sendFinalExamLog(interaction: ButtonInteraction | ModalSubmitInte
   const member = await interaction.guild?.members.fetch(attempt.studentId).catch(() => null);
   const reviewerLabel = reviewerId ? `<@${reviewerId}>` : attempt.correctedBy ? `<@${attempt.correctedBy}>` : "Dashboard";
   const timestamp = Math.floor(new Date(attempt.correctedAt ?? attempt.finishedAt ?? attempt.updatedAt).getTime() / 1000);
-  const answerByQuestion = new Map(answers.map((answer) => [answer.questionId, answer]));
   const payload = renderComponentsV2Panel({
     accentColor: examResultAccent(attempt),
     description: "Resultado final persistido após análise da prova.",
@@ -3565,9 +3565,9 @@ async function sendFinalExamLog(interaction: ButtonInteraction | ModalSubmitInte
         `Status: ${examFinalStatusLabel(attempt)}`,
         `Responsável pela análise: ${reviewerLabel}`,
         `Data: <t:${timestamp}:F>`,
-        `Tentativa: ${attempt.id}`
-      ].join("\n"),
-      ...questions.slice(0, 12).map((question, index) => formatAnswerSummary(question, answerByQuestion.get(question.id), index + 1))
+        `Tentativa: ${attempt.id}`,
+        questions.length ? "Perguntas: enviadas nas mensagens abaixo." : "Perguntas: sem questões salvas."
+      ].join("\n")
     ],
     guild: interaction.guild,
     moduleId: "courses",
@@ -3578,7 +3578,7 @@ async function sendFinalExamLog(interaction: ButtonInteraction | ModalSubmitInte
     return null;
   });
   if (!sent) return;
-  await sendExamQuestionContinuationMessages(channel, interaction, course, attempt, questions, answers, "Resultado Final da Prova - Perguntas", 12);
+  await sendExamQuestionContinuationMessages(channel, interaction, course, attempt, questions, answers, "Resultado Final da Prova - Perguntas", 0);
   logCourseFlow("exam_final_log_sent", { attemptId: attempt.id, channelId: channel.id, messageId: sent.id, courseId: course.id, guildId: interaction.guildId });
 }
 
@@ -3792,6 +3792,57 @@ function examDecisionDm(course: Course, settings: CourseExamSettings, attempt: C
   return lines.join("\n");
 }
 
+function chunkDisplayFields(fields: string[], title: string, description: string, safeLimit = COMPONENT_DISPLAY_TEXT_SAFE_LIMIT) {
+  const chunks: string[][] = [];
+  const baseLength = displayTextLength(title) + displayTextLength(description) + 32;
+  const fieldBudget = Math.max(700, safeLimit - baseLength);
+  let current: string[] = [];
+  let currentLength = baseLength;
+
+  for (const field of fields.flatMap((item) => splitDisplayText(item, fieldBudget))) {
+    const fieldLength = displayTextLength(field) + 2;
+    if (current.length && currentLength + fieldLength > safeLimit) {
+      chunks.push(current);
+      current = [];
+      currentLength = baseLength;
+    }
+    current.push(field);
+    currentLength += fieldLength;
+  }
+
+  if (current.length) chunks.push(current);
+  return chunks.length ? chunks : [["Nenhuma resposta encontrada."]];
+}
+
+function splitDisplayText(text: string, maxLength: number) {
+  const normalized = text.trim() || "-";
+  if (displayTextLength(normalized) <= maxLength) return [normalized];
+  const chunks: string[] = [];
+  let current = "";
+  for (const line of normalized.split("\n")) {
+    const next = current ? `${current}\n${line}` : line;
+    if (displayTextLength(next) <= maxLength) {
+      current = next;
+      continue;
+    }
+    if (current) chunks.push(current);
+    current = "";
+    if (displayTextLength(line) <= maxLength) {
+      current = line;
+      continue;
+    }
+    for (let index = 0; index < line.length; index += maxLength) {
+      chunks.push(line.slice(index, index + maxLength));
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+function displayTextLength(value: string) {
+  return [...String(value ?? "")].length;
+}
+
 function formatAnswerSummary(question: CourseExamQuestion, answer: CourseExamAnswer | undefined, index: number) {
   if (!answer) {
     return [
@@ -3919,9 +3970,9 @@ async function sendExamDetailedLog(interaction: { guild: ChatInputCommandInterac
   if (!channelId) return;
   const channel = await interaction.guild?.channels.fetch(channelId).catch(() => null);
   if (!channel?.isTextBased() || !("send" in channel)) return;
-  const answerByQuestion = new Map(answers.map((answer) => [answer.questionId, answer]));
   const finishedAt = attempt.finishedAt ? new Date(attempt.finishedAt) : new Date();
-  await (channel as TextChannel).send(renderComponentsV2Panel({
+  const textChannel = channel as TextChannel;
+  await textChannel.send(renderComponentsV2Panel({
     accentColor: parseColor(course.color),
     description: "Log detalhado da prova enviada para avaliação.",
     fields: [
@@ -3942,13 +3993,14 @@ async function sendExamDetailedLog(interaction: { guild: ChatInputCommandInterac
         `Finalização: <t:${Math.floor(finishedAt.getTime() / 1000)}:F>`,
         `Tempo utilizado: ${formatExamDuration(attempt.startedAt, attempt.finishedAt)}`,
         `Sessão: ${attempt.id}`,
-        `Canal temporário: <#${attempt.channelId}>`
-      ].join("\n"),
-      ...questions.map((question, index) => formatAnswerSummary(question, answerByQuestion.get(question.id), index + 1)).slice(0, 12)
+        `Canal temporário: <#${attempt.channelId}>`,
+        questions.length ? "Perguntas: enviadas nas mensagens abaixo." : "Perguntas: sem questões salvas."
+      ].join("\n")
     ],
     moduleId: "courses",
     title: "Log de Prova"
   })).catch(() => null);
+  await sendExamQuestionContinuationMessages(textChannel, { guild: interaction.guild, guildId: textChannel.guildId }, course, attempt, questions, answers, "Log de Prova - Questões", 0);
 }
 
 async function sendCourseLog(interaction: { guild: ChatInputCommandInteraction["guild"] }, settings: CourseSettings, content: string) {
