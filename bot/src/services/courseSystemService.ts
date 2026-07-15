@@ -2683,10 +2683,9 @@ function selectCoursePanel(description: string, customId: string, courses: Cours
 }
 
 function coursePublicationPanel(course: Course, publication: CoursePublication, settings: CourseSettings, guild: { members: { cache: Map<string, GuildMember> } }, enrollments: CourseEnrollment[] = [], allowPublicationMention = false) {
-  void guild;
   const publicationMentionRoleId = settings.publicationMentionRoleId;
   const publicationMention = publicationMentionRoleId ? `<@&${publicationMentionRoleId}>` : null;
-  const students = publication.students.map((id, index) => `${index + 1}. <@${id}>`).join("\n") || "Nenhum aluno confirmado.";
+  const students = coursePublicationStudents(publication, guild);
   const full = publication.students.length >= publication.capacity;
   const statusText = coursePublicationPlainStatusLabel(publication, full);
   const canJoin = publication.status === "open" && !full;
@@ -2696,16 +2695,16 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
   const canFinishClass = publication.status === "started" || publication.status === "proof";
   const canCancel = !["cancelled", "proof", "finished", "closed"].includes(publication.status);
   const studentActions = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`course_join:${publication.id}`).setEmoji("🟢").setLabel("Entrar").setStyle(ButtonStyle.Success).setDisabled(!canJoin),
-    new ButtonBuilder().setCustomId(`course_leave:${publication.id}`).setEmoji("⚫").setLabel("Sair").setStyle(ButtonStyle.Secondary).setDisabled(!canLeave)
+    new ButtonBuilder().setCustomId(`course_join:${publication.id}`).setEmoji("🟢").setLabel("Entrar Curso").setStyle(ButtonStyle.Success).setDisabled(!canJoin),
+    new ButtonBuilder().setCustomId(`course_leave:${publication.id}`).setEmoji("⚫").setLabel("Sair Curso").setStyle(ButtonStyle.Secondary).setDisabled(!canLeave)
   ).toJSON();
   const adminPrimaryActions = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`course_start:${publication.id}`).setEmoji("🟦").setLabel("Iniciar").setStyle(ButtonStyle.Primary).setDisabled(!canStartClass),
-    new ButtonBuilder().setCustomId(`course_exam_realize:${publication.id}`).setEmoji("🟢").setLabel("Prova").setStyle(ButtonStyle.Success).setDisabled(!canStartExam)
+    new ButtonBuilder().setCustomId(`course_start:${publication.id}`).setEmoji("🔵").setLabel("Iniciar Curso").setStyle(ButtonStyle.Primary).setDisabled(!canStartClass),
+    new ButtonBuilder().setCustomId(`course_exam_realize:${publication.id}`).setEmoji("🟢").setLabel("Iniciar Prova").setStyle(ButtonStyle.Success).setDisabled(!canStartExam)
   ).toJSON();
   const adminClosingActions = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`course_finish:${publication.id}`).setEmoji("🟠").setLabel("Finalizar").setStyle(ButtonStyle.Secondary).setDisabled(!canFinishClass),
-    new ButtonBuilder().setCustomId(`course_cancel:${publication.id}`).setEmoji("🔴").setLabel("Cancelar").setStyle(ButtonStyle.Danger).setDisabled(!canCancel)
+    new ButtonBuilder().setCustomId(`course_cancel:${publication.id}`).setEmoji("🔴").setLabel("Cancelar Curso").setStyle(ButtonStyle.Danger).setDisabled(!canCancel),
+    new ButtonBuilder().setCustomId(`course_finish:${publication.id}`).setEmoji("⚪").setLabel("Finalizar Curso").setStyle(ButtonStyle.Secondary).setDisabled(!canFinishClass)
   ).toJSON();
   const examProgress = enrollments
     .filter((enrollment) => ["STARTING", "IN_PROGRESS", "COMPLETED", "APPROVED", "FAILED"].includes(enrollment.examStatus))
@@ -2720,23 +2719,29 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
   const components: unknown[] = [
     textBlock([
       publicationMention,
-      "### 🛡 North Police Department • Instructor Team",
-      `## 📢 ${course.name}`
+      "## 🛡️ NORTH POLICE DEPARTMENT",
+      "Equipe Oficial de Instrutores"
     ].filter(Boolean).join("\n")),
+    separator(),
+    textBlock(`## 📡 ${course.name.toUpperCase()}`),
+    separator(),
     textBlock([
-      `📚 **Curso:** ${course.name}`,
       `👨‍🏫 **Instrutor:** <@${publication.instructorId}>`,
       `📅 **Data:** ${coursePublicationDateLabel(publication)}`,
-      `🕘 **Horário:** ${coursePublicationTimeLabel(publication)}`,
+      `🕒 **Horário:** ${coursePublicationTimeLabel(publication)}`,
       `📍 **Local:** ${coursePublicationDepartmentLabel(publication)}`,
-      `📌 **Status:** ${coursePublicationStatusDot(publication, full)} ${statusText}`,
-      `🎟 **Vagas:** ${coursePublicationCapacityBar(publication)}`
+      `📘 **Código:** ${course.code || "-"}`
     ].join("\n")),
-    textBlock(`✅ **Confirmados (${publication.students.length}/${publication.capacity})**\n${students}`),
+    separator(),
+    textBlock(["**STATUS**", `${coursePublicationStatusDot(publication, full)} ${statusText}`].join("\n")),
+    separator(),
+    textBlock(["**VAGAS**", coursePublicationCapacityBar(publication)].join("\n")),
+    separator(),
+    textBlock(`**ALUNOS**\n${students}`),
     separator(),
     ...(bannerUrl ? [{ type: 12, items: [{ media: { url: bannerUrl }, description: "Banner do Curso" }] }] : []),
+    ...(bannerUrl ? [separator()] : []),
     ...(examProgress.length ? [
-      separator(),
       textBlock(`## 🧾 Situação das Provas\n\n${examProgress.join("\n")}\n\n**Em andamento:** ${enrollments.filter((item) => item.examStatus === "STARTING" || item.examStatus === "IN_PROGRESS").length} | **Concluídas:** ${enrollments.filter((item) => ["COMPLETED", "APPROVED", "FAILED"].includes(item.examStatus)).length}`)
     ] : []),
     ...(publication.startedAt || publication.proofStartedAt || publication.finishedAt || publication.status === "cancelled" ? [
@@ -2748,11 +2753,8 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
         publication.status === "cancelled" ? `🚫 **Cancelamento:** ${publication.cancelledBy ? `<@${publication.cancelledBy}>` : "-"}${publication.cancelledAt ? ` em ${new Date(publication.cancelledAt).toLocaleString("pt-BR")}` : ""}` : null
       ].filter(Boolean).join("\n"))
     ] : []),
-    separator(),
-    textBlock("🎯 **Participação**\n📌 Clique em Entrar para participar."),
     studentActions,
     separator(),
-    textBlock("⚙ **Administração**"),
     adminPrimaryActions,
     adminClosingActions,
     separator()
@@ -2771,6 +2773,17 @@ function textBlock(content: string) {
 
 function separator() {
   return { type: 14, divider: true, spacing: 1 };
+}
+
+function coursePublicationStudents(publication: CoursePublication, guild: { members: { cache: Map<string, GuildMember> } }) {
+  if (!publication.students.length) return "Nenhum aluno confirmado.";
+  const visible = publication.students.slice(0, 20).map((id) => {
+    const member = guild.members.cache.get(id);
+    return `☑ ${member?.displayName ?? `<@${id}>`}`;
+  });
+  const remaining = publication.students.length - visible.length;
+  if (remaining > 0) visible.push(`+ ${remaining} aluno(s)`);
+  return visible.join("\n");
 }
 
 function coursePublicationInitialPost(course: Course, publication: CoursePublication, settings: CourseSettings, guild: { members: { cache: Map<string, GuildMember> } }, allowPublicationMention = false) {
@@ -3096,7 +3109,7 @@ function coursePublicationStatusDot(publication: CoursePublication, full: boolea
     cancelled: "🔴",
     closed: "✅",
     finished: "✅",
-    open: "🟡",
+    open: "🟢",
     proof: "🟢",
     started: "🟢"
   };
@@ -3105,8 +3118,9 @@ function coursePublicationStatusDot(publication: CoursePublication, full: boolea
 
 function coursePublicationCapacityBar(publication: CoursePublication) {
   const capacity = Math.max(1, publication.capacity);
-  const filled = Math.max(0, Math.min(10, Math.round((publication.students.length / capacity) * 10)));
-  return `${"█".repeat(filled)}${"□".repeat(10 - filled)} ${publication.students.length}/${publication.capacity}`;
+  const totalBlocks = 16;
+  const filled = Math.max(0, Math.min(totalBlocks, Math.round((publication.students.length / capacity) * totalBlocks)));
+  return `${"█".repeat(filled)}${"░".repeat(totalBlocks - filled)} ${publication.students.length}/${publication.capacity}`;
 }
 
 function coursePublicationStatusEmoji(publication: CoursePublication, full: boolean) {
