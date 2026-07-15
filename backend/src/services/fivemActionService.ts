@@ -74,6 +74,12 @@ export async function saveFivemActionDefinition(botId: string, guildId: string, 
   const { fivemActionDefinitions, fivemActionSettings } = await getMongoCollections();
   const now = new Date();
   const id = actionId ?? randomUUID();
+  const nextName = input.name?.trim();
+  if (nextName) {
+    const duplicate = await fivemActionDefinitions.findOne({ _id: { $ne: id }, botId, guildId, architecture, name: { $regex: `^${escapeRegExp(nextName)}$`, $options: "i" } });
+    if (duplicate) throw serviceError("Já existe uma ação com esse nome nesta organização.", 409);
+    input.name = nextName;
+  }
   await fivemActionDefinitions.updateOne({ _id: id, botId, guildId, architecture }, {
     $set: { ...input, updatedAt: now },
     $setOnInsert: { _id: id, botId, guildId, architecture, name: input.name ?? "Nova ação", description: input.description ?? "", emoji: input.emoji ?? null, imageUrl: input.imageUrl ?? null, color: input.color ?? "#7c3aed", maxParticipants: input.maxParticipants ?? 6, enabled: input.enabled ?? true, order: input.order ?? 0, createdAt: now, createdBy: actorId }
@@ -106,7 +112,7 @@ export async function createFivemActionSession(input: { botId: string; guildId: 
   const action = await fivemActionDefinitions.findOne({ _id: input.actionId, botId: input.botId, guildId: input.guildId, architecture: input.architecture, enabled: true });
   if (!action) throw serviceError("Ação não encontrada ou desativada.", 404);
   const now = new Date();
-  const session = { _id: randomUUID(), ...input, mode: input.mode ?? null, actionName: action.name, actionDescription: action.description, actionEmoji: action.emoji, actionImageUrl: action.imageUrl, actionColor: action.color, channelId: null, messageId: null, status: "active" as const, maxParticipants: action.maxParticipants, participants: [], startedAt: now, finishedAt: null, createdAt: now, updatedAt: now };
+  const session = { _id: randomUUID(), ...input, mode: input.mode ?? null, actionName: action.name, actionDescription: action.description, actionEmoji: action.emoji, actionImageUrl: action.imageUrl, actionColor: action.color, channelId: null, messageId: null, status: "forming" as const, maxParticipants: action.maxParticipants, participants: [], startedAt: null, cancelledAt: null, cancelledBy: null, cancellationReason: null, finishedAt: null, createdAt: now, updatedAt: now };
   await fivemActionSessions.insertOne(session);
   emitActionUpdated(input.botId, input.guildId, input.architecture, "session");
   return sessionDto(session);
@@ -121,12 +127,13 @@ export async function updateFivemActionSessionMessage(botId: string, sessionId: 
 export async function joinFivemActionSession(botId: string, sessionId: string, participant: Omit<MongoFivemActionParticipant, "joinedAt" | "leftAt">) {
   const { fivemActionSessions } = await getMongoCollections();
   const current = await fivemActionSessions.findOne({ _id: sessionId, botId });
-  if (!current || current.status !== "active") throw serviceError("Esta ação não está mais ativa.", 409);
+  if (!current || current.status !== "forming") throw serviceError("Esta ação não aceita novas entradas.", 409);
   if (current.participants.some((item) => item.userId === participant.userId && !item.leftAt)) return sessionDto(current);
   const activeCount = current.participants.filter((item) => !item.leftAt && participantPosition(item) === "confirmed").length;
-  const position: MongoFivemActionParticipant["position"] = activeCount >= current.maxParticipants ? "reserve" : "confirmed";
+  if (activeCount >= current.maxParticipants) throw serviceError("Esta ação atingiu o limite máximo de participantes.", 409);
+  const position: MongoFivemActionParticipant["position"] = "confirmed";
   const updated = await fivemActionSessions.findOneAndUpdate(
-    { _id: sessionId, botId, status: "active", participants: { $not: { $elemMatch: { userId: participant.userId, leftAt: null } } } },
+    { _id: sessionId, botId, status: "forming", participants: { $not: { $elemMatch: { userId: participant.userId, leftAt: null } } } },
     { $push: { participants: { ...participant, position, joinedAt: new Date(), leftAt: null } }, $set: { updatedAt: new Date() } },
     { returnDocument: "after" }
   );
@@ -140,7 +147,7 @@ export async function leaveFivemActionSession(botId: string, sessionId: string, 
   const current = await fivemActionSessions.findOne({ _id: sessionId, botId });
   if (!current) throw serviceError("Ação não encontrada.", 404);
   const leaving = current.participants.find((item) => item.userId === userId && !item.leftAt);
-  if (!leaving || current.status !== "active") return sessionDto(current);
+  if (!leaving || current.status !== "forming") return sessionDto(current);
   const participants = current.participants.map((item) => item.userId === userId && !item.leftAt ? { ...item, leftAt: new Date() } : item);
   if (participantPosition(leaving) === "confirmed") {
     const reserveIndex = participants.findIndex((item) => !item.leftAt && participantPosition(item) === "reserve");
@@ -151,7 +158,7 @@ export async function leaveFivemActionSession(botId: string, sessionId: string, 
       }
     }
   }
-  await fivemActionSessions.updateOne({ _id: sessionId, botId, status: "active" }, { $set: { participants, updatedAt: new Date() } });
+  await fivemActionSessions.updateOne({ _id: sessionId, botId, status: "forming" }, { $set: { participants, updatedAt: new Date() } });
   const session = await fivemActionSessions.findOne({ _id: sessionId, botId });
   if (!session) throw serviceError("Ação não encontrada.", 404);
   emitActionUpdated(session.botId, session.guildId, session.architecture, "session");
@@ -172,6 +179,43 @@ export async function finishFivemActionSession(botId: string, sessionId: string,
   throw serviceError("Esta ação já foi encerrada.", 409);
 }
 
+export async function startFivemActionSession(botId: string, sessionId: string, actorId: string) {
+  const { fivemActionSessions } = await getMongoCollections();
+  const now = new Date();
+  const updated = await fivemActionSessions.findOneAndUpdate(
+    { _id: sessionId, botId, status: "forming", openerId: actorId, participants: { $elemMatch: { leftAt: null } } },
+    { $set: { status: "active", startedAt: now, updatedAt: now } },
+    { returnDocument: "after" }
+  );
+  if (updated) {
+    emitActionUpdated(updated.botId, updated.guildId, updated.architecture, "session");
+    return sessionDto(updated);
+  }
+  const session = await fivemActionSessions.findOne({ _id: sessionId, botId });
+  if (!session) throw serviceError("Ação não encontrada.", 404);
+  if (session.openerId !== actorId) throw serviceError("Você não é o responsável por esta ação.", 403);
+  if (session.status !== "forming") throw serviceError("Esta ação não pode ser iniciada neste estado.", 409);
+  throw serviceError("Adicione pelo menos um participante antes de iniciar a ação.", 409);
+}
+
+export async function cancelFivemActionSession(botId: string, sessionId: string, actorId: string, reason: string | null = null) {
+  const { fivemActionSessions } = await getMongoCollections();
+  const now = new Date();
+  const updated = await fivemActionSessions.findOneAndUpdate(
+    { _id: sessionId, botId, status: { $in: ["forming", "active"] }, openerId: actorId },
+    { $set: { status: "cancelled", cancelledAt: now, cancelledBy: actorId, cancellationReason: reason, updatedAt: now } },
+    { returnDocument: "after" }
+  );
+  if (updated) {
+    emitActionUpdated(updated.botId, updated.guildId, updated.architecture, "session");
+    return sessionDto(updated);
+  }
+  const session = await fivemActionSessions.findOne({ _id: sessionId, botId });
+  if (!session) throw serviceError("Ação não encontrada.", 404);
+  if (session.openerId !== actorId) throw serviceError("Você não é o responsável por esta ação.", 403);
+  throw serviceError("Esta ação não pode ser cancelada neste estado.", 409);
+}
+
 export async function getFivemActionSession(botId: string, sessionId: string) {
   const { fivemActionSessions } = await getMongoCollections();
   const session = await fivemActionSessions.findOne({ _id: sessionId, botId });
@@ -180,9 +224,10 @@ export async function getFivemActionSession(botId: string, sessionId: string) {
 
 function settingsDto(value: MongoFivemActionSettings) { return { ...value, id: value._id, createdAt: value.createdAt.toISOString(), updatedAt: value.updatedAt.toISOString(), lastPanelRequestedAt: value.lastPanelRequestedAt?.toISOString() ?? null }; }
 function actionDto(value: MongoFivemActionDefinition) { return { ...value, id: value._id, createdAt: value.createdAt.toISOString(), updatedAt: value.updatedAt.toISOString() }; }
-function sessionDto(value: any) { return { ...value, id: value._id, mode: value.mode ?? null, startedAt: value.startedAt.toISOString(), finishedAt: value.finishedAt?.toISOString() ?? null, createdAt: value.createdAt.toISOString(), updatedAt: value.updatedAt.toISOString(), participants: value.participants.map((item: MongoFivemActionParticipant) => ({ ...item, position: participantPosition(item), joinedAt: item.joinedAt.toISOString(), leftAt: item.leftAt?.toISOString() ?? null })) }; }
+function sessionDto(value: any) { return { ...value, id: value._id, mode: value.mode ?? null, startedAt: value.startedAt?.toISOString() ?? null, cancelledAt: value.cancelledAt?.toISOString() ?? null, cancelledBy: value.cancelledBy ?? null, cancellationReason: value.cancellationReason ?? null, finishedAt: value.finishedAt?.toISOString() ?? null, createdAt: value.createdAt.toISOString(), updatedAt: value.updatedAt.toISOString(), participants: value.participants.map((item: MongoFivemActionParticipant) => ({ ...item, position: participantPosition(item), joinedAt: item.joinedAt.toISOString(), leftAt: item.leftAt?.toISOString() ?? null })) }; }
 function serviceError(message: string, statusCode: number) { return Object.assign(new Error(message), { statusCode }); }
 function participantPosition(item: Pick<MongoFivemActionParticipant, "position">) { return item.position === "reserve" ? "reserve" : "confirmed"; }
+function escapeRegExp(value: string) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 function emitActionUpdated(botId: string, guildId: string, architecture: MongoFivemActionArchitecture, scope: "action" | "session" | "settings") {
   emitRealtimeToRoom(dashboardLogRealtimeRoom(guildId, botId), "fivem:actions:updated", { architecture, botId, guildId, scope });
 }

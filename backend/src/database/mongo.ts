@@ -2018,10 +2018,13 @@ export type MongoFivemActionSession = {
   openerName: string;
   channelId: string | null;
   messageId: string | null;
-  status: "active" | "victory" | "defeat";
+  status: "forming" | "active" | "victory" | "defeat" | "cancelled";
   maxParticipants: number;
   participants: MongoFivemActionParticipant[];
-  startedAt: Date;
+  startedAt: Date | null;
+  cancelledAt?: Date | null;
+  cancelledBy?: string | null;
+  cancellationReason?: string | null;
   finishedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;

@@ -31,6 +31,8 @@ export async function handleFivemActionInteraction(interaction: Interaction, con
   else if (interaction.isButton() && action === "mode") await createActionWithMode(interaction, context, id!);
   else if (interaction.isButton() && action === "join") await changeParticipant(interaction, context, id!, true);
   else if (interaction.isButton() && action === "leave") await changeParticipant(interaction, context, id!, false);
+  else if (interaction.isButton() && action === "start") await startAction(interaction, context, id!);
+  else if (interaction.isButton() && action === "cancel") await cancelAction(interaction, context, id!);
   else if (interaction.isButton() && action === "result") await chooseResult(interaction, context, id!);
   else if (interaction.isButton() && action === "page") await showActionPage(interaction, context, id!);
   else if (interaction.isStringSelectMenu() && action === "finish") await finishAction(interaction, context, id!);
@@ -162,9 +164,24 @@ async function changeParticipant(interaction: any, context: BotContext, sessionI
   await interaction.editReply(joining ? reserve ? "A ação está cheia. Você entrou na reserva." : "Você entrou como titular na ação." : "Você saiu da ação.");
 }
 
+async function startAction(interaction: any, context: BotContext, sessionId: string) {
+  await interaction.deferReply({ ephemeral: true });
+  const session = await context.api.startFivemActionSession(sessionId, interaction.user.id);
+  await refreshSessionMessage(interaction, session);
+  await interaction.editReply("Ação iniciada. Novas entradas foram bloqueadas.");
+}
+
+async function cancelAction(interaction: any, context: BotContext, sessionId: string) {
+  await interaction.deferReply({ ephemeral: true });
+  const session = await context.api.cancelFivemActionSession(sessionId, interaction.user.id);
+  await refreshSessionMessage(interaction, session);
+  await interaction.editReply("Ação cancelada.");
+}
+
 async function chooseResult(interaction: any, context: BotContext, sessionId: string) {
   const session = await context.api.getFivemActionSession(sessionId);
   if (session.openerId !== interaction.user.id) { await interaction.reply({ content: "Você não é o responsável por esta ação.", ephemeral: true }); return; }
+  if (session.status !== "active") { await interaction.reply({ content: "O resultado só pode ser informado depois que a ação for iniciada.", ephemeral: true }); return; }
   const select = new StringSelectMenuBuilder().setCustomId(`${PREFIX}:finish:${sessionId}`).setPlaceholder("Escolha o resultado").addOptions({ label: "Vitória", value: "victory", emoji: systemComponentEmoji("visto", interaction.guild) }, { label: "Derrota", value: "defeat", emoji: systemComponentEmoji("exclamacao", interaction.guild) });
   await interaction.reply({ components: [{ type: 17, accent_color: 0x7c3aed, components: [{ type: 10, content: `## ${systemEmojiText("trofeu", interaction.guild)} Resultado de ${session.actionName}\n${systemEmojiText("homem", interaction.guild)} Somente você pode concluir esta ação.` }, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)] }], flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
 }
@@ -193,7 +210,7 @@ async function sendReport(interaction: StringSelectMenuInteraction, context: Bot
   if (!channel) channel = await interaction.guild!.channels.create({ name: "relatorio-de-acoes", type: ChannelType.GuildText, parent: dashboard.settings.categoryId ?? undefined, reason: "Relatórios do Sistema de Ações" });
   if (!channel.isTextBased() || channel.isDMBased()) return;
   const active = session.participants.filter((item) => !item.leftAt);
-  const duration = Math.max(0, Math.round(((session.finishedAt ? Date.parse(session.finishedAt) : Date.now()) - Date.parse(session.startedAt)) / 60000));
+  const duration = Math.max(0, Math.round(((session.finishedAt ? Date.parse(session.finishedAt) : Date.now()) - Date.parse(session.startedAt ?? session.createdAt)) / 60000));
   const members = active.length ? active.filter((item) => item.position === "confirmed").map((item) => `• ${item.username} (<@${item.userId}>)`).join("\n") : "Nenhum participante.";
   const finishedAt = session.finishedAt ? new Date(session.finishedAt) : new Date();
   await channel.send({ components: [{ type: 17, accent_color: session.status === "victory" ? 0x22c55e : 0xef4444, components: [{ type: 10, content: [
@@ -229,15 +246,23 @@ function sessionPayload(session: FivemActionSession, guild: Parameters<typeof sy
   const active = session.participants.filter((item) => !item.leftAt);
   const confirmed = active.filter((item) => item.position === "confirmed");
   const reserves = active.filter((item) => item.position === "reserve");
-  const status = session.status === "active" ? `${systemStatusEmoji("pending", guild)} Em andamento` : session.status === "victory" ? `${systemStatusEmoji("success", guild)} Vitória` : `${systemStatusEmoji("danger", guild)} Derrota`;
-  const rows = session.status === "active" ? [new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`${PREFIX}:join:${session.id}`).setLabel("Participar").setEmoji(systemComponentEmoji("visto", guild)).setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`${PREFIX}:leave:${session.id}`).setLabel("Sair").setEmoji(systemComponentEmoji("porta", guild)).setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId(`${PREFIX}:result:${session.id}`).setLabel("Resultado").setEmoji(systemComponentEmoji("trofeu", guild)).setStyle(ButtonStyle.Primary)
-  )] : [];
+  const terminal = ["victory", "defeat", "cancelled"].includes(session.status);
+  const status = actionStatusLabel(session.status, guild);
+  const rows = [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${PREFIX}:join:${session.id}`).setLabel("Entrar").setEmoji(systemComponentEmoji("visto", guild)).setStyle(ButtonStyle.Success).setDisabled(session.status !== "forming"),
+      new ButtonBuilder().setCustomId(`${PREFIX}:leave:${session.id}`).setLabel("Sair").setEmoji(systemComponentEmoji("porta", guild)).setStyle(ButtonStyle.Secondary).setDisabled(session.status !== "forming"),
+      new ButtonBuilder().setCustomId(`${PREFIX}:start:${session.id}`).setLabel("Iniciar ação").setEmoji("🚔").setStyle(ButtonStyle.Primary).setDisabled(session.status !== "forming")
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${PREFIX}:cancel:${session.id}`).setLabel("Cancelar ação").setEmoji(systemComponentEmoji("exclamacao", guild)).setStyle(ButtonStyle.Danger).setDisabled(terminal),
+      new ButtonBuilder().setCustomId(`${PREFIX}:result:${session.id}`).setLabel("Resultado").setEmoji(systemComponentEmoji("trofeu", guild)).setStyle(ButtonStyle.Success).setDisabled(session.status !== "active")
+    )
+  ];
   const confirmedList = numberedList(confirmed, session.maxParticipants);
   const reserveList = reserves.length ? reserves.map((item, index) => `${index + 1}. ${item.username}`).join("\n") : "Nenhum";
-  const startedAt = new Date(session.startedAt);
+  const createdAt = new Date(session.createdAt ?? session.startedAt ?? Date.now());
+  const startedAt = session.startedAt ? new Date(session.startedAt) : null;
   const title = session.architecture === "police" ? "Sistema de Ação — Polícia" : "Sistema de Ação — FAC";
   const details = { type: 10, content: [
     replaceSystemEmojis(`# ${session.actionEmoji ?? systemEmojiText("arma", guild)} ${title}`, guild),
@@ -247,9 +272,11 @@ function sessionPayload(session: FivemActionSession, guild: Parameters<typeof sy
     replaceSystemEmojis(`${session.actionEmoji ?? systemEmojiText("arma", guild)} Ação: ${session.actionName}`, guild),
     `${systemEmojiText("acessar", guild)} Modo: ${actionModeLabel(session.mode)}`,
     `${systemEmojiText("homem", guild)} Comando: <@${session.openerId}>`,
-    `${systemEmojiText("calendario", guild)} Data: ${startedAt.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}`,
-    `${systemEmojiText("homem", guild)} Limite: ${session.maxParticipants}`,
-    `${systemStatusEmoji(session.status === "active" ? "pending" : session.status === "victory" ? "success" : "danger", guild)} Status: ${status}`,
+    `${systemEmojiText("calendario", guild)} Criada em: ${createdAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`,
+    startedAt ? `${systemEmojiText("relogio", guild)} Iniciada em: ${startedAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : null,
+    session.cancelledAt ? `${systemStatusEmoji("danger", guild)} Cancelada em: ${new Date(session.cancelledAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : null,
+    `${systemEmojiText("homem", guild)} Limite: ${confirmed.length}/${session.maxParticipants}`,
+    `Status: ${status}`,
     "",
     `${systemEmojiText("discord", guild)} ID da Ação`,
     `#${session.id.slice(0, 8).toUpperCase()}`,
@@ -268,9 +295,9 @@ function sessionPayload(session: FivemActionSession, guild: Parameters<typeof sy
     "Sai da ação e atualiza automaticamente.",
     "━━━━━━━━━━━━━━━━━━━━━━",
     session.actionDescription || "Nome do Sistema"
-  ].join("\n") };
+  ].filter(Boolean).join("\n") };
   const image = session.actionImageUrl ? [{ type: 12, items: [{ media: { url: session.actionImageUrl } }] }] : [];
-  return { components: [{ type: 17, accent_color: session.status === "active" ? parseColor(session.actionColor) : session.status === "victory" ? 0x22c55e : 0xef4444, components: [details, ...image, ...rows] }], flags: MessageFlags.IsComponentsV2 as const };
+  return { components: [{ type: 17, accent_color: session.status === "victory" ? 0x22c55e : session.status === "defeat" || session.status === "cancelled" ? 0xef4444 : parseColor(session.actionColor), components: [details, ...image, ...rows] }], flags: MessageFlags.IsComponentsV2 as const };
 }
 
 function numberedList(items: FivemActionSession["participants"], limit: number) {
@@ -285,6 +312,14 @@ function actionModeLabel(mode: FivemActionMode | null | undefined) {
   if (mode === "shootout") return "No tiro";
   if (mode === "escape") return "Na fuga";
   return "Não informado";
+}
+
+function actionStatusLabel(status: FivemActionSession["status"], guild: Parameters<typeof systemStatusEmoji>[1] = null) {
+  if (status === "forming") return `${systemStatusEmoji("pending", guild)} Aguardando participantes`;
+  if (status === "active") return `${systemStatusEmoji("pending", guild)} Em andamento`;
+  if (status === "victory") return `${systemStatusEmoji("success", guild)} Finalizada - Vitória`;
+  if (status === "defeat") return `${systemStatusEmoji("danger", guild)} Finalizada - Derrota`;
+  return `${systemStatusEmoji("danger", guild)} Cancelada`;
 }
 
 async function getPanelVisualSlots(context: BotContext, guildId: string, basePanelId: string) {

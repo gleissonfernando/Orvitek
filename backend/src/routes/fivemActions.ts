@@ -3,10 +3,11 @@ import { z } from "zod";
 import { requireAuth, requireBot } from "../middleware/auth";
 import { canReadDevBotModule, canUseDevBotModule, getBotApiPermissions } from "../services/devBotService";
 import {
-  createFivemActionSession, deleteFivemActionDefinition, finishFivemActionSession,
+  cancelFivemActionSession, createFivemActionSession, deleteFivemActionDefinition, finishFivemActionSession,
   FIVEM_ACTIONS_MODULE_ID, getFivemActionDashboard, getFivemActionSession,
   joinFivemActionSession, leaveFivemActionSession, listActiveFivemActionSettings,
   POLICE_ACTIONS_MODULE_ID, requestFivemActionPanel, saveFivemActionDefinition, saveFivemActionSettings,
+  startFivemActionSession,
   updateFivemActionPanelState, updateFivemActionSessionMessage
 } from "../services/fivemActionService";
 import { resolveRequestBotId } from "../services/requestBotScopeService";
@@ -63,6 +64,8 @@ fivemActionsRouter.get("/bot/sessions/:sessionId", requireBot, async (req, res, 
 fivemActionsRouter.patch("/bot/sessions/:sessionId/message", requireBot, async (req, res, next) => { try { const botId = await botRuntimeId(req); await requireLicensedSession(botId, req.params.sessionId!); const input = z.object({ channelId: snowflake, messageId: snowflake }).parse(req.body); res.json({ session: await updateFivemActionSessionMessage(botId, req.params.sessionId!, input.channelId, input.messageId) }); } catch (error) { next(error); } });
 fivemActionsRouter.post("/bot/sessions/:sessionId/join", requireBot, async (req, res, next) => { try { const botId = await botRuntimeId(req); await requireLicensedSession(botId, req.params.sessionId!); const input = z.object({ userId: snowflake, username: z.string().max(100), roleIds: z.array(snowflake).max(100) }).parse(req.body); res.json({ session: await joinFivemActionSession(botId, req.params.sessionId!, input) }); } catch (error) { next(error); } });
 fivemActionsRouter.post("/bot/sessions/:sessionId/leave", requireBot, async (req, res, next) => { try { const botId = await botRuntimeId(req); await requireLicensedSession(botId, req.params.sessionId!); const input = z.object({ userId: snowflake }).parse(req.body); res.json({ session: await leaveFivemActionSession(botId, req.params.sessionId!, input.userId) }); } catch (error) { next(error); } });
+fivemActionsRouter.post("/bot/sessions/:sessionId/start", requireBot, async (req, res, next) => { try { const botId = await botRuntimeId(req); await requireLicensedSession(botId, req.params.sessionId!); const input = z.object({ actorId: snowflake }).parse(req.body); res.json({ session: await startFivemActionSession(botId, req.params.sessionId!, input.actorId) }); } catch (error) { next(error); } });
+fivemActionsRouter.post("/bot/sessions/:sessionId/cancel", requireBot, async (req, res, next) => { try { const botId = await botRuntimeId(req); await requireLicensedSession(botId, req.params.sessionId!); const input = z.object({ actorId: snowflake, reason: z.string().max(500).nullable().optional() }).parse(req.body); res.json({ session: await cancelFivemActionSession(botId, req.params.sessionId!, input.actorId, input.reason ?? null) }); } catch (error) { next(error); } });
 fivemActionsRouter.post("/bot/sessions/:sessionId/finish", requireBot, async (req, res, next) => { try { const botId = await botRuntimeId(req); await requireLicensedSession(botId, req.params.sessionId!); const input = z.object({ actorId: snowflake, result: z.enum(["victory", "defeat"]) }).parse(req.body); res.json({ session: await finishFivemActionSession(botId, req.params.sessionId!, input.actorId, input.result) }); } catch (error) { next(error); } });
 
 function params(req: any) { return { guildId: snowflake.parse(req.params.guildId), architecture: architectureSchema.parse(req.params.architecture) }; }
