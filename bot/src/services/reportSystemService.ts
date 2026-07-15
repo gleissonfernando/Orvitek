@@ -214,6 +214,10 @@ export async function handleReportSystemMessage(message: Message, context: BotCo
     return false;
   }
 
+  if (topic.status === "preparing") {
+    return false;
+  }
+
   const report = settings.reportSystem;
   const isReporter = message.author.id === topic.openerId;
   const isStaff = !isReporter && (
