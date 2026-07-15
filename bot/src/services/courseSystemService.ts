@@ -875,8 +875,8 @@ async function publishCourse(interaction: ModalSubmitInteraction, context: BotCo
   }
   const publicationWithPanel = await context.api.updateCoursePublicationMessage(interaction.guildId!, publication.id, message.id);
   await recordInstructorTrackingEvent(interaction.guild!, context, course, publicationWithPanel, "started", interaction.user.id);
-  await sendCourseLog(interaction, settings, `Curso agendado\nCurso: ${course.name}${course.code ? ` (${course.code})` : ""}\nInstrutor: <@${interaction.user.id}>\nCanal: <#${targetChannelId}>\nPainel: ${message.id}\nHorário: ${publicationWithPanel.scheduledFor}\nDP: ${publicationWithPanel.dpNameSnapshot ?? publicationWithPanel.location}\nVagas: ${publicationWithPanel.capacity}\nEvento do Discord: ${eventStarted ? "criado e iniciado automaticamente no envio do modal" : "criado"}`);
-  await interaction.editReply(eventStarted ? "✅ Curso agendado, painel publicado e evento iniciado com sucesso." : "✅ Curso agendado, painel publicado e evento criado com sucesso.");
+  await sendCourseLog(interaction, settings, `Curso agendado\nCurso: ${course.name}${course.code ? ` (${course.code})` : ""}\nInstrutor: <@${interaction.user.id}>\nCanal: <#${targetChannelId}>\nPainel: ${message.id}\nHorário: ${publicationWithPanel.scheduledFor}\nDP: ${publicationWithPanel.dpNameSnapshot ?? publicationWithPanel.location}\nVagas: ${publicationWithPanel.capacity}\nEvento do Discord: ${eventStarted ? "criado e ativado automaticamente no envio do modal" : "criado"}`);
+  await interaction.editReply(eventStarted ? "✅ Curso agendado, painel publicado e evento ativado com sucesso." : "✅ Curso agendado, painel publicado e evento criado com sucesso.");
 }
 
 async function editCourseInfo(interaction: ModalSubmitInteraction, context: BotContext, courseId: string) {
@@ -1108,15 +1108,13 @@ async function createAndStartCourseScheduledEvent(
 }
 
 async function activateCourseScheduledEventAfterScheduling(guild: Guild, eventId: string, course: Course, publication: CoursePublication) {
+  void course;
+  void publication;
   const event = await guild.scheduledEvents.fetch(eventId).catch(() => null);
   if (!event) return false;
   if (event.status === GuildScheduledEventStatus.Active) return true;
   if (event.status !== GuildScheduledEventStatus.Scheduled) return false;
-  await event.edit({
-    description: courseScheduledEventDescription(course, publication, "🟢 Curso iniciado"),
-    name: `🟢 Curso iniciado - ${course.name}`.slice(0, 100),
-    status: GuildScheduledEventStatus.Active
-  });
+  await event.edit({ status: GuildScheduledEventStatus.Active });
   return true;
 }
 
