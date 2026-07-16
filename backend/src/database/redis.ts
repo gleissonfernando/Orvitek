@@ -19,11 +19,11 @@ export function getRedisClient() {
     });
 
     redis.on("error", (error) => {
-      console.warn("[redis] conexao indisponivel:", error.message);
+      console.warn("[redis] conexão indisponível:", error.message);
     });
 
     redis.connect().catch((error) => {
-      console.warn("[redis] nao foi possivel conectar:", error.message);
+      console.warn("[redis] não foi possível conectar:", error.message);
     });
   }
 

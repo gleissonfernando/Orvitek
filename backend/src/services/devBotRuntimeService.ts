@@ -55,12 +55,12 @@ let supervisorLeaseErrors = 0;
 
 export async function startRegisteredDevBots() {
   if (!(await waitForDevBotSupervisorLease())) {
-    console.warn("[dev-bot] outro supervisor manteve a trava distribuida; bots cadastrados nao serao iniciados nesta instancia.");
+    console.warn("[dev-bot] outro supervisor manteve a trava distribuida; bots cadastrados não serão iniciados nesta instância.");
     return 0;
   }
 
   const bots = await listDevBotRuntimeConfigs().catch((error) => {
-    console.warn("[dev-bot] nao foi possivel carregar bots cadastrados:", error instanceof Error ? error.message : error);
+    console.warn("[dev-bot] não foi possível carregar bots cadastrados:", error instanceof Error ? error.message : error);
     return [];
   });
 
@@ -85,7 +85,7 @@ async function waitForDevBotSupervisorLease() {
 
 export async function startAllDevBotProcesses(botIds: string[]) {
   if (!(await ensureDevBotSupervisorLease())) {
-    throw new Error("Outra instancia e responsavel por executar os bots cadastrados.");
+    throw new Error("Outra instancia e responsável por executar os bots cadastrados.");
   }
 
   const bots = (await Promise.all(botIds.map((botId) => getDevBotRuntimeConfig(botId))))
@@ -137,7 +137,7 @@ export function scheduleDevBotModuleRestart(botId: string, delayMs = 2_000) {
   const timer = setTimeout(() => {
     moduleRestartTimers.delete(botId);
     void restartDevBotProcess(botId).catch((error) => {
-      console.warn(`[dev-bot:${botId}] falha ao aplicar modulos apos debounce:`, error instanceof Error ? error.message : error);
+      console.warn(`[dev-bot:${botId}] falha ao aplicar modulos após debounce:`, error instanceof Error ? error.message : error);
     });
   }, delayMs);
 
@@ -213,7 +213,7 @@ async function ensureDevBotSupervisorLease() {
     startDevBotSupervisorLeaseRenewal();
     console.info(`[dev-bot] trava distribuida de supervisor adquirida por ${DEV_BOT_SUPERVISOR_INSTANCE_ID}.`);
   } else {
-    console.warn("[dev-bot] MongoDB bloqueou escritas; usando supervisor local para iniciar bots cadastrados nesta instancia.");
+    console.warn("[dev-bot] MongoDB bloqueou escritas; usando supervisor local para iniciar bots cadastrados nesta instância.");
   }
   return true;
 }
@@ -288,7 +288,7 @@ async function renewDevBotSupervisorLease() {
     supervisorLeaseErrors += 1;
     console.error("[dev-bot] falha ao renovar trava distribuida de supervisor:", readRuntimeError(error));
     if (supervisorLeaseErrors >= 2) {
-      await handleLostDevBotSupervisorLease("a trava nao pode ser renovada antes da expiracao");
+      await handleLostDevBotSupervisorLease("a trava não pode ser renovada antes da expiracao");
     }
   }
 }
@@ -300,7 +300,7 @@ async function handleLostDevBotSupervisorLease(reason: string) {
   supervisorLeaseTimer = null;
   console.error(`[dev-bot] supervisor desativado: ${reason}. Encerrando bots filhos para impedir processos duplicados.`);
   await Promise.all([...runningBots.keys()].map((botId) => stopDevBotProcess(botId, {
-    message: "Processo encerrado porque esta instancia perdeu a trava de supervisor.",
+    message: "Processo encerrado porque esta instância perdeu a trava de supervisor.",
     notifyBot: false
   })));
 }
@@ -320,7 +320,7 @@ async function releaseDevBotSupervisorLease() {
     _id: DEV_BOT_SUPERVISOR_LEASE_ID,
     instanceId: DEV_BOT_SUPERVISOR_INSTANCE_ID
   }).catch((error) => {
-    console.warn("[dev-bot] nao foi possivel liberar trava de supervisor:", readRuntimeError(error));
+    console.warn("[dev-bot] não foi possível liberar trava de supervisor:", readRuntimeError(error));
   });
 }
 
@@ -350,7 +350,7 @@ async function startRuntime(bot: DevBotRuntimeConfig) {
   const entry = path.resolve(__dirname, "../../../bot/dist/index.js");
 
   if (!existsSync(entry)) {
-    await updateDevBotRuntimeStatus(bot.id, "error", "Build do bot nao encontrado. Execute o build da aplicacao.");
+    await updateDevBotRuntimeStatus(bot.id, "error", "Build do bot não encontrado. Execute o build da aplicacao.");
     return;
   }
 
@@ -399,11 +399,11 @@ async function startRuntime(bot: DevBotRuntimeConfig) {
     const message = writeBotLog(bot.id, chunk);
 
     if (message.includes("[bot] conectado como")) {
-      void updateDevBotRuntimeStatus(bot.id, "syncing_config", "Bot conectado ao Discord; sincronizando comandos e configuracoes.");
+      void updateDevBotRuntimeStatus(bot.id, "syncing_config", "Bot conectado ao Discord; sincronizando comandos e configurações.");
     } else if (/comandos sincronizados/i.test(message)) {
       void updateDevBotRuntimeStatus(bot.id, "ready", "Bot pronto; comandos sincronizados no Discord.");
     } else if (/MongoDB bloqueou|over your space quota|writes are blocked/i.test(message)) {
-      void updateDevBotRuntimeStatus(bot.id, "degraded", "Bot online, mas o banco esta bloqueando escritas por limite de armazenamento.");
+      void updateDevBotRuntimeStatus(bot.id, "degraded", "Bot online, mas o banco está bloqueando escritas por limite de armazenamento.");
     }
   });
   child.stderr.on("data", (chunk: Buffer) => {
@@ -497,14 +497,14 @@ async function canUseGuildMemberIntent(bot: DevBotRuntimeConfig) {
 
     if (!enabled) {
       console.warn(
-        `[dev-bot:${bot.id}] Server Members Intent nao esta ativo no Discord; eventos de membros serao ignorados.`
+        `[dev-bot:${bot.id}] Server Members Intent não esta ativo no Discord; eventos de membros serão ignorados.`
       );
     }
 
     return enabled;
   } catch (error) {
     console.warn(
-      `[dev-bot:${bot.id}] nao foi possivel consultar intents do Discord; iniciando sem eventos de membros:`,
+      `[dev-bot:${bot.id}] não foi possível consultar intents do Discord; iniciando sem eventos de membros:`,
       error instanceof Error ? error.message : error
     );
     return false;
@@ -527,7 +527,7 @@ async function canUseMessageContentIntent(bot: DevBotRuntimeConfig) {
     return Boolean(flags & (GATEWAY_MESSAGE_CONTENT | GATEWAY_MESSAGE_CONTENT_LIMITED));
   } catch (error) {
     console.warn(
-      `[dev-bot:${bot.id}] nao foi possivel consultar o Message Content Intent:`,
+      `[dev-bot:${bot.id}] não foi possível consultar o Message Content Intent:`,
       error instanceof Error ? error.message : error
     );
     return false;
@@ -549,7 +549,7 @@ function botRuntimeError(message: string) {
   if (/disallowed intents/i.test(message)) {
     return {
       status: "error" as const,
-      message: "O bot tentou usar intents nao ativadas no Discord Developer Portal."
+      message: "O bot tentou usar intents não ativadas no Discord Developer Portal."
     };
   }
 

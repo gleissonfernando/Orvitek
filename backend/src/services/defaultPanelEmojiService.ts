@@ -141,7 +141,7 @@ function readZipFiles(zipPath: string): Promise<Map<string, Buffer>> {
     const files = new Map<string, Buffer>();
     yauzl.open(zipPath, { lazyEntries: true }, (openError, zipFile) => {
       if (openError || !zipFile) {
-        reject(openError ?? new Error("ZIP de emojis invalido."));
+        reject(openError ?? new Error("ZIP de emojis inválido."));
         return;
       }
       zipFile.readEntry();
@@ -153,7 +153,7 @@ function readZipFiles(zipPath: string): Promise<Map<string, Buffer>> {
         zipFile.openReadStream(entry, (streamError, stream) => {
           if (streamError || !stream) {
             zipFile.close();
-            reject(streamError ?? new Error(`Nao foi possivel ler ${entry.fileName}.`));
+            reject(streamError ?? new Error(`Não foi possível ler ${entry.fileName}.`));
             return;
           }
           const chunks: Buffer[] = [];
@@ -235,7 +235,7 @@ async function logSeedError(bot: MongoDevBot, guildId: string, error: unknown) {
   await createLog({
     botId: bot._id,
     guildId,
-    message: `Falha ao instalar emojis padrao: ${errorMessage(error)}`,
+    message: `Falha ao instalar emojis padrão: ${errorMessage(error)}`,
     metadata: { source: "default-panel-emojis" },
     type: "default_panel_emojis.seed_failed",
     userId: SYSTEM_USER_ID

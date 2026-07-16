@@ -49,11 +49,11 @@ async function executeDashboardRegistration(guild: Guild, context: BotContext, p
   try {
     const member = await guild.members.fetch(payload.userId);
     const role = await guild.roles.fetch(payload.requestedRoleId);
-    if (!role?.editable) throw new Error("O cargo selecionado nao pode ser entregue pelo bot.");
+    if (!role?.editable) throw new Error("O cargo selecionado não pode ser entregue pelo bot.");
     await member.roles.add(role, "Cadastro manual realizado pela dashboard");
     const settings = await context.api.getManualRegistrationSettings(guild.id); const saved = await context.api.reviewManualRegistrationSubmission({ actorId: guild.members.me?.id ?? member.client.user.id, actorRoleIds: settings.approverRoleIds, guildId: guild.id, id: payload.submissionId, status: "approved" });
     const channelId = await ensureFivemGoalChannelForUser(context, guild, payload.userId, payload.username, payload.goalCategoryId);
-    await context.api.postLog({ guildId: guild.id, message: channelId ? "Cadastro manual concluido e canal de meta criado." : "Cadastro manual concluido; canal de meta ja existente ou modulo de metas indisponivel.", metadata: { channelId, roleId: payload.requestedRoleId, submissionId: saved.id }, type: "manual-registration.dashboard_completed", userId: payload.userId }).catch(() => null);
+    await context.api.postLog({ guildId: guild.id, message: channelId ? "Cadastro manual concluído e canal de meta criado." : "Cadastro manual concluído; canal de meta já existente ou módulo de metas indisponível.", metadata: { channelId, roleId: payload.requestedRoleId, submissionId: saved.id }, type: "manual-registration.dashboard_completed", userId: payload.userId }).catch(() => null);
   } catch (error) {
     await context.api.postLog({ guildId: guild.id, message: error instanceof Error ? error.message : "Falha no cadastro manual.", metadata: { submissionId: payload.submissionId }, type: "manual-registration.dashboard_failed", userId: payload.userId }).catch(() => null);
   }
@@ -66,19 +66,19 @@ export async function publishManualRegistrationPanel(interaction: ChatInputComma
   }
   const settings = await context.api.getManualRegistrationSettings(interaction.guild.id);
   if (!settings.enabled) {
-    await interaction.reply({ content: "O Pedido de Set esta desativado na dashboard.", ephemeral: true });
+    await interaction.reply({ content: "O Pedido de Set está desativado na dashboard.", ephemeral: true });
     return;
   }
   const configured = await resolveOrCreatePanelChannel(interaction.guild, settings);
   const channel = configured?.isSendable() ? configured : interaction.channel?.isSendable() ? interaction.channel : null;
   if (!channel) {
-    await interaction.reply({ content: "Configure um canal valido para o painel.", ephemeral: true });
+    await interaction.reply({ content: "Configure um canal válido para o painel.", ephemeral: true });
     return;
   }
   if (settings.panelMessageId && "messages" in channel) {
     const message = await channel.messages.fetch(settings.panelMessageId).catch(() => null);
     if (!message) {
-      await interaction.reply({ content: "A mensagem salva do painel nao foi encontrada. Limpe o ID salvo ou remova o painel antigo antes de publicar outro.", ephemeral: true });
+      await interaction.reply({ content: "A mensagem salva do painel não foi encontrada. Limpe o ID salvo ou remova o painel antigo antes de publicar outro.", ephemeral: true });
       return;
     }
     await message.edit(createPanelPayload(settings));
@@ -145,7 +145,7 @@ async function resolveOrCreatePanelChannel(guild: Guild, settings: ManualRegistr
   return guild.channels.create({
     name: "pedido-set",
     parent: category.id,
-    reason: "Canal automatico do sistema de Pedido de Set",
+    reason: "Canal automático do sistema de Pedido de Set",
     type: ChannelType.GuildText
   }).catch(() => null);
 }
@@ -176,7 +176,7 @@ export async function showManualRegistrationQuickConfig(interaction: ChatInputCo
     ["approvalChannelId", "ID do canal de analise", true],
     ["logChannelId", "ID do canal de logs", false],
     ["staffRoleId", "ID do cargo da staff", false],
-    ["defaultRoleId", "ID do cargo/set padrao", false]
+    ["defaultRoleId", "ID do cargo/set padrão", false]
   ] as const;
   for (const [id, label, required] of fields) {
     modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId(id).setLabel(label).setMinLength(required ? 5 : 0).setMaxLength(32).setRequired(required).setStyle(TextInputStyle.Short)));
@@ -213,11 +213,11 @@ export async function handleManualRegistrationInteraction(interaction: Interacti
       content: [
         "## Como solicitar seu set",
         "1. Clique em **Solicitar Set**.",
-        "2. Escolha o set desejado, quando houver mais de uma opcao.",
+        "2. Escolha o set desejado, quando houver mais de uma opção.",
         "3. Preencha todos os dados solicitados e envie o formulario.",
         "4. Use **Meu Status** para acompanhar a analise.",
         "",
-        "Se precisar corrigir alguma informacao, procure a equipe responsavel."
+        "Se precisar corrigir alguma informacao, procure a equipe responsável."
       ].join("\n"),
       ephemeral: true
     });
@@ -266,7 +266,7 @@ async function showEditSetMenu(interaction: ButtonInteraction, context: BotConte
   if (!interaction.guild) return;
   const settings = await context.api.getManualRegistrationSettings(interaction.guild.id);
   if (!(await canReview(interaction, settings))) {
-    await interaction.reply({ content: "Voce nao possui permissao para editar pedidos.", ephemeral: true });
+    await interaction.reply({ content: "Você não possui permissão para editar pedidos.", ephemeral: true });
     return;
   }
   const id = interaction.customId.split(":")[2] ?? "";
@@ -284,7 +284,7 @@ async function updateRequestedSet(interaction: StringSelectMenuInteraction, cont
   if (!interaction.guild) return;
   const settings = await context.api.getManualRegistrationSettings(interaction.guild.id);
   if (!(await canReview(interaction, settings))) {
-    await interaction.reply({ content: "Voce nao possui permissao para editar pedidos.", ephemeral: true });
+    await interaction.reply({ content: "Você não possui permissão para editar pedidos.", ephemeral: true });
     return;
   }
   const id = interaction.customId.split(":")[2] ?? "";
@@ -302,11 +302,11 @@ async function cancelSubmission(interaction: ButtonInteraction, context: BotCont
   await interaction.deferReply({ ephemeral: true });
   const settings = await context.api.getManualRegistrationSettings(interaction.guild.id);
   if (!(await canReview(interaction, settings))) {
-    await interaction.editReply("Voce nao possui permissao para cancelar pedidos.");
+    await interaction.editReply("Você não possui permissão para cancelar pedidos.");
     return;
   }
   const id = interaction.customId.split(":")[2] ?? "";
-  const actor = await interaction.guild.members.fetch(interaction.user.id); const saved = await context.api.reviewManualRegistrationSubmission({ actorId: interaction.user.id, actorRoleIds: [...actor.roles.cache.keys()], guildId: interaction.guild.id, id, rejectionReason: "Cancelado pela equipe responsavel.", status: "rejected" });
+  const actor = await interaction.guild.members.fetch(interaction.user.id); const saved = await context.api.reviewManualRegistrationSubmission({ actorId: interaction.user.id, actorRoleIds: [...actor.roles.cache.keys()], guildId: interaction.guild.id, id, rejectionReason: "Cancelado pela equipe responsável.", status: "rejected" });
   await interaction.message.edit(createReviewPayload(settings, saved)).catch(() => null);
   await sendActionLog(interaction.guild, settings, `Pedido cancelado\nUsuario: <@${saved.userId}>\nStaff: <@${interaction.user.id}>`);
   await interaction.editReply("Pedido cancelado.");
@@ -324,7 +324,7 @@ async function saveQuickConfig(interaction: ModalSubmitInteraction, context: Bot
     staffRoleId: readId("staffRoleId")
   };
   if (Object.values(values).some((value) => value && !/^\d{5,32}$/.test(value))) {
-    await interaction.editReply("Use apenas IDs validos do Discord nos campos de configuracao.");
+    await interaction.editReply("Use apenas IDs validos do Discord nos campos de configuração.");
     return;
   }
   await context.api.saveManualRegistrationSettings(interaction.guild.id, {
@@ -343,7 +343,7 @@ async function startSetRequest(interaction: ButtonInteraction, context: BotConte
   if (!interaction.guildId) return;
   const settings = await context.api.getManualRegistrationSettings(interaction.guildId);
   if (!settings.enabled) {
-    await interaction.reply({ content: "O Pedido de Set esta desativado.", ephemeral: true });
+    await interaction.reply({ content: "O Pedido de Set está desativado.", ephemeral: true });
     return;
   }
   const roles = settings.setRoles.filter((item) => item.enabled && item.requestable);
@@ -445,7 +445,7 @@ async function handleRegistrationSubmit(interaction: ModalSubmitInteraction, con
       await linkApprovedSetToGoals(context, interaction.guild, submission.userId, member.user.username, submission.id);
       await sendActionLog(interaction.guild, settings, `Pedido aprovado automaticamente\nUsuario: <@${submission.userId}>\nSet: ${submission.requestedRoleId ? `<@&${submission.requestedRoleId}>` : "padrao"}`);
     } catch (error) {
-      automaticError = error instanceof Error ? error.message : "Nao foi possivel aplicar o cargo automaticamente.";
+      automaticError = error instanceof Error ? error.message : "Não foi possível aplicar o cargo automaticamente.";
       await context.api.postLog({ guildId: interaction.guild.id, message: automaticError, metadata: { submissionId: submission.id }, type: "manual-registration.auto_approval_failed", userId: interaction.user.id }).catch(() => null);
     }
   }
@@ -457,16 +457,16 @@ async function handleRegistrationSubmit(interaction: ModalSubmitInteraction, con
   const channel = await interaction.guild.channels.create({ name: `set-${slug(requestedName)}-${submission.id.slice(0, 4)}`.slice(0, 95), parent: category.id, type: ChannelType.GuildText, permissionOverwrites: [{ id: interaction.guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] }, { id: submission.userId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }, { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] }, ...settings.approverRoleIds.map((id) => ({ id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }))] });
   const message = await channel.send(createReviewPayload(settings, submission));
   submission = await context.api.updateManualRegistrationSubmissionChannel(submission.id, channel.id, message.id);
-  await interaction.editReply(automaticError ? `${settings.successMessage}\n\nA aprovacao automatica ficou pendente: ${automaticError}` : settings.automaticApproval ? settings.approvalMessage : settings.successMessage);
+  await interaction.editReply(automaticError ? `${settings.successMessage}\n\nA aprovacao automática ficou pendente: ${automaticError}` : settings.automaticApproval ? settings.approvalMessage : settings.successMessage);
 }
 
 async function assignSetRoles(guild: Guild, settings: ManualRegistrationSettings, submission: ManualRegistrationSubmission) {
   const member = await guild.members.fetch(submission.userId).catch(() => null);
-  if (!member) throw new Error("O membro nao foi encontrado no servidor.");
+  if (!member) throw new Error("O membro não foi encontrado no servidor.");
   const roleIds = [...new Set([...(settings.autoRoleIds ?? []), ...(submission.requestedRoleId ? [submission.requestedRoleId] : [])])];
   for (const roleId of roleIds) {
     const role = await guild.roles.fetch(roleId).catch(() => null);
-    if (!role || !role.editable) throw new Error(`O bot nao pode entregar o cargo ${roleId}; verifique a hierarquia.`);
+    if (!role || !role.editable) throw new Error(`O bot não pode entregar o cargo ${roleId}; verifique a hierarquia.`);
   }
   for (const roleId of settings.removeRoleIds) await member.roles.remove(roleId).catch(() => null);
   for (const roleId of roleIds) await member.roles.add(roleId);
@@ -478,19 +478,19 @@ async function approveSubmission(interaction: ButtonInteraction, context: BotCon
   await interaction.deferReply({ ephemeral: true });
   const settings = await context.api.getManualRegistrationSettings(interaction.guild.id);
   if (!(await canReview(interaction, settings))) {
-    await interaction.editReply("Voce nao possui permissao para aprovar pedidos de set.");
+    await interaction.editReply("Você não possui permissão para aprovar pedidos de set.");
     return;
   }
   const id = interaction.customId.split(":")[2] ?? "";
   const targetId = interaction.customId.split(":")[3] ?? null;
   const submission = targetId ? await context.api.getLatestManualRegistrationSubmission(interaction.guild.id, targetId).catch(() => null) : null;
   if (!targetId) {
-    await interaction.editReply("Nao foi possivel identificar o membro deste pedido.");
+    await interaction.editReply("Não foi possível identificar o membro deste pedido.");
     return;
   }
   const member = await interaction.guild.members.fetch(targetId).catch(() => null);
   if (!member) {
-    await interaction.editReply("O membro nao foi encontrado no servidor.");
+    await interaction.editReply("O membro não foi encontrado no servidor.");
     return;
   }
   const roleIds = [...new Set([settings.approvedRoleId ?? submission?.requestedRoleId, ...(settings.autoRoleIds ?? [])].filter((value): value is string => Boolean(value)))];
@@ -499,7 +499,7 @@ async function approveSubmission(interaction: ButtonInteraction, context: BotCon
     const role = await interaction.guild.roles.fetch(roleId).catch(() => null);
     if (!role || !role.editable) {
       await context.api.postLog({ guildId: interaction.guild.id, message: "Falha ao entregar cargo do Pedido de Set.", metadata: { roleId, submissionId: id }, type: "manual-registration.role_delivery_failed", userId: interaction.user.id }).catch(() => null);
-      await interaction.editReply(`Nao posso entregar o cargo <@&${roleId}>. Verifique a hierarquia e a permissao Gerenciar Cargos.`);
+      await interaction.editReply(`Não posso entregar o cargo <@&${roleId}>. Verifique a hierarquia e a permissão Gerenciar Cargos.`);
       return;
     }
   }
@@ -520,7 +520,7 @@ async function showRejectionModal(interaction: ButtonInteraction, context: BotCo
   if (!interaction.guild) return;
   const settings = await context.api.getManualRegistrationSettings(interaction.guild.id);
   if (!(await canReview(interaction, settings))) {
-    await interaction.reply({ content: "Voce nao possui permissao para recusar pedidos.", ephemeral: true });
+    await interaction.reply({ content: "Você não possui permissão para recusar pedidos.", ephemeral: true });
     return;
   }
   const id = interaction.customId.split(":")[2] ?? "";
@@ -535,7 +535,7 @@ async function rejectSubmission(interaction: ModalSubmitInteraction, context: Bo
   await interaction.deferReply({ ephemeral: true });
   const settings = await context.api.getManualRegistrationSettings(interaction.guild.id);
   if (!(await canReview(interaction, settings))) {
-    await interaction.editReply("Voce nao possui permissao para recusar pedidos.");
+    await interaction.editReply("Você não possui permissão para recusar pedidos.");
     return;
   }
   const id = interaction.customId.split(":")[2] ?? "";
@@ -554,7 +554,7 @@ async function showRequestStatus(interaction: ButtonInteraction, context: BotCon
   if (!interaction.guildId) return;
   const submission = await context.api.getLatestManualRegistrationSubmission(interaction.guildId, interaction.user.id);
   if (!submission) {
-    await interaction.reply({ content: "Voce ainda nao possui pedidos de set.", ephemeral: true });
+    await interaction.reply({ content: "Você ainda não possui pedidos de set.", ephemeral: true });
     return;
   }
   const status = submission.status === "approved" ? "Aprovado" : submission.status === "rejected" ? "Recusado" : "Pendente";
@@ -562,7 +562,7 @@ async function showRequestStatus(interaction: ButtonInteraction, context: BotCon
 }
 
 async function showSubmissionDetails(interaction: ButtonInteraction) {
-  const content = interaction.message.components.length ? "Os dados completos estao exibidos no painel desta solicitacao." : "Detalhes indisponiveis.";
+  const content = interaction.message.components.length ? "Os dados completos estao exibidos no painel desta solicitação." : "Detalhes indisponiveis.";
   await interaction.reply({ content, ephemeral: true });
 }
 
@@ -655,7 +655,7 @@ function createReviewPayload(settings: ManualRegistrationSettings, submission: M
   const imageUrl = resolveImageUrl(settings.panelImage?.imageUrl ?? null);
   const content: Array<Record<string, unknown>> = [
     { type: 10, content: replaceSystemEmojis(`# ${settings.emoji ?? systemEmojiText("prancheta_caneta")} Pedido de Set`) },
-    { type: 10, content: `Usuario: <@${submission.userId}>\nID: ${submission.userId}\nSet solicitado: ${submission.requestedRoleId ? `<@&${submission.requestedRoleId}>` : "Padrao"}\nData: <t:${Math.floor(new Date(submission.createdAt ?? Date.now()).getTime() / 1000)}:F>\nStatus: **${statusText}**` },
+    { type: 10, content: `Usuário: <@${submission.userId}>\nID: ${submission.userId}\nSet solicitado: ${submission.requestedRoleId ? `<@&${submission.requestedRoleId}>` : "Padrão"}\nData: <t:${Math.floor(new Date(submission.createdAt ?? Date.now()).getTime() / 1000)}:F>\nStatus: **${statusText}**` },
     { type: 14 },
     { type: 10, content: submission.fields.map((field) => `**${field.label}:** ${field.value}`).join("\n").slice(0, 3500) }
   ];
@@ -687,15 +687,15 @@ async function sendActionLog(guild: Guild, settings: ManualRegistrationSettings,
 async function linkApprovedSetToGoals(context: BotContext, guild: Guild, userId: string, username: string, submissionId: string) {
   const goalSettings = await context.api.getFivemGoalSettings(guild.id).catch(() => null);
   if (!goalSettings?.enabled) {
-    await context.api.postLog({ guildId: guild.id, message: "Pedido de Set aprovado sem canal de meta: sistema de metas desativado ou indisponivel.", metadata: { submissionId }, type: "manual-registration.goal_link_skipped", userId }).catch(() => null);
+    await context.api.postLog({ guildId: guild.id, message: "Pedido de Set aprovado sem canal de meta: sistema de metas desativado ou indisponível.", metadata: { submissionId }, type: "manual-registration.goal_link_skipped", userId }).catch(() => null);
     return null;
   }
   if (!goalSettings.autoCreateWithManualRegistration) {
-    await context.api.postLog({ guildId: guild.id, message: "Pedido de Set aprovado sem canal de meta: vinculo automatico desativado.", metadata: { submissionId }, type: "manual-registration.goal_link_disabled", userId }).catch(() => null);
+    await context.api.postLog({ guildId: guild.id, message: "Pedido de Set aprovado sem canal de meta: vínculo automático desativado.", metadata: { submissionId }, type: "manual-registration.goal_link_disabled", userId }).catch(() => null);
     return null;
   }
   const channelId = await ensureFivemGoalChannelForUser(context, guild, userId, username).catch(() => null);
-  await context.api.postLog({ guildId: guild.id, message: channelId ? "Pedido de Set vinculado ao canal individual de meta." : "Nao foi possivel criar o canal individual de meta apos aprovar o set.", metadata: { channelId, submissionId }, type: channelId ? "manual-registration.goal_linked" : "manual-registration.goal_link_failed", userId }).catch(() => null);
+  await context.api.postLog({ guildId: guild.id, message: channelId ? "Pedido de Set vinculado ao canal individual de meta." : "Não foi possível criar o canal individual de meta após aprovar o set.", metadata: { channelId, submissionId }, type: channelId ? "manual-registration.goal_linked" : "manual-registration.goal_link_failed", userId }).catch(() => null);
   return channelId;
 }
 
@@ -733,5 +733,5 @@ function manualRegistrationErrorMessage(error: unknown) {
       : null;
     if (typeof message === "string" && message.trim()) return message;
   }
-  return "Nao foi possivel enviar o pedido de set. Tente novamente em alguns instantes.";
+  return "Não foi possível enviar o pedido de set. Tente novamente em alguns instantes.";
 }

@@ -249,7 +249,7 @@ export async function ensureSafeBotDiscordResources(
       "Qualquer mensagem enviada nesta sala será analisada pelo SafeBot.",
       "Este canal existe para identificar contas automatizadas que tentam espalhar spam ou conteúdo malicioso pelo servidor."
     ].join("\n")
-  }, "SafeBot: aviso automatico do canal filter");
+  }, "SafeBot: aviso automático do canal filter");
 
   guildLiveOptionsCache.delete(createLiveOptionsCacheKey(guildId, botToken));
   return {
@@ -304,7 +304,7 @@ export async function getGuildLiveOptions(
     })
     .catch((error) => {
       if (cached && cached.staleUntil > Date.now() && isTransientDiscordError(error)) {
-        console.warn(`[discord:options] usando cache temporario para o servidor ${guildId}.`);
+        console.warn(`[discord:options] usando cache temporário para o servidor ${guildId}.`);
         return cached.value;
       }
 
@@ -327,7 +327,7 @@ export async function deleteGuildStructure(
   const token = botToken || env.DISCORD_BOT_TOKEN;
 
   if (!token) {
-    throw new Error("Token do bot nao configurado.");
+    throw new Error("Token do bot não configurado.");
   }
 
   const requestedChannelIds = [...new Set(channelIds)];
@@ -351,7 +351,7 @@ export async function deleteGuildStructure(
     requestedChannelIds.some((channelId) => !allowedChannels.has(channelId))
     || requestedRoleIds.some((roleId) => !allowedRoles.has(roleId))
   ) {
-    throw Object.assign(new Error("A selecao contem canais ou cargos invalidos para este servidor."), { statusCode: 400 });
+    throw Object.assign(new Error("A seleção contem canais ou cargos invalidos para este servidor."), { statusCode: 400 });
   }
 
   const orderedChannels = requestedChannelIds
@@ -494,7 +494,7 @@ export async function getGuildMemberOptions(
         if (option) membersById.set(option.id, option);
       }
     } catch (error) {
-      throw Object.assign(new Error("Nao foi possivel carregar os membros deste servidor pelo Discord."), { cause: error, statusCode: 502 });
+      throw Object.assign(new Error("Não foi possível carregar os membros deste servidor pelo Discord."), { cause: error, statusCode: 502 });
     }
   } else if (/^\d{5,32}$/.test(normalizedQuery)) {
     try {
@@ -528,7 +528,7 @@ export async function getGuildMemberOptions(
     }
   } catch (error) {
     if (!membersById.size) {
-      throw Object.assign(new Error("Nao foi possivel buscar membros neste servidor pelo Discord."), {
+      throw Object.assign(new Error("Não foi possível buscar membros neste servidor pelo Discord."), {
         cause: error,
         statusCode: 502
       });
@@ -564,7 +564,7 @@ export async function validateGuildPanelChannel(
     return {
       missingPermissions: [],
       ok: false,
-      reason: "Token do bot nao configurado para validar o canal do painel."
+      reason: "Token do bot não configurado para validar o canal do painel."
     };
   }
 
@@ -579,7 +579,7 @@ export async function validateGuildPanelChannel(
       return {
         missingPermissions: [],
         ok: false,
-        reason: "O canal configurado nao existe neste servidor ou nao e um canal de texto."
+        reason: "O canal configurado não existe neste servidor ou não é um canal de texto."
       };
     }
 
@@ -602,14 +602,14 @@ export async function validateGuildPanelChannel(
       missingPermissions,
       ok: missingPermissions.length === 0,
       reason: missingPermissions.length
-        ? `Bot sem permissao no canal do painel: ${missingPermissions.join(", ")}.`
+        ? `Bot sem permissão no canal do painel: ${missingPermissions.join(", ")}.`
         : null
     };
   } catch {
     return {
       missingPermissions: [],
       ok: false,
-      reason: "Nao foi possivel validar o canal configurado no Discord."
+      reason: "Não foi possível validar o canal configurado no Discord."
     };
   }
 }
@@ -930,7 +930,7 @@ async function discordPost<TResponse>(
   if (!response.ok) {
     throw new DiscordApiRequestError(
       response.status === 403
-        ? "O bot nao possui permissao para criar canais ou cargos neste servidor."
+        ? "O bot não possui permissão para criar canais ou cargos neste servidor."
         : `Discord API respondeu ${response.status} ao criar a estrutura SafeBot.`,
       response.status
     );
@@ -956,7 +956,7 @@ async function discordDelete(path: string, token: string, reason: string, attemp
   if (!response.ok) {
     throw new DiscordApiRequestError(
       response.status === 403
-        ? "O bot nao tem permissao ou hierarquia para apagar este item."
+        ? "O bot não tem permissão ou hierarquia para apagar este item."
         : `Discord API respondeu ${response.status}.`,
       response.status
     );

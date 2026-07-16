@@ -61,7 +61,7 @@ export async function handlePoliceHiddenChannelInteraction(interaction: Interact
   if (!customId.startsWith(`${PREFIX}:`)) return false;
 
   if (!interaction.member || !canManage(interaction.member as GuildMember)) {
-    await interaction.reply({ content: "Voce nao tem permissao para configurar o Canal Oculto.", ephemeral: true });
+    await interaction.reply({ content: "Você não tem permissão para configurar o Canal Oculto.", ephemeral: true });
     return true;
   }
 
@@ -100,7 +100,7 @@ export async function handlePoliceHiddenChannelMessage(message: Message, context
   const me = message.guild.members.me ?? await message.guild.members.fetchMe().catch(() => null);
   const permissions = me ? channel.permissionsFor(me) : null;
   if (!permissions?.has(PermissionFlagsBits.ManageMessages) || !permissions.has(PermissionFlagsBits.SendMessages)) {
-    await writeRelayLog(context, message, settings, "failed", null, "Permissoes insuficientes para apagar ou enviar mensagens.");
+    await writeRelayLog(context, message, settings, "failed", null, "Permissões insuficientes para apagar ou enviar mensagens.");
     return true;
   }
 
@@ -114,7 +114,7 @@ export async function handlePoliceHiddenChannelMessage(message: Message, context
 
   if (!payload.content && !payload.files?.length && !payload.embeds?.length && !payload.stickers?.length) {
     await message.delete().catch(() => null);
-    await writeRelayLog(context, message, settings, "failed", null, "Mensagem sem conteudo retransmissivel.");
+    await writeRelayLog(context, message, settings, "failed", null, "Mensagem sem conteúdo retransmissivel.");
     return true;
   }
 
@@ -175,7 +175,7 @@ async function selectLogChannel(interaction: ChannelSelectMenuInteraction, conte
   cacheSettings(settings);
   await interaction.update({
     components: [],
-    content: `Canal Oculto configurado.\nCanal: <#${settings.channelId}>\nCargo autorizado: <@&${settings.allowedRoleId}>\nLogs: ${settings.logChannelId ? `<#${settings.logChannelId}>` : "nao configurado"}`
+    content: `Canal Oculto configurado.\nCanal: <#${settings.channelId}>\nCargo autorizado: <@&${settings.allowedRoleId}>\nLogs: ${settings.logChannelId ? `<#${settings.logChannelId}>` : "não configurado"}`
   });
 }
 

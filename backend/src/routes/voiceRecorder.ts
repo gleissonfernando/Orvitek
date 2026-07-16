@@ -156,7 +156,7 @@ voiceRecorderRouter.post("/bot/reconcile", requireBot, async (req, res, next) =>
     return res.json({
       recordings: await failActiveVoiceRecordingsForBot({
         botId,
-        error: "Bot reiniciado sem uma sessao local de audio ativa."
+        error: "Bot reiniciado sem uma sessão local de audio ativa."
       })
     });
   } catch (error) {
@@ -442,7 +442,7 @@ async function assertCanReadVoiceRecorder(user: AuthSessionUser, guildId: string
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para acessar o Voice Recorder deste bot.", 403);
+  throw createRouteError("Você não tem permissão para acessar o Voice Recorder deste bot.", 403);
 }
 
 async function assertCanManageVoiceRecorder(user: AuthSessionUser, guildId: string, botId: string) {
@@ -452,18 +452,18 @@ async function assertCanManageVoiceRecorder(user: AuthSessionUser, guildId: stri
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para configurar o Voice Recorder deste bot.", 403);
+  throw createRouteError("Você não tem permissão para configurar o Voice Recorder deste bot.", 403);
 }
 
 async function assertBotVoiceRecorderLicense(botId: string) {
   const permissions = await getBotApiPermissions(botId);
 
   if (!permissions) {
-    throw createRouteError("Bot nao encontrado.", 404);
+    throw createRouteError("Bot não encontrado.", 404);
   }
 
   if (!permissions.enabledModules.includes(MODULE_ID)) {
-    throw createRouteError("O Voice Recorder nao foi liberado para este bot.", 403);
+    throw createRouteError("O Voice Recorder não foi liberado para este bot.", 403);
   }
 }
 
@@ -471,17 +471,17 @@ async function validateVoiceRecorderResources(guildId: string, botId: string, in
   const botToken = await getDevBotToken(botId);
 
   if (input.logChannelId && !(await isGuildTextChannel(guildId, input.logChannelId, botToken))) {
-    throw createRouteError("O canal de logs selecionado nao pertence a este servidor.", 400);
+    throw createRouteError("O canal de logs selecionado não pertence a este servidor.", 400);
   }
 
   if (input.allowedRoleIds?.length && !(await areGuildRoles(guildId, input.allowedRoleIds, botToken))) {
-    throw createRouteError("Um dos cargos autorizados nao pertence a este servidor.", 400);
+    throw createRouteError("Um dos cargos autorizados não pertence a este servidor.", 400);
   }
 }
 
 async function validateVoiceChannel(guildId: string, botId: string, channelId: string) {
   if (!(await isGuildVoiceChannel(guildId, channelId, await getDevBotToken(botId)))) {
-    throw createRouteError("O canal de voz selecionado nao pertence a este servidor.", 400);
+    throw createRouteError("O canal de voz selecionado não pertence a este servidor.", 400);
   }
 }
 
@@ -489,18 +489,18 @@ async function assertDashboardActorHasRecorderRole(user: AuthSessionUser, guildI
   const settings = await getVoiceRecorderSettings(guildId, botId);
 
   if (!settings.enabled) {
-    throw createRouteError("O Voice Recorder esta desativado neste servidor.", 403);
+    throw createRouteError("O Voice Recorder está desativado neste servidor.", 403);
   }
 
   if (!settings.allowedRoleIds.length) {
-    throw createRouteError("Configure pelo menos um cargo autorizado antes de iniciar gravacoes.", 400);
+    throw createRouteError("Configure pelo menos um cargo autorizado antes de iniciar gravações.", 400);
   }
 
   const botToken = await getDevBotToken(botId);
   const allowed = await userHasAnyGuildRole(guildId, user.discordId, settings.allowedRoleIds, botToken);
 
   if (!allowed) {
-    throw createRouteError("Seu usuario nao tem um cargo autorizado para iniciar ou encerrar gravacoes.", 403);
+    throw createRouteError("Seu usuário não tem um cargo autorizado para iniciar ou encerrar gravações.", 403);
   }
 }
 

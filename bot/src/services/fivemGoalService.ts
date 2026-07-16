@@ -175,13 +175,13 @@ async function handleGoalChannelRequest(interaction: ButtonInteraction, context:
   await interaction.deferReply({ ephemeral: true });
   const settings = await context.api.getFivemGoalSettings(interaction.guild.id).catch(() => null);
   if (!settings?.enabled) {
-    await interaction.editReply("O sistema de metas nao esta ativo neste servidor.");
+    await interaction.editReply("O sistema de metas não está ativo neste servidor.");
     return;
   }
   const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
   const channelId = await ensureFivemGoalChannelForUser(context, interaction.guild, interaction.user.id, member?.displayName ?? interaction.user.username);
   if (!channelId) {
-    await interaction.editReply("Nao foi possivel criar seu canal de meta. Avise a administracao para conferir categoria e permissoes do bot.");
+    await interaction.editReply("Não foi possível criar seu canal de meta. Avise a administracao para conferir categoria e permissões do bot.");
     return;
   }
   await interaction.editReply(`Seu canal individual de meta esta pronto: <#${channelId}>`);
@@ -214,7 +214,7 @@ function createGoalRequestPanelPayload(title: string, description: string) {
         accent_color: 0x22c55e,
         components: [
           { type: 10, content: `# ${title || "Sistema de Metas FiveM"}\n${description || "Solicite seu canal individual de meta para enviar comprovantes e acompanhar seu progresso."}` },
-          { type: 10, content: "Use o botao abaixo para criar ou localizar seu canal individual de meta." }
+          { type: 10, content: "Use o botão abaixo para criar ou localizar seu canal individual de meta." }
         ]
       },
       new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -332,7 +332,7 @@ async function handleUserGoalPanelAction(interaction: ButtonInteraction, context
     return;
   }
   if (action === "add") {
-    await interaction.reply({ content: "Envie a imagem do comprovante neste canal. Assim que ela chegar, o bot mostrara o botao **Registrar Meta**.", ephemeral: true });
+    await interaction.reply({ content: "Envie a imagem do comprovante neste canal. Assim que ela chegar, o bot mostrara o botão **Registrar Meta**.", ephemeral: true });
     return;
   }
   const runtime = await context.api.getFivemGoalUserRuntime(interaction.guild.id, ownerId);
@@ -344,12 +344,12 @@ async function handleUserGoalPanelAction(interaction: ButtonInteraction, context
   }
   if (action === "ranking") {
     const lines = runtime.ranking.slice(0, 25).map((item) => `${item.rank <= 3 ? ["🥇", "🥈", "🥉"][item.rank - 1] : `**${item.rank}.**`} <@${item.userId}> — ${formatGoalValue(item.total)}`);
-    await interaction.reply({ content: `## Ranking de Metas\n${lines.join("\n") || "Ainda nao existem valores aprovados."}`, ephemeral: true });
+    await interaction.reply({ content: `## Ranking de Metas\n${lines.join("\n") || "Ainda não existem valores aprovados."}`, ephemeral: true });
     return;
   }
   if (action === "review") {
     await context.api.postLog({ guildId: interaction.guild.id, message: "Revisao de meta solicitada pelo membro.", metadata: { channelId: interaction.channelId }, type: "fivem.goals.review_requested", userId: ownerId }).catch(() => null);
-    await interaction.reply({ content: "Revisao solicitada. A equipe responsavel foi registrada nos logs.", ephemeral: true });
+    await interaction.reply({ content: "Revisao solicitada. A equipe responsável foi registrada nos logs.", ephemeral: true });
     return;
   }
   if (action === "refresh") {
@@ -369,19 +369,19 @@ async function createUserGoalPanel(context: BotContext, guildId: string, userId:
   const rank = runtime.ranking.find((item) => item.userId === userId)?.rank ?? null;
   const content = [
     `# ${systemEmojiText("trofeu", guild)} Painel Individual de Metas`,
-    `${systemEmojiText("homem", guild)} **Responsavel:** <@${userId}> (${username})`,
+    `${systemEmojiText("homem", guild)} **Responsável:** <@${userId}> (${username})`,
     `${systemEmojiText("prancheta", guild)} **Meta atual:** ${active?.name ?? "Nenhuma meta ativa"}`,
     `${systemEmojiText("calendario", guild)} **Criado:** <t:${Math.floor(Date.now() / 1000)}:d>`,
     `${systemEmojiText("prancheta_acertos", guild)} **Progresso:** ${formatGoalValue(current)} / ${formatGoalValue(target)}`,
     `\`${"█".repeat(filled)}${"░".repeat(10 - filled)}\` **${percent}%**`,
-    `${systemEmojiText("trofeu_alt", guild)} **Ranking geral:** ${rank ? `#${rank}` : "Ainda sem posicao"}`,
-    `${systemStatusEmoji(percent >= 100 ? "success" : "active", guild)} **Status:** ${percent >= 100 ? "Meta concluida" : "Em andamento"}`
+    `${systemEmojiText("trofeu_alt", guild)} **Ranking geral:** ${rank ? `#${rank}` : "Ainda sem posição"}`,
+    `${systemStatusEmoji(percent >= 100 ? "success" : "active", guild)} **Status:** ${percent >= 100 ? "Meta concluída" : "Em andamento"}`
   ].join("\n");
   return {
     allowedMentions: { parse: [] as never[] },
     components: [{ type: 17, accent_color: percent >= 100 ? 0x22c55e : 0x3b82f6, components: [{ type: 10, content }] }, new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`${PREFIX}:user:add:${userId}`).setEmoji(systemComponentEmoji("mais", guild)).setLabel("Adicionar Meta").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`${PREFIX}:user:history:${userId}`).setEmoji(systemComponentEmoji("prancheta", guild)).setLabel("Historico").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`${PREFIX}:user:history:${userId}`).setEmoji(systemComponentEmoji("prancheta", guild)).setLabel("Histórico").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(`${PREFIX}:user:ranking:${userId}`).setEmoji(systemComponentEmoji("trofeu", guild)).setLabel("Ranking").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(`${PREFIX}:user:refresh:${userId}`).setEmoji(systemComponentEmoji("relogio", guild)).setLabel("Atualizar").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(`${PREFIX}:user:review:${userId}`).setEmoji(systemComponentEmoji("interrogacao", guild)).setLabel("Solicitar Revisao").setStyle(ButtonStyle.Secondary)

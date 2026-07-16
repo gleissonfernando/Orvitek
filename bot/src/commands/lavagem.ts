@@ -6,7 +6,7 @@ export const lavagemCommand: BotCommand = {
   data: new SlashCommandBuilder()
     .setName("lavagem")
     .setDescription("Sistema de lavagem.")
-    .addSubcommand((cmd) => cmd.setName("config").setDescription("Abre o painel privado de configuracao da lavagem.")),
+    .addSubcommand((cmd) => cmd.setName("config").setDescription("Abre o painel privado de configuração da lavagem.")),
   moduleId: "fivem-washing",
   async execute(interaction, context) {
     if (interaction.options.getSubcommand() === "config") {

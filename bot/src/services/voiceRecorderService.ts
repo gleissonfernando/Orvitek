@@ -88,17 +88,17 @@ export async function startVoiceRecorderService(context: BotContext) {
     const reconciled = await context.api.reconcileVoiceRecordings();
 
     if (reconciled.length) {
-      console.warn(`[voice-recorder] ${reconciled.length} gravacao(oes) orfa(s) encerrada(s) na inicializacao.`);
+      console.warn(`[voice-recorder] ${reconciled.length} gravação(oes) orfa(s) encerrada(s) na inicializacao.`);
     }
   } catch (error) {
-    console.warn("[voice-recorder] falha ao reconciliar gravacoes na inicializacao:", readPlainError(error));
+    console.warn("[voice-recorder] falha ao reconciliar gravações na inicializacao:", readPlainError(error));
   }
 }
 
 export async function handleVoiceRecordStartCommand(interaction: ChatInputCommandInteraction, context: BotContext) {
   if (!interaction.guild) {
     await interaction.reply({
-      content: "Comando disponivel apenas em servidores.",
+      content: "Comando disponível apenas em servidores.",
       ephemeral: true
     });
     return;
@@ -112,7 +112,7 @@ export async function handleVoiceRecordStartCommand(interaction: ChatInputComman
   const voiceChannel = member?.voice.channel ?? null;
 
   if (!member || !voiceChannel) {
-    await interaction.editReply("Entre em um canal de voz antes de iniciar a gravacao.");
+    await interaction.editReply("Entre em um canal de voz antes de iniciar a gravação.");
     return;
   }
 
@@ -124,7 +124,7 @@ export async function handleVoiceRecordStartCommand(interaction: ChatInputComman
   }
 
   if (activeSessions.has(interaction.guild.id)) {
-    await interaction.editReply("Ja existe uma gravacao em andamento neste servidor.");
+    await interaction.editReply("Já existe uma gravação em andamento neste servidor.");
     return;
   }
 
@@ -144,7 +144,7 @@ export async function handleVoiceRecordStartCommand(interaction: ChatInputComman
     startResult = await context.api.startVoiceRecording(startInput);
   } catch (error) {
     if (!isActiveRecordingConflict(error)) {
-      await interaction.editReply(readErrorMessage(error, "Nao foi possivel iniciar a gravacao."));
+      await interaction.editReply(readErrorMessage(error, "Não foi possível iniciar a gravação."));
       return;
     }
 
@@ -152,7 +152,7 @@ export async function handleVoiceRecordStartCommand(interaction: ChatInputComman
       await failOrphanedRecording(context, startInput);
       startResult = await context.api.startVoiceRecording(startInput);
     } catch (recoveryError) {
-      await interaction.editReply(readErrorMessage(recoveryError, "Nao foi possivel recuperar a gravacao anterior."));
+      await interaction.editReply(readErrorMessage(recoveryError, "Não foi possível recuperar a gravação anterior."));
       return;
     }
   }
@@ -169,7 +169,7 @@ export async function handleVoiceRecordStartCommand(interaction: ChatInputComman
       error: readPlainError(error),
       guildId: interaction.guild.id
     }).catch(() => undefined);
-    await interaction.editReply(`Nao consegui conectar ao canal de voz: ${readPlainError(error)}`);
+    await interaction.editReply(`Não consegui conectar ao canal de voz: ${readPlainError(error)}`);
     return;
   }
 
@@ -179,7 +179,7 @@ export async function handleVoiceRecordStartCommand(interaction: ChatInputComman
 export async function handleVoiceRecordStopCommand(interaction: ChatInputCommandInteraction, context: BotContext) {
   if (!interaction.guild) {
     await interaction.reply({
-      content: "Comando disponivel apenas em servidores.",
+      content: "Comando disponível apenas em servidores.",
       ephemeral: true
     });
     return;
@@ -203,11 +203,11 @@ export async function handleVoiceRecordStopCommand(interaction: ChatInputCommand
       });
       await interaction.editReply(
         failed
-          ? "A gravacao sem conexao com o bot foi encerrada."
-          : "Nao existe gravacao em andamento neste servidor."
+          ? "A gravação sem conexão com o bot foi encerrada."
+          : "Não existe gravação em andamento neste servidor."
       );
     } catch (error) {
-      await interaction.editReply(readErrorMessage(error, "Nao existe gravacao em andamento neste servidor."));
+      await interaction.editReply(readErrorMessage(error, "Não existe gravação em andamento neste servidor."));
     }
     return;
   }
@@ -220,9 +220,9 @@ export async function handleVoiceRecordStopCommand(interaction: ChatInputCommand
       actorRoleIds: member ? memberRoleIds(member) : [],
       actorTag: interaction.user.tag
     });
-    await interaction.editReply("Gravacao encerrada. O arquivo foi processado e salvo no historico.");
+    await interaction.editReply("Gravação encerrada. O arquivo foi processado e salvo no histórico.");
   } catch (error) {
-    await interaction.editReply(readErrorMessage(error, "Nao foi possivel encerrar a gravacao."));
+    await interaction.editReply(readErrorMessage(error, "Não foi possível encerrar a gravação."));
   }
 }
 
@@ -243,7 +243,7 @@ export async function handleVoiceRecorderVoiceStateUpdate(oldState: VoiceState, 
     if (oldInChannel && !newInChannel && !session.stopping) {
       await context.api.recordVoiceRecordingEvent(session.recordingId, {
         guildId,
-        message: "O bot foi desconectado ou movido do canal. A gravacao sera encerrada automaticamente.",
+        message: "O bot foi desconectado ou movido do canal. A gravação será encerrada automaticamente.",
         type: "bot_disconnected",
         userId: botUser.id,
         username: botUser.tag
@@ -256,7 +256,7 @@ export async function handleVoiceRecorderVoiceStateUpdate(oldState: VoiceState, 
           trustedDashboard: true
         });
       } catch (error) {
-        console.warn("[voice-recorder] falha ao finalizar apos desconexao do bot:", readPlainError(error));
+        console.warn("[voice-recorder] falha ao finalizar após desconexao do bot:", readPlainError(error));
 
         if (activeSessions.get(guildId)?.recordingId === session.recordingId) {
           await abortLocalSession(guildId);
@@ -321,7 +321,7 @@ async function handleDashboardStart(event: VoiceRecorderStartEvent, context: Bot
 
   if (!guild) {
     await context.api.failVoiceRecording(event.recordingId, {
-      error: "Bot nao encontrou o servidor da gravacao.",
+      error: "Bot não encontrou o servidor da gravação.",
       guildId: event.guildId
     }).catch(() => undefined);
     return;
@@ -331,7 +331,7 @@ async function handleDashboardStart(event: VoiceRecorderStartEvent, context: Bot
 
   if (!isVoiceBasedChannel(channel)) {
     await context.api.failVoiceRecording(event.recordingId, {
-      error: "Canal de voz da gravacao nao encontrado.",
+      error: "Canal de voz da gravação não encontrado.",
       guildId: event.guildId
     }).catch(() => undefined);
     return;
@@ -367,7 +367,7 @@ async function handleDashboardStop(event: VoiceRecorderStopEvent, context: BotCo
 
   if (!session || session.recordingId !== event.recordingId) {
     await context.api.failVoiceRecording(event.recordingId, {
-      error: "Bot nao possui uma sessao ativa para encerrar.",
+      error: "Bot não possui uma sessão ativa para encerrar.",
       guildId: event.guildId
     }).catch(() => undefined);
     return;
@@ -394,7 +394,7 @@ async function startCapture(input: {
   settings: VoiceRecorderSettings;
 }) {
   if (activeSessions.has(input.channel.guild.id)) {
-    throw new Error("Ja existe uma gravacao em andamento neste servidor.");
+    throw new Error("Já existe uma gravação em andamento neste servidor.");
   }
 
   const connection = joinVoiceChannel({
@@ -444,7 +444,7 @@ async function startCapture(input: {
 
 async function stopSession(context: BotContext, session: VoiceRecorderSession, input: StopInput) {
   if (session.stopping) {
-    throw new Error("A gravacao ja esta em processo de encerramento.");
+    throw new Error("A gravação já está em processo de encerramento.");
   }
 
   session.stopping = true;
@@ -504,7 +504,7 @@ async function stopSession(context: BotContext, session: VoiceRecorderSession, i
     });
 
     await sendRecordingLogEmbed(session, completed).catch((error) => {
-      console.warn("[voice-recorder] nao foi possivel enviar embed de log:", readPlainError(error));
+      console.warn("[voice-recorder] não foi possível enviar embed de log:", readPlainError(error));
     });
   } catch (error) {
     activeSessions.delete(session.guild.id);
@@ -543,7 +543,7 @@ async function failOrphanedRecording(context: BotContext, input: {
   });
 
   return context.api.failVoiceRecording(recording.id, {
-    error: "Bot nao possui uma sessao local de audio ativa.",
+    error: "Bot não possui uma sessão local de audio ativa.",
     guildId: input.guildId
   });
 }
@@ -560,7 +560,7 @@ function destroyVoiceConnection(connection: VoiceConnection) {
   try {
     connection.destroy();
   } catch (error) {
-    console.warn("[voice-recorder] nao foi possivel destruir a conexao de voz:", readPlainError(error));
+    console.warn("[voice-recorder] não foi possível destruir a conexão de voz:", readPlainError(error));
   }
 }
 
@@ -644,7 +644,7 @@ async function validateBotVoicePermissions(channel: VoiceBasedChannel) {
   const botMember = channel.guild.members.me ?? await channel.guild.members.fetchMe().catch(() => null);
 
   if (!botMember) {
-    return "Nao consegui validar minhas permissoes no servidor.";
+    return "Não consegui validar minhas permissões no servidor.";
   }
 
   const permissions = botMember.permissionsIn(channel.id);
@@ -675,7 +675,7 @@ async function sendRecordingLogEmbed(session: VoiceRecorderSession, recording: V
     : "Nenhum participante detectado";
   const fileName = recording.fileName ?? `${recording.id}.mp3`;
   const attachment = new AttachmentBuilder(session.filePath, {
-    description: `Gravacao do canal ${recording.channelName ?? recording.channelId}`,
+    description: `Gravação do canal ${recording.channelName ?? recording.channelId}`,
     name: fileName
   });
 
@@ -685,14 +685,14 @@ async function sendRecordingLogEmbed(session: VoiceRecorderSession, recording: V
       files: [attachment]
     });
   } catch (error) {
-    console.warn("[voice-recorder] Discord recusou o anexo direto; enviando link da gravacao:", readPlainError(error));
+    console.warn("[voice-recorder] Discord recusou o anexo direto; enviando link da gravação:", readPlainError(error));
     await channel.send({
       embeds: [
         buildRecordingLogEmbed(
           session,
           recording,
           participantText,
-          recording.fileUrl ?? "Disponivel no historico da dashboard."
+          recording.fileUrl ?? "Disponível no histórico da dashboard."
         )
       ]
     });
@@ -707,9 +707,9 @@ function buildRecordingLogEmbed(
 ) {
   return new EmbedBuilder()
     .setColor(0x8b5cf6)
-    .setTitle("Voice Recorder - Gravacao finalizada")
+    .setTitle("Voice Recorder - Gravação finalizada")
     .addFields(
-      { name: "ID da gravacao", value: recording.id, inline: false },
+      { name: "ID da gravação", value: recording.id, inline: false },
       { name: "Servidor", value: recording.guildName ?? session.guild.name, inline: true },
       { name: "Canal", value: recording.channelName ?? recording.channelId, inline: true },
       { name: "Iniciada por", value: recording.startedByTag ?? `<@${recording.startedById}>`, inline: true },
@@ -736,7 +736,7 @@ function memberRoleIds(member: GuildMember) {
 
 function startMessage(recording: VoiceRecording, channel: VoiceBasedChannel, actor: string) {
   return [
-    "🎙️ Gravacao iniciada com sucesso.",
+    "🎙️ Gravação iniciada com sucesso.",
     "",
     `Canal: ${channel.name}`,
     `Iniciado por: ${actor}`,
@@ -897,7 +897,7 @@ class PcmMp3Mixer {
     });
 
     if (exitCode !== 0) {
-      throw new Error(this.stderr || `ffmpeg encerrou com codigo ${exitCode}.`);
+      throw new Error(this.stderr || `ffmpeg encerrou com código ${exitCode}.`);
     }
   }
 

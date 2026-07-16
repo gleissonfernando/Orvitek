@@ -34,7 +34,7 @@ reportForwardingRouter.get("/:guildId", requireAuth, async (req, res, next) => {
     const botId = await resolveRequestBotId(req);
 
     if (!(await canRead(req, res, guildId, botId))) {
-      return res.status(403).json({ message: "Voce nao tem permissao para visualizar o encaminhamento da Corregedoria." });
+      return res.status(403).json({ message: "Você não tem permissão para visualizar o encaminhamento da Corregedoria." });
     }
 
     return res.json({ rules: await listHierarchyForwardingRules(guildId, botId) });
@@ -50,7 +50,7 @@ reportForwardingRouter.post("/:guildId", requireAuth, async (req, res, next) => 
     const input = ruleSchema.parse(req.body ?? {});
 
     if (!(await canManage(req, res, guildId, botId))) {
-      return res.status(403).json({ message: "Voce nao tem permissao para gerenciar o encaminhamento da Corregedoria." });
+      return res.status(403).json({ message: "Você não tem permissão para gerenciar o encaminhamento da Corregedoria." });
     }
 
     const rule = await createHierarchyForwardingRule(guildId, botId, input, actorId(res));
@@ -70,7 +70,7 @@ reportForwardingRouter.patch("/:guildId/:ruleId", requireAuth, async (req, res, 
     const input = patchRuleSchema.parse(req.body ?? {});
 
     if (!(await canManage(req, res, guildId, botId))) {
-      return res.status(403).json({ message: "Voce nao tem permissao para gerenciar o encaminhamento da Corregedoria." });
+      return res.status(403).json({ message: "Você não tem permissão para gerenciar o encaminhamento da Corregedoria." });
     }
 
     const rule = await updateHierarchyForwardingRule(guildId, botId, ruleId, input, actorId(res));
@@ -89,7 +89,7 @@ reportForwardingRouter.post("/:guildId/:ruleId/duplicate", requireAuth, async (r
     const ruleId = z.string().min(1).max(120).parse(req.params.ruleId);
 
     if (!(await canManage(req, res, guildId, botId))) {
-      return res.status(403).json({ message: "Voce nao tem permissao para gerenciar o encaminhamento da Corregedoria." });
+      return res.status(403).json({ message: "Você não tem permissão para gerenciar o encaminhamento da Corregedoria." });
     }
 
     const rule = await duplicateHierarchyForwardingRule(guildId, botId, ruleId, actorId(res));
@@ -108,7 +108,7 @@ reportForwardingRouter.delete("/:guildId/:ruleId", requireAuth, async (req, res,
     const ruleId = z.string().min(1).max(120).parse(req.params.ruleId);
 
     if (!(await canManage(req, res, guildId, botId))) {
-      return res.status(403).json({ message: "Voce nao tem permissao para gerenciar o encaminhamento da Corregedoria." });
+      return res.status(403).json({ message: "Você não tem permissão para gerenciar o encaminhamento da Corregedoria." });
     }
 
     await deleteHierarchyForwardingRule(guildId, botId, ruleId, actorId(res));

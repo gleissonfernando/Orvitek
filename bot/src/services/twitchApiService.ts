@@ -169,7 +169,7 @@ async function getAppAccessToken() {
   const clientSecret = env.TWITCH_CLIENT_SECRET.trim();
 
   if (!clientId || !clientSecret) {
-    throw new Error("Credenciais da Twitch API nao configuradas no bot.");
+    throw new Error("Credenciais da Twitch API não configuradas no bot.");
   }
 
   if (tokenCache && tokenCache.expiresAt > Date.now() + 60_000) {
@@ -200,7 +200,7 @@ async function getAppAccessToken() {
     return tokenCache.accessToken;
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 401) {
-      throw new Error("Credenciais da Twitch invalidas. Confira TWITCH_CLIENT_ID e TWITCH_CLIENT_SECRET no .env e reinicie o bot.");
+      throw new Error("Credenciais da Twitch inválidas. Confira TWITCH_CLIENT_ID e TWITCH_CLIENT_SECRET no .env e reinicie o bot.");
     }
 
     throw error;

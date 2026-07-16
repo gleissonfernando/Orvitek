@@ -72,7 +72,7 @@ async function openNotificationPanel(interaction: ChatInputCommandInteraction, c
 
   const settings = await context.api.getOpenDutySettings(interaction.guild.id);
   if (!settings.enabled) {
-    await interaction.reply({ content: "O sistema de Ponto Aberto esta desativado.", ephemeral: true });
+    await interaction.reply({ content: "O sistema de Ponto Aberto está desativado.", ephemeral: true });
     return;
   }
 
@@ -94,12 +94,12 @@ async function openNotificationPanel(interaction: ChatInputCommandInteraction, c
   await interaction.reply({
     ...panel(settings, {
       actions: [actionRow(draftId, settings)],
-      description: `Usuario selecionado: ${target}\n\nPrevia da mensagem que sera enviada por DM:`,
+      description: `Usuário selecionado: ${target}\n\nPrevia da mensagem que será enviada por DM:`,
       fields: [
-        `**Canal mencionado na DM:** ${settings.mentionChannelId ? `<#${settings.mentionChannelId}>` : "nao configurado"}\n**Variavel de canal:** ${hasChannelVariable(settings.defaultMessage) ? "ativa" : "adicione {canal} ou {channel} na mensagem padrao"}`,
+        `**Canal mencionado na DM:** ${settings.mentionChannelId ? `<#${settings.mentionChannelId}>` : "não configurado"}\n**Variavel de canal:** ${hasChannelVariable(settings.defaultMessage) ? "ativa" : "adicione {canal} ou {channel} na mensagem padrão"}`,
         message
       ],
-      title: "Notificacao de Ponto Aberto"
+      title: "Notificação de Ponto Aberto"
     }),
     flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
   });
@@ -128,10 +128,10 @@ async function updateConfigChannel(interaction: ChannelSelectMenuInteraction, co
 async function sendDraft(interaction: ButtonInteraction, context: BotContext, draftId: string) {
   await interaction.deferUpdate();
   const draft = await resolveDraft(interaction, context, draftId);
-  if (!draft) return interaction.followUp({ content: "Nao consegui recuperar os dados deste painel. Execute /notificar novamente.", ephemeral: true });
+  if (!draft) return interaction.followUp({ content: "Não consegui recuperar os dados deste painel. Execute /notificar novamente.", ephemeral: true });
   const settings = await context.api.getOpenDutySettings(draft.guildId);
   const target = await interaction.client.users.fetch(draft.targetId).catch(() => null);
-  if (!target) return interaction.followUp({ content: "Usuario nao encontrado.", ephemeral: true });
+  if (!target) return interaction.followUp({ content: "Usuário não encontrado.", ephemeral: true });
 
   try {
     await target.send(dmPayload(settings, target, draft.message));
@@ -156,7 +156,7 @@ async function sendDraft(interaction: ButtonInteraction, context: BotContext, dr
       targetId: draft.targetId
     }).catch(() => null);
     await sendLog(interaction, settings, target, draft, "failed", "DM fechada ou bloqueada.", 0);
-    return interaction.followUp({ content: `Nao foi possivel enviar DM para ${target}.`, ephemeral: true });
+    return interaction.followUp({ content: `Não foi possível enviar DM para ${target}.`, ephemeral: true });
   }
 }
 
@@ -178,7 +178,7 @@ async function editDraft(interaction: ButtonInteraction, context: BotContext, dr
 
 async function submitEdit(interaction: ModalSubmitInteraction, context: BotContext, draftId: string) {
   const draft = await resolveDraft(interaction, context, draftId);
-  if (!draft) return interaction.reply({ content: "Nao consegui recuperar os dados deste painel. Execute /notificar novamente.", ephemeral: true });
+  if (!draft) return interaction.reply({ content: "Não consegui recuperar os dados deste painel. Execute /notificar novamente.", ephemeral: true });
   const settings = await context.api.getOpenDutySettings(draft.guildId);
   const target = await interaction.client.users.fetch(draft.targetId).catch(() => null);
   const message = interaction.fields.getTextInputValue("message");
@@ -198,7 +198,7 @@ async function submitEdit(interaction: ModalSubmitInteraction, context: BotConte
 async function cancelDraft(interaction: ButtonInteraction, context: BotContext, draftId: string) {
   const draft = drafts.get(draftId);
   drafts.delete(draftId);
-  await interaction.update({ components: [], content: "Notificacao cancelada." });
+  await interaction.update({ components: [], content: "Notificação cancelada." });
   if (draft) {
     await context.api.recordOpenDutyDelivery(draft.guildId, {
       edited: draft.edited,
@@ -261,7 +261,7 @@ async function sendLog(interaction: ButtonInteraction, settings: OpenDutySetting
   await channel.send(panel(settings, {
     description: "Registro interno do sistema de Ponto Aberto.",
     fields: [
-      `**Executor:** <@${draft.executorId}> (${draft.executorId})\n**Usuario notificado:** <@${target.id}> (${target.id})\n**Status:** ${status}\n**Avisos atuais:** ${counterTotal}`,
+      `**Executor:** <@${draft.executorId}> (${draft.executorId})\n**Usuário notificado:** <@${target.id}> (${target.id})\n**Status:** ${status}\n**Avisos atuais:** ${counterTotal}`,
       `**Mensagem ${draft.edited ? "editada" : "padrao"}:**\n${draft.message.slice(0, 1500)}${error ? `\n**Erro:** ${error}` : ""}`
     ],
     title: "Log Ponto Aberto"
@@ -284,7 +284,7 @@ async function sendAlert(interaction: ButtonInteraction, settings: OpenDutySetti
 
 function actionRow(draftId: string, settings: OpenDutySettings) {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`${PREFIX}:send:${draftId}`).setEmoji(systemComponentEmoji("visto")).setLabel("Enviar mensagem padrao").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`${PREFIX}:send:${draftId}`).setEmoji(systemComponentEmoji("visto")).setLabel("Enviar mensagem padrão").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`${PREFIX}:edit:${draftId}`).setEmoji(systemComponentEmoji("prancheta_caneta")).setLabel("Editar mensagem").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`${PREFIX}:cancel:${draftId}`).setEmoji(systemComponentEmoji("porta")).setLabel("Cancelar").setStyle(ButtonStyle.Secondary)
   ).toJSON();
@@ -301,13 +301,13 @@ function confirmEditedRow(draftId: string, settings: OpenDutySettings) {
 function configPanel(settings: OpenDutySettings) {
   return panel(settings, {
     actions: [
-      channelSelectRow(`${PREFIX}:config:mention`, "Canal que sera mencionado na DM", settings.mentionChannelId),
+      channelSelectRow(`${PREFIX}:config:mention`, "Canal que será mencionado na DM", settings.mentionChannelId),
       channelSelectRow(`${PREFIX}:config:log`, "Canal de logs internas", settings.logChannelId),
       channelSelectRow(`${PREFIX}:config:alert`, "Canal de multas 3/3", settings.alertChannelId)
     ],
-    description: "Resumo da configuracao principal. Selecione os canais abaixo para salvar direto pelo Discord.",
+    description: "Resumo da configuração principal. Selecione os canais abaixo para salvar direto pelo Discord.",
     fields: [
-      `**Logs internas:** ${settings.logChannelId ? `<#${settings.logChannelId}>` : "nao configurado"}\n**Canal de multas:** ${settings.alertChannelId ? `<#${settings.alertChannelId}>` : "nao configurado"}\n**Canal mencionado na DM:** ${settings.mentionChannelId ? `<#${settings.mentionChannelId}>` : "nao configurado"}`,
+      `**Logs internas:** ${settings.logChannelId ? `<#${settings.logChannelId}>` : "não configurado"}\n**Canal de multas:** ${settings.alertChannelId ? `<#${settings.alertChannelId}>` : "não configurado"}\n**Canal mencionado na DM:** ${settings.mentionChannelId ? `<#${settings.mentionChannelId}>` : "não configurado"}`,
       `**Variavel de canal na mensagem:** ${hasChannelVariable(settings.defaultMessage) ? "configurada" : "ausente - use {canal} ou {channel}"}\n**Cargos autorizados:** ${settings.allowedRoleIds.length ? settings.allowedRoleIds.map((id) => `<@&${id}>`).join(", ") : "nenhum"}\n**Regra:** envia multa ao chegar em 3/3; zera e inicia uma nova contagem.`
     ],
     title: "Configurar Ponto Aberto"
@@ -354,9 +354,9 @@ function canUse(member: GuildMember, userId: string, settings: OpenDutySettings)
 function renderMessage(template: string, target: User, settings: OpenDutySettings) {
   const channelMention = settings.mentionChannelId ? `<#${settings.mentionChannelId}>` : "";
   return template
-    .replaceAll("{usuario}", `<@${target.id}>`)
+    .replaceAll("{usuário}", `<@${target.id}>`)
     .replaceAll("<@usuário>", `<@${target.id}>`)
-    .replaceAll("<@usuario>", `<@${target.id}>`)
+    .replaceAll("<@usuário>", `<@${target.id}>`)
     .replaceAll("{canal}", channelMention)
     .replaceAll("{channel}", channelMention);
 }

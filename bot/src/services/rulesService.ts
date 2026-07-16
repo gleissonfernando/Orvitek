@@ -19,7 +19,7 @@ export async function handleRulesInteraction(interaction: ButtonInteraction, con
 
   if (!isBotModuleEnabled("rules")) {
     await interaction.reply({
-      content: "O sistema de regras nao foi liberado para este bot na dashboard DEV.",
+      content: "O sistema de regras não foi liberado para este bot na dashboard DEV.",
       ephemeral: true
     });
     return true;
@@ -29,7 +29,7 @@ export async function handleRulesInteraction(interaction: ButtonInteraction, con
 
   if (!settings.rulesEnabled) {
     await interaction.reply({
-      content: "O sistema de regras esta desativado neste servidor.",
+      content: "O sistema de regras está desativado neste servidor.",
       ephemeral: true
     });
     return true;
@@ -47,7 +47,7 @@ export async function handleRulesInteraction(interaction: ButtonInteraction, con
 
   if (!member) {
     await interaction.reply({
-      content: "Nao consegui localizar seu membro neste servidor.",
+      content: "Não consegui localizar seu membro neste servidor.",
       ephemeral: true
     });
     return true;
@@ -55,7 +55,7 @@ export async function handleRulesInteraction(interaction: ButtonInteraction, con
 
   if (member.roles.cache.has(settings.rulesRoleId)) {
     await interaction.reply({
-      content: "Voce ja aceitou as regras.",
+      content: "Você já aceitou as regras.",
       ephemeral: true
     });
     return true;
@@ -75,9 +75,9 @@ export async function handleRulesInteraction(interaction: ButtonInteraction, con
       ephemeral: true
     });
   } catch (error) {
-    console.warn("[rules] nao foi possivel adicionar cargo de regras:", error instanceof Error ? error.message : error);
+    console.warn("[rules] não foi possível adicionar cargo de regras:", error instanceof Error ? error.message : error);
     await interaction.reply({
-      content: "Nao consegui liberar o cargo. Confira se o cargo do bot esta acima do cargo configurado.",
+      content: "Não consegui liberar o cargo. Confira se o cargo do bot está acima do cargo configurado.",
       ephemeral: true
     });
   }

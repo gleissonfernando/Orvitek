@@ -216,7 +216,7 @@ export async function recordImageAntiSpamIncident(
   const settings = await getImageAntiSpamSettings(input.guildId, input.botId);
 
   if (!settings.enabled) {
-    throw createServiceError("O Anti-Spam de Imagens esta desativado para este servidor.", 409);
+    throw createServiceError("O Anti-Spam de Imagens está desativado para este servidor.", 409);
   }
 
   const { imageAntiSpamIncidents, imageAntiSpamUsers } = await getMongoCollections();
@@ -292,7 +292,7 @@ export async function recordImageAntiSpamIncident(
     const { user } = await getOrCreateImageAntiSpamUser(input, settings, false);
 
     if (!duplicate) {
-      throw createServiceError("Nao foi possivel recuperar o incidente de Anti-Spam.", 500);
+      throw createServiceError("Não foi possível recuperar o incidente de Anti-Spam.", 500);
     }
 
     await imageAntiSpamUsers.updateOne(
@@ -385,7 +385,7 @@ export async function completeImageAntiSpamIncident(
   );
 
   if (!incident) {
-    throw createServiceError("Incidente de Anti-Spam nao encontrado.", 404);
+    throw createServiceError("Incidente de Anti-Spam não encontrado.", 404);
   }
 
   await imageAntiSpamUsers.updateOne(

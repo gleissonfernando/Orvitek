@@ -19,7 +19,7 @@ export function assertPanelChannelPermissions(channel: GuildTextBasedChannel, cl
   const botId = client.user?.id;
 
   if (!botId) {
-    throw new Error(`Nao foi possivel validar permissoes do painel ${panelName}: bot nao identificado.`);
+    throw new Error(`Não foi possível validar permissoes do painel ${panelName}: bot não identificado.`);
   }
 
   const permissions = channel.permissionsFor(botId);
@@ -32,7 +32,7 @@ export function assertPanelChannelPermissions(channel: GuildTextBasedChannel, cl
 
   if (missingPermissions.length) {
     const action = options.requirePinMessages === false ? "enviar" : "enviar/fixar";
-    throw new Error(`Bot sem permissao para ${action} o painel ${panelName}: ${missingPermissions.join(", ")}.`);
+    throw new Error(`Bot sem permissão para ${action} o painel ${panelName}: ${missingPermissions.join(", ")}.`);
   }
 }
 
@@ -44,7 +44,7 @@ export async function pinPanelMessage(message: Message, panelName: string) {
   try {
     await message.pin(`Painel ${panelName} publicado pela dashboard.`);
   } catch (error) {
-    throw new Error(`Nao foi possivel fixar o painel ${panelName}: ${errorMessage(error)}`);
+    throw new Error(`Não foi possível fixar o painel ${panelName}: ${errorMessage(error)}`);
   }
 }
 

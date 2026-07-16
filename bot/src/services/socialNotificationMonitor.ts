@@ -26,7 +26,7 @@ const localLiveStartClaims = new Map<string, number>();
 
 export function startSocialNotificationMonitor(client: Client, api: ApiClient) {
   if (serviceStarted) {
-    console.warn("[social-notifications] start ignorado: monitor ja esta em execucao.");
+    console.warn("[social-notifications] start ignorado: monitor já está em execução.");
     return;
   }
 
@@ -244,7 +244,7 @@ async function sendLiveAlert(client: Client, notification: SocialNotification, s
     || !("guildId" in channel)
     || channel.guildId !== notification.guildId
   ) {
-    throw new Error(`Canal Discord ${notification.discordChannelId} nao encontrado.`);
+    throw new Error(`Canal Discord ${notification.discordChannelId} não encontrado.`);
   }
 
   const streamUrl = `https://www.twitch.tv/${stream.userLogin}`;
@@ -324,7 +324,7 @@ function scheduleLivePreviewRefresh(message: Message, embed: EmbedBuilder, strea
     void message.edit({
       embeds: [refreshedEmbed]
     }).catch((error) => {
-      console.warn("[social-notifications] nao foi possivel atualizar a preview da live:", error instanceof Error ? error.message : error);
+      console.warn("[social-notifications] não foi possível atualizar a preview da live:", error instanceof Error ? error.message : error);
     });
   }, LIVE_PREVIEW_REFRESH_DELAY_MS);
 

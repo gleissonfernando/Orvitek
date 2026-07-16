@@ -193,7 +193,7 @@ export function DevDashboard({ auth, initialView = "bots", onLogout }: DevDashbo
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Badge className="border-[#FFD500]/30 bg-[#FFD500]/10 text-[#FFEA70]" variant="muted">Bots</Badge>
                 <Badge className="text-zinc-100" variant="muted">FiveM</Badge>
-                <Badge className="text-zinc-100" variant="muted">Policia</Badge>
+                <Badge className="text-zinc-100" variant="muted">Polícia</Badge>
                 <Badge className="text-zinc-100" variant="muted">Módulos globais</Badge>
                 <Badge className="text-zinc-100" variant="muted">Logs técnicos</Badge>
               </div>
@@ -223,7 +223,7 @@ export function DevDashboard({ auth, initialView = "bots", onLogout }: DevDashbo
             { id: "plans" as const, label: "Planos" },
             { id: "discloud" as const, label: "DisCloud" },
             { id: "fivem" as const, label: "FiveM" },
-            { id: "police" as const, label: "Policia" },
+            { id: "police" as const, label: "Polícia" },
             { id: "logs" as const, label: "Logs" },
             { id: "access" as const, label: "Acessos" },
             { id: "maintenance" as const, label: "Manutenção" }
@@ -330,7 +330,7 @@ function DevSidebar({
     { icon: PackagePlus, id: "plans", label: "Planos" },
     { icon: Activity, id: "discloud", label: "Monitoramento DisCloud" },
     { icon: Building2, id: "fivem", label: "FiveM" },
-    { icon: ShieldCheck, id: "police", label: "Policia" },
+    { icon: ShieldCheck, id: "police", label: "Polícia" },
     { icon: ScrollText, id: "logs", label: "Logs" },
     { icon: UserCog, id: "access", label: "Acessos DEV" },
     { icon: Wrench, id: "maintenance", label: "Manutenção" }
@@ -449,9 +449,9 @@ function DiscloudMonitoringPanel() {
         if (!mounted) return;
         setData(nextData);
         setSelectedBotId((current) => current ?? nextData.bots[0]?.botId ?? null);
-        setMessage(nextData.configured ? null : "DISCLOUD_TOKEN nao configurado no backend.");
+        setMessage(nextData.configured ? null : "DISCLOUD_TOKEN não configurado no backend.");
       } catch (error) {
-        if (mounted) setMessage(readRequestMessage(error) ?? "Nao foi possivel consultar a DisCloud.");
+        if (mounted) setMessage(readRequestMessage(error) ?? "Não foi possível consultar a DisCloud.");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -475,7 +475,7 @@ function DiscloudMonitoringPanel() {
       setLogs(await getDiscloudBotLogs(botId));
       setSelectedBotId(botId);
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Nao foi possivel carregar logs da DisCloud.");
+      setMessage(readRequestMessage(error) ?? "Não foi possível carregar logs da DisCloud.");
     } finally {
       setBusyAction(null);
     }
@@ -499,9 +499,9 @@ function DiscloudMonitoringPanel() {
     try {
       const nextData = await runDiscloudBotAction(bot.botId, action);
       setData(nextData);
-      setMessage(`Acao ${labels[action]} enviada.`);
+      setMessage(`Ação ${labels[action]} enviada.`);
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "A acao nao foi concluida.");
+      setMessage(readRequestMessage(error) ?? "A ação não foi concluída.");
     } finally {
       setBusyAction(null);
     }
@@ -516,10 +516,10 @@ function DiscloudMonitoringPanel() {
 
     try {
       const result = await runDiscloudConsoleCommand(selectedBot.botId, consoleCommand.trim());
-      setConsoleOutput([result.stdout, result.stderr].filter(Boolean).join("\n") || "Comando executado sem saida.");
+      setConsoleOutput([result.stdout, result.stderr].filter(Boolean).join("\n") || "Comando executado sem saída.");
       setConsoleCommand("");
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Nao foi possivel executar o comando.");
+      setMessage(readRequestMessage(error) ?? "Não foi possível executar o comando.");
     } finally {
       setBusyAction(null);
     }
@@ -605,7 +605,7 @@ function DiscloudMonitoringPanel() {
               <input className="h-10 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-white outline-none" onChange={(event) => setConsoleCommand(event.target.value)} placeholder="Comando" value={consoleCommand} />
               <Button disabled={!selectedBot || busyAction?.startsWith("console:")} type="submit">Enviar</Button>
             </form>
-            <pre className="max-h-[260px] min-h-[180px] overflow-auto rounded-lg border border-zinc-900 bg-black p-4 font-mono text-xs leading-5 text-zinc-100">{consoleOutput || "Sem saida."}</pre>
+            <pre className="max-h-[260px] min-h-[180px] overflow-auto rounded-lg border border-zinc-900 bg-black p-4 font-mono text-xs leading-5 text-zinc-100">{consoleOutput || "Sem saída."}</pre>
           </CardContent>
         </Card>
       </section>
@@ -763,7 +763,7 @@ function DevAccessPanel() {
         if (mounted) setEntries(items);
       })
       .catch((error) => {
-        if (mounted) setMessage(readRequestMessage(error) ?? "Nao foi possivel carregar os acessos DEV.");
+        if (mounted) setMessage(readRequestMessage(error) ?? "Não foi possível carregar os acessos DEV.");
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -779,7 +779,7 @@ function DevAccessPanel() {
     const normalizedUserId = userId.trim();
 
     if (!/^\d{5,32}$/.test(normalizedUserId)) {
-      setMessage("Informe um Discord ID valido.");
+      setMessage("Informe um Discord ID válido.");
       return;
     }
 
@@ -792,7 +792,7 @@ function DevAccessPanel() {
       setUserId("");
       setMessage("Acesso DEV salvo.");
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Nao foi possivel salvar o acesso DEV.");
+      setMessage(readRequestMessage(error) ?? "Não foi possível salvar o acesso DEV.");
     } finally {
       setSaving(false);
     }
@@ -807,7 +807,7 @@ function DevAccessPanel() {
       setEntries((current) => current.filter((item) => item.userId !== entry.userId));
       setMessage("Acesso DEV removido.");
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Nao foi possivel remover o acesso DEV.");
+      setMessage(readRequestMessage(error) ?? "Não foi possível remover o acesso DEV.");
     } finally {
       setSaving(false);
     }
@@ -829,7 +829,7 @@ function DevAccessPanel() {
           <input
             className="h-10 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-white outline-none transition focus:border-[#FFEA70]"
             onChange={(event) => setUserId(event.target.value)}
-            placeholder="Discord ID do usuario"
+            placeholder="Discord ID do usuário"
             value={userId}
           />
           <select
@@ -1118,7 +1118,7 @@ function devBotStatusLabel(status: DevBotStatus) {
     ready: "Pronto",
     degraded: "Degradado",
     stopping: "Desligando",
-    invalid_token: "Token invalido",
+    invalid_token: "Token inválido",
     error: "Erro"
   };
 
@@ -1175,48 +1175,48 @@ function DevFiveMManager({
   };
   const copy = scope === "police"
     ? {
-      title: "Policia Manager",
+      title: "Polícia Manager",
       description: "Gerencie sistemas policiais separados dos modulos FiveM.",
-      cardTitle: "Modulos de Policia",
-      cardDescription: "Sistemas policiais independentes das configuracoes gerais de RP.",
-      loading: "Carregando modulos de Policia...",
-      createPrompt: "Nome do novo modulo de Policia",
-      descriptionPrompt: "Descricao do modulo de Policia",
-      defaultDescription: "Modulo policial personalizado criado pelo desenvolvedor.",
-      permissionsPrompt: "Permissoes do modulo de Policia",
-      defaultPermissions: "Admin Policia",
-      created: "Modulo de Policia criado.",
-      createError: "Nao foi possivel criar o modulo de Policia.",
-      removeConfirm: "Remover este modulo de Policia?",
-      removed: "Modulo de Policia removido.",
-      removeError: "Nao foi possivel remover o modulo de Policia.",
-      editNamePrompt: "Nome do modulo de Policia",
-      editDescriptionPrompt: "Descricao do modulo de Policia",
-      editPermissionsPrompt: "Permissoes do modulo de Policia",
-      updated: "Modulo de Policia atualizado.",
-      updateError: "Nao foi possivel editar o modulo de Policia."
+      cardTitle: "Modulos de Polícia",
+      cardDescription: "Sistemas policiais independentes das configurações gerais de RP.",
+      loading: "Carregando modulos de Polícia...",
+      createPrompt: "Nome do novo módulo de Polícia",
+      descriptionPrompt: "Descrição do módulo de Polícia",
+      defaultDescription: "Módulo policial personalizado criado pelo desenvolvedor.",
+      permissionsPrompt: "Permissões do módulo de Polícia",
+      defaultPermissions: "Admin Polícia",
+      created: "Módulo de Polícia criado.",
+      createError: "Não foi possível criar o módulo de Polícia.",
+      removeConfirm: "Remover este módulo de Polícia?",
+      removed: "Módulo de Polícia removido.",
+      removeError: "Não foi possível remover o módulo de Polícia.",
+      editNamePrompt: "Nome do módulo de Polícia",
+      editDescriptionPrompt: "Descrição do módulo de Polícia",
+      editPermissionsPrompt: "Permissões do módulo de Polícia",
+      updated: "Módulo de Polícia atualizado.",
+      updateError: "Não foi possível editar o módulo de Polícia."
     }
     : {
       title: "FiveM Manager",
       description: "Gerencie todos os modulos, sistemas e recursos do FiveM.",
       cardTitle: "Modulos FiveM",
-      cardDescription: "Sistemas RP independentes das configuracoes do bot Discord.",
+      cardDescription: "Sistemas RP independentes das configurações do bot Discord.",
       loading: "Carregando modulos FiveM...",
-      createPrompt: "Nome do novo modulo FiveM",
-      descriptionPrompt: "Descricao do modulo FiveM",
-      defaultDescription: "Modulo personalizado criado pelo desenvolvedor.",
-      permissionsPrompt: "Permissoes do modulo FiveM",
+      createPrompt: "Nome do novo módulo FiveM",
+      descriptionPrompt: "Descrição do módulo FiveM",
+      defaultDescription: "Módulo personalizado criado pelo desenvolvedor.",
+      permissionsPrompt: "Permissões do módulo FiveM",
       defaultPermissions: "Admin FiveM",
-      created: "Modulo FiveM criado.",
-      createError: "Nao foi possivel criar o modulo FiveM.",
-      removeConfirm: "Remover este modulo FiveM?",
-      removed: "Modulo FiveM removido.",
-      removeError: "Nao foi possivel remover o modulo FiveM.",
-      editNamePrompt: "Nome do modulo FiveM",
-      editDescriptionPrompt: "Descricao do modulo FiveM",
-      editPermissionsPrompt: "Permissoes do modulo FiveM",
-      updated: "Modulo FiveM atualizado.",
-      updateError: "Nao foi possivel editar o modulo FiveM."
+      created: "Módulo FiveM criado.",
+      createError: "Não foi possível criar o módulo FiveM.",
+      removeConfirm: "Remover este módulo FiveM?",
+      removed: "Módulo FiveM removido.",
+      removeError: "Não foi possível remover o módulo FiveM.",
+      editNamePrompt: "Nome do módulo FiveM",
+      editDescriptionPrompt: "Descrição do módulo FiveM",
+      editPermissionsPrompt: "Permissões do módulo FiveM",
+      updated: "Módulo FiveM atualizado.",
+      updateError: "Não foi possível editar o módulo FiveM."
     };
 
   useEffect(() => {
@@ -1236,7 +1236,7 @@ function DevFiveMManager({
         onSelectBot(selectedBotId ?? nextBots[0]?.id ?? null);
       })
       .catch(() => {
-        if (mounted) setMessage(scope === "police" ? "Nao foi possivel carregar os modulos de Policia." : "Nao foi possivel carregar os modulos FiveM.");
+        if (mounted) setMessage(scope === "police" ? "Não foi possível carregar os modulos de Polícia." : "Não foi possível carregar os modulos FiveM.");
       })
       .finally(() => {
         if (mounted) setLoadingModules(false);
@@ -1276,7 +1276,7 @@ function DevFiveMManager({
     } catch {
       setBotList((current) => current.map((bot) => bot.id === previousBot.id ? previousBot : bot));
       onBotUpdated(previousBot);
-      setMessage("Nao foi possivel salvar a ativacao do modulo.");
+      setMessage("Não foi possível salvar a ativacao do módulo.");
     } finally {
       setSavingModuleId(null);
     }
@@ -1388,8 +1388,8 @@ function DevFiveMManager({
         <FiveMStat icon={Boxes} label="Total de módulos" value={String(stats.total)} />
         <FiveMStat icon={Activity} label="Módulos ativos" value={String(stats.active)} />
         <FiveMStat icon={ShieldAlert} label="Desativados" value={String(stats.disabled)} />
-        <FiveMStat icon={Users} label="Usuarios com acesso" value={String(stats.users)} />
-        <FiveMStat icon={Building2} label="Faccoes cadastradas" value={String(stats.factions)} />
+        <FiveMStat icon={Users} label="Usuários com acesso" value={String(stats.users)} />
+        <FiveMStat icon={Building2} label="Facções cadastradas" value={String(stats.factions)} />
         <FiveMStat icon={BriefcaseBusiness} label="Corporacoes" value={String(stats.corporations)} />
       </section>
 

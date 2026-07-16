@@ -122,7 +122,7 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     }
 
     if (!isSelfBotModuleEnabled()) {
-      acknowledge?.({ error: "O modulo SafeBot nao esta ativo neste bot.", ok: false });
+      acknowledge?.({ error: "O módulo SafeBot não está ativo neste bot.", ok: false });
       return;
     }
 
@@ -130,13 +130,13 @@ export async function handleReady(client: Client<true>, context: BotContext) {
       if (payload.guildId) {
         const guild = client.guilds.cache.get(payload.guildId);
         if (!guild) {
-          acknowledge?.({ error: "O bot nao esta conectado ao servidor selecionado.", ok: false });
+          acknowledge?.({ error: "O bot não está conectado ao servidor selecionado.", ok: false });
           return;
         }
         const setup = await ensureSafeBotSetup(guild, context);
         acknowledge?.(setup
           ? { ok: true }
-          : { error: "Nao foi possivel criar os canais. Verifique Gerenciar Canais e Gerenciar Cargos.", ok: false });
+          : { error: "Não foi possível criar os canais. Verifique Gerenciar Canais e Gerenciar Cargos.", ok: false });
         return;
       }
 
@@ -333,7 +333,7 @@ async function reportRuntimeStatus(context: BotContext, client: Client, online: 
 
     if (now - lastRuntimeStatusWarningAt > 60_000) {
       lastRuntimeStatusWarningAt = now;
-      console.warn("[bot] nao foi possivel sincronizar status runtime:", error instanceof Error ? error.message : error);
+      console.warn("[bot] não foi possível sincronizar status runtime:", error instanceof Error ? error.message : error);
     }
   }
 }

@@ -13,7 +13,7 @@ type DiscordMessage = {
 
 export async function publishReportSystemPanelToDiscord(settings: GuildSettingsDto, botToken: string | null) {
   if (!botToken) {
-    throw new Error("Token do bot nao configurado para publicar o painel de denuncias.");
+    throw new Error("Token do bot não configurado para publicar o painel de denuncias.");
   }
 
   const report = settings.reportSystem;
@@ -26,7 +26,7 @@ export async function publishReportSystemPanelToDiscord(settings: GuildSettingsD
   }
 
   if (!report.panelChannelId) {
-    throw new Error("Selecione o canal onde o painel sera publicado.");
+    throw new Error("Selecione o canal onde o painel será publicado.");
   }
 
   const options = report.categories
@@ -40,7 +40,7 @@ export async function publishReportSystemPanelToDiscord(settings: GuildSettingsD
     }));
 
   if (!options.length) {
-    throw new Error("Ative pelo menos um orgao/categoria antes de publicar.");
+    throw new Error("Ative pelo menos um órgão/categoria antes de publicar.");
   }
 
   const payload = {
@@ -102,8 +102,8 @@ function buildReportPanelComponents(
   const image = resolvePanelImage(report.imageUrl, panelImage);
   const components: unknown[] = [];
   const lead = firstPanelLine(report.panelDescription) || "Sistema institucional de denuncias sigilosas.";
-  const description = cleanPanelText(report.panelDescription) || "Selecione o orgao competente para abrir uma denuncia com seguranca.";
-  const info = cleanPanelText(report.infoMessage) || "As denuncias serao analisadas exclusivamente pela equipe autorizada.";
+  const description = cleanPanelText(report.panelDescription) || "Selecione o órgão competente para abrir uma denúncia com segurança.";
+  const info = cleanPanelText(report.infoMessage) || "As denuncias serão analisadas exclusivamente pela equipe autorizada.";
 
   const pushImage = () => {
     if (image.mainUrl) components.push(mediaBlock(image.mainUrl, title));
@@ -112,7 +112,7 @@ function buildReportPanelComponents(
   if (image.mainUrl) pushImage();
   components.push({ type: 10, content: reportPanelHero(title, lead) });
   components.push(separator(2));
-  components.push({ type: 10, content: reportPanelCard("📋", "Informacoes", description) });
+  components.push({ type: 10, content: reportPanelCard("📋", "Informações", description) });
   components.push(separator(1));
   components.push({ type: 10, content: reportPanelSteps() });
   components.push(separator(1));
@@ -196,10 +196,10 @@ function reportPanelSteps() {
   return [
     "## 📘 Como funciona",
     "",
-    "`01` 🏛️ Escolha o orgao responsavel.",
-    "`02` 👤 Defina se a denuncia sera identificada ou anonima.",
-    "`03` 📎 Envie resumo, denunciado, descricao e provas.",
-    "`04` 📋 Revise as informacoes no canal privado.",
+    "`01` 🏛️ Escolha o órgão responsável.",
+    "`02` 👤 Defina se a denúncia será identificada ou anonima.",
+    "`03` 📎 Envie resumo, denunciado, descrição e provas.",
+    "`04` 📋 Revise as informações no canal privado.",
     "`05` ✅ Confirme o envio quando estiver pronto.",
     "`06` 🛡️ Aguarde a analise da equipe autorizada."
   ].join("\n");
@@ -210,24 +210,24 @@ function reportModeCard(anonymousEnabled: boolean) {
     "## 🌐 Modo de abertura",
     "",
     "✅ **Identificada**",
-    "Sua identidade fica visivel para a equipe responsavel pelo atendimento.",
+    "Sua identidade fica visivel para a equipe responsável pelo atendimento.",
     "",
     anonymousEnabled
       ? "👤 **Anonima**\nSua identidade permanece oculta durante a analise operacional."
-      : "👤 **Anonima indisponivel**\nEste servidor aceita apenas denuncias identificadas no momento."
+      : "👤 **Anonima indisponível**\nEste servidor aceita apenas denuncias identificadas no momento."
   ].join("\n").slice(0, 4000);
 }
 
 function reportOpenCard(optionCount: number) {
   return [
-    "## 📂 Abrir denuncia",
+    "## 📂 Abrir denúncia",
     "",
-    `🏛️ Selecione o orgao responsavel no menu abaixo. ${optionCount} opcao(oes) disponivel(is).`
+    `🏛️ Selecione o órgão responsável no menu abaixo. ${optionCount} opção(oes) disponível(is).`
   ].join("\n");
 }
 
 function selectPlaceholder(value: string) {
-  const text = value.trim() || "Selecione o orgao responsavel";
+  const text = value.trim() || "Selecione o órgão responsável";
   return `🏛️ ${text}`.slice(0, 150);
 }
 
@@ -256,7 +256,7 @@ function createV2Footer(footer: { enabled?: boolean; image?: string | null; text
     accessory: {
       type: 11,
       media: { url: footer.image },
-      description: "Imagem de rodape"
+      description: "Imagem de rodapé"
     }
   };
 }

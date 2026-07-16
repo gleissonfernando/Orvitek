@@ -399,7 +399,7 @@ async function assertCanManageGuild(req: Request, guildId: string, botId: string
 
   if (botId ? !(await canUseDevBotModule(user, botId, guildId, "live")) : !canManageDashboardGuild(user, guildId)) {
     await writeLiveAudit({
-      action: `sem permissao tentou ${action}`,
+      action: `sem permissão tentou ${action}`,
       botId,
       guildId,
       userId: user.discordId
@@ -413,7 +413,7 @@ async function assertCanReadGuild(req: Request, guildId: string, botId: string |
 
   if (botId ? !(await canReadDevBotModule(user, botId, guildId, "live")) : !canManageDashboardGuild(user, guildId)) {
     await writeLiveAudit({
-      action: `sem permissao tentou ${action}`,
+      action: `sem permissão tentou ${action}`,
       botId,
       guildId,
       userId: user.discordId
@@ -466,7 +466,7 @@ async function writeLiveAudit(input: {
     guildId: input.guildId,
     userId: input.userId,
     type: "audit.lives",
-    message: `Usuario ${input.action}.`,
+    message: `Usuário ${input.action}.`,
     metadata: {
       action: input.action,
       botId: input.botId,

@@ -46,7 +46,7 @@ export async function handleInteractionCreate(interaction: Interaction, context:
       userId: interaction.user.id
     }));
     if (!interaction.isRepliable()) return;
-    const payload = { content: "Nao foi possivel concluir esta interacao.", ephemeral: true } as const;
+    const payload = { content: "Não foi possível concluir esta interação.", ephemeral: true } as const;
     if (interaction.replied || interaction.deferred) {
       await interaction.followUp(payload).catch(() => undefined);
     } else {

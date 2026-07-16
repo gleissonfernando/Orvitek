@@ -186,7 +186,7 @@ export function resolveTranscriptPublicBaseUrl() {
 
   if (configured) {
     if (env.NODE_ENV === "production" && isLocalUrl(configured)) {
-      throw new Error("TRANSCRIPT_BASE_URL nao pode ser localhost/127.0.0.1 em producao. Configure um dominio publico.");
+      throw new Error("TRANSCRIPT_BASE_URL não pode ser localhost/127.0.0.1 em produção. Configure um domínio público.");
     }
     return normalizeTranscriptPublicBaseUrl(configured);
   }
@@ -195,7 +195,7 @@ export function resolveTranscriptPublicBaseUrl() {
     return `http://localhost:${env.TRANSCRIPT_PORT || env.PORT}`;
   }
 
-  throw new Error("TRANSCRIPT_BASE_URL ausente. Configure o dominio publico para gerar links de transcript.");
+  throw new Error("TRANSCRIPT_BASE_URL ausente. Configure o domínio público para gerar links de transcript.");
 }
 
 function normalizeTranscriptPublicBaseUrl(value: string) {
@@ -253,7 +253,7 @@ export async function getTranscriptHealthStatus() {
       database: "error",
       storage: "mongodb",
       latencyMs: Date.now() - startedAt,
-      message: error instanceof Error ? error.message : "Transcript indisponivel",
+      message: error instanceof Error ? error.message : "Transcript indisponível",
       timestamp: new Date().toISOString()
     };
   }
@@ -417,25 +417,25 @@ export function renderTranscriptHtml(transcript: MongoTranscript, passwordType: 
   <header>
     <div class="eyebrow">North Police Department - Sistema de Logs</div>
     <h1>📁 Transcript Gerado</h1>
-    <p class="lead">O registro completo deste atendimento foi salvo com seguranca. O acesso e protegido por senha e todos os acessos sao registrados para auditoria.</p>
+    <p class="lead">O registro completo deste atendimento foi salvo com seguranca. O acesso e protegido por senha e todos os acessos são registrados para auditoria.</p>
   </header>
   ${transcript.isPartial ? `<section class="warning"><h2>Transcript Parcial</h2><p>Este transcript pode estar incompleto porque o ticket foi interrompido antes do encerramento normal.</p><p>Motivo: ${escapeHtml(transcript.partialReason ?? "indisponivel")}</p></section>` : ""}
   <section>
-    <h2>Informacoes do Ticket</h2>
+    <h2>Informações do Ticket</h2>
     <div class="grid">
       ${infoBox("Ticket", ticketId)}
       ${infoBox("Canal", transcript.channelName ? `#${transcript.channelName}` : "-")}
       ${infoBox("Tipo", transcript.type)}
       ${infoBox("Status", status)}
       ${infoBox("Servidor", transcript.guildName ?? transcript.guildId)}
-      ${infoBox("Categoria/Orgao", transcript.categoryName ?? "-")}
+      ${infoBox("Categoria/Órgão", transcript.categoryName ?? "-")}
     </div>
   </section>
   <section>
     <h2>Dados do Caso</h2>
     <div class="grid">
       ${infoBox("Aberto por", formatUser(transcript.openedById))}
-      ${infoBox("Responsavel", formatUser(transcript.responsibleUserId))}
+      ${infoBox("Responsável", formatUser(transcript.responsibleUserId))}
       ${infoBox("Criado em", formatDate(transcript.createdAt))}
       ${infoBox("Finalizado em", transcript.closedAt ? formatDate(transcript.closedAt) : "-")}
       ${infoBox("Tempo total", duration)}
@@ -445,7 +445,7 @@ export function renderTranscriptHtml(transcript: MongoTranscript, passwordType: 
   <section>
     <h2>Seguranca</h2>
     <div class="grid">
-      ${infoBox("Protecao", "Senha obrigatoria")}
+      ${infoBox("Proteção", "Senha obrigatória")}
       ${infoBox("Senha usada", passwordType)}
       ${infoBox("Expira em", temporaryPasswordExpiresAt ? formatDate(new Date(temporaryPasswordExpiresAt)) : transcript.expiresAt ? formatDate(transcript.expiresAt) : "-")}
       ${infoBox("Acessos registrados", String(transcript.accessCount ?? 0))}
@@ -454,7 +454,7 @@ export function renderTranscriptHtml(transcript: MongoTranscript, passwordType: 
   <section><h2>Participantes</h2><ul class="list">${participants || "<li>Nenhum participante registrado.</li>"}</ul></section>
   <section><h2>Conversa Completa</h2>${messages || "<p>Nenhuma mensagem registrada.</p>"}</section>
   <section><h2>Anexos</h2><ul class="list">${attachments || "<li>Nenhum anexo registrado.</li>"}</ul></section>
-  <section><h2>Acoes Administrativas</h2><ul class="list">${events || "<li>Nenhuma acao registrada.</li>"}</ul></section>
+  <section><h2>Ações Administrativas</h2><ul class="list">${events || "<li>Nenhuma ação registrada.</li>"}</ul></section>
   <section class="actions">
     <button onclick="navigator.clipboard.writeText('${escapeAttribute(transcript._id)}')">Copiar ID</button>
     <button onclick="navigator.clipboard.writeText(location.href)">Copiar link</button>
@@ -471,13 +471,13 @@ export function renderTranscriptHtml(transcript: MongoTranscript, passwordType: 
 export function renderTranscriptText(transcript: MongoTranscript) {
   const header = [
     "LOG DO SISTEMA",
-    `Modulo: ${transcript.type}`,
+    `Módulo: ${transcript.type}`,
     `Caso: ${transcript.ticketId ?? transcript._id}`,
     `Status: ${transcript.status}`,
     `Canal: ${transcript.channelName ?? "-"}`,
-    `Categoria/Orgao: ${transcript.categoryName ?? "-"}`,
+    `Categoria/Órgão: ${transcript.categoryName ?? "-"}`,
     `Aberto por: ${formatUser(transcript.openedById)}`,
-    `Responsavel: ${formatUser(transcript.responsibleUserId)}`,
+    `Responsável: ${formatUser(transcript.responsibleUserId)}`,
     `Aberto em: ${formatDate(transcript.createdAt)}`,
     `Finalizado em: ${transcript.closedAt ? formatDate(transcript.closedAt) : "-"}`,
     `Tempo total: ${formatDuration(transcript.createdAt, transcript.closedAt)}`,

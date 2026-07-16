@@ -20,7 +20,7 @@ const localLiveStartClaims = new Map<string, number>();
 
 export function startKickNotificationMonitor(client: Client, api: ApiClient) {
   if (serviceStarted) {
-    console.warn("[kick-integration] start ignorado: monitor ja esta em execucao.");
+    console.warn("[kick-integration] start ignorado: monitor já está em execução.");
     return;
   }
 
@@ -77,7 +77,7 @@ async function processNotification(
   if (!stream) {
     if (notification.isLive) {
       await sendLiveEndedAlert(client, notification).catch((error) => {
-        console.warn("[kick-integration] nao foi possivel enviar encerramento:", error instanceof Error ? error.message : error);
+        console.warn("[kick-integration] não foi possível enviar encerramento:", error instanceof Error ? error.message : error);
       });
       await api.updateKickNotificationState(notification.id, {
         isLive: false,
@@ -167,7 +167,7 @@ async function sendLiveAlert(client: Client, notification: KickNotification, str
     || !("guildId" in channel)
     || channel.guildId !== notification.guildId
   ) {
-    throw new Error(`Canal Discord ${notification.discordChannelId} nao encontrado.`);
+    throw new Error(`Canal Discord ${notification.discordChannelId} não encontrado.`);
   }
 
   const variables = kickVariables(notification, stream);
@@ -243,12 +243,12 @@ async function sendLiveEndedAlert(client: Client, notification: KickNotification
     || !("guildId" in channel)
     || channel.guildId !== notification.guildId
   ) {
-    throw new Error(`Canal Discord ${notification.discordChannelId} nao encontrado.`);
+    throw new Error(`Canal Discord ${notification.discordChannelId} não encontrado.`);
   }
 
   const startedAt = notification.lastLiveAt ? new Date(notification.lastLiveAt) : null;
   const endedAt = new Date();
-  const duration = startedAt ? formatDuration(Math.max(0, endedAt.getTime() - startedAt.getTime())) : "Nao registrado";
+  const duration = startedAt ? formatDuration(Math.max(0, endedAt.getTime() - startedAt.getTime())) : "Não registrado";
   const embed = new EmbedBuilder()
     .setColor(normalizeEmbedColor(notification.embedColor))
     .setTitle("Live Encerrada")
@@ -319,7 +319,7 @@ function scheduleLivePreviewRefresh(message: Message, embed: EmbedBuilder, thumb
     void message.edit({
       embeds: [refreshedEmbed]
     }).catch((error) => {
-      console.warn("[kick-integration] nao foi possivel atualizar a preview da live:", error instanceof Error ? error.message : error);
+      console.warn("[kick-integration] não foi possível atualizar a preview da live:", error instanceof Error ? error.message : error);
     });
   }, LIVE_PREVIEW_REFRESH_DELAY_MS);
 

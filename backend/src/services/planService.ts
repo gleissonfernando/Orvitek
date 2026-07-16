@@ -187,25 +187,25 @@ const FEATURE_SEEDS: SavePlanFeatureInput[] = [
   { category: "streamer", key: "streamer.kick_alerts", name: "Alertas Kick", description: "Monitoramento de lives e notificações Kick.", order: 20 },
   { category: "streamer", key: "streamer.clip_automation", name: "Automacao de clips", description: "Registro e ranking de clips por comunidade.", order: 30 },
   { category: "streamer", key: "streamer.giveaways", name: "Sorteios", description: "Sorteios, campanhas e premiacoes da comunidade.", order: 31 },
-  { category: "streamer", key: "streamer.vip", name: "Sistema VIP", description: "Controle de beneficios VIP para comunidades de stream.", order: 32 },
+  { category: "streamer", key: "streamer.vip", name: "Sistema VIP", description: "Controle de benefícios VIP para comunidades de stream.", order: 32 },
   { category: "streamer", key: "streamer.ranking", name: "Ranking", description: "Rankings de engajamento e atividades.", order: 33 },
-  { category: "streamer", key: "streamer.ai", name: "IA", description: "Recursos assistidos por IA para operacao da comunidade.", order: 34 },
+  { category: "streamer", key: "streamer.ai", name: "IA", description: "Recursos assistidos por IA para operação da comunidade.", order: 34 },
   { category: "fivem", key: "fivem.finance", name: "Financeiro FiveM", description: "Controle de transacoes, metas e auditoria financeira.", order: 40 },
-  { category: "fivem", key: "fivem.orders", name: "Encomendas RP", description: "Pedidos, familias, drogas, armas e personalizados.", order: 50 },
-  { category: "fivem", key: "fivem.hierarchy", name: "Hierarquia FiveM", description: "Paineis de hierarquia e cargos por faccao/corporacao.", order: 60 },
-  { category: "fivem", key: "fivem.police", name: "Policia RP", description: "Recursos para corporacoes, patentes, metas e plantao.", order: 61 },
-  { category: "fivem", key: "fivem.faction", name: "Faccao RP", description: "Recursos para faccoes, membros, metas e estoque.", order: 62 },
+  { category: "fivem", key: "fivem.orders", name: "Encomendas RP", description: "Pedidos, famílias, drogas, armas e personalizados.", order: 50 },
+  { category: "fivem", key: "fivem.hierarchy", name: "Hierarquia FiveM", description: "Paineis de hierarquia e cargos por facção/corporacao.", order: 60 },
+  { category: "fivem", key: "fivem.police", name: "Polícia RP", description: "Recursos para corporacoes, patentes, metas e plantao.", order: 61 },
+  { category: "fivem", key: "fivem.faction", name: "Facção RP", description: "Recursos para facções, membros, metas e estoque.", order: 62 },
   { category: "discord", key: "discord.logs", name: "Logs Discord", description: "Logs do site e do Discord em tempo real.", order: 70 },
   { category: "discord", key: "discord.tickets", name: "Tickets", description: "Atendimento, transcripts e paineis de suporte.", order: 80 },
   { category: "discord", key: "discord.courses", name: "Cursos", description: "Cursos, provas e publicacoes para equipes.", order: 90 },
-  { category: "discord", key: "discord.dashboard", name: "Dashboard", description: "Painel web para configuracao e acompanhamento.", order: 91 },
-  { category: "security", key: "security.anti_ban", name: "Anti Ban", description: "Protecao contra acoes administrativas indevidas.", order: 100 },
+  { category: "discord", key: "discord.dashboard", name: "Dashboard", description: "Painel web para configuração e acompanhamento.", order: 91 },
+  { category: "security", key: "security.anti_ban", name: "Anti Ban", description: "Proteção contra ações administrativas indevidas.", order: 100 },
   { category: "security", key: "security.self_bot", name: "SelfBot Protection", description: "Deteccao e mitigacao de selfbots.", order: 110 },
-  { category: "security", key: "security.role_protection", name: "Protecao de cargos", description: "Protecao contra alteracoes indevidas de cargos e permissoes.", order: 111 },
-  { category: "support", key: "support.priority", name: "Suporte prioritario", description: "Atendimento prioritario para operacao critica.", order: 120 },
+  { category: "security", key: "security.role_protection", name: "Proteção de cargos", description: "Proteção contra alterações indevidas de cargos e permissões.", order: 111 },
+  { category: "support", key: "support.priority", name: "Suporte prioritario", description: "Atendimento prioritario para operação critica.", order: 120 },
   { category: "support", key: "support.24h", name: "Atendimento 24 horas", description: "Atendimento prioritario 24 horas para plano vitalicio.", order: 121 },
-  { category: "billing", key: "billing.lifetime_license", name: "Licenca vitalicia", description: "Licenca permanente do modulo adquirido.", order: 130 },
-  { category: "billing", key: "billing.future_updates", name: "Atualizacoes futuras", description: "Atualizacoes futuras e correcoes do modulo inclusas.", order: 131 },
+  { category: "billing", key: "billing.lifetime_license", name: "Licença vitalicia", description: "Licença permanente do módulo adquirido.", order: 130 },
+  { category: "billing", key: "billing.future_updates", name: "Atualizacoes futuras", description: "Atualizacoes futuras e correções do módulo inclusas.", order: 131 },
   { category: "billing", key: "billing.free_hosting_30d", name: "Hospedagem gratis 30 dias", description: "Primeiro mes de hospedagem incluso na compra vitalicia.", order: 132 }
 ];
 
@@ -214,17 +214,17 @@ const PLAN_SEEDS: SavePlanInput[] = [
     badge: "Sem hospedagem",
     botLimit: 1,
     color: "#FFD500",
-    description: "Plano basico para streamers. Hospedagem nao inclusa.",
+    description: "Plano básico para streamers. Hospedagem não inclusa.",
     entitlements: entitlementsFor(["streamer.twitch_alerts", "streamer.kick_alerts", "streamer.clip_automation", "discord.dashboard"]),
     guildLimit: 1,
     icon: "radio",
     isActive: true,
     isPublic: true,
     isPurchasable: true,
-    name: "Streamer Basico",
+    name: "Streamer Básico",
     order: 10,
     priceInCents: 2800,
-    shortDescription: "Sistema streamer basico sem hospedagem.",
+    shortDescription: "Sistema streamer básico sem hospedagem.",
     slug: "streamer-basico",
     validityDays: 30
   },
@@ -232,7 +232,7 @@ const PLAN_SEEDS: SavePlanInput[] = [
     badge: "Completo sem hospedagem",
     botLimit: 1,
     color: "#FFD500",
-    description: "Plano completo para streamers com sorteios, VIP, ranking, IA e dashboard completa. Hospedagem nao inclusa.",
+    description: "Plano completo para streamers com sorteios, VIP, ranking, IA e dashboard completa. Hospedagem não inclusa.",
     entitlements: entitlementsFor(["streamer.twitch_alerts", "streamer.kick_alerts", "streamer.clip_automation", "streamer.giveaways", "streamer.vip", "streamer.ranking", "streamer.ai", "discord.dashboard", "discord.logs", "support.priority"]),
     guildLimit: 1,
     icon: "radio",
@@ -251,17 +251,17 @@ const PLAN_SEEDS: SavePlanInput[] = [
     badge: "Sem hospedagem",
     botLimit: 1,
     color: "#3DDC84",
-    description: "Plano basico para sistema de Policia RP. Hospedagem nao inclusa.",
+    description: "Plano básico para sistema de Polícia RP. Hospedagem não inclusa.",
     entitlements: entitlementsFor(["fivem.police", "fivem.hierarchy", "discord.logs", "discord.dashboard"]),
     guildLimit: 1,
     icon: "building",
     isActive: true,
     isPublic: true,
     isPurchasable: true,
-    name: "Policia RP Basico",
+    name: "Polícia RP Básico",
     order: 30,
     priceInCents: 2800,
-    shortDescription: "Sistema policia RP basico sem hospedagem.",
+    shortDescription: "Sistema policia RP básico sem hospedagem.",
     slug: "policia-rp-basico",
     validityDays: 30
   },
@@ -269,7 +269,7 @@ const PLAN_SEEDS: SavePlanInput[] = [
     badge: "Completo sem hospedagem",
     botLimit: 1,
     color: "#3DDC84",
-    description: "Plano completo para Policia RP com financeiro, hierarquia, metas, logs e suporte prioritario. Hospedagem nao inclusa.",
+    description: "Plano completo para Polícia RP com financeiro, hierarquia, metas, logs e suporte prioritario. Hospedagem não inclusa.",
     entitlements: entitlementsFor(["fivem.police", "fivem.finance", "fivem.orders", "fivem.hierarchy", "discord.logs", "discord.dashboard", "support.priority"]),
     guildLimit: 1,
     icon: "building",
@@ -277,7 +277,7 @@ const PLAN_SEEDS: SavePlanInput[] = [
     isPublic: true,
     isPurchasable: true,
     isRecommended: true,
-    name: "Policia RP Completo",
+    name: "Polícia RP Completo",
     order: 40,
     priceInCents: 5000,
     shortDescription: "Sistema policia RP completo sem hospedagem.",
@@ -288,17 +288,17 @@ const PLAN_SEEDS: SavePlanInput[] = [
     badge: "Sem hospedagem",
     botLimit: 1,
     color: "#FFEA70",
-    description: "Plano basico para sistema de Faccao RP. Hospedagem nao inclusa.",
+    description: "Plano básico para sistema de Facção RP. Hospedagem não inclusa.",
     entitlements: entitlementsFor(["fivem.faction", "fivem.orders", "discord.logs", "discord.dashboard"]),
     guildLimit: 1,
     icon: "users",
     isActive: true,
     isPublic: true,
     isPurchasable: true,
-    name: "Faccao RP Basico",
+    name: "Facção RP Básico",
     order: 50,
     priceInCents: 2800,
-    shortDescription: "Sistema faccao RP basico sem hospedagem.",
+    shortDescription: "Sistema facção RP básico sem hospedagem.",
     slug: "faccao-rp-basico",
     validityDays: 30
   },
@@ -306,7 +306,7 @@ const PLAN_SEEDS: SavePlanInput[] = [
     badge: "Completo sem hospedagem",
     botLimit: 1,
     color: "#FFEA70",
-    description: "Plano completo para Faccao RP com encomendas, financeiro, metas, logs e suporte prioritario. Hospedagem nao inclusa.",
+    description: "Plano completo para Facção RP com encomendas, financeiro, metas, logs e suporte prioritario. Hospedagem não inclusa.",
     entitlements: entitlementsFor(["fivem.faction", "fivem.finance", "fivem.orders", "fivem.hierarchy", "discord.logs", "discord.dashboard", "support.priority"]),
     guildLimit: 1,
     icon: "users",
@@ -314,10 +314,10 @@ const PLAN_SEEDS: SavePlanInput[] = [
     isPublic: true,
     isPurchasable: true,
     isRecommended: true,
-    name: "Faccao RP Completo",
+    name: "Facção RP Completo",
     order: 60,
     priceInCents: 5000,
-    shortDescription: "Sistema faccao RP completo sem hospedagem.",
+    shortDescription: "Sistema facção RP completo sem hospedagem.",
     slug: "faccao-rp-completo",
     validityDays: 30
   },
@@ -325,17 +325,17 @@ const PLAN_SEEDS: SavePlanInput[] = [
     badge: "Sem hospedagem",
     botLimit: 1,
     color: "#8B5CF6",
-    description: "Plano basico para protecao de cargos e acoes administrativas. Hospedagem nao inclusa.",
+    description: "Plano básico para proteção de cargos e ações administrativas. Hospedagem não inclusa.",
     entitlements: entitlementsFor(["security.role_protection", "security.anti_ban", "discord.logs"]),
     guildLimit: 1,
     icon: "shield",
     isActive: true,
     isPublic: true,
     isPurchasable: true,
-    name: "Protecao de Cargos Basico",
+    name: "Proteção de Cargos Básico",
     order: 70,
     priceInCents: 2800,
-    shortDescription: "Protecao de cargos basica sem hospedagem.",
+    shortDescription: "Proteção de cargos basica sem hospedagem.",
     slug: "protecao-cargos-basico",
     validityDays: 30
   },
@@ -343,7 +343,7 @@ const PLAN_SEEDS: SavePlanInput[] = [
     badge: "Completo sem hospedagem",
     botLimit: 1,
     color: "#8B5CF6",
-    description: "Plano completo para protecao de cargos, anti-ban, selfbot protection, logs e suporte prioritario. Hospedagem nao inclusa.",
+    description: "Plano completo para proteção de cargos, anti-ban, selfbot protection, logs e suporte prioritario. Hospedagem não inclusa.",
     entitlements: entitlementsFor(["security.role_protection", "security.anti_ban", "security.self_bot", "discord.logs", "discord.dashboard", "support.priority"]),
     guildLimit: 1,
     icon: "shield",
@@ -351,10 +351,10 @@ const PLAN_SEEDS: SavePlanInput[] = [
     isPublic: true,
     isPurchasable: true,
     isRecommended: true,
-    name: "Protecao de Cargos Completo",
+    name: "Proteção de Cargos Completo",
     order: 80,
     priceInCents: 5000,
-    shortDescription: "Protecao de cargos completa sem hospedagem.",
+    shortDescription: "Proteção de cargos completa sem hospedagem.",
     slug: "protecao-cargos-completo",
     validityDays: 30
   },
@@ -363,7 +363,7 @@ const PLAN_SEEDS: SavePlanInput[] = [
     billingCycle: "lifetime",
     botLimit: 1,
     color: "#FFD500",
-    description: "Licenca permanente do Sistema de Streaming, com atualizacoes futuras, 1 mes de hospedagem gratis, suporte prioritario e atendimento 24 horas. Apos o periodo gratuito sera cobrada apenas a hospedagem, a partir de R$12,00 por mes.",
+    description: "Licença permanente do Sistema de Streaming, com atualizacoes futuras, 1 mes de hospedagem gratis, suporte prioritario e atendimento 24 horas. Após o periodo gratuito será cobrada apenas a hospedagem, a partir de R$12,00 por mes.",
     entitlements: entitlementsFor(["streamer.twitch_alerts", "streamer.kick_alerts", "streamer.clip_automation", "streamer.giveaways", "streamer.vip", "streamer.ranking", "streamer.ai", "discord.dashboard", "discord.logs", "billing.lifetime_license", "billing.future_updates", "billing.free_hosting_30d", "support.priority", "support.24h"]),
     guildLimit: 1,
     icon: "radio",
@@ -374,7 +374,7 @@ const PLAN_SEEDS: SavePlanInput[] = [
     name: "Streaming Vitalicio",
     order: 90,
     priceInCents: 15000,
-    shortDescription: "Licenca vitalicia do modulo Streaming com 1 mes de hospedagem gratis.",
+    shortDescription: "Licença vitalicia do módulo Streaming com 1 mes de hospedagem gratis.",
     slug: "streaming-vitalicio",
     validityDays: null
   },
@@ -383,7 +383,7 @@ const PLAN_SEEDS: SavePlanInput[] = [
     billingCycle: "lifetime",
     botLimit: 1,
     color: "#3DDC84",
-    description: "Licenca permanente do Sistema de Policia RP, com atualizacoes futuras, 1 mes de hospedagem gratis, suporte prioritario e atendimento 24 horas. Apos o periodo gratuito sera cobrada apenas a hospedagem, a partir de R$12,00 por mes.",
+    description: "Licença permanente do Sistema de Polícia RP, com atualizacoes futuras, 1 mes de hospedagem gratis, suporte prioritario e atendimento 24 horas. Após o periodo gratuito será cobrada apenas a hospedagem, a partir de R$12,00 por mes.",
     entitlements: entitlementsFor(["fivem.police", "fivem.finance", "fivem.orders", "fivem.hierarchy", "discord.logs", "discord.dashboard", "billing.lifetime_license", "billing.future_updates", "billing.free_hosting_30d", "support.priority", "support.24h"]),
     guildLimit: 1,
     icon: "building",
@@ -391,10 +391,10 @@ const PLAN_SEEDS: SavePlanInput[] = [
     isPublic: true,
     isPurchasable: true,
     isRecommended: true,
-    name: "Policia RP Vitalicio",
+    name: "Polícia RP Vitalicio",
     order: 100,
     priceInCents: 15000,
-    shortDescription: "Licenca vitalicia do modulo Policia RP com 1 mes de hospedagem gratis.",
+    shortDescription: "Licença vitalicia do módulo Polícia RP com 1 mes de hospedagem gratis.",
     slug: "policia-rp-vitalicio",
     validityDays: null
   },
@@ -403,7 +403,7 @@ const PLAN_SEEDS: SavePlanInput[] = [
     billingCycle: "lifetime",
     botLimit: 1,
     color: "#FFEA70",
-    description: "Licenca permanente do Sistema de Faccao RP, com atualizacoes futuras, 1 mes de hospedagem gratis, suporte prioritario e atendimento 24 horas. Apos o periodo gratuito sera cobrada apenas a hospedagem, a partir de R$12,00 por mes.",
+    description: "Licença permanente do Sistema de Facção RP, com atualizacoes futuras, 1 mes de hospedagem gratis, suporte prioritario e atendimento 24 horas. Após o periodo gratuito será cobrada apenas a hospedagem, a partir de R$12,00 por mes.",
     entitlements: entitlementsFor(["fivem.faction", "fivem.finance", "fivem.orders", "fivem.hierarchy", "discord.logs", "discord.dashboard", "billing.lifetime_license", "billing.future_updates", "billing.free_hosting_30d", "support.priority", "support.24h"]),
     guildLimit: 1,
     icon: "users",
@@ -411,10 +411,10 @@ const PLAN_SEEDS: SavePlanInput[] = [
     isPublic: true,
     isPurchasable: true,
     isRecommended: true,
-    name: "Faccao RP Vitalicio",
+    name: "Facção RP Vitalicio",
     order: 110,
     priceInCents: 15000,
-    shortDescription: "Licenca vitalicia do modulo Faccao RP com 1 mes de hospedagem gratis.",
+    shortDescription: "Licença vitalicia do módulo Facção RP com 1 mes de hospedagem gratis.",
     slug: "faccao-rp-vitalicio",
     validityDays: null
   },
@@ -423,7 +423,7 @@ const PLAN_SEEDS: SavePlanInput[] = [
     billingCycle: "lifetime",
     botLimit: 1,
     color: "#8B5CF6",
-    description: "Licenca permanente do Sistema de Protecao Discord, com atualizacoes futuras, 1 mes de hospedagem gratis, suporte prioritario e atendimento 24 horas. Apos o periodo gratuito sera cobrada apenas a hospedagem, a partir de R$12,00 por mes.",
+    description: "Licença permanente do Sistema de Proteção Discord, com atualizacoes futuras, 1 mes de hospedagem gratis, suporte prioritario e atendimento 24 horas. Após o periodo gratuito será cobrada apenas a hospedagem, a partir de R$12,00 por mes.",
     entitlements: entitlementsFor(["security.role_protection", "security.anti_ban", "security.self_bot", "discord.logs", "discord.dashboard", "billing.lifetime_license", "billing.future_updates", "billing.free_hosting_30d", "support.priority", "support.24h"]),
     guildLimit: 1,
     icon: "shield",
@@ -431,10 +431,10 @@ const PLAN_SEEDS: SavePlanInput[] = [
     isPublic: true,
     isPurchasable: true,
     isRecommended: true,
-    name: "Protecao Discord Vitalicio",
+    name: "Proteção Discord Vitalicio",
     order: 120,
     priceInCents: 15000,
-    shortDescription: "Licenca vitalicia do modulo Protecao Discord com 1 mes de hospedagem gratis.",
+    shortDescription: "Licença vitalicia do módulo Proteção Discord com 1 mes de hospedagem gratis.",
     slug: "protecao-discord-vitalicio",
     validityDays: null
   },
@@ -443,7 +443,7 @@ const PLAN_SEEDS: SavePlanInput[] = [
     billingCycle: "lifetime",
     botLimit: 1,
     color: "#38BDF8",
-    description: "Licenca permanente do Sistema Financeiro, com atualizacoes futuras, 1 mes de hospedagem gratis, suporte prioritario e atendimento 24 horas. Apos o periodo gratuito sera cobrada apenas a hospedagem, a partir de R$12,00 por mes.",
+    description: "Licença permanente do Sistema Financeiro, com atualizacoes futuras, 1 mes de hospedagem gratis, suporte prioritario e atendimento 24 horas. Após o periodo gratuito será cobrada apenas a hospedagem, a partir de R$12,00 por mes.",
     entitlements: entitlementsFor(["fivem.finance", "discord.logs", "discord.dashboard", "billing.lifetime_license", "billing.future_updates", "billing.free_hosting_30d", "support.priority", "support.24h"]),
     guildLimit: 1,
     icon: "wallet",
@@ -454,7 +454,7 @@ const PLAN_SEEDS: SavePlanInput[] = [
     name: "Financeiro Vitalicio",
     order: 130,
     priceInCents: 15000,
-    shortDescription: "Licenca vitalicia do modulo Financeiro com 1 mes de hospedagem gratis.",
+    shortDescription: "Licença vitalicia do módulo Financeiro com 1 mes de hospedagem gratis.",
     slug: "financeiro-vitalicio",
     validityDays: null
   }
@@ -551,7 +551,7 @@ async function createCheckoutInterestForBuyer(
   });
 
   if (!plan) {
-    throw httpError("Plano nao encontrado.", 404);
+    throw httpError("Plano não encontrado.", 404);
   }
 
   const mercadoPagoConfig = getMercadoPagoRuntimeConfig();
@@ -569,11 +569,11 @@ async function createCheckoutInterestForBuyer(
     : null;
 
   if (existingActiveSubscription) {
-    throw httpError("Voce ja possui uma assinatura ativa para este plano.", 409);
+    throw httpError("Você já possui uma assinatura ativa para este plano.", 409);
   }
 
   if (shouldCreateCheckout && !paymentsEnabled) {
-    throw httpError("Pagamento temporariamente indisponivel.", 503);
+    throw httpError("Pagamento temporariamente indisponível.", 503);
   }
 
   const checkoutExpiresAt = shouldCreateCheckout
@@ -638,7 +638,7 @@ async function createCheckoutInterestForBuyer(
     merchantOrderId: null,
     mercadoPagoPaymentId: null,
     notes: paymentsEnabled
-      ? "Pedido registrado. Provedor de pagamento pendente de integracao."
+      ? "Pedido registrado. Provedor de pagamento pendente de integração."
       : "Interesse registrado. Pagamentos estao desativados e nenhum QR Code/cobranca foi gerado.",
     paidAt: null,
     paymentMethod: null,
@@ -704,7 +704,7 @@ async function createCheckoutInterestForBuyer(
         error: cleanLogString(message),
         planSlug: plan.slug
       });
-      throw httpError("Nao foi possivel iniciar o pagamento. Tente novamente em alguns instantes.", 503);
+      throw httpError("Não foi possível iniciar o pagamento. Tente novamente em alguns instantes.", 503);
     });
     order.checkoutUrl = checkout.checkoutUrl;
     order.notes = checkout.notes;
@@ -805,7 +805,7 @@ export async function getCustomerPlansDashboard(auth: DashboardAuth) {
 export async function getCustomerPaymentOrder(orderId: string, auth: DashboardAuth) {
   const { paymentOrders, plans, planSubscriptions, planWorkspaces } = await getMongoCollections();
   const order = await paymentOrders.findOne({ _id: orderId, discordId: auth.user.discordId });
-  if (!order) throw httpError("Pedido nao encontrado.", 404);
+  if (!order) throw httpError("Pedido não encontrado.", 404);
 
   const [plan, subscription] = await Promise.all([
     plans.findOne({ _id: order.planId }),
@@ -823,7 +823,7 @@ export async function getCustomerPaymentOrder(orderId: string, auth: DashboardAu
 export async function getPublicPaymentOrderStatus(orderId: string) {
   const { paymentOrders, planSubscriptions, planWorkspaces, plans } = await getMongoCollections();
   const order = await paymentOrders.findOne({ _id: orderId });
-  if (!order) throw httpError("Pedido nao encontrado.", 404);
+  if (!order) throw httpError("Pedido não encontrado.", 404);
   const [plan, subscription] = await Promise.all([
     plans.findOne({ _id: order.planId }),
     planSubscriptions.findOne({ "metadata.paymentOrderId": order._id } as Partial<MongoPlanSubscription>)
@@ -840,7 +840,7 @@ export async function getPublicPaymentOrderStatus(orderId: string) {
 export async function getPaymentOrderStatus(orderId: string, auth: DashboardAuth) {
   const { paymentOrders, planSubscriptions, planWorkspaces, plans } = await getMongoCollections();
   const order = await paymentOrders.findOne({ _id: orderId, discordId: auth.user.discordId });
-  if (!order) throw httpError("Pedido nao encontrado.", 404);
+  if (!order) throw httpError("Pedido não encontrado.", 404);
   const [plan, subscription] = await Promise.all([
     plans.findOne({ _id: order.planId }),
     planSubscriptions.findOne({ "metadata.paymentOrderId": order._id } as Partial<MongoPlanSubscription>)
@@ -866,15 +866,15 @@ export async function listMyPaymentOrders(auth: DashboardAuth) {
 export async function retryPaymentOrder(orderId: string, auth: DashboardAuth, actor: PlanActor) {
   const { paymentOrders, plans } = await getMongoCollections();
   const order = await paymentOrders.findOne({ _id: orderId, discordId: auth.user.discordId });
-  if (!order) throw httpError("Pedido nao encontrado.", 404);
-  if (isFinalPaymentStatus(order.status)) throw httpError("Pedido finalizado nao pode ser reenviado ao checkout.", 409);
+  if (!order) throw httpError("Pedido não encontrado.", 404);
+  if (isFinalPaymentStatus(order.status)) throw httpError("Pedido finalizado não pode ser reenviado ao checkout.", 409);
   if ((order.retryAttempts ?? 0) >= 3) throw httpError("Limite de tentativas deste pedido atingido.", 429);
   if (order.expiresAt && order.expiresAt > new Date() && (order.checkoutUrl || order.pixCode || order.providerOrderId)) {
-    throw httpError("Checkout atual ainda esta valido.", 409);
+    throw httpError("Checkout atual ainda está válido.", 409);
   }
 
   const plan = await plans.findOne({ _id: order.planId });
-  if (!plan) throw httpError("Plano do pedido nao encontrado.", 404);
+  if (!plan) throw httpError("Plano do pedido não encontrado.", 404);
 
   const now = new Date();
   const mercadoPagoConfig = requireMercadoPagoOperational();
@@ -934,18 +934,18 @@ export async function retryPaymentOrder(orderId: string, auth: DashboardAuth, ac
 export async function retryPublicPaymentOrder(orderId: string, actor: PlanActor) {
   const { paymentOrders, plans } = await getMongoCollections();
   const order = await paymentOrders.findOne({ _id: orderId });
-  if (!order) throw httpError("Pedido nao encontrado.", 404);
+  if (!order) throw httpError("Pedido não encontrado.", 404);
   if (!isPendingPaymentDiscordId(order.discordId)) {
-    throw httpError("Este pedido ja esta vinculado a uma conta Discord.", 409);
+    throw httpError("Este pedido já está vinculado a uma conta Discord.", 409);
   }
-  if (isFinalPaymentStatus(order.status)) throw httpError("Pedido finalizado nao pode ser reenviado ao checkout.", 409);
+  if (isFinalPaymentStatus(order.status)) throw httpError("Pedido finalizado não pode ser reenviado ao checkout.", 409);
   if ((order.retryAttempts ?? 0) >= 3) throw httpError("Limite de tentativas deste pedido atingido.", 429);
   if (order.expiresAt && order.expiresAt > new Date() && (order.checkoutUrl || order.pixCode || order.providerOrderId)) {
-    throw httpError("Checkout atual ainda esta valido.", 409);
+    throw httpError("Checkout atual ainda está válido.", 409);
   }
 
   const plan = await plans.findOne({ _id: order.planId });
-  if (!plan) throw httpError("Plano do pedido nao encontrado.", 404);
+  if (!plan) throw httpError("Plano do pedido não encontrado.", 404);
 
   const now = new Date();
   const mercadoPagoConfig = requireMercadoPagoOperational();
@@ -1025,7 +1025,7 @@ export async function listAdminPaymentOrders() {
 export async function getAdminPaymentOrder(orderId: string) {
   const { paymentOrders, plans } = await getMongoCollections();
   const order = await paymentOrders.findOne({ _id: orderId });
-  if (!order) throw httpError("Pedido nao encontrado.", 404);
+  if (!order) throw httpError("Pedido não encontrado.", 404);
   const plan = await plans.findOne({ _id: order.planId });
   return {
     order: toPaymentOrderDto(order),
@@ -1036,9 +1036,9 @@ export async function getAdminPaymentOrder(orderId: string) {
 export async function reconcilePaymentOrder(orderId: string, actor: PlanActor) {
   const { paymentOrders, plans } = await getMongoCollections();
   const order = await paymentOrders.findOne({ _id: orderId });
-  if (!order) throw httpError("Pedido nao encontrado.", 404);
+  if (!order) throw httpError("Pedido não encontrado.", 404);
   const plan = await plans.findOne({ _id: order.planId });
-  if (!plan) throw httpError("Plano do pedido nao encontrado.", 404);
+  if (!plan) throw httpError("Plano do pedido não encontrado.", 404);
 
   if (!order.mercadoPagoPaymentId) {
     if (order.expiresAt && order.expiresAt <= new Date() && !isFinalPaymentStatus(order.status)) {
@@ -1140,19 +1140,19 @@ export async function createWorkspaceBotCredential(workspaceId: string, input: B
 async function claimApprovedPaymentOrder(orderId: string, auth: DashboardAuth, actor: PlanActor) {
   const { paymentOrders, plans } = await getMongoCollections();
   const order = await paymentOrders.findOne({ _id: orderId });
-  if (!order) throw httpError("Pedido aprovado nao encontrado.", 404);
+  if (!order) throw httpError("Pedido aprovado não encontrado.", 404);
   if (order.status !== "approved" && order.status !== "paid") {
-    throw httpError("Este pedido ainda nao foi aprovado pelo Mercado Pago.", 409);
+    throw httpError("Este pedido ainda não foi aprovado pelo Mercado Pago.", 409);
   }
   if (order.provider !== "mercadopago") {
     throw httpError("Pedido sem pagamento Mercado Pago aprovado.", 409);
   }
   if (!isPendingPaymentDiscordId(order.discordId) && order.discordId !== auth.user.discordId) {
-    throw httpError("Este pedido ja esta vinculado a outra conta Discord.", 409);
+    throw httpError("Este pedido já está vinculado a outra conta Discord.", 409);
   }
 
   const plan = await plans.findOne({ _id: order.planId });
-  if (!plan) throw httpError("Plano do pedido nao encontrado.", 404);
+  if (!plan) throw httpError("Plano do pedido não encontrado.", 404);
 
   const now = new Date();
   const linkedOrder = isPendingPaymentDiscordId(order.discordId)
@@ -1216,7 +1216,7 @@ export async function getBotRegistrationStatus(auth: DashboardAuth, approvedOrde
 export async function registerCustomerBot(input: BotRegistrationInput, auth: DashboardAuth, actor: PlanActor, discordAccessToken?: string | null) {
   const status = await getBotRegistrationStatus(auth);
   if (!status.workspace) {
-    throw httpError(status.message ?? "Nenhuma vaga disponivel para cadastrar bot.", 403);
+    throw httpError(status.message ?? "Nenhuma vaga disponível para cadastrar bot.", 403);
   }
   if (!discordAccessToken) {
     throw httpError("Autenticacao recente do Discord necessaria para cadastrar o bot.", 401);
@@ -1236,9 +1236,9 @@ export async function registerCustomerBot(input: BotRegistrationInput, auth: Das
 
   const detected = await verifyDiscordBotRegistration(input.token, input.guildId, discordAccessToken, auth.user.discordId);
   const duplicateBot = await botCredentials.findOne({ botClientId: detected.bot.id, status: { $ne: "disabled" } });
-  if (duplicateBot) throw httpError("Este bot ja esta cadastrado.", 409);
+  if (duplicateBot) throw httpError("Este bot já está cadastrado.", 409);
   const duplicateGuild = await botCredentials.findOne({ guildId: detected.guild.id, status: { $ne: "disabled" } });
-  if (duplicateGuild) throw httpError("Este servidor ja esta associado a outro cliente.", 409);
+  if (duplicateGuild) throw httpError("Este servidor já está associado a outro cliente.", 409);
 
   const now = new Date();
   const slug = await uniqueBotDashboardSlug(input.slug || detected.bot.username);
@@ -1347,7 +1347,7 @@ export async function updateWorkspaceBotCredentialToken(workspaceId: string, cre
   const current = await botCredentials.findOne({ _id: credentialId, workspaceId, status: { $ne: "disabled" } });
 
   if (!current) {
-    throw httpError("Bot nao encontrado neste workspace.", 404);
+    throw httpError("Bot não encontrado neste workspace.", 404);
   }
 
   const now = new Date();
@@ -1392,7 +1392,7 @@ export async function validateWorkspaceBotCredential(workspaceId: string, creden
   );
 
   if (!updated) {
-    throw httpError("Bot nao encontrado neste workspace.", 404);
+    throw httpError("Bot não encontrado neste workspace.", 404);
   }
 
   await writePlanAudit(actor, "bot_credential_validated", "bot_credential", credentialId, { workspaceId });
@@ -1405,7 +1405,7 @@ export async function deleteWorkspaceBotCredential(workspaceId: string, credenti
   const deleted = await botCredentials.findOneAndDelete({ _id: credentialId, workspaceId });
 
   if (!deleted) {
-    throw httpError("Bot nao encontrado neste workspace.", 404);
+    throw httpError("Bot não encontrado neste workspace.", 404);
   }
 
   await planWorkspaces.updateOne({ _id: workspaceId }, { $pull: { botIds: credentialId }, $set: { updatedAt: new Date() } });
@@ -1459,13 +1459,13 @@ export async function saveDevPlan(planId: string | null, input: SavePlanInput, a
   if (planId) {
     const current = await plans.findOne({ _id: planId });
     if (!current) {
-      throw httpError("Plano nao encontrado.", 404);
+      throw httpError("Plano não encontrado.", 404);
     }
 
     const nextSlug = slugify(input.slug || input.name || current.slug);
     const duplicate = await plans.findOne({ slug: nextSlug, _id: { $ne: planId } });
     if (duplicate) {
-      throw httpError("Ja existe um plano com este slug.", 409);
+      throw httpError("Já existe um plano com este slug.", 409);
     }
 
     await plans.updateOne(
@@ -1487,7 +1487,7 @@ export async function saveDevPlan(planId: string | null, input: SavePlanInput, a
   const document = buildPlanDocument(input, actor.id, now);
   const duplicate = await plans.findOne({ slug: document.slug });
   if (duplicate) {
-    throw httpError("Ja existe um plano com este slug.", 409);
+    throw httpError("Já existe um plano com este slug.", 409);
   }
 
   await plans.insertOne(document);
@@ -1499,7 +1499,7 @@ export async function duplicateDevPlan(planId: string, actor: PlanActor) {
   const { plans } = await getMongoCollections();
   const current = await plans.findOne({ _id: planId });
   if (!current) {
-    throw httpError("Plano nao encontrado.", 404);
+    throw httpError("Plano não encontrado.", 404);
   }
 
   const now = new Date();
@@ -1530,7 +1530,7 @@ export async function setDevPlanActive(planId: string, active: boolean, actor: P
   );
 
   if (!updated) {
-    throw httpError("Plano nao encontrado.", 404);
+    throw httpError("Plano não encontrado.", 404);
   }
 
   await writePlanAudit(actor, active ? "plan_activated" : "plan_deactivated", "plan", planId);
@@ -1544,9 +1544,9 @@ export async function saveDevPlanFeature(featureId: string | null, input: SavePl
 
   if (featureId) {
     const current = await planFeatures.findOne({ _id: featureId });
-    if (!current) throw httpError("Feature nao encontrada.", 404);
+    if (!current) throw httpError("Feature não encontrada.", 404);
     const duplicate = await planFeatures.findOne({ key, _id: { $ne: featureId } });
-    if (duplicate) throw httpError("Ja existe uma feature com esta chave.", 409);
+    if (duplicate) throw httpError("Já existe uma feature com esta chave.", 409);
 
     await planFeatures.updateOne(
       { _id: featureId },
@@ -1592,7 +1592,7 @@ export async function saveDevPlanFeature(featureId: string | null, input: SavePl
 export async function manualActivateSubscription(input: ManualActivationInput, actor: PlanActor) {
   const { planSubscriptions, planWorkspaces, plans, workspaceMembers } = await getMongoCollections();
   const plan = await plans.findOne({ _id: input.planId });
-  if (!plan) throw httpError("Plano nao encontrado.", 404);
+  if (!plan) throw httpError("Plano não encontrado.", 404);
 
   const now = new Date();
   const subscriptionId = randomUUID();
@@ -1665,10 +1665,10 @@ export async function manualActivateSubscription(input: ManualActivationInput, a
 export async function completeTestPaymentOrder(orderId: string, actor: PlanActor) {
   const { paymentOrders, planSubscriptions, planWorkspaces, plans, workspaceMembers } = await getMongoCollections();
   const order = await paymentOrders.findOne({ _id: orderId });
-  if (!order) throw httpError("Pedido de pagamento nao encontrado.", 404);
+  if (!order) throw httpError("Pedido de pagamento não encontrado.", 404);
 
   const plan = await plans.findOne({ _id: order.planId });
-  if (!plan) throw httpError("Plano do pedido nao encontrado.", 404);
+  if (!plan) throw httpError("Plano do pedido não encontrado.", 404);
 
   const existingSubscription = await planSubscriptions.findOne({
     "metadata.paymentOrderId": order._id
@@ -1683,7 +1683,7 @@ export async function completeTestPaymentOrder(orderId: string, actor: PlanActor
   }
 
   if (["cancelled", "expired", "failed", "rejected", "refunded", "chargeback", "charged_back"].includes(order.status)) {
-    throw httpError("Pedido finalizado nao pode ser pago em teste.", 409);
+    throw httpError("Pedido finalizado não pode ser pago em teste.", 409);
   }
 
   const now = new Date();
@@ -1855,8 +1855,8 @@ export async function processMercadoPagoWebhook(input: MercadoPagoWebhookInput) 
     await paymentEvents.updateOne({ _id: insertedEvent._id }, { $set: { signatureValid } });
 
     if (!signatureValid) {
-      await markPaymentEvent(insertedEvent._id, "failed", "Assinatura Mercado Pago invalida.");
-      throw httpError("Assinatura Mercado Pago invalida.", 401);
+      await markPaymentEvent(insertedEvent._id, "failed", "Assinatura Mercado Pago inválida.");
+      throw httpError("Assinatura Mercado Pago inválida.", 401);
     }
 
     if (!dataId) {
@@ -1874,8 +1874,8 @@ export async function processMercadoPagoWebhook(input: MercadoPagoWebhookInput) 
 
       const order = await paymentOrders.findOne({ _id: externalReference });
       if (!order) {
-        await markPaymentEvent(insertedEvent._id, "ignored", "Pedido interno nao encontrado.", null);
-        return { duplicate: false, event: mapPaymentEvent({ ...insertedEvent, orderId: null, status: "ignored", result: "Pedido interno nao encontrado.", signatureValid: true, processedAt: new Date() }), processed: false };
+        await markPaymentEvent(insertedEvent._id, "ignored", "Pedido interno não encontrado.", null);
+        return { duplicate: false, event: mapPaymentEvent({ ...insertedEvent, orderId: null, status: "ignored", result: "Pedido interno não encontrado.", signatureValid: true, processedAt: new Date() }), processed: false };
       }
 
       await paymentEvents.updateOne({ _id: insertedEvent._id }, { $set: { orderId: order._id, paymentId: mercadoOrder.paymentId ?? dataId } });
@@ -1895,8 +1895,8 @@ export async function processMercadoPagoWebhook(input: MercadoPagoWebhookInput) 
       if (updatedOrder.status === "approved" && !isPendingPaymentDiscordId(updatedOrder.discordId)) {
         const plan = await plans.findOne({ _id: order.planId });
         if (!plan) {
-          await markPaymentEvent(insertedEvent._id, "failed", "Plano do pedido nao encontrado.", order._id);
-          throw httpError("Plano do pedido nao encontrado.", 404);
+          await markPaymentEvent(insertedEvent._id, "failed", "Plano do pedido não encontrado.", order._id);
+          throw httpError("Plano do pedido não encontrado.", 404);
         }
         subscription = await activatePaidOrderOnce(updatedOrder, plan, systemPaymentActor(), "mercadopago_order_webhook");
       } else if (updatedOrder.status === "approved") {
@@ -1941,8 +1941,8 @@ export async function processMercadoPagoWebhook(input: MercadoPagoWebhookInput) 
 
     const order = await paymentOrders.findOne({ _id: externalReference });
     if (!order) {
-      await markPaymentEvent(insertedEvent._id, "ignored", "Pedido interno nao encontrado.", null);
-      return { duplicate: false, event: mapPaymentEvent({ ...insertedEvent, orderId: null, status: "ignored", result: "Pedido interno nao encontrado.", signatureValid: true, processedAt: new Date() }), processed: false };
+      await markPaymentEvent(insertedEvent._id, "ignored", "Pedido interno não encontrado.", null);
+      return { duplicate: false, event: mapPaymentEvent({ ...insertedEvent, orderId: null, status: "ignored", result: "Pedido interno não encontrado.", signatureValid: true, processedAt: new Date() }), processed: false };
     }
 
     await paymentEvents.updateOne({ _id: insertedEvent._id }, { $set: { orderId: order._id } });
@@ -2020,8 +2020,8 @@ export async function processMercadoPagoWebhook(input: MercadoPagoWebhookInput) 
     if (nextStatus === "approved" && !isPendingPaymentDiscordId(order.discordId)) {
       const plan = await plans.findOne({ _id: order.planId });
       if (!plan) {
-        await markPaymentEvent(insertedEvent._id, "failed", "Plano do pedido nao encontrado.", order._id);
-        throw httpError("Plano do pedido nao encontrado.", 404);
+        await markPaymentEvent(insertedEvent._id, "failed", "Plano do pedido não encontrado.", order._id);
+        throw httpError("Plano do pedido não encontrado.", 404);
       }
       subscription = await activatePaidOrderOnce({ ...order, ...update, status: nextStatus }, plan, systemPaymentActor(), "mercadopago_webhook");
     } else if (nextStatus === "approved") {
@@ -2339,7 +2339,7 @@ async function activatePaidOrderOnce(order: MongoPaymentOrder, plan: MongoPlan, 
         $set: {
           accessActivated: false,
           accessActivatedAt: null,
-          notes: "Falha ao ativar acesso apos pagamento aprovado.",
+          notes: "Falha ao ativar acesso após pagamento aprovado.",
           updatedAt: new Date()
         }
       }
@@ -2486,7 +2486,7 @@ export async function setSubscriptionStatus(subscriptionId: string, status: Excl
     { $set: patch },
     { returnDocument: "after" }
   );
-  if (!updated) throw httpError("Assinatura nao encontrada.", 404);
+  if (!updated) throw httpError("Assinatura não encontrada.", 404);
 
   if (updated.workspaceId) {
     await planWorkspaces.updateOne(
@@ -2503,7 +2503,7 @@ export async function setSubscriptionStatus(subscriptionId: string, status: Excl
 export async function extendSubscription(subscriptionId: string, days: number, actor: PlanActor) {
   const { planSubscriptions, planWorkspaces } = await getMongoCollections();
   const current = await planSubscriptions.findOne({ _id: subscriptionId });
-  if (!current) throw httpError("Assinatura nao encontrada.", 404);
+  if (!current) throw httpError("Assinatura não encontrada.", 404);
 
   const now = new Date();
   const base = current.endsAt && current.endsAt > now ? current.endsAt : now;
@@ -2533,7 +2533,7 @@ export async function savePaymentSettings(input: SavePaymentSettingsInput, actor
     plansPublicUrl: input.plansPublicUrl === undefined ? current.plansPublicUrl ?? null : normalizeValidUrl(input.plansPublicUrl, "URL publica de planos"),
     provider: envProvider,
     publicKey: mercadoPagoConfig.publicKey,
-    successRedirectUrl: input.successRedirectUrl === undefined ? current.successRedirectUrl ?? null : normalizeValidUrl(input.successRedirectUrl, "URL de redirecionamento apos pagamento"),
+    successRedirectUrl: input.successRedirectUrl === undefined ? current.successRedirectUrl ?? null : normalizeValidUrl(input.successRedirectUrl, "URL de redirecionamento após pagamento"),
     supportDiscordUrl: input.supportDiscordUrl === undefined ? current.supportDiscordUrl ?? null : normalizeValidUrl(input.supportDiscordUrl, "URL do Discord de suporte"),
     updatedAt: now,
     updatedBy: actor.id
@@ -2602,7 +2602,7 @@ async function createMercadoPagoPlanCheckoutPreference(
   paymentMethod: CheckoutPaymentMethod = "checkout"
 ) {
   if (order.provider !== "mercadopago") {
-    throw httpError("Provider de pagamento nao suportado para checkout automatico.", 400);
+    throw httpError("Provider de pagamento não suportado para checkout automático.", 400);
   }
   const mercadoPagoConfig = requireMercadoPagoOperational();
   const provider = new MercadoPagoPaymentProvider(requireMercadoPagoAccessToken(mercadoPagoConfig), mercadoPagoConfig.webhookSecret);
@@ -2668,7 +2668,7 @@ async function createMercadoPagoPlanPayment(
       return {
         checkoutUrl: null,
         mercadoPagoPaymentId: pix.paymentId,
-        notes: "Pagamento Pix criado no Mercado Pago. Exiba QR Code ou codigo copia e cola.",
+        notes: "Pagamento Pix criado no Mercado Pago. Exiba QR Code ou código copia e cola.",
         paymentMethod: pix.paymentMethod ?? "pix",
         paymentType: pix.paymentType ?? "bank_transfer",
         pixCode: pix.pixCode,
@@ -2735,7 +2735,7 @@ async function createMercadoPagoPlanPixPayment(
   buyer: CheckoutBuyer
 ) {
   if (order.provider !== "mercadopago") {
-    throw httpError("Provider de pagamento nao suportado para Pix automatico.", 400);
+    throw httpError("Provider de pagamento não suportado para Pix automático.", 400);
   }
   const mercadoPagoConfig = requireMercadoPagoOperational();
   const provider = new MercadoPagoPaymentProvider(requireMercadoPagoAccessToken(mercadoPagoConfig), mercadoPagoConfig.webhookSecret);
@@ -2775,7 +2775,7 @@ async function assertWorkspaceAccess(workspaceId: string, auth: DashboardAuth) {
   const workspace = await planWorkspaces.findOne({ _id: workspaceId });
 
   if (!workspace) {
-    throw httpError("Workspace nao encontrado.", 404);
+    throw httpError("Workspace não encontrado.", 404);
   }
 
   if (workspace.ownerDiscordId === auth.user.discordId) {
@@ -2784,7 +2784,7 @@ async function assertWorkspaceAccess(workspaceId: string, auth: DashboardAuth) {
 
   const member = await workspaceMembers.findOne({ workspaceId, discordId: auth.user.discordId });
   if (!member) {
-    throw httpError("Sem permissao para acessar este workspace.", 403);
+    throw httpError("Sem permissão para acessar este workspace.", 403);
   }
 
   return { role: member.role, workspace };
@@ -2971,7 +2971,7 @@ function normalizeValidUrl(value: string | null | undefined, label: string) {
     }
     return url.toString();
   } catch {
-    throw httpError(`${label} invalida.`, 400);
+    throw httpError(`${label} inválida.`, 400);
   }
 }
 
@@ -3018,7 +3018,7 @@ function tokenLast4(token: string) {
 async function verifyDiscordBotRegistration(token: string, guildId: string, userAccessToken: string, userDiscordId: string) {
   const normalizedToken = token.trim().replace(/^Bot\s+/i, "");
   const normalizedGuildId = guildId.trim();
-  if (!/^\d{5,32}$/.test(normalizedGuildId)) throw httpError("ID do servidor invalido.", 400);
+  if (!/^\d{5,32}$/.test(normalizedGuildId)) throw httpError("ID do servidor inválido.", 400);
 
   const botHeaders = { Authorization: `Bot ${normalizedToken}` };
   const userHeaders = { Authorization: `Bearer ${userAccessToken}` };
@@ -3029,20 +3029,20 @@ async function verifyDiscordBotRegistration(token: string, guildId: string, user
     fetch("https://discord.com/api/v10/users/@me/guilds", { headers: userHeaders })
   ]);
 
-  if (botUserResponse.status === 401) throw httpError("Token do bot invalido.", 400);
+  if (botUserResponse.status === 401) throw httpError("Token do bot inválido.", 400);
   if (!botUserResponse.ok) throw httpError("Falha ao validar o token do bot no Discord.", 502);
-  if (guildResponse.status === 404 || guildResponse.status === 403) throw httpError("Bot nao esta no servidor informado ou nao possui acesso.", 400);
+  if (guildResponse.status === 404 || guildResponse.status === 403) throw httpError("Bot não está no servidor informado ou não possui acesso.", 400);
   if (!guildResponse.ok) throw httpError("Falha ao validar o servidor no Discord.", 502);
-  if (!userGuildsResponse.ok) throw httpError("Nao foi possivel confirmar os servidores do usuario autenticado.", 403);
+  if (!userGuildsResponse.ok) throw httpError("Não foi possível confirmar os servidores do usuário autenticado.", 403);
 
   const botUser = await botUserResponse.json() as { avatar?: string | null; bot?: boolean; id?: string; username?: string };
-  if (!botUser.bot || !botUser.id) throw httpError("O token informado nao pertence a um bot Discord.", 400);
+  if (!botUser.bot || !botUser.id) throw httpError("O token informado não pertence a um bot Discord.", 400);
 
   const guild = await guildResponse.json() as { approximate_member_count?: number; icon?: string | null; id?: string; name?: string; owner_id?: string | null };
   const userGuilds = await userGuildsResponse.json() as Array<{ id: string; owner?: boolean; permissions?: string }>;
   const userGuild = userGuilds.find((item) => item.id === normalizedGuildId);
-  if (!userGuild) throw httpError("Usuario autenticado nao pertence ao servidor informado.", 403);
-  if (!userCanManageGuild(userGuild)) throw httpError("Usuario autenticado nao possui autorizacao para administrar este servidor.", 403);
+  if (!userGuild) throw httpError("Usuário autenticado não pertence ao servidor informado.", 403);
+  if (!userCanManageGuild(userGuild)) throw httpError("Usuário autenticado não possui autorizacao para administrar este servidor.", 403);
 
   return {
     bot: {
@@ -3120,7 +3120,7 @@ function sanitizePaymentOrderForUser(order: MongoPaymentOrder): PaymentOrderDto 
 }
 
 function requireMercadoPagoAccessToken(config: { accessToken: string | null }) {
-  if (!config.accessToken) throw httpError("Mercado Pago indisponivel por credencial ausente.", 503);
+  if (!config.accessToken) throw httpError("Mercado Pago indisponível por credencial ausente.", 503);
   return config.accessToken;
 }
 

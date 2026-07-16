@@ -91,7 +91,7 @@ export async function getDiscloudLogsForBot(botId: string) {
   const appId = resolveAppId(bot, botId);
 
   if (!appId) {
-    throw createDiscloudError("Aplicacao Discloud nao vinculada a este bot.", 404);
+    throw createDiscloudError("Aplicacao Discloud não vinculada a este bot.", 404);
   }
 
   const logs = await discloudApi(`/app/${encodeURIComponent(appId)}/logs`);
@@ -111,7 +111,7 @@ export async function runDiscloudBotAction(botId: string, action: DiscloudAction
   const appId = resolveAppId(bot, botId);
 
   if (!bot || !appId) {
-    throw createDiscloudError("Aplicacao Discloud nao vinculada a este bot.", 404);
+    throw createDiscloudError("Aplicacao Discloud não vinculada a este bot.", 404);
   }
 
   if (action === "redeploy") {
@@ -119,9 +119,9 @@ export async function runDiscloudBotAction(botId: string, action: DiscloudAction
       appId,
       botId,
       event: "redeploy_blocked",
-      message: "Redeploy automatico bloqueado. Use deploy manual na Discloud."
+      message: "Redeploy automático bloqueado. Use deploy manual na Discloud."
     });
-    throw createDiscloudError("Redeploy automatico nao foi habilitado. Use deploy manual na Discloud.", 409);
+    throw createDiscloudError("Redeploy automático não foi habilitado. Use deploy manual na Discloud.", 409);
   }
 
   await discloudApi(`/app/${encodeURIComponent(appId)}/${action}`, {
@@ -133,7 +133,7 @@ export async function runDiscloudBotAction(botId: string, action: DiscloudAction
     appId,
     botId,
     event: action,
-    message: `Acao ${action} enviada para ${bot.name}.`
+    message: `Ação ${action} enviada para ${bot.name}.`
   });
 
   return getDiscloudMonitoring(true);
@@ -145,7 +145,7 @@ export async function runDiscloudConsoleCommand(botId: string, command: string) 
   const appId = resolveAppId(bot, botId);
 
   if (!appId) {
-    throw createDiscloudError("Aplicacao Discloud nao vinculada a este bot.", 404);
+    throw createDiscloudError("Aplicacao Discloud não vinculada a este bot.", 404);
   }
 
   const result = await discloudApi(`/app/${encodeURIComponent(appId)}/exec`, {
@@ -205,7 +205,7 @@ async function readDiscloudMonitoring(): Promise<DiscloudMonitoringPayload> {
   }));
 
   await persistSnapshots(snapshots).catch((error) => {
-    console.warn("[discloud] nao foi possivel persistir snapshots:", error instanceof Error ? error.message : error);
+    console.warn("[discloud] não foi possível persistir snapshots:", error instanceof Error ? error.message : error);
   });
 
   return {
@@ -269,7 +269,7 @@ function ensureDiscloudToken() {
   const token = env.DISCLOUD_TOKEN.trim();
 
   if (!token) {
-    throw createDiscloudError("DISCLOUD_TOKEN nao configurado no backend.", 503);
+    throw createDiscloudError("DISCLOUD_TOKEN não configurado no backend.", 503);
   }
 }
 

@@ -192,7 +192,7 @@ function defaultConfig(botId: string, guildId: string): MongoDmBarConfig {
     botId,
     cooldownSeconds: 30,
     createdAt: now,
-    descriptionTemplate: "Olá, {usuario}.\nVocê recebeu uma mensagem da equipe do {servidor}.\n\n**Mensagem:**\n{mensagem}\n\n**Data:** {data} às {hora}",
+    descriptionTemplate: "Olá, {usuário}.\nVocê recebeu uma mensagem da equipe do {servidor}.\n\n**Mensagem:**\n{mensagem}\n\n**Data:** {data} às {hora}",
     enabled: false,
     emoji: fixedSystemEmojiText("discord"),
     footerEnabled: true,

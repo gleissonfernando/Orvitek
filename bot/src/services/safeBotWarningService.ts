@@ -170,7 +170,7 @@ export async function handleSafeBotWarningInteraction(interaction: Interaction, 
       safeBotModule: "safe-bot",
       userId: target.id
     }).catch((error) => {
-      console.warn("[safe-warning] nao foi possivel registrar infracao na Blacklist Global:", error instanceof Error ? error.message : error);
+      console.warn("[safe-warning] não foi possível registrar infracao na Blacklist Global:", error instanceof Error ? error.message : error);
     });
     await sendWarningLog(completed, settings, target, staff);
     await interaction.editReply({

@@ -40,7 +40,7 @@ export function PixPaymentPage({ orderId }: PixPaymentPageProps) {
         }
       } catch (requestError) {
         if (!cancelled) {
-          setError(readError(requestError, "Nao foi possivel consultar este pagamento."));
+          setError(readError(requestError, "Não foi possível consultar este pagamento."));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -78,13 +78,13 @@ export function PixPaymentPage({ orderId }: PixPaymentPageProps) {
           <div>
             <p className="text-sm font-semibold text-[#FFEA70]">{plan?.name ?? "Plano Nex Tech"}</p>
             <h1 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl">Finalize seu pagamento via Pix</h1>
-            <p className="mt-4 max-w-xl text-sm leading-6 text-zinc-400">Use o QR Code ou copie o codigo Pix. A liberacao acontece automaticamente assim que o Mercado Pago confirmar o pagamento.</p>
+            <p className="mt-4 max-w-xl text-sm leading-6 text-zinc-400">Use o QR Code ou copie o código Pix. A liberação acontece automaticamente assim que o Mercado Pago confirmar o pagamento.</p>
 
             <div className="mt-8 grid gap-3 rounded-xl border border-[#FFD500]/15 bg-black/50 p-5 text-sm">
               <PaymentLine label="Pedido" value={order?.id ?? orderId} />
               <PaymentLine label="Valor" value={order ? formatMoney(order.amountInCents, order.currency) : "Carregando..."} />
               <PaymentLine label="Status" value={order ? statusLabel(order.status) : "Consultando..."} />
-              <PaymentLine label="Expira em" value={order?.expiresAt ? new Date(order.expiresAt).toLocaleString("pt-BR") : "Nao informado"} />
+              <PaymentLine label="Expira em" value={order?.expiresAt ? new Date(order.expiresAt).toLocaleString("pt-BR") : "Não informado"} />
             </div>
 
             <StatusNotice error={error} finalStatus={finalStatus} loading={loading} order={order} />
@@ -102,7 +102,7 @@ export function PixPaymentPage({ orderId }: PixPaymentPageProps) {
             </div>
 
             <div className="mt-6 flex min-h-72 items-center justify-center rounded-xl border border-zinc-800 bg-white p-4">
-              {loading ? <Loader2 className="h-8 w-8 animate-spin text-zinc-900" /> : qrImage ? <img alt="QR Code Pix" className="max-h-72 max-w-full" src={qrImage} /> : <p className="max-w-xs text-center text-sm text-zinc-800">QR Code ainda nao disponivel. Use o codigo Pix abaixo ou aguarde a atualizacao.</p>}
+              {loading ? <Loader2 className="h-8 w-8 animate-spin text-zinc-900" /> : qrImage ? <img alt="QR Code Pix" className="max-h-72 max-w-full" src={qrImage} /> : <p className="max-w-xs text-center text-sm text-zinc-800">QR Code ainda não disponível. Use o código Pix abaixo ou aguarde a atualização.</p>}
             </div>
 
             <div className="mt-5">
@@ -110,7 +110,7 @@ export function PixPaymentPage({ orderId }: PixPaymentPageProps) {
               <textarea className="mt-2 h-32 w-full resize-none rounded-lg border border-zinc-800 bg-black p-3 text-xs leading-5 text-zinc-200 outline-none" readOnly value={order?.pixCode ?? ""} />
               <button className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#FFD500] text-sm font-bold text-black transition hover:bg-[#FFEA70] disabled:cursor-not-allowed disabled:opacity-60" disabled={!order?.pixCode} onClick={() => void copyPixCode()} type="button">
                 <Clipboard className="h-4 w-4" />
-                {copied ? "Copiado" : "Copiar codigo Pix"}
+                {copied ? "Copiado" : "Copiar código Pix"}
               </button>
             </div>
           </div>
@@ -130,7 +130,7 @@ function StatusNotice({ error, finalStatus, loading, order }: { error: string | 
   if (finalStatus) {
     return <div className="mt-5 flex items-start gap-3 rounded-xl border border-[#FFD500]/25 bg-[#FFD500]/10 p-4 text-sm text-[#FFEA70]"><AlertCircle className="mt-0.5 h-5 w-5" />Este pedido foi finalizado com status {statusLabel(order?.status ?? "error")}.</div>;
   }
-  return <div className="mt-5 flex items-start gap-3 rounded-xl border border-[#FFD500]/20 bg-[#FFD500]/10 p-4 text-sm text-[#FFEA70]">{loading ? <Loader2 className="mt-0.5 h-5 w-5 animate-spin" /> : <Clock3 className="mt-0.5 h-5 w-5" />}Aguardando confirmacao do Mercado Pago.</div>;
+  return <div className="mt-5 flex items-start gap-3 rounded-xl border border-[#FFD500]/20 bg-[#FFD500]/10 p-4 text-sm text-[#FFEA70]">{loading ? <Loader2 className="mt-0.5 h-5 w-5 animate-spin" /> : <Clock3 className="mt-0.5 h-5 w-5" />}Aguardando confirmação do Mercado Pago.</div>;
 }
 
 function PaymentLine({ label, value }: { label: string; value: string }) {

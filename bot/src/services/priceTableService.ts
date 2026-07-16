@@ -143,11 +143,11 @@ async function createSupportTicket(interaction: ButtonInteraction, context: BotC
   await interaction.deferReply({ ephemeral: true });
   const tableId = interaction.customId.split(":")[2] ?? "";
   const table = await context.api.getPriceTableRuntime(interaction.guild.id, tableId);
-  const channel = await createTicketChannel(interaction.guild, table, interaction.user.id, "Atendimento", "Contato iniciado pela tabela de precos.");
+  const channel = await createTicketChannel(interaction.guild, table, interaction.user.id, "Atendimento", "Contato iniciado pela tabela de preços.");
   if (channel) {
     await context.api.createTicket({ channelId: channel.id, guildId: interaction.guild.id, openerId: interaction.user.id, subject: table.name });
   }
-  await interaction.editReply(channel ? `Atendimento criado: <#${channel.id}>.` : "Nao consegui criar o atendimento. Chame a equipe diretamente.");
+  await interaction.editReply(channel ? `Atendimento criado: <#${channel.id}>.` : "Não consegui criar o atendimento. Chame a equipe diretamente.");
 }
 
 async function createTicketChannel(guild: Guild, table: PriceTable, openerId: string, subject: string, details: string) {
@@ -162,7 +162,7 @@ async function createTicketChannel(guild: Guild, table: PriceTable, openerId: st
       { id: guild.members.me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ReadMessageHistory] },
       ...table.supportRoleIds.map((id) => ({ id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }))
     ],
-    reason: `Atendimento de tabela de precos aberto por ${openerId}`,
+    reason: `Atendimento de tabela de preços aberto por ${openerId}`,
     type: ChannelType.GuildText
   }).catch(() => null);
   if (!channel) return null;

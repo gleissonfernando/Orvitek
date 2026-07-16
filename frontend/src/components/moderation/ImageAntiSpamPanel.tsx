@@ -143,7 +143,7 @@ export function ImageAntiSpamPanel({
       }
 
       setSettings(nextSettings);
-      setMessage("Configuracao sincronizada em tempo real.");
+      setMessage("Configuração sincronizada em tempo real.");
     });
 
     socket.on("image-anti-spam:incident", (incident: ImageAntiSpamIncident) => {
@@ -215,7 +215,7 @@ export function ImageAntiSpamPanel({
       });
 
       setSettings(saved);
-      setMessage("Configuracao do Anti-Spam de Imagens salva.");
+      setMessage("Configuração do Anti-Spam de Imagens salva.");
     } catch (error) {
       setMessage(readRequestMessage(error) ?? "Não foi possível salvar o Anti-Spam de Imagens.");
     } finally {
@@ -320,7 +320,7 @@ export function ImageAntiSpamPanel({
             />
             <NumberField
               disabled={!canManage}
-              label="Reiniciar advertencias apos (dias)"
+              label="Reiniciar advertencias após (dias)"
               max={3_650}
               min={1}
               onChange={(value) => updateSetting("warningResetDays", value)}
@@ -373,7 +373,7 @@ export function ImageAntiSpamPanel({
           <div className="grid gap-4 lg:grid-cols-2">
             <Checklist
               disabled={!canManage}
-              emptyText="Nenhum cargo disponivel."
+              emptyText="Nenhum cargo disponível."
               icon={ShieldCheck}
               items={selectableRoles.map((role) => ({ id: role.id, label: role.name }))}
               label="Cargos imunes"
@@ -382,7 +382,7 @@ export function ImageAntiSpamPanel({
             />
             <Checklist
               disabled={!canManage}
-              emptyText="Nenhum canal disponivel."
+              emptyText="Nenhum canal disponível."
               icon={Hash}
               items={channels.map((channel) => ({ id: channel.id, label: `#${channel.name}` }))}
               label="Canais Permitidos para Foto"
@@ -623,7 +623,7 @@ function actionLabel(incident: ImageAntiSpamIncident) {
   if (incident.action === "kick") return "Expulsao";
   if (incident.action === "timeout") return `${Math.round(incident.timeoutMs / 60_000)} min`;
   if (incident.action === "warning") return "Advertencia";
-  return "Remocao";
+  return "Remoção";
 }
 
 function upsertIncidentUser(users: ImageAntiSpamUser[], incident: ImageAntiSpamIncident) {

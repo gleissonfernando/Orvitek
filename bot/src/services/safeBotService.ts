@@ -129,7 +129,7 @@ async function reconcileSafeBotSetup(guild: Guild, context: BotContext, knownSet
   }
 
   const settings = knownSettings ?? await context.api.getSettings(guild.id, guild.client.user?.id).catch((error) => {
-    console.warn("[safe-bot] nao foi possivel carregar configuracoes:", errorMessage(error));
+    console.warn("[safe-bot] não foi possível carregar configurações:", errorMessage(error));
     return null;
   });
 
@@ -139,7 +139,7 @@ async function reconcileSafeBotSetup(guild: Guild, context: BotContext, knownSet
   }
 
   const protectionSettings = await getModerationSettings(guild.id, context).catch((error) => {
-    console.warn("[safe-bot] nao foi possivel carregar configuracao avancada:", errorMessage(error));
+    console.warn("[safe-bot] não foi possível carregar configuração avancada:", errorMessage(error));
     return null;
   });
 
@@ -152,7 +152,7 @@ async function reconcileSafeBotSetup(guild: Guild, context: BotContext, knownSet
   }
 
   await ensureFilterWarning(filterChannel, context).catch((error) => {
-    console.warn("[safe-bot] nao foi possivel enviar aviso no canal filter:", errorMessage(error));
+    console.warn("[safe-bot] não foi possível enviar aviso no canal filter:", errorMessage(error));
   });
 
   const syncedSettings = await context.api.syncSafeBotSetup({
@@ -164,7 +164,7 @@ async function reconcileSafeBotSetup(guild: Guild, context: BotContext, knownSet
     roleId: role.id,
     roleName: role.name
   }).catch((error) => {
-    console.warn(`[safe-bot] nao foi possivel sincronizar setup no servidor ${guild.id}:`, errorMessage(error));
+    console.warn(`[safe-bot] não foi possível sincronizar setup no servidor ${guild.id}:`, errorMessage(error));
     return settings ?? null;
   });
 
@@ -227,7 +227,7 @@ export async function disableUnreleasedSafeBotChannels(client: Client<true>, con
 
       clearSafeBotSetupCache(guild.id);
       const settings = await context.api.getSettings(guild.id, client.user.id).catch((error) => {
-        console.warn(`[safe-bot] nao foi possivel carregar canal para desativar em ${guild.id}:`, errorMessage(error));
+        console.warn(`[safe-bot] não foi possível carregar canal para desativar em ${guild.id}:`, errorMessage(error));
         return null;
       });
 
@@ -336,7 +336,7 @@ export async function restoreSelfBotWarningAfterDelete(message: Message | { chan
   }
 
   const runtime = await getSafeBotRuntime(guild, context).catch((error) => {
-    console.warn("[safe-bot] nao foi possivel restaurar aviso no canal filter:", errorMessage(error));
+    console.warn("[safe-bot] não foi possível restaurar aviso no canal filter:", errorMessage(error));
     return null;
   });
 
@@ -351,7 +351,7 @@ export async function restoreSelfBotWarningAfterDelete(message: Message | { chan
   }
 
   await ensureFilterWarning(channel, context).catch((error) => {
-    console.warn("[safe-bot] nao foi possivel recriar aviso no canal filter:", errorMessage(error));
+    console.warn("[safe-bot] não foi possível recriar aviso no canal filter:", errorMessage(error));
   });
   return true;
 }
@@ -419,14 +419,14 @@ async function processSafeBotMessage(message: Message, context: BotContext) {
       message,
       runtime,
       detected.moduleId,
-      `SafeBot: ${detected.label} enviado por usuario marcado como Self Bot.`
+      `SafeBot: ${detected.label} enviado por usuário marcado como Self Bot.`
     );
     await Promise.allSettled([
       sendSelfBotDetectedLog(message, runtime, detected, punishment),
       recordSafeBotIncident(context, message, runtime, {
         actionError: punishment.error,
         actions: punishment.actions,
-        details: "Usuario marcado com cargo Self Bot enviou conteudo bloqueado.",
+        details: "Usuário marcado com cargo Self Bot enviou conteúdo bloqueado.",
         moduleId: detected.moduleId,
         punishmentSucceeded: punishment.succeeded,
         type: `Self Bot detectado: ${detected.label}`
@@ -511,7 +511,7 @@ async function applyConfiguredPunishment(
     moduleId,
     userId: member.id
   }).catch((error) => {
-    console.warn("[safe-bot] nao foi possivel resolver escalonamento persistido:", errorMessage(error));
+    console.warn("[safe-bot] não foi possível resolver escalonamento persistido:", errorMessage(error));
     return null;
   });
   const step = resolved?.step ?? firstLocalPunishmentStep(runtime.protectionSettings);
@@ -532,7 +532,7 @@ async function applyConfiguredPunishment(
       } else if (action === "add_role") {
         const assigned = await applySelfBotRole(member, punishmentAddRoleId(runtime, step));
         if (!assigned.succeeded) {
-          throw new Error(assigned.error ?? "Nao foi possivel aplicar o cargo de castigo.");
+          throw new Error(assigned.error ?? "Não foi possível aplicar o cargo de castigo.");
         }
         actions.push(action);
       } else if (action === "remove_role") {
@@ -544,20 +544,20 @@ async function applyConfiguredPunishment(
         actions.push(action);
       } else if (action === "timeout") {
         if (!member.moderatable) {
-          throw new Error("O bot nao pode aplicar mute neste membro por falta de permissao ou hierarquia.");
+          throw new Error("O bot não pode aplicar mute neste membro por falta de permissão ou hierarquia.");
         }
         await member.timeout(timeoutDurationMs(step, runtime), reason);
         actions.push(action);
       } else if (action === "kick") {
         if (!member.kickable) {
-          throw new Error("O bot nao pode expulsar este membro por falta de permissao ou hierarquia.");
+          throw new Error("O bot não pode expulsar este membro por falta de permissão ou hierarquia.");
         }
         await member.kick(reason);
         actions.push(action);
         break;
       } else if (action === "ban") {
         if (!member.bannable) {
-          throw new Error("O bot nao pode banir este membro por falta de permissao ou hierarquia.");
+          throw new Error("O bot não pode banir este membro por falta de permissão ou hierarquia.");
         }
         await member.ban({
           deleteMessageSeconds: step?.banApagarMensagensSegundos ?? 60 * 60,
@@ -599,7 +599,7 @@ async function getSafeBotRuntime(guild: Guild, context: BotContext) {
   }
 
   const settings = await context.api.getSettings(guild.id, guild.client.user?.id).catch((error) => {
-    console.warn("[safe-bot] nao foi possivel carregar configuracoes:", errorMessage(error));
+    console.warn("[safe-bot] não foi possível carregar configurações:", errorMessage(error));
     return null;
   });
 
@@ -626,7 +626,7 @@ async function applySelfBotRole(member: GuildMember, roleId: string) {
     const role = await member.guild.roles.fetch(roleId).catch(() => null);
 
     if (!role?.editable) {
-      throw new Error("O cargo Self Bot nao pode ser atribuido pelo bot.");
+      throw new Error("O cargo Self Bot não pode ser atribuido pelo bot.");
     }
 
     await member.roles.add(role, "SafeBot: comportamento suspeito detectado");
@@ -648,7 +648,7 @@ async function reconcileGuildPunishmentRoles(guild: Guild, context: BotContext) 
   }
 
   const runtime = await getSafeBotRuntime(guild, context).catch((error) => {
-    console.warn(`[safe-bot] nao foi possivel carregar runtime para reconciliar cargos em ${guild.id}:`, errorMessage(error));
+    console.warn(`[safe-bot] não foi possível carregar runtime para reconciliar cargos em ${guild.id}:`, errorMessage(error));
     return null;
   });
 
@@ -657,7 +657,7 @@ async function reconcileGuildPunishmentRoles(guild: Guild, context: BotContext) 
   }
 
   const assignments = await context.api.getSelfBotRoleAssignments(guild.id).catch((error) => {
-    console.warn(`[safe-bot] nao foi possivel buscar castigos persistidos em ${guild.id}:`, errorMessage(error));
+    console.warn(`[safe-bot] não foi possível buscar castigos persistidos em ${guild.id}:`, errorMessage(error));
     return [];
   });
 
@@ -674,7 +674,7 @@ async function reconcileGuildPunishmentRoles(guild: Guild, context: BotContext) 
 
       if (!assigned.succeeded) {
         console.warn(
-          `[safe-bot] nao foi possivel reaplicar cargo de castigo para ${assignment.userId} em ${guild.id}:`,
+          `[safe-bot] não foi possível reaplicar cargo de castigo para ${assignment.userId} em ${guild.id}:`,
           assigned.error
         );
       }
@@ -819,12 +819,12 @@ async function punishMarkedUser(
   detected: DetectedPayload
 ): Promise<PunishmentOutcome> {
   const action = resolveConfiguredPunishment(runtime.protectionSettings);
-  const reason = `SafeBot: ${detected.label} enviado por usuario marcado como Self Bot.`;
+  const reason = `SafeBot: ${detected.label} enviado por usuário marcado como Self Bot.`;
 
   try {
     if (action === "ban") {
       if (!member.bannable) {
-        throw new Error("O bot nao pode banir este membro por falta de permissao ou hierarquia.");
+        throw new Error("O bot não pode banir este membro por falta de permissão ou hierarquia.");
       }
 
       await member.ban({
@@ -833,13 +833,13 @@ async function punishMarkedUser(
       });
     } else if (action === "kick") {
       if (!member.kickable) {
-        throw new Error("O bot nao pode expulsar este membro por falta de permissao ou hierarquia.");
+        throw new Error("O bot não pode expulsar este membro por falta de permissão ou hierarquia.");
       }
 
       await member.kick(reason);
     } else if (action === "timeout") {
       if (!member.moderatable) {
-        throw new Error("O bot nao pode aplicar mute neste membro por falta de permissao ou hierarquia.");
+        throw new Error("O bot não pode aplicar mute neste membro por falta de permissão ou hierarquia.");
       }
 
       await member.timeout((runtime.protectionSettings?.timeoutSeconds ?? 300) * 1_000, reason);
@@ -1020,7 +1020,7 @@ async function deleteMessages(context: BotContext, messages: Message[], moduleId
         reason,
         ruleId: moduleId
       }).catch((error) => {
-        console.warn(`[safe-bot] nao foi possivel apagar mensagem ${message.id}:`, errorMessage(error));
+        console.warn(`[safe-bot] não foi possível apagar mensagem ${message.id}:`, errorMessage(error));
       }))
   );
 }
@@ -1041,7 +1041,7 @@ async function deleteMessagesOrThrow(context: BotContext, messages: Message[], m
 
 async function deleteMessageOrThrow(context: BotContext, message: Message, moduleId: SelfBotProtectionModuleId, reason: string) {
   if (!message.deletable) {
-    throw new Error("O bot nao tem permissao para apagar esta mensagem.");
+    throw new Error("O bot não tem permissão para apagar esta mensagem.");
   }
 
   await deleteMessageWithAudit(context, message, {
@@ -1058,9 +1058,9 @@ async function sendFilterLog(message: Message, runtime: SafeBotRuntime, punishme
     .setColor(punishment.error ? 0xf59e0b : SELF_BOT_COLOR)
     .setTitle("[SAFEBOT]")
     .setDescription([
-      `**Usuario:** ${message.author.tag}`,
+      `**Usuário:** ${message.author.tag}`,
       `**ID:** \`${message.author.id}\``,
-      `**Acao:** Mensagem enviada no canal de filtro.`,
+      `**Ação:** Mensagem enviada no canal de filtro.`,
       `**Punicao:** ${formatPunishmentActions(punishment.actions)}`,
       punishment.error ? `**Erro:** ${punishment.error}` : "**Punicao executada.**"
     ].join("\n"))
@@ -1074,7 +1074,7 @@ async function sendFloodLog(message: Message, runtime: SafeBotRuntime, reason: s
     .setColor(punishment.error ? 0xf59e0b : SELF_BOT_COLOR)
     .setTitle("[SAFEBOT] Flood detectado")
     .setDescription([
-      `**Usuario:** ${message.author.tag}`,
+      `**Usuário:** ${message.author.tag}`,
       `**ID:** \`${message.author.id}\``,
       `**Canal:** <#${message.channelId}>`,
       `**Motivo:** ${reason}`,
@@ -1096,12 +1096,12 @@ async function sendSelfBotDetectedLog(
     .setColor(punishment.succeeded ? 0xed4245 : 0xf59e0b)
     .setTitle("🚨 SELF BOT DETECTADO")
     .setDescription([
-      `**Usuario:** ${message.author.tag}`,
+      `**Usuário:** ${message.author.tag}`,
       `**ID:** \`${message.author.id}\``,
       `**Canal:** <#${message.channelId}>`,
       `**Tipo detectado:** ${detected.label}`,
-      "**Conteudo removido.**",
-      `**Acao executada:** ${punishmentLabel(primaryPunishmentAction(punishment.actions))}`,
+      "**Conteúdo removido.**",
+      `**Ação executada:** ${punishmentLabel(primaryPunishmentAction(punishment.actions))}`,
       `**Sequencia:** ${formatPunishmentActions(punishment.actions)}`,
       punishment.error ? `**Erro:** ${punishment.error}` : ""
     ].filter(Boolean).join("\n"))
@@ -1143,7 +1143,7 @@ async function recordSafeBotIncident(
     userId: message.author.id,
     username: message.author.tag
   }).catch((error) => {
-    console.warn("[safe-bot] nao foi possivel registrar incidente:", errorMessage(error));
+    console.warn("[safe-bot] não foi possível registrar incidente:", errorMessage(error));
   });
 }
 
@@ -1197,7 +1197,7 @@ async function warnInChannel(member: GuildMember, message: Message, content: str
 
 async function findOrCreateSelfBotRole(guild: Guild) {
   const roles = await guild.roles.fetch().catch((error) => {
-    console.warn(`[safe-bot] nao foi possivel buscar cargos em ${guild.name}:`, errorMessage(error));
+    console.warn(`[safe-bot] não foi possível buscar cargos em ${guild.name}:`, errorMessage(error));
     return null;
   });
   const existing = roles?.find((role) => role.name.toLowerCase() === SELF_BOT_ROLE_NAME.toLowerCase()) ?? null;
@@ -1209,7 +1209,7 @@ async function findOrCreateSelfBotRole(guild: Guild) {
   const me = await guild.members.fetchMe().catch(() => null);
 
   if (!me?.permissions.has(PermissionFlagsBits.ManageRoles)) {
-    console.warn(`[safe-bot] sem permissao Gerenciar Cargos em ${guild.name}.`);
+    console.warn(`[safe-bot] sem permissão Gerenciar Cargos em ${guild.name}.`);
     return null;
   }
 
@@ -1219,7 +1219,7 @@ async function findOrCreateSelfBotRole(guild: Guild) {
     permissions: [],
     reason: "SafeBot: cargo Self Bot criado automaticamente"
   }).catch((error) => {
-    console.warn(`[safe-bot] nao foi possivel criar o cargo em ${guild.name}:`, errorMessage(error));
+    console.warn(`[safe-bot] não foi possível criar o cargo em ${guild.name}:`, errorMessage(error));
     return null;
   });
 }
@@ -1257,7 +1257,7 @@ async function findOrCreateFilterChannel(guild: Guild, configuredChannelId?: str
   const me = await guild.members.fetchMe().catch(() => null);
 
   if (!me?.permissions.has(PermissionFlagsBits.ManageChannels)) {
-    console.warn(`[safe-bot] sem permissao Gerenciar Canais em ${guild.name}.`);
+    console.warn(`[safe-bot] sem permissão Gerenciar Canais em ${guild.name}.`);
     return null;
   }
 
@@ -1267,7 +1267,7 @@ async function findOrCreateFilterChannel(guild: Guild, configuredChannelId?: str
     reason: "SafeBot: canal filter criado automaticamente",
     type: ChannelType.GuildText
   }).catch((error) => {
-    console.warn(`[safe-bot] nao foi possivel criar canal filter em ${guild.name}:`, errorMessage(error));
+    console.warn(`[safe-bot] não foi possível criar canal filter em ${guild.name}:`, errorMessage(error));
     return null;
   });
 }
@@ -1289,7 +1289,7 @@ async function findOrCreateLogChannel(guild: Guild, configuredChannelId?: string
   const me = await guild.members.fetchMe().catch(() => null);
 
   if (!me?.permissions.has(PermissionFlagsBits.ManageChannels)) {
-    console.warn(`[safe-bot] sem permissao Gerenciar Canais em ${guild.name}.`);
+    console.warn(`[safe-bot] sem permissão Gerenciar Canais em ${guild.name}.`);
     return null;
   }
 
@@ -1299,7 +1299,7 @@ async function findOrCreateLogChannel(guild: Guild, configuredChannelId?: string
     reason: "SafeBot: canal de logs criado automaticamente",
     type: ChannelType.GuildText
   }).catch((error) => {
-    console.warn(`[safe-bot] nao foi possivel criar canal de logs em ${guild.name}:`, errorMessage(error));
+    console.warn(`[safe-bot] não foi possível criar canal de logs em ${guild.name}:`, errorMessage(error));
     return null;
   });
 }
@@ -1321,10 +1321,10 @@ async function disableFilterChannel(channel: Awaited<ReturnType<typeof findTextC
       SendMessages: false
     },
     {
-      reason: "Self Bot: modulo nao liberado para este bot"
+      reason: "Self Bot: módulo não liberado para este bot"
     }
   ).catch((error) => {
-    console.warn(`[safe-bot] nao foi possivel desativar o canal em ${guildId}:`, errorMessage(error));
+    console.warn(`[safe-bot] não foi possível desativar o canal em ${guildId}:`, errorMessage(error));
   });
 }
 
@@ -1429,7 +1429,7 @@ async function ensureFilterWarning(channel: Awaited<ReturnType<typeof findTextCh
 
 async function reconcileFilterWarning(channel: NonNullable<Awaited<ReturnType<typeof findTextChannel>>>, context: BotContext) {
   const state = await context.api.getSafeBotMessageState(channel.guild.id).catch((error) => {
-    console.warn(`[safe-bot] nao foi possivel buscar mensagem salva em ${channel.guild.id}:`, errorMessage(error));
+    console.warn(`[safe-bot] não foi possível buscar mensagem salva em ${channel.guild.id}:`, errorMessage(error));
     return null;
   });
 
@@ -1455,7 +1455,7 @@ async function reconcileFilterWarning(channel: NonNullable<Awaited<ReturnType<ty
         channelId: channel.id,
         messageId: currentWarning.id
       }).catch((error) => {
-        console.warn(`[safe-bot] nao foi possivel salvar mensagem existente em ${channel.guild.id}:`, errorMessage(error));
+        console.warn(`[safe-bot] não foi possível salvar mensagem existente em ${channel.guild.id}:`, errorMessage(error));
       });
       return;
     }
@@ -1493,7 +1493,7 @@ async function reconcileFilterWarning(channel: NonNullable<Awaited<ReturnType<ty
     channelId: channel.id,
     messageId: warning.id
   }).catch((error) => {
-    console.warn(`[safe-bot] nao foi possivel salvar nova mensagem em ${channel.guild.id}:`, errorMessage(error));
+    console.warn(`[safe-bot] não foi possível salvar nova mensagem em ${channel.guild.id}:`, errorMessage(error));
   });
 
   console.log(
@@ -1517,7 +1517,7 @@ async function deleteStoredSafeBotMessage(guild: Guild, channelId: string, messa
 
   if (message?.deletable) {
     await message.delete().catch((error) => {
-      console.warn(`[safe-bot] nao foi possivel apagar mensagem antiga ${messageId}:`, errorMessage(error));
+      console.warn(`[safe-bot] não foi possível apagar mensagem antiga ${messageId}:`, errorMessage(error));
     });
   }
 }
@@ -1530,7 +1530,7 @@ async function removeSafeBotWarningMessage(guild: Guild, context: BotContext, re
   }
 
   await context.api.clearSafeBotMessageState(guild.id).catch((error) => {
-    console.warn(`[safe-bot] nao foi possivel limpar mensagem salva em ${guild.id}:`, errorMessage(error));
+    console.warn(`[safe-bot] não foi possível limpar mensagem salva em ${guild.id}:`, errorMessage(error));
   });
   console.log(`[safe-bot] mensagem do SafeBot removida/limpa: ${reason}`);
 }

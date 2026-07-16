@@ -12,14 +12,14 @@ type NexTechProductPageProps = {
 
 const featureLabels: Record<string, string> = {
   activationKey: "Chave de ativacao",
-  automaticContract: "Contrato automatico",
-  automaticLogin: "Login automatico",
-  automaticPix: "Pix automatico",
-  automaticRenewal: "Renovacao automatica",
+  automaticContract: "Contrato automático",
+  automaticLogin: "Login automático",
+  automaticPix: "Pix automático",
+  automaticRenewal: "Renovacao automática",
   coupons: "Aceita cupom",
   hosting: "Hospedagem inclusa",
   passwordCreation: "Criacao de senha",
-  releaseCode: "Codigo de liberacao",
+  releaseCode: "Código de liberação",
   support: "Suporte",
   updates: "Atualizacoes"
 };
@@ -87,7 +87,7 @@ export function NexTechProductPage({ slug, status = null, storeId }: NexTechProd
       setCheckoutSuccessUrl(result.successUrl);
       setCheckoutMessage(result.instructions || `Pedido criado. Gateway: ${result.provider}. Venda: ${result.sale.id}`);
     } catch {
-      setCheckoutMessage("Nao foi possivel iniciar a compra. Confira os dados e tente novamente.");
+      setCheckoutMessage("Não foi possível iniciar a compra. Confira os dados e tente novamente.");
     } finally {
       setCheckoutPlan(null);
     }
@@ -106,8 +106,8 @@ export function NexTechProductPage({ slug, status = null, storeId }: NexTechProd
       <main className="flex min-h-screen items-center justify-center bg-[#050506] px-4 text-white">
         <div className="max-w-md rounded-lg border border-zinc-800 bg-zinc-950/80 p-6 text-center">
           <AlertCircle className="mx-auto h-8 w-8 text-red-300" />
-          <h1 className="mt-3 text-xl font-bold">Produto indisponivel</h1>
-          <p className="mt-2 text-sm text-zinc-400">Essa pagina nao existe ou esta desativada.</p>
+          <h1 className="mt-3 text-xl font-bold">Produto indisponível</h1>
+          <p className="mt-2 text-sm text-zinc-400">Essa página não existe ou está desativada.</p>
         </div>
       </main>
     );
@@ -123,9 +123,9 @@ export function NexTechProductPage({ slug, status = null, storeId }: NexTechProd
       <main className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.18),transparent_34%),linear-gradient(180deg,#050506,#09090d_48%,#050506)] px-4 text-white">
         <div className="w-full max-w-lg rounded-lg border border-emerald-400/25 bg-zinc-950/90 p-6 text-center shadow-[0_0_60px_rgba(34,197,94,0.14)]">
           <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-300" />
-          <h1 className="mt-4 text-2xl font-black">Pagamento concluido</h1>
+          <h1 className="mt-4 text-2xl font-black">Pagamento concluído</h1>
           <p className="mt-3 text-sm font-medium leading-6 text-zinc-300">
-            Recebemos o retorno do pagamento de {product.name}. Se o gateway enviar webhook, a venda sera confirmada automaticamente; caso contrario, a loja pode validar manualmente.
+            Recebemos o retorno do pagamento de {product.name}. Se o gateway enviar webhook, a venda será confirmada automaticamente; caso contrario, a loja pode validar manualmente.
           </p>
           {saleId ? (
             <p className="mt-4 rounded-lg border border-zinc-800 bg-black/35 px-3 py-2 text-xs font-semibold text-zinc-400">
@@ -165,10 +165,10 @@ export function NexTechProductPage({ slug, status = null, storeId }: NexTechProd
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <section className="space-y-6">
-            <ProductTextSection title="Descricao" text={product.fullDescription || product.shortDescription} />
+            <ProductTextSection title="Descrição" text={product.fullDescription || product.shortDescription} />
             <ProductTextSection title="Como funciona" text={product.howItWorks} />
-            <ProductTextSection title="Informacoes" text={product.additionalInfo} />
-            <ProductTextSection title="Observacoes" text={product.observations} />
+            <ProductTextSection title="Informações" text={product.additionalInfo} />
+            <ProductTextSection title="Observações" text={product.observations} />
             <ProductTextSection tone="warning" title="Avisos" text={product.warnings} />
 
             {enabledFeatures.length ? (
@@ -223,7 +223,7 @@ export function NexTechProductPage({ slug, status = null, storeId }: NexTechProd
                   <p>{checkoutMessage}</p>
                   {checkoutSuccessUrl ? (
                     <a className="block break-all text-xs text-emerald-200 underline decoration-emerald-300/50" href={checkoutSuccessUrl}>
-                      URL de retorno apos pagamento: {checkoutSuccessUrl}
+                      URL de retorno após pagamento: {checkoutSuccessUrl}
                     </a>
                   ) : null}
                 </div>
@@ -285,7 +285,7 @@ function PlanCard({
       ) : null}
       {planType === "lifetime" ? (
         <p className="mt-3 rounded-lg border border-[#FFD500]/20 bg-[#FFD500]/10 p-3 text-xs font-semibold leading-5 text-[#FFEA70]">
-          Apos o periodo gratuito sera cobrada apenas a hospedagem, a partir de {formatMoney(plan.hostingPriceCents ?? 1200, currency)} por mes. Sua licenca continuara sendo vitalicia.
+          Após o periodo gratuito será cobrada apenas a hospedagem, a partir de {formatMoney(plan.hostingPriceCents ?? 1200, currency)} por mes. Sua licenca continuara sendo vitalicia.
         </p>
       ) : null}
       <Button className="mt-4 w-full text-white hover:brightness-110" disabled={loading} onClick={onClick} style={{ backgroundColor: plan.buttonColor || accent }}>

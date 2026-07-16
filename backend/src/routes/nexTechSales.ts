@@ -33,7 +33,7 @@ nexTechSalesRouter.get("/stores/:storeId/products/:slug", async (req, res, next)
 
     if (!product) {
       return res.status(404).json({
-        message: "Produto nao encontrado."
+        message: "Produto não encontrado."
       });
     }
 
@@ -56,7 +56,7 @@ nexTechSalesRouter.post("/stores/:storeId/products/:slug/checkout", async (req, 
 
     if (!checkout) {
       return res.status(404).json({
-        message: "Produto nao encontrado."
+        message: "Produto não encontrado."
       });
     }
 

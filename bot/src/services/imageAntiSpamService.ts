@@ -251,7 +251,7 @@ async function deleteMediaSpamMessages(context: BotContext, messages: MediaMessa
       entry.error = messageError;
       errors.push(`${entry.messageId}: ${messageError}`);
       console.warn(
-        `[image-anti-spam] nao foi possivel apagar a mensagem ${entry.messageId}:`,
+        `[image-anti-spam] não foi possível apagar a mensagem ${entry.messageId}:`,
         messageError
       );
     }
@@ -309,7 +309,7 @@ async function applyPunishment(
   try {
     if (incident.action === "timeout") {
       if (!member.moderatable) {
-        throw new Error("O bot nao pode aplicar timeout por falta de permissao ou hierarquia de cargos.");
+        throw new Error("O bot não pode aplicar timeout por falta de permissão ou hierarquia de cargos.");
       }
 
       await member.timeout(incident.timeoutMs, incident.reason);
@@ -317,7 +317,7 @@ async function applyPunishment(
       await notifyMember(member, sourceMessage, incident, settings).catch(() => undefined);
 
       if (!member.kickable) {
-        throw new Error("O bot nao pode expulsar este membro por falta de permissao ou hierarquia de cargos.");
+        throw new Error("O bot não pode expulsar este membro por falta de permissão ou hierarquia de cargos.");
       }
 
       await member.kick(incident.reason);
@@ -333,7 +333,7 @@ async function applyPunishment(
 
   if (settings.warningsEnabled) {
     await notifyMember(member, sourceMessage, incident, settings).catch((error) => {
-      actionError = [actionError, `Aviso nao entregue: ${errorMessage(error)}`].filter(Boolean).join(" ");
+      actionError = [actionError, `Aviso não entregue: ${errorMessage(error)}`].filter(Boolean).join(" ");
     });
   }
 
@@ -418,7 +418,7 @@ function buildLogPayload(incident: ImageAntiSpamIncident) {
     : action;
   const body = incident.action === "kick"
     ? [
-        `**Usuario:** <@${incident.userId}>`,
+        `**Usuário:** <@${incident.userId}>`,
         `**ID:** \`${incident.userId}\``,
         `**Total de advertencias:** ${incident.warningCount}`,
         `**Data da expulsao:** <t:${Math.floor(new Date(incident.updatedAt).getTime() / 1_000)}:F>`,
@@ -426,7 +426,7 @@ function buildLogPayload(incident: ImageAntiSpamIncident) {
         `**Status:** ${status}`
       ]
     : [
-        `**Usuario:** <@${incident.userId}>`,
+        `**Usuário:** <@${incident.userId}>`,
         `**ID:** \`${incident.userId}\``,
         `**Canal principal:** <#${incident.channelId}>`,
         `**Canais envolvidos:** ${formatChannels(incident.channelIds)}`,
@@ -437,7 +437,7 @@ function buildLogPayload(incident: ImageAntiSpamIncident) {
         `**Timeout aplicado:** ${timeout}`,
         `**Data e horario:** <t:${Math.floor(new Date(incident.updatedAt).getTime() / 1_000)}:F>`,
         `**Motivo:** ${incident.reason}`,
-        `**Acao:** ${status}`
+        `**Ação:** ${status}`
       ];
   const container = new ContainerBuilder()
     .setAccentColor(incident.action === "kick" ? 0xed4245 : 0x7c3aed)
@@ -537,7 +537,7 @@ function collectMediaTypes(messages: MediaMessageRef[]) {
 
 function formatChannels(channelIds: string[] | undefined) {
   const ids = channelIds?.length ? channelIds : [];
-  return ids.length ? ids.map((channelId) => `<#${channelId}>`).join(", ") : "Nao informado";
+  return ids.length ? ids.map((channelId) => `<#${channelId}>`).join(", ") : "Não informado";
 }
 
 function formatMediaTypes(mediaTypes: string[] | undefined) {

@@ -4,7 +4,7 @@ import type { BotCommand } from "../types";
 
 export async function registerGuildCommands(commands: BotCommand[], clientId: string, guildId: string) {
   if (!env.DISCORD_BOT_TOKEN) {
-    throw new Error("DISCORD_BOT_TOKEN nao configurado.");
+    throw new Error("DISCORD_BOT_TOKEN não configurado.");
   }
 
   const rest = new REST({ version: "10" }).setToken(env.DISCORD_BOT_TOKEN);
@@ -16,7 +16,7 @@ export async function registerGuildCommands(commands: BotCommand[], clientId: st
 
 export async function clearGlobalCommands(clientId: string) {
   if (!env.DISCORD_BOT_TOKEN) {
-    throw new Error("DISCORD_BOT_TOKEN nao configurado.");
+    throw new Error("DISCORD_BOT_TOKEN não configurado.");
   }
 
   const rest = new REST({ version: "10" }).setToken(env.DISCORD_BOT_TOKEN);

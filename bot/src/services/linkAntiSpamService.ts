@@ -91,13 +91,13 @@ async function processLinkMessage(message: Message, linkCount: number, context: 
     ruleId: MODULE_ID
   }).catch((error) => {
     console.warn(
-      `[link-anti-spam] nao foi possivel apagar a mensagem ${message.id}:`,
+      `[link-anti-spam] não foi possível apagar a mensagem ${message.id}:`,
       errorMessage(error)
     );
   });
 
   await notifyUser(message, retryAfterMs, tooManyLinks).catch((error) => {
-    console.warn("[link-anti-spam] nao foi possivel avisar usuario:", errorMessage(error));
+    console.warn("[link-anti-spam] não foi possível avisar usuário:", errorMessage(error));
   });
 
   await logModeration(
@@ -107,7 +107,7 @@ async function processLinkMessage(message: Message, linkCount: number, context: 
     "moderation.link_anti_spam",
     `Link bloqueado: ${linkCount} link(s) em ${message.channelId}. Aguarde ${formatDuration(retryAfterMs)}.`
   ).catch((error) => {
-    console.warn("[link-anti-spam] nao foi possivel registrar log:", errorMessage(error));
+    console.warn("[link-anti-spam] não foi possível registrar log:", errorMessage(error));
   });
 
   return true;
@@ -119,8 +119,8 @@ async function notifyUser(message: Message, retryAfterMs: number, tooManyLinks: 
   }
 
   const rule = tooManyLinks
-    ? "Voce so pode enviar 1 link por vez e 1 link a cada 3 minutos."
-    : "Voce so pode enviar 1 link a cada 3 minutos.";
+    ? "Você so pode enviar 1 link por vez e 1 link a cada 3 minutos."
+    : "Você so pode enviar 1 link a cada 3 minutos.";
   const warning = await message.channel.send({
     content: `<@${message.author.id}> ${rule} Aguarde ${formatDuration(retryAfterMs)}.`,
     allowedMentions: {

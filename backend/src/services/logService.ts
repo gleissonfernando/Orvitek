@@ -242,7 +242,7 @@ function dispatchDiscordLog(log: LogEntryDto) {
 function requireBotId(botId: string | null | undefined) {
   const normalized = botId?.trim();
   if (!normalized) {
-    throw new Error("botId obrigatorio para registrar ou consultar logs.");
+    throw new Error("botId obrigatório para registrar ou consultar logs.");
   }
 
   return normalized;

@@ -145,7 +145,7 @@ plansRouter.get("/:slug", async (req, res, next) => {
     const plan = await getPublicPlan(slug);
 
     if (!plan) {
-      return res.status(404).json({ message: "Plano nao encontrado." });
+      return res.status(404).json({ message: "Plano não encontrado." });
     }
 
     return res.json({ plan });

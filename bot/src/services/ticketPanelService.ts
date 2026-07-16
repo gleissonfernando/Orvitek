@@ -48,26 +48,26 @@ const STATUS_OPTIONS = [
 
 export async function publishTicketPanel(interaction: ChatInputCommandInteraction, context: BotContext) {
   if (!interaction.guild) {
-    await interaction.reply({ content: "Comando disponivel apenas em servidores.", ephemeral: true });
+    await interaction.reply({ content: "Comando disponível apenas em servidores.", ephemeral: true });
     return;
   }
 
   const settings = await getFreshGuildSettings(context, interaction.guild.id, interaction.client.user?.id);
 
   if (!settings.ticketEnabled) {
-    await interaction.reply({ content: "O sistema de tickets esta desativado na Dashboard.", ephemeral: true });
+    await interaction.reply({ content: "O sistema de tickets está desativado na Dashboard.", ephemeral: true });
     return;
   }
 
   const payload = createTicketPanelPayload(settings, interaction.guild);
 
   if (!payload) {
-    await interaction.reply({ content: "Configure pelo menos uma opcao ativa para o painel de ticket.", ephemeral: true });
+    await interaction.reply({ content: "Configure pelo menos uma opção ativa para o painel de ticket.", ephemeral: true });
     return;
   }
 
   if (!interaction.channel?.isSendable()) {
-    await interaction.reply({ content: "Nao consegui enviar o painel neste canal.", ephemeral: true });
+    await interaction.reply({ content: "Não consegui enviar o painel neste canal.", ephemeral: true });
     return;
   }
 
@@ -159,7 +159,7 @@ export async function handleTicketPanelInteraction(interaction: Interaction, con
   const option = settings?.ticketPanelOptions.find((item) => item.enabled && item.value === selectedValue);
 
   if (!settings?.ticketEnabled || !option) {
-    await interaction.reply({ content: "Esta opcao de ticket nao esta mais disponivel.", ephemeral: true });
+    await interaction.reply({ content: "Esta opção de ticket não está mais disponível.", ephemeral: true });
     return true;
   }
 
@@ -171,7 +171,7 @@ export async function handleTicketPanelInteraction(interaction: Interaction, con
     const channel = await createTicketChannel(interaction.guild, settings, interaction.user.id, option);
     channelId = channel?.id ?? null;
   } catch (error) {
-    console.warn("[ticket-panel] nao foi possivel criar canal de ticket:", error instanceof Error ? error.message : error);
+    console.warn("[ticket-panel] não foi possível criar canal de ticket:", error instanceof Error ? error.message : error);
   }
 
   const ticket = await context.api.createTicket({
@@ -208,7 +208,7 @@ export async function handleTicketPanelInteraction(interaction: Interaction, con
 async function handleTicketAction(interaction: ButtonInteraction, context: BotContext) {
   const [, action, ticketId] = interaction.customId.split(":");
   if (!ticketId) {
-    await interaction.reply({ content: "Ticket invalido.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: "Ticket inválido.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -234,11 +234,11 @@ async function handleTicketAction(interaction: ButtonInteraction, context: BotCo
 
   const ticket = await context.api.getTicket(ticketId);
   if (!ticket) {
-    await interaction.reply({ content: "Ticket nao encontrado.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: "Ticket não encontrado.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (isTicketOpener(ticket, interaction.user.id)) {
-    await interaction.reply({ content: "Quem abriu este ticket nao pode assumir nem usar os botoes internos do atendimento.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: "Quem abriu este ticket não pode assumir nem usar os botões internos do atendimento.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -284,11 +284,11 @@ async function handleTicketStatus(interaction: StringSelectMenuInteraction, cont
   const label = STATUS_OPTIONS.find((item) => item.value === status)?.label ?? status;
   const ticket = await context.api.getTicket(ticketId);
   if (!ticket) {
-    await interaction.reply({ content: "Ticket nao encontrado.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: "Ticket não encontrado.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (isTicketOpener(ticket, interaction.user.id)) {
-    await interaction.reply({ content: "Quem abriu este ticket nao pode alterar status nem usar os botoes internos do atendimento.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: "Quem abriu este ticket não pode alterar status nem usar os botões internos do atendimento.", flags: MessageFlags.Ephemeral });
     return;
   }
   const updatedTicket = await context.api.updateTicketStatus(ticketId, { status });
@@ -307,11 +307,11 @@ async function handleTicketCloseModal(interaction: ModalSubmitInteraction, conte
 
   const currentTicket = await context.api.getTicket(ticketId);
   if (!currentTicket) {
-    await interaction.editReply("Nao consegui localizar o ticket.");
+    await interaction.editReply("Não consegui localizar o ticket.");
     return;
   }
   if (isTicketOpener(currentTicket, interaction.user.id)) {
-    await interaction.editReply("Quem abriu este ticket nao pode finalizar nem usar os botoes internos do atendimento.");
+    await interaction.editReply("Quem abriu este ticket não pode finalizar nem usar os botões internos do atendimento.");
     return;
   }
 
@@ -325,7 +325,7 @@ async function handleTicketCloseModal(interaction: ModalSubmitInteraction, conte
   });
 
   if (!ticket || !interaction.channel || !("messages" in interaction.channel)) {
-    await interaction.editReply("Nao consegui localizar o ticket para gerar o transcript.");
+    await interaction.editReply("Não consegui localizar o ticket para gerar o transcript.");
     return;
   }
 
@@ -350,7 +350,7 @@ async function handleTicketCloseModal(interaction: ModalSubmitInteraction, conte
     participants: buildParticipants(messages, ticket.openerId, ticket.responsibleUserId),
     responsibleUserId: ticket.responsibleUserId,
     ticketId,
-    type: ticket.categoryName?.toLowerCase().includes("den") ? "Denuncia" : "Ticket"
+    type: ticket.categoryName?.toLowerCase().includes("den") ? "Denúncia" : "Ticket"
   });
 
   await context.api.recordTicketEvent(ticketId, {
@@ -395,22 +395,22 @@ async function publishConfiguredTicketPanelUnlocked(client: Client, context: Bot
   }
 
   if (!settings.ticketPanelChannelId) {
-    throw new Error("Canal do painel de tickets nao configurado.");
+    throw new Error("Canal do painel de tickets não configurado.");
   }
 
   const guild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) {
-    throw new Error("Servidor nao encontrado no cache do bot.");
+    throw new Error("Servidor não encontrado no cache do bot.");
   }
 
   const channel = await guild.channels.fetch(settings.ticketPanelChannelId).catch(() => null);
   if (!channel?.isTextBased() || !("send" in channel)) {
-    throw new Error("Canal do painel de tickets indisponivel.");
+    throw new Error("Canal do painel de tickets indisponível.");
   }
 
   const payload = createTicketPanelPayload(settings, guild);
   if (!payload) {
-    throw new Error("Configure pelo menos uma opcao ativa para o painel de ticket.");
+    throw new Error("Configure pelo menos uma opção ativa para o painel de ticket.");
   }
 
   const textChannel = channel as TextChannel;
@@ -572,12 +572,12 @@ async function sendTranscriptLog(guild: Guild, context: BotContext, transcript: 
         new ButtonBuilder().setCustomId(`${TICKET_ACTION_PREFIX}revoke:${transcript.transcript.id}`).setEmoji(systemComponentEmoji("perigo", guild)).setLabel("Revogar Senhas").setStyle(ButtonStyle.Danger)
       )
     ],
-    description: "O atendimento foi finalizado e o transcript foi salvo com seguranca. O acesso ao link e senha deve permanecer restrito ao canal de logs configurado.",
+    description: "O atendimento foi finalizado e o transcript foi salvo com segurança. O acesso ao link e senha deve permanecer restrito ao canal de logs configurado.",
     fields: [
-      `**Informacoes do Ticket**\n**Ticket:** #${transcript.transcript.ticketId ?? transcript.transcript.id}\n**Canal:** ${transcript.transcript.channelName ? `#${transcript.transcript.channelName}` : "-"}\n**Tipo:** ${transcript.transcript.type}\n**Status:** ${formatTranscriptStatus(ticket.finalResult ?? transcript.transcript.status, guild)}`,
-      `**Envolvidos**\n**Aberto por:** <@${ticket.openerId}>\n**Finalizado por:** <@${closedById}>\n**Responsavel:** ${ticket.responsibleUserId ? `<@${ticket.responsibleUserId}>` : "Nao assumido"}\n**Categoria:** ${ticket.categoryName ?? ticket.subject}`,
+      `**Informações do Ticket**\n**Ticket:** #${transcript.transcript.ticketId ?? transcript.transcript.id}\n**Canal:** ${transcript.transcript.channelName ? `#${transcript.transcript.channelName}` : "-"}\n**Tipo:** ${transcript.transcript.type}\n**Status:** ${formatTranscriptStatus(ticket.finalResult ?? transcript.transcript.status, guild)}`,
+      `**Envolvidos**\n**Aberto por:** <@${ticket.openerId}>\n**Finalizado por:** <@${closedById}>\n**Responsável:** ${ticket.responsibleUserId ? `<@${ticket.responsibleUserId}>` : "Não assumido"}\n**Categoria:** ${ticket.categoryName ?? ticket.subject}`,
       `**Dados do Caso**\n**Criado em:** <t:${Math.floor(createdAt.getTime() / 1000)}:F>\n**Fechado em:** <t:${Math.floor(closedAt.getTime() / 1000)}:F>\n**Tempo total:** ${formatElapsed(createdAt, closedAt)}\n**Resumo:** ${transcript.transcript.messageCount ?? 0} mensagens, ${transcript.transcript.attachmentCount ?? 0} anexos, ${transcript.transcript.participantCount ?? 0} participantes`,
-      `**Transcript e Seguranca**\n**Link:** ${url}\n**Protecao:** Senha obrigatoria\n**Senha temporaria:** ${temporaryPassword ? `\`${temporaryPassword}\`` : "nao gerada"}\n**Expira em:** ${transcript.temporaryPasswordExpiresAt ? `<t:${Math.floor(Date.parse(transcript.temporaryPasswordExpiresAt) / 1000)}:D>` : "configuracao padrao"}\n**ComandoLua:** \`${luaCommand}\``
+      `**Transcript e Seguranca**\n**Link:** ${url}\n**Protecao:** Senha obrigatória\n**Senha temporaria:** ${temporaryPassword ? `\`${temporaryPassword}\`` : "não gerada"}\n**Expira em:** ${transcript.temporaryPasswordExpiresAt ? `<t:${Math.floor(Date.parse(transcript.temporaryPasswordExpiresAt) / 1000)}:D>` : "configuração padrão"}\n**ComandoLua:** \`${luaCommand}\``
     ],
     guild,
     image: null,

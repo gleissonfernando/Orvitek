@@ -25,7 +25,7 @@ export type DevBotUnexpectedExitLogInput = {
 
 export async function sendDevBotUnexpectedExitLog(input: DevBotUnexpectedExitLogInput) {
   if (!env.DISCORD_BOT_TOKEN.trim()) {
-    console.warn("[dev-bot-log] DISCORD_BOT_TOKEN nao configurado; log Discord ignorado.");
+    console.warn("[dev-bot-log] DISCORD_BOT_TOKEN não configurado; log Discord ignorado.");
     return;
   }
 
@@ -94,7 +94,7 @@ function buildUnexpectedExitEmbed(input: DevBotUnexpectedExitLogInput) {
         inline: true
       },
       {
-        name: "Saida",
+        name: "Saída",
         value: input.detail,
         inline: false
       }

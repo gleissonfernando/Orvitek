@@ -22,7 +22,7 @@ async function cleanupMemberDatabaseLinks(member: GuildMember | PartialGuildMemb
   await deleteMaintenanceChannels(context.client, context, {
     channelIds: result.channelIds,
     guildId: member.guild.id,
-    reason: "Usuario saiu do servidor; limpeza automatica de vinculos.",
+    reason: "Usuário saiu do servidor; limpeza automática de vinculos.",
     userId: member.id
   });
 }

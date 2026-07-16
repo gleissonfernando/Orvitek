@@ -17,7 +17,7 @@ const X_ACCOUNT_CONCURRENCY = 5;
 
 export function startXMonitor(client: Client, api: ApiClient, socket: BotSocketClient) {
   if (serviceStarted) {
-    console.warn("[x-monitor] start ignorado: monitor ja esta em execucao.");
+    console.warn("[x-monitor] start ignorado: monitor já está em execução.");
     return;
   }
 
@@ -109,7 +109,7 @@ async function sendAndRecordPost(client: Client, api: ApiClient, account: XAccou
   } catch (error) {
     const message = formatErrorMessage(error);
     await api.recordXDiscordFailure(account.id, message).catch(() => undefined);
-    console.warn(`[x-monitor] postagem ${post.id} ainda nao enviada ao Discord: ${message}`);
+    console.warn(`[x-monitor] postagem ${post.id} ainda não enviada ao Discord: ${message}`);
     return;
   }
 
@@ -139,14 +139,14 @@ async function sendXPostAlert(client: Client, account: XAccount, post: XPost) {
     || !("guildId" in channel)
     || channel.guildId !== account.guildId
   ) {
-    throw new Error(`Canal Discord ${account.channelId} nao encontrado.`);
+    throw new Error(`Canal Discord ${account.channelId} não encontrado.`);
   }
 
   if ("permissionsFor" in channel && client.user) {
     const permissions = channel.permissionsFor(client.user.id);
 
     if (!permissions?.has(PermissionFlagsBits.SendMessages) || !permissions.has(PermissionFlagsBits.EmbedLinks)) {
-      throw new Error("Bot sem permissao para enviar mensagens ou embeds no canal do X Monitor.");
+      throw new Error("Bot sem permissão para enviar mensagens ou embeds no canal do X Monitor.");
     }
   }
 
@@ -157,8 +157,8 @@ async function sendXPostAlert(client: Client, account: XAccount, post: XPost) {
       name: `${account.displayName} (@${account.username})`,
       url: `https://x.com/${account.username}`
     })
-    .setTitle("Nova publicacao no X")
-    .setDescription(truncate(post.text || "Publicacao sem texto.", 3900))
+    .setTitle("Nova publicação no X")
+    .setDescription(truncate(post.text || "Publicação sem texto.", 3900))
     .addFields(
       {
         name: "Publicado em",

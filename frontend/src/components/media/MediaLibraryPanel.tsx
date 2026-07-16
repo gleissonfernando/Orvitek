@@ -76,7 +76,7 @@ export function MediaLibraryPanel({ botId, guild, canManage }: { botId: string |
 
   async function confirmJob(job: ImportJob) {
     setBusy(job.id);
-    try { const { data } = await api.post<{ job: ImportJob }>(`/media/import-jobs/${job.id}/confirm`, { duplicateMode: settings.duplicateMode }, { params }); setSelectedJob(data.job); setMessage("Importação iniciada. O progresso será atualizado em tempo real."); }
+    try { const { data } = await api.post<{ job: ImportJob }>(`/media/import-jobs/${job.id}/confirm`, { duplicateMode: settings.duplicateMode }, { params }); setSelectedJob(data.job); setMessage("Importação iniciada. O progressó será atualizado em tempo real."); }
     catch (error) { setMessage(apiMessage(error)); } finally { setBusy(null); }
   }
 

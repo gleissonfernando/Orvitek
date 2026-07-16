@@ -2009,7 +2009,7 @@ export class ApiClient {
 
     this.http.interceptors.request.use((config) => {
       if (!env.BACKEND_API_URL) {
-        throw new Error("BACKEND_API_URL nao configurado.");
+        throw new Error("BACKEND_API_URL não configurado.");
       }
 
       recordApiRequest(config.method, config.url);

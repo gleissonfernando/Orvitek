@@ -235,7 +235,7 @@ async function completeJob(jobId: string) {
   await backgroundJobs.updateOne(
     { _id: jobId, lockedBy: INSTANCE_ID, status: "running" },
     {
-      $push: { logs: { $each: [{ at: now, message: "Job concluido.", status: "completed" }], $slice: -50 } },
+      $push: { logs: { $each: [{ at: now, message: "Job concluído.", status: "completed" }], $slice: -50 } },
       $set: { completedAt: now, lockedBy: null, lockedUntil: null, status: "completed", updatedAt: now }
     }
   );
@@ -284,7 +284,7 @@ function pauseWorkerForWriteBlock(message: string) {
 
   if (!writeBlockedWarningEmitted) {
     writeBlockedWarningEmitted = true;
-    console.warn("[background-jobs] MongoDB bloqueou escritas por quota; worker pausado ate liberar espaco no Atlas.");
+    console.warn("[background-jobs] MongoDB bloqueou escritas por quota; worker pausado até liberar espaço no Atlas.");
     console.warn(`[background-jobs] ultimo erro: ${message.split("\n")[0] ?? message}`);
   }
 }

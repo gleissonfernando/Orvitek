@@ -53,7 +53,7 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
         setSelectedId(first?.id ?? null);
         setDraft(first ? toPayload(first) : null);
       })
-      .catch((error) => setMessage(readError(error, "Nao foi possivel carregar as tabelas.")))
+      .catch((error) => setMessage(readError(error, "Não foi possível carregar as tabelas.")))
       .finally(() => setLoading(false));
   }, [botId, guild]);
 
@@ -72,7 +72,7 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
       selectTable(table);
       setMessage("Tabela criada.");
     } catch (error) {
-      setMessage(readError(error, "Nao foi possivel criar a tabela."));
+      setMessage(readError(error, "Não foi possível criar a tabela."));
     } finally {
       setSaving(false);
     }
@@ -90,7 +90,7 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
       setDraft(toPayload(table));
       setMessage("Tabela salva.");
     } catch (error) {
-      setMessage(readError(error, "Nao foi possivel salvar a tabela."));
+      setMessage(readError(error, "Não foi possível salvar a tabela."));
     } finally {
       setSaving(false);
     }
@@ -107,7 +107,7 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
       setDraft(next[0] ? toPayload(next[0]) : null);
       setMessage("Tabela excluida.");
     } catch (error) {
-      setMessage(readError(error, "Nao foi possivel excluir a tabela."));
+      setMessage(readError(error, "Não foi possível excluir a tabela."));
     } finally {
       setSaving(false);
     }
@@ -119,9 +119,9 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
     try {
       await saveDraft();
       await publishPriceTable(botId, guild.id, selectedId);
-      setMessage("Publicacao enviada ao bot.");
+      setMessage("Publicação enviada ao bot.");
     } catch (error) {
-      setMessage(readError(error, "Nao foi possivel publicar a tabela."));
+      setMessage(readError(error, "Não foi possível publicar a tabela."));
     } finally {
       setSaving(false);
     }
@@ -150,7 +150,7 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
   }
 
   if (!botId || !guild) {
-    return <Card><CardContent className="p-6 text-sm text-zinc-500">Selecione um bot e servidor para gerenciar a tabela de precos.</CardContent></Card>;
+    return <Card><CardContent className="p-6 text-sm text-zinc-500">Selecione um bot e servidor para gerenciar a tabela de preços.</CardContent></Card>;
   }
 
   return (
@@ -177,7 +177,7 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
           <Card>
             <CardHeader>
               <CardTitle>Editor do painel de vendas</CardTitle>
-              <CardDescription>Um painel e um ticket independente para cada produto. Alteracoes salvas atualizam somente esta mensagem.</CardDescription>
+              <CardDescription>Um painel e um ticket independente para cada produto. Alterações salvas atualizam somente esta mensagem.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="grid gap-3 md:grid-cols-2">
@@ -190,13 +190,13 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
                 <Field label="URL do banner" value={draft.imageUrl ?? ""} onChange={(value) => patch({ imageUrl: value || null })} disabled={!canManage} />
                 <Field label="Cor destaque" value={draft.color ?? "#FFD500"} onChange={(value) => patch({ color: value })} disabled={!canManage} />
               </div>
-              <Textarea label="Descricao" value={draft.description ?? ""} onChange={(value) => patch({ description: value })} disabled={!canManage} />
-              <Textarea label="Observacoes" value={draft.footerText ?? ""} onChange={(value) => patch({ footerText: value })} disabled={!canManage} />
+              <Textarea label="Descrição" value={draft.description ?? ""} onChange={(value) => patch({ description: value })} disabled={!canManage} />
+              <Textarea label="Observações" value={draft.footerText ?? ""} onChange={(value) => patch({ footerText: value })} disabled={!canManage} />
               <Textarea label="Mensagem inicial do ticket ({user} e {product})" value={draft.ticketInitialMessage ?? ""} onChange={(value) => patch({ ticketInitialMessage: value })} disabled={!canManage} />
 
               <div className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-950/50 p-4">
                 <h3 className="text-sm font-semibold text-white">Emojis do Painel</h3>
-                <p className="text-xs text-zinc-500">Cole o emoji do servidor no formato &lt;:nome:ID&gt;. Nenhum ID fica fixo no codigo.</p>
+                <p className="text-xs text-zinc-500">Cole o emoji do servidor no formato &lt;:nome:ID&gt;. Nenhum ID fica fixo no código.</p>
                 <div className="grid gap-3 md:grid-cols-4">
                   {([['products', 'Produtos'], ['systems', 'Sistemas'], ['advantages', 'Vantagens'], ['support', 'Suporte']] as const).map(([key, label]) => <Field key={key} label={label} value={draft.panelEmojis?.[key] ?? ''} onChange={(value) => patch({ panelEmojis: { ...(draft.panelEmojis ?? preview.panelEmojis), [key]: value } })} disabled={!canManage} />)}
                 </div>
@@ -218,7 +218,7 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
               <div className="grid gap-3 md:grid-cols-4">
                 <Select label="Moeda" value={draft.currency ?? "BRL"} onChange={(value) => patch({ currency: value as PriceTable["currency"] })} options={["BRL", "USD", "EUR", "CUSTOM"]} disabled={!canManage} />
                 <Select label="Imagem" value={draft.imagePosition ?? "top"} onChange={(value) => patch({ imagePosition: value as PriceTable["imagePosition"] })} options={["top", "bottom", "thumbnail", "none"]} disabled={!canManage} />
-                <Field label="Botao orcamento" value={draft.buttonText?.quote ?? ""} onChange={(value) => patch({ buttonText: { ...(draft.buttonText ?? preview.buttonText), quote: value } })} disabled={!canManage} />
+                <Field label="Botão orcamento" value={draft.buttonText?.quote ?? ""} onChange={(value) => patch({ buttonText: { ...(draft.buttonText ?? preview.buttonText), quote: value } })} disabled={!canManage} />
                 <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-950 px-3">
                   <span className="text-sm text-zinc-300">Ativa</span>
                   <Switch checked={draft.isActive ?? true} disabled={!canManage} onCheckedChange={(checked) => patch({ isActive: checked })} />
@@ -243,7 +243,7 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
                       </div>
                     </div>
                     <div className="mt-3 grid gap-3 md:grid-cols-[1fr_140px_120px_120px]">
-                      <Field label="Descricao curta" value={item.description ?? ""} onChange={(value) => patchItem(item.id, { description: value })} disabled={!canManage} />
+                      <Field label="Descrição curta" value={item.description ?? ""} onChange={(value) => patchItem(item.id, { description: value })} disabled={!canManage} />
                       <Field label="Texto valor" value={item.priceText ?? ""} onChange={(value) => patchItem(item.id, { priceText: value || null })} disabled={!canManage} />
                       <Toggle label="Destaque" checked={item.highlight} disabled={!canManage} onChange={(checked) => patchItem(item.id, { highlight: checked })} />
                       <Toggle label="Ativo" checked={item.active} disabled={!canManage} onChange={(checked) => patchItem(item.id, { active: checked })} />
@@ -263,7 +263,7 @@ export function PriceTablesPanel({ botId, canManage, guild }: Props) {
           <Card>
             <CardHeader>
               <CardTitle>Pre-visualizacao</CardTitle>
-              <CardDescription>{preview.discordChannelId ? `Canal ${preview.discordChannelId}` : "Canal nao configurado"}</CardDescription>
+              <CardDescription>{preview.discordChannelId ? `Canal ${preview.discordChannelId}` : "Canal não configurado"}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950">

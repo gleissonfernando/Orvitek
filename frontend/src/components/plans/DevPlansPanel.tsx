@@ -145,7 +145,7 @@ export function DevPlansPanel() {
         supportDiscordUrl: next.paymentSettings.supportDiscordUrl ?? ""
       });
     } catch (loadError) {
-      setError(readError(loadError, "Nao foi possivel carregar o modulo Planos."));
+      setError(readError(loadError, "Não foi possível carregar o módulo Planos."));
     } finally {
       setLoading(false);
     }
@@ -175,7 +175,7 @@ export function DevPlansPanel() {
       setNotice(success);
       await load();
     } catch (requestError) {
-      setError(readError(requestError, "Operacao nao concluida."));
+      setError(readError(requestError, "Operação não concluída."));
     } finally {
       setBusyKey(null);
     }
@@ -226,7 +226,7 @@ export function DevPlansPanel() {
       plansPublicUrl: paymentForm.plansPublicUrl || null,
       successRedirectUrl: paymentForm.successRedirectUrl || null,
       supportDiscordUrl: paymentForm.supportDiscordUrl || null
-    }), "Configuracao de pagamento atualizada.");
+    }), "Configuração de pagamento atualizada.");
   }
 
   if (loading) {
@@ -244,9 +244,9 @@ export function DevPlansPanel() {
       <div className="flex flex-col gap-4 rounded-lg border border-[#FFD500]/20 bg-[#101013]/95 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.32)] lg:flex-row lg:items-center lg:justify-between">
         <div>
           <Badge className="border-[#FFD500]/30 bg-[#FFD500]/10 text-[#FFEA70]" variant="muted">DEV</Badge>
-          <h2 className="mt-3 text-2xl font-black text-white">Modulo Planos</h2>
+          <h2 className="mt-3 text-2xl font-black text-white">Módulo Planos</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-            Planos globais da dashboard, features, ativacao manual, pedidos e configuracao de pagamento.
+            Planos globais da dashboard, features, ativacao manual, pedidos e configuração de pagamento.
           </p>
         </div>
         <Button onClick={() => void load()} variant="outline">
@@ -290,7 +290,7 @@ export function DevPlansPanel() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <p className="text-sm leading-6 text-zinc-400">{plan.shortDescription || plan.description || "Sem descricao."}</p>
+                  <p className="text-sm leading-6 text-zinc-400">{plan.shortDescription || plan.description || "Sem descrição."}</p>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="muted">{plan.botLimit} bot(s)</Badge>
                     <Badge variant="muted">{plan.guildLimit} servidor(es)</Badge>
@@ -402,7 +402,7 @@ export function DevPlansPanel() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant={order.status === "paid" ? "success" : "muted"}>{order.status}</Badge>
                   {canMarkOrderPaidForTest(order.status) ? (
-                    <Button disabled={busyKey === `order:test-paid:${order.id}`} onClick={() => void withRefresh(`order:test-paid:${order.id}`, () => markPlanPaymentOrderPaidForTest(order.id), "Pagamento de teste concluido e assinatura ativada.")} size="sm" variant="outline">
+                    <Button disabled={busyKey === `order:test-paid:${order.id}`} onClick={() => void withRefresh(`order:test-paid:${order.id}`, () => markPlanPaymentOrderPaidForTest(order.id), "Pagamento de teste concluído e assinatura ativada.")} size="sm" variant="outline">
                       {busyKey === `order:test-paid:${order.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       Pagar teste
                     </Button>
@@ -428,7 +428,7 @@ export function DevPlansPanel() {
         <Card>
           <CardHeader>
             <CardTitle>Auditoria</CardTitle>
-            <CardDescription>Eventos administrativos do modulo Planos.</CardDescription>
+            <CardDescription>Eventos administrativos do módulo Planos.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
             {dashboard.auditLogs.map((log) => (
@@ -452,14 +452,14 @@ function PlanEditor({ busy, form, onChange, onSubmit }: { busy: boolean; form: P
     <Card>
       <CardHeader>
         <CardTitle>{form.id ? "Editar plano" : "Novo plano"}</CardTitle>
-        <CardDescription>Os dados sao persistidos no MongoDB.</CardDescription>
+        <CardDescription>Os dados são persistidos no MongoDB.</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="grid gap-3" onSubmit={onSubmit}>
           <TextField label="Nome" value={form.name} onChange={(name) => onChange({ ...form, name })} />
           <TextField label="Slug" value={form.slug} onChange={(slug) => onChange({ ...form, slug })} />
-          <TextField label="Descricao curta" value={form.shortDescription} onChange={(shortDescription) => onChange({ ...form, shortDescription })} />
-          <TextArea label="Descricao" value={form.description} onChange={(description) => onChange({ ...form, description })} />
+          <TextField label="Descrição curta" value={form.shortDescription} onChange={(shortDescription) => onChange({ ...form, shortDescription })} />
+          <TextArea label="Descrição" value={form.description} onChange={(description) => onChange({ ...form, description })} />
           <div className="grid gap-3 sm:grid-cols-2">
             <TextField label="Preco mensal (R$)" value={form.priceInCents} onChange={(priceInCents) => onChange({ ...form, priceInCents })} />
             <TextField label="Ordem" value={form.order} onChange={(order) => onChange({ ...form, order })} />
@@ -501,9 +501,9 @@ function FeatureEditor({ busy, form, onChange, onSubmit }: { busy: boolean; form
               {["streamer", "fivem", "discord", "security", "support", "billing"].map((category) => <option key={category} value={category}>{category}</option>)}
             </select>
           </label>
-          <TextArea label="Descricao" value={form.description} onChange={(description) => onChange({ ...form, description })} />
+          <TextArea label="Descrição" value={form.description} onChange={(description) => onChange({ ...form, description })} />
           <div className="grid gap-3 sm:grid-cols-3">
-            <TextField label="Limite padrao" value={form.defaultLimit} onChange={(defaultLimit) => onChange({ ...form, defaultLimit })} />
+            <TextField label="Limite padrão" value={form.defaultLimit} onChange={(defaultLimit) => onChange({ ...form, defaultLimit })} />
             <TextField label="Unidade" value={form.unit} onChange={(unit) => onChange({ ...form, unit })} />
             <TextField label="Ordem" value={form.order} onChange={(order) => onChange({ ...form, order })} />
           </div>
@@ -564,8 +564,8 @@ function PaymentSettingsForm({ busy, form, onChange, onSubmit, settings }: { bus
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Configuracao de pagamentos</CardTitle>
-        <CardDescription>Ativacao e provider sao definidos somente pelas variaveis de ambiente.</CardDescription>
+        <CardTitle>Configuração de pagamentos</CardTitle>
+        <CardDescription>Ativacao e provider são definidos somente pelas variaveis de ambiente.</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="grid max-w-2xl gap-3" onSubmit={onSubmit}>
@@ -573,7 +573,7 @@ function PaymentSettingsForm({ busy, form, onChange, onSubmit, settings }: { bus
             Pagamentos {settings.enabled ? "ativos" : "desativados"} via {settings.provider}. Credenciais Mercado Pago: public key {settings.publicKey ? "detectada" : "ausente"}, access token {settings.secretConfigured ? "detectado" : "ausente"}, webhook secret {settings.webhookSecretConfigured ? "detectado" : "ausente"}.
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <TextField label="URL apos pagamento" value={form.successRedirectUrl} onChange={(successRedirectUrl) => onChange({ ...form, successRedirectUrl })} />
+            <TextField label="URL após pagamento" value={form.successRedirectUrl} onChange={(successRedirectUrl) => onChange({ ...form, successRedirectUrl })} />
             <TextField label="URL pagamento aprovado" value={form.approvedRedirectUrl} onChange={(approvedRedirectUrl) => onChange({ ...form, approvedRedirectUrl })} />
             <TextField label="URL pagamento pendente" value={form.pendingRedirectUrl} onChange={(pendingRedirectUrl) => onChange({ ...form, pendingRedirectUrl })} />
             <TextField label="URL pagamento recusado" value={form.failureRedirectUrl} onChange={(failureRedirectUrl) => onChange({ ...form, failureRedirectUrl })} />

@@ -1951,7 +1951,7 @@ async function finishExam(interaction: ButtonInteraction, context: BotContext) {
   const currentBundle = await getStudentExamAttempt(interaction, context, attemptId);
   if (!currentBundle) return;
   logCourseFlow("exam_finalize_requested", { attemptId, guildId: interaction.guildId, studentId: interaction.user.id });
-  let finalizeFailureMessage = "A prova ja foi finalizada ou ainda possui questoes pendentes.";
+  let finalizeFailureMessage = "A prova já foi finalizada ou ainda possui questoes pendentes.";
   const result = await context.api.finalizeCourseExamAttempt(interaction.guildId!, attemptId).catch(async (error) => {
     logCourseFlowError("exam_finalize_api_failed", error, { attemptId, guildId: interaction.guildId, studentId: interaction.user.id });
     finalizeFailureMessage = examFinalizeFailureMessage(error);
@@ -3714,9 +3714,9 @@ function scheduledEventErrorMessage(error: unknown) {
 function examFinalizeFailureMessage(error: unknown) {
   const details = errorDetails(error).toLowerCase();
   if (details.includes("space quota") || details.includes("writes are blocked") || details.includes("atlaserror")) {
-    return "Nao foi possivel salvar a finalizacao da prova porque o banco MongoDB/Atlas esta bloqueando gravacoes por limite de espaco. O painel de aprovacao so sera enviado depois que o banco voltar a aceitar escritas.";
+    return "Não foi possível salvar a finalização da prova porque o banco MongoDB/Atlas está bloqueando gravações por limite de espaço. O painel de aprovação só será enviado depois que o banco voltar a aceitar escritas.";
   }
-  return "Nao foi possivel salvar a finalizacao da prova agora. O painel de aprovacao nao foi enviado; verifique os logs do bot/backend e tente novamente.";
+  return "Não foi possível salvar a finalização da prova agora. O painel de aprovação não foi enviado; verifique os logs do bot/backend e tente novamente.";
 }
 
 async function fetchTextChannel(interaction: CourseGuildContext, channelId: string | null | undefined) {
@@ -4142,7 +4142,7 @@ function publicationModal(course: Course, departments: CourseDepartment[], mode:
       inputLabel("time", "Início (HH:mm)", TextInputStyle.Short, true, 40),
       new LabelBuilder()
         .setLabel("DP")
-        .setDescription("Selecione a DP onde o curso será realizado")
+        .setDescription("Selecione a DP onde o cursó será realizado")
         .setStringSelectMenuComponent(
           new StringSelectMenuBuilder()
             .setCustomId(IDS.publicationDepartmentSelect)

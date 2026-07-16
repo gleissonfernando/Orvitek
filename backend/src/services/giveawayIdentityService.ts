@@ -120,16 +120,16 @@ export async function verifyConnectedAccountForGiveaway(giveaway: MongoGiveaway,
   });
 
   if (!account) {
-    throw createIdentityError("Conta conectada nao encontrada.", 404);
+    throw createIdentityError("Conta conectada não encontrada.", 404);
   }
 
   const participant = account.platform === "twitch"
     ? giveaway.twitchBroadcasterId
       ? await verifyTwitchAccountParticipant(giveaway, account)
-      : unavailableAccountParticipant(account, "Este sorteio nao usa verificacao Twitch.")
+      : unavailableAccountParticipant(account, "Este sorteio não usa verificação Twitch.")
     : giveaway.kickChannelName || giveaway.kickUserId
       ? await verifyKickAccountParticipant(giveaway, account)
-      : unavailableAccountParticipant(account, "Este sorteio nao usa verificacao Kick.");
+      : unavailableAccountParticipant(account, "Este sorteio não usa verificação Kick.");
   const eligible = participant.eligible === false ? false : participantIsEligible(participant, giveaway.participantMode ?? "twitch_subs");
 
   participant.eligible = eligible;
@@ -871,14 +871,14 @@ function ineligibleReason(participant: MongoGiveawayParticipant, mode: MongoGive
   const platform = participant.source === "twitch" ? "Twitch" : "Kick";
 
   if (mode.endsWith("_subs")) {
-    return `Conta ${platform} nao e sub elegivel.`;
+    return `Conta ${platform} não é sub elegivel.`;
   }
 
   if (mode.endsWith("_followers")) {
-    return `Conta ${platform} nao segue o canal.`;
+    return `Conta ${platform} não segue o canal.`;
   }
 
-  return `Conta ${platform} nao atende aos filtros do sorteio.`;
+  return `Conta ${platform} não atende aos filtros do sorteio.`;
 }
 
 function createIdentityError(message: string, statusCode: number) {

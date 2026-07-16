@@ -122,7 +122,7 @@ export async function getSystemEmojiRuntimeConfig(botId?: string | null, guildId
 
 export async function updateSystemEmojiConfig(key: string, input: UpdateSystemEmojiInput, actorId: string | null, botId?: string | null, guildId?: string | null) {
   if (!isSystemEmojiKey(key)) {
-    throw new Error("Emoji do sistema invalido.");
+    throw new Error("Emoji do sistema inválido.");
   }
 
   const definition = SYSTEM_EMOJI_BY_KEY.get(key)!;
@@ -167,7 +167,7 @@ export async function updateSystemEmojiConfig(key: string, input: UpdateSystemEm
 
 export async function resetSystemEmojiConfig(key: string, botId?: string | null, guildId?: string | null) {
   if (!isSystemEmojiKey(key)) {
-    throw new Error("Emoji do sistema invalido.");
+    throw new Error("Emoji do sistema inválido.");
   }
 
   const normalizedBotId = normalizeBotId(botId);
@@ -299,7 +299,7 @@ function normalizeGuildId(guildId?: string | null) {
 function normalizeEmojiName(value: string) {
   const normalized = value.trim();
   if (!/^[a-zA-Z0-9_]{2,32}$/.test(normalized)) {
-    throw new Error("Nome de emoji invalido.");
+    throw new Error("Nome de emoji inválido.");
   }
   return normalized;
 }
@@ -308,7 +308,7 @@ function normalizeSnowflake(value?: string | null) {
   const normalized = (value ?? "").trim();
   if (!normalized) return null;
   if (!/^\d{5,32}$/.test(normalized)) {
-    throw new Error("ID de emoji/servidor invalido.");
+    throw new Error("ID de emoji/servidor inválido.");
   }
   return normalized;
 }

@@ -12,13 +12,13 @@ persistentImagesRouter.get("/:imageId", async (req, res, next) => {
     const image = await getPersistentImage(imageId);
 
     if (!image) {
-      return res.status(404).json({ message: "Imagem nao encontrada." });
+      return res.status(404).json({ message: "Imagem não encontrada." });
     }
 
     const buffer = toImageBuffer(image.buffer);
 
     if (!buffer.length) {
-      return res.status(404).json({ message: "Arquivo da imagem vazio ou invalido." });
+      return res.status(404).json({ message: "Arquivo da imagem vazio ou inválido." });
     }
 
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");

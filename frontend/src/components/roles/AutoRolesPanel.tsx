@@ -173,7 +173,7 @@ export function AutoRolesPanel({
               })
             ) : (
               <p className="rounded-lg border border-zinc-900 bg-black px-3 py-2 text-sm text-zinc-500">
-                Nenhum cargo disponivel.
+                Nenhum cargo disponível.
               </p>
             )}
           </div>

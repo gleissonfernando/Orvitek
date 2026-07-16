@@ -50,7 +50,7 @@ function applyPackedEnv() {
       }
     }
   } catch (error) {
-    console.warn("[env] APP_CONFIG_JSON/APP_CONFIG_B64 invalido:", error instanceof Error ? error.message : error);
+    console.warn("[env] APP_CONFIG_JSON/APP_CONFIG_B64 inválido:", error instanceof Error ? error.message : error);
   }
 }
 
@@ -136,7 +136,7 @@ function envUrl(name: string, fallback: string) {
     },
     z
       .string()
-      .refine((value) => value === "" || isValidUrl(value), `${name} precisa ser uma URL valida.`)
+      .refine((value) => value === "" || isValidUrl(value), `${name} precisa ser uma URL válida.`)
       .transform((value) => (value ? normalizeUrl(value) : ""))
   );
 }
@@ -146,7 +146,7 @@ function envOptionalUrl(name: string) {
     (value) => cleanEnvValue(value) ?? "",
     z
       .string()
-      .refine((value) => value === "" || isValidUrl(value), `${name} precisa ser uma URL valida.`)
+      .refine((value) => value === "" || isValidUrl(value), `${name} precisa ser uma URL válida.`)
       .transform((value) => (value ? normalizeUrl(value) : ""))
   );
 }
@@ -331,11 +331,11 @@ const envSchema = z
       : "";
 
     if (normalizedDiscordRedirect && oauthCallbackUrl && normalizedDiscordRedirect !== oauthCallbackUrl) {
-      console.warn(`[env] Discord redirect configurado (${normalizedDiscordRedirect}) difere do dominio canonico (${oauthCallbackUrl}); usando o canonico.`);
+      console.warn(`[env] Discord redirect configurado (${normalizedDiscordRedirect}) difere do domínio canonico (${oauthCallbackUrl}); usando o canonico.`);
     }
 
     if (isProduction && configuredTranscriptBaseUrl && isLocalUrl(configuredTranscriptBaseUrl)) {
-      console.warn("[env] TRANSCRIPT_BASE_URL local ignorado em producao. Configure um dominio publico para transcripts.");
+      console.warn("[env] TRANSCRIPT_BASE_URL local ignorado em produção. Configure um domínio público para transcripts.");
     }
 
     return {
@@ -408,6 +408,6 @@ if (env.NODE_ENV === "production") {
   }
 
   if (!cleanEnvValue(process.env.SESSION_SECRET) || !cleanEnvValue(process.env.JWT_SECRET)) {
-    console.warn("[env] SESSION_SECRET/JWT_SECRET ausentes; usando segredos temporarios ate configurar na hospedagem.");
+    console.warn("[env] SESSION_SECRET/JWT_SECRET ausentes; usando segredos temporarios até configurar na hospedagem.");
   }
 }

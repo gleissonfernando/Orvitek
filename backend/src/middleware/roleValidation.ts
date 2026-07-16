@@ -8,7 +8,7 @@ export async function requireDashboardAccessValidation(req: Request, res: Respon
 
   if (!auth) {
     return res.status(401).json({
-      message: "Sessao nao autenticada."
+      message: "Sessão não autenticada."
     });
   }
 

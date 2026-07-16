@@ -73,7 +73,7 @@ healthRouter.get("/bots/:botId", async (req, res, next) => {
     if (!bot) {
       return res.status(404).json({
         status: "not_found",
-        message: "Bot nao encontrado.",
+        message: "Bot não encontrado.",
         timestamp: new Date().toISOString()
       });
     }
@@ -150,7 +150,7 @@ async function databaseHealth() {
       ok: false,
       status: "error",
       latencyMs: Date.now() - startedAt,
-      message: error instanceof Error ? error.message : "MongoDB indisponivel"
+      message: error instanceof Error ? error.message : "MongoDB indisponível"
     };
   }
 }
@@ -183,7 +183,7 @@ async function redisHealth() {
       ok: false,
       status: "error",
       latencyMs: Date.now() - startedAt,
-      message: error instanceof Error ? error.message : "Redis indisponivel"
+      message: error instanceof Error ? error.message : "Redis indisponível"
     };
   }
 }

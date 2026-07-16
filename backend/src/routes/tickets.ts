@@ -63,7 +63,7 @@ ticketsRouter.get("/", async (req, res) => {
 
   if (guildId && !(await canReadScopedGuild(req, guildId, botId))) {
     return res.status(403).json({
-      message: "Servidor nao encontrado ou sem o bot."
+      message: "Servidor não encontrado ou sem o bot."
     });
   }
 
@@ -81,13 +81,13 @@ ticketsRouter.post("/", async (req, res, next) => {
 
     if (!botId) {
       return res.status(400).json({
-        message: "botId obrigatorio para criar ticket."
+        message: "botId obrigatório para criar ticket."
       });
     }
 
     if (!isBotRequest(req) && !(await canManageScopedGuild(req, input.guildId, botId))) {
       return res.status(403).json({
-        message: "Servidor nao encontrado ou sem o bot."
+        message: "Servidor não encontrado ou sem o bot."
       });
     }
 
@@ -118,7 +118,7 @@ ticketsRouter.post("/", async (req, res, next) => {
 ticketsRouter.get("/bot/channel/:channelId", async (req, res, next) => {
   try {
     if (!isBotRequest(req)) {
-      return res.status(403).json({ message: "Rota disponivel apenas para o bot." });
+      return res.status(403).json({ message: "Rota disponível apenas para o bot." });
     }
     const botId = await resolveRequestBotId(req);
     const ticket = await getTicketByChannel(req.params.channelId, botId);
@@ -131,7 +131,7 @@ ticketsRouter.get("/bot/channel/:channelId", async (req, res, next) => {
 ticketsRouter.get("/bot/:ticketId", async (req, res, next) => {
   try {
     if (!isBotRequest(req)) {
-      return res.status(403).json({ message: "Rota disponivel apenas para o bot." });
+      return res.status(403).json({ message: "Rota disponível apenas para o bot." });
     }
     const botId = await resolveRequestBotId(req);
     const ticket = await getTicketById(req.params.ticketId, botId);
@@ -144,7 +144,7 @@ ticketsRouter.get("/bot/:ticketId", async (req, res, next) => {
 ticketsRouter.patch("/bot/:ticketId/status", async (req, res, next) => {
   try {
     if (!isBotRequest(req)) {
-      return res.status(403).json({ message: "Rota disponivel apenas para o bot." });
+      return res.status(403).json({ message: "Rota disponível apenas para o bot." });
     }
     const input = ticketStatusSchema.parse(req.body);
     const ticket = await updateTicketStatus(req.params.ticketId, {
@@ -160,7 +160,7 @@ ticketsRouter.patch("/bot/:ticketId/status", async (req, res, next) => {
 ticketsRouter.post("/bot/:ticketId/claim", async (req, res, next) => {
   try {
     if (!isBotRequest(req)) {
-      return res.status(403).json({ message: "Rota disponivel apenas para o bot." });
+      return res.status(403).json({ message: "Rota disponível apenas para o bot." });
     }
     const input = ticketClaimSchema.parse(req.body);
     const result = await claimTicket(req.params.ticketId, input.responsibleUserId);
@@ -173,7 +173,7 @@ ticketsRouter.post("/bot/:ticketId/claim", async (req, res, next) => {
 ticketsRouter.post("/bot/:ticketId/events", async (req, res, next) => {
   try {
     if (!isBotRequest(req)) {
-      return res.status(403).json({ message: "Rota disponivel apenas para o bot." });
+      return res.status(403).json({ message: "Rota disponível apenas para o bot." });
     }
     const botId = await resolveRequestBotId(req);
     const input = ticketEventSchema.parse(req.body);

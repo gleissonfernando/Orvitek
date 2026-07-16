@@ -22,7 +22,7 @@ let serviceStarted = false;
 
 export function startGiveawayService(client: Client, api: ApiClient, socket: BotSocketClient) {
   if (serviceStarted) {
-    console.warn("[giveaway] start ignorado: servico ja esta em execucao.");
+    console.warn("[giveaway] start ignorado: serviço já está em execução.");
     return;
   }
 
@@ -38,7 +38,7 @@ export function startGiveawayService(client: Client, api: ApiClient, socket: Bot
   });
 
   void syncActiveGiveaways(client, api).catch((error) => {
-    console.warn("[giveaway] sincronizacao inicial falhou:", error instanceof Error ? error.message : error);
+    console.warn("[giveaway] sincronização inicial falhou:", error instanceof Error ? error.message : error);
   });
 }
 
@@ -52,7 +52,7 @@ export async function handleGiveawayInteraction(interaction: Interaction, contex
 
     if (!giveawayId) {
       await interaction.reply({
-        content: "Sorteio invalido.",
+        content: "Sorteio inválido.",
         ephemeral: true
       });
       return true;
@@ -62,7 +62,7 @@ export async function handleGiveawayInteraction(interaction: Interaction, contex
 
     if (!giveaway) {
       await interaction.reply({
-        content: "Sorteio nao encontrado.",
+        content: "Sorteio não encontrado.",
         ephemeral: true
       });
       return true;
@@ -77,7 +77,7 @@ export async function handleGiveawayInteraction(interaction: Interaction, contex
 
   if (interaction.customId.startsWith("giveaway_closed:")) {
     await interaction.reply({
-      content: "Esta roleta ja foi encerrada.",
+      content: "Esta roleta já foi encerrada.",
       ephemeral: true
     });
     return true;
@@ -126,7 +126,7 @@ async function syncGiveawayPanel(client: Client, api: ApiClient, giveaway: Givea
   const channel = await fetchWritableChannel(client, giveaway.discordChannelId, giveaway.guildId);
 
   if (!channel) {
-    throw new Error(`Canal ${giveaway.discordChannelId} nao encontrado para o sorteio.`);
+    throw new Error(`Canal ${giveaway.discordChannelId} não encontrado para o sorteio.`);
   }
 
   assertPanelChannelPermissions(channel, client, "Sorteio");
@@ -177,7 +177,7 @@ function buildGiveawayMessage(giveaway: Giveaway): MessageCreateOptions {
     ? giveaway.winners.map((winner, index) => `${index + 1}. ${escapeMarkdownText(winner.displayName)}`).join("\n")
     : "Nenhum ganhador ainda.";
   const description = giveaway.customMessage?.trim()
-    || "Sorteio com verificacao Twitch/Kick pela roleta.";
+    || "Sorteio com verificação Twitch/Kick pela roleta.";
   const totalTickets = giveaway.participants.reduce((total, participant) => total + Math.max(1, participant.tickets ?? 1), 0);
   const embed = new EmbedBuilder()
     .setTitle(giveaway.title)
@@ -276,7 +276,7 @@ function buildComponents(giveaway: Giveaway) {
 
 function formatWinnersMessage(giveaway: Giveaway) {
   if (!giveaway.winners.length) {
-    return `O sorteio "${giveaway.title}" ainda nao tem ganhadores.`;
+    return `O sorteio "${giveaway.title}" ainda não tem ganhadores.`;
   }
 
   return [

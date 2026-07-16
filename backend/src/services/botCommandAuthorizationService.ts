@@ -47,11 +47,11 @@ export async function authorizeBotCommand(input: BotCommandAuthorizationInput) {
 
   try {
     if (!config) {
-      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, null, "unknown_command", "Comando nao registrado para validacao na dashboard.", checkedAt));
+      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, null, "unknown_command", "Comando não registrado para validação na dashboard.", checkedAt));
     }
 
     if (!normalizedInput.botId) {
-      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, config.moduleId, "missing_bot_id", "Nao foi possivel identificar o bot na dashboard.", checkedAt));
+      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, config.moduleId, "missing_bot_id", "Não foi possível identificar o bot na dashboard.", checkedAt));
     }
 
     const { botGuildConfigs, devBots, guilds, guildSettings } = await getMongoCollections();
@@ -69,7 +69,7 @@ export async function authorizeBotCommand(input: BotCommandAuthorizationInput) {
     ]);
 
     if (!bot) {
-      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, config.moduleId, "bot_not_found", "Bot nao encontrado na dashboard.", checkedAt));
+      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, config.moduleId, "bot_not_found", "Bot não encontrado na dashboard.", checkedAt));
     }
 
     if (INACTIVE_BOT_STATUSES.has(bot.status)) {
@@ -80,15 +80,15 @@ export async function authorizeBotCommand(input: BotCommandAuthorizationInput) {
     }
 
     if (!guild) {
-      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, config.moduleId, "guild_not_found", "Servidor nao encontrado no cadastro da dashboard.", checkedAt));
+      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, config.moduleId, "guild_not_found", "Servidor não encontrado no cadastro da dashboard.", checkedAt));
     }
 
     if (!guild.botEnabled) {
-      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, config.moduleId, "guild_inactive", "Servidor nao esta ativo na dashboard.", checkedAt));
+      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, config.moduleId, "guild_inactive", "Servidor não está ativo na dashboard.", checkedAt));
     }
 
     if (!guildConfig) {
-      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, config.moduleId, "guild_not_registered", "Servidor nao esta vinculado a este bot na dashboard.", checkedAt));
+      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, config.moduleId, "guild_not_registered", "Servidor não está vinculado a este bot na dashboard.", checkedAt));
     }
 
     if (
@@ -103,19 +103,19 @@ export async function authorizeBotCommand(input: BotCommandAuthorizationInput) {
         guildId: normalizedInput.guildId,
         moduleId: config.moduleId,
         policy: "fail_closed",
-        reason: "Comando /clear autorizado para usuario dev do dashboard.",
+        reason: "Comando /clear autorizado para usuário dev do dashboard.",
         reasonCode: "dev_user_override"
       });
     }
 
     if (!bot.enabledModules.includes(config.moduleId)) {
-      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, config.moduleId, "module_disabled", "Modulo de moderacao nao foi liberado para este bot.", checkedAt));
+      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, config.moduleId, "module_disabled", "Módulo de moderação não foi liberado para este bot.", checkedAt));
     }
 
     const moduleConfig = guildConfig.modules?.[config.moduleId] ?? null;
 
     if (moduleConfig?.enabled === false) {
-      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, config.moduleId, "module_disabled_for_guild", "Modulo de moderacao esta desativado para este servidor.", checkedAt));
+      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, config.moduleId, "module_disabled_for_guild", "Módulo de moderação está desativado para este servidor.", checkedAt));
     }
 
     const licenseBlock = evaluateLicenseState(
@@ -129,11 +129,11 @@ export async function authorizeBotCommand(input: BotCommandAuthorizationInput) {
     }
 
     if (!settings) {
-      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, config.moduleId, "setting_missing", "Sistema de moderacao ainda nao foi ativado na dashboard.", checkedAt));
+      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, config.moduleId, "setting_missing", "Sistema de moderação ainda não foi ativado na dashboard.", checkedAt));
     }
 
     if (settings[config.settingKey] !== true) {
-      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, config.moduleId, "setting_disabled", "Sistema de moderacao esta desativado na dashboard.", checkedAt));
+      return writeAuthorizationLog(normalizedInput, denied(normalizedInput, config.moduleId, "setting_disabled", "Sistema de moderação está desativado na dashboard.", checkedAt));
     }
 
     return writeAuthorizationLog(normalizedInput, {
@@ -156,7 +156,7 @@ export async function authorizeBotCommand(input: BotCommandAuthorizationInput) {
         normalizedInput,
         config?.moduleId ?? null,
         "dashboard_unavailable",
-        "Nao foi possivel validar a autorizacao do servidor na dashboard.",
+        "Não foi possível validar a autorizacao do servidor na dashboard.",
         checkedAt
       ),
       {
@@ -228,7 +228,7 @@ async function writeAuthorizationLog(
       userId: input.userId
     }
   }).catch((error) => {
-    console.warn("[bot-command-auth] nao foi possivel registrar log de autorizacao:", error instanceof Error ? error.message : error);
+    console.warn("[bot-command-auth] não foi possível registrar log de autorizacao:", error instanceof Error ? error.message : error);
   });
 
   return result;
@@ -253,34 +253,34 @@ function evaluateLicenseState(...configs: Array<MongoBotGuildModuleConfig | null
       if (EXPIRED_LICENSE_STATUSES.has(status)) {
         return {
           reasonCode: "license_expired",
-          reason: "Licenca do servidor expirada na dashboard."
+          reason: "Licença do servidor expirada na dashboard."
         };
       }
 
       if (SUSPENDED_LICENSE_STATUSES.has(status)) {
         return {
           reasonCode: "license_suspended",
-          reason: "Licenca do servidor suspensa na dashboard."
+          reason: "Licença do servidor suspensa na dashboard."
         };
       }
 
       if (REMOVED_LICENSE_STATUSES.has(status)) {
         return {
           reasonCode: "license_removed",
-          reason: "Licenca do servidor removida na dashboard."
+          reason: "Licença do servidor removida na dashboard."
         };
       }
 
       return {
         reasonCode: "license_inactive",
-        reason: "Licenca do servidor nao esta ativa na dashboard."
+        reason: "Licença do servidor não está ativa na dashboard."
       };
     }
 
     if (record.licenseActive === false || record.licenceActive === false || record.active === false) {
       return {
         reasonCode: "license_inactive",
-        reason: "Licenca do servidor nao esta ativa na dashboard."
+        reason: "Licença do servidor não está ativa na dashboard."
       };
     }
 
@@ -292,7 +292,7 @@ function evaluateLicenseState(...configs: Array<MongoBotGuildModuleConfig | null
     if (expiresAt && expiresAt.getTime() <= Date.now()) {
       return {
         reasonCode: "license_expired",
-        reason: "Licenca do servidor expirada na dashboard."
+        reason: "Licença do servidor expirada na dashboard."
       };
     }
   }

@@ -162,7 +162,7 @@ const DEFAULT_PANEL_VISUAL: MongoPanelVisualConfig = {
   buttons: [
     {
       id: "request",
-      label: "Solicitar Ausencia",
+      label: "Solicitar Ausência",
       emoji: fixedSystemEmojiText("calendario"),
       style: "primary",
       type: "action",
@@ -173,7 +173,7 @@ const DEFAULT_PANEL_VISUAL: MongoPanelVisualConfig = {
     },
     {
       id: "mine",
-      label: "Minhas Ausencias",
+      label: "Minhas Ausências",
       emoji: fixedSystemEmojiText("prancheta"),
       style: "secondary",
       type: "action",
@@ -312,7 +312,7 @@ export async function saveFivemFacSettings(guildId: string, botId: string, input
     guildId,
     type: "fivem.fac.settings_updated",
     userId: actorId,
-    message: "Configuracao do FAC atualizada.",
+    message: "Configuração do FAC atualizada.",
     metadata: {
       action: "settings_updated",
       changedKeys: Object.keys(input),
@@ -463,7 +463,7 @@ export async function resetFivemFacTestHistory(input: { actorId: string; botId: 
     guildId: input.guildId,
     type: "fivem.fac.test_history_reset",
     userId: input.actorId,
-    message: "Historico de teste do FAC limpo.",
+    message: "Histórico de teste do FAC limpo.",
     metadata: {
       action: "test_history_reset",
       deleted,
@@ -501,7 +501,7 @@ export async function createFivemFacAbsence(input: CreateFivemFacAbsenceInput) {
   });
 
   if (duplicate) {
-    throw createFacError("Voce ja possui uma ausencia pendente, aprovada ou ativa.", 409);
+    throw createFacError("Você já possui uma ausência pendente, aprovada ou ativa.", 409);
   }
 
   const now = new Date();
@@ -512,7 +512,7 @@ export async function createFivemFacAbsence(input: CreateFivemFacAbsenceInput) {
     guildId: input.guildId,
     userId: input.userId,
     username: normalizeShortText(input.username, 100),
-    reason: normalizeRequiredText(input.reason, 800, "Informe o motivo da ausencia."),
+    reason: normalizeRequiredText(input.reason, 800, "Informe o motivo da ausência."),
     startDate,
     endDate,
     notes: normalizeShortText(input.notes, 1000),
@@ -547,7 +547,7 @@ export async function createFivemFacAbsence(input: CreateFivemFacAbsenceInput) {
     guildId: input.guildId,
     type: "fivem.fac.request_created",
     userId: input.userId,
-    message: "Solicitacao de ausencia criada.",
+    message: "Solicitação de ausência criada.",
     metadata: auditMetadata(dto, {
       action: "request_created",
       date: now.toISOString(),
@@ -563,7 +563,7 @@ export async function createFivemFacAbsence(input: CreateFivemFacAbsenceInput) {
       guildId: input.guildId,
       type: "fivem.fac.request_auto_approved",
       userId: input.userId,
-      message: "Solicitacao de ausencia aprovada automaticamente.",
+      message: "Solicitação de ausência aprovada automaticamente.",
       metadata: auditMetadata(dto, {
         action: "request_auto_approved",
         autoApproveMaxDays: settings.autoApproveMaxDays,
@@ -624,7 +624,7 @@ export async function updateFivemFacAbsenceChannel(
   const updated = await getFivemFacAbsence(absenceId, botId);
 
   if (!updated) {
-    throw createFacError("Ausencia nao encontrada.", 404);
+    throw createFacError("Ausência não encontrada.", 404);
   }
 
   return updated;
@@ -668,7 +668,7 @@ export async function approveFivemFacAbsence(input: ModerateFivemFacAbsenceInput
   const updated = await getFivemFacAbsence(input.absenceId, input.botId);
 
   if (!updated) {
-    throw createFacError("Ausencia nao encontrada.", 404);
+    throw createFacError("Ausência não encontrada.", 404);
   }
 
   const log = await createFacLog({
@@ -676,7 +676,7 @@ export async function approveFivemFacAbsence(input: ModerateFivemFacAbsenceInput
     guildId: updated.guildId,
     type: "fivem.fac.request_approved",
     userId: updated.userId,
-    message: "Solicitacao de ausencia aprovada.",
+    message: "Solicitação de ausência aprovada.",
     metadata: auditMetadata(updated, {
       action: "request_approved",
       date: now.toISOString(),
@@ -693,12 +693,12 @@ export async function rejectFivemFacAbsence(input: ModerateFivemFacAbsenceInput)
   const { fivemFacAbsences } = await getMongoCollections();
   const absence = await findModeratableAbsence(input.absenceId, input.botId);
   const settings = await getFivemFacSettings(absence.guildId, input.botId);
-  const rejectionReason = normalizeRequiredText(input.reason, 800, "Informe o motivo da reprovacao.");
+  const rejectionReason = normalizeRequiredText(input.reason, 800, "Informe o motivo da reprovação.");
 
   ensureApprover(settings, input.moderatorRoleIds);
 
   if (absence.status !== "pending" && absence.status !== "approved") {
-    throw createFacError("Esta solicitacao nao pode mais ser reprovada.", 409);
+    throw createFacError("Esta solicitação não pode mais ser reprovada.", 409);
   }
 
   const now = new Date();
@@ -726,7 +726,7 @@ export async function rejectFivemFacAbsence(input: ModerateFivemFacAbsenceInput)
   const updated = await getFivemFacAbsence(input.absenceId, input.botId);
 
   if (!updated) {
-    throw createFacError("Ausencia nao encontrada.", 404);
+    throw createFacError("Ausência não encontrada.", 404);
   }
 
   const log = await createFacLog({
@@ -734,7 +734,7 @@ export async function rejectFivemFacAbsence(input: ModerateFivemFacAbsenceInput)
     guildId: updated.guildId,
     type: "fivem.fac.request_rejected",
     userId: updated.userId,
-    message: "Solicitacao de ausencia reprovada.",
+    message: "Solicitação de ausência reprovada.",
     metadata: auditMetadata(updated, {
       action: "request_rejected",
       date: now.toISOString(),
@@ -756,7 +756,7 @@ export async function closeFivemFacAbsence(input: ModerateFivemFacAbsenceInput &
   ensureApprover(settings, input.moderatorRoleIds);
 
   if (absence.status === "rejected" || absence.status === "finished" || absence.status === "closed") {
-    throw createFacError("Esta ausencia ja foi encerrada.", 409);
+    throw createFacError("Esta ausência já foi encerrada.", 409);
   }
 
   const now = new Date();
@@ -782,7 +782,7 @@ export async function closeFivemFacAbsence(input: ModerateFivemFacAbsenceInput &
   const updated = await getFivemFacAbsence(input.absenceId, input.botId);
 
   if (!updated) {
-    throw createFacError("Ausencia nao encontrada.", 404);
+    throw createFacError("Ausência não encontrada.", 404);
   }
 
   const log = await createFacLog({
@@ -790,7 +790,7 @@ export async function closeFivemFacAbsence(input: ModerateFivemFacAbsenceInput &
     guildId: updated.guildId,
     type: "fivem.fac.request_closed",
     userId: updated.userId,
-    message: "Ausencia encerrada manualmente.",
+    message: "Ausência encerrada manualmente.",
     metadata: auditMetadata(updated, {
       action: "request_closed",
       date: now.toISOString(),
@@ -813,11 +813,11 @@ export async function saveFivemFacAbsencePhotoFile(
   const extension = FAC_PHOTO_MIME_EXTENSIONS[mimeType];
 
   if (!extension) {
-    throw createFacError("Formato invalido. Envie PNG, JPG, JPEG, WEBP ou GIF.", 400);
+    throw createFacError("Formato inválido. Envie PNG, JPG, JPEG, WEBP ou GIF.", 400);
   }
 
   if (!buffer.length) {
-    throw createFacError("Arquivo de imagem obrigatorio.", 400);
+    throw createFacError("Arquivo de imagem obrigatório.", 400);
   }
 
   await fs.mkdir(FAC_ABSENCE_UPLOAD_DIR, { recursive: true });
@@ -841,11 +841,11 @@ export async function saveFivemFacPanelImageFile(
   const extension = FAC_PHOTO_MIME_EXTENSIONS[mimeType];
 
   if (!extension) {
-    throw createFacError("Formato invalido. Envie PNG, JPG, JPEG, WEBP ou GIF.", 400);
+    throw createFacError("Formato inválido. Envie PNG, JPG, JPEG, WEBP ou GIF.", 400);
   }
 
   if (!buffer.length) {
-    throw createFacError("Arquivo de imagem obrigatorio.", 400);
+    throw createFacError("Arquivo de imagem obrigatório.", 400);
   }
 
   await fs.mkdir(FAC_ABSENCE_UPLOAD_DIR, { recursive: true });
@@ -882,7 +882,7 @@ export async function updateFivemFacAbsencePhoto(
   });
 
   if (!current) {
-    throw createFacError("Ausencia nao encontrada.", 404);
+    throw createFacError("Ausência não encontrada.", 404);
   }
 
   const now = new Date();
@@ -907,7 +907,7 @@ export async function updateFivemFacAbsencePhoto(
   const updated = await getFivemFacAbsence(absenceId, botId);
 
   if (!updated) {
-    throw createFacError("Ausencia nao encontrada.", 404);
+    throw createFacError("Ausência não encontrada.", 404);
   }
 
   emitFacAbsenceEvent("photo_updated", updated, null);
@@ -956,7 +956,7 @@ export async function markFivemFacAbsenceStarted(absenceId: string, botId: strin
   }
 
   if (absence.status !== "approved") {
-    throw createFacError("Ausencia nao esta aprovada para iniciar.", 409);
+    throw createFacError("Ausência não está aprovada para iniciar.", 409);
   }
 
   const now = new Date();
@@ -982,7 +982,7 @@ export async function markFivemFacAbsenceStarted(absenceId: string, botId: strin
   const updated = await getFivemFacAbsence(absenceId, botId);
 
   if (!updated) {
-    throw createFacError("Ausencia nao encontrada.", 404);
+    throw createFacError("Ausência não encontrada.", 404);
   }
 
   if (!result.modifiedCount) {
@@ -997,7 +997,7 @@ export async function markFivemFacAbsenceStarted(absenceId: string, botId: strin
     guildId: updated.guildId,
     type: "fivem.fac.absence_started",
     userId: updated.userId,
-    message: "Ausencia iniciada automaticamente.",
+    message: "Ausência iniciada automaticamente.",
     metadata: auditMetadata(updated, {
       action: "absence_started",
       date: now.toISOString(),
@@ -1049,7 +1049,7 @@ export async function markFivemFacAbsenceFinished(absenceId: string, botId: stri
   const updated = await getFivemFacAbsence(absenceId, botId);
 
   if (!updated) {
-    throw createFacError("Ausencia nao encontrada.", 404);
+    throw createFacError("Ausência não encontrada.", 404);
   }
 
   if (!result.modifiedCount) {
@@ -1064,7 +1064,7 @@ export async function markFivemFacAbsenceFinished(absenceId: string, botId: stri
     guildId: updated.guildId,
     type: "fivem.fac.absence_finished",
     userId: updated.userId,
-    message: "Ausencia finalizada automaticamente.",
+    message: "Ausência finalizada automaticamente.",
     metadata: auditMetadata(updated, {
       action: "absence_finished",
       date: now.toISOString(),
@@ -1094,21 +1094,21 @@ export function currentDateKey() {
 
 function validateSettingsReady(settings: FivemFacSettingsDto) {
   if (!settings.enabled) {
-    throw createFacError("O sistema FAC nao esta ativo na dashboard.", 403);
+    throw createFacError("O sistema FAC não está ativo na dashboard.", 403);
   }
 
   if (!settings.panelChannelId || !settings.absenceRoleId || !settings.approverRoleIds.length) {
-    throw createFacError("Configure canal do painel, cargo de ausencia e cargos aprovadores antes de usar o FAC.", 400);
+    throw createFacError("Configure canal do painel, cargo de ausência e cargos aprovadores antes de usar o FAC.", 400);
   }
 }
 
 function validateAbsenceDates(startDate: string, endDate: string, requireFuture: boolean) {
   if (startDate > endDate) {
-    throw createFacError("A data inicial nao pode ser maior que a data final.", 400);
+    throw createFacError("A data inicial não pode ser maior que a data final.", 400);
   }
 
   if (requireFuture && startDate < currentDateKey()) {
-    throw createFacError("A data inicial nao pode ser anterior a data de hoje.", 400);
+    throw createFacError("A data inicial não pode ser anterior a data de hoje.", 400);
   }
 }
 
@@ -1157,7 +1157,7 @@ function normalizeDateOnly(value: string) {
   const date = new Date(`${normalized}T00:00:00.000Z`);
 
   if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== normalized) {
-    throw createFacError("Data invalida.", 400);
+    throw createFacError("Data inválida.", 400);
   }
 
   return normalized;
@@ -1323,7 +1323,7 @@ function normalizeNullableSnowflake(value: unknown, fallback: string | null) {
     return value.trim();
   }
 
-  throw createFacError("Um dos IDs informados nao e valido.", 400);
+  throw createFacError("Um dos IDs informados não é válido.", 400);
 }
 
 function normalizeSnowflakes(values: string[]) {
@@ -1341,7 +1341,7 @@ function normalizeAutoApproveMaxDays(value: unknown) {
 
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
-    throw createFacError("O limite de dias para autoaprovacao nao e valido.", 400);
+    throw createFacError("O limite de dias para autoaprovação não é válido.", 400);
   }
 
   return Math.max(0, Math.min(365, Math.trunc(numeric)));
@@ -1355,7 +1355,7 @@ async function findModeratableAbsence(absenceId: string, botId: string) {
   });
 
   if (!absence) {
-    throw createFacError("Ausencia nao encontrada.", 404);
+    throw createFacError("Ausência não encontrada.", 404);
   }
 
   return absence;
@@ -1365,7 +1365,7 @@ function ensureApprover(settings: FivemFacSettingsDto, roleIds: string[]) {
   const allowed = new Set(settings.approverRoleIds);
 
   if (!roleIds.some((roleId) => allowed.has(roleId))) {
-    throw createFacError("Voce nao tem cargo autorizado para moderar ausencias.", 403);
+    throw createFacError("Você não tem cargo autorizado para moderar ausências.", 403);
   }
 }
 
@@ -1402,7 +1402,7 @@ function auditMetadata(absence: FivemFacAbsenceDto, extra: Record<string, unknow
 
 async function createFacLog(input: Parameters<typeof createLog>[0]) {
   return createLog(input).catch((error) => {
-    console.warn("[fivem-fac] nao foi possivel registrar log:", error instanceof Error ? error.message : error);
+    console.warn("[fivem-fac] não foi possível registrar log:", error instanceof Error ? error.message : error);
     return null;
   });
 }

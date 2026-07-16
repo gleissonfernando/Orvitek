@@ -41,7 +41,7 @@ export function OpenDutyNotificationsPanel({ botId, canManage, guild }: Props) {
         setChannels(channelOptions.channels);
         setRoles(roleOptions.filter((role) => role.id !== guild.id));
       })
-      .catch((requestError) => setError(readError(requestError, "Nao foi possivel carregar o sistema de ponto aberto.")))
+      .catch((requestError) => setError(readError(requestError, "Não foi possível carregar o sistema de ponto aberto.")))
       .finally(() => setLoading(false));
   }, [botId, guild]);
 
@@ -72,9 +72,9 @@ export function OpenDutyNotificationsPanel({ botId, canManage, guild }: Props) {
       const saved = await saveOpenDutySettings(guild.id, botId, settings);
       setSettings(saved);
       setDashboard((current) => current ? { ...current, settings: saved } : current);
-      setStatus("Configuracao salva.");
+      setStatus("Configuração salva.");
     } catch (requestError) {
-      setError(readError(requestError, "Nao foi possivel salvar a configuracao."));
+      setError(readError(requestError, "Não foi possível salvar a configuração."));
     } finally {
       setSaving(false);
     }
@@ -92,7 +92,7 @@ export function OpenDutyNotificationsPanel({ botId, canManage, guild }: Props) {
       } : current);
       setStatus("Contador resetado.");
     } catch (requestError) {
-      setError(readError(requestError, "Nao foi possivel resetar o contador."));
+      setError(readError(requestError, "Não foi possível resetar o contador."));
     }
   }
 
@@ -127,12 +127,12 @@ export function OpenDutyNotificationsPanel({ botId, canManage, guild }: Props) {
             <SelectField disabled={disabled} label="Canal mencionado na DM ({canal})" onChange={(value) => patch("mentionChannelId", value || null)} options={channels.map((channel) => ({ label: `#${channel.name}`, value: channel.id }))} value={settings.mentionChannelId ?? ""} />
             <div className="rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-300">
               <p className="font-medium text-zinc-100">Regra de contagem</p>
-              <p className="mt-1">Use {"{canal}"} ou {"{channel}"} na mensagem padrao para inserir o canal configurado. O canal de multas recebe mensagem somente em 3/3.</p>
+              <p className="mt-1">Use {"{canal}"} ou {"{channel}"} na mensagem padrão para inserir o canal configurado. O canal de multas recebe mensagem somente em 3/3.</p>
             </div>
             <div className="rounded-md border border-blue-500/25 bg-blue-500/10 px-3 py-2 text-sm text-blue-100 md:col-span-2">
-              <p className="font-medium">Canal mencionado na DM: {settings.mentionChannelId ? `#${channels.find((channel) => channel.id === settings.mentionChannelId)?.name ?? settings.mentionChannelId}` : "nao configurado"}</p>
+              <p className="font-medium">Canal mencionado na DM: {settings.mentionChannelId ? `#${channels.find((channel) => channel.id === settings.mentionChannelId)?.name ?? settings.mentionChannelId}` : "não configurado"}</p>
               <p className="mt-1 text-blue-100/80">
-                {/\{(?:canal|channel)\}/i.test(settings.defaultMessage) ? "A mensagem padrao ja usa a variavel de canal." : "Adicione {canal} ou {channel} na mensagem padrao para o bot mencionar esse canal na DM."}
+                {/\{(?:canal|channel)\}/i.test(settings.defaultMessage) ? "A mensagem padrão já usa a variavel de canal." : "Adicione {canal} ou {channel} na mensagem padrão para o bot mencionar esse canal na DM."}
               </p>
             </div>
             <label className="text-sm font-medium text-zinc-200">
@@ -148,7 +148,7 @@ export function OpenDutyNotificationsPanel({ botId, canManage, guild }: Props) {
 
           <MultiRoleSelect disabled={disabled} label="Cargos autorizados" onChange={(ids) => patch("allowedRoleIds", ids)} roles={roles} values={settings.allowedRoleIds} />
           <label className="block text-sm font-medium text-zinc-200">
-            Usuarios autorizados por ID
+            Usuários autorizados por ID
             <input
               className="mt-2 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100"
               disabled={disabled}
@@ -161,7 +161,7 @@ export function OpenDutyNotificationsPanel({ botId, canManage, guild }: Props) {
           <div className="grid gap-4 md:grid-cols-3">
             <TextField disabled={disabled} label="Banner da DM URL" onChange={(value) => patch("dmBannerUrl", value || null)} value={settings.dmBannerUrl ?? ""} />
             <TextField disabled={disabled} label="Banner do painel URL" onChange={(value) => patch("panelBannerUrl", value || null)} value={settings.panelBannerUrl ?? ""} />
-            <TextField disabled={disabled} label="Imagem pequena do rodape URL" onChange={(value) => patch("footerImageUrl", value || null)} value={settings.footerImageUrl ?? ""} />
+            <TextField disabled={disabled} label="Imagem pequena do rodapé URL" onChange={(value) => patch("footerImageUrl", value || null)} value={settings.footerImageUrl ?? ""} />
             <SelectField
               disabled={disabled}
               label="Posicao da imagem da DM"
@@ -171,18 +171,18 @@ export function OpenDutyNotificationsPanel({ botId, canManage, guild }: Props) {
                 { label: "Topo", value: "top" },
                 { label: "Meio", value: "middle" },
                 { label: "Fundo", value: "bottom" },
-                { label: "Rodape", value: "footer" }
+                { label: "Rodapé", value: "footer" }
               ]}
               value={settings.imagePosition}
             />
             <div className="rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-300 md:col-span-2">
-              <p className="font-medium text-zinc-100">Imagem de rodape</p>
-              <p className="mt-1">A imagem pequena do rodape so aparece quando a posicao esta como Rodape. Para remover totalmente, selecione Sem imagem ou limpe a URL e salve.</p>
+              <p className="font-medium text-zinc-100">Imagem de rodapé</p>
+              <p className="mt-1">A imagem pequena do rodapé só aparece quando a posição está como Rodapé. Para remover totalmente, selecione Sem imagem ou limpe a URL e salve.</p>
             </div>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <TextArea disabled={disabled} label="Mensagem padrao da DM" onChange={(value) => patch("defaultMessage", value)} value={settings.defaultMessage} />
+            <TextArea disabled={disabled} label="Mensagem padrão da DM" onChange={(value) => patch("defaultMessage", value)} value={settings.defaultMessage} />
             <TextArea disabled={disabled} label="Texto do alerta de multa em 3/3" onChange={(value) => patch("alertMessage", value)} value={settings.alertMessage} />
           </div>
         </CardContent>
@@ -192,9 +192,9 @@ export function OpenDutyNotificationsPanel({ botId, canManage, guild }: Props) {
         <CardHeader><CardTitle className="text-base">Consultar e resetar avisos</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 md:grid-cols-[1fr_220px_auto]">
-            <input className="h-10 rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" onChange={(event) => setMemberQuery(event.target.value)} placeholder="Buscar usuario por nome ou ID" value={memberQuery} />
+            <input className="h-10 rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" onChange={(event) => setMemberQuery(event.target.value)} placeholder="Buscar usuário por nome ou ID" value={memberQuery} />
             <select className="h-10 rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" onChange={(event) => setCounterUserId(event.target.value)} value={counterUserId}>
-              <option value="">Selecionar usuario</option>
+              <option value="">Selecionar usuário</option>
               {members.map((member) => <option key={member.id} value={member.id}>{member.displayName ?? member.username} ({member.id})</option>)}
               {dashboard.counters.map((counter) => <option key={`counter-${counter.userId}`} value={counter.userId}>{counter.userId}</option>)}
             </select>
@@ -205,7 +205,7 @@ export function OpenDutyNotificationsPanel({ botId, canManage, guild }: Props) {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Historico recente</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Histórico recente</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           {dashboard.history.slice(0, 15).map((item) => (
             <div className="rounded-md border border-zinc-800 bg-zinc-950/60 p-3 text-sm text-zinc-300" key={item.id}>
@@ -226,7 +226,7 @@ export function OpenDutyNotificationsPanel({ botId, canManage, guild }: Props) {
 }
 
 function SelectField({ disabled, label, onChange, options, value }: { disabled: boolean; label: string; onChange: (value: string) => void; options: Array<{ label: string; value: string }>; value: string }) {
-  return <label className="text-sm font-medium text-zinc-200">{label}<select className="mt-2 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={disabled} onChange={(event) => onChange(event.target.value)} value={value}><option value="">Nao definido</option>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>;
+  return <label className="text-sm font-medium text-zinc-200">{label}<select className="mt-2 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={disabled} onChange={(event) => onChange(event.target.value)} value={value}><option value="">Não definido</option>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>;
 }
 function TextField({ disabled, label, onChange, value }: { disabled: boolean; label: string; onChange: (value: string) => void; value: string }) {
   return <label className="text-sm font-medium text-zinc-200">{label}<input className="mt-2 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={disabled} onChange={(event) => onChange(event.target.value)} value={value} /></label>;

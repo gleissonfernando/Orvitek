@@ -22,7 +22,7 @@ export async function requireAuthenticated(req: Request, res: Response, next: Ne
     const auth = resolveAuthFromRequest(req, res);
 
     if (!auth) {
-      return res.status(401).json({ message: "Sessao nao autenticada." });
+      return res.status(401).json({ message: "Sessão não autenticada." });
     }
 
     req.session.user = auth.user;
@@ -44,9 +44,9 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     if (!auth) {
       await recordAccessAttempt(req, {
         result: "denied",
-        reason: "Sessao nao autenticada."
+        reason: "Sessão não autenticada."
       });
-      return res.status(401).json({ message: "Sessao nao autenticada." });
+      return res.status(401).json({ message: "Sessão não autenticada." });
     }
 
     if (!auth.verified) {
@@ -54,9 +54,9 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         userId: auth.user.discordId,
         username: auth.user.username,
         result: "denied",
-        reason: "Verificacao obrigatoria para acessar o painel."
+        reason: "Verificação obrigatória para acessar o painel."
       });
-      return res.status(403).json({ message: "Verificacao obrigatoria para acessar o painel." });
+      return res.status(403).json({ message: "Verificação obrigatória para acessar o painel." });
     }
 
     const freshAuth = await ensureVerifiedRoleAccess(req, res, auth);
@@ -85,7 +85,7 @@ export function requireBot(req: Request, res: Response, next: NextFunction) {
     return next();
   }
 
-  return res.status(401).json({ message: "Token do bot invalido." });
+  return res.status(401).json({ message: "Token do bot inválido." });
 }
 
 export function requireAdminAccess(_req: Request, res: Response, next: NextFunction) {
@@ -95,7 +95,7 @@ export function requireAdminAccess(_req: Request, res: Response, next: NextFunct
     return next();
   }
 
-  return res.status(403).json({ message: "Acesso administrativo necessario para esta acao." });
+  return res.status(403).json({ message: "Acesso administrativo necessário para esta ação." });
 }
 
 export function requireAuthOrBot(req: Request, res: Response, next: NextFunction) {

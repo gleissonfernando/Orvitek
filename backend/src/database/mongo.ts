@@ -204,7 +204,7 @@ export type MongoTranscript = {
   channelId: string | null;
   channelName: string | null;
   guildName: string | null;
-  type: "Denuncia" | "Ticket" | "Canal Temporario" | "Suporte" | "Outro";
+  type: "Denúncia" | "Ticket" | "Canal Temporário" | "Suporte" | "Outro";
   categoryName: string | null;
   htmlPath: string;
   pdfPath: string | null;
@@ -3942,7 +3942,7 @@ export function botDatabaseName(botId: string) {
   const normalizedBotId = botId.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
 
   if (!normalizedBotId) {
-    throw new Error("botId invalido para banco de dados do bot.");
+    throw new Error("botId inválido para banco de dados do bot.");
   }
 
   return `${prefix}_${normalizedBotId}`.slice(0, 63);
@@ -3950,7 +3950,7 @@ export function botDatabaseName(botId: string) {
 
 function getMongoClient() {
   if (!env.MONGODB_URI) {
-    throw new Error("MONGODB_URI nao configurada.");
+    throw new Error("MONGODB_URI não configurada.");
   }
 
   if (!globalForMongo.mongoClient) {
@@ -4176,7 +4176,7 @@ export async function ensureGuild(guildId: string) {
 async function ensureMongoIndexes(db: Db) {
   if (!globalForMongo.mongoIndexes) {
     globalForMongo.mongoIndexes = createMongoIndexes(db).catch((error) => {
-      console.warn("[mongo] nao foi possivel criar indices:", error instanceof Error ? error.message : error);
+      console.warn("[mongo] não foi possível criar indices:", error instanceof Error ? error.message : error);
     });
   }
 

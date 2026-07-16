@@ -18,10 +18,10 @@ export type SaveFivemModuleInput = {
 export const BUILTIN_FIVEM_MODULES: FivemModuleDefinition[] = [
   {
     builtIn: true,
-    description: "Gestao de membros, hierarquia, cargos e operacao das faccoes.",
+    description: "Gestao de membros, hierarquia, cargos e operação das facções.",
     id: "fivem-factions",
-    permissions: "Admin FiveM, Gerente de faccao",
-    title: "Sistema de Faccoes"
+    permissions: "Admin FiveM, Gerente de facção",
+    title: "Sistema de Facções"
   },
   {
     builtIn: true,
@@ -32,10 +32,10 @@ export const BUILTIN_FIVEM_MODULES: FivemModuleDefinition[] = [
   },
   {
     builtIn: true,
-    description: "Fluxo de ausencias, aprovacoes e historico de justificativas.",
+    description: "Fluxo de ausências, aprovacoes e histórico de justificativas.",
     id: "fivem-absences",
-    permissions: "Admin FiveM, Lideranca",
-    title: "Sistema de Ausencias"
+    permissions: "Admin FiveM, Liderança",
+    title: "Sistema de Ausências"
   },
   {
     builtIn: true,
@@ -46,21 +46,21 @@ export const BUILTIN_FIVEM_MODULES: FivemModuleDefinition[] = [
   },
   {
     builtIn: true,
-    description: "Lavagem RP isolada com regras de porcentagem, calculo automatico, logs e historico.",
+    description: "Lavagem RP isolada com regras de porcentagem, cálculo automático, logs e histórico.",
     id: "fivem-washing",
     permissions: "Admin FiveM, Financeiro",
     title: "Sistema de Lavagem"
   },
   {
     builtIn: true,
-    description: "Controle isolado de drogas, familias autorizadas, pedidos, producao, entrega, logs e historico.",
+    description: "Controle isolado de drogas, famílias autorizadas, pedidos, produção, entrega, logs e histórico.",
     id: "fivem-drugs",
-    permissions: "Admin FiveM, Lideranca",
+    permissions: "Admin FiveM, Liderança",
     title: "Sistema de Drogas"
   },
   {
     builtIn: true,
-    description: "Pedidos, producao, entrega, logs e financeiro de municoes.",
+    description: "Pedidos, produção, entrega, logs e financeiro de munições.",
     id: "fivem-ammo",
     permissions: "Admin FiveM, Arsenal",
     title: "Sistema de Municoes"
@@ -76,98 +76,98 @@ export const BUILTIN_FIVEM_MODULES: FivemModuleDefinition[] = [
     builtIn: true,
     description: "Metas por membro com canais individuais, fotos e registros via Components V2.",
     id: "fivem-goals",
-    permissions: "Admin FiveM, Lideranca",
+    permissions: "Admin FiveM, Liderança",
     title: "Sistema de Metas"
   },
   {
     builtIn: true,
     description: "Painel de hierarquia policial atualizado automaticamente pelos cargos do Discord.",
     id: "fivem-hierarchy",
-    permissions: "Admin Policia, Lideranca",
+    permissions: "Admin Polícia, Liderança",
     title: "Hierarquia Policial"
   },
   {
     builtIn: true,
-    description: "Fluxo de ausencias, aprovacoes e historico para oficiais da policia.",
+    description: "Fluxo de ausências, aprovacoes e histórico para oficiais da policia.",
     id: "police-absences",
-    permissions: "Admin Policia, Lideranca",
-    title: "Ausencia Policial"
+    permissions: "Admin Polícia, Liderança",
+    title: "Ausência Policial"
   },
   {
     builtIn: true,
-    description: "Operacoes policiais com painel, participantes e relatorios separados da FAC.",
+    description: "Operações policiais com painel, participantes e relatórios separados da FAC.",
     id: "police-actions",
-    permissions: "Admin Policia, Operador",
-    title: "Acoes Policiais"
+    permissions: "Admin Polícia, Operador",
+    title: "Ações Políciais"
   },
   {
     builtIn: true,
     description: "Canal de denuncias IAB com triagem, auditoria e acompanhamento pela equipe policial.",
     id: "police-iab",
-    permissions: "Admin Policia, Corregedoria",
-    title: "Denuncia IAB"
+    permissions: "Admin Polícia, Corregedoria",
+    title: "Denúncia IAB"
   },
   {
     builtIn: true,
-    description: "Gestao de efetivo, recrutamento, desligamentos e movimentacoes internas da policia.",
+    description: "Gestao de efetivo, recrutamento, desligamentos e movimentações internas da policia.",
     id: "police-hr",
-    permissions: "Admin Policia, RH",
+    permissions: "Admin Polícia, RH",
     title: "RH Policial"
   },
   {
     builtIn: true,
-    description: "Escalas DAF, plantoes, equipes e disponibilidade operacional.",
+    description: "Escalas DAF, plantões, equipes e disponibilidade operacional.",
     id: "police-daf-roster",
-    permissions: "Admin Policia, DAF",
+    permissions: "Admin Polícia, DAF",
     title: "Escalacao DAF"
   },
   {
     builtIn: true,
-    description: "Cursos, matriculas, aprovacoes e historico de capacitacao policial.",
+    description: "Cursos, matriculas, aprovacoes e histórico de capacitacao policial.",
     id: "police-courses",
-    permissions: "Admin Policia, Instrutor",
-    title: "Cursos Policiais"
+    permissions: "Admin Polícia, Instrutor",
+    title: "Cursos Políciais"
   },
   {
     builtIn: true,
-    description: "Relatorios de patrulhamento exclusivos para oficiais, com anexos, auditoria e historico.",
+    description: "Relatórios de patrulhamento exclusivos para oficiais, com anexos, auditoria e histórico.",
     id: "police-patrol-reports",
-    permissions: "Admin Policia, Supervisor",
-    title: "Relatorios Policiais"
+    permissions: "Admin Polícia, Supervisor",
+    title: "Relatórios Políciais"
   },
   {
     builtIn: true,
     description: "Canal anonimo para comunicacoes policiais com auditoria administrativa completa.",
     id: "police-hidden-channel",
-    permissions: "Admin Policia, Investigacao",
+    permissions: "Admin Polícia, Investigação",
     title: "Canal Oculto"
   },
   {
     builtIn: true,
-    description: "Atendimento por DM policial com registro, encaminhamento e historico.",
+    description: "Atendimento por DM policial com registro, encaminhamento e histórico.",
     id: "police-dm",
-    permissions: "Admin Policia, Atendimento",
+    permissions: "Admin Polícia, Atendimento",
     title: "DM Policial"
   },
   {
     builtIn: true,
-    description: "Solicitacoes de ausencia, adornos, aprovacao, cargo temporario e logs administrativos de RH.",
+    description: "Solicitacoes de ausência, adornos, aprovação, cargo temporário e logs administrativos de RH.",
     id: "rh-admin",
-    permissions: "Admin Policia, RH",
+    permissions: "Admin Polícia, RH",
     title: "RH Administrativo"
   },
   {
     builtIn: true,
     description: "Intimações, notificações, prazos e comprovantes de comparecimento.",
     id: "police-subpoenas",
-    permissions: "Admin Policia, Investigacao",
+    permissions: "Admin Polícia, Investigação",
     title: "Intimação"
   },
   {
     builtIn: true,
     description: "Sistema policial de notificação de ponto aberto por DM, canal mencionado e auditoria.",
     id: "police-open-duty",
-    permissions: "Admin Policia, Supervisor",
+    permissions: "Admin Polícia, Supervisor",
     title: "Notificar / Ponto Aberto"
   }
 ];
@@ -198,9 +198,9 @@ export async function createFivemModule(input: SaveFivemModuleInput, userId: str
     builtIn: false,
     createdAt: now,
     createdBy: userId,
-    description: normalizeModuleText(input.description, "Modulo personalizado criado pelo desenvolvedor.", 240),
+    description: normalizeModuleText(input.description, "Módulo personalizado criado pelo desenvolvedor.", 240),
     permissions: normalizeModuleText(input.permissions, "Admin FiveM", 120),
-    title: normalizeModuleText(input.title, "Modulo FiveM", 80),
+    title: normalizeModuleText(input.title, "Módulo FiveM", 80),
     updatedAt: now,
     updatedBy: userId
   };
@@ -221,11 +221,11 @@ export async function updateFivemModule(moduleId: string, input: Partial<SaveFiv
   };
 
   if (input.title !== undefined) {
-    $set.title = normalizeModuleText(input.title, "Modulo FiveM", 80);
+    $set.title = normalizeModuleText(input.title, "Módulo FiveM", 80);
   }
 
   if (input.description !== undefined) {
-    $set.description = normalizeModuleText(input.description, "Modulo personalizado criado pelo desenvolvedor.", 240);
+    $set.description = normalizeModuleText(input.description, "Módulo personalizado criado pelo desenvolvedor.", 240);
   }
 
   if (input.permissions !== undefined) {

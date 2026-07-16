@@ -282,7 +282,7 @@ export async function createDashboardVoiceRecordingRequest(input: CreateVoiceRec
     guildId: input.guildId,
     userId: input.actorId,
     type: "voice_recorder.start_requested",
-    message: "Inicio de gravacao solicitado pela dashboard.",
+    message: "Inicio de gravação solicitado pela dashboard.",
     metadata: {
       channelId: input.channelId,
       recordingId: recording._id
@@ -309,7 +309,7 @@ export async function createBotVoiceRecording(input: CreateVoiceRecordingInput) 
     guildId: input.guildId,
     userId: input.actorId,
     type: "voice_recorder.started",
-    message: `Gravacao iniciada em ${input.channelName ?? input.channelId}.`,
+    message: `Gravação iniciada em ${input.channelName ?? input.channelId}.`,
     metadata: {
       channelId: input.channelId,
       recordingId: recording._id,
@@ -367,7 +367,7 @@ export async function markDashboardVoiceRecordingStarted(
   );
 
   if (!recording) {
-    throw createVoiceRecorderError("Gravacao pendente nao encontrada para iniciar.", 404);
+    throw createVoiceRecorderError("Gravação pendente não encontrada para iniciar.", 404);
   }
 
   const dto = toRecordingDto(recording);
@@ -387,7 +387,7 @@ export async function requestDashboardVoiceRecordingStop(input: {
     : await getActiveVoiceRecording(input.guildId, input.botId);
 
   if (!recording || !ACTIVE_STATUSES.includes(recording.status)) {
-    throw createVoiceRecorderError("Nao existe gravacao em andamento neste servidor.", 409);
+    throw createVoiceRecorderError("Não existe gravação em andamento neste servidor.", 409);
   }
 
   emitRealtimeToRoom(devBotRealtimeRoom(input.botId), "voice-recorder:stop", {
@@ -404,7 +404,7 @@ export async function requestDashboardVoiceRecordingStop(input: {
     guildId: input.guildId,
     userId: input.actorId,
     type: "voice_recorder.stop_requested",
-    message: "Encerramento de gravacao solicitado pela dashboard.",
+    message: "Encerramento de gravação solicitado pela dashboard.",
     metadata: {
       recordingId: recording._id
     }
@@ -436,7 +436,7 @@ export async function markVoiceRecordingProcessing(input: {
     : await getActiveVoiceRecording(input.guildId, input.botId);
 
   if (!recording || !ACTIVE_STATUSES.includes(recording.status)) {
-    throw createVoiceRecorderError("Nao existe gravacao em andamento neste servidor.", 409);
+    throw createVoiceRecorderError("Não existe gravação em andamento neste servidor.", 409);
   }
 
   const now = new Date();
@@ -458,7 +458,7 @@ export async function markVoiceRecordingProcessing(input: {
           type: "recording_stop_requested",
           userId: input.actorId,
           username: normalizeShortText(input.actorTag, 100),
-          message: "Encerramento da gravacao iniciado.",
+          message: "Encerramento da gravação iniciado.",
           createdAt: now
         }
       }
@@ -469,7 +469,7 @@ export async function markVoiceRecordingProcessing(input: {
   );
 
   if (!updated) {
-    throw createVoiceRecorderError("Nao foi possivel encerrar a gravacao.", 500);
+    throw createVoiceRecorderError("Não foi possível encerrar a gravação.", 500);
   }
 
   const dto = toRecordingDto(updated);
@@ -481,7 +481,7 @@ export async function completeVoiceRecording(input: CompleteVoiceRecordingInput)
   const recording = await getVoiceRecordingForBot(input.recordingId, input.botId);
 
   if (!recording) {
-    throw createVoiceRecorderError("Gravacao nao encontrada para finalizar.", 404);
+    throw createVoiceRecorderError("Gravação não encontrada para finalizar.", 404);
   }
 
   const filePath = normalizeStoragePath(input.filePath);
@@ -515,7 +515,7 @@ export async function completeVoiceRecording(input: CompleteVoiceRecordingInput)
           type: "recording_completed",
           userId: recording.stoppedById,
           username: recording.stoppedByTag,
-          message: "Arquivo final da gravacao gerado.",
+          message: "Arquivo final da gravação gerado.",
           createdAt: now,
           metadata: {
             fileSize: input.fileSize,
@@ -530,7 +530,7 @@ export async function completeVoiceRecording(input: CompleteVoiceRecordingInput)
   );
 
   if (!updated) {
-    throw createVoiceRecorderError("Nao foi possivel salvar a gravacao final.", 500);
+    throw createVoiceRecorderError("Não foi possível salvar a gravação final.", 500);
   }
 
   const dto = toRecordingDto(updated);
@@ -539,7 +539,7 @@ export async function completeVoiceRecording(input: CompleteVoiceRecordingInput)
     guildId: updated.guildId,
     userId: updated.stoppedById ?? updated.startedById,
     type: "voice_recorder.completed",
-    message: `Gravacao ${updated._id} finalizada em ${formatDuration(updated.durationMs)}.`,
+    message: `Gravação ${updated._id} finalizada em ${formatDuration(updated.durationMs)}.`,
     metadata: voiceRecordingAuditMetadata(dto)
   });
 
@@ -590,7 +590,7 @@ export async function failVoiceRecording(input: {
           type: "recording_failed",
           userId: null,
           username: null,
-          message: normalizeShortText(input.error, 500) ?? "Falha na gravacao.",
+          message: normalizeShortText(input.error, 500) ?? "Falha na gravação.",
           createdAt: now
         }
       }
@@ -610,7 +610,7 @@ export async function failVoiceRecording(input: {
     guildId: updated.guildId,
     userId: updated.startedById,
     type: "voice_recorder.failed",
-    message: `Falha na gravacao ${updated._id}: ${input.error}`,
+    message: `Falha na gravação ${updated._id}: ${input.error}`,
     metadata: {
       recordingId: updated._id,
       error: input.error
@@ -662,10 +662,10 @@ export async function failActiveVoiceRecordingsForBot(input: {
 
 export async function recordVoiceRecordingEvent(input: RecordVoiceEventInput) {
   const event: MongoVoiceRecordingEvent = {
-    type: normalizeRequiredText(input.type, 80, "Tipo do evento obrigatorio."),
+    type: normalizeRequiredText(input.type, 80, "Tipo do evento obrigatório."),
     userId: normalizeShortText(input.userId, 40),
     username: normalizeShortText(input.username, 100),
-    message: normalizeRequiredText(input.message, 500, "Mensagem do evento obrigatoria."),
+    message: normalizeRequiredText(input.message, 500, "Mensagem do evento obrigatória."),
     createdAt: new Date(),
     metadata: input.metadata
   };
@@ -692,7 +692,7 @@ export async function recordVoiceRecordingEvent(input: RecordVoiceEventInput) {
   );
 
   if (!updated) {
-    throw createVoiceRecorderError("Gravacao nao encontrada para registrar evento.", 404);
+    throw createVoiceRecorderError("Gravação não encontrada para registrar evento.", 404);
   }
 
   const dto = toRecordingDto(updated);
@@ -704,15 +704,15 @@ export async function deleteVoiceRecording(recordingId: string, botId: string, a
   const recording = await getVoiceRecordingForBot(recordingId, botId);
 
   if (!recording) {
-    throw createVoiceRecorderError("Gravacao nao encontrada.", 404);
+    throw createVoiceRecorderError("Gravação não encontrada.", 404);
   }
 
   if (ACTIVE_STATUSES.includes(recording.status)) {
-    throw createVoiceRecorderError("Encerre a gravacao antes de excluir o arquivo.", 409);
+    throw createVoiceRecorderError("Encerre a gravação antes de excluir o arquivo.", 409);
   }
 
   await removeVoiceRecordingFile(recording).catch((error) => {
-    console.warn("[voice-recorder] nao foi possivel remover arquivo:", error instanceof Error ? error.message : error);
+    console.warn("[voice-recorder] não foi possível remover arquivo:", error instanceof Error ? error.message : error);
   });
 
   const now = new Date();
@@ -737,7 +737,7 @@ export async function deleteVoiceRecording(recordingId: string, botId: string, a
           type: "recording_deleted",
           userId: actorId,
           username: null,
-          message: "Arquivo da gravacao excluido.",
+          message: "Arquivo da gravação excluido.",
           createdAt: now
         }
       }
@@ -748,7 +748,7 @@ export async function deleteVoiceRecording(recordingId: string, botId: string, a
   );
 
   if (!updated) {
-    throw createVoiceRecorderError("Nao foi possivel excluir a gravacao.", 500);
+    throw createVoiceRecorderError("Não foi possível excluir a gravação.", 500);
   }
 
   const dto = toRecordingDto(updated);
@@ -757,7 +757,7 @@ export async function deleteVoiceRecording(recordingId: string, botId: string, a
     guildId: updated.guildId,
     userId: actorId,
     type: "voice_recorder.deleted",
-    message: `Gravacao ${recordingId} excluida.`,
+    message: `Gravação ${recordingId} excluida.`,
     metadata: {
       recordingId
     }
@@ -784,18 +784,18 @@ export async function getVoiceRecordingFile(recordingId: string, options: {
   });
 
   if (!recording || recording.status !== "completed" || !recording.filePath) {
-    throw createVoiceRecorderError("Arquivo da gravacao nao encontrado.", 404);
+    throw createVoiceRecorderError("Arquivo da gravação não encontrado.", 404);
   }
 
   if (options.accessToken !== undefined && recording.accessToken !== options.accessToken) {
-    throw createVoiceRecorderError("Link da gravacao invalido.", 403);
+    throw createVoiceRecorderError("Link da gravação inválido.", 403);
   }
 
   const filePath = normalizeStoragePath(recording.filePath);
   const stat = await fs.stat(filePath).catch(() => null);
 
   if (!stat?.isFile()) {
-    throw createVoiceRecorderError("Arquivo fisico da gravacao nao encontrado.", 404);
+    throw createVoiceRecorderError("Arquivo fisico da gravação não encontrado.", 404);
   }
 
   return {
@@ -1033,7 +1033,7 @@ async function insertVoiceRecording(input: CreateVoiceRecordingInput, status: "s
       type: status === "starting" ? "start_requested" : "recording_started",
       userId: input.actorId,
       username: normalizeShortText(input.actorTag, 100),
-      message: status === "starting" ? "Inicio solicitado pela dashboard." : "Gravacao iniciada pelo bot.",
+      message: status === "starting" ? "Inicio solicitado pela dashboard." : "Gravação iniciada pelo bot.",
       createdAt: now,
       metadata: {
         channelId: input.channelId,
@@ -1060,7 +1060,7 @@ async function insertVoiceRecording(input: CreateVoiceRecordingInput, status: "s
     await voiceRecordings.insertOne(recording);
   } catch (error) {
     if (error instanceof MongoServerError && error.code === 11000) {
-      throw createVoiceRecorderError("Ja existe uma gravacao em andamento neste servidor.", 409);
+      throw createVoiceRecorderError("Já existe uma gravação em andamento neste servidor.", 409);
     }
 
     throw error;
@@ -1073,7 +1073,7 @@ async function ensureNoActiveRecording(guildId: string, botId: string) {
   const active = await getActiveVoiceRecording(guildId, botId);
 
   if (active) {
-    throw createVoiceRecorderError("Ja existe uma gravacao em andamento neste servidor.", 409);
+    throw createVoiceRecorderError("Já existe uma gravação em andamento neste servidor.", 409);
   }
 }
 
@@ -1087,7 +1087,7 @@ async function getVoiceRecordingForBot(recordingId: string, botId: string) {
 
 function validateSettingsReady(settings: VoiceRecorderSettingsDto) {
   if (!settings.enabled) {
-    throw createVoiceRecorderError("O Voice Recorder esta desativado neste servidor.", 403);
+    throw createVoiceRecorderError("O Voice Recorder está desativado neste servidor.", 403);
   }
 
   if (!settings.allowedRoleIds.length) {
@@ -1099,7 +1099,7 @@ function ensureActorAllowed(settings: VoiceRecorderSettingsDto, actorRoleIds: st
   const allowed = new Set(settings.allowedRoleIds);
 
   if (!actorRoleIds.some((roleId) => allowed.has(roleId))) {
-    throw createVoiceRecorderError("Voce nao tem cargo autorizado para usar o Voice Recorder.", 403);
+    throw createVoiceRecorderError("Você não tem cargo autorizado para usar o Voice Recorder.", 403);
   }
 }
 
@@ -1249,7 +1249,7 @@ function emitRecordingEvent(action: string, recording: VoiceRecordingDto) {
 
 async function createVoiceRecorderLog(input: Parameters<typeof createLog>[0]) {
   return createLog(input).catch((error) => {
-    console.warn("[voice-recorder] nao foi possivel registrar log:", error instanceof Error ? error.message : error);
+    console.warn("[voice-recorder] não foi possível registrar log:", error instanceof Error ? error.message : error);
     return null;
   });
 }

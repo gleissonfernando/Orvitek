@@ -48,7 +48,7 @@ function applyPackedEnv() {
       }
     }
   } catch (error) {
-    console.warn("[bot env] APP_CONFIG_JSON/APP_CONFIG_B64 invalido:", error instanceof Error ? error.message : error);
+    console.warn("[bot env] APP_CONFIG_JSON/APP_CONFIG_B64 inválido:", error instanceof Error ? error.message : error);
   }
 }
 
@@ -73,7 +73,7 @@ function envUrl(name: string, fallback: string) {
     },
     z
       .string()
-      .refine((value) => value === "" || isValidUrl(value), `${name} precisa ser uma URL valida.`)
+      .refine((value) => value === "" || isValidUrl(value), `${name} precisa ser uma URL válida.`)
       .transform((value) => (value ? normalizeUrl(value) : ""))
   );
 }

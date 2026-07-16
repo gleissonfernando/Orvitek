@@ -402,7 +402,7 @@ fivemRouter.delete("/:guildId/hierarchy/panels/:panelId", requireAuth, async (re
     await assertCanManageFivemHierarchy(res.locals.dashboardAuth.user, guildId, botId);
     await assertDashboardHierarchyPanelAccess(res.locals.dashboardAuth.user, guildId, botId, panelId);
     const panel = await deleteFivemHierarchyPanel(guildId, botId, panelId, res.locals.dashboardAuth.user.discordId);
-    if (!panel) throw createRouteError("Painel de hierarquia nao encontrado.", 404);
+    if (!panel) throw createRouteError("Painel de hierarquia não encontrado.", 404);
     return res.json({ panel });
   } catch (error) {
     return next(error);
@@ -449,7 +449,7 @@ fivemRouter.patch("/:guildId/goals/configs/:metaId", requireAuth, async (req, re
     const input = goalConfigSchema.partial().parse(req.body);
     await validateGoalConfigResources(guildId, botId, input);
     const config = await updateFivemGoalConfig(guildId, botId, metaId, normalizeGoalConfigInput(input), res.locals.dashboardAuth.user.discordId);
-    if (!config) throw createRouteError("Meta nao encontrada.", 404);
+    if (!config) throw createRouteError("Meta não encontrada.", 404);
     return res.json({ config });
   } catch (error) {
     return next(error);
@@ -465,7 +465,7 @@ fivemRouter.delete("/:guildId/goals/configs/:metaId", requireAuth, async (req, r
     await assertCanManageFivemGoals(res.locals.dashboardAuth.user, guildId, botId);
     const deleteHistory = req.query.history === "1" || req.query.history === "true";
     const config = await deleteFivemGoalConfig(guildId, botId, metaId, res.locals.dashboardAuth.user.discordId, deleteHistory);
-    if (!config) throw createRouteError("Meta nao encontrada.", 404);
+    if (!config) throw createRouteError("Meta não encontrada.", 404);
     return res.json({ config });
   } catch (error) {
     return next(error);
@@ -484,7 +484,7 @@ fivemRouter.patch("/:guildId/goals/submissions/:submissionId", requireAuth, asyn
       status: z.enum(["approved", "refused"])
     }).parse(req.body);
     const submission = await moderateFivemGoalSubmission(guildId, botId, submissionId, res.locals.dashboardAuth.user.discordId, input.status, input.refusalReason);
-    if (!submission) throw createRouteError("Envio de meta nao encontrado.", 404);
+    if (!submission) throw createRouteError("Envio de meta não encontrado.", 404);
     return res.json({ submission });
   } catch (error) {
     return next(error);
@@ -502,7 +502,7 @@ fivemRouter.patch("/:guildId/goals", requireAuth, async (req, res, next) => {
     if (input.enabled === true && input.requestPanelEnabled !== false && !input.requestPanelChannelId) {
       const current = await getFivemGoalSettings(guildId, botId);
       if (!current.requestPanelChannelId) {
-        throw createRouteError("Voce precisa configurar o canal do painel de solicitacao de meta, pois o Pedido Set esta desativado.", 400);
+        throw createRouteError("Você precisa configurar o canal do painel de solicitação de meta, pois o Pedido Set está desativado.", 400);
       }
     }
     return res.json({
@@ -790,11 +790,11 @@ fivemRouter.put("/:guildId/fac/panel-image", requireAuth, facPhotoUpload, async 
     const mimeType = req.header("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
 
     if (!allowedFacPhotoMimeTypes.has(mimeType)) {
-      throw createRouteError("Formato invalido. Envie PNG, JPG, JPEG, WEBP ou GIF.", 400);
+      throw createRouteError("Formato inválido. Envie PNG, JPG, JPEG, WEBP ou GIF.", 400);
     }
 
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-      throw createRouteError("Arquivo de imagem obrigatorio.", 400);
+      throw createRouteError("Arquivo de imagem obrigatório.", 400);
     }
 
     return res.json({
@@ -817,11 +817,11 @@ fivemRouter.put("/:guildId/fac/absences/:absenceId/photo", requireAuth, facPhoto
     const mimeType = req.header("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
 
     if (!allowedFacPhotoMimeTypes.has(mimeType)) {
-      throw createRouteError("Formato invalido. Envie PNG, JPG, JPEG, WEBP ou GIF.", 400);
+      throw createRouteError("Formato inválido. Envie PNG, JPG, JPEG, WEBP ou GIF.", 400);
     }
 
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-      throw createRouteError("Arquivo de imagem obrigatorio.", 400);
+      throw createRouteError("Arquivo de imagem obrigatório.", 400);
     }
 
     const photoUrl = await saveFivemFacAbsencePhotoFile(guildId, absenceId, req.body, mimeType);
@@ -970,7 +970,7 @@ fivemRouter.get("/bot/fac/absences/:absenceId", requireBot, async (req, res, nex
 
     if (!absence) {
       return res.status(404).json({
-        message: "Ausencia nao encontrada."
+        message: "Ausência não encontrada."
       });
     }
 
@@ -1096,7 +1096,7 @@ async function readRequiredBotId(req: Parameters<typeof resolveRequestBotId>[0])
   const botId = await resolveRequestBotId(req);
 
   if (!botId) {
-    throw createRouteError("Bot vinculado obrigatorio para o modulo FiveM.", 400);
+    throw createRouteError("Bot vinculado obrigatório para o módulo FiveM.", 400);
   }
 
   return botId;
@@ -1109,7 +1109,7 @@ async function assertCanReadFac(user: AuthSessionUser, guildId: string, botId: s
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para acessar o FAC deste bot.", 403);
+  throw createRouteError("Você não tem permissão para acessar o FAC deste bot.", 403);
 }
 
 async function assertCanManageFac(user: AuthSessionUser, guildId: string, botId: string) {
@@ -1119,7 +1119,7 @@ async function assertCanManageFac(user: AuthSessionUser, guildId: string, botId:
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para configurar o FAC deste bot.", 403);
+  throw createRouteError("Você não tem permissão para configurar o FAC deste bot.", 403);
 }
 
 async function assertCanReadFivemGoals(user: AuthSessionUser, guildId: string, botId: string) {
@@ -1129,7 +1129,7 @@ async function assertCanReadFivemGoals(user: AuthSessionUser, guildId: string, b
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para acessar metas FiveM deste bot.", 403);
+  throw createRouteError("Você não tem permissão para acessar metas FiveM deste bot.", 403);
 }
 
 async function assertCanManageFivemGoals(user: AuthSessionUser, guildId: string, botId: string) {
@@ -1139,7 +1139,7 @@ async function assertCanManageFivemGoals(user: AuthSessionUser, guildId: string,
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para configurar metas FiveM deste bot.", 403);
+  throw createRouteError("Você não tem permissão para configurar metas FiveM deste bot.", 403);
 }
 
 async function assertCanReadFivemHierarchy(user: AuthSessionUser, guildId: string, botId: string) {
@@ -1149,7 +1149,7 @@ async function assertCanReadFivemHierarchy(user: AuthSessionUser, guildId: strin
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para acessar Hierarquia FAQ deste bot.", 403);
+  throw createRouteError("Você não tem permissão para acessar Hierarquia FAQ deste bot.", 403);
 }
 
 async function assertCanManageFivemHierarchy(user: AuthSessionUser, guildId: string, botId: string) {
@@ -1159,14 +1159,14 @@ async function assertCanManageFivemHierarchy(user: AuthSessionUser, guildId: str
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para configurar Hierarquia FAQ deste bot.", 403);
+  throw createRouteError("Você não tem permissão para configurar Hierarquia FAQ deste bot.", 403);
 }
 
 async function assertDashboardHierarchyPanelAccess(user: AuthSessionUser, guildId: string, botId: string, panelId: string) {
   const global = user.accessLevel === "admin" || user.accessLevel === "moderator";
   if (global) return;
   const panel = await getFivemHierarchyPanel(guildId, panelId, botId);
-  if (!panel) throw createRouteError("Painel de hierarquia nao encontrado.", 404);
+  if (!panel) throw createRouteError("Painel de hierarquia não encontrado.", 404);
   if (panel.createdBy === user.discordId || panel.managerUserIds.includes(user.discordId) || panel.commandUserIds.includes(user.discordId)) return;
   if (await userHasAnyGuildRole(guildId, user.discordId, [...panel.managerRoleIds, ...panel.commandRoleIds, ...panel.allowedRoleIds], await getDevBotToken(botId))) return;
   await assertCanManageFivemHierarchyPanel(guildId, botId, panelId, user.discordId, [], false);
@@ -1176,11 +1176,11 @@ async function assertBotFivemGoalsLicense(botId: string) {
   const permissions = await getBotApiPermissions(botId);
 
   if (!permissions) {
-    throw createRouteError("Bot nao encontrado.", 404);
+    throw createRouteError("Bot não encontrado.", 404);
   }
 
   if (!permissions.enabledModules.includes(FIVEM_GOALS_MODULE_ID)) {
-    throw createRouteError("O sistema de metas FiveM nao foi liberado para este cliente.", 403);
+    throw createRouteError("O sistema de metas FiveM não foi liberado para este cliente.", 403);
   }
 }
 
@@ -1188,11 +1188,11 @@ async function assertBotFivemHierarchyLicense(botId: string) {
   const permissions = await getBotApiPermissions(botId);
 
   if (!permissions) {
-    throw createRouteError("Bot nao encontrado.", 404);
+    throw createRouteError("Bot não encontrado.", 404);
   }
 
   if (!permissions.enabledModules.includes(FIVEM_HIERARCHY_MODULE_ID)) {
-    throw createRouteError("O sistema Hierarquia FAQ FiveM nao foi liberado para este cliente.", 403);
+    throw createRouteError("O sistema Hierarquia FAQ FiveM não foi liberado para este cliente.", 403);
   }
 }
 
@@ -1200,11 +1200,11 @@ async function assertBotFacLicense(botId: string) {
   const permissions = await getBotApiPermissions(botId);
 
   if (!permissions) {
-    throw createRouteError("Bot nao encontrado.", 404);
+    throw createRouteError("Bot não encontrado.", 404);
   }
 
   if (!hasAnyFacModule(permissions.enabledModules)) {
-    throw createRouteError("O sistema FAC nao foi liberado para este cliente FiveM.", 403);
+    throw createRouteError("O sistema FAC não foi liberado para este cliente FiveM.", 403);
   }
 }
 
@@ -1240,7 +1240,7 @@ async function validateFacResources(guildId: string, botId: string, input: z.inf
   );
 
   if (!channelChecks.every(Boolean)) {
-    throw createRouteError("Um dos canais selecionados nao pertence a este servidor.", 400);
+    throw createRouteError("Um dos canais selecionados não pertence a este servidor.", 400);
   }
 
   if (input.panelChannelId) {
@@ -1256,14 +1256,14 @@ async function validateFacResources(guildId: string, botId: string, input: z.inf
   ].filter((roleId): roleId is string => typeof roleId === "string" && Boolean(roleId));
 
   if (roleIds.length && !(await areGuildRoles(guildId, [...new Set(roleIds)], botToken))) {
-    throw createRouteError("Um dos cargos selecionados nao pertence a este servidor.", 400);
+    throw createRouteError("Um dos cargos selecionados não pertence a este servidor.", 400);
   }
 
   if (
     input.absenceRoleId
     && !(await areGuildAssignableRoles(guildId, [input.absenceRoleId], botToken))
   ) {
-    throw createRouteError("O cargo de ausencia precisa ficar abaixo do cargo do bot e o bot precisa gerenciar cargos.", 400);
+    throw createRouteError("O cargo de ausência precisa ficar abaixo do cargo do bot e o bot precisa gerenciar cargos.", 400);
   }
 }
 
@@ -1276,12 +1276,12 @@ async function validateGoalResources(guildId: string, botId: string, input: z.in
   );
 
   if (!channelChecks.every(Boolean)) {
-    throw createRouteError("Um dos canais selecionados nao pertence a este servidor.", 400);
+    throw createRouteError("Um dos canais selecionados não pertence a este servidor.", 400);
   }
 
   if (input.categoryId) {
     if (!(await isGuildCategoryChannel(guildId, input.categoryId, botToken))) {
-      throw createRouteError("A categoria de metas nao pertence a este servidor.", 400);
+      throw createRouteError("A categoria de metas não pertence a este servidor.", 400);
     }
   }
   if (input.requestPanelChannelId) {
@@ -1290,7 +1290,7 @@ async function validateGoalResources(guildId: string, botId: string, input: z.in
 
   const roleIds = [input.viewRoleId, input.managerRoleId].filter((roleId): roleId is string => typeof roleId === "string" && Boolean(roleId));
   if (roleIds.length && !(await areGuildRoles(guildId, [...new Set(roleIds)], botToken))) {
-    throw createRouteError("Um dos cargos selecionados nao pertence a este servidor.", 400);
+    throw createRouteError("Um dos cargos selecionados não pertence a este servidor.", 400);
   }
 }
 
@@ -1303,7 +1303,7 @@ async function validateGoalConfigResources(guildId: string, botId: string, input
   );
 
   if (!channelChecks.every(Boolean)) {
-    throw createRouteError("Um dos canais selecionados nao pertence a este servidor.", 400);
+    throw createRouteError("Um dos canais selecionados não pertence a este servidor.", 400);
   }
 
   if (input.panelChannelId) {
@@ -1320,7 +1320,7 @@ async function validateGoalConfigResources(guildId: string, botId: string, input
   ];
 
   if (roleIds.length && !(await areGuildRoles(guildId, [...new Set(roleIds)], botToken))) {
-    throw createRouteError("Um dos cargos selecionados nao pertence a este servidor.", 400);
+    throw createRouteError("Um dos cargos selecionados não pertence a este servidor.", 400);
   }
 }
 
@@ -1330,7 +1330,7 @@ async function validateHierarchyResources(guildId: string, botId: string, input:
   const channelChecks = await Promise.all([...new Set(channelIds)].map((channelId) => isGuildTextChannel(guildId, channelId, botToken)));
 
   if (!channelChecks.every(Boolean)) {
-    throw createRouteError("Um dos canais selecionados nao pertence a este servidor.", 400);
+    throw createRouteError("Um dos canais selecionados não pertence a este servidor.", 400);
   }
 
   const roleIds = [
@@ -1341,11 +1341,11 @@ async function validateHierarchyResources(guildId: string, botId: string, input:
   ].filter(Boolean);
 
   if (roleIds.length && !(await areGuildRoles(guildId, [...new Set(roleIds)], botToken))) {
-    throw createRouteError("Um dos cargos selecionados nao pertence a este servidor.", 400);
+    throw createRouteError("Um dos cargos selecionados não pertence a este servidor.", 400);
   }
   const hierarchyUserIds = [...(input.managerUserIds ?? []), ...(input.commandUserIds ?? [])];
   if (hierarchyUserIds.length && !(await areGuildMembers(guildId, [...new Set(hierarchyUserIds)], botToken))) {
-    throw createRouteError("Um dos gestores selecionados nao pertence a este servidor.", 400);
+    throw createRouteError("Um dos gestores selecionados não pertence a este servidor.", 400);
   }
 }
 
@@ -1354,7 +1354,7 @@ async function assertPanelChannelReady(guildId: string, botId: string, channelId
 
   if (!validation.ok) {
     throw createRouteError(
-      validation.reason ?? "Nao foi possivel validar as permissoes do bot no canal do painel.",
+      validation.reason ?? "Não foi possível validar as permissões do bot no canal do painel.",
       400
     );
   }

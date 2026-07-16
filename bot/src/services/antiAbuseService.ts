@@ -59,7 +59,7 @@ export async function handleAntiAbuseVoiceStateUpdate(oldState: VoiceState, newS
   const audit = await findVoiceAbuseExecutor(oldState, newState, action);
   if (!audit.executorId) {
     if (audit.reason) {
-      await writeAntiAbuseLog(context, guild.id, config, "anti_abuse.audit_failed", `Anti Abuse nao conseguiu ler o audit log para ${member.user.tag}: ${audit.reason}.`, {
+      await writeAntiAbuseLog(context, guild.id, config, "anti_abuse.audit_failed", `Anti Abuse não conseguiu ler o audit log para ${member.user.tag}: ${audit.reason}.`, {
         action,
         botId,
         channelId: oldState.channelId ?? newState.channelId,
@@ -247,10 +247,10 @@ async function revertAbuseAction(
 
 async function validateMovePermissions(member: GuildMember, channel: VoiceBasedChannel) {
   const botMember = member.guild.members.me ?? await member.guild.members.fetchMe().catch(() => null);
-  if (!botMember) return "Anti Abuse nao conseguiu validar o bot no servidor.";
+  if (!botMember) return "Anti Abuse não conseguiu validar o bot no servidor.";
   const permissions = channel.permissionsFor(botMember);
   if (!permissions?.has(PermissionFlagsBits.ViewChannel) || !permissions.has(PermissionFlagsBits.Connect) || !permissions.has(PermissionFlagsBits.MoveMembers)) {
-    return "Anti Abuse sem permissao para ver, conectar ou mover membros no canal.";
+    return "Anti Abuse sem permissão para ver, conectar ou mover membros no canal.";
   }
   if (member.guild.ownerId !== member.id && botMember.roles.highest.comparePositionTo(member.roles.highest) <= 0) {
     return "Anti Abuse sem hierarquia acima da vitima.";
@@ -260,11 +260,11 @@ async function validateMovePermissions(member: GuildMember, channel: VoiceBasedC
 
 async function validateMutePermissions(member: GuildMember, channel: VoiceBasedChannel | null, action: "mute" | "deafen") {
   const botMember = member.guild.members.me ?? await member.guild.members.fetchMe().catch(() => null);
-  if (!botMember) return "Anti Abuse nao conseguiu validar o bot no servidor.";
+  if (!botMember) return "Anti Abuse não conseguiu validar o bot no servidor.";
   const permissions = channel ? channel.permissionsFor(botMember) : botMember.permissions;
   const required = action === "mute" ? PermissionFlagsBits.MuteMembers : PermissionFlagsBits.DeafenMembers;
   if (!permissions?.has(PermissionFlagsBits.ViewChannel) || !permissions.has(required)) {
-    return action === "mute" ? "Anti Abuse sem permissao para ver o canal ou mutar/desmutar membros." : "Anti Abuse sem permissao para ver o canal ou gerenciar deafen.";
+    return action === "mute" ? "Anti Abuse sem permissão para ver o canal ou mutar/desmutar membros." : "Anti Abuse sem permissão para ver o canal ou gerenciar deafen.";
   }
   if (member.guild.ownerId !== member.id && botMember.roles.highest.comparePositionTo(member.roles.highest) <= 0) {
     return "Anti Abuse sem hierarquia acima da vitima.";

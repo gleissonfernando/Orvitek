@@ -16,7 +16,7 @@ export async function requireModerationLogDestination(interaction: ChatInputComm
     return settings.logChannelId;
   }
 
-  const content = "Configure um canal em Dashboard > Logs: ative Logs no Discord, selecione o Canal de logs e marque Moderacao e seguranca.";
+  const content = "Configure um canal em Dashboard > Logs: ative Logs no Discord, selecione o Canal de logs e marque Moderacao e segurança.";
 
   if (interaction.deferred || interaction.replied) {
     await interaction.editReply({ content });

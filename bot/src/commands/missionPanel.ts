@@ -8,7 +8,7 @@ export const missionPanelCommand: BotCommand = {
     .setDescription("Publish or update the Mission Tools Control Center.")
     .addChannelOption((option) => option
       .setName("canal")
-      .setDescription("Canal onde o Control Center sera publicado.")
+      .setDescription("Canal onde o Control Center será publicado.")
       .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
       .setRequired(false)
     )

@@ -78,7 +78,7 @@ export function FivemFinancePanel({
         setChannels(live.channels);
         setRoles(live.roles);
       })
-      .catch(() => setError("Nao foi possivel carregar o financeiro da FAC."));
+      .catch(() => setError("Não foi possível carregar o financeiro da FAC."));
   }
 
   useEffect(() => {
@@ -155,7 +155,7 @@ export function FivemFinancePanel({
       setDashboard((current) => (current ? { ...current, settings } : current));
       setMessage("Financeiro salvo.");
     } catch {
-      setError("Nao foi possivel salvar as configuracoes.");
+      setError("Não foi possível salvar as configurações.");
     } finally {
       setSaving(false);
     }
@@ -167,9 +167,9 @@ export function FivemFinancePanel({
     try {
       const settings = await publishFivemFinancePanel(guildId, botId);
       setDashboard((current) => (current ? { ...current, settings } : current));
-      setMessage("Publicacao do painel financeiro enviada ao bot.");
+      setMessage("Publicação do painel financeiro enviada ao bot.");
     } catch {
-      setError("Nao foi possivel publicar o painel.");
+      setError("Não foi possível publicar o painel.");
     } finally {
       setSaving(false);
     }
@@ -193,7 +193,7 @@ export function FivemFinancePanel({
     );
   }
   async function cancel(item: FivemFinanceTransaction) {
-    if (!window.confirm("Cancelar esta movimentacao?")) return;
+    if (!window.confirm("Cancelar esta movimentação?")) return;
     const updated = await updateFivemFinanceTransaction(
       guildId,
       item.id,
@@ -270,8 +270,8 @@ export function FivemFinancePanel({
         <div className="flex flex-wrap border-b border-zinc-800">
           {[
             { id: "overview", label: "Resumo" },
-            { id: "settings", label: "Configuracoes" },
-            { id: "history", label: "Historico" },
+            { id: "settings", label: "Configurações" },
+            { id: "history", label: "Histórico" },
           ].map((item) => (
             <button
               className={`border-b-2 px-4 py-2 text-sm ${tab === item.id ? "border-emerald-400 text-white" : "border-transparent text-zinc-500 hover:text-zinc-300"}`}
@@ -315,7 +315,7 @@ function Overview({ dashboard }: { dashboard: FivemFinanceDashboard }) {
     ["Saldo atual", dashboard.report.balance, Wallet],
     ["Total de entradas", dashboard.report.totalIn, CircleDollarSign],
     ["Total de saidas", dashboard.report.totalOut, Download],
-    ["Movimentacoes", dashboard.report.transactions, CheckCircle2],
+    ["Movimentações", dashboard.report.transactions, CheckCircle2],
   ] as const;
   const active = dashboard.transactions.filter((item) => item.status !== "cancelled");
   const last = active[0];
@@ -329,7 +329,7 @@ function Overview({ dashboard }: { dashboard: FivemFinanceDashboard }) {
             <Icon className="h-4 w-4 text-emerald-300" />
             <p className="mt-3 text-xs text-zinc-500">{label}</p>
             <p className="mt-1 text-lg font-semibold text-white">
-              {typeof value === "number" && label !== "Movimentacoes"
+              {typeof value === "number" && label !== "Movimentações"
                 ? money(value)
                 : value}
             </p>
@@ -384,7 +384,7 @@ function TopList({
             </div>
           ))
         ) : (
-          <p className="text-sm text-zinc-500">Sem movimentacoes.</p>
+          <p className="text-sm text-zinc-500">Sem movimentações.</p>
         )}
       </div>
     </section>
@@ -492,14 +492,14 @@ function Settings({
         />
         <Field
           disabled={!canManage}
-          label="Imagem de rodape opcional"
+          label="Imagem de rodapé opcional"
           onChange={(footerImageUrl) => patch({ footerImageUrl })}
           value={settings.footerImageUrl ?? ""}
         />
       </div>
       <Area
         disabled={!canManage}
-        label="Descricao explicativa do painel"
+        label="Descrição explicativa do painel"
         onChange={(panelDescription) => patch({ panelDescription })}
         value={settings.panelDescription}
       />
@@ -567,7 +567,7 @@ function Settings({
       </div>
       <Area
         disabled={!canManage}
-        label="Texto de rodape opcional"
+        label="Texto de rodapé opcional"
         onChange={(footerText) => patch({ footerText })}
         value={settings.footerText ?? ""}
       />
@@ -605,7 +605,7 @@ function History({
     <div className="space-y-4">
       <div className="grid gap-2 md:grid-cols-5">
         <Field
-          label="Buscar usuario/ID"
+          label="Buscar usuário/ID"
           onChange={(search) => onFilter({ ...filter, search })}
           value={filter.search}
         />
@@ -646,12 +646,12 @@ function History({
         <table className="min-w-full divide-y divide-zinc-800 text-sm">
           <thead className="bg-black/30 text-left text-xs uppercase text-zinc-500">
             <tr>
-              <th className="px-3 py-2">Movimentacao</th>
-              <th className="px-3 py-2">Usuario</th>
+              <th className="px-3 py-2">Movimentação</th>
+              <th className="px-3 py-2">Usuário</th>
               <th className="px-3 py-2">Valor</th>
               <th className="px-3 py-2">Saldo</th>
               <th className="px-3 py-2">Comprovante</th>
-              <th className="px-3 py-2">Acoes</th>
+              <th className="px-3 py-2">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-900">
@@ -659,7 +659,7 @@ function History({
               <tr key={item.id}>
                 <td className="px-3 py-2">
                   <Badge variant={item.type === "add" ? "success" : "danger"}>
-                    {item.type === "add" ? "Entrada" : "Saida"}
+                    {item.type === "add" ? "Entrada" : "Saída"}
                   </Badge>
                   <p className="mt-1 text-xs text-zinc-500">
                     {item.transactionId}

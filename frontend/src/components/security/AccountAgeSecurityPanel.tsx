@@ -85,7 +85,7 @@ export function AccountAgeSecurityPanel({
 
     if (!isDiscordId(userId)) {
       setStatus(null);
-      setError("Informe um ID Discord valido para adicionar a excecao.");
+      setError("Informe um ID Discord válido para adicionar a excecao.");
       return;
     }
 
@@ -122,7 +122,7 @@ export function AccountAgeSecurityPanel({
       }, botId);
 
       onSettingsChange(saved);
-      setStatus("Seguranca por idade da conta salva.");
+      setStatus("Segurança por idade da conta salva.");
     } catch (requestError) {
       setError(readErrorMessage(requestError, "Não foi possível salvar a segurança por idade da conta."));
     } finally {
@@ -152,8 +152,8 @@ export function AccountAgeSecurityPanel({
                 <ShieldAlert className="h-5 w-5 text-zinc-200" />
               </div>
               <div>
-                <CardTitle>Seguranca por idade da conta</CardTitle>
-                <CardDescription>Remove automaticamente contas Discord mais novas que o minimo configurado.</CardDescription>
+                <CardTitle>Segurança por idade da conta</CardTitle>
+                <CardDescription>Remove automaticamente contas Discord mais novas que o mínimo configurado.</CardDescription>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -174,7 +174,7 @@ export function AccountAgeSecurityPanel({
             <label className="grid gap-2 text-sm">
               <span className="flex items-center gap-2 font-medium text-zinc-200">
                 <CalendarDays className="h-4 w-4 text-zinc-400" />
-                Minimo de dias da conta
+                Mínimo de dias da conta
               </span>
               <input
                 className="h-11 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-[#FFD500]/60"
@@ -210,7 +210,7 @@ export function AccountAgeSecurityPanel({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="flex items-center gap-2 text-sm font-medium text-zinc-100">
                 <UserCheck className="h-4 w-4 text-zinc-400" />
-                Usuarios em excecao
+                Usuários em excecao
               </span>
               <span className="text-xs text-zinc-500">{draft.accountAgeAllowedUserIds.length} usuário(s)</span>
             </div>

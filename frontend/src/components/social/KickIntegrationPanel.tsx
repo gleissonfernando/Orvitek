@@ -491,13 +491,13 @@ function KickNotificationCard({
       {totalPages > 1 ? (
         <div className="mt-4 flex items-center justify-between gap-3 border-t border-zinc-900 pt-4">
           <p className="text-xs text-zinc-500">
-            Pagina <span className="font-medium text-zinc-200">{page}</span> de {totalPages.toLocaleString("pt-BR")}
+            Página <span className="font-medium text-zinc-200">{page}</span> de {totalPages.toLocaleString("pt-BR")}
           </p>
           <div className="flex gap-2">
-            <Button disabled={page <= 1} onClick={() => onPageChange(page - 1)} size="icon" title="Pagina anterior" variant="outline">
+            <Button disabled={page <= 1} onClick={() => onPageChange(page - 1)} size="icon" title="Página anterior" variant="outline">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button disabled={page >= totalPages} onClick={() => onPageChange(page + 1)} size="icon" title="Proxima pagina" variant="outline">
+            <Button disabled={page >= totalPages} onClick={() => onPageChange(page + 1)} size="icon" title="Próxima página" variant="outline">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
@@ -551,7 +551,7 @@ function KickChannelItem({
 
           <div className="grid gap-2 text-xs text-zinc-500 sm:grid-cols-4 lg:min-w-[520px]">
             <Fact label="Canal Discord" value={channelName} />
-            <Fact label="Mencao" value={roleName} />
+            <Fact label="Menção" value={roleName} />
             <Fact label="Pico" value={String(notification.peakViewers ?? 0)} />
             <div className="rounded-lg border border-zinc-900 bg-black/40 p-3">
               <p>Cor da embed</p>
@@ -725,7 +725,7 @@ function AddKickChannelModal({
           <Field label="Cargo para mencionar">
             <select className="social-input" onChange={(event) => setMentionRoleId(event.target.value)} value={mentionRoleId}>
               <option value="everyone">@everyone</option>
-              <option value="">Sem mencao</option>
+              <option value="">Sem menção</option>
               {options.roles
                 .filter((role) => role.name !== "@everyone")
                 .map((role) => (
@@ -848,7 +848,7 @@ function EditKickChannelModal({
         <Field label="Cargo para mencionar">
           <select className="social-input" onChange={(event) => setMentionRoleId(event.target.value)} value={mentionRoleId}>
             <option value="everyone">@everyone</option>
-            <option value="">Sem mencao</option>
+            <option value="">Sem menção</option>
             {options.roles
               .filter((role) => role.name !== "@everyone")
               .map((role) => (

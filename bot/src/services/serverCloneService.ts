@@ -112,7 +112,7 @@ export async function handleServerCloneInteraction(interaction: Interaction, con
     const sourceInput = new TextInputBuilder()
       .setCustomId("sourceGuildId")
       .setLabel("ID do servidor de origem")
-      .setPlaceholder("Servidor que sera copiado")
+      .setPlaceholder("Servidor que será copiado")
       .setRequired(true)
       .setStyle(TextInputStyle.Short);
     const destinationInput = new TextInputBuilder()
@@ -192,7 +192,7 @@ export async function handleServerCloneInteraction(interaction: Interaction, con
     const job = jobs.get(customId.split(":")[1] ?? "");
 
     if (!job || job.userId !== interaction.user.id) {
-      await interaction.reply({ content: "Essa clonagem expirou ou pertence a outro usuario.", ephemeral: true });
+      await interaction.reply({ content: "Essa clonagem expirou ou pertence a outro usuário.", ephemeral: true });
       return true;
     }
 
@@ -200,7 +200,7 @@ export async function handleServerCloneInteraction(interaction: Interaction, con
     const destinationGuild = context.client.guilds.cache.get(job.destinationGuildId);
 
     if (!sourceGuild || !destinationGuild) {
-      await interaction.reply({ content: "Servidor de origem ou destino nao encontrado.", ephemeral: true });
+      await interaction.reply({ content: "Servidor de origem ou destino não encontrado.", ephemeral: true });
       return true;
     }
 
@@ -218,7 +218,7 @@ export function serverClonePanelPayload(ephemeral = true) {
       type: 17,
       accent_color: 0x111827,
       components: [
-        { type: 10, content: "# Sistema de Clonagem\nApenas a estrutura autorizada sera clonada: cargos, categorias, canais e permissoes basicas. Mensagens, membros, webhooks privados e dados sensiveis nao sao copiados." },
+        { type: 10, content: "# Sistema de Clonagem\nApenas a estrutura autorizada será clonada: cargos, categorias, canais e permissões básicas. Mensagens, membros, webhooks privados e dados sensíveis não são copiados." },
         { type: 14, divider: true, spacing: 1 },
         {
           type: 1,
@@ -293,7 +293,7 @@ async function runServerClone(
     await cloneChannels(sourceGuild, destinationGuild, roleMap, categoryMap, stats, job.report, ChannelType.GuildVoice, job.plan);
   }
 
-  await interaction.editReply(serverCloneProgress(job, "Aplicando permissoes...")).catch(() => undefined);
+  await interaction.editReply(serverCloneProgress(job, "Aplicando permissões...")).catch(() => undefined);
   await wait(500);
 
   if (job.plan) {
@@ -547,7 +547,7 @@ async function validateCloneAccess(sourceGuild: Guild, destinationGuild: Guild, 
   ]);
 
   if (!sourceMember || !destinationMember) {
-    return "Voce precisa estar nos dois servidores para autorizar a clonagem.";
+    return "Você precisa estar nos dois servidores para autorizar a clonagem.";
   }
 
   const sourceGuard = await validateAdmin(sourceGuild, sourceMember, userId);
@@ -588,7 +588,7 @@ async function validateBotPermissions(guild: Guild, label: string) {
   const permissions = me?.permissions;
 
   if (!permissions) {
-    return `Nao consegui validar minhas permissoes no servidor de ${label}.`;
+    return `Não consegui validar minhas permissoes no servidor de ${label}.`;
   }
 
   const required = [
@@ -684,14 +684,14 @@ async function sendServerCloneLog(source: Guild, destination: Guild, job: Server
 
   await channel.send({
     content: [
-      "Relatorio de Clonagem de Servidor",
+      "Relatório de Clonagem de Servidor",
       `Quem iniciou: <@${job.userId}>`,
       `Origem: ${source.name} (${source.id})`,
       `Destino: ${destination.name} (${destination.id})`,
       `Data: ${new Date().toLocaleString("pt-BR")}`,
       `Itens clonados: cargos ${stats.roles}, categorias ${stats.categories}, texto ${stats.text}, voz ${stats.voice}`,
       `Status final: ${job.status}`,
-      job.report.length ? `Observacoes:\n${job.report.slice(0, 12).join("\n")}` : "Observacoes: nenhuma falha registrada."
+      job.report.length ? `Observacoes:\n${job.report.slice(0, 12).join("\n")}` : "Observações: nenhuma falha registrada."
     ].join("\n")
   }).catch(() => undefined);
 }

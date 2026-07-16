@@ -6,7 +6,7 @@ const CONFIRMATION_TEXT = "APAGAR TUDO";
 export const deleteServeCommand: BotCommand = {
   data: new SlashCommandBuilder()
     .setName("delete-serve")
-    .setDescription("Apaga canais e cargos editaveis do servidor com confirmacao do dono.")
+    .setDescription("Apaga canais e cargos editaveis do servidor com confirmação do dono.")
     .addStringOption((option) => option
       .setName("confirmar")
       .setDescription(`Digite exatamente: ${CONFIRMATION_TEXT}`)
@@ -32,7 +32,7 @@ export const deleteServeCommand: BotCommand = {
     const confirmation = interaction.options.getString("confirmar", true).trim();
     if (confirmation !== CONFIRMATION_TEXT) {
       await interaction.reply({
-        content: `Confirmacao invalida. Para apagar, use /delete-serve confirmar:${CONFIRMATION_TEXT}`,
+        content: `Confirmacao inválida. Para apagar, use /delete-serve confirmar:${CONFIRMATION_TEXT}`,
         ephemeral: true
       });
       return;
@@ -41,7 +41,7 @@ export const deleteServeCommand: BotCommand = {
     const me = interaction.guild.members.me ?? await interaction.guild.members.fetchMe().catch(() => null);
     if (!me?.permissions.has(PermissionFlagsBits.ManageChannels) || !me.permissions.has(PermissionFlagsBits.ManageRoles)) {
       await interaction.reply({
-        content: "O bot precisa das permissoes Gerenciar Canais e Gerenciar Cargos.",
+        content: "O bot precisa das permissões Gerenciar Canais e Gerenciar Cargos.",
         ephemeral: true
       });
       return;

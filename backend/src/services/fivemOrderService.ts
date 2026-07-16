@@ -46,7 +46,7 @@ export function defaultFivemOrderSettings(guildId: string, botId: string | null 
     createRoleIds: [],
     deliveryChannelId: null,
     enabled: false,
-    errorMessage: "Nao foi possivel criar a encomenda. Confira os dados e tente novamente.",
+    errorMessage: "Não foi possível criar a encomenda. Confira os dados e tente novamente.",
     finishRoleIds: [],
     editValueRoleIds: [],
     footerText: "Encomendas registradas e acompanhadas pela equipe.",
@@ -114,7 +114,7 @@ export async function updateFivemOrderFamily(guildId: string, botId: string | nu
 export async function deleteFivemOrderFamily(guildId: string, botId: string | null, familyId: string, actorId: string | null) {
   const normalizedBotId = normalizeBotId(botId);
   const { fivemOrderFamilies, fivemOrders } = await getMongoCollections();
-  if (await fivemOrders.findOne({ ...scopeQuery(guildId, normalizedBotId), familyId, status: { $in: ["open", "pending_approval", "approved", "in_production", "ready"] } })) throw orderError("A familia possui lavagem/encomenda em andamento e nao pode ser excluida agora.", 409);
+  if (await fivemOrders.findOne({ ...scopeQuery(guildId, normalizedBotId), familyId, status: { $in: ["open", "pending_approval", "approved", "in_production", "ready"] } })) throw orderError("A família possui lavagem/encomenda em andamento e não pode ser excluida agora.", 409);
   const row = await fivemOrderFamilies.findOneAndUpdate(
     { _id: familyId, ...scopeQuery(guildId, normalizedBotId) },
     { $set: { active: false, deletedAt: new Date(), deletedBy: actorId, updatedAt: new Date(), updatedBy: actorId } },
@@ -202,14 +202,14 @@ export async function createFivemOrder(input: {
 }) {
   const botId = normalizeBotId(input.botId);
   const settings = await getFivemOrderSettings(input.guildId, botId);
-  if (!settings.enabled) throw orderError("O sistema de encomendas esta desativado.", 403);
+  if (!settings.enabled) throw orderError("O sistema de encomendas está desativado.", 403);
   const { fivemOrderFamilies, fivemOrderProducts, fivemOrders } = await getMongoCollections();
   if (input.sourceId) {
     const duplicate = await fivemOrders.findOne({ ...scopeQuery(input.guildId, botId), sourceId: input.sourceId });
     if (duplicate) return toOrderDto(duplicate);
   }
   let product = await fivemOrderProducts.findOne({ _id: input.productId, ...scopeQuery(input.guildId, botId), active: true });
-  if (!product) throw orderError("Produto indisponivel.", 404);
+  if (!product) throw orderError("Produto indisponível.", 404);
   if (product.type === "washing") {
     const gross = clampNumber(input.grossValue, 0, 1_000_000_000_000, 0);
     const matchingRule = await findWashingRuleForGrossValue(input.guildId, botId, gross);
@@ -217,10 +217,10 @@ export async function createFivemOrder(input: {
   }
   const moduleId = product.type === "standard" ? "custom" : product.type;
   const family = await fivemOrderFamilies.findOne({ _id: input.familyId, ...scopeQuery(input.guildId, botId), ...activeFamilyQuery() });
-  if (!family) throw orderError("Selecione uma familia ativa para criar a encomenda.", 400);
+  if (!family) throw orderError("Selecione uma família ativa para criar a encomenda.", 400);
   const familyModules = normalizeOrderModules(family.orderModules ?? []);
-  if (familyModules.length && !familyModules.includes(moduleId as "washing" | "ammo" | "drug" | "weapon" | "custom")) throw orderError("Esta familia nao atende este tipo de encomenda.", 403);
-  if (!settings.enabledOrderModules.includes(moduleId as "washing" | "ammo" | "drug" | "weapon" | "custom")) throw orderError("Este modulo de encomenda esta desativado.", 403);
+  if (familyModules.length && !familyModules.includes(moduleId as "washing" | "ammo" | "drug" | "weapon" | "custom")) throw orderError("Esta família não atende este tipo de encomenda.", 403);
+  if (!settings.enabledOrderModules.includes(moduleId as "washing" | "ammo" | "drug" | "weapon" | "custom")) throw orderError("Este módulo de encomenda está desativado.", 403);
   const quantity = product.type === "washing" ? 1 : clampNumber(input.quantity, product.minimumQuantity ?? 1, product.maximumQuantity ?? 1_000_000, product.defaultQuantity ?? 1);
   if (product.type !== "washing" && (input.quantity < (product.minimumQuantity ?? 1) || input.quantity > (product.maximumQuantity ?? 1_000_000))) throw orderError(`A quantidade deve ficar entre ${product.minimumQuantity ?? 1} e ${product.maximumQuantity ?? 1_000_000}.`, 400);
   const washingPercentage = product.type === "washing" ? resolveWashingPercentage(product, input.washingPercentage) : null;
@@ -230,7 +230,7 @@ export async function createFivemOrder(input: {
   const status: MongoFivemOrderStatus = effectiveSettings.approvalRequired ? "pending_approval" : "open";
   const orderNumber = await nextOrderNumber(input.guildId, botId);
   const doc: MongoFivemOrder = {
-    _id: randomUUID(), botId, category: product.category, clientName: normalizeText(input.clientName, 120) || "Cliente nao informado", costTotal: totals.costTotal,
+    _id: randomUUID(), botId, category: product.category, clientName: normalizeText(input.clientName, 120) || "Cliente não informado", costTotal: totals.costTotal,
     createdAt: now, expectedDelivery: normalizeDate(input.expectedDelivery), familyId: family._id, familyName: family.name, finalValue: totals.finalValue, grossValue: totals.grossValue, guildId: input.guildId,
     history: [{ actorId: input.userId, at: now, from: null, note: null, to: status }], notes: effectiveSettings.allowCustomNotes ? normalizeText(input.notes, 1000) : null,
     orderNumber, productId: product._id, productName: product.name, profit: totals.profit, proofUrl: effectiveSettings.allowAttachments ? normalizeUrl(input.proofUrl) : null,
@@ -390,7 +390,7 @@ function normalizeSettings(value: FivemOrderSettingsDto): FivemOrderSettingsDto 
     adminRoleIds: normalizeSnowflakes(value.adminRoleIds), approvalChannelId: normalizeSnowflake(value.approvalChannelId), botId: normalizeBotId(value.botId),
     approveRoleIds: normalizeSnowflakes(value.approveRoleIds), editValueRoleIds: normalizeSnowflakes(value.editValueRoleIds),
     cancelRoleIds: normalizeSnowflakes(value.cancelRoleIds), color: /^#[0-9a-f]{6}$/i.test(value.color) ? value.color : "#22c55e", createRoleIds: normalizeSnowflakes(value.createRoleIds),
-    deliveryChannelId: normalizeSnowflake(value.deliveryChannelId), errorMessage: normalizeText(value.errorMessage, 500) || "Nao foi possivel criar a encomenda.", finishRoleIds: normalizeSnowflakes(value.finishRoleIds),
+    deliveryChannelId: normalizeSnowflake(value.deliveryChannelId), errorMessage: normalizeText(value.errorMessage, 500) || "Não foi possível criar a encomenda.", finishRoleIds: normalizeSnowflakes(value.finishRoleIds),
     enabledOrderModules: normalizeOrderModules(value.enabledOrderModules), footerText: normalizeText(value.footerText, 200), logChannelId: normalizeSnowflake(value.logChannelId), maxOpenHours: clampNumber(value.maxOpenHours, 1, 8760, 72),
     orderCancelledMessage: normalizeText(value.orderCancelledMessage, 500) || "Encomenda cancelada.", orderCreatedMessage: normalizeText(value.orderCreatedMessage, 500) || "Encomenda criada.",
     orderDeliveredMessage: normalizeText(value.orderDeliveredMessage, 500) || "Encomenda entregue.", panelChannelId: normalizeSnowflake(value.panelChannelId), panelDescription: normalizeText(value.panelDescription, 1500) || "Escolha um produto para criar uma encomenda.",
@@ -402,7 +402,7 @@ function normalizeProduct(value: Partial<FivemOrderProductDto>, guildId: string,
   const type = ["washing", "ammo", "drug", "weapon", "custom"].includes(value.type ?? "") ? value.type as MongoFivemOrderProduct["type"] : "standard";
   return {
     active: value.active !== false, allowCustomQuantity: value.allowCustomQuantity !== false, allowNotes: value.allowNotes !== false, botId,
-    category: normalizeText(value.category, 80) || (type === "washing" ? "Lavagem" : type === "ammo" ? "Municao" : type === "weapon" ? "Armas" : "Outros"),
+    category: normalizeText(value.category, 80) || (type === "washing" ? "Lavagem" : type === "ammo" ? "Munição" : type === "weapon" ? "Armas" : "Outros"),
     config: normalizeProductConfig(value.config),
     cost: money(value.cost), description: normalizeText(value.description, 500), emoji: normalizeText(value.emoji, 80), factionPercentage: type === "washing" ? clampNumber(value.factionPercentage, 0.01, 100, 20) : clampNumber(value.factionPercentage, 0, 100, 0),
     defaultQuantity: clampNumber(value.defaultQuantity, 1, 1_000_000, 1), featured: value.featured === true, guildId, maximumQuantity: clampNumber(value.maximumQuantity, 1, 1_000_000, 1_000_000), minimumQuantity: clampNumber(value.minimumQuantity, 1, 1_000_000, 1), name: normalizeText(value.name, 100) || "Novo produto",
@@ -473,12 +473,12 @@ function emitUpdated(guildId: string, botId: string | null) {
   emitRealtimeToRoom(devBotRealtimeRoom(botId), "lavagem:config_updated", { botId, guildId });
 }
 async function nextOrderNumber(guildId: string, botId: string | null) { const { fivemOrders } = await getMongoCollections(); const last = await fivemOrders.find(scopeQuery(guildId, botId)).sort({ orderNumber: -1 }).limit(1).next(); return (last?.orderNumber ?? 0) + 1; }
-function assertTransition(from: MongoFivemOrderStatus, to: MongoFivemOrderStatus) { const allowed: Record<MongoFivemOrderStatus, MongoFivemOrderStatus[]> = { open: ["approved", "in_production", "delivered", "cancelled", "rejected"], pending_approval: ["approved", "in_production", "delivered", "cancelled", "rejected"], approved: ["in_production", "delivered", "cancelled"], in_production: ["ready", "delivered", "cancelled"], ready: ["delivered", "cancelled"], delivered: [], cancelled: [], rejected: [] }; if (!allowed[from].includes(to)) throw orderError(`Nao e permitido alterar de ${from} para ${to}.`, 409); }
+function assertTransition(from: MongoFivemOrderStatus, to: MongoFivemOrderStatus) { const allowed: Record<MongoFivemOrderStatus, MongoFivemOrderStatus[]> = { open: ["approved", "in_production", "delivered", "cancelled", "rejected"], pending_approval: ["approved", "in_production", "delivered", "cancelled", "rejected"], approved: ["in_production", "delivered", "cancelled"], in_production: ["ready", "delivered", "cancelled"], ready: ["delivered", "cancelled"], delivered: [], cancelled: [], rejected: [] }; if (!allowed[from].includes(to)) throw orderError(`Não e permitido alterar de ${from} para ${to}.`, 409); }
 function activeFamilyQuery() { return { active: true, deletedAt: null }; }
 async function assertFamilyNameAvailable(guildId: string, botId: string | null, name: string, exceptId?: string) {
   const { fivemOrderFamilies } = await getMongoCollections();
   const duplicate = await fivemOrderFamilies.findOne({ ...scopeQuery(guildId, botId), ...activeFamilyQuery(), ...(exceptId ? { _id: { $ne: exceptId } } : {}), name });
-  if (duplicate) throw orderError("Ja existe uma familia ativa com este nome neste servidor.", 409);
+  if (duplicate) throw orderError("Já existe uma família ativa com este nome neste servidor.", 409);
 }
 function scopeQuery(guildId: string, botId: string | null) { return botId ? { botId, guildId } : { guildId, $or: [{ botId: null }, { botId: { $exists: false } }] }; }
 function normalizeBotId(value: string | null | undefined) { return value?.trim() || null; }
@@ -487,11 +487,11 @@ function normalizeSnowflakes(values: string[] | undefined) { return [...new Set(
 function normalizeText(value: string | null | undefined, max: number) { return value?.trim().slice(0, max) || null; }
 function normalizeUrl(value: string | null | undefined) { const text = normalizeText(value, 2048); if (!text) return null; try { const url = new URL(text); return ["http:", "https:"].includes(url.protocol) ? text : null; } catch { return null; } }
 function normalizeDate(value: string | null | undefined) { return /^\d{4}-\d{2}-\d{2}$/.test(value ?? "") ? value! : null; }
-function normalizeFamily(value: FivemOrderFamilyInput, guildId: string, botId: string | null): Omit<MongoFivemOrderFamily, "_id" | "createdAt" | "updatedAt"> { return { active: value.active !== false, botId, guildId, leaderName: normalizeText(value.leaderName, 100), logChannelId: normalizeSnowflake(value.logChannelId), name: normalizeText(value.name, 100) || "Nova familia", notes: normalizeText(value.notes, 1000), orderModules: normalizeOrderModules(value.orderModules ?? []), responsibleId: normalizeSnowflake(value.responsibleId) ?? "", roleId: normalizeSnowflake(value.roleId) ?? "", type: ["pista", "produto", "sem_produto"].includes(value.type ?? "") ? value.type as MongoFivemOrderFamily["type"] : "produto" }; }
+function normalizeFamily(value: FivemOrderFamilyInput, guildId: string, botId: string | null): Omit<MongoFivemOrderFamily, "_id" | "createdAt" | "updatedAt"> { return { active: value.active !== false, botId, guildId, leaderName: normalizeText(value.leaderName, 100), logChannelId: normalizeSnowflake(value.logChannelId), name: normalizeText(value.name, 100) || "Nova família", notes: normalizeText(value.notes, 1000), orderModules: normalizeOrderModules(value.orderModules ?? []), responsibleId: normalizeSnowflake(value.responsibleId) ?? "", roleId: normalizeSnowflake(value.roleId) ?? "", type: ["pista", "produto", "sem_produto"].includes(value.type ?? "") ? value.type as MongoFivemOrderFamily["type"] : "produto" }; }
 function normalizeOrderModules(values: FivemOrderSettingsDto["enabledOrderModules"] | undefined) { const allowed = new Set(["washing", "ammo", "drug", "weapon", "custom"]); const result = [...new Set(values ?? ["washing", "ammo", "drug", "weapon", "custom"])].filter((value): value is "washing" | "ammo" | "drug" | "weapon" | "custom" => allowed.has(value)); return result; }
 function clampNumber(value: number | null | undefined, min: number, max: number, fallback: number) { return typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback; }
 function money(value: number | null | undefined) { return roundMoney(clampNumber(value, 0, 1_000_000_000_000, 0)); }
 function roundMoney(value: number) { return Math.round(value * 100) / 100; }
 function normalizePercentages(values: number[] | undefined, fallback: number | undefined, type: MongoFivemOrderProduct["type"]) { if (type !== "washing") return []; const normalized = [...new Set([...(values ?? []), clampNumber(fallback, 0.01, 100, 20)].map((item) => clampNumber(item, 0.01, 100, 20)))].sort((a, b) => a - b).slice(0, 25); return normalized.length ? normalized : [20]; }
-function resolveWashingPercentage(product: MongoFivemOrderProduct, requested: number | null | undefined) { const allowed = normalizePercentages(product.washingPercentages, product.factionPercentage, "washing"); const selected = requested ?? product.factionPercentage ?? allowed[0] ?? 20; if (!allowed.includes(selected)) throw orderError("Percentual de lavagem nao permitido.", 400); return selected; }
+function resolveWashingPercentage(product: MongoFivemOrderProduct, requested: number | null | undefined) { const allowed = normalizePercentages(product.washingPercentages, product.factionPercentage, "washing"); const selected = requested ?? product.factionPercentage ?? allowed[0] ?? 20; if (!allowed.includes(selected)) throw orderError("Percentual de lavagem não permitido.", 400); return selected; }
 function orderError(message: string, statusCode: number) { return Object.assign(new Error(message), { statusCode }); }

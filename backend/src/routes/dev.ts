@@ -90,7 +90,7 @@ import type { DashboardAuth } from "../services/tokenService";
 const moduleIds = DEV_MODULES.map((module) => module.id) as [string, ...string[]];
 const devModuleIdSchema = z.string().refine((moduleId) => (
   (moduleIds as readonly string[]).includes(moduleId) || isCustomFivemModuleId(moduleId)
-), "Modulo invalido.");
+), "Módulo inválido.");
 
 const createBotSchema = z.object({
   token: z.string().min(10),
@@ -334,7 +334,7 @@ devRouter.post("/access", async (req, res, next) => {
 
     if (!(await canManageDevPermissions(auth.user.discordId))) {
       return res.status(403).json({
-        message: "Voce nao tem permissao para gerenciar acessos DEV."
+        message: "Você não tem permissão para gerenciar acessos DEV."
       });
     }
 
@@ -357,7 +357,7 @@ devRouter.delete("/access/:userId", async (req, res, next) => {
 
     if (!(await canManageDevPermissions(auth.user.discordId))) {
       return res.status(403).json({
-        message: "Voce nao tem permissao para gerenciar acessos DEV."
+        message: "Você não tem permissão para gerenciar acessos DEV."
       });
     }
 
@@ -365,7 +365,7 @@ devRouter.delete("/access/:userId", async (req, res, next) => {
 
     if (!entry) {
       return res.status(404).json({
-        message: "Acesso DEV nao encontrado."
+        message: "Acesso DEV não encontrado."
       });
     }
 
@@ -503,7 +503,7 @@ devRouter.post("/fivem/modules", async (req, res, next) => {
 
     const module = await createFivemModule(input, auth.user.discordId);
 
-    await writeDevBotAudit(auth, auth.user.selectedGuildId ?? "global", null, "fivem_module_create", `Modulo FiveM criado: ${module.title}.`, {
+    await writeDevBotAudit(auth, auth.user.selectedGuildId ?? "global", null, "fivem_module_create", `Módulo FiveM criado: ${module.title}.`, {
       moduleId: module.id
     });
 
@@ -523,11 +523,11 @@ devRouter.patch("/fivem/modules/:moduleId", async (req, res, next) => {
 
     if (!module) {
       return res.status(404).json({
-        message: "Modulo FiveM personalizado nao encontrado."
+        message: "Módulo FiveM personalizado não encontrado."
       });
     }
 
-    await writeDevBotAudit(auth, auth.user.selectedGuildId ?? "global", null, "fivem_module_update", `Modulo FiveM atualizado: ${module.title}.`, {
+    await writeDevBotAudit(auth, auth.user.selectedGuildId ?? "global", null, "fivem_module_update", `Módulo FiveM atualizado: ${module.title}.`, {
       moduleId: module.id
     });
 
@@ -546,11 +546,11 @@ devRouter.delete("/fivem/modules/:moduleId", async (req, res, next) => {
 
     if (!deleted) {
       return res.status(404).json({
-        message: "Modulo FiveM personalizado nao encontrado."
+        message: "Módulo FiveM personalizado não encontrado."
       });
     }
 
-    await writeDevBotAudit(auth, auth.user.selectedGuildId ?? "global", null, "fivem_module_delete", "Modulo FiveM removido.", {
+    await writeDevBotAudit(auth, auth.user.selectedGuildId ?? "global", null, "fivem_module_delete", "Módulo FiveM removido.", {
       moduleId: req.params.moduleId
     });
 
@@ -570,7 +570,7 @@ devRouter.get("/bots", async (_req, res, next) => {
       ownerId: auth.user.discordId,
       createdBy: auth.user.discordId
     }).catch((error) => {
-      console.warn("[dev-bot] bot principal nao foi sincronizado:", error instanceof Error ? error.message : error);
+      console.warn("[dev-bot] bot principal não foi sincronizado:", error instanceof Error ? error.message : error);
       return null;
     });
 
@@ -755,7 +755,7 @@ devRouter.get("/bots/:botId/security-access", async (req, res, next) => {
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -774,7 +774,7 @@ devRouter.patch("/bots/:botId/security-access", async (req, res, next) => {
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -791,8 +791,8 @@ devRouter.patch("/bots/:botId/security-access", async (req, res, next) => {
       req.params.botId,
       input.enabledByDev ? "security_access_enabled" : "security_access_disabled",
       input.enabledByDev
-        ? "Protecao/SafeBot liberada para este bot."
-        : "Protecao/SafeBot bloqueada para este bot.",
+        ? "Proteção/SafeBot liberada para este bot."
+        : "Proteção/SafeBot bloqueada para este bot.",
       {
         featureKey: access.featureKey
       }
@@ -813,7 +813,7 @@ devRouter.get("/bots/:botId", async (req, res, next) => {
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -821,7 +821,7 @@ devRouter.get("/bots/:botId", async (req, res, next) => {
 
     if (!bot) {
       return res.status(404).json({
-        message: "Bot nao encontrado."
+        message: "Bot não encontrado."
       });
     }
 
@@ -839,7 +839,7 @@ devRouter.patch("/bots/:botId", async (req, res, next) => {
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -853,7 +853,7 @@ devRouter.patch("/bots/:botId", async (req, res, next) => {
 
     if (!updatedBot) {
       return res.status(404).json({
-        message: "Bot nao encontrado."
+        message: "Bot não encontrado."
       });
     }
 
@@ -881,7 +881,7 @@ devRouter.delete("/bots/:botId", async (req, res, next) => {
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -893,7 +893,7 @@ devRouter.delete("/bots/:botId", async (req, res, next) => {
 
     if (!bot) {
       return res.status(404).json({
-        message: "Bot nao encontrado."
+        message: "Bot não encontrado."
       });
     }
     await writeDevBotAudit(auth, bot.mainGuildId, bot.id, "delete", `Bot ${bot.name} removido do painel.`, {
@@ -914,7 +914,7 @@ devRouter.post("/bots/:botId/stop", async (req, res, next) => {
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -922,7 +922,7 @@ devRouter.post("/bots/:botId/stop", async (req, res, next) => {
 
     if (!currentBot) {
       return res.status(404).json({
-        message: "Bot nao encontrado."
+        message: "Bot não encontrado."
       });
     }
 
@@ -950,7 +950,7 @@ devRouter.post("/bots/:botId/restart", async (req, res, next) => {
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -958,13 +958,13 @@ devRouter.post("/bots/:botId/restart", async (req, res, next) => {
 
     if (!validatedBot) {
       return res.status(404).json({
-        message: "Bot nao encontrado."
+        message: "Bot não encontrado."
       });
     }
 
     if (validatedBot.status === "invalid_token" || validatedBot.status === "error") {
       return res.status(400).json({
-        message: validatedBot.statusMessage ?? "Nao foi possivel validar o bot."
+        message: validatedBot.statusMessage ?? "Não foi possível validar o bot."
       });
     }
 
@@ -989,7 +989,7 @@ devRouter.get("/bots/:botId/modules", async (req, res, next) => {
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -997,7 +997,7 @@ devRouter.get("/bots/:botId/modules", async (req, res, next) => {
 
     if (!bot) {
       return res.status(404).json({
-        message: "Bot nao encontrado."
+        message: "Bot não encontrado."
       });
     }
 
@@ -1015,7 +1015,7 @@ devRouter.patch("/bots/:botId/modules", async (req, res, next) => {
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -1026,7 +1026,7 @@ devRouter.patch("/bots/:botId/modules", async (req, res, next) => {
 
     if (!updatedBot) {
       return res.status(404).json({
-        message: "Bot nao encontrado."
+        message: "Bot não encontrado."
       });
     }
 
@@ -1052,13 +1052,13 @@ devRouter.get("/bots/:botId/guilds", async (req, res, next) => {
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
     if (!(await getDevBot(req.params.botId))) {
       return res.status(404).json({
-        message: "Bot nao encontrado."
+        message: "Bot não encontrado."
       });
     }
 
@@ -1076,13 +1076,13 @@ devRouter.get("/bots/:botId/guilds/:guildId/config", async (req, res, next) => {
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
     if (!(await getDevBot(req.params.botId))) {
       return res.status(404).json({
-        message: "Bot nao encontrado."
+        message: "Bot não encontrado."
       });
     }
 
@@ -1100,13 +1100,13 @@ devRouter.patch("/bots/:botId/guilds/:guildId/config", async (req, res, next) =>
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
     if (!(await getDevBot(req.params.botId))) {
       return res.status(404).json({
-        message: "Bot nao encontrado."
+        message: "Bot não encontrado."
       });
     }
 
@@ -1119,7 +1119,7 @@ devRouter.patch("/bots/:botId/guilds/:guildId/config", async (req, res, next) =>
     });
 
     emitRealtime("dev:config_saved", config);
-    await writeDevBotAudit(auth, req.params.guildId, req.params.botId, "guild_config", "Configuracao do bot salva para o servidor.", {
+    await writeDevBotAudit(auth, req.params.guildId, req.params.botId, "guild_config", "Configuração do bot salva para o servidor.", {
       modules: Object.keys(input.modules)
     });
 
@@ -1137,7 +1137,7 @@ devRouter.get("/bots/:botId/guilds/:guildId/nex-tech-sales", async (req, res, ne
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -1153,7 +1153,7 @@ devRouter.patch("/bots/:botId/guilds/:guildId/nex-tech-sales/settings", async (r
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -1165,7 +1165,7 @@ devRouter.patch("/bots/:botId/guilds/:guildId/nex-tech-sales/settings", async (r
       thumbnailUrl: input.thumbnailUrl === "" ? null : input.thumbnailUrl
     }, auth.user.discordId);
 
-    await writeDevBotAudit(auth, req.params.guildId, req.params.botId, "nexTech_sales_settings", "Configuracao do sistema de vendas Nex Tech atualizada.", {
+    await writeDevBotAudit(auth, req.params.guildId, req.params.botId, "nexTech_sales_settings", "Configuração do sistema de vendas Nex Tech atualizada.", {
       enabled: settings.enabled
     });
 
@@ -1183,7 +1183,7 @@ devRouter.post("/bots/:botId/guilds/:guildId/nex-tech-sales/providers", async (r
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -1215,7 +1215,7 @@ devRouter.delete("/bots/:botId/guilds/:guildId/nex-tech-sales/providers/:provide
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -1237,7 +1237,7 @@ devRouter.post("/bots/:botId/guilds/:guildId/nex-tech-sales/products", async (re
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -1260,7 +1260,7 @@ devRouter.patch("/bots/:botId/guilds/:guildId/nex-tech-sales/products/:productId
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -1269,7 +1269,7 @@ devRouter.patch("/bots/:botId/guilds/:guildId/nex-tech-sales/products/:productId
 
     if (!product) {
       return res.status(404).json({
-        message: "Produto nao encontrado."
+        message: "Produto não encontrado."
       });
     }
 
@@ -1289,7 +1289,7 @@ devRouter.post("/bots/:botId/guilds/:guildId/nex-tech-sales/products/:productId/
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -1297,7 +1297,7 @@ devRouter.post("/bots/:botId/guilds/:guildId/nex-tech-sales/products/:productId/
 
     if (!product) {
       return res.status(404).json({
-        message: "Produto nao encontrado."
+        message: "Produto não encontrado."
       });
     }
 
@@ -1317,7 +1317,7 @@ devRouter.put("/bots/:botId/guilds/:guildId/nex-tech-sales/products/:productId/b
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -1338,7 +1338,7 @@ devRouter.put("/bots/:botId/guilds/:guildId/nex-tech-sales/products/:productId/b
 
     if (!product) {
       return res.status(404).json({
-        message: "Produto nao encontrado."
+        message: "Produto não encontrado."
       });
     }
 
@@ -1358,7 +1358,7 @@ devRouter.delete("/bots/:botId/guilds/:guildId/nex-tech-sales/products/:productI
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -1366,7 +1366,7 @@ devRouter.delete("/bots/:botId/guilds/:guildId/nex-tech-sales/products/:productI
 
     if (!product) {
       return res.status(404).json({
-        message: "Produto nao encontrado."
+        message: "Produto não encontrado."
       });
     }
 
@@ -1386,7 +1386,7 @@ devRouter.post("/bots/:botId/guilds/:guildId/nex-tech-sales/plans", async (req, 
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -1414,7 +1414,7 @@ devRouter.patch("/bots/:botId/guilds/:guildId/nex-tech-sales/plans/:planId", asy
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -1428,7 +1428,7 @@ devRouter.patch("/bots/:botId/guilds/:guildId/nex-tech-sales/plans/:planId", asy
 
     if (!plan) {
       return res.status(404).json({
-        message: "Plano de venda nao encontrado."
+        message: "Plano de venda não encontrado."
       });
     }
 
@@ -1448,7 +1448,7 @@ devRouter.delete("/bots/:botId/guilds/:guildId/nex-tech-sales/plans/:planId", as
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -1456,7 +1456,7 @@ devRouter.delete("/bots/:botId/guilds/:guildId/nex-tech-sales/plans/:planId", as
 
     if (!deleted) {
       return res.status(404).json({
-        message: "Plano de venda nao encontrado."
+        message: "Plano de venda não encontrado."
       });
     }
 
@@ -1476,7 +1476,7 @@ devRouter.post("/bots/:botId/guilds/:guildId/nex-tech-sales/sales", async (req, 
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -1506,7 +1506,7 @@ devRouter.patch("/bots/:botId/guilds/:guildId/nex-tech-sales/sales/:saleId/statu
 
     if (!(await canManageDevBot(auth.user, req.params.botId))) {
       return res.status(403).json({
-        message: "Voce nao tem acesso a este bot."
+        message: "Você não tem acesso a este bot."
       });
     }
 
@@ -1515,7 +1515,7 @@ devRouter.patch("/bots/:botId/guilds/:guildId/nex-tech-sales/sales/:saleId/statu
 
     if (!sale) {
       return res.status(404).json({
-        message: "Venda nao encontrada."
+        message: "Venda não encontrada."
       });
     }
 
@@ -1577,7 +1577,7 @@ async function writeDevBotAudit(
     },
     userId: auth.user.discordId
   }).catch((error) => {
-    console.warn("[audit] nao foi possivel registrar auditoria da dashboard:", error instanceof Error ? error.message : error);
+    console.warn("[audit] não foi possível registrar auditoria da dashboard:", error instanceof Error ? error.message : error);
   });
 }
 

@@ -124,7 +124,7 @@ export async function createMercadoPagoPreference(input: CreateMercadoPagoPrefer
   const preferenceId = readStringField(payload, "id");
 
   if (!checkoutUrl || !preferenceId) {
-    throw mercadoPagoError("Mercado Pago nao retornou a preferencia de checkout.", 503);
+    throw mercadoPagoError("Mercado Pago não retornou a preferencia de checkout.", 503);
   }
   if (!isMercadoPagoCheckoutUrl(checkoutUrl)) {
     throw mercadoPagoError("Mercado Pago retornou uma URL de checkout inesperada.", 503);
@@ -192,7 +192,7 @@ export function buildMercadoPagoPixPaymentBody(input: Omit<CreateMercadoPagoPixP
       }]
     },
     date_of_expiration: input.paymentExpiration ? input.paymentExpiration.toISOString() : undefined,
-    description: trimRequired(input.description, "Descricao Mercado Pago"),
+    description: trimRequired(input.description, "Descrição Mercado Pago"),
     external_reference: trimRequired(input.externalReference, "Referencia externa Mercado Pago"),
     metadata: {
       ...safePreferenceMetadata(input.metadata),
@@ -225,7 +225,7 @@ export async function createMercadoPagoPixPayment(input: CreateMercadoPagoPixPay
 export async function getMercadoPagoOrder(accessToken: string, orderId: string): Promise<MercadoPagoPixOrderResult> {
   const { order } = getMercadoPagoSdkClient(accessToken);
   const payload = await order.get({ id: orderId }).catch((error: unknown) => {
-    throw mercadoPagoError(readSdkError(error) ?? "Nao foi possivel consultar a order no Mercado Pago.", 502);
+    throw mercadoPagoError(readSdkError(error) ?? "Não foi possível consultar a order no Mercado Pago.", 502);
   });
   return normalizeMercadoPagoOrder(payload as MercadoPagoOrder);
 }
@@ -233,7 +233,7 @@ export async function getMercadoPagoOrder(accessToken: string, orderId: string):
 export async function getMercadoPagoPayment(accessToken: string, paymentId: string): Promise<MercadoPagoPayment> {
   const { payment } = getMercadoPagoSdkClient(accessToken);
   const payload = await payment.get({ id: paymentId }).catch((error: unknown) => {
-    throw mercadoPagoError(readSdkError(error) ?? "Nao foi possivel consultar o pagamento no Mercado Pago.", 502);
+    throw mercadoPagoError(readSdkError(error) ?? "Não foi possível consultar o pagamento no Mercado Pago.", 502);
   });
   return payload as unknown as MercadoPagoPayment;
 }
@@ -329,7 +329,7 @@ function buildPreferencePaymentMethods(input: CreateMercadoPagoPreferenceInput):
 
 function normalizeCents(value: number) {
   if (!Number.isFinite(value) || value <= 0) {
-    throw mercadoPagoError("Valor do checkout Mercado Pago invalido.", 400);
+    throw mercadoPagoError("Valor do checkout Mercado Pago inválido.", 400);
   }
 
   return Math.round(value);
@@ -337,7 +337,7 @@ function normalizeCents(value: number) {
 
 function normalizeQuantity(value: number) {
   if (!Number.isFinite(value) || value < 1) {
-    throw mercadoPagoError("Quantidade do checkout Mercado Pago invalida.", 400);
+    throw mercadoPagoError("Quantidade do checkout Mercado Pago inválida.", 400);
   }
 
   return Math.floor(value);
@@ -449,7 +449,7 @@ function normalizeMercadoPagoOrder(raw: MercadoPagoOrder): MercadoPagoPixOrderRe
   };
 
   if (!result.orderId) {
-    throw mercadoPagoError("Mercado Pago nao retornou o ID da order Pix.", 502);
+    throw mercadoPagoError("Mercado Pago não retornou o ID da order Pix.", 502);
   }
 
   return result;
@@ -477,7 +477,7 @@ function normalizeMercadoPagoPixPayment(raw: MercadoPagoPayment): MercadoPagoPix
   };
 
   if (!result.paymentId) {
-    throw mercadoPagoError("Mercado Pago nao retornou o ID do pagamento Pix.", 503);
+    throw mercadoPagoError("Mercado Pago não retornou o ID do pagamento Pix.", 503);
   }
 
   return result;

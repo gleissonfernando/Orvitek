@@ -24,7 +24,7 @@ const providers: Record<ClipsConfig["platform"], ClipProvider> = {
 
 export function startClipsMonitor(client: Client, api: ApiClient) {
   if (serviceStarted) {
-    console.warn("[clips] start ignorado: monitor ja esta em execucao.");
+    console.warn("[clips] start ignorado: monitor já está em execução.");
     return;
   }
 
@@ -87,7 +87,7 @@ async function processConfig(client: Client, api: ApiClient, config: ClipsConfig
   const liveSession = await provider.getLiveSession(config);
 
   await api.updateClipLiveSession(config.id, liveSession).catch((error: unknown) => {
-    console.warn(`[clips] nao foi possivel atualizar sessao de live ${config.id}:`, formatErrorMessage(error));
+    console.warn(`[clips] não foi possível atualizar sessão de live ${config.id}:`, formatErrorMessage(error));
   });
 
   if (!provider.supportsClipCapture) {
@@ -96,7 +96,7 @@ async function processConfig(client: Client, api: ApiClient, config: ClipsConfig
   }
 
   if (!config.discordChannelId) {
-    throw new Error("Canal do Discord nao configurado para o sistema de clipes.");
+    throw new Error("Canal do Discord não configurado para o sistema de clipes.");
   }
 
   const lastCheckAt = config.lastCheckAt ? new Date(config.lastCheckAt) : null;
@@ -129,11 +129,11 @@ async function processConfig(client: Client, api: ApiClient, config: ClipsConfig
       messageId = await sendClipAlert(client, config, clip);
     } catch (error) {
       const discordErrorMessage = formatErrorMessage(error);
-      console.warn(`[clips] clipe ${clip.id} ainda nao enviado ao Discord: ${discordErrorMessage}`);
+      console.warn(`[clips] clipe ${clip.id} ainda não enviado ao Discord: ${discordErrorMessage}`);
       await api.postLog({
         guildId: config.guildId,
         type: "clips.discord_retry",
-        message: `Falha temporaria ao enviar clipe; nova tentativa em ate 30 segundos: ${discordErrorMessage}`,
+        message: `Falha temporaria ao enviar clipe; nova tentativa em até 30 segundos: ${discordErrorMessage}`,
         metadata: {
           module: config.platform === "kick" ? "kick-clips" : "clips",
           configId: config.id,
@@ -187,14 +187,14 @@ async function sendClipAlert(client: Client, config: ClipsConfig, clip: Provider
     || !("guildId" in channel)
     || channel.guildId !== config.guildId
   ) {
-    throw new Error(`Canal Discord ${config.discordChannelId} nao encontrado.`);
+    throw new Error(`Canal Discord ${config.discordChannelId} não encontrado.`);
   }
 
   if ("permissionsFor" in channel && client.user) {
     const permissions = channel.permissionsFor(client.user.id);
 
     if (!permissions?.has(PermissionFlagsBits.SendMessages) || !permissions.has(PermissionFlagsBits.EmbedLinks)) {
-      throw new Error("Bot sem permissao para enviar mensagens ou embeds no canal de clipes.");
+      throw new Error("Bot sem permissão para enviar mensagens ou embeds no canal de clipes.");
     }
   }
 
@@ -294,7 +294,7 @@ async function applyClipRewards(client: Client, api: ApiClient, config: ClipsCon
       await api.postLog({
         guildId: config.guildId,
         type: "clips.reward_error",
-        message: `Nao foi possivel entregar recompensa de clipes para ${reward.userId}: ${formatErrorMessage(error)}`,
+        message: `Não foi possível entregar recompensa de clipes para ${reward.userId}: ${formatErrorMessage(error)}`,
         metadata: {
           module: config.platform === "kick" ? "kick-clips" : "clips",
           platform: config.platform,

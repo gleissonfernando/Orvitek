@@ -250,7 +250,7 @@ const PREVIOUS_WELCOME_RULES = [
   "Leia as regras antes de participar.",
   "Aguarde os avisos oficiais de lives e eventos.",
   "Respeite streamers, espectadores e moderadores.",
-  "Nao divulgue lives, links ou canais sem autorizacao.",
+  "Não divulgue lives, links ou canais sem autorizacao.",
   "Converse, faca amizades e aproveite sua estadia."
 ].join("\n");
 const PREVIOUS_WELCOME_FOOTER_TEXT = "NexTechK - Comunidade de lives";
@@ -270,22 +270,22 @@ export const DEFAULT_WELCOME_RULES = [
 export const DEFAULT_WELCOME_CHANNEL_LABEL = "Acesse o canal:";
 export const DEFAULT_WELCOME_FOOTER_TEXT = "NexTechK - Comunidade de Lives";
 export const DEFAULT_LEAVE_MESSAGE = [
-  "Ate mais, {user}. Obrigado por ter feito parte da nossa comunidade de lives.",
+  "Até mais, {user}. Obrigado por ter feito parte da nossa comunidade de lives.",
   "As portas continuam abertas para quando quiser voltar e acompanhar as transmissoes com a galera."
 ].join("\n");
 export const DEFAULT_LEAVE_TITLE = "NexTechK";
-export const DEFAULT_LEAVE_RULES_TITLE = "Registro de saida:";
+export const DEFAULT_LEAVE_RULES_TITLE = "Registro de saída:";
 export const DEFAULT_LEAVE_RULES = [
-  "A saida foi registrada automaticamente pelo bot.",
-  "Os canais oficiais continuam disponiveis para a comunidade.",
+  "A saída foi registrada automaticamente pelo bot.",
+  "Os canais oficiais continuam disponíveis para a comunidade.",
   "Respeite as regras se decidir retornar ao servidor.",
   "A equipe segue por aqui para organizar eventos e avisos.",
-  "Valeu pela passagem e ate a proxima."
+  "Valeu pela passagem e até a próxima."
 ].join("\n");
 export const DEFAULT_LEAVE_CHANNEL_LABEL = "Canal da comunidade:";
 export const DEFAULT_LEAVE_FOOTER_TEXT = "NexTechK - Comunidade de lives";
 const LEGACY_WELCOME_MESSAGE = "Bem-vindo(a), {user}!";
-const LEGACY_LEAVE_MESSAGE = "Ate mais, {user}.";
+const LEGACY_LEAVE_MESSAGE = "Até mais, {user}.";
 export const MAX_AUTOMATIC_ROLES = 2;
 const DEFAULT_ACCOUNT_AGE_MIN_DAYS = 10;
 const MAX_ACCOUNT_AGE_MIN_DAYS = 3_650;
@@ -309,11 +309,11 @@ const DEFAULT_EMOJI_CLONE_MAX_PER_RUN = 25;
 const MAX_EMOJI_CLONE_MAX_PER_RUN = 100;
 const DEFAULT_RULES_TITLE = "Regras da comunidade";
 const DEFAULT_RULES_MESSAGE = [
-  "Respeite todos os membros. Ofensas, preconceito, assedio ou discriminacao nao serao tolerados.",
-  "Nao publique conteudo adulto, violento, chocante ou ilegal.",
+  "Respeite todos os membros. Ofensas, preconceito, assedio ou discriminacao não serão tolerados.",
+  "Não publique conteúdo adulto, violento, chocante ou ilegal.",
   "Evite spam, flood, mensagens repetitivas, emojis em excesso e links desnecessarios.",
-  "Nao divulgue golpes, arquivos suspeitos ou sites maliciosos.",
-  "Proteja informacoes pessoais. Nao compartilhe telefone, endereco, fotos privadas ou dados sensiveis.",
+  "Não divulgue golpes, arquivos suspeitos ou sites maliciosos.",
+  "Proteja informações pessoais. Não compartilhe telefone, endereco, fotos privadas ou dados sensíveis.",
   "Use os canais corretos e siga as orientacoes da equipe."
 ].join("\n");
 const DEFAULT_RULES_BUTTON_LABEL = "Li e aceito";
@@ -707,7 +707,7 @@ export async function updateGuildSettings(
       }
     );
   } catch (error) {
-    console.error("[mongo] nao foi possivel persistir settings:", error);
+    console.error("[mongo] não foi possível persistir settings:", error);
     throw createSettingsPersistenceError(error);
   }
 
@@ -917,7 +917,7 @@ async function withPanelImageSettings(settings: GuildSettingsDto): Promise<Guild
       welcomePanelImage: welcomePanelImage.imageEnabled ? welcomePanelImage : null
     };
   } catch (error) {
-    console.warn("[settings] nao foi possivel carregar imagens dos paineis:", error instanceof Error ? error.message : error);
+    console.warn("[settings] não foi possível carregar imagens dos paineis:", error instanceof Error ? error.message : error);
     return {
       ...settings,
       leavePanelImage: null,
@@ -1079,7 +1079,7 @@ function clampInteger(value: number | null | undefined, min: number, max: number
 }
 
 function createSettingsPersistenceError(cause: unknown) {
-  return Object.assign(new Error("Nao foi possivel salvar a configuracao no banco de dados. Tente novamente."), {
+  return Object.assign(new Error("Não foi possível salvar a configuração no banco de dados. Tente novamente."), {
     cause,
     statusCode: 503
   });
@@ -1150,7 +1150,7 @@ function defaultReportSystemSettings(): ReportSystemSettingsDto {
     anonymousInvestigatorName: "Equipe IAB",
     anonymousReporterName: "Denunciante Anonimo",
     auditChannelId: null,
-    buttonText: "Abrir denuncia",
+    buttonText: "Abrir denúncia",
     buttons: Object.fromEntries(REPORT_BUTTON_KEYS.map((key) => [key, true])) as Record<ReportSystemButtonKey, boolean>,
     categories: DEFAULT_REPORT_CATEGORIES.map((item) => ({ ...item })),
     categoryId: null,
@@ -1175,7 +1175,7 @@ function defaultReportSystemSettings(): ReportSystemSettingsDto {
     iabLogChannelId: null,
     iabRoleIds: [],
     imageUrl: null,
-    infoMessage: "Este sistema garante total confidencialidade aos denunciantes. Caso escolha o modo anonimo, sua identidade permanecera oculta para todos os participantes do atendimento. As denuncias serao analisadas exclusivamente pela equipe autorizada.",
+    infoMessage: "Este sistema garante total confidencialidade aos denunciantes. Caso escolha o modo anonimo, sua identidade permanecera oculta para todos os participantes do atendimento. As denuncias serão analisadas exclusivamente pela equipe autorizada.",
     logChannelId: null,
     logs: Object.fromEntries(REPORT_LOG_KEYS.map((key) => [key, true])) as Record<ReportSystemLogKey, boolean>,
     mentionRoleIds: [],
@@ -1187,7 +1187,7 @@ function defaultReportSystemSettings(): ReportSystemSettingsDto {
     panelEmoji: fixedSystemEmojiText("alerta"),
     panelPlaceholder: "Selecione o órgão competente",
     panelTitle: "Denúncias IAB",
-    subpoenaDmText: "Voce recebeu uma intimacao institucional. Acesse o canal indicado e responda dentro do prazo.",
+    subpoenaDmText: "Você recebeu uma intimacao institucional. Acesse o canal indicado e responda dentro do prazo.",
     subpoenaPanelBannerUrl: null,
     permissionRoleIds: [],
     reopenRoleIds: [],

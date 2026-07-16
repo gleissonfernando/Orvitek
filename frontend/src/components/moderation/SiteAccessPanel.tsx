@@ -144,7 +144,7 @@ export function SiteAccessPanel({
 
     if (!isDiscordUserId(userId)) {
       setStatus(null);
-      setError("Informe um ID Discord valido da pessoa.");
+      setError("Informe um ID Discord válido da pessoa.");
       return;
     }
 
@@ -291,7 +291,7 @@ export function SiteAccessPanel({
       <CardContent className="space-y-4">
         <div className="space-y-3 rounded-lg border border-zinc-900 bg-zinc-950/75 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-sm font-medium text-zinc-100">Usuarios liberados</span>
+            <span className="text-sm font-medium text-zinc-100">Usuários liberados</span>
             <div className="flex items-center gap-2">
               <Badge variant={settings?.verificationEnabled ? "success" : "muted"}>
                 {settings?.verificationEnabled ? "Ativo" : "Inativo"}
@@ -412,7 +412,7 @@ export function SiteAccessPanel({
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-zinc-100">{activeUser?.displayName ?? activeUserId}</p>
                         <p className="mt-1 truncate text-xs text-zinc-500">
-                          {activeUser ? `${activeUser.tag} - ${activeUserId}` : "Usuario Discord liberado"}
+                          {activeUser ? `${activeUser.tag} - ${activeUserId}` : "Usuário Discord liberado"}
                         </p>
                       </div>
                       <Badge variant="muted">{levelLabel(userPermissions[activeUserId] ?? "basic")}</Badge>
@@ -470,7 +470,7 @@ export function SiteAccessPanel({
         <div className="flex flex-col gap-3 rounded-lg border border-zinc-900 bg-zinc-950/75 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-medium text-zinc-100">Teste em tempo real</p>
-            <p className="mt-1 text-xs text-zinc-500">Executa a mesma validacao backend usada no login para sua conta atual.</p>
+            <p className="mt-1 text-xs text-zinc-500">Executa a mesma validação backend usada no login para sua conta atual.</p>
           </div>
           <Button disabled={testing || saving} onClick={handleTestAccess} type="button" variant="outline">
             {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
@@ -519,7 +519,7 @@ const levelOptions: Array<{
   { id: "admin", label: "Administrador", icon: Crown },
   { id: "moderator", label: "Moderador", icon: UserCog },
   { id: "premium", label: "Premium", icon: Sparkles },
-  { id: "basic", label: "Basico", icon: UserCheck }
+  { id: "basic", label: "Básico", icon: UserCheck }
 ];
 
 function normalizeUserPermissions(
@@ -546,7 +546,7 @@ function levelLabel(level: DashboardAccessLevel | "viewer") {
     admin: "Administrador",
     moderator: "Moderador",
     premium: "Premium",
-    basic: "Basico",
+    basic: "Básico",
     viewer: "Sem acesso"
   };
 

@@ -124,7 +124,7 @@ export async function handleSelfBotProtectionMemberAdd(member: GuildMember, cont
   }
 
   const settings = await getCachedSettings(member.guild.id, context).catch((error) => {
-    console.warn("[self-bot-protection] nao foi possivel carregar configuracao de entrada:", errorMessage(error));
+    console.warn("[self-bot-protection] não foi possível carregar configuração de entrada:", errorMessage(error));
     return null;
   });
 
@@ -225,7 +225,7 @@ export async function handleSelfBotProtectionGuildMutation(
   }
 
   const settings = await getCachedSettings(guild.id, context).catch((error) => {
-    console.warn("[self-bot-protection] nao foi possivel carregar configuracao de raid:", errorMessage(error));
+    console.warn("[self-bot-protection] não foi possível carregar configuração de raid:", errorMessage(error));
     return null;
   });
 
@@ -383,7 +383,7 @@ async function handleViolation(input: {
       infractionType: "Modo seguro ativo",
       punishmentActions: [],
       punishmentSucceeded: false,
-      punishmentError: "Acao ignorada porque o modo seguro esta ativo para este modulo.",
+      punishmentError: "Ação ignorada porque o modo seguro está ativo para este módulo.",
       metadata: {
         ...input.violation.metadata,
         details: input.violation.details,
@@ -391,7 +391,7 @@ async function handleViolation(input: {
         skipReason: "safe_mode"
       }
     }).catch((error) => {
-      console.warn("[self-bot-protection] nao foi possivel registrar modo seguro:", errorMessage(error));
+      console.warn("[self-bot-protection] não foi possível registrar modo seguro:", errorMessage(error));
     });
     return false;
   }
@@ -416,7 +416,7 @@ async function handleViolation(input: {
       punishmentRoleId: punishment.addedRoleId
     }
   }).catch((error) => {
-    console.warn("[self-bot-protection] nao foi possivel registrar incidente:", errorMessage(error));
+    console.warn("[self-bot-protection] não foi possível registrar incidente:", errorMessage(error));
   });
 
   return true;
@@ -437,7 +437,7 @@ async function ensureRoleForEnabledGuild(guild: Guild, context: BotContext) {
   const task = getCachedSettings(guild.id, context)
     .then((settings) => settings.enabled ? ensureSelfBotRole(guild, context) : null)
     .catch((error) => {
-      console.warn("[self-bot-protection] nao foi possivel garantir cargo Self Bot:", errorMessage(error));
+      console.warn("[self-bot-protection] não foi possível garantir cargo Self Bot:", errorMessage(error));
       return null;
     })
     .finally(() => {
@@ -471,7 +471,7 @@ function detectMessageViolation(message: Message, settings: SelfBotProtectionSet
   }
 
   if (content && isModuleEnabled(settings, "anti-token-grabber") && TOKEN_PATTERN.test(content)) {
-    return buildViolation("anti-token-grabber", "Token grabber", "Padrao de token Discord detectado.", {});
+    return buildViolation("anti-token-grabber", "Token grabber", "Padrão de token Discord detectado.", {});
   }
 
   if (links.length && linkNotAllowed && isModuleEnabled(settings, "anti-convites") && links.some((link) => INVITE_PATTERN.test(link))) {
@@ -644,20 +644,20 @@ async function applyPunishment(input: {
         actions.push(action);
       } else if (action === "timeout") {
         if (!input.member.moderatable) {
-          throw new Error("O bot nao pode aplicar timeout neste membro.");
+          throw new Error("O bot não pode aplicar timeout neste membro.");
         }
         await input.member.timeout(input.settings.timeoutSeconds * 1_000, input.violation.infractionType);
         actions.push(action);
       } else if (action === "kick") {
         if (!input.member.kickable) {
-          throw new Error("O bot nao pode expulsar este membro.");
+          throw new Error("O bot não pode expulsar este membro.");
         }
         await input.member.kick(input.violation.infractionType);
         actions.push(action);
         break;
       } else if (action === "ban") {
         if (!input.member.bannable) {
-          throw new Error("O bot nao pode banir este membro.");
+          throw new Error("O bot não pode banir este membro.");
         }
         await input.member.ban({
           deleteMessageSeconds: 60 * 60,
@@ -777,7 +777,7 @@ function rememberSecurityActionError(guildId: string, moduleId: SelfBotProtectio
 
 async function deleteSourceMessage(context: BotContext, message: Message | undefined, violation: Violation) {
   if (!message) {
-    throw new Error("Mensagem original nao disponivel para apagar.");
+    throw new Error("Mensagem original não disponível para apagar.");
   }
 
   await deleteMessageWithAudit(context, message, {
@@ -812,10 +812,10 @@ async function warnMember(member: GuildMember, message: Message | undefined, det
 async function sendDmWarning(member: GuildMember, settings: SelfBotProtectionSettings, violation: Violation) {
   if (!settings.dmWarningEnabled) return;
   const content = settings.dmWarningMessage
-    .replaceAll("{protecao}", violation.infractionType)
+    .replaceAll("{proteção}", violation.infractionType)
     .replaceAll("{modulo}", violation.moduleId)
     .replaceAll("{servidor}", member.guild.name)
-    .replaceAll("{usuario}", member.user.username);
+    .replaceAll("{usuário}", member.user.username);
   await member.send({ content, allowedMentions: { parse: [] } }).catch(() => undefined);
 }
 
@@ -831,9 +831,9 @@ async function sendLog(input: {
     .setTitle("SelfBot Protection")
     .setDescription(input.violation.details)
     .addFields(
-      { name: "Usuario", value: `${input.member.user.tag}\n\`${input.member.id}\``, inline: true },
+      { name: "Usuário", value: `${input.member.user.tag}\n\`${input.member.id}\``, inline: true },
       { name: "Infracao", value: input.violation.infractionType, inline: true },
-      { name: "Modulo", value: input.violation.moduleId, inline: true },
+      { name: "Módulo", value: input.violation.moduleId, inline: true },
       { name: "Canal", value: input.message ? `<#${input.message.channelId}>` : "Entrada no servidor", inline: true },
       { name: "Punicao", value: input.settings.punishmentSequence.join(", ") || "Nenhuma", inline: false }
     )

@@ -335,21 +335,21 @@ const moduleCatalog: ModuleDefinition[] = [
   {
     id: "rules",
     title: "Regras",
-    description: "Publica um painel de regras com botao para liberar cargo aos membros.",
+    description: "Publica um painel de regras com botão para liberar cargo aos membros.",
     icon: ScrollText,
     view: "rules"
   },
   {
     id: "manual-payments",
     title: "Pagamentos",
-    description: "Gerencia Pix manual, comprovantes, aprovacao e atendimento por canais.",
+    description: "Gerencia Pix manual, comprovantes, aprovação e atendimento por canais.",
     icon: CreditCard,
     view: "manual-payments"
   },
   {
     id: "price-tables",
     title: "Tabela de Precos",
-    description: "Cria tabelas de precos com itens, valores, preview e publicacao no Discord.",
+    description: "Cria tabelas de preços com itens, valores, preview e publicação no Discord.",
     icon: TableProperties,
     view: "price-tables"
   },
@@ -363,7 +363,7 @@ const moduleCatalog: ModuleDefinition[] = [
   {
     id: "voice-recorder",
     title: "Voice Recorder",
-    description: "Grava canais de voz, salva arquivos MP3 e organiza historico na dashboard.",
+    description: "Grava canais de voz, salva arquivos MP3 e organiza histórico na dashboard.",
     icon: Mic2,
     view: "voice-recorder"
   },
@@ -391,14 +391,14 @@ const moduleCatalog: ModuleDefinition[] = [
   {
     id: "safe-bot",
     title: "SelfBot Protection",
-    description: "Centraliza protecao anti-spam, punicoes e logs do SelfBot.",
+    description: "Centraliza proteção anti-spam, punicoes e logs do SelfBot.",
     icon: ShieldCheck,
     view: "self-bot-protection"
   },
   {
     id: "account-age-security",
-    title: "Seguranca de Entrada",
-    description: "Remove contas Discord mais novas que o minimo permitido.",
+    title: "Segurança de Entrada",
+    description: "Remove contas Discord mais novas que o mínimo permitido.",
     icon: ShieldAlert,
     view: "security"
   },
@@ -447,13 +447,13 @@ const moduleCatalog: ModuleDefinition[] = [
   {
     id: "server-backup",
     title: "Backup Completo",
-    description: "Prepara backup manual, automatico, exportacao e restauracao seletiva.",
+    description: "Prepara backup manual, automático, exportacao e restauração seletiva.",
     icon: Server,
     view: "server-backup"
   },
   {
     id: "vanity-url-protection",
-    title: "Protecao da URL Personalizada",
+    title: "Proteção da URL Personalizada",
     description: "Monitora alterações da URL personalizada e prepara restauração automática.",
     icon: Globe2,
     view: "vanity-url-protection"
@@ -468,14 +468,14 @@ const moduleCatalog: ModuleDefinition[] = [
   {
     id: "anti-disconnect",
     title: "Anti Disconnect",
-    description: "Reconecta automaticamente membros removidos de calls por usuarios sem autorizacao.",
+    description: "Reconecta automaticamente membros removidos de calls por usuários sem autorizacao.",
     icon: ShieldAlert,
     view: "anti-disconnect"
   },
   {
     id: "auto-unmute",
     title: "Auto Desmutar",
-    description: "Remove automaticamente o mute manual de usuarios ao entrarem no canal de voz configurado.",
+    description: "Remove automaticamente o mute manual de usuários ao entrarem no canal de voz configurado.",
     icon: Mic2,
     view: "auto-unmute"
   },
@@ -488,14 +488,14 @@ const moduleCatalog: ModuleDefinition[] = [
   },
   {
     id: "tag-verification",
-    title: "Verificacao de Tag",
+    title: "Verificação de Tag",
     description: "Entrega ou remove cargo conforme tag personalizada do Discord.",
     icon: Hash,
     view: "tag-verification"
   },
   {
     id: "bio-url-verification",
-    title: "Verificacao de URL na Bio",
+    title: "Verificação de URL na Bio",
     description: "Entrega ou remove cargo conforme URL permitida na bio do membro.",
     icon: AtSign,
     view: "bio-url-verification"
@@ -503,7 +503,7 @@ const moduleCatalog: ModuleDefinition[] = [
   {
     id: "first-lady",
     title: "Sistema Primeira Dama",
-    description: "Gerencia damas, limites por cargo, historico e relacionamentos.",
+    description: "Gerencia damas, limites por cargo, histórico e relacionamentos.",
     icon: Users,
     view: "first-lady"
   },
@@ -516,8 +516,8 @@ const moduleCatalog: ModuleDefinition[] = [
   },
   {
     id: "police-absences",
-    title: "Ausencia Policial",
-    description: "Solicitacoes, analise, cargo temporario e historico de ausencia para oficiais.",
+    title: "Ausência Policial",
+    description: "Solicitacoes, analise, cargo temporário e histórico de ausência para oficiais.",
     icon: CalendarClock,
     view: "police-absence"
   },
@@ -530,15 +530,15 @@ const moduleCatalog: ModuleDefinition[] = [
   },
   {
     id: "police-actions",
-    title: "Acoes Policiais",
-    description: "Operacoes policiais com painel, participantes e relatorios separados.",
+    title: "Ações Políciais",
+    description: "Operações policiais com painel, participantes e relatórios separados.",
     icon: ShieldCheck,
     view: "police-actions"
   },
   {
     id: "police-patrol-reports",
-    title: "Relatorios Policiais",
-    description: "Relatorios de patrulhamento exclusivos para oficiais.",
+    title: "Relatórios Políciais",
+    description: "Relatórios de patrulhamento exclusivos para oficiais.",
     icon: ScrollText,
     view: "police-patrol-reports"
   },
@@ -580,7 +580,7 @@ const moduleCatalog: ModuleDefinition[] = [
   {
     id: "police-iab",
     title: "Denuncias Corregedoria",
-    description: "Painel IAB com denuncias anonimas, orgaos, logs e auditoria policial.",
+    description: "Painel IAB com denuncias anonimas, órgãos, logs e auditoria policial.",
     icon: ShieldAlert,
     view: "police-iab"
   },
@@ -594,21 +594,21 @@ const moduleCatalog: ModuleDefinition[] = [
   {
     id: "fivem-orders",
     title: "Encomendas FiveM",
-    description: "Controle separado para pedidos, fila, producao, entrega e historico de encomendas.",
+    description: "Controle separado para pedidos, fila, produção, entrega e histórico de encomendas.",
     icon: Boxes,
     view: "fivem-orders"
   },
   {
     id: "fivem-washing",
     title: "Sistema de Lavagem",
-    description: "Lavagem RP isolada com regras de porcentagem, calculo automatico, logs e historico.",
+    description: "Lavagem RP isolada com regras de porcentagem, cálculo automático, logs e histórico.",
     icon: CircleDollarSign,
     view: "fivem-washing"
   },
   {
     id: "fivem-drugs",
     title: "Sistema de Drogas",
-    description: "Controle isolado de drogas, pedidos, producao, entrega, logs e historico por servidor.",
+    description: "Controle isolado de drogas, pedidos, produção, entrega, logs e histórico por servidor.",
     icon: Boxes,
     view: "fivem-drug"
   },
@@ -621,7 +621,7 @@ const moduleCatalog: ModuleDefinition[] = [
   },
   {
     id: "verification",
-    title: "Usuarios",
+    title: "Usuários",
     description: "Define quais usuários podem entrar e configurar este painel.",
     icon: Users,
     view: "permissions"
@@ -642,7 +642,7 @@ const moduleCatalog: ModuleDefinition[] = [
   },
   {
     id: "leave",
-    title: "Saida",
+    title: "Saída",
     description: "Envia mensagem quando um membro sai do servidor.",
     icon: UserMinus,
     view: "entry-leave"
@@ -1249,7 +1249,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             canManage={canManageDashboard}
             guildId={selectedGuild?.id ?? null}
             panelId={policePanelImageSlotsForView(activeView) ? undefined : activeView === "settings" ? "global-default" : visualPanelIdForView(activeView)}
-            panelLabel={policePanelImageSlotsForView(activeView) ? "Policia" : activeView === "settings" ? "Padrão visual global" : `Configuração Visual do Painel — ${activeView}`}
+            panelLabel={policePanelImageSlotsForView(activeView) ? "Polícia" : activeView === "settings" ? "Padrão visual global" : `Configuração Visual do Painel — ${activeView}`}
             panelSlots={policePanelImageSlotsForView(activeView) ?? undefined}
           />
         ) : null}
@@ -1752,7 +1752,7 @@ const advancedSecurityModuleDetails: Record<string, {
   },
   "auto-unmute": {
     title: "Auto Desmutar",
-    description: "Remove automaticamente o mute manual de usuarios ao entrarem no canal de voz configurado.",
+    description: "Remove automaticamente o mute manual de usuários ao entrarem no canal de voz configurado.",
     icon: Mic2,
     items: ["Canal gatilho", "Logs", "Exceções", "Eventos recentes"]
   },
@@ -1835,7 +1835,7 @@ function GlobalBlacklistPanel({ botId, canManage, guild }: { botId?: string | nu
         setChannels(options.channels);
       })
       .catch(() => {
-        if (active) setError("Nao foi possivel carregar a Blacklist Global.");
+        if (active) setError("Não foi possível carregar a Blacklist Global.");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -1868,9 +1868,9 @@ function GlobalBlacklistPanel({ botId, canManage, guild }: { botId?: string | nu
     try {
       const saved = await saveGlobalBlacklistSettings(guild.id, settings, botId);
       setSettings(saved);
-      setMessage("Integracao SafeBot salva.");
+      setMessage("Integração SafeBot salva.");
     } catch {
-      setError("Nao foi possivel salvar a integracao SafeBot.");
+      setError("Não foi possível salvar a integração SafeBot.");
     } finally {
       setSaving(false);
     }
@@ -1884,7 +1884,7 @@ function GlobalBlacklistPanel({ botId, canManage, guild }: { botId?: string | nu
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2"><LockKeyhole className="h-5 w-5 text-red-300" /> Blacklist Global</CardTitle>
-            <CardDescription>Entrada automatica somente por eventos do SafeBot ou por acao manual autorizada.</CardDescription>
+            <CardDescription>Entrada automática somente por eventos do SafeBot ou por ação manual autorizada.</CardDescription>
           </div>
           <Button disabled={!canManage || !settings || saving || loading} onClick={() => void save()} size="sm" type="button">
             {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
@@ -1899,8 +1899,8 @@ function GlobalBlacklistPanel({ botId, canManage, guild }: { botId?: string | nu
           <>
             <section className="space-y-3">
               <div>
-                <h3 className="text-sm font-semibold text-white">Integracao SafeBot</h3>
-                <p className="mt-1 text-xs text-zinc-500">Configure quais eventos do SafeBot podem gerar historico e blacklist automatica.</p>
+                <h3 className="text-sm font-semibold text-white">Integração SafeBot</h3>
+                <p className="mt-1 text-xs text-zinc-500">Configure quais eventos do SafeBot podem gerar histórico e blacklist automática.</p>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="block text-xs font-medium text-zinc-400">Limite de infracoes
@@ -1914,16 +1914,16 @@ function GlobalBlacklistPanel({ botId, canManage, guild }: { botId?: string | nu
                 </label>
                 <label className="flex h-11 items-center gap-2 rounded-lg border border-zinc-800 px-3 text-sm text-zinc-300">
                   <input checked={settings.autoBlacklistOnSafeBotBan} disabled={!canManage} onChange={(event) => update({ autoBlacklistOnSafeBotBan: event.target.checked })} type="checkbox" />
-                  Ban automatico do SafeBot envia para blacklist
+                  Ban automático do SafeBot envia para blacklist
                 </label>
                 <label className="flex h-11 items-center gap-2 rounded-lg border border-zinc-800 px-3 text-sm text-zinc-300">
                   <input checked={settings.requireApprovalAfterRemoval} disabled={!canManage} onChange={(event) => update({ requireApprovalAfterRemoval: event.target.checked })} type="checkbox" />
-                  Removido da blacklist cai em aprovacao pendente
+                  Removido da blacklist cai em aprovação pendente
                 </label>
               </div>
-              <label className="block text-xs font-medium text-zinc-400">Kick automatico do SafeBot
+              <label className="block text-xs font-medium text-zinc-400">Kick automático do SafeBot
                 <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => update({ kickMode: event.target.value as GlobalBlacklistSafeBotSettings["kickMode"] })} value={settings.kickMode}>
-                  <option value="history_only">Apenas registrar historico</option>
+                  <option value="history_only">Apenas registrar histórico</option>
                   <option value="alert">Registrar e gerar alerta</option>
                   <option value="blacklist">Enviar direto para blacklist</option>
                 </select>
@@ -1944,8 +1944,8 @@ function GlobalBlacklistPanel({ botId, canManage, guild }: { botId?: string | nu
             </section>
             <div className="grid gap-3 md:grid-cols-3">
               <MetricCard icon={LockKeyhole} label="Ativos" value={String(entries.filter((entry) => entry.active).length)} />
-              <MetricCard icon={ShieldAlert} label="Historico SafeBot" value={String(history.filter((item) => item.safeBotModule).length)} />
-              <MetricCard icon={Users} label="Usuarios" value={String(new Set(history.map((item) => item.userId)).size)} />
+              <MetricCard icon={ShieldAlert} label="Histórico SafeBot" value={String(history.filter((item) => item.safeBotModule).length)} />
+              <MetricCard icon={Users} label="Usuários" value={String(new Set(history.map((item) => item.userId)).size)} />
             </div>
             <section className="space-y-2">
               <h3 className="text-sm font-semibold text-white">Ultimos registros</h3>
@@ -1966,10 +1966,10 @@ function GlobalBlacklistPanel({ botId, canManage, guild }: { botId?: string | nu
 const serverBackupParts: Array<{ id: ServerBackupRestorePart; label: string }> = [
   { id: "roles", label: "Cargos" },
   { id: "channels", label: "Canais" },
-  { id: "permissions", label: "Permissoes" },
+  { id: "permissions", label: "Permissões" },
   { id: "emojis", label: "Emojis" },
   { id: "stickers", label: "Stickers" },
-  { id: "settings", label: "Configuracoes do bot" },
+  { id: "settings", label: "Configurações do bot" },
   { id: "panels", label: "Paineis do bot" }
 ];
 
@@ -2015,7 +2015,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
       setRoles(options.roles ?? []);
       setChannels(options.channels ?? []);
     } catch (error) {
-      setMessage(readResponseMessage(error) ?? "Nao foi possivel carregar o Backup Completo.");
+      setMessage(readResponseMessage(error) ?? "Não foi possível carregar o Backup Completo.");
     } finally {
       setLoading(false);
     }
@@ -2058,9 +2058,9 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
     try {
       const saved = await saveServerBackupSettings(botId, guild.id, patch);
       setDashboard((current) => current ? { ...current, settings: saved } : current);
-      setMessage("Configuracao de backup salva.");
+      setMessage("Configuração de backup salva.");
     } catch (error) {
-      setMessage(readResponseMessage(error) ?? "Nao foi possivel salvar as configuracoes.");
+      setMessage(readResponseMessage(error) ?? "Não foi possível salvar as configurações.");
     } finally {
       setSaving(false);
     }
@@ -2075,7 +2075,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
       setDashboard((current) => current ? { ...current, backups: [backup, ...current.backups] } : current);
       setMessage(backup.status === "completed" ? "Backup criado com sucesso." : backup.statusMessage ?? "Backup finalizado com avisos.");
     } catch (error) {
-      setMessage(readResponseMessage(error) ?? "Nao foi possivel criar o backup.");
+      setMessage(readResponseMessage(error) ?? "Não foi possível criar o backup.");
     } finally {
       setSaving(false);
     }
@@ -2090,7 +2090,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
       if (selectedBackup?.id === backupId) setSelectedBackup(null);
       setMessage("Backup apagado.");
     } catch (error) {
-      setMessage(readResponseMessage(error) ?? "Nao foi possivel apagar o backup.");
+      setMessage(readResponseMessage(error) ?? "Não foi possível apagar o backup.");
     } finally {
       setWorkingBackupId(null);
     }
@@ -2105,7 +2105,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
     try {
       setPreview(await previewServerBackupRestore(botId, guild.id, backup.id, selectedParts, null, restoreMode));
     } catch (error) {
-      setMessage(readResponseMessage(error) ?? "Nao foi possivel gerar a previa.");
+      setMessage(readResponseMessage(error) ?? "Não foi possível gerar a previa.");
     } finally {
       setWorkingBackupId(null);
     }
@@ -2117,13 +2117,13 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
     setMessage(null);
     try {
       await restoreServerBackup(botId, guild.id, selectedBackup.id, selectedParts, confirmation, null, restoreMode);
-      setMessage("Restauracao iniciada e registrada no historico.");
+      setMessage("Restauração iniciada e registrada no histórico.");
       setSelectedBackup(null);
       setPreview(null);
       setConfirmation("");
       await load();
     } catch (error) {
-      setMessage(readResponseMessage(error) ?? "Nao foi possivel restaurar o backup.");
+      setMessage(readResponseMessage(error) ?? "Não foi possível restaurar o backup.");
     } finally {
       setWorkingBackupId(null);
     }
@@ -2138,7 +2138,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
     try {
       setSendPreview(await previewServerBackupRestore(botId, guild.id, sendBackupId, selectedParts, targetGuildId.trim(), restoreMode));
     } catch (error) {
-      setMessage(readResponseMessage(error) ?? "Nao foi possivel validar o servidor de destino.");
+      setMessage(readResponseMessage(error) ?? "Não foi possível validar o servidor de destino.");
     } finally {
       setWorkingBackupId(null);
     }
@@ -2150,12 +2150,12 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
     setMessage(null);
     try {
       await restoreServerBackup(botId, guild.id, sendBackupId, selectedParts, sendConfirmation, targetGuildId.trim(), restoreMode);
-      setMessage(`Backup enviado para restauracao no servidor ${targetGuildId.trim()}.`);
+      setMessage(`Backup enviado para restauração no servidor ${targetGuildId.trim()}.`);
       setSendPreview(null);
       setSendConfirmation("");
       await load();
     } catch (error) {
-      setMessage(readResponseMessage(error) ?? "Nao foi possivel restaurar no servidor de destino.");
+      setMessage(readResponseMessage(error) ?? "Não foi possível restaurar no servidor de destino.");
     } finally {
       setWorkingBackupId(null);
     }
@@ -2179,10 +2179,10 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard icon={Server} label="Backups salvos" value={String(dashboard?.backups.length ?? 0)} />
-        <MetricCard icon={Clock3} label="Automatico" value={settings.autoEnabled ? "Ativo" : "Pausado"} />
+        <MetricCard icon={Clock3} label="Automático" value={settings.autoEnabled ? "Ativo" : "Pausado"} />
         <MetricCard icon={CalendarClock} label="Frequencia" value={backupFrequencyLabel(settings.frequency)} />
         <MetricCard icon={ShieldCheck} label="Limite salvo" value={String(settings.limit)} />
-        <MetricCard icon={ScrollText} label="Historico" value={String(dashboard?.restoreJobs.length ?? 0)} />
+        <MetricCard icon={ScrollText} label="Histórico" value={String(dashboard?.restoreJobs.length ?? 0)} />
       </div>
 
       <Card>
@@ -2190,7 +2190,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Backup Completo</CardTitle>
-              <CardDescription>Isolado por bot e servidor, com criacao manual, automatica e restauracao seletiva.</CardDescription>
+              <CardDescription>Isolado por bot e servidor, com criacao manual, automática e restauração seletiva.</CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <Badge variant={canManage ? "success" : "muted"}>{canManage ? "Liberado" : "Somente leitura"}</Badge>
@@ -2200,10 +2200,10 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <AdvancedToggleField checked={settings.autoEnabled} disabled={disabled} label="Backup automatico" onChange={(checked) => void patchSettings({ autoEnabled: checked })} />
+            <AdvancedToggleField checked={settings.autoEnabled} disabled={disabled} label="Backup automático" onChange={(checked) => void patchSettings({ autoEnabled: checked })} />
             <AdvancedSelectField disabled={disabled} label="Frequencia do backup" onChange={(value) => void patchSettings({ frequency: value as ServerBackupSettings["frequency"] })} options={[{ label: "A cada 6 horas", value: "6h" }, { label: "A cada 12 horas", value: "12h" }, { label: "Diario", value: "daily" }, { label: "Semanal", value: "weekly" }, { label: "Mensal", value: "monthly" }]} placeholder="Selecione" value={settings.frequency} />
             <AdvancedNumberField disabled={disabled} label="Limite de backups salvos" max={100} min={1} onChange={(value) => void patchSettings({ limit: value })} value={settings.limit} />
-            <AdvancedSelectField disabled={disabled} label="Canal de logs" onChange={(value) => void patchSettings({ logChannelId: value || null })} options={logChannelOptions} placeholder="Usar logs padrao" value={settings.logChannelId ?? ""} />
+            <AdvancedSelectField disabled={disabled} label="Canal de logs" onChange={(value) => void patchSettings({ logChannelId: value || null })} options={logChannelOptions} placeholder="Usar logs padrão" value={settings.logChannelId ?? ""} />
             <div className="sm:col-span-2">
               <MultiRoleSelect disabled={disabled} label="Cargos autorizados" onChange={(values) => void patchSettings({ authorizedRoleIds: values })} roles={roles.filter((role) => !role.managed)} values={settings.authorizedRoleIds} />
             </div>
@@ -2228,7 +2228,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold text-white">{backup.guildName}</p>
                     <Badge variant={backup.status === "completed" ? "success" : backup.status === "partial" || backup.status === "pending" ? "warning" : "danger"}>{backup.status}</Badge>
-                    <Badge variant="muted">{backup.kind === "manual" ? "Manual" : "Automatico"}</Badge>
+                    <Badge variant="muted">{backup.kind === "manual" ? "Manual" : "Automático"}</Badge>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">{formatDate(backup.createdAt)} - criado por {backup.createdBy ?? "sistema"}</p>
                   <p className="mt-2 text-sm text-zinc-300">{backup.counts.roles} cargos, {backup.counts.categories} categorias, {backup.counts.channels} canais, {backup.counts.emojis} emojis, {backup.counts.stickers} stickers</p>
@@ -2247,7 +2247,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
       <Card>
         <CardHeader>
           <CardTitle>Enviar Backup para Outro Servidor</CardTitle>
-          <CardDescription>Selecione um backup salvo, informe o ID do servidor de destino e confirme antes de alterar canais, cargos e permissoes.</CardDescription>
+          <CardDescription>Selecione um backup salvo, informe o ID do servidor de destino e confirme antes de alterar canais, cargos e permissões.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
@@ -2263,11 +2263,11 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
             <AdvancedTextField disabled={!canManage} label="ID do servidor de destino" onChange={(value) => { setTargetGuildId(value); setSendPreview(null); setSendConfirmation(""); }} placeholder="Ex: 123456789012345678" value={targetGuildId} />
           </div>
           <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
-            Antes de restaurar, o sistema valida se o bot esta no servidor destino, se este bot/cliente pode gerenciar esse servidor, se voce tem permissao nele e se o bot possui permissoes para criar cargos, canais, categorias e sobrescritas.
+            Antes de restaurar, o sistema valida se o bot está no servidor destino, se este bot/cliente pode gerenciar esse servidor, se você tem permissão nele e se o bot possui permissões para criar cargos, canais, categorias e sobrescritas.
           </div>
           <AdvancedSelectField
             disabled={!canManage}
-            label="Modo de restauracao"
+            label="Modo de restauração"
             onChange={(value) => { setRestoreMode(value as ServerBackupRestoreMode); setSendPreview(null); setSendConfirmation(""); }}
             options={[
               { label: "Mesclar e atualizar existentes", value: "merge" },
@@ -2278,7 +2278,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
             placeholder="Selecione"
             value={restoreMode}
           />
-          {restoreMode === "clear" ? <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-4 text-sm font-semibold text-red-100">Modo limpar ativo: canais e cargos que o bot conseguir gerenciar no servidor destino serao removidos antes da restauracao.</div> : null}
+          {restoreMode === "clear" ? <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-4 text-sm font-semibold text-red-100">Modo limpar ativo: canais e cargos que o bot conseguir gerenciar no servidor destino serão removidos antes da restauração.</div> : null}
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {serverBackupParts.map((part) => <AdvancedToggleField checked={selectedParts.includes(part.id)} disabled={!canManage} key={`send-${part.id}`} label={part.label} onChange={(checked) => togglePart(part.id, checked)} />)}
           </div>
@@ -2289,15 +2289,15 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
           {sendPreview ? (
             <div className="rounded-lg border border-zinc-800 bg-black/40 p-4 text-sm text-zinc-300">
               <p className="font-semibold text-white">Origem {sendPreview.sourceGuildId} para destino {sendPreview.targetGuildId}</p>
-              <p className="mt-2">Serao restaurados: {sendPreview.summary.roles} cargos, {sendPreview.summary.categories} categorias, {sendPreview.summary.channels} canais, {sendPreview.summary.emojis} emojis, {sendPreview.summary.stickers} stickers e {sendPreview.summary.settings} configuracoes.</p>
-              {sendPreview.missingPermissions.length ? <p className="mt-2 text-red-300">Permissoes faltando: {sendPreview.missingPermissions.join(", ")}</p> : <p className="mt-2 text-emerald-300">Destino validado para restauracao.</p>}
+              <p className="mt-2">Serão restaurados: {sendPreview.summary.roles} cargos, {sendPreview.summary.categories} categorias, {sendPreview.summary.channels} canais, {sendPreview.summary.emojis} emojis, {sendPreview.summary.stickers} stickers e {sendPreview.summary.settings} configurações.</p>
+              {sendPreview.missingPermissions.length ? <p className="mt-2 text-red-300">Permissões faltando: {sendPreview.missingPermissions.join(", ")}</p> : <p className="mt-2 text-emerald-300">Destino validado para restauração.</p>}
               {sendPreview.warnings.map((warning) => <p className="mt-1 text-amber-300" key={warning}>{warning}</p>)}
             </div>
           ) : null}
-          <AdvancedTextField disabled={!canManage || sendPreview?.canRestore === false} label="Confirmacao para servidor destino" onChange={setSendConfirmation} placeholder="Digite CONFIRMAR" value={sendConfirmation} />
+          <AdvancedTextField disabled={!canManage || sendPreview?.canRestore === false} label="Confirmação para servidor destino" onChange={setSendConfirmation} placeholder="Digite CONFIRMAR" value={sendConfirmation} />
           <Button disabled={!canManage || !sendPreview?.canRestore || sendConfirmation !== "CONFIRMAR" || workingBackupId === sendBackupId} onClick={() => void confirmSendRestore()} variant="destructive">
             {workingBackupId === sendBackupId ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}
-            Confirmar envio/restauracao
+            Confirmar envio/restauração
           </Button>
         </CardContent>
       </Card>
@@ -2305,13 +2305,13 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
       {selectedBackup ? (
         <Card>
           <CardHeader>
-            <CardTitle>Restauracao seletiva</CardTitle>
+            <CardTitle>Restauração seletiva</CardTitle>
             <CardDescription>Escolha as partes, gere a previa e digite CONFIRMAR para executar.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <AdvancedSelectField
               disabled={!canManage}
-              label="Modo de restauracao"
+              label="Modo de restauração"
               onChange={(value) => { setRestoreMode(value as ServerBackupRestoreMode); setPreview(null); setConfirmation(""); }}
               options={[
                 { label: "Mesclar e atualizar existentes", value: "merge" },
@@ -2322,27 +2322,27 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
               placeholder="Selecione"
               value={restoreMode}
             />
-            {restoreMode === "clear" ? <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-4 text-sm font-semibold text-red-100">Modo limpar ativo: canais e cargos que o bot conseguir gerenciar neste servidor serao removidos antes da restauracao.</div> : null}
+            {restoreMode === "clear" ? <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-4 text-sm font-semibold text-red-100">Modo limpar ativo: canais e cargos que o bot conseguir gerenciar neste servidor serão removidos antes da restauração.</div> : null}
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {serverBackupParts.map((part) => <AdvancedToggleField checked={selectedParts.includes(part.id)} disabled={!canManage} key={part.id} label={part.label} onChange={(checked) => togglePart(part.id, checked)} />)}
             </div>
             <Button disabled={workingBackupId === selectedBackup.id || !selectedParts.length} onClick={() => void previewRestore(selectedBackup)} variant="secondary">{workingBackupId === selectedBackup.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}Atualizar previa</Button>
             {preview ? (
               <div className="rounded-lg border border-zinc-800 bg-black/40 p-4 text-sm text-zinc-300">
-                <p className="font-semibold text-white">Previa: {preview.summary.roles} cargos, {preview.summary.categories} categorias, {preview.summary.channels} canais, {preview.summary.emojis} emojis, {preview.summary.stickers} stickers e {preview.summary.settings} configuracoes.</p>
-                {preview.missingPermissions.length ? <p className="mt-2 text-red-300">Permissoes faltando: {preview.missingPermissions.join(", ")}</p> : <p className="mt-2 text-emerald-300">Permissoes principais validadas.</p>}
+                <p className="font-semibold text-white">Previa: {preview.summary.roles} cargos, {preview.summary.categories} categorias, {preview.summary.channels} canais, {preview.summary.emojis} emojis, {preview.summary.stickers} stickers e {preview.summary.settings} configurações.</p>
+                {preview.missingPermissions.length ? <p className="mt-2 text-red-300">Permissões faltando: {preview.missingPermissions.join(", ")}</p> : <p className="mt-2 text-emerald-300">Permissões principais validadas.</p>}
                 {preview.warnings.map((warning) => <p className="mt-1 text-amber-300" key={warning}>{warning}</p>)}
               </div>
             ) : null}
-            <AdvancedTextField disabled={!canManage || preview?.canRestore === false} label="Confirmacao" onChange={setConfirmation} placeholder="Digite CONFIRMAR" value={confirmation} />
-            <Button disabled={!canManage || !preview?.canRestore || confirmation !== "CONFIRMAR" || workingBackupId === selectedBackup.id} onClick={() => void confirmRestore()} variant="destructive">{workingBackupId === selectedBackup.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}Confirmar restauracao</Button>
+            <AdvancedTextField disabled={!canManage || preview?.canRestore === false} label="Confirmação" onChange={setConfirmation} placeholder="Digite CONFIRMAR" value={confirmation} />
+            <Button disabled={!canManage || !preview?.canRestore || confirmation !== "CONFIRMAR" || workingBackupId === selectedBackup.id} onClick={() => void confirmRestore()} variant="destructive">{workingBackupId === selectedBackup.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}Confirmar restauração</Button>
           </CardContent>
         </Card>
       ) : null}
 
       <Card>
         <CardHeader>
-          <CardTitle>Historico</CardTitle>
+          <CardTitle>Histórico</CardTitle>
           <CardDescription>Restauracoes e eventos recentes deste bot neste servidor.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -2356,7 +2356,7 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
                 </div>
                 {result?.summary ? (
                   <p className="mt-2 text-zinc-300">
-                    Restaurados: {result.summary.roles} cargos, {result.summary.categories} categorias, {result.summary.channels} canais, {result.summary.permissions} permissoes, {result.summary.emojis ?? 0} emojis, {result.summary.stickers ?? 0} stickers, {result.summary.settings} configuracoes. Reutilizados: {result.summary.reused ?? 0}. Falhas: {result.summary.failed}.
+                    Restaurados: {result.summary.roles} cargos, {result.summary.categories} categorias, {result.summary.channels} canais, {result.summary.permissions} permissões, {result.summary.emojis ?? 0} emojis, {result.summary.stickers ?? 0} stickers, {result.summary.settings} configurações. Reutilizados: {result.summary.reused ?? 0}. Falhas: {result.summary.failed}.
                   </p>
                 ) : null}
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-800" aria-label={`Progresso ${job.progress ?? result?.progressPercent ?? 0}%`}>
@@ -2371,12 +2371,12 @@ function ServerBackupPanel({ botId, canManage, guild }: { botId: string | null; 
                 {result?.errors?.length ? (
                   <div className="mt-2 grid gap-1 rounded-lg border border-red-500/20 bg-red-500/10 p-2 text-xs text-red-200">
                     {result.errors.slice(0, 4).map((item, index) => <span key={`${job.id}-error-${index}`}>{item.step}: {item.message}</span>)}
-                    {result.errors.length > 4 ? <span>Mais {result.errors.length - 4} erro(s) registrados no relatorio.</span> : null}
+                    {result.errors.length > 4 ? <span>Mais {result.errors.length - 4} erro(s) registrados no relatório.</span> : null}
                   </div>
                 ) : null}
               </div>
             );
-          }) : <p className="text-sm text-zinc-500">Nenhuma restauracao registrada.</p>}
+          }) : <p className="text-sm text-zinc-500">Nenhuma restauração registrada.</p>}
         </CardContent>
       </Card>
     </div>
@@ -2582,7 +2582,7 @@ function AdvancedSecurityModulePanel({
   const enabled = config.enabled === true;
   const disabled = !canManage || saving;
   const moduleFooter = moduleId === "auto-unmute"
-    ? "Este menu so aparece quando o modulo Auto Desmutar esta liberado para este bot na Dashboard DEV."
+    ? "Este menu só aparece quando o módulo Auto Desmutar está liberado para este bot na Dashboard DEV."
     : null;
 
   return (
@@ -2614,7 +2614,7 @@ function AdvancedSecurityModulePanel({
         <CardContent className="space-y-4">
           <SimpleToggleCard
             checked={enabled}
-            description="Ativa ou pausa este modulo para este bot neste servidor."
+            description="Ativa ou pausa este módulo para este bot neste servidor."
             disabled={disabled}
             icon={Icon}
             onChange={updateEnabled}
@@ -2714,7 +2714,7 @@ function AdvancedModuleFields({
     return (
       <div className="grid gap-3 sm:grid-cols-2">
         <AdvancedSelectField disabled={disabled} label="Canal de voz monitorado (opcional)" onChange={(value) => onChange({ voiceChannelId: value || null })} options={voiceChannelOptions} placeholder="Todo o servidor" value={stringConfig(config.voiceChannelId)} />
-        <AdvancedSelectField disabled={disabled} label="Cargo permitido (opcional)" onChange={(value) => onChange({ requiredRoleId: value || null })} options={roleOptions} placeholder="Todos os usuarios" value={stringConfig(config.requiredRoleId)} />
+        <AdvancedSelectField disabled={disabled} label="Cargo permitido (opcional)" onChange={(value) => onChange({ requiredRoleId: value || null })} options={roleOptions} placeholder="Todos os usuários" value={stringConfig(config.requiredRoleId)} />
         <AdvancedNumberField disabled={disabled} label="Delay para desmutar (segundos)" max={60} min={0} onChange={(value) => onChange({ delaySeconds: value })} value={numberConfig(config.delaySeconds, 0)} />
         <AdvancedNumberField disabled={disabled} label="Limite anti-spam (segundos)" max={300} min={1} onChange={(value) => onChange({ antiSpamSeconds: value })} value={numberConfig(config.antiSpamSeconds, 10)} />
       </div>
@@ -2745,7 +2745,7 @@ function AdvancedModuleFields({
         <AdvancedToggleField checked={config.antiKickVoiceEnabled !== false} disabled={disabled} label="Anti Kick Voice" onChange={(checked) => onChange({ antiKickVoiceEnabled: checked })} />
         <AdvancedToggleField checked={config.autoUnmuteEnabled !== false} disabled={disabled} label="Auto Unmute forcado" onChange={(checked) => onChange({ autoUnmuteEnabled: checked })} />
         <AdvancedToggleField checked={config.strictDevOverride !== false} disabled={disabled} label="DEV override estrito" onChange={(checked) => onChange({ strictDevOverride: checked })} />
-        <AdvancedTextField disabled={disabled} label="IDs dos cargos autorizados" onChange={(value) => onChange({ allowedRoleIds: splitIds(value) })} placeholder="Cargos que podem executar acoes de voz" value={arrayConfig(config.allowedRoleIds)} />
+        <AdvancedTextField disabled={disabled} label="IDs dos cargos autorizados" onChange={(value) => onChange({ allowedRoleIds: splitIds(value) })} placeholder="Cargos que podem executar ações de voz" value={arrayConfig(config.allowedRoleIds)} />
         <AdvancedTextField disabled={disabled} label="IDs dos cargos protegidos" onChange={(value) => onChange({ protectedRoleIds: splitIds(value) })} placeholder="Vazio protege todos" value={arrayConfig(config.protectedRoleIds)} />
         <AdvancedTextField disabled={disabled} label="IDs dos cargos imunes" onChange={(value) => onChange({ immuneRoleIds: splitIds(value) })} placeholder="Usado somente sem override estrito" value={arrayConfig(config.immuneRoleIds)} />
         <AdvancedSelectField disabled={disabled} label="Canal de logs" onChange={(value) => onChange({ logChannelId: value || null })} options={textChannelOptions} placeholder="Sem logs dedicado" value={stringConfig(config.logChannelId)} />
@@ -3126,7 +3126,7 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
       })
       .catch(() => {
         if (active && scopeRequestId === scopeRequestRef.current && scopeKeyRef.current === scopeKey) {
-          setError("Nao foi possivel carregar os Paineis de Hierarquia V2.");
+          setError("Não foi possível carregar os Paineis de Hierarquia V2.");
         }
       })
       .finally(() => {
@@ -3165,7 +3165,7 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
         })
         .catch(() => {
           if (active && scopeKeyRef.current === scopeKey) {
-            setError("Nao foi possivel atualizar os Paineis de Hierarquia V2 em tempo real.");
+            setError("Não foi possível atualizar os Paineis de Hierarquia V2 em tempo real.");
           }
         });
     };
@@ -3222,11 +3222,11 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
     const selectedRoleIds = panel.hierarchies.map((item) => item.roleId).filter(Boolean);
     if (!panel.hierarchies.length) return "Adicione pelo menos um cargo ao painel.";
     if (panel.hierarchies.some((item) => !item.roleId || !item.name.trim())) return "Escolha o cargo e informe o que ele representa em todas as linhas.";
-    if (new Set(selectedRoleIds).size !== selectedRoleIds.length) return "O mesmo cargo nao pode aparecer duas vezes no painel.";
-    if (selectedRoleIds.some((roleId) => !roles.some((role) => role.id === roleId))) return "Um dos cargos selecionados nao pertence mais a este servidor.";
+    if (new Set(selectedRoleIds).size !== selectedRoleIds.length) return "O mesmo cargo não pode aparecer duas vezes no painel.";
+    if (selectedRoleIds.some((roleId) => !roles.some((role) => role.id === roleId))) return "Um dos cargos selecionados não pertence mais a este servidor.";
     if (!panel.name.trim() || !panel.title.trim()) return "Informe o nome interno e o titulo do painel.";
     if (panel.enabled && !panel.panelChannelId) return "Escolha o canal do painel antes de ativa-lo.";
-    if (panel.panelChannelId && !channels.some((channel) => channel.id === panel.panelChannelId)) return "O canal selecionado nao pertence mais a este servidor.";
+    if (panel.panelChannelId && !channels.some((channel) => channel.id === panel.panelChannelId)) return "O canal selecionado não pertence mais a este servidor.";
     return null;
   }
 
@@ -3247,7 +3247,7 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
     setSyncRequested(false);
     setMessage(refreshed.panelMessageId
       ? `Hierarquia publicada e atualizada: ${refreshed.panelMessageId}.`
-      : "Publicacao da hierarquia concluida.");
+      : "Publicação da hierarquia concluída.");
     return refreshed;
   }
 
@@ -3272,8 +3272,8 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
       const pendingSync = lastPanelStateAtRef.current < requestedAt;
       setSyncRequested(pendingSync);
       setMessage(pendingSync
-        ? "Configuracao salva. Sincronizacao do painel V2 solicitada."
-        : "Configuracao salva e painel V2 sincronizado.");
+        ? "Configuração salva. Sincronização do painel V2 solicitada."
+        : "Configuração salva e painel V2 sincronizado.");
       if (options.publishAfterSave && synchronizedPanel.enabled && synchronizedPanel.panelChannelId) {
         officialMessageRefreshRef.current = true;
         setRefreshingOfficialMessage(true);
@@ -3282,7 +3282,7 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
       return synchronizedPanel;
     } catch (error) {
       if (scopeKeyRef.current === requestScopeKey) {
-        setError(readResponseMessage(error) ?? "Nao foi possivel salvar o painel de hierarquia.");
+        setError(readResponseMessage(error) ?? "Não foi possível salvar o painel de hierarquia.");
       }
     } finally {
       savingRef.current = false;
@@ -3314,7 +3314,7 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
       await publishPanel(draft, requestScopeKey);
     } catch (requestError) {
       if (scopeKeyRef.current === requestScopeKey) {
-        setError(readResponseMessage(requestError) ?? "Nao foi possivel verificar ou atualizar a mensagem oficial.");
+        setError(readResponseMessage(requestError) ?? "Não foi possível verificar ou atualizar a mensagem oficial.");
       }
     } finally {
       officialMessageRefreshRef.current = false;
@@ -3341,7 +3341,7 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
       await publishPanel(draft, requestScopeKey);
     } catch (requestError) {
       if (scopeKeyRef.current === requestScopeKey) {
-        setError(readResponseMessage(requestError) ?? "Nao foi possivel publicar a hierarquia.");
+        setError(readResponseMessage(requestError) ?? "Não foi possível publicar a hierarquia.");
       }
     } finally {
       officialMessageRefreshRef.current = false;
@@ -3351,7 +3351,7 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
 
   function selectPanel(panel: FivemHierarchyPanelType) {
     if (busy || panel.id === draft?.id) return;
-    if (dirtyRef.current && !window.confirm("Descartar as alteracoes nao salvas deste painel V2?")) return;
+    if (dirtyRef.current && !window.confirm("Descartar as alterações não salvas deste painel V2?")) return;
     setDraft(panel);
     markDirty(false);
     setSyncRequested(false);
@@ -3361,7 +3361,7 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
 
   function createPanelDraft() {
     if (!guild || busy) return;
-    if (dirtyRef.current && !window.confirm("Descartar as alteracoes nao salvas deste painel V2?")) return;
+    if (dirtyRef.current && !window.confirm("Descartar as alterações não salvas deste painel V2?")) return;
     setDraft(createEmptyHierarchyPanel(guild.id, botId));
     markDirty(false);
     setSyncRequested(false);
@@ -3386,7 +3386,7 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
       setSyncRequested(false);
       setMessage("Painel de Hierarquia V2 excluido.");
     } catch {
-      setError("Nao foi possivel excluir o painel.");
+      setError("Não foi possível excluir o painel.");
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -3399,13 +3399,13 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 text-emerald-300" /> Paineis de Hierarquia V2</CardTitle>
-            <CardDescription>Mensagens oficiais com membros agrupados por cargos e sincronizacao automatica.</CardDescription>
+            <CardDescription>Mensagens oficiais com membros agrupados por cargos e sincronização automática.</CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button disabled={!canManage || !guild || busy} onClick={createPanelDraft} size="sm" type="button" variant="outline">Novo painel V2</Button>
             <Button disabled={controlsDisabled || !draft || (!dirty && !draftIsNew)} onClick={() => void savePanel()} size="sm" type="button">
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-              {saving ? "Salvando e solicitando sincronizacao..." : "Salvar e atualizar painel V2"}
+              {saving ? "Salvando e solicitando sincronização..." : "Salvar e atualizar painel V2"}
             </Button>
             <Button
               disabled={controlsDisabled || !draft || !draft.enabled || !draft.panelChannelId}
@@ -3434,10 +3434,10 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
         {message ? <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{message}</div> : null}
         {draftInScope && draft ? (
           <div className="flex flex-wrap gap-2">
-            <Badge variant={draft.panelMessageId ? "success" : "warning"}>Mensagem oficial: {draft.panelMessageId ?? "aguardando primeira sincronizacao"}</Badge>
+            <Badge variant={draft.panelMessageId ? "success" : "warning"}>Mensagem oficial: {draft.panelMessageId ?? "aguardando primeira sincronização"}</Badge>
             <Badge>Versao do painel: V2</Badge>
             <Badge variant={draftIsNew || dirty ? "warning" : syncRequested ? "default" : "success"}>
-              {draftIsNew ? "Novo painel nao salvo" : dirty ? "Alteracoes nao salvas" : syncRequested ? "Salvo · sincronizacao solicitada" : "Configuracao salva"}
+              {draftIsNew ? "Novo painel não salvo" : dirty ? "Alterações não salvas" : syncRequested ? "Salvo · sincronização solicitada" : "Configuração salva"}
             </Badge>
           </div>
         ) : null}
@@ -3463,7 +3463,7 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
                   <Switch checked={draft.enabled} disabled={controlsDisabled} onCheckedChange={(enabled) => patchDraft({ enabled })} />
                 </label>
                 <div className="md:col-span-2">
-                  <TicketArea disabled={controlsDisabled} label="Descricao" onChange={(value) => patchDraft({ description: value })} value={draft.description ?? ""} />
+                  <TicketArea disabled={controlsDisabled} label="Descrição" onChange={(value) => patchDraft({ description: value })} value={draft.description ?? ""} />
                 </div>
                 <MultiRoleSelect disabled={controlsDisabled} label="Cargos gestores desta hierarquia" onChange={(values) => patchDraft({ managerRoleIds: values })} roles={roles} values={draft.managerRoleIds} />
                 <MultiRoleSelect disabled={controlsDisabled} label="Cargos de comando desta hierarquia" onChange={(values) => patchDraft({ commandRoleIds: values })} roles={roles} values={draft.commandRoleIds} />
@@ -3503,7 +3503,7 @@ function FivemHierarchyPanel({ botId, canManage, guild }: { botId?: string | nul
                 ))}
                 {!draft.hierarchies.length ? <div className="rounded-lg border border-dashed border-zinc-800 px-4 py-8 text-center text-sm text-zinc-500">Nenhum cargo configurado. Clique em Adicionar cargo para comecar.</div> : null}
                 <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.05] px-3 py-2 text-xs text-emerald-100">
-                  Ao salvar, uma unica sincronizacao V2 e solicitada. A mensagem oficial existente sera atualizada pelo bot.
+                  Ao salvar, uma única sincronização V2 e solicitada. A mensagem oficial existente será atualizada pelo bot.
                 </div>
               </div>
               {!isLocalHierarchyPanelId(draft.id) ? <Button disabled={controlsDisabled} onClick={() => void removePanel()} size="sm" type="button" variant="destructive"><Trash2 className="mr-2 h-4 w-4" />Excluir painel V2</Button> : null}
@@ -3587,7 +3587,7 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
         setRoles(options.roles);
       })
       .catch(() => {
-        if (active) setError("Nao foi possivel carregar metas FiveM.");
+        if (active) setError("Não foi possível carregar metas FiveM.");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -3648,7 +3648,7 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
       setSettings(saved);
       setMessage("Metas FiveM salvas.");
     } catch {
-      setError("Nao foi possivel salvar metas FiveM.");
+      setError("Não foi possível salvar metas FiveM.");
     } finally {
       setSaving(false);
     }
@@ -3701,7 +3701,7 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
       setDraft(saved);
       setMessage("Meta salva.");
     } catch {
-      setError("Nao foi possivel salvar a meta.");
+      setError("Não foi possível salvar a meta.");
     } finally {
       setSaving(false);
     }
@@ -3715,9 +3715,9 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
     try {
       const saved = await publishFivemGoalPanel(guild.id, botId);
       setSettings(saved);
-      setMessage("Painel de solicitacao enviado para o bot atualizar no Discord.");
+      setMessage("Painel de solicitação enviado para o bot atualizar no Discord.");
     } catch {
-      setError("Nao foi possivel publicar o painel. Confira canal, permissao do bot e se o sistema esta ativo.");
+      setError("Não foi possível publicar o painel. Confira canal, permissão do bot e se o sistema está ativo.");
     } finally {
       setSaving(false);
     }
@@ -3725,7 +3725,7 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
 
   async function removeDraft(deleteHistory = false) {
     if (!guild || !draft || draft.id === "new") return;
-    if (!window.confirm(deleteHistory ? "Excluir esta meta e todo o historico vinculado?" : "Excluir esta meta sem apagar o historico?")) return;
+    if (!window.confirm(deleteHistory ? "Excluir esta meta e todo o histórico vinculado?" : "Excluir esta meta sem apagar o histórico?")) return;
     setSaving(true);
     setError(null);
     setMessage(null);
@@ -3734,9 +3734,9 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
       const next = configs.filter((config) => config.id !== draft.id);
       setConfigs(next);
       setDraft(next[0] ?? null);
-      setMessage(deleteHistory ? "Meta e historico excluidos." : "Meta excluida. Historico preservado.");
+      setMessage(deleteHistory ? "Meta e histórico excluidos." : "Meta excluida. Histórico preservado.");
     } catch {
-      setError("Nao foi possivel excluir a meta.");
+      setError("Não foi possível excluir a meta.");
     } finally {
       setSaving(false);
     }
@@ -3748,7 +3748,7 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2"><ListChecks className="h-5 w-5 text-emerald-300" /> Gerenciamento de Metas FiveM</CardTitle>
-            <CardDescription>Metas independentes com cargos, canais, comprovantes, aprovacao e historico.</CardDescription>
+            <CardDescription>Metas independentes com cargos, canais, comprovantes, aprovação e histórico.</CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button disabled={!canManage || !settings || saving || loading} onClick={createDraft} size="sm" type="button" variant="outline">
@@ -3777,9 +3777,9 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
               <section className="border-y border-zinc-800 py-4">
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-white">Relatorio automatico da semana</p>
+                    <p className="text-sm font-semibold text-white">Relatório automático da semana</p>
                     <p className="mt-1 text-xs text-zinc-500">
-                      {new Date(report.periodStart).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} ate {new Date(new Date(report.periodEnd).getTime() - 1).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+                      {new Date(report.periodStart).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} até {new Date(new Date(report.periodEnd).getTime() - 1).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}
                       {` - ${report.totalRecords} registros`}
                     </p>
                   </div>
@@ -3808,7 +3808,7 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
                   <div className="mt-4 overflow-x-auto">
                     <table className="w-full min-w-[620px] text-left text-sm">
                       <thead className="border-b border-zinc-800 text-xs text-zinc-500">
-                        <tr><th className="pb-2 font-medium">Ranking</th><th className="pb-2 font-medium">Usuario</th><th className="pb-2 font-medium">Aprovadas</th><th className="pb-2 font-medium">Pendentes</th><th className="pb-2 text-right font-medium">Total aprovado</th></tr>
+                        <tr><th className="pb-2 font-medium">Ranking</th><th className="pb-2 font-medium">Usuário</th><th className="pb-2 font-medium">Aprovadas</th><th className="pb-2 font-medium">Pendentes</th><th className="pb-2 text-right font-medium">Total aprovado</th></tr>
                       </thead>
                       <tbody className="divide-y divide-zinc-900">
                         {report.members.slice(0, 20).map((member, index) => (
@@ -3878,10 +3878,10 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
                     <Button disabled={!canManage || saving} onClick={() => void saveDraft()} size="sm" type="button">{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}Salvar</Button>
                   </div>
                   <TicketField disabled={!canManage} label="Nome" onChange={(value) => patchDraft({ name: value })} value={draft.name} />
-                  <TicketField disabled={!canManage} label="Descricao" onChange={(value) => patchDraft({ description: value })} value={draft.description ?? ""} />
+                  <TicketField disabled={!canManage} label="Descrição" onChange={(value) => patchDraft({ description: value })} value={draft.description ?? ""} />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <TicketField disabled={!canManage} label="Tipo" onChange={(value) => patchDraft({ type: value })} value={draft.type} />
-                    <TicketField disabled={!canManage} label="Valor necessario" onChange={(value) => patchDraft({ targetValue: Number(value) || 1 })} value={String(draft.targetValue)} />
+                    <TicketField disabled={!canManage} label="Valor necessário" onChange={(value) => patchDraft({ targetValue: Number(value) || 1 })} value={String(draft.targetValue)} />
                     <label className="block text-xs font-medium text-zinc-400">Status
                       <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage} onChange={(event) => patchDraft({ status: event.target.value as FivemGoalConfig["status"] })} value={draft.status}>
                         <option value="active">Ativa</option>
@@ -3905,13 +3905,13 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
                   <MultiRoleSelect disabled={!canManage} label="Cargos aprovadores" onChange={(value) => patchDraft({ approverRoleIds: value })} roles={roles} values={draft.approverRoleIds} />
                   <div className="grid gap-2 sm:grid-cols-2">
                     <label className="flex items-center gap-2 rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-300"><input checked={draft.requiresProof} disabled={!canManage} onChange={(event) => patchDraft({ requiresProof: event.target.checked })} type="checkbox" /> Exigir comprovante</label>
-                    <label className="flex items-center gap-2 rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-300"><input checked={draft.requiresApproval} disabled={!canManage} onChange={(event) => patchDraft({ requiresApproval: event.target.checked })} type="checkbox" /> Aprovacao manual</label>
+                    <label className="flex items-center gap-2 rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-300"><input checked={draft.requiresApproval} disabled={!canManage} onChange={(event) => patchDraft({ requiresApproval: event.target.checked })} type="checkbox" /> Aprovação manual</label>
                   </div>
                   <TicketField disabled={!canManage} label="Regras" onChange={(value) => patchDraft({ rules: value })} value={draft.rules ?? ""} />
                   {draft.id !== "new" ? (
                     <div className="flex flex-wrap gap-2">
                       <Button disabled={!canManage || saving} onClick={() => void removeDraft(false)} size="sm" type="button" variant="destructive"><Trash2 className="mr-2 h-4 w-4" />Excluir meta</Button>
-                      <Button disabled={!canManage || saving} onClick={() => void removeDraft(true)} size="sm" type="button" variant="outline">Excluir com historico</Button>
+                      <Button disabled={!canManage || saving} onClick={() => void removeDraft(true)} size="sm" type="button" variant="outline">Excluir com histórico</Button>
                     </div>
                   ) : null}
                 </div>
@@ -4013,7 +4013,7 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               <MetricCard icon={ListChecks} label="Metas" value={String(entries.length)} />
-              <MetricCard icon={Users} label="Usuarios" value={String(new Set(entries.map((entry) => entry.userId)).size)} />
+              <MetricCard icon={Users} label="Usuários" value={String(new Set(entries.map((entry) => entry.userId)).size)} />
               <MetricCard icon={CalendarClock} label="Hoje" value={String(entries.filter((entry) => new Date(entry.createdAt).toDateString() === new Date().toDateString()).length)} />
             </div>
           </>
@@ -4025,14 +4025,14 @@ function FivemGoalsPanel({ botId, canManage, guild }: { botId?: string | null; c
 
 function fivemModeDescription(mode: "general" | "orders" | "goals") {
   if (mode === "goals") {
-    return "Metas e registros por membro ficam em um fluxo proprio: cadastro aprovado cria canal individual, o membro envia foto/quantidade e a lideranca acompanha tudo por historico.";
+    return "Metas e registros por membro ficam em um fluxo próprio: cadastro aprovado cria canal individual, o membro envia foto/quantidade e a lideranca acompanha tudo por histórico.";
   }
 
   if (mode === "orders") {
-    return "Encomendas ficam em um fluxo proprio: pedido, fila, producao, entrega, cancelamento e logs. Nao mistura com metas, ausencias ou financeiro.";
+    return "Encomendas ficam em um fluxo próprio: pedido, fila, produção, entrega, cancelamento e logs. Não mistura com metas, ausências ou financeiro.";
   }
 
-  return "Central dos modulos FiveM liberados para este bot. Metas e Encomendas possuem menus proprios quando liberados; Hierarquia fica na area Policia.";
+  return "Central dos modulos FiveM liberados para este bot. Metas e Encomendas possuem menus próprios quando liberados; Hierarquia fica na área Polícia.";
 }
 
 function fivemModeSteps(mode: "general" | "orders" | "goals") {
@@ -4040,44 +4040,44 @@ function fivemModeSteps(mode: "general" | "orders" | "goals") {
     return [
       { title: "1. Cadastro aprovado", description: "O sistema usa o cadastro manual/FiveM para identificar o membro e criar ou localizar o canal individual." },
       { title: "2. Registro da meta", description: "O membro envia item, quantidade, foto e campos configurados no modal Components V2." },
-      { title: "3. Acompanhamento", description: "A dashboard mostra registros, usuarios, metas do dia e logs do servidor." }
+      { title: "3. Acompanhamento", description: "A dashboard mostra registros, usuários, metas do dia e logs do servidor." }
     ];
   }
 
   if (mode === "orders") {
     return [
-      { title: "1. Pedido", description: "O cliente escolhe o produto ou tipo de encomenda e envia quantidade, prioridade e observacao." },
-      { title: "2. Fila da equipe", description: "A staff acompanha pedidos pendentes, em producao, prontos, entregues e cancelados." },
-      { title: "3. Logs e historico", description: "Cada mudanca de status deve gerar registro isolado para este bot e servidor." }
+      { title: "1. Pedido", description: "O cliente escolhe o produto ou tipo de encomenda e envia quantidade, prioridade e observação." },
+      { title: "2. Fila da equipe", description: "A staff acompanha pedidos pendentes, em produção, prontos, entregues e cancelados." },
+      { title: "3. Logs e histórico", description: "Cada mudança de status deve gerar registro isolado para este bot e servidor." }
     ];
   }
 
   return [
     { title: "Modulos liberados", description: "Somente os sistemas autorizados na Dashboard DEV aparecem para o cliente." },
-    { title: "Escopo isolado", description: "As configuracoes ficam vinculadas ao bot selecionado e ao servidor atual." },
+    { title: "Escopo isolado", description: "As configurações ficam vinculadas ao bot selecionado e ao servidor atual." },
     { title: "Menus dedicados", description: "Hierarquia, Metas e Encomendas aparecem separados para evitar confusao operacional." }
   ];
 }
 
 function fivemUserModules(enabledModules: string[], fivemModules: FivemModuleDefinition[], mode: "general" | "orders" | "goals" = "general") {
   const fallbackCatalog: FivemModuleDefinition[] = [
-    { builtIn: true, description: "Controle de membros, cargos e operacao das faccoes.", id: "fivem-factions", permissions: "Admin FiveM", title: "Faccoes" },
+    { builtIn: true, description: "Controle de membros, cargos e operação das facções.", id: "fivem-factions", permissions: "Admin FiveM", title: "Facções" },
     { builtIn: true, description: "Gestao operacional de corporacoes e equipes.", id: "fivem-corporations", permissions: "Admin FiveM", title: "Corporacoes" },
-    { builtIn: true, description: "Solicitacoes e aprovacao de ausencias RP.", id: "fivem-absences", permissions: "Admin FiveM", title: "Ausência" },
+    { builtIn: true, description: "Solicitacoes e aprovação de ausências RP.", id: "fivem-absences", permissions: "Admin FiveM", title: "Ausência" },
     { builtIn: true, description: "Pedidos, entregas e acompanhamento de encomendas.", id: "fivem-orders", permissions: "Admin FiveM", title: "Encomendas" },
-    { builtIn: true, description: "Lavagem RP com regras de porcentagem, calculo automatico, logs e historico.", id: "fivem-washing", permissions: "Admin FiveM", title: "Sistema de Lavagem" },
-    { builtIn: true, description: "Drogas, familias autorizadas, pedidos, producao, logs e historico isolados.", id: "fivem-drugs", permissions: "Admin FiveM", title: "Sistema de Drogas" },
-    { builtIn: true, description: "Pedidos, producao, entrega, logs e financeiro de municoes.", id: "fivem-ammo", permissions: "Admin FiveM", title: "Municoes" },
+    { builtIn: true, description: "Lavagem RP com regras de porcentagem, cálculo automático, logs e histórico.", id: "fivem-washing", permissions: "Admin FiveM", title: "Sistema de Lavagem" },
+    { builtIn: true, description: "Drogas, famílias autorizadas, pedidos, produção, logs e histórico isolados.", id: "fivem-drugs", permissions: "Admin FiveM", title: "Sistema de Drogas" },
+    { builtIn: true, description: "Pedidos, produção, entrega, logs e financeiro de munições.", id: "fivem-ammo", permissions: "Admin FiveM", title: "Municoes" },
     { builtIn: true, description: "Fluxo financeiro, caixa e lancamentos RP.", id: "fivem-finance", permissions: "Admin FiveM", title: "Financeiro" },
     { builtIn: true, description: "Metas por membro com fotos e registros via Components V2.", id: "fivem-goals", permissions: "Admin FiveM", title: "Metas" },
-    { builtIn: true, description: "Paineis oficiais V2 sincronizados por cargos.", id: "fivem-hierarchy", permissions: "Admin Policia", title: "Paineis de Hierarquia V2" },
-    { builtIn: true, description: "Acoes profissionais da FAC com painel, participantes e relatorios separados.", id: "fivem-actions", permissions: "Admin FiveM", title: "Acoes FAC" },
-    { builtIn: true, description: "Solicitacoes e aprovacao de ausencias para oficiais.", id: "police-absences", permissions: "Admin Policia", title: "Ausencia Policial" },
-    { builtIn: true, description: "Operacoes policiais com painel, participantes e relatorios separados.", id: "police-actions", permissions: "Admin Policia", title: "Acoes Policiais" },
-    { builtIn: true, description: "Relatórios de patrulhamento exclusivos para oficiais.", id: "police-patrol-reports", permissions: "Admin Polícia", title: "Relatórios Policiais" },
+    { builtIn: true, description: "Paineis oficiais V2 sincronizados por cargos.", id: "fivem-hierarchy", permissions: "Admin Polícia", title: "Paineis de Hierarquia V2" },
+    { builtIn: true, description: "Ações profissionais da FAC com painel, participantes e relatórios separados.", id: "fivem-actions", permissions: "Admin FiveM", title: "Ações FAC" },
+    { builtIn: true, description: "Solicitacoes e aprovação de ausências para oficiais.", id: "police-absences", permissions: "Admin Polícia", title: "Ausência Policial" },
+    { builtIn: true, description: "Operações policiais com painel, participantes e relatórios separados.", id: "police-actions", permissions: "Admin Polícia", title: "Ações Políciais" },
+    { builtIn: true, description: "Relatórios de patrulhamento exclusivos para oficiais.", id: "police-patrol-reports", permissions: "Admin Polícia", title: "Relatórios Políciais" },
     { builtIn: true, description: "Canal anonimo policial com logs administrativos.", id: "police-hidden-channel", permissions: "Admin Polícia", title: "Canal Oculto" },
     { builtIn: true, description: "Envio de mensagens privadas com painel visual e logs.", id: "police-dm", permissions: "Admin Polícia", title: "Barra DM" },
-    { builtIn: true, description: "Denuncias anonimas/identificadas com orgaos, logs e auditoria.", id: "police-iab", permissions: "Admin Polícia", title: "Denuncias Corregedoria" },
+    { builtIn: true, description: "Denuncias anonimas/identificadas com órgãos, logs e auditoria.", id: "police-iab", permissions: "Admin Polícia", title: "Denuncias Corregedoria" },
     { builtIn: true, description: "Intimacoes institucionais com DMs, prazos e competência por órgão.", id: "police-subpoenas", permissions: "Admin Polícia", title: "Intimacao" },
     { builtIn: true, description: "Notificações policiais por DM, canal mencionado, contador de avisos verbais e alertas administrativos.", id: "police-open-duty", permissions: "Admin Polícia", title: "Notificar / Ponto Aberto" }
   ];
@@ -4889,7 +4889,7 @@ function RulesView({
           </label>
 
           <label className="space-y-2">
-            <span className="text-sm font-medium text-zinc-100">Texto do botao</span>
+            <span className="text-sm font-medium text-zinc-100">Texto do botão</span>
             <input
               className="h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none transition focus:border-[#FFD500]"
               disabled={!canManage}
@@ -4950,7 +4950,7 @@ function DeleteChannelsPanel({
       });
       setSelectedIds([]);
     } catch (error) {
-      setMessage(readResponseMessage(error) ?? "Nao foi possivel carregar os canais e cargos.");
+      setMessage(readResponseMessage(error) ?? "Não foi possível carregar os canais e cargos.");
     } finally {
       setLoading(false);
     }
@@ -4977,7 +4977,7 @@ function DeleteChannelsPanel({
     if (!guild || !selectedIds.length) return;
     const selectedRoleIds = selectedIds.filter((id) => options.roles.some((role) => role.id === id));
     const selectedChannelIds = selectedIds.filter((id) => !selectedRoleIds.includes(id));
-    const confirmed = window.confirm(`Apagar permanentemente ${selectedChannelIds.length} canal(is) e ${selectedRoleIds.length} cargo(s)? Esta acao nao pode ser desfeita.`);
+    const confirmed = window.confirm(`Apagar permanentemente ${selectedChannelIds.length} canal(is) e ${selectedRoleIds.length} cargo(s)? Esta ação não pode ser desfeita.`);
     if (!confirmed) return;
 
     setDeleting(true);
@@ -4985,11 +4985,11 @@ function DeleteChannelsPanel({
     try {
       const result = await deleteGuildChannels(guild.id, selectedChannelIds, selectedRoleIds, botId);
       setMessage(result.failed.length
-        ? `${result.deleted.length} removido(s). ${result.failed.length} falharam por permissao ou limite do Discord.`
+        ? `${result.deleted.length} removido(s). ${result.failed.length} falharam por permissão ou limite do Discord.`
         : `${result.deleted.length} item(ns) removido(s) com sucesso.`);
       await loadChannels();
     } catch (error) {
-      setMessage(readResponseMessage(error) ?? "Nao foi possivel apagar os itens selecionados.");
+      setMessage(readResponseMessage(error) ?? "Não foi possível apagar os itens selecionados.");
     } finally {
       setDeleting(false);
     }
@@ -5013,7 +5013,7 @@ function DeleteChannelsPanel({
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="rounded-lg border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-          A exclusao e permanente. O bot precisa de Gerenciar Canais e Gerenciar Cargos. Cargos acima do bot ficam bloqueados para selecao.
+          A exclusão e permanente. O bot precisa de Gerenciar Canais e Gerenciar Cargos. Cargos acima do bot ficam bloqueados para seleção.
         </div>
 
         <div className="flex flex-wrap gap-3">
@@ -5202,7 +5202,7 @@ function SettingsView({
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="rounded-lg border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-            Este comando apaga todos os canais e cargos editaveis. Por seguranca, somente o dono do servidor pode executar.
+            Este comando apaga todos os canais e cargos editaveis. Por segurança, somente o dono do servidor pode executar.
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3">
@@ -5210,11 +5210,11 @@ function SettingsView({
               <p className="mt-1 font-mono text-sm text-white">/delete-serve</p>
             </div>
             <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3">
-              <p className="text-xs text-zinc-500">Confirmacao obrigatoria</p>
+              <p className="text-xs text-zinc-500">Confirmação obrigatória</p>
               <p className="mt-1 font-mono text-sm text-white">APAGAR TUDO</p>
             </div>
           </div>
-          <p className="text-xs text-zinc-500">O bot precisa das permissoes Gerenciar Canais e Gerenciar Cargos e ignora itens acima do cargo dele.</p>
+          <p className="text-xs text-zinc-500">O bot precisa das permissões Gerenciar Canais e Gerenciar Cargos e ignora itens acima do cargo dele.</p>
         </CardContent>
       </Card>
     );
@@ -5285,7 +5285,7 @@ function ManualRegistrationPanel({
         setMemberOptions(members.filter((member) => !member.bot));
       })
       .catch(() => {
-        if (active) setError("Nao foi possivel carregar o cadastro manual.");
+        if (active) setError("Não foi possível carregar o cadastro manual.");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -5375,7 +5375,7 @@ function ManualRegistrationPanel({
       setSettings(saved);
       setMessage("Pedido de Set salvo.");
     } catch {
-      setError("Nao foi possivel salvar o Pedido de Set.");
+      setError("Não foi possível salvar o Pedido de Set.");
     } finally {
       setSaving(false);
     }
@@ -5391,7 +5391,7 @@ function ManualRegistrationPanel({
       setSettings(await publishManualRegistrationPanel(guild.id, botId));
       setMessage(`Painel solicitado para o bot${saved.panelChannelId ? ` em <#${saved.panelChannelId}>` : ""}.`);
     } catch {
-      setError("Nao foi possivel publicar o painel. Confira o canal, o modulo e se o bot esta online.");
+      setError("Não foi possível publicar o painel. Confira o canal, o módulo e se o bot está online.");
     } finally {
       setSaving(false);
     }
@@ -5406,9 +5406,9 @@ function ManualRegistrationPanel({
     setError(null);
     try {
       await deleteManualRegistrationSubmission(guild.id, submission.id, reason.trim(), botId);
-      setMessage("Remocao solicitada ao bot. O resultado sera sincronizado em tempo real.");
+      setMessage("Remoção solicitada ao bot. O resultado será sincronizado em tempo real.");
     } catch {
-      setError("Nao foi possivel excluir o cadastro.");
+      setError("Não foi possível excluir o cadastro.");
     } finally {
       setSaving(false);
     }
@@ -5428,9 +5428,9 @@ function ManualRegistrationPanel({
       }, botId);
       setSubmissions((current) => [submission, ...current]);
       setSelectedMemberId(""); setManualRoleId(""); setGoalCategoryId(""); setCharacterName(""); setGameId("");
-      setMessage("Cadastro enviado ao bot. O cargo e o canal de meta serao preparados automaticamente.");
+      setMessage("Cadastro enviado ao bot. O cargo e o canal de meta serão preparados automaticamente.");
     } catch {
-      setError("Nao foi possivel cadastrar o membro.");
+      setError("Não foi possível cadastrar o membro.");
     } finally {
       setSaving(false);
     }
@@ -5446,7 +5446,7 @@ function ManualRegistrationPanel({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2"><ListChecks className="h-5 w-5 text-[#FFEA70]" /> Sistema de Pedido de Set</CardTitle>
-            <CardDescription>Painel, sets solicitaveis, modal, aprovacao, cargos e logs em Components V2.</CardDescription>
+            <CardDescription>Painel, sets solicitaveis, modal, aprovação, cargos e logs em Components V2.</CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button disabled={!canManage || !settings?.enabled || !settings.panelChannelId || !settings.requestCategoryId || !settings.approvedRoleId || !settings.approverRoleIds.length || saving || loading} onClick={() => void publishSetPanel()} size="sm" type="button" variant="outline"><Upload className="mr-2 h-4 w-4" />Enviar painel</Button>
@@ -5461,16 +5461,16 @@ function ManualRegistrationPanel({
         {error ? <div className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</div> : null}
         {message ? <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{message}</div> : null}
         <div className={`border-l-2 px-3 py-2 text-sm ${goalsEnabled ? "border-emerald-400 bg-emerald-500/[0.05] text-emerald-100" : "border-amber-400 bg-amber-500/[0.06] text-amber-100"}`}>
-          {goalsEnabled ? "Integracao com Metas disponivel. O vinculo automatico e controlado no menu Metas." : "O Pedido de Set funciona normalmente, mas o modulo Metas precisa ser liberado na Build DEV para criar canais de meta apos a aprovacao."}
+          {goalsEnabled ? "Integração com Metas disponível. O vínculo automático é controlado no menu Metas." : "O Pedido de Set funciona normalmente, mas o módulo Metas precisa ser liberado na Build DEV para criar canais de meta após a aprovação."}
         </div>
         {loading || !settings ? <div className="h-40 animate-pulse rounded-lg border border-zinc-800 bg-zinc-900/60" /> : (
           <>
             <div className="space-y-3 rounded-lg border border-[#FFD500]/20 bg-[#FFD500]/[0.04] p-4">
-              <div><p className="text-sm font-semibold text-white">Cadastrar membro</p><p className="text-xs text-zinc-500">Os usuarios do Discord sao carregados automaticamente. Selecione o membro e o cargo para criar o canal privado de meta.</p></div>
+              <div><p className="text-sm font-semibold text-white">Cadastrar membro</p><p className="text-xs text-zinc-500">Os usuários do Discord são carregados automaticamente. Selecione o membro e o cargo para criar o canal privado de meta.</p></div>
               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                <label className="block text-xs font-medium text-zinc-400">Usuario
+                <label className="block text-xs font-medium text-zinc-400">Usuário
                   <select className="mt-1 h-10 w-full rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" disabled={!canManage || !memberOptions.length} onChange={(event) => { const member = memberOptions.find((item) => item.id === event.target.value); setSelectedMemberId(event.target.value); if (member) setCharacterName(member.displayName); }} value={selectedMemberId}>
-                    <option value="">Selecionar usuario</option>
+                    <option value="">Selecionar usuário</option>
                     {memberOptions.map((member) => <option key={member.id} value={member.id}>{member.displayName} ({member.id})</option>)}
                   </select>
                 </label>
@@ -5543,9 +5543,9 @@ function ManualRegistrationPanel({
                 </select>
               </label>
             </div>
-            <TicketArea disabled={!canManage} label="Descricao" onChange={(value) => patchSettings({ description: value })} value={settings.description ?? ""} />
+            <TicketArea disabled={!canManage} label="Descrição" onChange={(value) => patchSettings({ description: value })} value={settings.description ?? ""} />
             <TicketArea disabled={!canManage} label="Tutorial - Como funciona" onChange={(value) => patchSettings({ tutorial: value })} value={settings.tutorial} />
-            <TicketField disabled={!canManage} label="Rodape" onChange={(value) => patchSettings({ footerText: value })} value={settings.footerText ?? ""} />
+            <TicketField disabled={!canManage} label="Rodapé" onChange={(value) => patchSettings({ footerText: value })} value={settings.footerText ?? ""} />
 
             <div className="grid gap-3 md:grid-cols-2">
               <RoleSelect disabled={!canManage} label="Cargo atribuido ao aprovar" onChange={(approvedRoleId) => patchSettings({ approvedRoleId })} roles={roles.filter((role) => role.assignable)} value={settings.approvedRoleId ?? ""} />
@@ -5556,14 +5556,14 @@ function ManualRegistrationPanel({
 
             <div className="grid gap-2 md:grid-cols-4">
               <label className="flex items-center gap-2 rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-300"><input checked={settings.allowOnlyOneRequest} disabled={!canManage} onChange={(event) => patchSettings({ allowOnlyOneRequest: event.target.checked })} type="checkbox" />Somente um set aprovado</label>
-              <label className="flex items-center gap-2 rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-300"><input checked={settings.allowResubmit} disabled={!canManage} onChange={(event) => patchSettings({ allowResubmit: event.target.checked })} type="checkbox" />Permitir apos recusa</label>
+              <label className="flex items-center gap-2 rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-300"><input checked={settings.allowResubmit} disabled={!canManage} onChange={(event) => patchSettings({ allowResubmit: event.target.checked })} type="checkbox" />Permitir após recusa</label>
               <label className="flex items-center gap-2 rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-300"><input checked={settings.dmNotifications} disabled={!canManage} onChange={(event) => patchSettings({ dmNotifications: event.target.checked })} type="checkbox" />Notificar por DM</label>
-              <label className="flex items-center gap-2 rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-300"><input checked={settings.automaticApproval} disabled={!canManage} onChange={(event) => patchSettings({ automaticApproval: event.target.checked })} type="checkbox" />Aprovacao automatica</label>
+              <label className="flex items-center gap-2 rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-300"><input checked={settings.automaticApproval} disabled={!canManage} onChange={(event) => patchSettings({ automaticApproval: event.target.checked })} type="checkbox" />Aprovação automática</label>
             </div>
 
             <div className="grid gap-3 md:grid-cols-3">
               <TicketArea disabled={!canManage} label="Mensagem de pedido enviado" onChange={(value) => patchSettings({ successMessage: value })} value={settings.successMessage} />
-              <TicketArea disabled={!canManage} label="Mensagem de aprovacao" onChange={(value) => patchSettings({ approvalMessage: value })} value={settings.approvalMessage} />
+              <TicketArea disabled={!canManage} label="Mensagem de aprovação" onChange={(value) => patchSettings({ approvalMessage: value })} value={settings.approvalMessage} />
               <TicketArea disabled={!canManage} label="Mensagem de recusa" onChange={(value) => patchSettings({ rejectionMessage: value })} value={settings.rejectionMessage} />
             </div>
 
@@ -5571,7 +5571,7 @@ function ManualRegistrationPanel({
 
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <div><p className="text-sm font-semibold text-white">Cargos e sets disponiveis</p><p className="text-xs text-zinc-500">Cada opcao vincula o pedido a um cargo real do Discord.</p></div>
+                <div><p className="text-sm font-semibold text-white">Cargos e sets disponíveis</p><p className="text-xs text-zinc-500">Cada opção vincula o pedido a um cargo real do Discord.</p></div>
                 <Button disabled={!canManage || settings.setRoles.length >= 25} onClick={addSetRole} size="sm" type="button" variant="outline">Adicionar set</Button>
               </div>
               {settings.setRoles.map((item, index) => (
@@ -5579,7 +5579,7 @@ function ManualRegistrationPanel({
                   <EmojiField applicationEmojis={applicationEmojis} disabled={!canManage} label="Emoji" onChange={(value) => patchSetRole(index, { emoji: value })} value={item.emoji ?? ""} />
                   <TicketField disabled={!canManage} label="Nome" onChange={(value) => patchSetRole(index, { id: slugTicketOption(value, index), name: value })} value={item.name} />
                   <RoleSelect disabled={!canManage} label="Cargo vinculado" onChange={(value) => patchSetRole(index, { roleId: value })} roles={roles} value={item.roleId} />
-                  <TicketField disabled={!canManage} label="Descricao" onChange={(value) => patchSetRole(index, { description: value })} value={item.description ?? ""} />
+                  <TicketField disabled={!canManage} label="Descrição" onChange={(value) => patchSetRole(index, { description: value })} value={item.description ?? ""} />
                   <div className="flex flex-col justify-end text-xs text-zinc-500"><span>Entregues</span><span className="mt-2 text-sm font-semibold text-zinc-200">{submissions.filter((submission) => submission.status === "approved" && submission.requestedRoleId === item.roleId).length}</span></div>
                   <label className="flex flex-col justify-end gap-1 text-xs text-zinc-300"><span className="flex items-center gap-2"><input checked={item.enabled} disabled={!canManage} onChange={(event) => patchSetRole(index, { enabled: event.target.checked })} type="checkbox" />Ativo</span><span className="flex items-center gap-2"><input checked={item.requestable} disabled={!canManage} onChange={(event) => patchSetRole(index, { requestable: event.target.checked })} type="checkbox" />Solicitavel</span></label>
                   <div className="flex items-end"><Button disabled={!canManage} onClick={() => removeSetRole(index)} size="icon" title="Remover set" type="button" variant="outline"><Trash2 className="h-4 w-4" /></Button></div>
@@ -5591,7 +5591,7 @@ function ManualRegistrationPanel({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-white">Campos do modal</p>
-                  <p className="text-xs text-zinc-500">O sistema divide automaticamente as perguntas em etapas de ate 5 campos por modal.</p>
+                  <p className="text-xs text-zinc-500">O sistema divide automaticamente as perguntas em etapas de até 5 campos por modal.</p>
                 </div>
                 <Button disabled={!canManage || settings.fields.length >= 100} onClick={addField} size="sm" type="button" variant="outline">Adicionar campo</Button>
               </div>
@@ -5643,7 +5643,7 @@ function ManualRegistrationPanel({
               {registrationLogs.slice(0, 8).map((log) => (
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs" key={log.id}><span className="text-zinc-300">{log.action}</span><span className="text-zinc-500">{new Date(log.createdAt).toLocaleString("pt-BR")}</span></div>
               ))}
-              {!registrationLogs.length ? <p className="text-sm text-zinc-500">Nenhuma acao registrada.</p> : null}
+              {!registrationLogs.length ? <p className="text-sm text-zinc-500">Nenhuma ação registrada.</p> : null}
             </div>
           </>
         )}
@@ -5788,7 +5788,7 @@ function TicketPanelConfigurator({
       setStatus("Painel de ticket salvo.");
     } catch {
       onSettingsChange(previous);
-      setError("Nao foi possivel salvar o painel de ticket.");
+      setError("Não foi possível salvar o painel de ticket.");
     } finally {
       setSaving(false);
     }
@@ -5810,10 +5810,10 @@ function TicketPanelConfigurator({
       onSettingsChange(saved);
       const published = await publishTicketPanel(guild.id, botId);
       onSettingsChange(published);
-      setStatus("Publicacao do painel solicitada ao bot.");
+      setStatus("Publicação do painel solicitada ao bot.");
     } catch {
       onSettingsChange(previous);
-      setError("Nao foi possivel publicar o painel de ticket.");
+      setError("Não foi possível publicar o painel de ticket.");
     } finally {
       setPublishing(false);
     }
@@ -5859,20 +5859,20 @@ function TicketPanelConfigurator({
           <TicketField disabled={disabled} label="Titulo" onChange={(value) => setDraft((current) => ({ ...current, ticketPanelTitle: value }))} value={draft.ticketPanelTitle ?? ""} />
           <TicketField disabled={disabled} label="Placeholder do menu" onChange={(value) => setDraft((current) => ({ ...current, ticketPanelPlaceholder: value }))} value={draft.ticketPanelPlaceholder ?? ""} />
           <TicketField disabled={disabled} label="Cor neon" onChange={(value) => setDraft((current) => ({ ...current, ticketPanelColor: value }))} type="color" value={draft.ticketPanelColor} />
-          <TicketField disabled={disabled} label="Rodape" onChange={(value) => setDraft((current) => ({ ...current, ticketPanelFooterText: value }))} value={draft.ticketPanelFooterText ?? ""} />
+          <TicketField disabled={disabled} label="Rodapé" onChange={(value) => setDraft((current) => ({ ...current, ticketPanelFooterText: value }))} value={draft.ticketPanelFooterText ?? ""} />
         </div>
 
         <div className="rounded-lg border border-[#FFD500]/20 bg-[#FFD500]/5 px-3 py-2 text-xs text-zinc-300">
-          Mensagem oficial: {settings?.ticketPanelMessageId ? settings.ticketPanelMessageId : "nao publicada"}
+          Mensagem oficial: {settings?.ticketPanelMessageId ? settings.ticketPanelMessageId : "não publicada"}
         </div>
 
-        <TicketArea disabled={disabled} label="Descricao principal" onChange={(value) => setDraft((current) => ({ ...current, ticketPanelDescription: value }))} value={draft.ticketPanelDescription ?? ""} />
-        <TicketArea disabled={disabled} label="Informacoes abaixo da descricao" onChange={(value) => setDraft((current) => ({ ...current, ticketPanelInfoText: value }))} value={draft.ticketPanelInfoText ?? ""} />
+        <TicketArea disabled={disabled} label="Descrição principal" onChange={(value) => setDraft((current) => ({ ...current, ticketPanelDescription: value }))} value={draft.ticketPanelDescription ?? ""} />
+        <TicketArea disabled={disabled} label="Informações abaixo da descrição" onChange={(value) => setDraft((current) => ({ ...current, ticketPanelInfoText: value }))} value={draft.ticketPanelInfoText ?? ""} />
 
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-white">Opcoes do menu</p>
+              <p className="text-sm font-semibold text-white">Opções do menu</p>
               <p className="text-xs text-zinc-500">Use emoji comum ou escolha um emoji da aplicacao do bot.</p>
             </div>
             <Button disabled={disabled || draft.ticketPanelOptions.length >= 25} onClick={addOption} size="sm" type="button" variant="outline">Adicionar</Button>
@@ -5881,7 +5881,7 @@ function TicketPanelConfigurator({
           {draft.ticketPanelOptions.map((option, index) => (
             <div className="grid gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-3 lg:grid-cols-[1fr_1fr_120px_160px_auto]" key={`${option.value}-${index}`}>
               <TicketField disabled={disabled} label="Nome" onChange={(value) => updateOption(index, { label: value, value: slugTicketOption(value, index) })} value={option.label} />
-              <TicketField disabled={disabled} label="Descricao" onChange={(value) => updateOption(index, { description: value })} value={option.description ?? ""} />
+              <TicketField disabled={disabled} label="Descrição" onChange={(value) => updateOption(index, { description: value })} value={option.description ?? ""} />
               <TicketField disabled={disabled} label="Emoji" onChange={(value) => updateOption(index, { emoji: value })} value={option.emoji ?? ""} />
               <label className="block text-xs font-medium text-zinc-400">
                 Emoji da Dashboard
@@ -5904,7 +5904,7 @@ function TicketPanelConfigurator({
                   <input checked={option.enabled} disabled={disabled} onChange={(event) => updateOption(index, { enabled: event.target.checked })} type="checkbox" />
                   Ativa
                 </label>
-                <Button disabled={disabled || draft.ticketPanelOptions.length <= 1} onClick={() => removeOption(index)} size="icon" title="Remover opcao" type="button" variant="outline">
+                <Button disabled={disabled || draft.ticketPanelOptions.length <= 1} onClick={() => removeOption(index)} size="icon" title="Remover opção" type="button" variant="outline">
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -5964,7 +5964,7 @@ function PoliceIabPanel({
         if (mounted) setOptions({ ...data, categories: data.categories ?? [], voiceChannels: data.voiceChannels ?? [] });
       })
       .catch(() => {
-        if (mounted) setMessage("Nao foi possivel carregar canais e cargos do servidor.");
+        if (mounted) setMessage("Não foi possível carregar canais e cargos do servidor.");
       });
 
     return () => {
@@ -6002,14 +6002,14 @@ function PoliceIabPanel({
           normalizeReportCategory({
             channelOrCategoryId: null,
             color: "#dc2626",
-            description: "Novo orgao de atendimento.",
+            description: "Novo órgão de atendimento.",
             emoji: PANEL_EMOJIS.alerta,
             enabled: true,
             escalateToCategoryId: null,
             id: categoryId,
-            judgeLabel: "Denuncias contra este orgao",
+            judgeLabel: "Denuncias contra este órgão",
             logChannelId: null,
-            name: `Orgao ${index + 1}`,
+            name: `Órgão ${index + 1}`,
             order: index + 1,
             responsibleRoleIds: []
           }, index)
@@ -6050,7 +6050,7 @@ function PoliceIabPanel({
       setMessage("Denuncias Corregedoria salvas.");
     } catch (error) {
       onSettingsChange(previous);
-      setMessage(readResponseMessage(error) ?? "Nao foi possivel salvar Denuncias Corregedoria.");
+      setMessage(readResponseMessage(error) ?? "Não foi possível salvar Denuncias Corregedoria.");
     } finally {
       setSaving(false);
     }
@@ -6073,7 +6073,7 @@ function PoliceIabPanel({
       onSettingsChange(published);
       setMessage("Painel Denuncias Corregedoria publicado no Discord.");
     } catch (error) {
-      setMessage(readResponseMessage(error) ?? "Nao foi possivel publicar o painel. Confira canal e permissoes do bot.");
+      setMessage(readResponseMessage(error) ?? "Não foi possível publicar o painel. Confira canal e permissões do bot.");
     } finally {
       setPublishing(false);
     }
@@ -6110,7 +6110,7 @@ function PoliceIabPanel({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2"><ShieldAlert className="h-5 w-5 text-red-300" /> Denuncias Corregedoria</CardTitle>
-              <CardDescription>Configura o painel IAB, orgaos, anonimato, logs e cargos autorizados.</CardDescription>
+              <CardDescription>Configura o painel IAB, órgãos, anonimato, logs e cargos autorizados.</CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <label className="flex h-9 items-center gap-2 rounded-md border border-zinc-800 px-3 text-xs text-zinc-300">
@@ -6131,15 +6131,15 @@ function PoliceIabPanel({
         <CardContent className="space-y-5">
           <div className="grid gap-3 md:grid-cols-2">
             <TicketField disabled={disabled} label="Nome interno" onChange={(value) => patch({ name: value })} value={draft.name} />
-            <TicketField disabled={disabled} label="Titulo publico" onChange={(value) => patch({ panelTitle: value })} value={draft.panelTitle} />
+            <TicketField disabled={disabled} label="Titulo público" onChange={(value) => patch({ panelTitle: value })} value={draft.panelTitle} />
             <TicketField disabled={disabled} label="Placeholder do menu" onChange={(value) => patch({ panelPlaceholder: value })} value={draft.panelPlaceholder} />
             <TicketField disabled={disabled} label="Cor do painel" onChange={(value) => patch({ panelColor: value })} type="color" value={draft.panelColor} />
-            <TicketField disabled={disabled} label="Botao de abertura" onChange={(value) => patch({ buttonText: value })} value={draft.buttonText} />
-            <TicketField disabled={disabled} label="Rodape" onChange={(value) => patch({ footerText: value })} value={draft.footerText ?? ""} />
+            <TicketField disabled={disabled} label="Botão de abertura" onChange={(value) => patch({ buttonText: value })} value={draft.buttonText} />
+            <TicketField disabled={disabled} label="Rodapé" onChange={(value) => patch({ footerText: value })} value={draft.footerText ?? ""} />
           </div>
 
-          <TicketArea disabled={disabled} label="Descricao do painel" onChange={(value) => patch({ panelDescription: value })} value={draft.panelDescription} />
-          <TicketArea disabled={disabled} label="Mensagem apos abrir denuncia" onChange={(value) => patch({ openMessage: value })} value={draft.openMessage} />
+          <TicketArea disabled={disabled} label="Descrição do painel" onChange={(value) => patch({ panelDescription: value })} value={draft.panelDescription} />
+          <TicketArea disabled={disabled} label="Mensagem após abrir denúncia" onChange={(value) => patch({ openMessage: value })} value={draft.openMessage} />
 
           <div className="grid gap-3 md:grid-cols-2">
             <FivemChannelSelect channels={channels} disabled={disabled} label="Canal do painel" onChange={(value) => patch({ panelChannelId: value })} placeholder="Selecionar canal" value={draft.panelChannelId} />
@@ -6160,7 +6160,7 @@ function PoliceIabPanel({
           <div className="rounded-lg border border-red-500/10 bg-black/30 p-4">
             <div className="mb-4">
               <h3 className="text-sm font-semibold text-white">Intimacoes e mensagens institucionais</h3>
-              <p className="mt-1 text-xs text-zinc-500">Configuracoes globais usadas pelos fluxos internos de intimacao e comunicacao.</p>
+              <p className="mt-1 text-xs text-zinc-500">Configurações globais usadas pelos fluxos internos de intimacao e comunicacao.</p>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <MultiRoleSelect disabled={disabled} label="Quem pode usar /intimacao" onChange={(values) => patch({ competenceCommandRoleIds: values })} roles={options.roles} values={draft.competenceCommandRoleIds} />
@@ -6173,7 +6173,7 @@ function PoliceIabPanel({
 
           <div className="grid gap-3 md:grid-cols-2">
             <label className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-200">
-              Permitir denuncia anonima
+              Permitir denúncia anonima
               <Switch checked={draft.allowAnonymousReports} disabled={disabled} onCheckedChange={(checked) => patch({ allowAnonymousReports: checked })} />
             </label>
             <label className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-200">
@@ -6188,10 +6188,10 @@ function PoliceIabPanel({
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <CardTitle>Configuracao dos Orgaos Responsaveis</CardTitle>
-              <CardDescription>Escolha um orgao para configurar cargos, destino do canal, logs e escalonamento sem procurar campos espalhados.</CardDescription>
+              <CardTitle>Configuração dos Órgãos Responsáveis</CardTitle>
+              <CardDescription>Escolha um órgão para configurar cargos, destino do canal, logs e escalonamento sem procurar campos espalhados.</CardDescription>
             </div>
-            <Button disabled={disabled || draft.categories.length >= 25} onClick={addCategory} size="sm" type="button" variant="outline">Adicionar orgao</Button>
+            <Button disabled={disabled || draft.categories.length >= 25} onClick={addCategory} size="sm" type="button" variant="outline">Adicionar órgão</Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -6258,7 +6258,7 @@ function OrgaoSummaryCard({
   const status = reportOrgStatus(category);
   const responsibleNames = reportOrgResponsibleNames(category, roles);
   const categoryName = resourceName(ticketDestinations, category.channelOrCategoryId);
-  const logName = resourceName(channels, category.logChannelId, "Logs padrao");
+  const logName = resourceName(channels, category.logChannelId, "Logs padrão");
 
   return (
     <div className={`flex min-h-[230px] flex-col justify-between rounded-lg border p-4 ${isSelected ? "border-[#FFD500]/45 bg-[#FFD500]/10" : "border-zinc-800 bg-zinc-950"}`}>
@@ -6266,13 +6266,13 @@ function OrgaoSummaryCard({
         <div className="flex items-start justify-between gap-2">
           <div>
             <p className="text-sm font-semibold text-white">{index + 1}. {category.name}</p>
-            <p className="mt-1 line-clamp-2 text-xs text-zinc-500">{category.judgeLabel || "Rotulo publico nao configurado"}</p>
+            <p className="mt-1 line-clamp-2 text-xs text-zinc-500">{category.judgeLabel || "Rotulo público não configurado"}</p>
           </div>
           <Badge variant={status.variant}>{status.label}</Badge>
         </div>
         <div className="space-y-2 text-xs text-zinc-300">
-          <p><span className="text-zinc-500">Cargo:</span> {responsibleNames.length ? responsibleNames.slice(0, 2).join(", ") : "Nao configurado"}</p>
-          <p><span className="text-zinc-500">Recebe:</span> {category.judgeLabel || "Nao configurado"}</p>
+          <p><span className="text-zinc-500">Cargo:</span> {responsibleNames.length ? responsibleNames.slice(0, 2).join(", ") : "Não configurado"}</p>
+          <p><span className="text-zinc-500">Recebe:</span> {category.judgeLabel || "Não configurado"}</p>
           <p><span className="text-zinc-500">Categoria:</span> {categoryName}</p>
           <p><span className="text-zinc-500">Logs:</span> {logName}</p>
         </div>
@@ -6282,7 +6282,7 @@ function OrgaoSummaryCard({
           <Edit3 className="mr-2 h-4 w-4" />
           Configurar
         </Button>
-        <Button disabled={removeDisabled} onClick={onRemove} size="icon" title="Apagar orgao" type="button" variant="outline">
+        <Button disabled={removeDisabled} onClick={onRemove} size="icon" title="Apagar órgão" type="button" variant="outline">
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
@@ -6321,15 +6321,15 @@ function OrgaoConfigPanel({
   const responsibleNames = (category.responsibleRoleIds ?? []).map((roleId) => roles.find((role) => role.id === roleId)?.name ?? roleId);
   const responsibleSummary = responsibleNames.length
     ? responsibleNames.slice(0, 3).join(", ") + (responsibleNames.length > 3 ? ` +${responsibleNames.length - 3}` : "")
-    : "Sem cargos responsaveis";
+    : "Sem cargos responsáveis";
   const status = reportOrgStatus(category);
 
   return (
     <div className="space-y-4 rounded-lg border border-zinc-800 bg-zinc-950 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-semibold text-white">Configuracao de {category.name}</p>
-          <p className="mt-1 text-xs text-zinc-500">{category.judgeLabel || "Rotulo publico nao configurado"}</p>
+          <p className="text-sm font-semibold text-white">Configuração de {category.name}</p>
+          <p className="mt-1 text-xs text-zinc-500">{category.judgeLabel || "Rotulo público não configurado"}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={status.variant}>{status.label}</Badge>
@@ -6338,7 +6338,7 @@ function OrgaoConfigPanel({
       </div>
       <div className="grid gap-2 md:grid-cols-2">
         <div className="rounded-md border border-zinc-800 bg-[#09090b] px-3 py-2">
-          <p className="text-[11px] uppercase text-zinc-500">Cargos responsaveis</p>
+          <p className="text-[11px] uppercase text-zinc-500">Cargos responsáveis</p>
           <p className="mt-1 truncate text-xs text-zinc-300">{responsibleSummary}</p>
         </div>
         <div className="rounded-md border border-zinc-800 bg-[#09090b] px-3 py-2">
@@ -6347,14 +6347,14 @@ function OrgaoConfigPanel({
         </div>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
-        <TicketField disabled={disabled} label="Nome do orgao" onChange={(value) => onPatch({ id: slugTicketOption(value, index), name: value })} value={category.name} />
-        <TicketField disabled={disabled} label="Quais denuncias vao para este orgao" onChange={(value) => onPatch({ judgeLabel: value })} value={category.judgeLabel ?? ""} />
-        <TicketField disabled={disabled} label="Descricao" onChange={(value) => onPatch({ description: value })} value={category.description ?? ""} />
+        <TicketField disabled={disabled} label="Nome do órgão" onChange={(value) => onPatch({ id: slugTicketOption(value, index), name: value })} value={category.name} />
+        <TicketField disabled={disabled} label="Quais denuncias vao para este órgão" onChange={(value) => onPatch({ judgeLabel: value })} value={category.judgeLabel ?? ""} />
+        <TicketField disabled={disabled} label="Descrição" onChange={(value) => onPatch({ description: value })} value={category.description ?? ""} />
         <TicketField disabled={disabled} label="Emoji" onChange={(value) => onPatch({ emoji: value })} value={category.emoji ?? ""} />
-        <FivemResourceSelect disabled={disabled} label="Categoria onde o canal sera criado" onChange={(value) => onPatch({ channelOrCategoryId: value })} options={ticketDestinations} placeholder="Categoria padrao do sistema" value={category.channelOrCategoryId} />
-        <FivemChannelSelect channels={channels} disabled={disabled} label="Canal de logs" onChange={(value) => onPatch({ logChannelId: value })} placeholder="Canal padrao de logs" value={category.logChannelId} />
-        <MultiRoleSelect disabled={disabled} label="Cargos responsaveis" onChange={(values) => onPatch({ responsibleRoleIds: values })} roles={roles} values={category.responsibleRoleIds ?? []} />
-        <FivemResourceSelect disabled={disabled} label="Escalar denuncia contra este orgao para" onChange={(value) => onPatch({ escalateToCategoryId: value })} options={escalationOptions} placeholder="Sem escalonamento" value={category.escalateToCategoryId} />
+        <FivemResourceSelect disabled={disabled} label="Categoria onde o canal será criado" onChange={(value) => onPatch({ channelOrCategoryId: value })} options={ticketDestinations} placeholder="Categoria padrão do sistema" value={category.channelOrCategoryId} />
+        <FivemChannelSelect channels={channels} disabled={disabled} label="Canal de logs" onChange={(value) => onPatch({ logChannelId: value })} placeholder="Canal padrão de logs" value={category.logChannelId} />
+        <MultiRoleSelect disabled={disabled} label="Cargos responsáveis" onChange={(values) => onPatch({ responsibleRoleIds: values })} roles={roles} values={category.responsibleRoleIds ?? []} />
+        <FivemResourceSelect disabled={disabled} label="Escalar denúncia contra este órgão para" onChange={(value) => onPatch({ escalateToCategoryId: value })} options={escalationOptions} placeholder="Sem escalonamento" value={category.escalateToCategoryId} />
         <TicketField disabled={disabled} label="Cor" onChange={(value) => onPatch({ color: value })} type="color" value={category.color} />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -6365,11 +6365,11 @@ function OrgaoConfigPanel({
         <div className="flex flex-wrap items-center gap-2">
           <Button disabled={disabled || saving} onClick={onSave} size="sm" type="button">
             {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-            Salvar alteracoes
+            Salvar alterações
           </Button>
-          <Button disabled={removeDisabled} onClick={onRemove} size="sm" title="Apagar orgao" type="button" variant="outline">
+          <Button disabled={removeDisabled} onClick={onRemove} size="sm" title="Apagar órgão" type="button" variant="outline">
             <Trash2 className="mr-2 h-4 w-4" />
-            Apagar orgao
+            Apagar órgão
           </Button>
         </div>
       </div>
@@ -6386,20 +6386,20 @@ function reportOrgStatus(category: ReportSystemCategory): { label: string; varia
 
   if (hasResponsible && hasDestination && hasPublicLabel && hasLogs) return { label: "Configurado", variant: "success" };
   if (hasResponsible || hasDestination || hasPublicLabel || hasLogs) return { label: "Incompleto", variant: "warning" };
-  return { label: "Nao configurado", variant: "danger" };
+  return { label: "Não configurado", variant: "danger" };
 }
 
 function reportOrgResponsibleNames(category: ReportSystemCategory, roles: GuildLiveOptions["roles"]) {
   return (category.responsibleRoleIds ?? []).map((roleId) => roles.find((role) => role.id === roleId)?.name ?? roleId);
 }
 
-function resourceName(resources: Array<{ id: string; name: string }>, resourceId: string | null | undefined, fallback = "Nao configurado") {
+function resourceName(resources: Array<{ id: string; name: string }>, resourceId: string | null | undefined, fallback = "Não configurado") {
   if (!resourceId) return fallback;
   return resources.find((resource) => resource.id === resourceId)?.name ?? resourceId;
 }
 
 function normalizeReportCategory(category: ReportSystemCategory, index: number): ReportSystemCategory {
-  const name = category.name.trim() || `Orgao ${index + 1}`;
+  const name = category.name.trim() || `Órgão ${index + 1}`;
   return {
     channelOrCategoryId: category.channelOrCategoryId || null,
     color: category.color || "#dc2626",
@@ -6865,7 +6865,7 @@ function ApplicationEmojisView({
     try {
       const data = await syncApplicationEmojis(botId, sourceGuildId);
       setPage(data);
-      setMessage(`Concluido: ${data.job?.sent ?? 0} enviados, ${data.job?.updated ?? 0} atualizados, ${data.job?.skipped ?? 0} ignorados.`);
+      setMessage(`Concluído: ${data.job?.sent ?? 0} enviados, ${data.job?.updated ?? 0} atualizados, ${data.job?.skipped ?? 0} ignorados.`);
     } catch (error) {
       setMessage(readErrorMessage(error, "Não foi possível sincronizar emojis."));
     } finally {
@@ -6928,11 +6928,11 @@ function ApplicationEmojisView({
         signal: controller.signal
       });
       saveBrowserDownload(result.blob, "emojis.zip");
-      setMessage(`Download concluido: ${result.count} emoji(s) baixado(s), ${result.failed} falha(s).`);
+      setMessage(`Download concluído: ${result.count} emoji(s) baixado(s), ${result.failed} falha(s).`);
     } catch (error) {
       setMessage(controller.signal.aborted
         ? "Download cancelado."
-        : readErrorMessage(error, "Nao foi possivel baixar os emojis. Tente novamente."));
+        : readErrorMessage(error, "Não foi possível baixar os emojis. Tente novamente."));
     } finally {
       downloadAbortRef.current = null;
       setDownloadProgress(null);
@@ -7013,7 +7013,7 @@ function ApplicationEmojisView({
             </label>
             <div className="flex items-end gap-3 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2">
               <div className="min-w-0 flex-1">
-                <p className="text-xs text-zinc-500">Sincronizacao Automatica</p>
+                <p className="text-xs text-zinc-500">Sincronização Automática</p>
                 <p className="truncate text-sm font-medium text-white">{selectedGuild?.name ?? "Servidor não selecionado"}</p>
               </div>
               <Switch
@@ -7156,7 +7156,7 @@ function EntryLeaveManager({
     <section className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-white">Entrada e saida</h2>
+          <h2 className="text-lg font-semibold text-white">Entrada e saída</h2>
           <p className="mt-1 text-sm text-zinc-500">Configure as mensagens automaticas dos membros em um so lugar.</p>
         </div>
 
@@ -7164,7 +7164,7 @@ function EntryLeaveManager({
           {availableModes.map((mode) => {
             const active = activeMode === mode;
             const Icon = mode === "welcome" ? UserPlus : UserMinus;
-            const label = mode === "welcome" ? "Entrada" : "Saida";
+            const label = mode === "welcome" ? "Entrada" : "Saída";
 
             return (
               <button
@@ -7191,7 +7191,7 @@ function EntryLeaveManager({
         canManage={canManageModule(activeMode)}
         guildId={guild?.id ?? null}
         panelId={activeMode}
-        panelLabel={activeMode === "welcome" ? "Entrada" : "Saida"}
+        panelLabel={activeMode === "welcome" ? "Entrada" : "Saída"}
       />
 
       <WelcomePanel
@@ -7358,7 +7358,7 @@ function ServerClonerView({
     const guildId = form.destinationGuildInput.trim();
 
     if (!/^\d{5,32}$/.test(guildId)) {
-      setMessage("Informe um ID valido para o servidor de destino.");
+      setMessage("Informe um ID válido para o servidor de destino.");
       return;
     }
 
@@ -7477,7 +7477,7 @@ function ServerClonerView({
             </div>
 
             <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Itens que serao clonados</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Itens que serão clonados</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {serverClonePartOptions.map((part) => {
                   const active = form.cloneParts.includes(part.id);
@@ -7882,17 +7882,17 @@ function EmojiCloneSettingsPanel({
   });
   const liveCredentialStatus = selectedBot
     ? selectedBot.status === "online"
-      ? { label: "Valido", tone: "success" as const }
+      ? { label: "Válido", tone: "success" as const }
       : selectedBot.status === "invalid_token"
-        ? { label: "Invalido", tone: "danger" as const }
+        ? { label: "Inválido", tone: "danger" as const }
         : { label: "Validando", tone: "warning" as const }
     : { label: "Não configurado", tone: "muted" as const };
   const credentialStatus = credentialTestMode === "real"
     ? liveCredentialStatus
     : credentialTestMode === "valid"
-      ? { label: "Falso valido", tone: "success" as const }
+      ? { label: "Falso válido", tone: "success" as const }
       : credentialTestMode === "invalid"
-        ? { label: "Falso invalido", tone: "danger" as const }
+        ? { label: "Falso inválido", tone: "danger" as const }
         : { label: "Falso validando", tone: "warning" as const };
 
   function pushCloneLog(message: string) {
@@ -7913,19 +7913,19 @@ function EmojiCloneSettingsPanel({
 
     if (!image || !name) {
       setCloneStatus("error");
-      setCloneMessage("Selecione uma imagem/emoji e defina um nome valido.");
+      setCloneMessage("Selecione uma imagem/emoji e defina um nome válido.");
       return;
     }
 
     setCloneProgress(15);
     setCloneStatus("running");
-    setCloneMessage("Validando imagem e permissoes do bot...");
+    setCloneMessage("Validando imagem e permissões do bot...");
 
     try {
       const emoji = await cloneEmojiToGuild(destinationGuildId, { image, name, sourceLabel }, botId);
       setCloneProgress(100);
       setCloneStatus("success");
-      setCloneMessage(emoji.duplicate ? `Emoji ${emoji.name} ja existia no servidor. Biblioteca atualizada.` : `Emoji ${emoji.name} clonado e salvo na Biblioteca.`);
+      setCloneMessage(emoji.duplicate ? `Emoji ${emoji.name} já existia no servidor. Biblioteca atualizada.` : `Emoji ${emoji.name} clonado e salvo na Biblioteca.`);
       setHistory((current) => [{
         createdAt: new Date().toISOString(),
         emojiUrl: `https://cdn.discordapp.com/emojis/${emoji.id}.${emoji.animated ? "gif" : "png"}?size=64`,
@@ -7998,8 +7998,8 @@ function EmojiCloneSettingsPanel({
 
     setCloneProgress(100);
     setCloneStatus(failed ? "error" : "success");
-    setCloneMessage(`Concluido. ${success}/${pastedEmojiAssets.length} emoji(s) clonados${failed ? `, ${failed} falharam` : ""}.`);
-    pushCloneLog(`[INFO] Processo concluido: ${success}/${pastedEmojiAssets.length} emoji(s) clonados`);
+    setCloneMessage(`Concluído. ${success}/${pastedEmojiAssets.length} emoji(s) clonados${failed ? `, ${failed} falharam` : ""}.`);
+    pushCloneLog(`[INFO] Processo concluído: ${success}/${pastedEmojiAssets.length} emoji(s) clonados`);
     await refreshEmojiLibrary();
   }
 
@@ -8035,11 +8035,11 @@ function EmojiCloneSettingsPanel({
         signal: controller.signal
       });
       saveBrowserDownload(result.blob, "emojis.zip");
-      setCloneMessage(`Download concluido: ${result.count} emoji(s) baixado(s), ${result.failed} falha(s).`);
+      setCloneMessage(`Download concluído: ${result.count} emoji(s) baixado(s), ${result.failed} falha(s).`);
     } catch (error) {
       setCloneMessage(controller.signal.aborted
         ? "Download cancelado."
-        : readErrorMessage(error, "Nao foi possivel baixar os emojis. Tente novamente."));
+        : readErrorMessage(error, "Não foi possível baixar os emojis. Tente novamente."));
     } finally {
       libraryDownloadAbortRef.current = null;
       setLibraryDownloadProgress(null);
@@ -8061,7 +8061,7 @@ function EmojiCloneSettingsPanel({
       });
       setCloneProgress(100);
       setCloneStatus("success");
-      setCloneMessage(emoji.duplicate ? `Emoji ${emoji.name} ja existia no destino.` : `Emoji ${emoji.name} reenviado para ${selectedDestination?.name ?? destinationGuildId}.`);
+      setCloneMessage(emoji.duplicate ? `Emoji ${emoji.name} já existia no destino.` : `Emoji ${emoji.name} reenviado para ${selectedDestination?.name ?? destinationGuildId}.`);
       await refreshEmojiLibrary();
     } catch (requestError) {
       setCloneProgress(100);
@@ -8114,7 +8114,7 @@ function EmojiCloneSettingsPanel({
     } catch (requestError) {
       setFakeTokenAccepted(false);
       setCredentialTestMode("invalid");
-      const message = readDetailedRequestMessage(requestError, "Token invalido.");
+      const message = readDetailedRequestMessage(requestError, "Token inválido.");
       setFakeTokenMessage(message);
       setCloneStatus("error");
       setCloneProgress(100);
@@ -8197,8 +8197,8 @@ function EmojiCloneSettingsPanel({
       }));
       setCloneProgress(100);
       setCloneStatus(result.failed ? "error" : "success");
-      setCloneMessage(`Processo concluido. ${result.success}/${result.total} emojis clonados.`);
-      pushCloneLog(`[INFO] Processo concluido: ${result.success}/${result.total} emojis clonados`);
+      setCloneMessage(`Processo concluído. ${result.success}/${result.total} emojis clonados.`);
+      pushCloneLog(`[INFO] Processo concluído: ${result.success}/${result.total} emojis clonados`);
       setHistory((current) => [
         ...selected.map((emoji) => ({
           createdAt: new Date().toISOString(),
@@ -8277,8 +8277,8 @@ function EmojiCloneSettingsPanel({
             </div>
             <div className="grid gap-3 md:grid-cols-3">
               <StatusPill icon={Server} label="Servidores encontrados" value={String(destinationGuilds.length)} />
-              <StatusPill icon={ShieldCheck} label="Modulo" value={settings?.emojiCloneEnabled ? "Ativo" : "Pausado"} />
-              <StatusPill icon={RefreshCw} label="Atualizacao" value="Automatica" />
+              <StatusPill icon={ShieldCheck} label="Módulo" value={settings?.emojiCloneEnabled ? "Ativo" : "Pausado"} />
+              <StatusPill icon={RefreshCw} label="Atualização" value="Automática" />
             </div>
             <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -8294,8 +8294,8 @@ function EmojiCloneSettingsPanel({
                 >
                   <option value="real">Usar bot real</option>
                   <option value="validating">Falso validando</option>
-                  <option value="valid">Falso valido</option>
-                  <option value="invalid">Falso invalido</option>
+                  <option value="valid">Falso válido</option>
+                  <option value="invalid">Falso inválido</option>
                 </select>
               </div>
             </div>
@@ -8408,7 +8408,7 @@ function EmojiCloneSettingsPanel({
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-white">Destino</p>
-              <p className="text-xs text-zinc-500">{destinationGuilds.length} servidores disponiveis para receber emojis.</p>
+              <p className="text-xs text-zinc-500">{destinationGuilds.length} servidores disponíveis para receber emojis.</p>
             </div>
             <Badge variant="muted">{selectedDestination ? "Slots validos no Discord" : "Selecione"}</Badge>
           </div>
@@ -8526,13 +8526,13 @@ function EmojiCloneSettingsPanel({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-white">Histórico</p>
-              <p className="text-xs text-zinc-500">Ultimas clonagens feitas por este painel nesta sessao.</p>
+              <p className="text-xs text-zinc-500">Últimas clonagens feitas por este painel nesta sessão.</p>
             </div>
             <div className="flex gap-2">
               <input
                 className="h-9 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-600"
                 onChange={(event) => setHistoryFilter(event.target.value)}
-                placeholder="Filtrar historico"
+                placeholder="Filtrar histórico"
                 value={historyFilter}
               />
               <Button onClick={() => setHistory([])} size="sm" type="button" variant="outline">
@@ -8571,7 +8571,7 @@ function EmojiCloneSettingsPanel({
           </label>
 
           <label className="space-y-2">
-            <span className="text-sm font-medium text-zinc-300">Prefixo padrao</span>
+            <span className="text-sm font-medium text-zinc-300">Prefixo padrão</span>
             <input
               className="h-10 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-600"
               disabled={disabled}
@@ -8583,7 +8583,7 @@ function EmojiCloneSettingsPanel({
           </label>
 
           <label className="space-y-2">
-            <span className="text-sm font-medium text-zinc-300">Limite por execucao</span>
+            <span className="text-sm font-medium text-zinc-300">Limite por execução</span>
             <input
               className="h-10 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none"
               disabled={disabled}
@@ -8759,8 +8759,8 @@ const notificationChannelFields: Array<{
   },
   {
     key: "leaveChannelId",
-    label: "Canal de Saida",
-    description: "Onde o bot envia a mensagem de saida."
+    label: "Canal de Saída",
+    description: "Onde o bot envia a mensagem de saída."
   },
   {
     key: "leaveDisplayChannelId",
@@ -9221,7 +9221,7 @@ function moduleState(moduleId: string, settings: GuildSettings | null, details: 
     return {
       active: true,
       configured: true,
-      configuredText: "Disponivel"
+      configuredText: "Disponível"
     };
   }
 
@@ -9309,7 +9309,7 @@ function moduleState(moduleId: string, settings: GuildSettings | null, details: 
   return {
     active: true,
     configured: true,
-    configuredText: "Disponivel"
+    configuredText: "Disponível"
   };
 }
 
@@ -9324,7 +9324,7 @@ function friendlyLog(log: LogEntry) {
     "x_monitor.post_sent": { badge: "X Monitor", title: "Post do X enviado ao Discord" },
     "x_monitor.webhook_post": { badge: "X Monitor", title: "Post recebido pelo webhook do X" },
     "x_monitor.discord_error": { badge: "X Monitor", title: "Não foi possível enviar post do X" },
-    "x_monitor.api_error": { badge: "X Monitor", title: "X Monitor precisa de atencao" },
+    "x_monitor.api_error": { badge: "X Monitor", title: "X Monitor precisa de atenção" },
     "live:started": { badge: "Lives", title: "Live iniciada" },
     "live:ended": { badge: "Lives", title: "Live encerrada" },
     "ticket.created": { badge: "Tickets", title: "Ticket criado" },
@@ -9334,7 +9334,7 @@ function friendlyLog(log: LogEntry) {
     "social.kick.updated": { badge: "Kick", title: "Canal Kick atualizado" },
     "social.kick.deleted": { badge: "Kick", title: "Canal Kick removido" },
     "social.kick.tested": { badge: "Kick", title: "Teste Kick enviado" },
-    "audit.dev_bot": { badge: "Sistema", title: "Configuracao do bot atualizada" },
+    "audit.dev_bot": { badge: "Sistema", title: "Configuração do bot atualizada" },
     "clips.config_saved": { badge: "Clips", title: "Sistema de clips atualizado" },
     "clips.enabled": { badge: "Clips", title: "Sistema de clips ativado" },
     "clips.disabled": { badge: "Clips", title: "Sistema de clips desativado" },
@@ -9348,16 +9348,16 @@ function friendlyLog(log: LogEntry) {
     "image_anti_spam.incident": { badge: "Anti-Spam", title: "Spam de midias bloqueado" },
     "image_anti_spam.member_kicked": { badge: "Anti-Spam", title: "Membro expulso por spam de imagens" },
     "moderation.link_anti_spam": { badge: "Moderação", title: "Link bloqueado por anti-flood" },
-    "security.account_age.blocked": { badge: "Seguranca", title: "Entrada bloqueada por idade da conta" },
+    "security.account_age.blocked": { badge: "Segurança", title: "Entrada bloqueada por idade da conta" },
     "security.self_bot.role_synced": { badge: "Self Bot", title: "Cargo Self Bot sincronizado" },
     "security.self_bot.role_assigned": { badge: "Self Bot", title: "Cargo Self Bot aplicado" },
     "security.self_bot.assignment_failed": { badge: "Self Bot", title: "Self Bot não conseguiu aplicar cargo" },
     "fivem.fac.settings_updated": { badge: "FiveM", title: "FAC atualizado" },
-    "fivem.fac.request_created": { badge: "FiveM", title: "Solicitacao de ausencia criada" },
-    "fivem.fac.request_approved": { badge: "FiveM", title: "Solicitacao de ausencia aprovada" },
-    "fivem.fac.request_rejected": { badge: "FiveM", title: "Solicitacao de ausencia reprovada" },
-    "fivem.fac.absence_started": { badge: "FiveM", title: "Ausencia iniciada" },
-    "fivem.fac.absence_finished": { badge: "FiveM", title: "Ausencia finalizada" },
+    "fivem.fac.request_created": { badge: "FiveM", title: "Solicitação de ausência criada" },
+    "fivem.fac.request_approved": { badge: "FiveM", title: "Solicitação de ausência aprovada" },
+    "fivem.fac.request_rejected": { badge: "FiveM", title: "Solicitação de ausência reprovada" },
+    "fivem.fac.absence_started": { badge: "FiveM", title: "Ausência iniciada" },
+    "fivem.fac.absence_finished": { badge: "FiveM", title: "Ausência finalizada" },
     "mission_tools.settings_updated": { badge: "Mission", title: "Mission Tools updated" },
     "mission_tools.panel_publish_requested": { badge: "Mission", title: "Control Center publication requested" },
     "mission_tools.fake_token_detected": { badge: "Mission", title: "Fake token detected" }
@@ -9405,7 +9405,7 @@ function friendlyLog(log: LogEntry) {
 
   return {
     badge: "Painel",
-    title: message || "Configuracao atualizada",
+    title: message || "Configuração atualizada",
     description: "Evento registrado no servidor."
   };
 }

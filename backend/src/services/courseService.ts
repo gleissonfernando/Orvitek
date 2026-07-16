@@ -1235,7 +1235,7 @@ export async function getActiveCourseDepartment(botId: string | null, guildId: s
   const { courseDepartments } = await getMongoCollections();
   await ensureDefaultCourseDepartments(botId, guildId);
   const department = await courseDepartments.findOne({ _id: departmentId, ...scope(botId, guildId) });
-  if (!department) throw new CourseDepartmentError("not_found", "DP nao encontrada.");
+  if (!department) throw new CourseDepartmentError("not_found", "DP não encontrada.");
   if (!department.active) throw new CourseDepartmentError("inactive", "DP desativada.");
   return mapCourseDepartment(department);
 }
@@ -1245,9 +1245,9 @@ export async function createCourseDepartment(botId: string | null, guildId: stri
   await ensureDefaultCourseDepartments(botId, guildId);
   const name = sanitizeCourseDepartmentName(input.name);
   const normalizedName = normalizeCourseDepartmentName(name);
-  if (!normalizedName) throw new CourseDepartmentError("invalid_name", "Nome de DP invalido.");
+  if (!normalizedName) throw new CourseDepartmentError("invalid_name", "Nome de DP inválido.");
   const duplicate = await courseDepartments.findOne({ ...scope(botId, guildId), normalizedName, active: true });
-  if (duplicate) throw new CourseDepartmentError("duplicate", "Ja existe uma DP ativa com esse nome.");
+  if (duplicate) throw new CourseDepartmentError("duplicate", "Já existe uma DP ativa com esse nome.");
   const now = new Date();
   const doc: MongoCourseDepartment = {
     _id: randomUUID(),
@@ -1264,7 +1264,7 @@ export async function createCourseDepartment(botId: string | null, guildId: stri
   try {
     await courseDepartments.insertOne(doc);
   } catch (error) {
-    if (isDuplicateKeyError(error)) throw new CourseDepartmentError("duplicate", "Ja existe uma DP ativa com esse nome.");
+    if (isDuplicateKeyError(error)) throw new CourseDepartmentError("duplicate", "Já existe uma DP ativa com esse nome.");
     throw error;
   }
   await logCourseAction(botId, guildId, "course.department_created", actorId, null, null, { departmentId: doc._id, name });
@@ -1275,14 +1275,14 @@ export async function updateCourseDepartment(botId: string | null, guildId: stri
   const { courseDepartments } = await getMongoCollections();
   await ensureDefaultCourseDepartments(botId, guildId);
   const current = await courseDepartments.findOne({ _id: departmentId, ...scope(botId, guildId) });
-  if (!current) throw new CourseDepartmentError("not_found", "DP nao encontrada.");
+  if (!current) throw new CourseDepartmentError("not_found", "DP não encontrada.");
   const patch: Partial<MongoCourseDepartment> = { updatedAt: new Date(), updatedBy: actorId };
   if (typeof input.name === "string") {
     const name = sanitizeCourseDepartmentName(input.name);
     const normalizedName = normalizeCourseDepartmentName(name);
-    if (!normalizedName) throw new CourseDepartmentError("invalid_name", "Nome de DP invalido.");
+    if (!normalizedName) throw new CourseDepartmentError("invalid_name", "Nome de DP inválido.");
     const duplicate = await courseDepartments.findOne({ _id: { $ne: departmentId }, ...scope(botId, guildId), normalizedName, active: true });
-    if (duplicate && input.active !== false) throw new CourseDepartmentError("duplicate", "Ja existe uma DP ativa com esse nome.");
+    if (duplicate && input.active !== false) throw new CourseDepartmentError("duplicate", "Já existe uma DP ativa com esse nome.");
     patch.name = name;
     patch.normalizedName = normalizedName;
   }
@@ -1290,14 +1290,14 @@ export async function updateCourseDepartment(botId: string | null, guildId: stri
     if (input.active) {
       const normalizedName = patch.normalizedName ?? current.normalizedName;
       const duplicate = await courseDepartments.findOne({ _id: { $ne: departmentId }, ...scope(botId, guildId), normalizedName, active: true });
-      if (duplicate) throw new CourseDepartmentError("duplicate", "Ja existe uma DP ativa com esse nome.");
+      if (duplicate) throw new CourseDepartmentError("duplicate", "Já existe uma DP ativa com esse nome.");
     }
     patch.active = input.active;
   }
   try {
     await courseDepartments.updateOne({ _id: departmentId, ...scope(botId, guildId) }, { $set: patch });
   } catch (error) {
-    if (isDuplicateKeyError(error)) throw new CourseDepartmentError("duplicate", "Ja existe uma DP ativa com esse nome.");
+    if (isDuplicateKeyError(error)) throw new CourseDepartmentError("duplicate", "Já existe uma DP ativa com esse nome.");
     throw error;
   }
   const updated = await courseDepartments.findOne({ _id: departmentId, ...scope(botId, guildId) });
@@ -1309,7 +1309,7 @@ export async function deleteCourseDepartment(botId: string | null, guildId: stri
   const { courseDepartments, coursePublications } = await getMongoCollections();
   await ensureDefaultCourseDepartments(botId, guildId);
   const current = await courseDepartments.findOne({ _id: departmentId, ...scope(botId, guildId) });
-  if (!current) throw new CourseDepartmentError("not_found", "DP nao encontrada.");
+  if (!current) throw new CourseDepartmentError("not_found", "DP não encontrada.");
   const linkedPublications = await coursePublications.countDocuments({ ...scope(botId, guildId), dpId: departmentId });
   if (linkedPublications > 0) {
     const department = await updateCourseDepartment(botId, guildId, departmentId, { active: false }, actorId);

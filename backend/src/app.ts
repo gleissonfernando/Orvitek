@@ -111,7 +111,7 @@ function ensureFrontendBuild() {
   const frontendPackagePath = path.resolve(__dirname, "../../frontend/package.json");
 
   if (!fs.existsSync(frontendPackagePath)) {
-    console.warn("[frontend] build ausente e fontes do frontend nao foram encontradas.");
+    console.warn("[frontend] build ausente e fontes do frontend não foram encontradas.");
     return;
   }
 
@@ -123,6 +123,6 @@ function ensureFrontendBuild() {
   });
 
   if (result.status !== 0 || !fs.existsSync(frontendIndexPath)) {
-    console.error("[frontend] nao foi possivel gerar frontend/dist/index.html.");
+    console.error("[frontend] não foi possível gerar frontend/dist/index.html.");
   }
 }

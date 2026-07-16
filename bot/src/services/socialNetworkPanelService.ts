@@ -77,7 +77,7 @@ const SOCIAL_META: Array<{
 
 export function startSocialNetworkPanelSync(client: Client, api: ApiClient, socket: BotSocketClient) {
   if (serviceStarted) {
-    console.warn("[network] start ignorado: sincronizador ja esta em execucao.");
+    console.warn("[network] start ignorado: sincronizador já está em execução.");
     return;
   }
 
@@ -93,7 +93,7 @@ export function startSocialNetworkPanelSync(client: Client, api: ApiClient, sock
   });
 
   void syncAllSocialPanels(client, api).catch((error) => {
-    console.warn("[network] sincronizacao inicial falhou:", error instanceof Error ? error.message : error);
+    console.warn("[network] sincronização inicial falhou:", error instanceof Error ? error.message : error);
   });
 }
 
@@ -139,7 +139,7 @@ async function syncSocialPanel(client: Client, api: ApiClient, payload: SocialPa
   const channel = await fetchWritableChannel(client, panel.channelId, panel.guildId);
 
   if (!channel) {
-    throw new Error(`Canal ${panel.channelId} nao encontrado para a Network.`);
+    throw new Error(`Canal ${panel.channelId} não encontrado para a Network.`);
   }
 
   if (!panel.published) {

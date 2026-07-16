@@ -24,7 +24,7 @@ guildsRouter.get("/:guildId", (req, res) => {
 
   if (!guild) {
     return res.status(404).json({
-      message: "Servidor nao encontrado ou sem permissao administrativa."
+      message: "Servidor não encontrado ou sem permissão administrativa."
     });
   }
 
@@ -38,7 +38,7 @@ guildsRouter.get("/:guildId/stats", (req, res) => {
 
   if (!guild) {
     return res.status(404).json({
-      message: "Servidor nao encontrado ou sem permissao administrativa."
+      message: "Servidor não encontrado ou sem permissão administrativa."
     });
   }
 
@@ -62,7 +62,7 @@ guildsRouter.get("/:guildId/live-options", async (req, res, next) => {
 
     if (!guildId) {
       return res.status(400).json({
-        message: "Servidor obrigatorio."
+        message: "Servidor obrigatório."
       });
     }
 
@@ -71,7 +71,7 @@ guildsRouter.get("/:guildId/live-options", async (req, res, next) => {
       !(await canAccessDevBotGuild(res.locals.dashboardAuth.user, botId, guildId))
     ) {
       return res.status(403).json({
-        message: "Voce nao tem permissao para configurar lives deste servidor."
+        message: "Você não tem permissão para configurar lives deste servidor."
       });
     }
 
@@ -97,7 +97,7 @@ guildsRouter.post("/:guildId/delete-channels", async (req, res, next) => {
       !canReadDashboardGuild(res.locals.dashboardAuth.user, guildId) &&
       !(await canAccessDevBotGuild(res.locals.dashboardAuth.user, botId, guildId))
     ) {
-      return res.status(403).json({ message: "Voce nao tem permissao para apagar canais deste servidor." });
+      return res.status(403).json({ message: "Você não tem permissão para apagar canais deste servidor." });
     }
 
     const result = await deleteGuildStructure(
@@ -129,7 +129,7 @@ guildsRouter.get("/:guildId/role-options", async (req, res, next) => {
 
     if (!guildId) {
       return res.status(400).json({
-        message: "Servidor obrigatorio."
+        message: "Servidor obrigatório."
       });
     }
 
@@ -138,7 +138,7 @@ guildsRouter.get("/:guildId/role-options", async (req, res, next) => {
       !(await canManageDevBotGuild(res.locals.dashboardAuth.user, botId, guildId))
     ) {
       return res.status(403).json({
-        message: "Voce nao tem permissao para configurar cargos deste servidor."
+        message: "Você não tem permissão para configurar cargos deste servidor."
       });
     }
 
@@ -158,7 +158,7 @@ guildsRouter.get("/:guildId/member-options", async (req, res, next) => {
 
     if (!guildId) {
       return res.status(400).json({
-        message: "Servidor obrigatorio."
+        message: "Servidor obrigatório."
       });
     }
 
@@ -167,7 +167,7 @@ guildsRouter.get("/:guildId/member-options", async (req, res, next) => {
       !(await canManageDevBotGuild(res.locals.dashboardAuth.user, botId, guildId))
     ) {
       return res.status(403).json({
-        message: "Voce nao tem permissao para selecionar usuarios deste servidor."
+        message: "Você não tem permissão para selecionar usuários deste servidor."
       });
     }
 
@@ -188,10 +188,10 @@ guildsRouter.post("/:guildId/modules/:moduleId/images", imageUpload, async (req,
 
     if (!botId) return res.status(400).json({ message: "Escolha um bot cadastrado para configurar imagens." });
     if (!(await canManageDevBotGuild(res.locals.dashboardAuth.user, botId, guildId))) {
-      return res.status(403).json({ message: "Voce nao tem permissao para configurar imagens deste modulo." });
+      return res.status(403).json({ message: "Você não tem permissão para configurar imagens deste módulo." });
     }
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-      return res.status(400).json({ message: "Arquivo de imagem obrigatorio." });
+      return res.status(400).json({ message: "Arquivo de imagem obrigatório." });
     }
 
     return res.json({
@@ -218,7 +218,7 @@ guildsRouter.delete("/:guildId/modules/:moduleId/images/:imageType", async (req,
 
     if (!botId) return res.status(400).json({ message: "Escolha um bot cadastrado para configurar imagens." });
     if (!(await canManageDevBotGuild(res.locals.dashboardAuth.user, botId, guildId))) {
-      return res.status(403).json({ message: "Voce nao tem permissao para remover imagens deste modulo." });
+      return res.status(403).json({ message: "Você não tem permissão para remover imagens deste módulo." });
     }
 
     return res.json({

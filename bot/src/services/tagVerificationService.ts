@@ -80,14 +80,14 @@ function registerSocketHandlers(client: Client, context: BotContext) {
 
   context.socket.onTagVerificationRun(async (payload) => {
     if (!belongsToRuntime(payload.botId)) {
-      throw new Error("A solicitacao pertence a outro bot.");
+      throw new Error("A solicitação pertence a outro bot.");
     }
 
     const guild = client.guilds.cache.get(payload.guildId) ?? await client.guilds.fetch(payload.guildId).catch(() => null);
-    if (!guild) throw new Error("Servidor nao encontrado pelo bot.");
+    if (!guild) throw new Error("Servidor não encontrado pelo bot.");
     clearRuntimeModuleAuthorization(payload.guildId, MODULE_ID);
     const result = await restartGuildScheduler(guild, context, true);
-    if (!result) throw new Error("A Verificacao de Tag esta desativada ou sem configuracao valida.");
+    if (!result) throw new Error("A Verificação de Tag está desativada ou sem configuração válida.");
     return result;
   });
 }
@@ -169,10 +169,10 @@ async function runVerification(
     lastError: null,
     unavailableUserIds: []
   };
-  let roleLabel = config.roleId ?? "nao configurado";
+  let roleLabel = config.roleId ?? "não configurado";
 
   try {
-    if (!config.roleId) throw new Error("Cargo nao encontrado.");
+    if (!config.roleId) throw new Error("Cargo não encontrado.");
     const role = await guild.roles.fetch(config.roleId);
     const roleError = await validateRole(guild, role);
     if (roleError) throw new Error(roleError);
@@ -216,9 +216,9 @@ async function syncMemberTagRole(
         return;
       }
 
-      await member.roles.add(role, `Verificacao de Tag: tag ${config.requiredTag} encontrada.`);
+      await member.roles.add(role, `Verificação de Tag: tag ${config.requiredTag} encontrada.`);
       result.assigned += 1;
-      await writeMemberLog(context, member, role, "tag_verification.role_assigned", "Cargo entregue apos validar a tag.");
+      await writeMemberLog(context, member, role, "tag_verification.role_assigned", "Cargo entregue após validar a tag.");
       return;
     }
 
@@ -229,9 +229,9 @@ async function syncMemberTagRole(
     }
 
     if (config.autoRemove && hasRole) {
-      await member.roles.remove(role, `Verificacao de Tag: tag ${config.requiredTag} removida.`);
+      await member.roles.remove(role, `Verificação de Tag: tag ${config.requiredTag} removida.`);
       result.removed += 1;
-      await writeMemberLog(context, member, role, "tag_verification.role_removed", "Cargo removido porque a tag nao foi encontrada.");
+      await writeMemberLog(context, member, role, "tag_verification.role_removed", "Cargo removido porque a tag não foi encontrada.");
       return;
     }
 
@@ -253,15 +253,15 @@ function readableMemberTexts(member: GuildMember) {
 }
 
 async function validateRole(guild: Guild, role: Role | null) {
-  if (!role) return "Cargo nao encontrado.";
-  if (role.managed) return "O cargo selecionado e gerenciado por uma integracao.";
+  if (!role) return "Cargo não encontrado.";
+  if (role.managed) return "O cargo selecionado e gerenciado por uma integração.";
 
   const botMember = guild.members.me ?? await guild.members.fetchMe().catch(() => null);
   if (!botMember?.permissions.has(PermissionFlagsBits.ManageRoles)) {
-    return "Bot sem permissao para gerenciar cargos.";
+    return "Bot sem permissão para gerenciar cargos.";
   }
   if (role.comparePositionTo(botMember.roles.highest) >= 0) {
-    return "Cargo selecionado esta acima do cargo do bot.";
+    return "Cargo selecionado está acima do cargo do bot.";
   }
   return null;
 }
@@ -304,7 +304,7 @@ async function writeSummaryLog(context: BotContext, config: TagVerificationConfi
     botId: currentRuntimeBotId(),
     guildId: result.guildId,
     type: result.lastError ? "tag_verification.failed" : "tag_verification.completed",
-    message: `[Verificacao de Tag] Guild: ${result.guildId} | Bot: ${result.botId} | Tag: ${config.requiredTag} | Cargo: ${roleLabel} | Verificados: ${result.checked} | Entregues: ${result.assigned} | Removidos: ${result.removed} | Ignorados: ${result.ignored} | Nao foi possivel validar: ${result.unavailable} | Erros: ${result.errors}.`,
+    message: `[Verificação de Tag] Guild: ${result.guildId} | Bot: ${result.botId} | Tag: ${config.requiredTag} | Cargo: ${roleLabel} | Verificados: ${result.checked} | Entregues: ${result.assigned} | Removidos: ${result.removed} | Ignorados: ${result.ignored} | Não foi possível validar: ${result.unavailable} | Erros: ${result.errors}.`,
     metadata: { ...result, requiredTag: config.requiredTag, roleId: config.roleId, roleLabel }
   }).catch(() => undefined);
 }
@@ -315,7 +315,7 @@ async function writeMemberLog(context: BotContext, member: GuildMember, role: Ro
     guildId: member.guild.id,
     userId: member.id,
     type,
-    message: `Verificacao de Tag: ${message} Usuario: ${member.user.tag}. Cargo: ${role.name}/${role.id}.`,
+    message: `Verificação de Tag: ${message} Usuário: ${member.user.tag}. Cargo: ${role.name}/${role.id}.`,
     metadata: { roleId: role.id, roleName: role.name, userId: member.id }
   }).catch(() => undefined);
 }

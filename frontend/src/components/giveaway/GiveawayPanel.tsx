@@ -870,7 +870,7 @@ function validateFormForSubmit(form: GiveawayForm, liveValidated: boolean, liveP
   }
 
   if (!form.liveUrl.trim()) {
-    return "Informe uma URL valida da Twitch ou Kick.";
+    return "Informe uma URL válida da Twitch ou Kick.";
   }
 
   if (!form.discordChannelId) {
@@ -882,7 +882,7 @@ function validateFormForSubmit(form: GiveawayForm, liveValidated: boolean, liveP
   }
 
   if (!liveValidated) {
-    return "Busque e verifique uma URL valida da Twitch ou Kick antes de criar o sorteio.";
+    return "Busque e verifique uma URL válida da Twitch ou Kick antes de criar o sorteio.";
   }
 
   return null;
@@ -981,7 +981,7 @@ function readRequestMessage(error: unknown) {
 
 function friendlyErrorMessage(message: string) {
   if (message.includes("liveUrl") || message.includes("String must contain")) {
-    return "Informe uma URL valida da Twitch ou Kick.";
+    return "Informe uma URL válida da Twitch ou Kick.";
   }
 
   if (message.includes("prizeName")) {

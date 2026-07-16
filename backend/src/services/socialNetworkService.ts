@@ -256,7 +256,7 @@ export async function updateSocialMember(
     });
 
     if (!current || current.guildId !== guildId || normalizeBotId(current.botId) !== normalizedBotId) {
-      throw createServiceError("Membro nao encontrado.", 404);
+      throw createServiceError("Membro não encontrado.", 404);
     }
 
     const updated = await socialMembers.findOneAndUpdate(
@@ -273,7 +273,7 @@ export async function updateSocialMember(
     );
 
     if (!updated) {
-      throw createServiceError("Membro nao encontrado.", 404);
+      throw createServiceError("Membro não encontrado.", 404);
     }
 
     const dto = toMemberDto(updated);
@@ -288,7 +288,7 @@ export async function updateSocialMember(
     const current = memoryMembers.get(id);
 
     if (!current || current.guildId !== guildId || current.botId !== normalizedBotId) {
-      throw createServiceError("Membro nao encontrado.", 404);
+      throw createServiceError("Membro não encontrado.", 404);
     }
 
     const links: Partial<Record<SocialPlatform, string | null>> = input.links ? normalizeLinks(input.links, false) : {};
@@ -328,7 +328,7 @@ export async function deleteSocialMember(guildId: string, id: string, userId?: s
     });
 
     if (!current || current.guildId !== guildId || normalizeBotId(current.botId) !== normalizedBotId) {
-      throw createServiceError("Membro nao encontrado.", 404);
+      throw createServiceError("Membro não encontrado.", 404);
     }
 
     await socialMembers.deleteOne({
@@ -348,7 +348,7 @@ export async function deleteSocialMember(guildId: string, id: string, userId?: s
     const current = memoryMembers.get(id);
 
     if (!current || current.guildId !== guildId || current.botId !== normalizedBotId) {
-      throw createServiceError("Membro nao encontrado.", 404);
+      throw createServiceError("Membro não encontrado.", 404);
     }
 
     memoryMembers.delete(id);
@@ -535,7 +535,7 @@ export async function getBotSocialPanel(panelId: string, botId?: string | null) 
     });
 
     if (!panel) {
-      throw createServiceError("Painel nao encontrado.", 404);
+      throw createServiceError("Painel não encontrado.", 404);
     }
 
     return toPanelPayload(panel);
@@ -547,7 +547,7 @@ export async function getBotSocialPanel(panelId: string, botId?: string | null) 
     const panel = [...memoryPanels.values()].find((item) => item.id === panelId && item.botId === normalizedBotId);
 
     if (!panel) {
-      throw createServiceError("Painel nao encontrado.", 404);
+      throw createServiceError("Painel não encontrado.", 404);
     }
 
     return toMemoryPanelPayload(panel);
@@ -573,7 +573,7 @@ export async function updateSocialPanelMessageState(panelId: string, input: Upda
     );
 
     if (!updated) {
-      throw createServiceError("Painel nao encontrado.", 404);
+      throw createServiceError("Painel não encontrado.", 404);
     }
 
     return toPanelDto(updated, await countSocialMembers(updated.guildId, normalizedBotId));
@@ -585,7 +585,7 @@ export async function updateSocialPanelMessageState(panelId: string, input: Upda
     const panel = [...memoryPanels.values()].find((item) => item.id === panelId && item.botId === normalizedBotId);
 
     if (!panel) {
-      throw createServiceError("Painel nao encontrado.", 404);
+      throw createServiceError("Painel não encontrado.", 404);
     }
 
     const updated: SocialPanelDto = {
@@ -637,7 +637,7 @@ async function setSocialPanelPublished(guildId: string, botId: string | null, pu
     );
 
     if (!updated) {
-      throw createServiceError("Painel nao encontrado.", 404);
+      throw createServiceError("Painel não encontrado.", 404);
     }
 
     return toPanelDto(updated, await countSocialMembers(guildId, botId));
@@ -650,7 +650,7 @@ async function setSocialPanelPublished(guildId: string, botId: string | null, pu
     const current = memoryPanels.get(key);
 
     if (!current) {
-      throw createServiceError("Painel nao encontrado.", 404);
+      throw createServiceError("Painel não encontrado.", 404);
     }
 
     const updated: SocialPanelDto = {
@@ -723,7 +723,7 @@ async function assertMemberLimit(guildId: string, botId: string | null) {
   const count = await countSocialMembers(guildId, botId);
 
   if (count >= SOCIAL_MEMBER_LIMIT) {
-    throw createServiceError(`Voce atingiu o limite de ${SOCIAL_MEMBER_LIMIT} membros na Network deste servidor.`, 400);
+    throw createServiceError(`Você atingiu o limite de ${SOCIAL_MEMBER_LIMIT} membros na Network deste servidor.`, 400);
   }
 }
 
@@ -785,7 +785,7 @@ async function sendSocialPanelPreviewToDiscord({
   const token = botToken || env.DISCORD_BOT_TOKEN;
 
   if (!token) {
-    throw createServiceError("DISCORD_BOT_TOKEN nao configurado.", 503);
+    throw createServiceError("DISCORD_BOT_TOKEN não configurado.", 503);
   }
 
   if (!panel.channelId) {
@@ -951,7 +951,7 @@ function normalizeShortText(value: string | null | undefined, label: string) {
   }
 
   if (normalized.length > 80) {
-    throw createServiceError(`${label} deve ter no maximo 80 caracteres.`, 400);
+    throw createServiceError(`${label} deve ter no máximo 80 caracteres.`, 400);
   }
 
   return normalized;
@@ -965,7 +965,7 @@ function normalizeUrl(value: string | null | undefined, label: string) {
   }
 
   if (normalized.length > 2048) {
-    throw createServiceError(`${label} deve ter no maximo 2048 caracteres.`, 400);
+    throw createServiceError(`${label} deve ter no máximo 2048 caracteres.`, 400);
   }
 
   try {
@@ -977,7 +977,7 @@ function normalizeUrl(value: string | null | undefined, label: string) {
 
     return url.toString();
   } catch {
-    throw createServiceError(`${label} precisa ser uma URL valida.`, 400);
+    throw createServiceError(`${label} precisa ser uma URL válida.`, 400);
   }
 }
 

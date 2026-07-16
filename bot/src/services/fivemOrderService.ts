@@ -51,22 +51,22 @@ export async function publishFivemOrderPanel(interaction: ChatInputCommandIntera
 export async function showFivemOrderCreate(interaction: ChatInputCommandInteraction, context: BotContext) {
   if (!interaction.guild) return;
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
-  if (!(await canCreate(interaction.guild, interaction.user.id, runtime.settings))) return interaction.reply({ content: "Voce nao possui permissao para criar encomendas.", ephemeral: true });
+  if (!(await canCreate(interaction.guild, interaction.user.id, runtime.settings))) return interaction.reply({ content: "Você não possui permissão para criar encomendas.", ephemeral: true });
   await replyWithFamilySelect(interaction, runtime.families, "all");
 }
 
 export async function showFivemOrderStatus(interaction: ChatInputCommandInteraction, context: BotContext, orderNumber: number) {
   if (!interaction.guild) return;
   const order = await context.api.getFivemOrder(interaction.guild.id, orderNumber, interaction.user.id);
-  await interaction.reply({ content: order ? orderSummary(order) : "Encomenda nao encontrada para este usuario.", ephemeral: true });
+  await interaction.reply({ content: order ? orderSummary(order) : "Encomenda não encontrada para este usuário.", ephemeral: true });
 }
 
 export async function updateFivemOrderByNumber(interaction: ChatInputCommandInteraction, context: BotContext, orderNumber: number, status: FivemOrderStatus) {
   if (!interaction.guild) return;
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
-  if (!(await canManage(interaction.guild, interaction.user.id, runtime.settings, status))) return interaction.reply({ content: "Voce nao possui permissao para esta acao.", ephemeral: true });
+  if (!(await canManage(interaction.guild, interaction.user.id, runtime.settings, status))) return interaction.reply({ content: "Você não possui permissão para esta ação.", ephemeral: true });
   const order = await context.api.getFivemOrder(interaction.guild.id, orderNumber);
-  if (!order) return interaction.reply({ content: "Encomenda nao encontrada.", ephemeral: true });
+  if (!order) return interaction.reply({ content: "Encomenda não encontrada.", ephemeral: true });
   const saved = await context.api.updateFivemOrderStatus({ actorId: interaction.user.id, guildId: interaction.guild.id, orderId: order.id, status });
   await interaction.reply({ content: orderSummary(saved), ephemeral: true });
 }
@@ -75,14 +75,14 @@ export async function showFivemOrderReport(interaction: ChatInputCommandInteract
   if (!interaction.guild) return;
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
   const products = runtime.products.map((item) => `${item.emoji ?? "-"} ${item.name}: ${formatMoney(item.price)} unidade`).join("\n") || "Nenhum produto ativo.";
-  await interaction.reply({ content: `**Relatorio rapido de encomendas**\n${products}`, ephemeral: true });
+  await interaction.reply({ content: `**Relatório rapido de encomendas**\n${products}`, ephemeral: true });
 }
 
 export async function showFivemLaundryConfig(interaction: ChatInputCommandInteraction, context: BotContext) {
   if (!interaction.guild) return;
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
   if (!(await canConfigure(interaction.guild, interaction.user.id, runtime.settings))) {
-    await interaction.reply({ content: "Voce nao possui permissao para configurar o sistema de lavagem.", ephemeral: true });
+    await interaction.reply({ content: "Você não possui permissão para configurar o sistema de lavagem.", ephemeral: true });
     return;
   }
   await interaction.reply({ ...laundryConfigPanel(runtime), flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
@@ -133,8 +133,8 @@ function laundryConfigPanel(runtime: Awaited<ReturnType<BotContext["api"]["getFi
     ],
     description: `Status: **${runtime.settings.enabled ? "Ativo" : "Inativo"}**\nFamilias ativas: **${runtime.families.length}**\nRegras de lavagem: **${washingProducts.length}**`,
     fields: [
-      `Canal do painel: ${runtime.settings.panelChannelId ? `<#${runtime.settings.panelChannelId}>` : "nao configurado"}`,
-      `Canal de logs: ${runtime.settings.logChannelId ? `<#${runtime.settings.logChannelId}>` : "nao configurado"}`
+      `Canal do painel: ${runtime.settings.panelChannelId ? `<#${runtime.settings.panelChannelId}>` : "não configurado"}`,
+      `Canal de logs: ${runtime.settings.logChannelId ? `<#${runtime.settings.logChannelId}>` : "não configurado"}`
     ],
     moduleId: "fivem-washing",
     title: "Sistema de Lavagem"
@@ -144,38 +144,38 @@ function laundryConfigPanel(runtime: Awaited<ReturnType<BotContext["api"]["getFi
 async function showLaundryConfigHome(interaction: ButtonInteraction, context: BotContext) {
   if (!interaction.guild) return;
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
-  if (!(await canConfigure(interaction.guild, interaction.user.id, runtime.settings))) return interaction.reply({ content: "Sem permissao.", ephemeral: true });
+  if (!(await canConfigure(interaction.guild, interaction.user.id, runtime.settings))) return interaction.reply({ content: "Sem permissão.", ephemeral: true });
   await interaction.update(laundryConfigPanel(runtime));
 }
 
 async function showLaundryFamiliesConfig(interaction: ButtonInteraction, context: BotContext) {
   if (!interaction.guild) return;
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
-  if (!(await canConfigure(interaction.guild, interaction.user.id, runtime.settings))) return interaction.reply({ content: "Sem permissao.", ephemeral: true });
+  if (!(await canConfigure(interaction.guild, interaction.user.id, runtime.settings))) return interaction.reply({ content: "Sem permissão.", ephemeral: true });
   const families = runtime.families.filter((family) => family.orderModules.includes("washing") || !family.orderModules.length).slice(0, 25);
   const rows: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${PREFIX}:config:add_family`).setLabel("Cadastrar Familia").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`${PREFIX}:config:add_family`).setLabel("Cadastrar Família").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`${PREFIX}:config:home`).setLabel("Voltar").setStyle(ButtonStyle.Secondary)
     )
   ];
   if (families.length) {
-    rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(`${PREFIX}:config:edit_family`).setPlaceholder("Editar familia").addOptions(families.map((family) => ({ label: family.name.slice(0, 100), value: family.id, description: (family.leaderName ? `Lider: ${family.leaderName}` : "Familia ativa").slice(0, 100) })))));
-    rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(`${PREFIX}:config:delete_family`).setPlaceholder("Excluir familia").addOptions(families.map((family) => ({ label: family.name.slice(0, 100), value: family.id, description: (family.leaderName ? `Lider: ${family.leaderName}` : "Familia ativa").slice(0, 100) })))));
+    rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(`${PREFIX}:config:edit_family`).setPlaceholder("Editar família").addOptions(families.map((family) => ({ label: family.name.slice(0, 100), value: family.id, description: (family.leaderName ? `Líder: ${family.leaderName}` : "Família ativa").slice(0, 100) })))));
+    rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(`${PREFIX}:config:delete_family`).setPlaceholder("Excluir família").addOptions(families.map((family) => ({ label: family.name.slice(0, 100), value: family.id, description: (family.leaderName ? `Líder: ${family.leaderName}` : "Família ativa").slice(0, 100) })))));
   }
   await interaction.update(renderComponentsV2Panel({
     accentColor: parseColor(runtime.settings.color),
     actions: rows,
-    description: families.length ? families.map((family) => `**${family.name}**${family.leaderName ? `\nLider: ${family.leaderName}` : ""}`).join("\n\n").slice(0, 1800) : "Nenhuma familia ativa cadastrada para lavagem.",
+    description: families.length ? families.map((family) => `**${family.name}**${family.leaderName ? `\nLider: ${family.leaderName}` : ""}`).join("\n\n").slice(0, 1800) : "Nenhuma família ativa cadastrada para lavagem.",
     moduleId: "fivem-washing",
     title: "Gerenciamento de Familias"
   }));
 }
 
 async function showLaundryFamilyModal(interaction: ButtonInteraction | StringSelectMenuInteraction, familyId: string | null) {
-  const modal = new ModalBuilder().setCustomId(`${PREFIX}:config:family_modal:${familyId ?? "new"}`).setTitle(familyId ? "Editar Familia" : "Cadastrar Familia");
-  modal.addComponents(inputRow("name", "Nome da familia", "Ex: Familia Norte", true));
-  modal.addComponents(inputRow("leaderName", "Nome do lider", "Ex: Carlos Silva", true));
+  const modal = new ModalBuilder().setCustomId(`${PREFIX}:config:family_modal:${familyId ?? "new"}`).setTitle(familyId ? "Editar Família" : "Cadastrar Família");
+  modal.addComponents(inputRow("name", "Nome da família", "Ex: Família Norte", true));
+  modal.addComponents(inputRow("leaderName", "Nome do líder", "Ex: Carlos Silva", true));
   await interaction.showModal(modal);
 }
 
@@ -183,33 +183,33 @@ async function submitLaundryFamilyModal(interaction: ModalSubmitInteraction, con
   if (!interaction.guild) return;
   await interaction.deferReply({ ephemeral: true });
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
-  if (!(await canConfigure(interaction.guild, interaction.user.id, runtime.settings))) return interaction.editReply("Sem permissao.");
+  if (!(await canConfigure(interaction.guild, interaction.user.id, runtime.settings))) return interaction.editReply("Sem permissão.");
   const familyId = interaction.customId.split(":")[3] ?? "new";
   const name = interaction.fields.getTextInputValue("name").trim();
   const leaderName = interaction.fields.getTextInputValue("leaderName").trim();
-  if (!name || !leaderName) return interaction.editReply("Preencha nome da familia e nome do lider.");
+  if (!name || !leaderName) return interaction.editReply("Preencha nome da família e nome do líder.");
   const payload = { active: true, actorId: interaction.user.id, leaderName, name, orderModules: ["washing" as const] };
   const family = familyId === "new"
     ? await context.api.createFivemOrderFamily(interaction.guild.id, payload)
     : await context.api.updateFivemOrderFamily(interaction.guild.id, familyId, payload);
-  await interaction.editReply(`Familia **${family.name}** salva com sucesso.`);
+  await interaction.editReply(`Família **${family.name}** salva com sucesso.`);
 }
 
 async function confirmLaundryFamilyDelete(interaction: StringSelectMenuInteraction, context: BotContext) {
   if (!interaction.guild) return;
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
-  if (!(await canConfigure(interaction.guild, interaction.user.id, runtime.settings))) return interaction.reply({ content: "Sem permissao.", ephemeral: true });
+  if (!(await canConfigure(interaction.guild, interaction.user.id, runtime.settings))) return interaction.reply({ content: "Sem permissão.", ephemeral: true });
   const family = runtime.families.find((item) => item.id === interaction.values[0]);
-  if (!family) return interaction.reply({ content: "Familia nao encontrada.", ephemeral: true });
+  if (!family) return interaction.reply({ content: "Família não encontrada.", ephemeral: true });
   await interaction.update(renderComponentsV2Panel({
     accentColor: 0xef4444,
     actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`${PREFIX}:config:confirm_delete_family:${family.id}`).setLabel("Excluir").setStyle(ButtonStyle.Danger),
       new ButtonBuilder().setCustomId(`${PREFIX}:config:families`).setLabel("Voltar").setStyle(ButtonStyle.Secondary)
     )],
-    description: `Familia: **${family.name}**\nLider: **${family.leaderName ?? "nao informado"}**\nA exclusao sera logica e o historico antigo sera preservado.`,
+    description: `Família: **${family.name}**\nLider: **${family.leaderName ?? "não informado"}**\nA exclusão será lógica e o histórico antigo será preservado.`,
     moduleId: "fivem-washing",
-    title: "Confirmar Exclusao"
+    title: "Confirmar Exclusão"
   }));
 }
 
@@ -217,10 +217,10 @@ async function deleteLaundryFamily(interaction: ButtonInteraction, context: BotC
   if (!interaction.guild) return;
   await interaction.deferReply({ ephemeral: true });
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
-  if (!(await canConfigure(interaction.guild, interaction.user.id, runtime.settings))) return interaction.editReply("Sem permissao.");
+  if (!(await canConfigure(interaction.guild, interaction.user.id, runtime.settings))) return interaction.editReply("Sem permissão.");
   const familyId = interaction.customId.split(":")[3] ?? "";
   const family = await context.api.deleteFivemOrderFamily(interaction.guild.id, familyId, interaction.user.id);
-  await interaction.editReply(`Familia **${family.name}** excluida da lista ativa.`);
+  await interaction.editReply(`Família **${family.name}** excluida da lista ativa.`);
 }
 
 async function publishConfiguredOrderPanel(guild: Guild, context: BotContext, fallbackChannelId?: string | null) {
@@ -246,23 +246,23 @@ function createMainPanel(settings: FivemOrderSettings) {
   const rows = [new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(`${PREFIX}:create`).setLabel("Criar Encomenda").setStyle(ButtonStyle.Success)
   )];
-  return renderComponentsV2Panel({ accentColor: parseColor(settings.color), actions: rows, description: settings.panelDescription || "Clique no botao abaixo para iniciar uma nova encomenda.", fields: [], image: settings.panelImage, moduleId: "fivem-orders", title: settings.panelTitle });
+  return renderComponentsV2Panel({ accentColor: parseColor(settings.color), actions: rows, description: settings.panelDescription || "Clique no botão abaixo para iniciar uma nova encomenda.", fields: [], image: settings.panelImage, moduleId: "fivem-orders", title: settings.panelTitle });
 }
 
 async function selectCategory(interaction: StringSelectMenuInteraction, context: BotContext) {
   if (!interaction.guild) return;
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
-  if (!(await canCreate(interaction.guild, interaction.user.id, runtime.settings))) return interaction.reply({ content: "Voce nao possui permissao para criar encomendas.", ephemeral: true });
+  if (!(await canCreate(interaction.guild, interaction.user.id, runtime.settings))) return interaction.reply({ content: "Você não possui permissão para criar encomendas.", ephemeral: true });
   await replyWithFamilySelect(interaction, runtime.families, "all");
 }
 
 async function startCreate(interaction: ButtonInteraction, context: BotContext) {
   if (!interaction.guild) return;
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
-  if (!(await canCreate(interaction.guild, interaction.user.id, runtime.settings))) return interaction.reply({ content: "Voce nao possui permissao para criar encomendas.", ephemeral: true });
+  if (!(await canCreate(interaction.guild, interaction.user.id, runtime.settings))) return interaction.reply({ content: "Você não possui permissão para criar encomendas.", ephemeral: true });
   const enabled = new Set(runtime.settings.enabledOrderModules ?? ["washing", "ammo", "drug", "weapon", "custom"]);
-  const types = [{ label: "Lavagem", value: "washing" }, { label: "Municao", value: "ammo" }, { label: "Drogas", value: "drug" }, { label: "Armas", value: "weapon" }, { label: "Itens personalizados", value: "custom" }].filter((item) => enabled.has(item.value as never) && runtime.products.some((product) => normalizeProductModule(product.type) === item.value));
-  if (!types.length) return interaction.reply({ content: "Nenhum modulo possui itens ativos. Configure os modulos na dashboard.", ephemeral: true });
+  const types = [{ label: "Lavagem", value: "washing" }, { label: "Munição", value: "ammo" }, { label: "Drogas", value: "drug" }, { label: "Armas", value: "weapon" }, { label: "Itens personalizados", value: "custom" }].filter((item) => enabled.has(item.value as never) && runtime.products.some((product) => normalizeProductModule(product.type) === item.value));
+  if (!types.length) return interaction.reply({ content: "Nenhum módulo possui itens ativos. Configure os modulos na dashboard.", ephemeral: true });
   if (types.length === 1) {
     await replyWithFamilySelect(interaction, runtime.families, types[0]?.value ?? "custom");
     return;
@@ -273,9 +273,9 @@ async function startCreate(interaction: ButtonInteraction, context: BotContext) 
 
 async function replyWithFamilySelect(interaction: ButtonInteraction | StringSelectMenuInteraction | ChatInputCommandInteraction, families: Awaited<ReturnType<BotContext["api"]["getFivemOrderRuntime"]>>["families"], type: string) {
   const availableFamilies = families.filter((family) => familyMatchesOrderType(family, type));
-  if (!availableFamilies.length) return interaction.reply({ content: "Nenhuma familia ativa foi cadastrada para este tipo de encomenda. Configure as familias na dashboard.", ephemeral: true });
-  const select = new StringSelectMenuBuilder().setCustomId(`${PREFIX}:family:${type}`).setPlaceholder("Escolha a familia").addOptions(availableFamilies.slice(0, 25).map((family) => ({ label: family.name.slice(0, 100), value: family.id, description: family.notes?.slice(0, 100) || "Familia ativa" })));
-  await interaction.reply({ components: [{ type: 17, accent_color: 0x22c55e, components: [{ type: 10, content: "## Selecione a familia responsavel pela encomenda" }] }, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)], flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
+  if (!availableFamilies.length) return interaction.reply({ content: "Nenhuma família ativa foi cadastrada para este tipo de encomenda. Configure as famílias na dashboard.", ephemeral: true });
+  const select = new StringSelectMenuBuilder().setCustomId(`${PREFIX}:family:${type}`).setPlaceholder("Escolha a família").addOptions(availableFamilies.slice(0, 25).map((family) => ({ label: family.name.slice(0, 100), value: family.id, description: family.notes?.slice(0, 100) || "Família ativa" })));
+  await interaction.reply({ components: [{ type: 17, accent_color: 0x22c55e, components: [{ type: 10, content: "## Selecione a família responsável pela encomenda" }] }, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)], flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
   if (interaction.isStringSelectMenu()) void resetSelectMenuMessage(interaction);
 }
 
@@ -290,16 +290,16 @@ async function selectFamily(interaction: StringSelectMenuInteraction, context: B
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
   const familyId = interaction.values[0] ?? "";
   const type = interaction.customId.split(":")[2] ?? "all";
-  if (!runtime.families.some((family) => family.id === familyId && familyMatchesOrderType(family, type))) return interaction.reply({ content: "Familia indisponivel para este tipo de encomenda.", ephemeral: true });
+  if (!runtime.families.some((family) => family.id === familyId && familyMatchesOrderType(family, type))) return interaction.reply({ content: "Família indisponível para este tipo de encomenda.", ephemeral: true });
   await replyWithProductSelect(interaction, runtime.products.filter((product) => type === "all" || normalizeProductModule(product.type) === type), null, familyId);
 }
 
-async function showFamilies(interaction: ButtonInteraction, context: BotContext) { if (!interaction.guild) return; const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id); await interaction.reply({ content: runtime.families.length ? runtime.families.map((family) => `• **${family.name}** - <@&${family.roleId}>`).join("\n").slice(0, 1900) : "Nenhuma familia cadastrada.", ephemeral: true }); }
-async function showOrderHelp(interaction: ButtonInteraction) { await interaction.reply({ content: "**Como criar uma encomenda**\n1. Escolha o tipo.\n2. Selecione a familia.\n3. Escolha o item.\n4. Informe quantidade/valor no modal.\n5. Confirme e acompanhe pelo numero ENC.", ephemeral: true }); }
+async function showFamilies(interaction: ButtonInteraction, context: BotContext) { if (!interaction.guild) return; const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id); await interaction.reply({ content: runtime.families.length ? runtime.families.map((family) => `• **${family.name}** - <@&${family.roleId}>`).join("\n").slice(0, 1900) : "Nenhuma família cadastrada.", ephemeral: true }); }
+async function showOrderHelp(interaction: ButtonInteraction) { await interaction.reply({ content: "**Como criar uma encomenda**\n1. Escolha o tipo.\n2. Selecione a família.\n3. Escolha o item.\n4. Informe quantidade/valor no modal.\n5. Confirme e acompanhe pelo número ENC.", ephemeral: true }); }
 
 async function replyWithProductSelect(interaction: ButtonInteraction | StringSelectMenuInteraction | ChatInputCommandInteraction, products: FivemOrderProduct[], category: string | null, familyId: string) {
   const filtered = products.filter((item) => !category || item.category === category).slice(0, 25);
-  if (!filtered.length) return interaction.reply({ content: "Nenhum produto disponivel nesta categoria.", ephemeral: true });
+  if (!filtered.length) return interaction.reply({ content: "Nenhum produto disponível nesta categoria.", ephemeral: true });
   const select = new StringSelectMenuBuilder().setCustomId(`${PREFIX}:product:${familyId}`).setPlaceholder("Escolha o produto").addOptions(filtered.map((item) => ({ label: item.name.slice(0, 100), value: item.id, description: `${item.category} - ${formatMoney(item.price)}`.slice(0, 100), emoji: item.emoji || undefined })));
   await interaction.reply({ components: [{ type: 17, accent_color: 0x22c55e, components: [{ type: 10, content: `## Escolha o produto${category ? `\nCategoria: **${category}**` : ""}` }] }, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)], flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
   if (interaction.isStringSelectMenu()) void resetSelectMenuMessage(interaction);
@@ -309,11 +309,11 @@ async function showOrderModal(interaction: StringSelectMenuInteraction, context:
   if (!interaction.guild) return;
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
   const familyId = interaction.customId.split(":")[2] ?? "";
-  if (!runtime.families.some((family) => family.id === familyId)) return interaction.reply({ content: "Familia indisponivel.", ephemeral: true });
+  if (!runtime.families.some((family) => family.id === familyId)) return interaction.reply({ content: "Família indisponível.", ephemeral: true });
   const product = runtime.products.find((item) => item.id === interaction.values[0]);
-  if (!product) return interaction.reply({ content: "Produto indisponivel.", ephemeral: true });
+  if (!product) return interaction.reply({ content: "Produto indisponível.", ephemeral: true });
   const effectiveSettings = productSettings(runtime.settings, product);
-  if (!(await canCreate(interaction.guild, interaction.user.id, effectiveSettings))) return interaction.reply({ content: "Voce nao possui permissao para criar este item.", ephemeral: true });
+  if (!(await canCreate(interaction.guild, interaction.user.id, effectiveSettings))) return interaction.reply({ content: "Você não possui permissão para criar este item.", ephemeral: true });
   if (product.type === "washing") {
     await openOrderModal(interaction, product, familyId, null, effectiveSettings);
     return;
@@ -327,18 +327,18 @@ async function showWashingModal(interaction: StringSelectMenuInteraction, contex
   const productId = interaction.customId.split(":")[2] ?? "";
   const familyId = interaction.customId.split(":")[3] ?? "";
   const product = runtime.products.find((item) => item.id === productId && item.type === "washing");
-  if (!product) return interaction.reply({ content: "Lavagem indisponivel.", ephemeral: true });
+  if (!product) return interaction.reply({ content: "Lavagem indisponível.", ephemeral: true });
   const percentage = Number(interaction.values[0]);
   const allowed = product.washingPercentages?.length ? product.washingPercentages : [product.factionPercentage];
-  if (!allowed.includes(percentage)) return interaction.reply({ content: "Percentual nao permitido.", ephemeral: true });
+  if (!allowed.includes(percentage)) return interaction.reply({ content: "Percentual não permitido.", ephemeral: true });
   await openOrderModal(interaction, product, familyId, percentage, productSettings(runtime.settings, product));
 }
 
 async function openOrderModal(interaction: StringSelectMenuInteraction, product: FivemOrderProduct, familyId: string, washingPercentage: number | null, settings: FivemOrderSettings) {
   const modal = new ModalBuilder().setCustomId(`${PREFIX}:modal:${product.id}:${familyId}${washingPercentage === null ? "" : `:${washingPercentage}`}`).setTitle(`Encomenda - ${product.name}`.slice(0, 45));
-  modal.addComponents(inputRow("quantity", product.type === "washing" ? "Valor entregue pela familia" : "Quantidade", product.type === "washing" ? "Ex: 100000" : "Ex: 10", true));
+  modal.addComponents(inputRow("quantity", product.type === "washing" ? "Valor entregue pela família" : "Quantidade", product.type === "washing" ? "Ex: 100000" : "Ex: 10", true));
   if (product.type === "washing") return showModalAndResetSelect(interaction, modal);
-  if (product.allowNotes) modal.addComponents(inputRow("notes", "Observacao", "Detalhes adicionais", false, true));
+  if (product.allowNotes) modal.addComponents(inputRow("notes", "Observação", "Detalhes adicionais", false, true));
   if (settings.allowAttachments) modal.addComponents(inputRow("proof", "Link do comprovante", "https://...", false));
   modal.addComponents(inputRow("delivery", "Entrega prevista", "AAAA-MM-DD", false));
   await showModalAndResetSelect(interaction, modal);
@@ -355,13 +355,13 @@ async function submitOrder(interaction: ModalSubmitInteraction, context: BotCont
   const familyId = interaction.customId.split(":")[3] ?? "";
   const washingPercentage = interaction.customId.split(":")[4] ? Number(interaction.customId.split(":")[4]) : null;
   const product = runtime.products.find((item) => item.id === productId);
-  if (!product) return interaction.editReply("Produto indisponivel.");
+  if (!product) return interaction.editReply("Produto indisponível.");
   const effectiveSettings = productSettings(runtime.settings, product);
   const numeric = parseBrazilianNumber(interaction.fields.getTextInputValue("quantity"));
-  if (numeric === null || numeric <= 0) return interaction.editReply("Informe uma quantidade ou valor valido.");
+  if (numeric === null || numeric <= 0) return interaction.editReply("Informe uma quantidade ou valor válido.");
   const readOptional = (id: string) => interaction.fields.fields.has(id) ? interaction.fields.getTextInputValue(id).trim() || null : null;
   const family = runtime.families.find((item) => item.id === familyId);
-  if (!family) return interaction.editReply("Familia indisponivel.");
+  if (!family) return interaction.editReply("Família indisponível.");
   const order = await context.api.createFivemOrder({ clientName: family.name, expectedDelivery: readOptional("delivery"), familyId, grossValue: product.type === "washing" ? numeric : null, guildId: interaction.guild.id, notes: readOptional("notes"), productId, proofUrl: readOptional("proof"), quantity: product.type === "washing" ? 1 : numeric, sourceId: interaction.id, userId: interaction.user.id, washingPercentage });
   const orderChannel = await createTemporaryOrderChannel(interaction.guild, effectiveSettings, family, order);
   if (orderChannel) {
@@ -378,7 +378,7 @@ async function submitOrder(interaction: ModalSubmitInteraction, context: BotCont
 
 async function showStatusModal(interaction: ButtonInteraction) {
   const modal = new ModalBuilder().setCustomId(`${PREFIX}:status_modal`).setTitle("Consultar Encomenda");
-  modal.addComponents(inputRow("number", "Numero da encomenda", "Ex: 24", true));
+  modal.addComponents(inputRow("number", "Número da encomenda", "Ex: 24", true));
   await interaction.showModal(modal);
 }
 
@@ -386,7 +386,7 @@ async function submitStatusLookup(interaction: ModalSubmitInteraction, context: 
   if (!interaction.guild) return;
   const number = Number(interaction.fields.getTextInputValue("number"));
   const order = Number.isInteger(number) && number > 0 ? await context.api.getFivemOrder(interaction.guild.id, number, interaction.user.id) : null;
-  await interaction.reply({ content: order ? orderSummary(order) : "Encomenda nao encontrada.", ephemeral: true });
+  await interaction.reply({ content: order ? orderSummary(order) : "Encomenda não encontrada.", ephemeral: true });
 }
 
 async function updateOrderFromButton(interaction: ButtonInteraction, context: BotContext) {
@@ -395,7 +395,7 @@ async function updateOrderFromButton(interaction: ButtonInteraction, context: Bo
   const [, , statusValue, orderId] = interaction.customId.split(":");
   const status = statusValue as FivemOrderStatus;
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
-  if (!(await canManage(interaction.guild, interaction.user.id, runtime.settings, status))) return interaction.editReply("Voce nao possui permissao para esta acao.");
+  if (!(await canManage(interaction.guild, interaction.user.id, runtime.settings, status))) return interaction.editReply("Você não possui permissão para esta ação.");
   const saved = await context.api.updateFivemOrderStatus({ actorId: interaction.user.id, guildId: interaction.guild.id, orderId: orderId ?? "", status });
   await interaction.message.edit(createOrderAdminPanel(orderSettings(runtime.settings, runtime.products, saved), saved, { operational: true })).catch(() => null);
   await interaction.editReply(`Encomenda #${saved.orderNumber} atualizada para ${statusLabel(saved.status)}.`);
@@ -432,14 +432,14 @@ async function handleOrderActionButton(interaction: ButtonInteraction, context: 
 
   const status = actionToStatus(action, value);
   if (!status) {
-    await interaction.reply({ content: "Acao de encomenda invalida.", ephemeral: true });
+    await interaction.reply({ content: "Ação de encomenda inválida.", ephemeral: true });
     return;
   }
 
   await interaction.deferReply({ ephemeral: true });
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
   if (!(await canManage(interaction.guild, interaction.user.id, runtime.settings, status))) {
-    await interaction.editReply("Voce nao possui permissao para esta acao.");
+    await interaction.editReply("Você não possui permissão para esta ação.");
     return;
   }
 
@@ -455,32 +455,32 @@ async function handleOrderActionButton(interaction: ButtonInteraction, context: 
 }
 
 async function showOrderDetailsFromButton(interaction: ButtonInteraction, context: BotContext, orderNumber: number) {
-  if (!interaction.guild || !Number.isInteger(orderNumber)) return interaction.reply({ content: "Encomenda invalida.", ephemeral: true });
+  if (!interaction.guild || !Number.isInteger(orderNumber)) return interaction.reply({ content: "Encomenda inválida.", ephemeral: true });
   await interaction.deferReply({ ephemeral: true });
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
   const scopedOrder = await context.api.getFivemOrder(interaction.guild.id, orderNumber, interaction.user.id);
   const canSeeAll = await canManage(interaction.guild, interaction.user.id, runtime.settings, "approved");
   const order = scopedOrder ?? (canSeeAll ? await context.api.getFivemOrder(interaction.guild.id, orderNumber) : null);
-  if (!order) return interaction.editReply("Encomenda nao encontrada ou voce nao tem permissao para ve-la.");
+  if (!order) return interaction.editReply("Encomenda não encontrada ou você não tem permissão para ve-la.");
   await interaction.editReply({ embeds: [createOrderEmbed(runtime.settings, order, { title: `Detalhes da encomenda ENC-${String(order.orderNumber).padStart(4, "0")}` })], components: [createClientOrderActions(order)] });
 }
 
 async function cancelOrderFromClientButton(interaction: ButtonInteraction, context: BotContext, orderNumber: number) {
-  if (!interaction.guild || !Number.isInteger(orderNumber)) return interaction.reply({ content: "Encomenda invalida.", ephemeral: true });
+  if (!interaction.guild || !Number.isInteger(orderNumber)) return interaction.reply({ content: "Encomenda inválida.", ephemeral: true });
   await interaction.deferReply({ ephemeral: true });
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
   const order = await context.api.getFivemOrder(interaction.guild.id, orderNumber, interaction.user.id);
-  if (!order) return interaction.editReply("Encomenda nao encontrada para este usuario.");
-  if (!["open", "pending_approval", "approved"].includes(order.status)) return interaction.editReply("Esta encomenda nao pode mais ser cancelada pelo cliente.");
+  if (!order) return interaction.editReply("Encomenda não encontrada para este usuário.");
+  if (!["open", "pending_approval", "approved"].includes(order.status)) return interaction.editReply("Esta encomenda não pode mais ser cancelada pelo cliente.");
   const saved = await context.api.updateFivemOrderStatus({ actorId: interaction.user.id, guildId: interaction.guild.id, note: "Cancelada pelo cliente via Discord.", orderId: order.id, status: "cancelled" });
   await interaction.editReply(`Encomenda ENC-${String(saved.orderNumber).padStart(4, "0")} cancelada.`);
 }
 
 async function contactStaffFromClientButton(interaction: ButtonInteraction, context: BotContext, orderNumber: number) {
-  if (!interaction.guild || !Number.isInteger(orderNumber)) return interaction.reply({ content: "Encomenda invalida.", ephemeral: true });
+  if (!interaction.guild || !Number.isInteger(orderNumber)) return interaction.reply({ content: "Encomenda inválida.", ephemeral: true });
   await interaction.deferReply({ ephemeral: true });
   const order = await context.api.getFivemOrder(interaction.guild.id, orderNumber, interaction.user.id);
-  if (!order) return interaction.editReply("Encomenda nao encontrada para este usuario.");
+  if (!order) return interaction.editReply("Encomenda não encontrada para este usuário.");
   const channel = await createOrderContactTicket(interaction.guild, context, order);
   if (channel) {
     await interaction.editReply(`Atendimento aberto para esta encomenda: <#${channel.id}>.`);
@@ -488,25 +488,25 @@ async function contactStaffFromClientButton(interaction: ButtonInteraction, cont
   }
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
   const notified = await notifyStaffContactRequest(interaction.guild, runtime.settings, order, interaction.user.id);
-  await interaction.editReply(notified ? "A equipe foi notificada para falar com voce sobre esta encomenda." : "Nao consegui abrir ticket nem localizar canal de equipe. Avise um administrador.");
+  await interaction.editReply(notified ? "A equipe foi notificada para falar com você sobre esta encomenda." : "Não consegui abrir ticket nem localizar canal de equipe. Avise um administrador.");
 }
 
 async function contactClientFromStaffButton(interaction: ButtonInteraction, context: BotContext, orderNumber: number) {
-  if (!interaction.guild || !Number.isInteger(orderNumber)) return interaction.reply({ content: "Encomenda invalida.", ephemeral: true });
+  if (!interaction.guild || !Number.isInteger(orderNumber)) return interaction.reply({ content: "Encomenda inválida.", ephemeral: true });
   await interaction.deferReply({ ephemeral: true });
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
-  if (!(await canManage(interaction.guild, interaction.user.id, runtime.settings, "approved"))) return interaction.editReply("Voce nao possui permissao para contatar clientes.");
+  if (!(await canManage(interaction.guild, interaction.user.id, runtime.settings, "approved"))) return interaction.editReply("Você não possui permissão para contatar clientes.");
   const order = await context.api.getFivemOrder(interaction.guild.id, orderNumber);
-  if (!order) return interaction.editReply("Encomenda nao encontrada.");
+  if (!order) return interaction.editReply("Encomenda não encontrada.");
   const user = await interaction.client.users.fetch(order.userId).catch(() => null);
   const sent = await user?.send({
     embeds: [createOrderEmbed(runtime.settings, order, {
-      description: `Um responsavel da equipe quer falar com voce sobre a encomenda. Responsavel: <@${interaction.user.id}>.`,
+      description: `Um responsável da equipe quer falar com você sobre a encomenda. Responsável: <@${interaction.user.id}>.`,
       title: `Contato solicitado - ENC-${String(order.orderNumber).padStart(4, "0")}`
     })],
     components: [createClientOrderActions(order)]
   }).then(() => true).catch(() => false);
-  if (!sent) await notifyStaffContactRequest(interaction.guild, runtime.settings, order, interaction.user.id, "Nao consegui enviar DM ao cliente. Use o canal/log para combinar o contato.");
+  if (!sent) await notifyStaffContactRequest(interaction.guild, runtime.settings, order, interaction.user.id, "Não consegui enviar DM ao cliente. Use o canal/log para combinar o contato.");
   await interaction.editReply(sent ? "Cliente notificado por DM." : "DM fechada. Registrei o fallback no canal de equipe, se configurado.");
 }
 
@@ -521,7 +521,7 @@ function createOrderAdminPanel(settings: FivemOrderSettings, order: FivemOrder, 
       })],
       components: [
         new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(`order_status_in_production:${order.id}`).setLabel("Marcar em Producao").setStyle(ButtonStyle.Primary).setDisabled(terminal || order.status === "in_production"),
+          new ButtonBuilder().setCustomId(`order_status_in_production:${order.id}`).setLabel("Marcar em Produção").setStyle(ButtonStyle.Primary).setDisabled(terminal || order.status === "in_production"),
           new ButtonBuilder().setCustomId(`order_status_delivered:${order.id}`).setLabel("Marcar como Entregue").setStyle(ButtonStyle.Success).setDisabled(terminal),
           new ButtonBuilder().setCustomId(`order_status_cancelled:${order.id}`).setLabel("Cancelar Encomenda").setStyle(ButtonStyle.Danger).setDisabled(terminal),
           new ButtonBuilder().setCustomId(`order_close_channel:${order.orderNumber}`).setLabel("Fechar Canal").setStyle(ButtonStyle.Danger)
@@ -532,14 +532,14 @@ function createOrderAdminPanel(settings: FivemOrderSettings, order: FivemOrder, 
   return {
     allowedMentions: { parse: [] as never[] },
     embeds: [createOrderEmbed(settings, order, {
-      description: "Use os botoes abaixo para conduzir a encomenda. As acoes atualizam o status real no sistema.",
+      description: "Use os botões abaixo para conduzir a encomenda. As ações atualizam o status real no sistema.",
       title: `Encomenda ENC-${String(order.orderNumber).padStart(4, "0")}`
     })],
     components: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(`order_accept:${order.id}`).setLabel("Aceitar").setStyle(ButtonStyle.Success).setDisabled(terminal || order.status !== "pending_approval"),
         new ButtonBuilder().setCustomId(`order_reject:${order.id}`).setLabel("Recusar").setStyle(ButtonStyle.Danger).setDisabled(terminal || !["pending_approval", "open", "approved"].includes(order.status)),
-        new ButtonBuilder().setCustomId(`order_status_in_production:${order.id}`).setLabel("Em producao").setStyle(ButtonStyle.Primary).setDisabled(terminal || !["open", "approved"].includes(order.status)),
+        new ButtonBuilder().setCustomId(`order_status_in_production:${order.id}`).setLabel("Em produção").setStyle(ButtonStyle.Primary).setDisabled(terminal || !["open", "approved"].includes(order.status)),
         new ButtonBuilder().setCustomId(`order_status_ready:${order.id}`).setLabel("Pronta").setStyle(ButtonStyle.Primary).setDisabled(terminal || order.status !== "in_production"),
         new ButtonBuilder().setCustomId(`order_status_delivered:${order.id}`).setLabel("Entregue").setStyle(ButtonStyle.Success).setDisabled(terminal || order.status !== "ready")
       ),
@@ -578,19 +578,19 @@ async function closeOrderChannelFromButton(interaction: ButtonInteraction, conte
   if (!interaction.guild) return;
   const orderNumber = Number(interaction.customId.split(":")[1]);
   if (!Number.isInteger(orderNumber)) {
-    await interaction.reply({ content: "Encomenda invalida.", ephemeral: true });
+    await interaction.reply({ content: "Encomenda inválida.", ephemeral: true });
     return;
   }
   await interaction.deferReply({ ephemeral: true });
   const runtime = await context.api.getFivemOrderRuntime(interaction.guild.id);
   const order = await context.api.getFivemOrder(interaction.guild.id, orderNumber);
   if (!order) {
-    await interaction.editReply("Encomenda nao encontrada.");
+    await interaction.editReply("Encomenda não encontrada.");
     return;
   }
   const settings = orderSettings(runtime.settings, runtime.products, order);
   if (!(await canManage(interaction.guild, interaction.user.id, settings, "cancelled"))) {
-    await interaction.editReply("Voce nao possui permissao para fechar este canal.");
+    await interaction.editReply("Você não possui permissão para fechar este canal.");
     return;
   }
   await sendOrderLog(interaction.guild, settings, order, interaction.user.id, "Canal fechado");
@@ -610,7 +610,7 @@ async function notifyOrderStatusChange(guild: Guild, context: BotContext, order:
 async function sendClientOrderNotification(guild: Guild, settings: FivemOrderSettings, order: FivemOrder, actorId: string | null) {
   const user = await guild.client.users.fetch(order.userId).catch(() => null);
   if (!user) {
-    await notifyStaffContactRequest(guild, settings, order, actorId ?? order.userId, "Nao consegui localizar o usuario para enviar DM.");
+    await notifyStaffContactRequest(guild, settings, order, actorId ?? order.userId, "Não consegui localizar o usuário para enviar DM.");
     return false;
   }
 
@@ -623,7 +623,7 @@ async function sendClientOrderNotification(guild: Guild, settings: FivemOrderSet
   }).then(() => true).catch(() => false);
 
   if (!sent) {
-    await notifyStaffContactRequest(guild, settings, order, actorId ?? order.userId, "Cliente com DM fechada. Notificacao privada nao entregue.");
+    await notifyStaffContactRequest(guild, settings, order, actorId ?? order.userId, "Cliente com DM fechada. Notificação privada não entregue.");
   }
 
   return sent;
@@ -652,17 +652,17 @@ function createOrderEmbed(settings: FivemOrderSettings, order: FivemOrder, optio
     .setDescription(options.description ?? "Detalhes da encomenda.")
     .addFields(
       { name: "Cliente", value: `<@${order.userId}>`, inline: true },
-      { name: "Familia", value: order.familyName || "Nao informada", inline: true },
+      { name: "Família", value: order.familyName || "Não informada", inline: true },
       { name: "Status", value: statusLabel(order.status), inline: true },
       { name: "Produto", value: `${order.productName} (${order.category})`.slice(0, 1024), inline: true },
       { name: "Quantidade", value: String(order.quantity), inline: true },
-      { name: "Valor unitario", value: formatMoney(order.unitPrice), inline: true },
+      { name: "Valor unitário", value: formatMoney(order.unitPrice), inline: true },
       { name: "Valor total", value: formatMoney(order.finalValue), inline: true }
     )
     .setFooter({ text: settings.footerText || "Sistema de Encomendas" })
     .setTimestamp(new Date(order.updatedAt ?? order.createdAt));
 
-  if (order.responsibleId) embed.addFields({ name: "Responsavel", value: `<@${order.responsibleId}>`, inline: true });
+  if (order.responsibleId) embed.addFields({ name: "Responsável", value: `<@${order.responsibleId}>`, inline: true });
   if (order.washingPercentage !== null && order.washingPercentage !== undefined) {
     embed.addFields(
       { name: "Valor entregue", value: formatMoney(order.grossValue), inline: true },
@@ -670,7 +670,7 @@ function createOrderEmbed(settings: FivemOrderSettings, order: FivemOrder, optio
     );
   }
   if (order.expectedDelivery) embed.addFields({ name: "Previsao", value: order.expectedDelivery, inline: true });
-  if (order.notes) embed.addFields({ name: "Observacao", value: order.notes.slice(0, 1024), inline: false });
+  if (order.notes) embed.addFields({ name: "Observação", value: order.notes.slice(0, 1024), inline: false });
   if (order.proofUrl) embed.addFields({ name: "Comprovante", value: order.proofUrl.slice(0, 1024), inline: false });
   return embed;
 }
@@ -678,7 +678,7 @@ function createOrderEmbed(settings: FivemOrderSettings, order: FivemOrder, optio
 function createClientOrderActions(order: FivemOrder) {
   const canCancel = ["open", "pending_approval", "approved"].includes(order.status);
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`order_contact_staff:${order.orderNumber}`).setLabel("Falar com responsavel").setStyle(ButtonStyle.Primary).setDisabled(["delivered", "cancelled", "rejected"].includes(order.status)),
+    new ButtonBuilder().setCustomId(`order_contact_staff:${order.orderNumber}`).setLabel("Falar com responsável").setStyle(ButtonStyle.Primary).setDisabled(["delivered", "cancelled", "rejected"].includes(order.status)),
     new ButtonBuilder().setCustomId(`order_view_details:${order.orderNumber}`).setLabel("Ver detalhes do pedido").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`order_cancel:${order.orderNumber}`).setLabel("Cancelar pedido").setStyle(ButtonStyle.Danger).setDisabled(!canCancel)
   );
@@ -688,7 +688,7 @@ function createStaffNotificationActions(order: FivemOrder) {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`order_view_details:${order.orderNumber}`).setLabel("Abrir pedido").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(`order_status_in_production:${order.id}`).setLabel("Marcar em producao").setStyle(ButtonStyle.Primary).setDisabled(!["open", "approved"].includes(order.status)),
+      new ButtonBuilder().setCustomId(`order_status_in_production:${order.id}`).setLabel("Marcar em produção").setStyle(ButtonStyle.Primary).setDisabled(!["open", "approved"].includes(order.status)),
       new ButtonBuilder().setCustomId(`order_status_delivered:${order.id}`).setLabel("Marcar entregue").setStyle(ButtonStyle.Success).setDisabled(order.status !== "ready"),
       new ButtonBuilder().setCustomId(`order_contact_client:${order.orderNumber}`).setLabel("Contatar cliente").setStyle(ButtonStyle.Secondary)
     )
@@ -701,7 +701,7 @@ function clientStatusTitle(order: FivemOrder) {
     approved: `Encomenda ENC-${number} aceita`,
     cancelled: `Encomenda ENC-${number} cancelada`,
     delivered: `Encomenda ENC-${number} entregue`,
-    in_production: `Encomenda ENC-${number} em producao`,
+    in_production: `Encomenda ENC-${number} em produção`,
     open: `Encomenda ENC-${number} recebida`,
     pending_approval: `Encomenda ENC-${number} aguardando aprovacao`,
     ready: `Encomenda ENC-${number} pronta`,
@@ -713,14 +713,14 @@ function clientStatusDescription(order: FivemOrder, actorId: string | null) {
   const responsible = order.responsibleId ?? actorId;
   const suffix = responsible ? `\n\nResponsavel: <@${responsible}>.` : "";
   return ({
-    approved: `Sua encomenda foi aceita pela equipe. O proximo passo e iniciar a producao.${suffix}`,
-    cancelled: "Sua encomenda foi cancelada. Se isso nao foi solicitado por voce, fale com a equipe.",
+    approved: `Sua encomenda foi aceita pela equipe. O proximo passo e iniciar a produção.${suffix}`,
+    cancelled: "Sua encomenda foi cancelada. Se isso não foi solicitado por você, fale com a equipe.",
     delivered: "Sua encomenda foi marcada como entregue. Confira os detalhes abaixo.",
-    in_production: `Sua encomenda entrou em producao. A equipe avisara quando estiver pronta.${suffix}`,
-    open: "Sua encomenda foi registrada e ja esta na fila da equipe.",
-    pending_approval: "Sua encomenda foi registrada e aguarda aprovacao da equipe.",
-    ready: `Sua encomenda esta pronta para entrega. Fale com o responsavel para combinar os detalhes.${suffix}`,
-    rejected: "Sua encomenda foi recusada pela equipe. Confira os detalhes abaixo ou fale com um responsavel."
+    in_production: `Sua encomenda entrou em produção. A equipe avisara quando estiver pronta.${suffix}`,
+    open: "Sua encomenda foi registrada e já está na fila da equipe.",
+    pending_approval: "Sua encomenda foi registrada e aguarda aprovação da equipe.",
+    ready: `Sua encomenda esta pronta para entrega. Fale com o responsável para combinar os detalhes.${suffix}`,
+    rejected: "Sua encomenda foi recusada pela equipe. Confira os detalhes abaixo ou fale com um responsável."
   } as const)[order.status];
 }
 
@@ -794,8 +794,8 @@ async function notifyStaffContactRequest(guild: Guild, settings: FivemOrderSetti
   await channel.send({
     allowedMentions: { parse: [] },
     embeds: [createOrderEmbed(settings, order, {
-      description: `${note ?? "Cliente solicitou contato com a equipe."}\nSolicitante/responsavel: <@${actorId}>.`,
-      title: `Contato necessario - ENC-${String(order.orderNumber).padStart(4, "0")}`
+      description: `${note ?? "Cliente solicitou contato com a equipe."}\nSolicitante/responsável: <@${actorId}>.`,
+      title: `Contato necessário - ENC-${String(order.orderNumber).padStart(4, "0")}`
     })],
     components: createStaffNotificationActions(order)
   }).catch(() => null);
@@ -837,8 +837,8 @@ async function canConfigure(guild: Guild, userId: string, settings: FivemOrderSe
   return guild.ownerId === userId || member.permissions.has(PermissionFlagsBits.Administrator) || member.permissions.has(PermissionFlagsBits.ManageGuild) || member.roles.cache.some((role) => settings.adminRoleIds.includes(role.id));
 }
 function inputRow(id: string, label: string, placeholder: string, required: boolean, paragraph = false) { return new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId(id).setLabel(label.slice(0, 45)).setPlaceholder(placeholder).setRequired(required).setStyle(paragraph ? TextInputStyle.Paragraph : TextInputStyle.Short)); }
-function orderSummary(order: FivemOrder) { return `**Encomenda ENC-${String(order.orderNumber).padStart(4, "0")}**\nFamilia: ${order.familyName}\nProduto: ${order.productName}${order.washingPercentage !== null && order.washingPercentage !== undefined ? `\nValor entregue: ${formatMoney(order.grossValue)}\nPercentual: ${order.washingPercentage}%\nValor para familia: ${formatMoney(order.finalValue)}` : `\nValor: ${formatMoney(order.finalValue)}`}\nStatus: ${statusLabel(order.status)}\nCriada: <t:${Math.floor(new Date(order.createdAt).getTime() / 1000)}:F>`; }
-function statusLabel(status: FivemOrderStatus) { return ({ open: "Aberta", pending_approval: "Aguardando aprovacao", approved: "Aprovada", in_production: "Em producao", ready: "Pronta", delivered: "Entregue", cancelled: "Cancelada", rejected: "Recusada" } as const)[status]; }
+function orderSummary(order: FivemOrder) { return `**Encomenda ENC-${String(order.orderNumber).padStart(4, "0")}**\nFamilia: ${order.familyName}\nProduto: ${order.productName}${order.washingPercentage !== null && order.washingPercentage !== undefined ? `\nValor entregue: ${formatMoney(order.grossValue)}\nPercentual: ${order.washingPercentage}%\nValor para família: ${formatMoney(order.finalValue)}` : `\nValor: ${formatMoney(order.finalValue)}`}\nStatus: ${statusLabel(order.status)}\nCriada: <t:${Math.floor(new Date(order.createdAt).getTime() / 1000)}:F>`; }
+function statusLabel(status: FivemOrderStatus) { return ({ open: "Aberta", pending_approval: "Aguardando aprovação", approved: "Aprovada", in_production: "Em produção", ready: "Pronta", delivered: "Entregue", cancelled: "Cancelada", rejected: "Recusada" } as const)[status]; }
 function normalizeProductModule(type: FivemOrderProduct["type"]) { return type === "standard" ? "custom" : type; }
 function normalizeProductModuleName(value: string) { return value || "Encomendas"; }
 function familyMatchesOrderType(family: Awaited<ReturnType<BotContext["api"]["getFivemOrderRuntime"]>>["families"][number], type: string) { return type === "all" || !family.orderModules?.length || family.orderModules.includes(type as "washing" | "ammo" | "drug" | "weapon" | "custom"); }

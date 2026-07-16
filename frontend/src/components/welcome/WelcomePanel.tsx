@@ -55,13 +55,13 @@ const DEFAULT_WELCOME_CHANNEL_LABEL = "Acesse o canal:";
 const DEFAULT_WELCOME_FOOTER_TEXT = "NexTechK - Comunidade de Lives";
 const DEFAULT_LEAVE_TITLE = "NexTechK";
 const DEFAULT_LEAVE_MESSAGE = [
-  "Ate mais, {user}. Obrigado por ter feito parte da nossa comunidade de lives.",
+  "Até mais, {user}. Obrigado por ter feito parte da nossa comunidade de lives.",
   "As portas continuam abertas para quando quiser voltar e acompanhar as transmissoes com a galera."
 ].join("\n");
-const DEFAULT_LEAVE_RULES_TITLE = "Registro de saida:";
+const DEFAULT_LEAVE_RULES_TITLE = "Registro de saída:";
 const DEFAULT_LEAVE_RULES = [
-  "A saida foi registrada automaticamente pelo bot.",
-  "Os canais oficiais continuam disponiveis para a comunidade.",
+  "A saída foi registrada automaticamente pelo bot.",
+  "Os canais oficiais continuam disponíveis para a comunidade.",
   "Respeite as regras se decidir retornar ao servidor.",
   "A equipe segue por aqui para organizar eventos e avisos.",
   "Valeu pela passagem e até a próxima."
@@ -108,7 +108,7 @@ const panelConfig = {
     footerTextKey: "leaveFooterText",
     imageKey: "leaveImageUrl",
     channelLabelKey: "leaveChannelLabel",
-    loadingText: "Carregando saida...",
+    loadingText: "Carregando saída...",
     messageKey: "leaveMessage",
     rulesKey: "leaveRules",
     rulesTitleKey: "leaveRulesTitle",
@@ -119,14 +119,14 @@ const panelConfig = {
     defaultRules: DEFAULT_LEAVE_RULES,
     defaultRulesTitle: DEFAULT_LEAVE_RULES_TITLE,
     defaultTitle: DEFAULT_LEAVE_TITLE,
-    missingGuildText: "Selecione um servidor para configurar saida.",
+    missingGuildText: "Selecione um servidor para configurar saída.",
     missingSettingsText: "Não foi possível carregar as configurações de saída.",
-    savedImageText: "Banner de saida atualizado.",
-    savedMessageText: "Mensagem de saida salva.",
-    testButtonText: "Testar saida",
-    testSentText: "Saida enviada para teste.",
-    title: "Saida",
-    toggleLabel: "Saida"
+    savedImageText: "Banner de saída atualizado.",
+    savedMessageText: "Mensagem de saída salva.",
+    testButtonText: "Testar saída",
+    testSentText: "Saída enviada para teste.",
+    title: "Saída",
+    toggleLabel: "Saída"
   }
 } satisfies Record<
   MemberPanelMode,
@@ -274,7 +274,7 @@ export function WelcomePanel({
         [config.displayChannelKey]: nextChannelId || null
       } as Partial<GuildSettings>,
       "displayChannel",
-      nextChannelId ? "Canal do botao salvo." : "Canal do botao usando o canal de envio."
+      nextChannelId ? "Canal do botão salvo." : "Canal do botão usando o canal de envio."
     );
   }
 
@@ -457,7 +457,7 @@ export function WelcomePanel({
             <label className="block space-y-2">
               <span className="flex items-center gap-2 text-sm font-medium text-zinc-100">
                 <Link2 className="h-4 w-4 text-zinc-400" />
-                Canal que aparece no botao
+                Canal que aparece no botão
               </span>
               <select
                 className="h-11 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition focus:border-zinc-600 disabled:opacity-50"
@@ -533,7 +533,7 @@ export function WelcomePanel({
               />
             </label>
             <label className="block space-y-2">
-              <span className="text-sm font-medium text-zinc-100">Texto do canal/botao</span>
+              <span className="text-sm font-medium text-zinc-100">Texto do canal/botão</span>
               <input
                 className="h-11 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-zinc-600 disabled:opacity-50"
                 disabled={!canManage || saving === "message"}
@@ -558,7 +558,7 @@ export function WelcomePanel({
           </label>
 
           <label className="block space-y-2">
-            <span className="text-sm font-medium text-zinc-100">Rodape</span>
+            <span className="text-sm font-medium text-zinc-100">Rodapé</span>
             <input
               className="h-11 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-zinc-600 disabled:opacity-50"
               disabled={!canManage || saving === "message"}
@@ -576,7 +576,7 @@ export function WelcomePanel({
             </Button>
             <Button disabled={!canManage || saving === "message"} onClick={handleMessageReset} type="button" variant="outline">
               <RotateCcw className="h-4 w-4" />
-              Padrao
+              Padrão
             </Button>
             <Button disabled={!canManage || !channelId || saving === "test"} onClick={handleTest} type="button" variant="outline">
               {saving === "test" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

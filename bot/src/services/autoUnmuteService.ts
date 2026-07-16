@@ -128,8 +128,8 @@ export async function handleAutoUnmuteVoiceStateUpdate(oldState: VoiceState, new
         member.guild.id,
         "auto_unmute.executed",
         action === "mute"
-          ? `Auto Desmutar executado: usuario ${member.user.tag} teve o mute de voz removido em #${channel.name}.`
-          : `Auto Desmutar executado: usuario ${member.user.tag} teve o audio reativado em #${channel.name}.`,
+          ? `Auto Desmutar executado: usuário ${member.user.tag} teve o mute de voz removido em #${channel.name}.`
+          : `Auto Desmutar executado: usuário ${member.user.tag} teve o audio reativado em #${channel.name}.`,
         {
           action,
           botId,
@@ -191,7 +191,7 @@ async function validateConfiguredRole(context: BotContext, member: GuildMember, 
       member.guild.id,
       `role:${config.requiredRoleId}`,
       "auto_unmute.role_missing",
-      `Auto Desmutar pausou a acao: o cargo configurado (${config.requiredRoleId}) nao existe mais.`,
+      `Auto Desmutar pausou a ação: o cargo configurado (${config.requiredRoleId}) não existe mais.`,
       {
         roleId: config.requiredRoleId
       }
@@ -219,7 +219,7 @@ async function resolveConfiguredVoiceChannel(context: BotContext, member: GuildM
     member.guild.id,
     `channel:${config.voiceChannelId}`,
     "auto_unmute.channel_missing",
-    `Auto Desmutar pausou a acao: o canal configurado (${config.voiceChannelId}) nao existe mais.`,
+    `Auto Desmutar pausou a ação: o canal configurado (${config.voiceChannelId}) não existe mais.`,
     {
       channelId: config.voiceChannelId
     }
@@ -231,7 +231,7 @@ async function validateBotPermissions(member: GuildMember, channel: VoiceBasedCh
   const botMember = member.guild.members.me ?? await member.guild.members.fetchMe().catch(() => null);
 
   if (!botMember) {
-    return "Auto Desmutar nao conseguiu validar o bot no servidor.";
+    return "Auto Desmutar não conseguiu validar o bot no servidor.";
   }
 
   const channelPermissions = channel.permissionsFor(botMember);
@@ -239,12 +239,12 @@ async function validateBotPermissions(member: GuildMember, channel: VoiceBasedCh
 
   if (!channelPermissions?.has(PermissionFlagsBits.ViewChannel) || !channelPermissions.has(requiredPermission)) {
     return action === "mute"
-      ? "Auto Desmutar sem permissao para ver o canal ou gerenciar mute de voz."
-      : "Auto Desmutar sem permissao para ver o canal ou gerenciar audio desativado.";
+      ? "Auto Desmutar sem permissão para ver o canal ou gerenciar mute de voz."
+      : "Auto Desmutar sem permissão para ver o canal ou gerenciar audio desativado.";
   }
 
   if (member.guild.ownerId !== member.id && botMember.roles.highest.comparePositionTo(member.roles.highest) <= 0) {
-    return "Auto Desmutar sem hierarquia de cargo acima do usuario.";
+    return "Auto Desmutar sem hierarquia de cargo acima do usuário.";
   }
 
   return null;

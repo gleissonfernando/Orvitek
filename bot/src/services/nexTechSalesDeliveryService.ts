@@ -32,28 +32,28 @@ async function deliverNexTechSale(client: Client<true>, context: BotContext, pay
   try {
     const guild = await client.guilds.fetch(payload.guildId).catch(() => null);
     if (!guild) {
-      throw new Error("O bot nao esta conectado ao servidor da venda.");
+      throw new Error("O bot não está conectado ao servidor da venda.");
     }
 
     const member = await guild.members.fetch(payload.buyerId).catch(() => null);
     if (!member) {
-      throw new Error("Comprador nao encontrado no servidor.");
+      throw new Error("Comprador não encontrado no servidor.");
     }
 
     const me = guild.members.me ?? await guild.members.fetchMe().catch(() => null);
     if (!me?.permissions.has(PermissionFlagsBits.ManageRoles)) {
-      errors.push("Bot sem permissao Gerenciar Cargos.");
+      errors.push("Bot sem permissão Gerenciar Cargos.");
     } else {
       const roleIds = unique([payload.customerRoleId ?? null, payload.purchasedRoleId ?? null]);
 
       for (const roleId of roleIds) {
         const role = await guild.roles.fetch(roleId).catch(() => null);
         if (!role) {
-          errors.push(`Cargo ${roleId} nao encontrado.`);
+          errors.push(`Cargo ${roleId} não encontrado.`);
           continue;
         }
         if (!role.editable || role.managed) {
-          errors.push(`Cargo ${role.name} nao pode ser entregue pelo bot.`);
+          errors.push(`Cargo ${role.name} não pode ser entregue pelo bot.`);
           continue;
         }
         if (!member.roles.cache.has(role.id)) {
@@ -71,7 +71,7 @@ async function deliverNexTechSale(client: Client<true>, context: BotContext, pay
       });
       messageId = message?.id ?? null;
     } else {
-      errors.push("Canal de aviso de venda nao configurado ou inacessivel.");
+      errors.push("Canal de aviso de venda não configurado ou inacessível.");
     }
 
     const status = deliveredRoleIds.length && errors.length ? "partial" : deliveredRoleIds.length ? "delivered" : "failed";

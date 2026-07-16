@@ -25,7 +25,7 @@ export function requireDevAccess(req: Request, res: Response, next: NextFunction
           userId: auth?.user.discordId ?? null,
           username: auth?.user.username ?? null,
           result: "denied",
-          reason: "Usuario sem permissao DEV."
+          reason: "Usuário sem permissão DEV."
         });
         return res.status(403).json({
           message: "Acesso negado."
@@ -37,7 +37,7 @@ export function requireDevAccess(req: Request, res: Response, next: NextFunction
         userId: auth?.user.discordId ?? null,
         username: auth?.user.username ?? null,
         result: "allowed",
-        reason: "Usuario DEV autenticado."
+        reason: "Usuário DEV autenticado."
       });
       return next();
     })().catch(next);

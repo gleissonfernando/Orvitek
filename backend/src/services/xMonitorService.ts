@@ -226,7 +226,7 @@ export async function createXAccount(guildId: string, input: CreateXAccountInput
     await xAccounts.insertOne(doc);
   } catch (error) {
     if (isUniqueConstraint(error)) {
-      throw createServiceError("Esta conta do X ja esta cadastrada neste servidor.", 409);
+      throw createServiceError("Esta conta do X já está cadastrada neste servidor.", 409);
     }
 
     const dto = await toMemoryAccountDto(doc);
@@ -268,7 +268,7 @@ export async function updateXAccount(
     );
 
     if (!updated) {
-      throw createServiceError("Conta do X nao encontrada.", 404);
+      throw createServiceError("Conta do X não encontrada.", 404);
     }
 
     const dto = await toAccountDto(updated);
@@ -282,7 +282,7 @@ export async function updateXAccount(
     }
 
     if (isUniqueConstraint(error)) {
-      throw createServiceError("Esta conta do X ja esta cadastrada neste servidor.", 409);
+      throw createServiceError("Esta conta do X já está cadastrada neste servidor.", 409);
     }
 
     const updated: XAccountDto = {
@@ -630,11 +630,11 @@ async function fetchXUser(username: string) {
   const user = response.data;
 
   if (!user) {
-    throw createServiceError("Perfil do X nao encontrado.", 404);
+    throw createServiceError("Perfil do X não encontrado.", 404);
   }
 
   if (user.protected) {
-    throw createServiceError("Este perfil do X e protegido e nao pode ser monitorado pela API publica.", 400);
+    throw createServiceError("Este perfil do X e protegido e não pode ser monitorado pela API publica.", 400);
   }
 
   return user;
@@ -671,7 +671,7 @@ async function xFetch<TResponse>(path: string) {
   const token = env.X_BEARER_TOKEN.trim();
 
   if (!token) {
-    throw createServiceError("X_BEARER_TOKEN nao configurado no backend.", 503);
+    throw createServiceError("X_BEARER_TOKEN não configurado no backend.", 503);
   }
 
   const response = await fetch(`${X_API_BASE_URL}${path}`, {
@@ -698,15 +698,15 @@ function formatXApiError(data: XApiResponse<unknown> | null, fallbackStatus: num
   const type = data?.type?.trim();
 
   if (fallbackStatus === 402 || title === "CreditsDepleted" || type?.includes("/credits")) {
-    return "Creditos da API do X esgotados. Recarregue/adquira creditos no portal do X ou configure outro X_BEARER_TOKEN com cota.";
+    return "Créditos da API do X esgotados. Recarregue/adquira créditos no portal do X ou configure outro X_BEARER_TOKEN com cota.";
   }
 
   if (fallbackStatus === 401) {
-    return "X_BEARER_TOKEN invalido ou expirado. Gere um novo Bearer Token no portal do X.";
+    return "X_BEARER_TOKEN inválido ou expirado. Gere um novo Bearer Token no portal do X.";
   }
 
   if (fallbackStatus === 403) {
-    return "Seu plano/permissao da API do X nao permite essa consulta.";
+    return "Seu plano/permissão da API do X não permite essa consulta.";
   }
 
   const errors = data?.errors?.map((error) => error.detail || error.title).filter(Boolean).join(" ");
@@ -747,7 +747,7 @@ async function syncXStreamRuleForAccount(account: Pick<XAccountDto, "active" | "
       add: [rule]
     }
   }).catch((error) => {
-    console.warn(`[x-monitor] nao foi possivel criar regra do X para @${account.username}:`, error instanceof Error ? error.message : error);
+    console.warn(`[x-monitor] não foi possível criar regra do X para @${account.username}:`, error instanceof Error ? error.message : error);
   });
 }
 
@@ -781,7 +781,7 @@ async function deleteXStreamRulesForAccount(accountId: string) {
       }
     });
   } catch (error) {
-    console.warn("[x-monitor] nao foi possivel remover regra antiga do X:", error instanceof Error ? error.message : error);
+    console.warn("[x-monitor] não foi possível remover regra antiga do X:", error instanceof Error ? error.message : error);
   }
 }
 
@@ -840,7 +840,7 @@ async function findXAccountOrThrow(guildId: string, accountId: string, botId: st
   const account = await findXAccountByIdOrThrow(accountId, botId);
 
   if (account.guildId !== guildId) {
-    throw createServiceError("Conta do X nao encontrada.", 404);
+    throw createServiceError("Conta do X não encontrada.", 404);
   }
 
   return account;
@@ -855,7 +855,7 @@ async function findXAccountByIdOrThrow(accountId: string, botId: string | null) 
     });
 
     if (!account) {
-      throw createServiceError("Conta do X nao encontrada.", 404);
+      throw createServiceError("Conta do X não encontrada.", 404);
     }
 
     return toAccountDto(account);
@@ -867,7 +867,7 @@ async function findXAccountByIdOrThrow(accountId: string, botId: string | null) 
     const account = memoryAccounts.get(accountId);
 
     if (!account || account.botId !== botId) {
-      throw createServiceError("Conta do X nao encontrada.", 404);
+      throw createServiceError("Conta do X não encontrada.", 404);
     }
 
     return account;
@@ -1132,7 +1132,7 @@ function normalizeUsername(value: string) {
   const username = extractXUsername(value);
 
   if (!/^[A-Za-z0-9_]{1,15}$/.test(username)) {
-    throw createServiceError("Informe um username do X valido ou uma URL de perfil do X.", 400);
+    throw createServiceError("Informe um username do X válido ou uma URL de perfil do X.", 400);
   }
 
   return username;

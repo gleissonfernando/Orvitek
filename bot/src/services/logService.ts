@@ -51,7 +51,7 @@ export async function logMessageDelete(context: BotContext, message: Message | P
     deletionType: "UNKNOWN",
     message,
     module: "Logs de mensagens apagadas",
-    reason: "Exclusao detectada pelo evento global messageDelete"
+    reason: "Exclusão detectada pelo evento global messageDelete"
   });
 }
 
@@ -80,7 +80,7 @@ export async function logMessageBulkDelete(context: BotContext, messages: Readon
     action: "BULK_DELETE",
     deletionType: "MODERATOR",
     module: "Logs de mensagens apagadas",
-    reason: "Exclusao em massa"
+    reason: "Exclusão em massa"
   });
   await sendLog(context, { guildId: first.guild.id, type: "message.bulk_delete", message: `${messages.size} messages were deleted in bulk.`, metadata: { channelId: first.channelId, messageIds: [...messages.keys()].slice(0, 100) } });
 }
@@ -107,7 +107,7 @@ export async function logModeration(context: BotContext, guildId: string, user: 
     guildId,
     userId: user.id,
     type,
-    message: `${user.tag}: ${reason ?? "acao registrada"}`,
+    message: `${user.tag}: ${reason ?? "ação registrada"}`,
     metadata: {
       reason
     }

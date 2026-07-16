@@ -54,7 +54,7 @@ const settingsSchema = z.object({
   leaveFooterText: z.string().max(180).nullable().optional(),
   leaveColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
   autoRoleEnabled: z.boolean().optional(),
-  autoRoleIds: z.array(z.string()).max(MAX_AUTOMATIC_ROLES, "Selecione no maximo 2 cargos automaticos.").optional(),
+  autoRoleIds: z.array(z.string()).max(MAX_AUTOMATIC_ROLES, "Selecione no máximo 2 cargos automaticos.").optional(),
   twitchRoleId: z.string().nullable().optional(),
   boosterRoleId: z.string().nullable().optional(),
   ticketEnabled: z.boolean().optional(),
@@ -247,13 +247,13 @@ settingsRouter.get("/:guildId", requireAuthOrBot, async (req, res) => {
 
   if (!guildId) {
     return res.status(400).json({
-      message: "guildId obrigatorio."
+      message: "guildId obrigatório."
     });
   }
 
   if (!(await canReadSettings(req, res, guildId, botId))) {
     return res.status(403).json({
-      message: "Servidor nao encontrado ou sem o bot."
+      message: "Servidor não encontrado ou sem o bot."
     });
   }
 
@@ -269,10 +269,10 @@ settingsRouter.patch("/bot/:guildId", requireBot, async (req, res, next) => {
     const input = settingsSchema.parse(req.body);
 
     if (!guildId) {
-      return res.status(400).json({ message: "guildId obrigatorio." });
+      return res.status(400).json({ message: "guildId obrigatório." });
     }
     if (!botId) {
-      return res.status(400).json({ message: "botId obrigatorio." });
+      return res.status(400).json({ message: "botId obrigatório." });
     }
 
     await validateGuildResources(guildId, botId, input);
@@ -306,12 +306,12 @@ settingsRouter.post("/bot/:guildId/self-bot-role", requireBot, async (req, res, 
 
     if (!guildId) {
       return res.status(400).json({
-        message: "guildId obrigatorio."
+        message: "guildId obrigatório."
       });
     }
     if (!botId) {
       return res.status(400).json({
-        message: "botId obrigatorio."
+        message: "botId obrigatório."
       });
     }
 
@@ -331,7 +331,7 @@ settingsRouter.post("/bot/:guildId/self-bot-role", requireBot, async (req, res, 
 
     if (!(await areGuildAssignableRoles(guildId, [input.roleId], botToken))) {
       return res.status(400).json({
-        message: "O cargo Self Bot precisa ficar abaixo do cargo do bot e o bot precisa da permissao Gerenciar Cargos."
+        message: "O cargo Self Bot precisa ficar abaixo do cargo do bot e o bot precisa da permissão Gerenciar Cargos."
       });
     }
 
@@ -373,7 +373,7 @@ settingsRouter.post("/bot/:guildId/safe-bot-setup", requireBot, async (req, res,
 
     if (!guildId) {
       return res.status(400).json({
-        message: "guildId obrigatorio."
+        message: "guildId obrigatório."
       });
     }
 
@@ -398,7 +398,7 @@ settingsRouter.post("/bot/:guildId/safe-bot-setup", requireBot, async (req, res,
 
     if (!roleOk) {
       return res.status(400).json({
-        message: "O cargo Self Bot precisa ficar abaixo do cargo do bot e o bot precisa da permissao Gerenciar Cargos."
+        message: "O cargo Self Bot precisa ficar abaixo do cargo do bot e o bot precisa da permissão Gerenciar Cargos."
       });
     }
 
@@ -462,7 +462,7 @@ settingsRouter.get("/bot/:guildId/safe-bot-message", requireBot, async (req, res
     const botId = await resolveRequestBotId(req);
 
     if (!guildId) {
-      return res.status(400).json({ message: "guildId obrigatorio." });
+      return res.status(400).json({ message: "guildId obrigatório." });
     }
 
     const authorization = await authorizeBotRuntimeModule({ botId, guildId, moduleId: "safe-bot" });
@@ -486,7 +486,7 @@ settingsRouter.put("/bot/:guildId/safe-bot-message", requireBot, async (req, res
     const input = botSafeBotMessageStateSchema.parse(req.body);
 
     if (!guildId) {
-      return res.status(400).json({ message: "guildId obrigatorio." });
+      return res.status(400).json({ message: "guildId obrigatório." });
     }
 
     const authorization = await authorizeBotRuntimeModule({ botId, guildId, moduleId: "safe-bot" });
@@ -509,7 +509,7 @@ settingsRouter.delete("/bot/:guildId/safe-bot-message", requireBot, async (req, 
     const botId = await resolveRequestBotId(req);
 
     if (!guildId) {
-      return res.status(400).json({ message: "guildId obrigatorio." });
+      return res.status(400).json({ message: "guildId obrigatório." });
     }
 
     const authorization = await authorizeBotRuntimeModule({ botId, guildId, moduleId: "safe-bot" });
@@ -532,30 +532,30 @@ settingsRouter.put("/:guildId/welcome-image", requireAuth, welcomeImageUpload, a
 
     if (!guildId) {
       return res.status(400).json({
-        message: "guildId obrigatorio."
+        message: "guildId obrigatório."
       });
     }
     if (!botId) {
       return res.status(400).json({
-        message: "botId obrigatorio."
+        message: "botId obrigatório."
       });
     }
 
     if (!(await canManageSettings(req, res, guildId, botId))) {
       return res.status(403).json({
-        message: "Voce nao tem permissao para configurar este servidor."
+        message: "Você não tem permissão para configurar este servidor."
       });
     }
 
     if (!(await canManageModule(req, res, guildId, botId, "welcome"))) {
       return res.status(403).json({
-        message: "O modulo de entrada nao foi liberado para este bot."
+        message: "O módulo de entrada não foi liberado para este bot."
       });
     }
 
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
       return res.status(400).json({
-        message: "Arquivo de imagem obrigatorio."
+        message: "Arquivo de imagem obrigatório."
       });
     }
 
@@ -582,30 +582,30 @@ settingsRouter.put("/:guildId/leave-image", requireAuth, welcomeImageUpload, asy
 
     if (!guildId) {
       return res.status(400).json({
-        message: "guildId obrigatorio."
+        message: "guildId obrigatório."
       });
     }
     if (!botId) {
       return res.status(400).json({
-        message: "botId obrigatorio."
+        message: "botId obrigatório."
       });
     }
 
     if (!(await canManageSettings(req, res, guildId, botId))) {
       return res.status(403).json({
-        message: "Voce nao tem permissao para configurar este servidor."
+        message: "Você não tem permissão para configurar este servidor."
       });
     }
 
     if (!(await canManageModule(req, res, guildId, botId, "leave"))) {
       return res.status(403).json({
-        message: "O modulo de saida nao foi liberado para este bot."
+        message: "O módulo de saída não foi liberado para este bot."
       });
     }
 
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
       return res.status(400).json({
-        message: "Arquivo de imagem obrigatorio."
+        message: "Arquivo de imagem obrigatório."
       });
     }
 
@@ -633,25 +633,25 @@ settingsRouter.post("/:guildId/welcome-test", requireAuth, async (req, res, next
 
     if (!guildId) {
       return res.status(400).json({
-        message: "guildId obrigatorio."
+        message: "guildId obrigatório."
       });
     }
 
     if (!botId) {
       return res.status(400).json({
-        message: "botId obrigatorio."
+        message: "botId obrigatório."
       });
     }
 
     if (!(await canManageSettings(req, res, guildId, botId))) {
       return res.status(403).json({
-        message: "Voce nao tem permissao para configurar este servidor."
+        message: "Você não tem permissão para configurar este servidor."
       });
     }
 
     if (!(await canManageModule(req, res, guildId, botId, "welcome"))) {
       return res.status(403).json({
-        message: "O modulo de entrada nao foi liberado para este bot."
+        message: "O módulo de entrada não foi liberado para este bot."
       });
     }
 
@@ -681,19 +681,19 @@ settingsRouter.post("/:guildId/leave-test", requireAuth, async (req, res, next) 
 
     if (!guildId) {
       return res.status(400).json({
-        message: "guildId obrigatorio."
+        message: "guildId obrigatório."
       });
     }
 
     if (!(await canManageSettings(req, res, guildId, botId))) {
       return res.status(403).json({
-        message: "Voce nao tem permissao para configurar este servidor."
+        message: "Você não tem permissão para configurar este servidor."
       });
     }
 
     if (!(await canManageModule(req, res, guildId, botId, "leave"))) {
       return res.status(403).json({
-        message: "O modulo de saida nao foi liberado para este bot."
+        message: "O módulo de saída não foi liberado para este bot."
       });
     }
 
@@ -722,19 +722,19 @@ settingsRouter.post("/:guildId/rules-panel", requireAuth, async (req, res, next)
 
     if (!guildId) {
       return res.status(400).json({
-        message: "guildId obrigatorio."
+        message: "guildId obrigatório."
       });
     }
 
     if (!(await canManageSettings(req, res, guildId, botId))) {
       return res.status(403).json({
-        message: "Voce nao tem permissao para configurar este servidor."
+        message: "Você não tem permissão para configurar este servidor."
       });
     }
 
     if (!(await canManageModule(req, res, guildId, botId, "rules"))) {
       return res.status(403).json({
-        message: "O modulo de regras nao foi liberado para este bot."
+        message: "O módulo de regras não foi liberado para este bot."
       });
     }
 
@@ -766,13 +766,13 @@ settingsRouter.post("/:guildId/report-system-panel", requireAuth, async (req, re
 
     if (!guildId) {
       return res.status(400).json({
-        message: "guildId obrigatorio."
+        message: "guildId obrigatório."
       });
     }
 
     if (!(await canManageSettings(req, res, guildId, botId))) {
       return res.status(403).json({
-        message: "Voce nao tem permissao para configurar este servidor."
+        message: "Você não tem permissão para configurar este servidor."
       });
     }
 
@@ -782,7 +782,7 @@ settingsRouter.post("/:guildId/report-system-panel", requireAuth, async (req, re
 
     if (!canManageReportSystem) {
       return res.status(403).json({
-        message: "O modulo Denuncias Corregedoria nao foi liberado para este bot."
+        message: "O módulo Denuncias Corregedoria não foi liberado para este bot."
       });
     }
 
@@ -814,25 +814,25 @@ settingsRouter.post("/:guildId/ticket-panel", requireAuth, async (req, res, next
 
     if (!guildId) {
       return res.status(400).json({
-        message: "guildId obrigatorio."
+        message: "guildId obrigatório."
       });
     }
 
     if (!botId) {
       return res.status(400).json({
-        message: "botId obrigatorio."
+        message: "botId obrigatório."
       });
     }
 
     if (!(await canManageSettings(req, res, guildId, botId))) {
       return res.status(403).json({
-        message: "Voce nao tem permissao para configurar este servidor."
+        message: "Você não tem permissão para configurar este servidor."
       });
     }
 
     if (!(await canManageModule(req, res, guildId, botId, "tickets"))) {
       return res.status(403).json({
-        message: "O modulo de tickets nao foi liberado para este bot."
+        message: "O módulo de tickets não foi liberado para este bot."
       });
     }
 
@@ -871,13 +871,13 @@ settingsRouter.patch("/:guildId", requireAuth, async (req, res, next) => {
 
     if (!guildId) {
       return res.status(400).json({
-        message: "guildId obrigatorio."
+        message: "guildId obrigatório."
       });
     }
 
     if (!(await canManageSettings(req, res, guildId, botId))) {
       return res.status(403).json({
-        message: "Voce nao tem permissao para configurar este servidor."
+        message: "Você não tem permissão para configurar este servidor."
       });
     }
 
@@ -885,7 +885,7 @@ settingsRouter.patch("/:guildId", requireAuth, async (req, res, next) => {
 
     if (!botId) {
       return res.status(400).json({
-        message: "botId obrigatorio."
+        message: "botId obrigatório."
       });
     }
 
@@ -896,13 +896,13 @@ settingsRouter.patch("/:guildId", requireAuth, async (req, res, next) => {
 
     if (ownerDevOnlyPatch && !canManageOwnerDevPatch) {
       return res.status(403).json({
-        message: "Apenas o dono do bot ou um DEV pode alterar cargos e permissoes administrativas."
+        message: "Apenas o dono do bot ou um DEV pode alterar cargos e permissões administrativas."
       });
     }
 
     if (!(await canPatchSettings(req, res, guildId, botId, input, canManageOwnerDevPatch))) {
       return res.status(403).json({
-        message: "Uma ou mais funcoes nao foram liberadas para este bot."
+        message: "Uma ou mais funcoes não foram liberadas para este bot."
       });
     }
 
@@ -1134,7 +1134,7 @@ async function validateSafeBotActivation(guildId: string, botId: string | null, 
     : current.safeBotLogChannelId;
 
   if ("safeBotLogChannelId" in input && input.safeBotLogChannelId === "" && !safeBotLogChannelId) {
-    throw createSettingsError("Selecione um canal de logs valido para o SafeBot ou deixe o bot criar o padrao automaticamente.");
+    throw createSettingsError("Selecione um canal de logs válido para o SafeBot ou deixe o bot criar o padrão automaticamente.");
   }
 }
 
@@ -1173,7 +1173,7 @@ async function validateGuildResources(
   );
 
   if (!textChannelChecks.every(Boolean)) {
-    throw createSettingsError("Um dos canais selecionados nao pertence a este servidor.");
+    throw createSettingsError("Um dos canais selecionados não pertence a este servidor.");
   }
 
   if (
@@ -1208,14 +1208,14 @@ async function validateGuildResources(
     input.ticketCategoryId
     && !(await isGuildCategoryChannel(guildId, input.ticketCategoryId, botToken))
   ) {
-    throw createSettingsError("A categoria de tickets nao pertence a este servidor.");
+    throw createSettingsError("A categoria de tickets não pertence a este servidor.");
   }
 
   if (
     input.reportSystem?.categoryId
     && !(await isGuildCategoryChannel(guildId, input.reportSystem.categoryId, botToken))
   ) {
-    throw createSettingsError("A categoria de denuncias nao pertence a este servidor.");
+    throw createSettingsError("A categoria de denuncias não pertence a este servidor.");
   }
 
   const reportCategoryIds = [
@@ -1229,7 +1229,7 @@ async function validateGuildResources(
   if (reportCategoryIds.length) {
     const categoryChecks = await Promise.all([...new Set(reportCategoryIds)].map((categoryId) => isGuildTextOrCategoryChannel(guildId, categoryId, botToken)));
     if (!categoryChecks.every(Boolean)) {
-      throw createSettingsError("Um dos canais ou categorias de competencia nao pertence a este servidor.");
+      throw createSettingsError("Um dos canais ou categorias de competencia não pertence a este servidor.");
     }
   }
 
@@ -1240,7 +1240,7 @@ async function validateGuildResources(
   if (reportOrganCategoryIds.length) {
     const categoryChecks = await Promise.all([...new Set(reportOrganCategoryIds)].map((categoryId) => isGuildCategoryChannel(guildId, categoryId, botToken)));
     if (!categoryChecks.every(Boolean)) {
-      throw createSettingsError("A categoria configurada no orgao da denuncia precisa ser uma categoria do Discord.");
+      throw createSettingsError("A categoria configurada no órgão da denúncia precisa ser uma categoria do Discord.");
     }
   }
 
@@ -1275,21 +1275,21 @@ async function validateGuildResources(
   ].filter((roleId): roleId is string => Boolean(roleId));
 
   if (roleIds.length && !(await areGuildRoles(guildId, [...new Set(roleIds)], botToken))) {
-    throw createSettingsError("Um dos cargos selecionados nao pertence a este servidor.");
+    throw createSettingsError("Um dos cargos selecionados não pertence a este servidor.");
   }
 
   if (
     input.autoRoleIds?.length
     && !(await areGuildAssignableRoles(guildId, [...new Set(input.autoRoleIds)], botToken))
   ) {
-    throw createSettingsError("O cargo automatico precisa ficar abaixo do cargo do bot e o bot precisa da permissao Gerenciar Cargos.");
+    throw createSettingsError("O cargo automático precisa ficar abaixo do cargo do bot e o bot precisa da permissão Gerenciar Cargos.");
   }
 
   if (
     input.safeBotRoleId
     && !(await areGuildAssignableRoles(guildId, [input.safeBotRoleId], botToken))
   ) {
-    throw createSettingsError("O cargo Self Bot precisa ficar abaixo do cargo do bot e o bot precisa da permissao Gerenciar Cargos.");
+    throw createSettingsError("O cargo Self Bot precisa ficar abaixo do cargo do bot e o bot precisa da permissão Gerenciar Cargos.");
   }
 
   const dashboardUserIds = Object.keys(input.dashboardUserPermissions ?? {});
@@ -1298,7 +1298,7 @@ async function validateGuildResources(
     dashboardUserIds.length
     && !(await areGuildMembers(guildId, dashboardUserIds, botToken))
   ) {
-    throw createSettingsError("Uma das pessoas selecionadas nao esta mais neste servidor Discord.");
+    throw createSettingsError("Uma das pessoas selecionadas não está mais neste servidor Discord.");
   }
 }
 
@@ -1329,11 +1329,11 @@ function inferSettingsModuleName(input: z.infer<typeof settingsSchema>) {
 
 function friendlySettingsMessage(input: z.infer<typeof settingsSchema>) {
   if (input.verificationRoleIds || input.verificationRoleId !== undefined || input.dashboardRolePermissions || input.dashboardUserPermissions) {
-    return "Permissao de acesso ao painel atualizada.";
+    return "Permissão de acesso ao painel atualizada.";
   }
 
   if (input.verificationEnabled !== undefined) {
-    return input.verificationEnabled ? "Sistema de permissoes ativado." : "Sistema de permissoes desativado.";
+    return input.verificationEnabled ? "Sistema de permissões ativado." : "Sistema de permissões desativado.";
   }
 
   if (
@@ -1348,11 +1348,11 @@ function friendlySettingsMessage(input: z.infer<typeof settingsSchema>) {
   }
 
   if (input.moderationEnabled !== undefined) {
-    return input.moderationEnabled ? "Sistema de moderacao ativado." : "Sistema de moderacao desativado.";
+    return input.moderationEnabled ? "Sistema de moderação ativado." : "Sistema de moderação desativado.";
   }
 
   if (Object.keys(input).some((key) => key.startsWith("accountAge"))) {
-    return "Seguranca de idade da conta atualizada.";
+    return "Segurança de idade da conta atualizada.";
   }
 
   if (Object.keys(input).some((key) => key.startsWith("safeBot"))) {
@@ -1384,11 +1384,11 @@ function friendlySettingsMessage(input: z.infer<typeof settingsSchema>) {
   }
 
   if (input.leaveEnabled !== undefined) {
-    return input.leaveEnabled ? "Mensagem de saida ativada." : "Mensagem de saida desativada.";
+    return input.leaveEnabled ? "Mensagem de saída ativada." : "Mensagem de saída desativada.";
   }
 
   if (Object.keys(input).some((key) => key.startsWith("leave"))) {
-    return "Mensagem de saida atualizada.";
+    return "Mensagem de saída atualizada.";
   }
 
   if (input.autoRoleIds !== undefined) {
@@ -1399,5 +1399,5 @@ function friendlySettingsMessage(input: z.infer<typeof settingsSchema>) {
     return input.autoRoleEnabled ? "Sistema de cargos automaticos ativado." : "Sistema de cargos automaticos desativado.";
   }
 
-  return "Configuracao do servidor atualizada.";
+  return "Configuração do servidor atualizada.";
 }

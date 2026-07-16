@@ -61,12 +61,12 @@ serverBackupsRouter.patch("/:guildId/settings", async (req, res, next) => {
     const scope = await readScope(req, res);
     const input = settingsSchema.parse(req.body ?? {});
     if (!scope || !(await canManageServerBackup(scope))) {
-      return res.status(403).json({ message: "Sem permissao para configurar Backup Completo." });
+      return res.status(403).json({ message: "Sem permissão para configurar Backup Completo." });
     }
 
     const token = await readBotToken(scope.botId);
     if (input.authorizedRoleIds?.length && !(await areGuildRoles(scope.guildId, input.authorizedRoleIds, token))) {
-      return res.status(400).json({ message: "Um ou mais cargos autorizados nao existem neste servidor." });
+      return res.status(400).json({ message: "Um ou mais cargos autorizados não existem neste servidor." });
     }
 
     return res.json({
@@ -81,7 +81,7 @@ serverBackupsRouter.post("/:guildId/backups", async (req, res, next) => {
   try {
     const scope = await readScope(req, res);
     if (!scope || !(await canManageServerBackup(scope))) {
-      return res.status(403).json({ message: "Sem permissao para criar backup." });
+      return res.status(403).json({ message: "Sem permissão para criar backup." });
     }
 
     const botToken = await readBotToken(scope.botId);
@@ -104,7 +104,7 @@ serverBackupsRouter.delete("/:guildId/backups/:backupId", async (req, res, next)
     const scope = await readScope(req, res);
     const backupId = backupIdSchema.parse(req.params.backupId);
     if (!scope || !(await canManageServerBackup(scope))) {
-      return res.status(403).json({ message: "Sem permissao para apagar backup." });
+      return res.status(403).json({ message: "Sem permissão para apagar backup." });
     }
 
     await deleteServerBackup(scope.botId, scope.guildId, backupId, scope.user.discordId ?? scope.user.id);
@@ -120,7 +120,7 @@ serverBackupsRouter.post("/:guildId/backups/:backupId/preview", async (req, res,
     const backupId = backupIdSchema.parse(req.params.backupId);
     const input = restoreSchema.parse(req.body ?? {});
     if (!scope || !(await canAccessStoredBackup(scope, backupId, false))) {
-      return res.status(403).json({ message: "Sem permissao para visualizar restauracao." });
+      return res.status(403).json({ message: "Sem permissão para visualizar restauração." });
     }
     const targetGuildId = input.targetGuildId || scope.guildId;
     const botToken = await readBotToken(scope.botId);
@@ -151,10 +151,10 @@ serverBackupsRouter.post("/:guildId/backups/:backupId/restore", async (req, res,
     const backupId = backupIdSchema.parse(req.params.backupId);
     const input = restoreSchema.parse(req.body ?? {});
     if (input.confirmation !== "CONFIRMAR") {
-      return res.status(400).json({ message: "Digite CONFIRMAR para iniciar a restauracao." });
+      return res.status(400).json({ message: "Digite CONFIRMAR para iniciar a restauração." });
     }
     if (!scope || !(await canAccessStoredBackup(scope, backupId, true))) {
-      return res.status(403).json({ message: "Sem permissao para restaurar backup." });
+      return res.status(403).json({ message: "Sem permissão para restaurar backup." });
     }
     const targetGuildId = input.targetGuildId || scope.guildId;
     const botToken = await readBotToken(scope.botId);
@@ -189,7 +189,7 @@ async function readScope(req: Request, res: Response) {
 
 async function readBotToken(botId: string) {
   const token = await getDevBotToken(botId);
-  if (!token) throw Object.assign(new Error("Token do bot nao configurado."), { statusCode: 400 });
+  if (!token) throw Object.assign(new Error("Token do bot não configurado."), { statusCode: 400 });
   return token;
 }
 
@@ -228,7 +228,7 @@ async function validateBackupTargetGuild(scope: { botId: string; guildId: string
   const canManageTarget = await canManageDevBotGuild(scope.user, scope.botId, targetGuildId)
     || await canManageDevBot(scope.user, scope.botId);
   if (!canManageTarget) {
-    return { ok: false as const, status: 403, message: "Voce nao tem permissao para gerenciar o servidor de destino neste bot." };
+    return { ok: false as const, status: 403, message: "Você não tem permissão para gerenciar o servidor de destino neste bot." };
   }
 
   const botInTarget = await discordBotCanReadGuild(botToken, targetGuildId);

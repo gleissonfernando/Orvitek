@@ -33,7 +33,7 @@ export function BotRegistrationPage() {
           window.location.assign(`/auth/discord/customer?returnTo=${encodeURIComponent(returnTo)}`);
           return;
         }
-        setError(readError(requestError, "Nao foi possivel carregar sua assinatura."));
+        setError(readError(requestError, "Não foi possível carregar sua assinatura."));
       })
       .finally(() => setLoading(false));
   }, [approvedOrderId]);
@@ -49,7 +49,7 @@ export function BotRegistrationPage() {
       setToken("");
       setResult(next);
     } catch (requestError) {
-      setError(readError(requestError, "Nao foi possivel verificar o bot."));
+      setError(readError(requestError, "Não foi possível verificar o bot."));
     } finally {
       setVerifying(false);
     }

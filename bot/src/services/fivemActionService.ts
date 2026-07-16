@@ -18,7 +18,7 @@ let polling = false;
 export const acaoCommand: BotCommand = {
   data: new SlashCommandBuilder()
     .setName("acao")
-    .setDescription("Sistema de Ações Policiais.")
+    .setDescription("Sistema de Ações Políciais.")
     .addSubcommand((subcommand) => subcommand
       .setName("config")
       .setDescription("Abre o painel de configuração das ações policiais."))
@@ -51,7 +51,7 @@ export const acaoCommand: BotCommand = {
       await publishRequestedPanel(interaction.client, context, settings);
       await interaction.editReply(`Painel de ações policiais publicado/atualizado em <#${settings.panelChannelId}>.`);
     } catch (error) {
-      console.warn("[fivem-actions] falha no comando /acao:", errorMessage(error));
+      console.warn("[fivem-actions] falha no comando /ação:", errorMessage(error));
       await replyCommandError(interaction, `Erro no Sistema de Ações: ${publicErrorMessage(error)}`);
     }
   }
@@ -262,7 +262,7 @@ async function saveActionDefinition(interaction: ModalSubmitInteraction, context
 async function showActionSheetModal(interaction: any, context: BotContext, architecture: FivemActionArchitecture) {
   const dashboard = await context.api.getFivemActionDashboard(interaction.guildId, architecture);
   if (!canManageActionsFromDiscord(interaction, dashboard.settings)) return void await interaction.reply({ content: "Você precisa de Gerenciar Servidor ou de um cargo autorizado para configurar a planilha.", ephemeral: true });
-  if (architecture !== "police") return void await interaction.reply({ content: "Cadastro de planilha disponível apenas em Ações Policiais.", ephemeral: true });
+  if (architecture !== "police") return void await interaction.reply({ content: "Cadastro de planilha disponível apenas em Ações Políciais.", ephemeral: true });
   const modal = new ModalBuilder()
     .setCustomId(`${PREFIX}:sheet_modal:${architecture}`)
     .setTitle("Cadastro da Planilha")

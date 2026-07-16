@@ -30,7 +30,7 @@ type PanelDefinition = {
 
 const PANELS: PanelDefinition[] = [
   { id: "welcome", label: "Boas-vindas" },
-  { id: "leave", label: "Saida" },
+  { id: "leave", label: "Saída" },
   { id: "rules", label: "Regras" },
   { id: "ticket", label: "Ticket" },
   { id: "live", label: "Live" },
@@ -48,10 +48,10 @@ const positionOptions: Array<{ label: string; value: PanelImagePosition }> = [
   { label: "Lateral", value: "side" },
   { label: "Topo do painel", value: "top" },
   { label: "Abaixo do titulo", value: "below_title" },
-  { label: "Meio do conteudo", value: "middle" },
+  { label: "Meio do conteúdo", value: "middle" },
   { label: "Final do painel", value: "bottom" },
-  { label: "Antes dos botoes", value: "before_buttons" },
-  { label: "Imagem no rodape", value: "footer" }
+  { label: "Antes dos botões", value: "before_buttons" },
+  { label: "Imagem no rodapé", value: "footer" }
 ];
 
 const sizeOptions: Array<{ label: string; value: PanelImageSize }> = [
@@ -191,7 +191,7 @@ export function PanelImageSettings({ botId, canManage, componentsV2Only = false,
   }
 
   function addFooterBlock() {
-    setBlocks([...blocks(), { altText: "Imagem de rodape", id: blockId(), imageUrl: draft.imagePosition === "footer" ? draft.imageUrl : "", order: blocks().length, text: "-# Rodape do painel", type: "footer" }]);
+    setBlocks([...blocks(), { altText: "Imagem de rodapé", id: blockId(), imageUrl: draft.imagePosition === "footer" ? draft.imageUrl : "", order: blocks().length, text: "-# Rodapé do painel", type: "footer" }]);
   }
 
   function addSeparatorBlock() {
@@ -307,7 +307,7 @@ export function PanelImageSettings({ botId, canManage, componentsV2Only = false,
             </div>
             <div>
               <CardTitle>{multiSlotMode ? `Banners do painel: ${panelLabel ?? selectedPanel.label}` : fixedPanel ? `Imagem do painel: ${selectedPanel.label}` : "Imagens dos painéis"}</CardTitle>
-              <CardDescription>{multiSlotMode ? `Configure ate ${panelChoices.length} banner(s) deste painel.` : fixedPanel ? "Configure a imagem deste painel." : `${savedCount} painel(is) com imagem configurada.`}</CardDescription>
+              <CardDescription>{multiSlotMode ? `Configure até ${panelChoices.length} banner(s) deste painel.` : fixedPanel ? "Configure a imagem deste painel." : `${savedCount} painel(is) com imagem configurada.`}</CardDescription>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -446,7 +446,7 @@ export function PanelImageSettings({ botId, canManage, componentsV2Only = false,
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-zinc-100">{selectedPanel.label}</p>
                     <p className="mt-2 text-sm leading-6 text-zinc-400">
-                      Texto do painel mantendo o layout atual. A imagem segue a posicao e o tamanho selecionados.
+                      Texto do painel mantendo o layout atual. A imagem segue a posição e o tamanho selecionados.
                     </p>
                   </div>
                   {draft.imageEnabled && draft.imageUrl && draft.imagePosition === "thumbnail" ? (
@@ -462,8 +462,8 @@ export function PanelImageSettings({ botId, canManage, componentsV2Only = false,
                   <PreviewImage alt={selectedPanel.label} imageUrl={draft.imageUrl} style={previewStyle} />
                 ) : null}
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <span className="rounded-md border border-zinc-800 px-3 py-1.5 text-xs text-zinc-300">Botao principal</span>
-                  <span className="rounded-md border border-zinc-800 px-3 py-1.5 text-xs text-zinc-300">Botao secundario</span>
+                  <span className="rounded-md border border-zinc-800 px-3 py-1.5 text-xs text-zinc-300">Botão principal</span>
+                  <span className="rounded-md border border-zinc-800 px-3 py-1.5 text-xs text-zinc-300">Botão secundario</span>
                 </div>
                 {draft.imageEnabled && draft.imageUrl && draft.imagePosition === "bottom" ? (
                   <PreviewImage alt={selectedPanel.label} imageUrl={draft.imageUrl} style={previewStyle} />
@@ -471,7 +471,7 @@ export function PanelImageSettings({ botId, canManage, componentsV2Only = false,
                 {draft.imageEnabled && draft.imageUrl && draft.imagePosition === "footer" ? (
                   <div className="mt-4 flex items-center gap-2 border-t border-zinc-900 pt-3 text-xs text-zinc-500">
                     <img alt="" className="h-5 w-5 rounded-full object-cover" src={dashboardImageUrl(draft.imageUrl)} />
-                    Rodape do painel
+                    Rodapé do painel
                   </div>
                 ) : null}
               </div>
@@ -486,7 +486,7 @@ export function PanelImageSettings({ botId, canManage, componentsV2Only = false,
                 <div className="flex flex-wrap gap-2">
                   <Button disabled={disabled} onClick={addBannerBlock} type="button" variant="outline"><Plus className="h-4 w-4" />Adicionar banner</Button>
                   <Button disabled={disabled} onClick={addTextBlock} type="button" variant="outline"><Type className="h-4 w-4" />Texto</Button>
-                  <Button disabled={disabled} onClick={addFooterBlock} type="button" variant="outline"><Image className="h-4 w-4" />Rodape</Button>
+                  <Button disabled={disabled} onClick={addFooterBlock} type="button" variant="outline"><Image className="h-4 w-4" />Rodapé</Button>
                   <Button disabled={disabled} onClick={addSeparatorBlock} type="button" variant="ghost">Separador</Button>
                 </div>
               </div>
@@ -505,7 +505,7 @@ export function PanelImageSettings({ botId, canManage, componentsV2Only = false,
                     {block.type === "media_gallery" ? (
                       <div className="grid gap-2 md:grid-cols-[1fr_180px]">
                         <input className="h-10 rounded-md border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100" disabled={disabled} onChange={(event) => updateBlock(block.id, { items: [{ ...(block.items[0] ?? {}), url: event.target.value }] } as Partial<PanelBlock>)} placeholder="URL do banner" value={block.items[0]?.url ?? ""} />
-                        <input className="h-10 rounded-md border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100" disabled={disabled} onChange={(event) => updateBlock(block.id, { items: [{ ...(block.items[0] ?? {}), description: event.target.value }] } as Partial<PanelBlock>)} placeholder="Descricao" value={block.items[0]?.description ?? ""} />
+                        <input className="h-10 rounded-md border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100" disabled={disabled} onChange={(event) => updateBlock(block.id, { items: [{ ...(block.items[0] ?? {}), description: event.target.value }] } as Partial<PanelBlock>)} placeholder="Descrição" value={block.items[0]?.description ?? ""} />
                       </div>
                     ) : null}
                     {block.type === "text" ? (
@@ -546,7 +546,7 @@ export function PanelImageSettings({ botId, canManage, componentsV2Only = false,
             <Trash2 className="h-4 w-4" />
             Remover imagem
           </Button>
-          <Button disabled={disabled} onClick={() => { setDraft(defaultSettings(guildId ?? "", botId ?? "", selectedPanelId)); setStatus("Padrao restaurado. Clique em salvar para confirmar."); }} type="button" variant="ghost">Restaurar padrão</Button>
+          <Button disabled={disabled} onClick={() => { setDraft(defaultSettings(guildId ?? "", botId ?? "", selectedPanelId)); setStatus("Padrão restaurado. Clique em salvar para confirmar."); }} type="button" variant="ghost">Restaurar padrão</Button>
           {loading ? (
             <span className="flex items-center gap-2 text-xs text-zinc-500">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -676,10 +676,10 @@ function blockId() {
 function blockLabel(block: PanelBlock) {
   if (block.type === "media_gallery") return "Banner / Media Gallery";
   if (block.type === "section") return "Section com thumbnail";
-  if (block.type === "footer") return "Rodape com miniatura";
+  if (block.type === "footer") return "Rodapé com miniatura";
   if (block.type === "text") return "Texto";
   if (block.type === "separator") return "Separador";
-  return "Botoes";
+  return "Botões";
 }
 
 function panelLabelForId(panelId: string) {

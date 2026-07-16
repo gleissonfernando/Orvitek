@@ -405,7 +405,7 @@ async function processDueAbsences(client: Client, context: BotContext) {
 }
 
 function logDueAbsenceError(error: unknown) {
-  console.warn("[rh-admin] falha ao processar ausencias vencidas:", error instanceof Error ? error.message : error);
+  console.warn("[rh-admin] falha ao processar ausências vencidas:", error instanceof Error ? error.message : error);
 }
 
 function mainPanel(settings: RhAdminSettings, guild: Guild | null | undefined = null) {

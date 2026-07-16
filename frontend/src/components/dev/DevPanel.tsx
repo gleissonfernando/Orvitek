@@ -127,7 +127,7 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "x-monitor", label: "X Monitor" },
   { id: "verification", label: "Sistema de Verificação" },
   { id: "welcome", label: "Sistema de Boas-vindas" },
-  { id: "leave", label: "Sistema de Saida" },
+  { id: "leave", label: "Sistema de Saída" },
   { id: "logs", label: "Sistema de Logs" },
   { id: "roles", label: "Sistema de Cargos" },
   { id: "tickets", label: "Sistema de Tickets" },
@@ -141,15 +141,15 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "server-cloner", label: "Clonagem de Servidor" },
   { id: "server-generator", label: "Gerador Inteligente de Servidores" },
   { id: "safe-bot", label: "SelfBot Protection" },
-  { id: "account-age-security", label: "Seguranca por Idade da Conta" },
+  { id: "account-age-security", label: "Segurança por Idade da Conta" },
   { id: "anti-ban", label: "Sistema Anti Ban" },
   { id: "anti-abuse", label: "DEV Control Panel - Anti Abuse" },
   { id: "suspicious-servers", label: "Servidores Suspeitos" },
   { id: "global-blacklist", label: "Blacklist Global" },
   { id: "advanced-permissions", label: "Gerenciamento de Permissões" },
-  { id: "invite-cleanup", label: "Limpeza Automatica de Convites" },
+  { id: "invite-cleanup", label: "Limpeza Automática de Convites" },
   { id: "server-backup", label: "Backup Completo" },
-  { id: "vanity-url-protection", label: "Protecao da URL Personalizada" },
+  { id: "vanity-url-protection", label: "Proteção da URL Personalizada" },
   { id: "hide-empty-voice", label: "Esconder Chamadas Vazias" },
   { id: "anti-disconnect", label: "Anti Disconnect" },
   { id: "auto-unmute", label: "Auto Desmutar" },
@@ -158,28 +158,28 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "bio-url-verification", label: "Verificação de URL na Bio" },
   { id: "first-lady", label: "Sistema Primeira Dama" },
   { id: "fivem", label: "FiveM" },
-  { id: "fivem-factions", label: "FiveM - Sistema de Faccao" },
+  { id: "fivem-factions", label: "FiveM - Sistema de Facção" },
   { id: "fivem-corporations", label: "FiveM - Sistema de Corporações" },
-  { id: "fivem-absences", label: "FiveM - Sistema de Ausencias" },
+  { id: "fivem-absences", label: "FiveM - Sistema de Ausências" },
   { id: "fivem-orders", label: "Sistema de Encomendas RP" },
   { id: "fivem-washing", label: "FiveM - Sistema de Lavagem" },
   { id: "fivem-drugs", label: "FiveM - Sistema de Drogas" },
   { id: "fivem-ammo", label: "FiveM - Sistema de Municoes" },
   { id: "fivem-finance", label: "FiveM - Sistema Financeiro" },
   { id: "fivem-goals", label: "FiveM - Sistema de Metas" },
-  { id: "fivem-hierarchy", label: "Policia - Hierarquia" },
-  { id: "fivem-actions", label: "FiveM - Acoes FAC" },
-  { id: "police-absences", label: "Policia - Sistema de Ausencias" },
-  { id: "police-actions", label: "Policia - Acoes" },
-  { id: "police-iab", label: "Policia - Denuncia IAB" },
-  { id: "police-hr", label: "Policia - RH Policial" },
-  { id: "police-daf-roster", label: "Policia - Escalacao DAF" },
-  { id: "police-courses", label: "Policia - Cursos Policiais" },
-  { id: "police-patrol-reports", label: "Policia - Relatorios de Patrulhamento" },
-  { id: "police-dm", label: "Policia - DM Policial" },
-  { id: "police-subpoenas", label: "Policia - Intimacao" },
+  { id: "fivem-hierarchy", label: "Polícia - Hierarquia" },
+  { id: "fivem-actions", label: "FiveM - Ações FAC" },
+  { id: "police-absences", label: "Polícia - Sistema de Ausências" },
+  { id: "police-actions", label: "Polícia - Ações" },
+  { id: "police-iab", label: "Polícia - Denúncia IAB" },
+  { id: "police-hr", label: "Polícia - RH Policial" },
+  { id: "police-daf-roster", label: "Polícia - Escalacao DAF" },
+  { id: "police-courses", label: "Polícia - Cursos Políciais" },
+  { id: "police-patrol-reports", label: "Polícia - Relatórios de Patrulhamento" },
+  { id: "police-dm", label: "Polícia - DM Policial" },
+  { id: "police-subpoenas", label: "Polícia - Intimacao" },
   { id: "police-open-duty", label: "Polícia - Notificar / Ponto Aberto" },
-  { id: "fivem-fac", label: "FiveM - FAC Ausencia" },
+  { id: "fivem-fac", label: "FiveM - FAC Ausência" },
   { id: "avisos", label: "Mensagens e Personalização" }
 ];
 
@@ -382,7 +382,7 @@ const botMenuItems: BotMenuItem[] = [
   {
     id: "anti-disconnect",
     label: "Anti Disconnect",
-    description: "Reconecta membros removidos de calls por usuarios sem autorizacao",
+    description: "Reconecta membros removidos de calls por usuários sem autorizacao",
     icon: ShieldCheck,
     moduleIds: ["anti-disconnect"]
   },
@@ -403,21 +403,21 @@ const botMenuItems: BotMenuItem[] = [
   {
     id: "tag-verification",
     label: "Verificação de Tag",
-    description: "Cargo automatico por tag personalizada",
+    description: "Cargo automático por tag personalizada",
     icon: Hash,
     moduleIds: ["tag-verification"]
   },
   {
     id: "bio-url-verification",
     label: "URL na Bio",
-    description: "Cargo automatico por URL na bio",
+    description: "Cargo automático por URL na bio",
     icon: Link2,
     moduleIds: ["bio-url-verification"]
   },
   {
     id: "first-lady",
     label: "Primeira Dama",
-    description: "Relacionamentos, limites e historico",
+    description: "Relacionamentos, limites e histórico",
     icon: UserCheck,
     moduleIds: ["first-lady"]
   },
@@ -445,7 +445,7 @@ const botMenuItems: BotMenuItem[] = [
   {
     id: "select-menu",
     label: "Select Menu",
-    description: "Gerenciamento de menus de selecao",
+    description: "Gerenciamento de menus de seleção",
     icon: ChevronDown,
     moduleIds: []
   },
@@ -458,15 +458,15 @@ const botMenuItems: BotMenuItem[] = [
     children: [
       {
         id: "fivem-factions",
-        label: "Faccoes",
-        description: "Faccoes e ausencias",
+        label: "Facções",
+        description: "Facções e ausências",
         icon: Users,
         moduleIds: ["fivem-factions", "fivem-absences", "fivem-fac"]
       },
       {
         id: "fivem-ammo",
         label: "Municoes",
-        description: "Controle de municoes",
+        description: "Controle de munições",
         icon: Hash,
         moduleIds: ["fivem-ammo"]
       },
@@ -480,14 +480,14 @@ const botMenuItems: BotMenuItem[] = [
       {
         id: "fivem-washing",
         label: "Sistema de Lavagem",
-        description: "Lavagem RP, porcentagens, repasses e historico",
+        description: "Lavagem RP, porcentagens, repasses e histórico",
         icon: ScrollText,
         moduleIds: ["fivem-washing"]
       },
       {
         id: "fivem-drugs",
         label: "Sistema de Drogas",
-        description: "Drogas, pedidos, familias, logs e historico",
+        description: "Drogas, pedidos, famílias, logs e histórico",
         icon: Hash,
         moduleIds: ["fivem-drugs"]
       },
@@ -501,20 +501,20 @@ const botMenuItems: BotMenuItem[] = [
       {
         id: "fivem-goals",
         label: "Metas",
-        description: "Metas e producao",
+        description: "Metas e produção",
         icon: ListChecks,
         moduleIds: ["fivem-goals"]
       },
       {
         id: "fivem-actions",
-        description: "Acoes profissionais para FAC",
-        label: "Acoes FAC",
+        description: "Ações profissionais para FAC",
+        label: "Ações FAC",
         icon: Gamepad2,
         moduleIds: ["fivem-actions"]
       },
       {
         id: "fivem-production",
-        label: "Producao",
+        label: "Produção",
         description: "Produção e corporações",
         icon: Settings,
         moduleIds: ["fivem-corporations"]
@@ -523,8 +523,8 @@ const botMenuItems: BotMenuItem[] = [
   },
   {
     id: "police",
-    label: "Policia",
-    description: "Hierarquia, acoes e relatorios policiais",
+    label: "Polícia",
+    description: "Hierarquia, ações e relatórios policiais",
     icon: ShieldCheck,
     moduleIds: [],
     children: [
@@ -537,21 +537,21 @@ const botMenuItems: BotMenuItem[] = [
       },
       {
         id: "police-absences",
-        label: "Ausencias Policiais",
-        description: "Solicitacoes e aprovacao de ausencias para oficiais",
+        label: "Ausências Políciais",
+        description: "Solicitacoes e aprovação de ausências para oficiais",
         icon: CalendarDays,
         moduleIds: ["police-absences"]
       },
       {
         id: "police-actions",
-        label: "Acoes Policiais",
-        description: "Operacoes policiais com participantes e relatorios",
+        label: "Ações Políciais",
+        description: "Operações policiais com participantes e relatórios",
         icon: ShieldCheck,
         moduleIds: ["police-actions"]
       },
       {
         id: "police-iab",
-        label: "Denuncia IAB",
+        label: "Denúncia IAB",
         description: "Denuncias IAB com triagem e auditoria",
         icon: ShieldCheck,
         moduleIds: ["police-iab"]
@@ -559,35 +559,35 @@ const botMenuItems: BotMenuItem[] = [
       {
         id: "police-hr",
         label: "RH Policial",
-        description: "Efetivo, recrutamento e movimentacoes internas",
+        description: "Efetivo, recrutamento e movimentações internas",
         icon: UserCheck,
         moduleIds: ["police-hr"]
       },
       {
         id: "police-daf-roster",
         label: "Escalacao DAF",
-        description: "Escalas, plantoes e equipes DAF",
+        description: "Escalas, plantões e equipes DAF",
         icon: CalendarDays,
         moduleIds: ["police-daf-roster"]
       },
       {
         id: "police-courses",
-        label: "Cursos Policiais",
-        description: "Cursos, aprovacao e historico de capacitacao",
+        label: "Cursos Políciais",
+        description: "Cursos, aprovação e histórico de capacitacao",
         icon: ScrollText,
         moduleIds: ["police-courses"]
       },
       {
         id: "police-patrol-reports",
-        label: "Relatorios Policiais",
-        description: "Relatorios profissionais de patrulhamento",
+        label: "Relatórios Políciais",
+        description: "Relatórios profissionais de patrulhamento",
         icon: ScrollText,
         moduleIds: ["police-patrol-reports"]
       },
       {
         id: "police-dm",
         label: "DM Policial",
-        description: "Atendimento por DM com registro e historico",
+        description: "Atendimento por DM com registro e histórico",
         icon: MessageSquare,
         moduleIds: ["police-dm"]
       },
@@ -822,12 +822,12 @@ export function DevPanel({
     const mainGuildId = form.mainGuildId.trim();
 
     if (token.length < 10) {
-      setMessage("Informe um token de bot valido.");
+      setMessage("Informe um token de bot válido.");
       return;
     }
 
     if (!/^\d{5,32}$/.test(mainGuildId)) {
-      setMessage("Informe um Guild ID valido.");
+      setMessage("Informe um Guild ID válido.");
       return;
     }
 
@@ -1181,9 +1181,9 @@ export function DevPanel({
               />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-white">
-                  {user?.globalName || user?.username || "Usuario Discord autenticado"}
+                  {user?.globalName || user?.username || "Usuário Discord autenticado"}
                 </p>
-                <p className="truncate text-xs font-medium text-zinc-300">Responsavel via Discord OAuth2</p>
+                <p className="truncate text-xs font-medium text-zinc-300">Responsável via Discord OAuth2</p>
               </div>
               <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-400" />
             </div>
@@ -1846,7 +1846,7 @@ function ProtectedTokenInput({
   value: string;
 }) {
   const tokenStatus = value.trim().length >= 10 ? "valid" : value.trim().length ? "invalid" : "empty";
-  const statusLabel = tokenStatus === "valid" ? "Token com formato valido" : tokenStatus === "invalid" ? "Token muito curto" : "Aguardando token";
+  const statusLabel = tokenStatus === "valid" ? "Token com formato válido" : tokenStatus === "invalid" ? "Token muito curto" : "Aguardando token";
   const statusClassName = tokenStatus === "valid"
     ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-200"
     : tokenStatus === "invalid"
@@ -2048,7 +2048,7 @@ function BotModuleWorkspace({
   const inactiveCount = Math.max(0, modules.length - activeModules.length);
   const securityModules = modulesForMenu({
     id: "moderation",
-    label: "Seguranca",
+    label: "Segurança",
     description: "",
     icon: ShieldCheck,
     moduleIds: [
@@ -2286,7 +2286,7 @@ function DatabaseMaintenancePanel({ bot, guilds }: { bot: DevBot; guilds: Dashbo
         setSelectedModule((current) => current || items[0]?.id || "manual-registration");
       })
       .catch(() => {
-        if (mounted) setMessage("Nao foi possivel carregar os modulos de manutencao.");
+        if (mounted) setMessage("Não foi possível carregar os modulos de manutencao.");
       });
     return () => {
       mounted = false;
@@ -2307,9 +2307,9 @@ function DatabaseMaintenancePanel({ bot, guilds }: { bot: DevBot; guilds: Dashbo
     try {
       const result = await searchDatabaseMaintenanceUsers(bot.id, guildId, query.trim());
       setUsers(result);
-      if (!result.length) setMessage("Nenhum usuario encontrado nesse escopo.");
+      if (!result.length) setMessage("Nenhum usuário encontrado nesse escopo.");
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Falha ao buscar usuarios.");
+      setMessage(readRequestMessage(error) ?? "Falha ao buscar usuários.");
     } finally {
       setBusy(null);
     }
@@ -2325,7 +2325,7 @@ function DatabaseMaintenancePanel({ bot, guilds }: { bot: DevBot; guilds: Dashbo
       setLinks(result);
       setDeleteConfirmation("");
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Falha ao buscar vinculos do usuario.");
+      setMessage(readRequestMessage(error) ?? "Falha ao buscar vinculos do usuário.");
     } finally {
       setBusy(null);
     }
@@ -2339,10 +2339,10 @@ function DatabaseMaintenancePanel({ bot, guilds }: { bot: DevBot; guilds: Dashbo
     try {
       const result = await deleteDatabaseMaintenanceUserLinks(bot.id, guildId, selectedUserId, deleteConfirmation.trim());
       setLastResult(result);
-      setMessage(`Usuario limpo: ${result.deletedTotal} registro(s) removido(s).`);
+      setMessage(`Usuário limpo: ${result.deletedTotal} registro(s) removido(s).`);
       await inspectUser(selectedUserId);
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Falha ao excluir vinculos do usuario.");
+      setMessage(readRequestMessage(error) ?? "Falha ao excluir vinculos do usuário.");
     } finally {
       setBusy(null);
     }
@@ -2371,11 +2371,11 @@ function DatabaseMaintenancePanel({ bot, guilds }: { bot: DevBot; guilds: Dashbo
     try {
       const result = await resetDatabaseMaintenanceModule(bot.id, guildId, selectedModule, moduleConfirmation.trim());
       setLastResult(result);
-      setMessage(`Modulo zerado: ${result.deletedTotal} registro(s) removido(s).`);
+      setMessage(`Módulo zerado: ${result.deletedTotal} registro(s) removido(s).`);
       setModuleConfirmation("");
       if (selectedUserId) await inspectUser(selectedUserId);
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Falha ao zerar modulo.");
+      setMessage(readRequestMessage(error) ?? "Falha ao zerar módulo.");
     } finally {
       setBusy(null);
     }
@@ -2402,7 +2402,7 @@ function DatabaseMaintenancePanel({ bot, guilds }: { bot: DevBot; guilds: Dashbo
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-4 text-sm font-medium text-red-100">
-        Todas as acoes sao isoladas por <span className="font-mono">{guildId}</span> e bot <span className="font-mono">{bot.id}</span>. Use apenas depois de revisar os vinculos encontrados.
+        Todas as ações são isoladas por <span className="font-mono">{guildId}</span> e bot <span className="font-mono">{bot.id}</span>. Use apenas depois de revisar os vinculos encontrados.
       </div>
 
       {message ? (
@@ -2432,7 +2432,7 @@ function DatabaseMaintenancePanel({ bot, guilds }: { bot: DevBot; guilds: Dashbo
             <div className="space-y-2">
               {users.map((user) => (
                 <button className={`w-full rounded-lg border p-3 text-left ${selectedUserId === user.userId ? "border-[#FFEA70] bg-[#FFD500]/10" : "border-zinc-800 bg-zinc-950/70"}`} key={user.userId} onClick={() => void inspectUser(user.userId)} type="button">
-                  <span className="block text-sm font-semibold text-white">{user.username || "Usuario sem nome"}</span>
+                  <span className="block text-sm font-semibold text-white">{user.username || "Usuário sem nome"}</span>
                   <span className="block font-mono text-xs text-zinc-400">{user.userId}</span>
                   <span className="mt-1 block text-xs text-zinc-500">{user.sources.join(", ")}</span>
                 </button>
@@ -2444,13 +2444,13 @@ function DatabaseMaintenancePanel({ bot, guilds }: { bot: DevBot; guilds: Dashbo
         <Card className="border-zinc-800 bg-black/35">
           <CardHeader className="p-4">
             <CardTitle className="flex items-center gap-2 text-white"><Database className="h-4 w-4" /> Vinculos encontrados</CardTitle>
-            <CardDescription>Revise os documentos antes de confirmar a exclusao.</CardDescription>
+            <CardDescription>Revise os documentos antes de confirmar a exclusão.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 p-4 pt-0">
             {links ? (
               <>
                 <div className="grid gap-2 sm:grid-cols-3">
-                  <OverviewMetric label="Usuario" value={links.userId} />
+                  <OverviewMetric label="Usuário" value={links.userId} />
                   <OverviewMetric label="Registros" value={String(links.total)} />
                   <OverviewMetric label="Canais vinculados" value={String(new Set(links.links.flatMap((item) => item.channels)).size)} />
                 </div>
@@ -2465,10 +2465,10 @@ function DatabaseMaintenancePanel({ bot, guilds }: { bot: DevBot; guilds: Dashbo
                       {link.channels.length ? <p className="mt-1 text-xs text-yellow-200">Canais: {link.channels.join(", ")}</p> : null}
                     </div>
                   ))}
-                  {!links.links.length ? <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-100">Nenhum vinculo encontrado para este usuario.</p> : null}
+                  {!links.links.length ? <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-100">Nenhum vínculo encontrado para este usuário.</p> : null}
                 </div>
                 <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-3">
-                  <label className="block text-xs font-semibold uppercase text-red-100">Confirmar exclusao digitando o ID do usuario</label>
+                  <label className="block text-xs font-semibold uppercase text-red-100">Confirmar exclusão digitando o ID do usuário</label>
                   <div className="mt-2 flex gap-2">
                     <input className="h-10 min-w-0 flex-1 rounded-lg border border-red-500/25 bg-black px-3 font-mono text-sm text-white" onChange={(event) => setDeleteConfirmation(event.target.value)} value={deleteConfirmation} />
                     <Button disabled={busy === "delete-user" || deleteConfirmation.trim() !== selectedUserId || !links.total} onClick={() => void deleteUser()} variant="destructive">
@@ -2479,7 +2479,7 @@ function DatabaseMaintenancePanel({ bot, guilds }: { bot: DevBot; guilds: Dashbo
               </>
             ) : (
               <div className="flex min-h-56 items-center justify-center rounded-lg border border-dashed border-zinc-700 bg-black/25 text-center text-sm text-zinc-400">
-                Selecione um usuario para visualizar todos os vinculos.
+                Selecione um usuário para visualizar todos os vinculos.
               </div>
             )}
           </CardContent>
@@ -2501,8 +2501,8 @@ function DatabaseMaintenancePanel({ bot, guilds }: { bot: DevBot; guilds: Dashbo
 
         <Card className="border-yellow-500/25 bg-yellow-500/5">
           <CardHeader className="p-4">
-            <CardTitle className="text-white">Zerar modulo</CardTitle>
-            <CardDescription>Digite CONFIRMAR antes de zerar o modulo selecionado.</CardDescription>
+            <CardTitle className="text-white">Zerar módulo</CardTitle>
+            <CardDescription>Digite CONFIRMAR antes de zerar o módulo selecionado.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 p-4 pt-0">
             <select className="h-10 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-white" onChange={(event) => setSelectedModule(event.target.value)} value={selectedModule}>
@@ -2510,7 +2510,7 @@ function DatabaseMaintenancePanel({ bot, guilds }: { bot: DevBot; guilds: Dashbo
             </select>
             <input className="h-10 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-white" onChange={(event) => setModuleConfirmation(event.target.value)} placeholder="CONFIRMAR" value={moduleConfirmation} />
             <Button disabled={busy === "reset-module" || moduleConfirmation.trim() !== "CONFIRMAR"} onClick={() => void resetModule()} variant="destructive">
-              {busy === "reset-module" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Zerar modulo
+              {busy === "reset-module" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Zerar módulo
             </Button>
           </CardContent>
         </Card>
@@ -2577,7 +2577,7 @@ function SystemEmojisPanel({ bot, guilds }: { bot: DevBot; guilds: DashboardMeGu
       setDashboard(data);
       setDrafts(Object.fromEntries(data.emojis.map((emoji) => [emoji.key, draftFromEmoji(emoji)])));
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Nao foi possivel carregar emojis do sistema.");
+      setMessage(readRequestMessage(error) ?? "Não foi possível carregar emojis do sistema.");
     } finally {
       setBusy(null);
     }
@@ -2636,7 +2636,7 @@ function SystemEmojisPanel({ bot, guilds }: { bot: DevBot; guilds: DashboardMeGu
       const data = await resetSystemEmoji(emoji.key, bot.id, selectedGuildId || null);
       setDashboard(data);
       setDrafts(Object.fromEntries(data.emojis.map((item) => [item.key, draftFromEmoji(item)])));
-      setMessage(`Emoji ${emoji.key} voltou para o padrao/global.`);
+      setMessage(`Emoji ${emoji.key} voltou para o padrão/global.`);
     } catch (error) {
       setMessage(readRequestMessage(error) ?? "Falha ao resetar emoji.");
     } finally {
@@ -2651,7 +2651,7 @@ function SystemEmojisPanel({ bot, guilds }: { bot: DevBot; guilds: DashboardMeGu
       const data = await syncSystemEmojis(bot.id, selectedGuildId || null);
       setDashboard(data);
       setDrafts(Object.fromEntries(data.emojis.map((item) => [item.key, draftFromEmoji(item)])));
-      setMessage("Sincronizacao solicitada. O bot atualiza o cache automaticamente quando ler os emojis do servidor.");
+      setMessage("Sincronização solicitada. O bot atualiza o cache automaticamente quando ler os emojis do servidor.");
     } catch (error) {
       setMessage(readRequestMessage(error) ?? "Falha ao sincronizar emojis.");
     } finally {
@@ -2981,7 +2981,7 @@ function ModuleDashboardCard({
         </button>
         <button
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-black/20 text-zinc-500 transition hover:border-[#FFD500]/35 hover:text-white"
-          title={`Modulo: ${module.id}`}
+          title={`Módulo: ${module.id}`}
           type="button"
         >
           <MoreVertical className="h-4 w-4" />
@@ -3050,14 +3050,14 @@ const defaultSaleForm: SaveNexTechSalePayload = {
 
 const productFeatureLabels: Record<NexTechProductFeatureKey, string> = {
   activationKey: "Chave de ativacao",
-  automaticContract: "Contrato automatico",
-  automaticLogin: "Login automatico",
-  automaticPix: "Pix automatico",
-  automaticRenewal: "Renovacao automatica",
+  automaticContract: "Contrato automático",
+  automaticLogin: "Login automático",
+  automaticPix: "Pix automático",
+  automaticRenewal: "Renovacao automática",
   coupons: "Aceita cupom",
   hosting: "Hospedagem inclusa",
   passwordCreation: "Criacao de senha",
-  releaseCode: "Codigo de liberacao",
+  releaseCode: "Código de liberação",
   support: "Suporte",
   updates: "Atualizacoes"
 };
@@ -3078,7 +3078,7 @@ const defaultProductForm: SaveNexTechProductPayload = {
   observations: "",
   plans: {
     monthly: {
-      benefits: ["Hospedagem inclusa", "Atualizacoes", "Suporte", "Liberacao automatica"],
+      benefits: ["Hospedagem inclusa", "Atualizacoes", "Suporte", "Liberação automática"],
       buttonColor: "#FFD500",
       buttonText: "Mensal",
       description: "Hospedagem inclusa. Pagamento recorrente.",
@@ -3090,10 +3090,10 @@ const defaultProductForm: SaveNexTechProductPayload = {
       priceText: "R$ 30,00/mes"
     },
     lifetime: {
-      benefits: ["Licenca permanente", "Atualizacoes futuras", "Hospedagem gratuita por 1 mes", "Suporte prioritario", "Atendimento 24 horas"],
+      benefits: ["Licença permanente", "Atualizacoes futuras", "Hospedagem gratuita por 1 mes", "Suporte prioritario", "Atendimento 24 horas"],
       buttonColor: "#9333ea",
       buttonText: "Vitalicio",
-      description: "Licenca permanente do modulo. Apos o periodo gratuito sera cobrada apenas a hospedagem, a partir de R$12,00 por mes.",
+      description: "Licença permanente do módulo. Após o periodo gratuito será cobrada apenas a hospedagem, a partir de R$12,00 por mes.",
       discordRoleId: null,
       enabled: false,
       name: "Plano Vitalicio",
@@ -3108,7 +3108,7 @@ const defaultProductForm: SaveNexTechProductPayload = {
     description: "",
     title: ""
   },
-  shortDescription: "Pagina de venda premium configuravel pela dashboard.",
+  shortDescription: "Página de venda premium configuravel pela dashboard.",
   slug: "",
   toggles: {
     activationKey: false,
@@ -3178,7 +3178,7 @@ function NexTechSalesWorkspace({
         }));
       })
       .catch((error) => {
-        if (!cancelled) setMessage(readRequestMessage(error) ?? "Nao foi possivel carregar o sistema de vendas.");
+        if (!cancelled) setMessage(readRequestMessage(error) ?? "Não foi possível carregar o sistema de vendas.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -3204,9 +3204,9 @@ function NexTechSalesWorkspace({
       const settings = await saveNexTechSalesSettings(bot.id, guildId, sanitizeSalesSettingsForm(settingsForm));
       setDashboard((current) => current ? { ...current, settings } : current);
       setSettingsForm(settingsToForm(settings));
-      setMessage("Configuracao de vendas salva.");
+      setMessage("Configuração de vendas salva.");
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Nao foi possivel salvar a configuracao.");
+      setMessage(readRequestMessage(error) ?? "Não foi possível salvar a configuração.");
     } finally {
       setSaving(null);
     }
@@ -3222,7 +3222,7 @@ function NexTechSalesWorkspace({
       setProviderForm(defaultProviderForm);
       setMessage("Forma de pagamento salva.");
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Nao foi possivel salvar o pagamento.");
+      setMessage(readRequestMessage(error) ?? "Não foi possível salvar o pagamento.");
     } finally {
       setSaving(null);
     }
@@ -3255,7 +3255,7 @@ function NexTechSalesWorkspace({
       await refreshDashboard();
       setMessage("Produto salvo.");
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Nao foi possivel salvar o produto.");
+      setMessage(readRequestMessage(error) ?? "Não foi possível salvar o produto.");
     } finally {
       setSaving(null);
     }
@@ -3269,7 +3269,7 @@ function NexTechSalesWorkspace({
       await refreshDashboard();
       setMessage("Produto duplicado.");
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Nao foi possivel duplicar o produto.");
+      setMessage(readRequestMessage(error) ?? "Não foi possível duplicar o produto.");
     } finally {
       setSaving(null);
     }
@@ -3287,7 +3287,7 @@ function NexTechSalesWorkspace({
       await refreshDashboard();
       setMessage("Produto excluido.");
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Nao foi possivel excluir o produto.");
+      setMessage(readRequestMessage(error) ?? "Não foi possível excluir o produto.");
     } finally {
       setSaving(null);
     }
@@ -3304,7 +3304,7 @@ function NexTechSalesWorkspace({
       await refreshDashboard();
       setMessage("Banner do produto atualizado.");
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Nao foi possivel enviar o banner.");
+      setMessage(readRequestMessage(error) ?? "Não foi possível enviar o banner.");
     } finally {
       setSaving(null);
     }
@@ -3325,7 +3325,7 @@ function NexTechSalesWorkspace({
       await refreshDashboard();
       setMessage("Plano salvo.");
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Nao foi possivel salvar o plano.");
+      setMessage(readRequestMessage(error) ?? "Não foi possível salvar o plano.");
     } finally {
       setSaving(null);
     }
@@ -3360,7 +3360,7 @@ function NexTechSalesWorkspace({
       await refreshDashboard();
       setMessage("Venda registrada.");
     } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Nao foi possivel registrar a venda.");
+      setMessage(readRequestMessage(error) ?? "Não foi possível registrar a venda.");
     } finally {
       setSaving(null);
     }
@@ -3424,10 +3424,10 @@ function NexTechSalesWorkspace({
               {!enabled ? (
                 <Button onClick={onEnable} variant="outline">
                   <Power className="h-4 w-4" />
-                  Liberar modulo
+                  Liberar módulo
                 </Button>
               ) : (
-                <Badge className="border-emerald-400/30 bg-emerald-500/15 text-emerald-100" variant="muted">Modulo liberado</Badge>
+                <Badge className="border-emerald-400/30 bg-emerald-500/15 text-emerald-100" variant="muted">Módulo liberado</Badge>
               )}
             </div>
           </div>
@@ -3457,7 +3457,7 @@ function NexTechSalesWorkspace({
             <div>
               <p className="text-base font-bold text-white">Sistema de vendas bloqueado neste bot</p>
               <p className="mt-1 max-w-xl text-sm font-medium text-zinc-300">
-                Libere o modulo Nex Tech - Sistema de Vendas para o bot selecionado antes de configurar planos, pagamentos e vendas.
+                Libere o módulo Nex Tech - Sistema de Vendas para o bot selecionado antes de configurar planos, pagamentos e vendas.
               </p>
             </div>
             <Button onClick={onEnable}>
@@ -3476,7 +3476,7 @@ function NexTechSalesWorkspace({
         <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
           <Card className="border-zinc-800/80 bg-zinc-950/80 hover:translate-y-0">
             <CardHeader>
-              <CardTitle className="text-white">Configuracao publica</CardTitle>
+              <CardTitle className="text-white">Configuração publica</CardTitle>
               <CardDescription>Textos, canais, URL e imagens dos paineis de venda.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -3493,7 +3493,7 @@ function NexTechSalesWorkspace({
                 <DevInput label="Termos de venda" onChange={(value) => setSettingsForm((current) => ({ ...current, termsUrl: value }))} value={settingsForm.termsUrl ?? ""} />
               </div>
               <label className="block">
-                <span className="mb-2 block text-xs font-bold uppercase text-zinc-400">Descricao</span>
+                <span className="mb-2 block text-xs font-bold uppercase text-zinc-400">Descrição</span>
                 <textarea
                   className="min-h-24 w-full rounded-lg border border-zinc-800 bg-black/40 px-3 py-2 text-sm font-medium text-white outline-none transition focus:border-[#FFEA70]/60"
                   onChange={(event) => setSettingsForm((current) => ({ ...current, panelDescription: event.target.value }))}
@@ -3516,7 +3516,7 @@ function NexTechSalesWorkspace({
                 </select>
                 <Button disabled={saving === "settings"} onClick={() => void handleSaveSettings()}>
                   {saving === "settings" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings className="h-4 w-4" />}
-                  Salvar configuracao
+                  Salvar configuração
                 </Button>
               </div>
             </CardContent>
@@ -3526,7 +3526,7 @@ function NexTechSalesWorkspace({
             <Card className="border-zinc-800/80 bg-zinc-950/80 hover:translate-y-0">
               <CardHeader>
                 <CardTitle className="text-white">Pagamentos modulares</CardTitle>
-                <CardDescription>Para Mercado Pago, use Checkout Pro: Public Key no campo publico e Access Token no segredo.</CardDescription>
+                <CardDescription>Para Mercado Pago, use Checkout Pro: Public Key no campo público e Access Token no segredo.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -3570,23 +3570,23 @@ function NexTechSalesWorkspace({
           <Card className="border-[#FFD500]/20 bg-zinc-950/80 hover:translate-y-0 xl:col-span-2">
             <CardHeader>
               <CardTitle className="text-white">Produtos</CardTitle>
-              <CardDescription>Paginas de venda com banner, planos mensal/vitalicio, beneficios e checkout vinculado ao gateway da loja.</CardDescription>
+              <CardDescription>Paginas de venda com banner, planos mensal/vitalicio, benefícios e checkout vinculado ao gateway da loja.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.75fr)]">
               <div className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <DevInput label="Nome do produto" onChange={(value) => setProductForm((current) => ({ ...current, name: value }))} value={productForm.name} />
-                  <DevInput label="Slug da pagina" onChange={(value) => setProductForm((current) => ({ ...current, slug: value }))} value={productForm.slug} />
+                  <DevInput label="Slug da página" onChange={(value) => setProductForm((current) => ({ ...current, slug: value }))} value={productForm.slug} />
                   <DevInput label="Categoria" onChange={(value) => setProductForm((current) => ({ ...current, category: value }))} value={productForm.category} />
                   <DevInput label="Banner URL" onChange={(value) => setProductForm((current) => ({ ...current, bannerUrl: value }))} value={productForm.bannerUrl ?? ""} />
                   <DevInput label="Cor destaque" onChange={(value) => setProductForm((current) => ({ ...current, layout: { ...current.layout, accentColor: value } }))} value={productForm.layout.accentColor} />
-                  <DevInput label="Descricao curta" onChange={(value) => setProductForm((current) => ({ ...current, shortDescription: value }))} value={productForm.shortDescription} />
+                  <DevInput label="Descrição curta" onChange={(value) => setProductForm((current) => ({ ...current, shortDescription: value }))} value={productForm.shortDescription} />
                 </div>
                 <div className="rounded-lg border border-zinc-800 bg-black/30 p-3">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm font-bold text-white">Upload de banner</p>
-                      <p className="mt-1 text-xs font-medium text-zinc-400">Disponivel apos salvar/criar o produto.</p>
+                      <p className="mt-1 text-xs font-medium text-zinc-400">Disponível após salvar/criar o produto.</p>
                     </div>
                     <input
                       accept="image/gif,image/jpeg,image/png,image/webp"
@@ -3599,9 +3599,9 @@ function NexTechSalesWorkspace({
                 </div>
 
                 <div className="grid gap-3 lg:grid-cols-2">
-                  <ProductTextArea label="Descricao completa" onChange={(value) => setProductForm((current) => ({ ...current, fullDescription: value }))} value={productForm.fullDescription} />
+                  <ProductTextArea label="Descrição completa" onChange={(value) => setProductForm((current) => ({ ...current, fullDescription: value }))} value={productForm.fullDescription} />
                   <ProductTextArea label="Como funciona" onChange={(value) => setProductForm((current) => ({ ...current, howItWorks: value }))} value={productForm.howItWorks} />
-                  <ProductTextArea label="Informacoes adicionais" onChange={(value) => setProductForm((current) => ({ ...current, additionalInfo: value }))} value={productForm.additionalInfo} />
+                  <ProductTextArea label="Informações adicionais" onChange={(value) => setProductForm((current) => ({ ...current, additionalInfo: value }))} value={productForm.additionalInfo} />
                   <ProductTextArea label="Avisos" onChange={(value) => setProductForm((current) => ({ ...current, warnings: value }))} value={productForm.warnings} />
                 </div>
 
@@ -3652,7 +3652,7 @@ function NexTechSalesWorkspace({
                     {editingProductId ? <Button onClick={() => { setEditingProductId(null); setProductForm(defaultProductForm); }} variant="outline">Cancelar</Button> : null}
                     <Button disabled={saving === "product"} onClick={() => void handleSaveProduct()}>
                       {saving === "product" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                      {editingProductId ? "Salvar alteracoes" : "Novo produto"}
+                      {editingProductId ? "Salvar alterações" : "Novo produto"}
                     </Button>
                   </div>
                 </div>
@@ -3705,7 +3705,7 @@ function NexTechSalesWorkspace({
           <Card className="border-[#FFD500]/20 bg-zinc-950/80 hover:translate-y-0 xl:col-span-2">
             <CardHeader>
               <CardTitle className="text-white">Plano Vitalicio</CardTitle>
-              <CardDescription>Licencas permanentes, hospedagem gratuita e proximas cobrancas de hospedagem.</CardDescription>
+              <CardDescription>Licenças permanentes, hospedagem gratuita e proximas cobrancas de hospedagem.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 lg:grid-cols-2">
               {dashboard?.lifetimeLicenses.map((license) => {
@@ -3723,15 +3723,15 @@ function NexTechSalesWorkspace({
                         <p className="truncate text-sm font-bold text-white">{license.moduleName}</p>
                         <p className="mt-1 text-xs font-medium text-zinc-400">Compra: {formatDate(license.purchaseDate)}</p>
                       </div>
-                      <Badge variant={license.licenseStatus === "active" ? "success" : "muted"}>{license.licenseStatus === "active" ? "Licenca ativa" : "Licenca cancelada"}</Badge>
+                      <Badge variant={license.licenseStatus === "active" ? "success" : "muted"}>{license.licenseStatus === "active" ? "Licença ativa" : "Licença cancelada"}</Badge>
                     </div>
                     <div className="mt-4 grid gap-2 text-xs font-semibold text-zinc-300 sm:grid-cols-2">
                       <PlanInfoLine label="Hospedagem" value={hostingStatusLabel(license.hostingStatus)} />
                       <PlanInfoLine label="Dias gratis" value={String(license.hostingFreeDaysRemaining)} />
                       <PlanInfoLine label="Valor hospedagem" value={formatMoney(license.hostingPriceCents, dashboard.settings.currency)} />
                       <PlanInfoLine label="Proximo vencimento" value={license.nextHostingDueAt ? formatDate(license.nextHostingDueAt) : "Sem vencimento"} />
-                      <PlanInfoLine label="Suporte" value={license.supportLevel === "priority" ? "Prioritario" : "Padrao"} />
-                      <PlanInfoLine label="Atualizacoes" value={license.updatesIncluded ? "Inclusas" : "Nao inclusas"} />
+                      <PlanInfoLine label="Suporte" value={license.supportLevel === "priority" ? "Prioritario" : "Padrão"} />
+                      <PlanInfoLine label="Atualizacoes" value={license.updatesIncluded ? "Inclusas" : "Não inclusas"} />
                     </div>
                     <Button className="mt-4 w-full" disabled={!pendingHostingSale || saving === pendingHostingSale.id} onClick={() => pendingHostingSale ? void handleSaleStatus(pendingHostingSale.id, "paid") : undefined} variant="outline">
                       Renovar Hospedagem
@@ -3759,7 +3759,7 @@ function NexTechSalesWorkspace({
                 <DevInput inputMode="numeric" label="Duracao em dias" onChange={(value) => setPlanForm((current) => ({ ...current, durationDays: Number(value.replace(/\D/g, "")) || null }))} value={String(planForm.durationDays ?? "")} />
                 <DevInput inputMode="numeric" label="Cargo entregue" onChange={(value) => setPlanForm((current) => ({ ...current, discordRoleId: value.replace(/\D/g, "") || null }))} value={planForm.discordRoleId ?? ""} />
                 <DevInput label="Imagem do plano" onChange={(value) => setPlanForm((current) => ({ ...current, imageUrl: value }))} value={planForm.imageUrl ?? ""} />
-                <DevInput label="Descricao" onChange={(value) => setPlanForm((current) => ({ ...current, description: value }))} value={planForm.description ?? ""} />
+                <DevInput label="Descrição" onChange={(value) => setPlanForm((current) => ({ ...current, description: value }))} value={planForm.description ?? ""} />
                 <DevInput label="Mensagem checkout" onChange={(value) => setPlanForm((current) => ({ ...current, checkoutMessage: value }))} value={planForm.checkoutMessage ?? ""} />
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -3797,7 +3797,7 @@ function NexTechSalesWorkspace({
           <Card className="border-zinc-800/80 bg-zinc-950/80 hover:translate-y-0">
             <CardHeader>
               <CardTitle className="text-white">Vendas e liberacoes</CardTitle>
-              <CardDescription>Registro manual ou confirmacao de pagamentos recebidos.</CardDescription>
+              <CardDescription>Registro manual ou confirmação de pagamentos recebidos.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-2">
@@ -3912,18 +3912,18 @@ function ProductPlanEditor({
           </>
         ) : null}
         <DevInput label="Texto do valor" onChange={(value) => updatePlan("priceText", value)} value={plan.priceText} />
-        <DevInput label="Texto do botao" onChange={(value) => updatePlan("buttonText", value)} value={plan.buttonText} />
-        <DevInput label="Cor do botao" onChange={(value) => updatePlan("buttonColor", value)} value={plan.buttonColor} />
+        <DevInput label="Texto do botão" onChange={(value) => updatePlan("buttonText", value)} value={plan.buttonText} />
+        <DevInput label="Cor do botão" onChange={(value) => updatePlan("buttonColor", value)} value={plan.buttonColor} />
         <select
           className="h-11 rounded-lg border border-zinc-800 bg-black/40 px-3 text-sm font-semibold text-white outline-none"
           onChange={(event) => updatePlan("paymentProviderId", event.target.value || null)}
           value={plan.paymentProviderId ?? ""}
         >
-          <option value="">Gateway padrao da loja</option>
+          <option value="">Gateway padrão da loja</option>
           {paymentProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
         </select>
-        <ProductTextArea label="Descricao" onChange={(value) => updatePlan("description", value)} value={plan.description} />
-        <ProductTextArea label="Beneficios (um por linha)" onChange={(value) => updatePlan("benefits", splitLines(value))} value={plan.benefits.join("\n")} />
+        <ProductTextArea label="Descrição" onChange={(value) => updatePlan("description", value)} value={plan.description} />
+        <ProductTextArea label="Benefícios (um por linha)" onChange={(value) => updatePlan("benefits", splitLines(value))} value={plan.benefits.join("\n")} />
       </div>
     </div>
   );
@@ -4011,7 +4011,7 @@ function saleDeliveryStatusLabel(status: NonNullable<NexTechSale["deliveryStatus
 function hostingStatusLabel(status: "active" | "pending_payment" | "suspended" | "not_required") {
   const labels: Record<typeof status, string> = {
     active: "Ativa",
-    not_required: "Nao aplicavel",
+    not_required: "Não aplicavel",
     pending_payment: "Pagamento pendente",
     suspended: "Suspensa"
   };
@@ -4164,7 +4164,7 @@ function ServerCloneDevWorkspace({
     const guildId = form.destinationGuildInput.trim();
 
     if (!/^\d{5,32}$/.test(guildId)) {
-      setMessage("Informe um ID valido para o servidor de destino.");
+      setMessage("Informe um ID válido para o servidor de destino.");
       return;
     }
 
@@ -4234,7 +4234,7 @@ function ServerCloneDevWorkspace({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="border-[#FFD500]/30 bg-[#FFD500]/10 text-[#FFEA70]" variant="muted">Clonagem DEV</Badge>
-              <Badge variant={enabled ? "success" : "muted"}>{enabled ? "Modulo liberado" : "Modulo desativado"}</Badge>
+              <Badge variant={enabled ? "success" : "muted"}>{enabled ? "Módulo liberado" : "Módulo desativado"}</Badge>
             </div>
             <h3 className="mt-3 text-lg font-bold text-white">Direcionamento de servidor</h3>
             <p className="mt-1 text-sm font-medium text-zinc-300">
@@ -4347,7 +4347,7 @@ function ServerCloneDevWorkspace({
           <p className="mt-4 text-sm font-bold text-white">Como o bot vai usar</p>
           <p className="mt-2 text-sm font-medium leading-6 text-zinc-300">
             O plano fica salvo no servidor de destino. Quando o comando /clonar-servidor for aberto nesse destino,
-            o modal vem com origem e destino preenchidos e aplica os adicionais apos copiar a estrutura.
+            o modal vem com origem e destino preenchidos e aplica os adicionais após copiar a estrutura.
           </p>
           <div className="mt-4 space-y-2 text-xs font-semibold text-zinc-400">
             <p className="rounded-lg border border-zinc-800 bg-black/30 px-3 py-2">Origem: {guildLabel(guildOptions, form.sourceGuildId)}</p>
@@ -4660,7 +4660,7 @@ function ModuleSwitchGrid({
   return (
     <div className="space-y-5">
       <ModuleSwitchSection enabledModules={enabledModules} modules={standardModules} onToggle={onToggle} title="Sistemas do bot" />
-      <ModuleSwitchSection enabledModules={enabledModules} modules={policeModules} onToggle={onToggle} title="Sistemas Policia" />
+      <ModuleSwitchSection enabledModules={enabledModules} modules={policeModules} onToggle={onToggle} title="Sistemas Polícia" />
       <ModuleSwitchSection enabledModules={enabledModules} modules={fiveMModules} onToggle={onToggle} title="Sistemas FiveM" />
     </div>
   );
@@ -5020,7 +5020,7 @@ function statusLabel(status: DevBotStatus) {
     ready: "Pronto",
     degraded: "Degradado",
     stopping: "Desligando",
-    invalid_token: "Token invalido",
+    invalid_token: "Token inválido",
     error: "Erro"
   };
 

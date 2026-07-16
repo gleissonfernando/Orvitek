@@ -300,12 +300,12 @@ export class BotSocketClient {
 
   connect(client: Client) {
     if (!env.BACKEND_SOCKET_URL) {
-      console.warn("[socket] BACKEND_SOCKET_URL nao configurado; conexao em tempo real desativada.");
+      console.warn("[socket] BACKEND_SOCKET_URL não configurado; conexão em tempo real desativada.");
       return;
     }
 
     if (!env.BOT_API_TOKEN) {
-      console.warn("[socket] BOT_API_TOKEN nao configurado; eventos em tempo real do bot serao ignorados pelo backend.");
+      console.warn("[socket] BOT_API_TOKEN não configurado; eventos em tempo real do bot serão ignorados pelo backend.");
     }
 
     this.socket?.disconnect();
@@ -733,7 +733,7 @@ export class BotSocketClient {
       callback: (response: TagVerificationRunResult | { error: string }) => void
     ) => {
       if (!this.tagVerificationRunHandler) {
-        callback({ error: "Verificacao de Tag indisponivel neste bot." });
+        callback({ error: "Verificação de Tag indisponível neste bot." });
         return;
       }
 

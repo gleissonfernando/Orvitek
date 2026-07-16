@@ -200,6 +200,6 @@ databaseMaintenanceRouter.post("/bot/guilds/:guildId/member-left/:userId", requi
 
 async function assertCanManageBot(auth: DashboardAuth, botId: string) {
   if (!(await canManageDevBot(auth.user, botId))) {
-    throw Object.assign(new Error("Voce nao tem acesso administrativo a este bot."), { statusCode: 403 });
+    throw Object.assign(new Error("Você não tem acesso administrativo a este bot."), { statusCode: 403 });
   }
 }

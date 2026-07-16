@@ -14,7 +14,7 @@ export function decryptSecret(value: string) {
   const [ivValue, tagValue, encryptedValue] = value.split(".");
 
   if (!ivValue || !tagValue || !encryptedValue) {
-    throw new Error("Segredo protegido invalido.");
+    throw new Error("Segredo protegido inválido.");
   }
 
   const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), Buffer.from(ivValue, "base64url"));

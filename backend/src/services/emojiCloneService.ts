@@ -185,7 +185,7 @@ export async function createEmojiLibraryZip(input: {
     if (input.signal?.aborted) throw new DOMException("Download cancelado", "AbortError");
 
     if (!data?.length) {
-      console.warn(`[emoji-download] Emoji indisponivel: ${item.name || item.originalEmojiId}`);
+      console.warn(`[emoji-download] Emoji indisponível: ${item.name || item.originalEmojiId}`);
       return null;
     }
 
@@ -362,7 +362,7 @@ async function fetchEmojiBuffer(url: string, signal?: AbortSignal) {
   const response = await fetch(url, { signal });
 
   if (!response.ok) {
-    throw new Error("Nao foi possivel baixar emoji.");
+    throw new Error("Não foi possível baixar emoji.");
   }
 
   return Buffer.from(await response.arrayBuffer());
@@ -384,11 +384,11 @@ function inferEmojiCategory(name: string) {
   if (/error|erro|fail|x|no/.test(normalized)) return "Erro";
   if (/warn|aviso|alert/.test(normalized)) return "Aviso";
   if (/info|help/.test(normalized)) return "Informacao";
-  if (/config|gear|setting/.test(normalized)) return "Configuracao";
-  if (/safe|shield|security/.test(normalized)) return "Seguranca";
+  if (/config|gear|setting/.test(normalized)) return "Configuração";
+  if (/safe|shield|security/.test(normalized)) return "Segurança";
   if (/bot|robot/.test(normalized)) return "Bot";
   if (/server|guild/.test(normalized)) return "Servidor";
-  if (/user|member/.test(normalized)) return "Usuario";
+  if (/user|member/.test(normalized)) return "Usuário";
   if (/dash|panel/.test(normalized)) return "Dashboard";
   return "Sistema";
 }

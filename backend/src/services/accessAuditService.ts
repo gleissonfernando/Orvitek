@@ -29,6 +29,6 @@ export async function recordAccessAttempt(req: Request, input: {
       username: input.username ?? null
     }
   }).catch((error) => {
-    console.warn("[access] nao foi possivel registrar auditoria:", error instanceof Error ? error.message : error);
+    console.warn("[access] não foi possível registrar auditoria:", error instanceof Error ? error.message : error);
   });
 }

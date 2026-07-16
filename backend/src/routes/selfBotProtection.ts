@@ -502,7 +502,7 @@ selfBotProtectionRouter.patch("/:guildId", requireAuth, async (req, res, next) =
       ? directSetup
       : settings.enabled
         ? setupResponses.find((response) => response.ok) ?? setupResponses[0] ?? {
-          error: "Bot offline ou sem conexao em tempo real. A criacao sera tentada novamente automaticamente.",
+          error: "Bot offline ou sem conexão em tempo real. A criacao será tentada novamente automaticamente.",
           ok: false
         }
         : { ok: true };
@@ -528,7 +528,7 @@ async function readRequiredBotId(req: Parameters<typeof resolveRequestBotId>[0])
 
 async function ensureSafeBotResourcesFromBackend(guildId: string, botId: string) {
   const token = await getDevBotToken(botId);
-  if (!token) throw createRouteError("Token do bot nao esta disponivel para criar a estrutura SafeBot.", 409);
+  if (!token) throw createRouteError("Token do bot não está disponível para criar a estrutura SafeBot.", 409);
 
   const resources = await ensureSafeBotDiscordResources(guildId, token);
   await updateGuildSettings(guildId, {
@@ -551,7 +551,7 @@ async function assertCanRead(user: AuthSessionUser, guildId: string, botId: stri
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para acessar o SelfBot Protection deste bot.", 403);
+  throw createRouteError("Você não tem permissão para acessar o SelfBot Protection deste bot.", 403);
 }
 
 async function assertCanManage(user: AuthSessionUser, guildId: string, botId: string) {
@@ -561,22 +561,22 @@ async function assertCanManage(user: AuthSessionUser, guildId: string, botId: st
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para configurar o SelfBot Protection deste bot.", 403);
+  throw createRouteError("Você não tem permissão para configurar o SelfBot Protection deste bot.", 403);
 }
 
 async function assertBotModuleLicense(botId: string, guildId?: string, moduleId = MODULE_ID) {
   const permissions = await getBotApiPermissions(botId);
 
   if (!permissions) {
-    throw createRouteError("Bot nao encontrado.", 404);
+    throw createRouteError("Bot não encontrado.", 404);
   }
 
   if (!permissions.enabledModules.includes(MODULE_ID)) {
-    throw createRouteError("O SelfBot Protection nao foi liberado para este bot.", 403);
+    throw createRouteError("O SelfBot Protection não foi liberado para este bot.", 403);
   }
 
   if (!(await isSecurityProtectionReleasedForBot(botId))) {
-    throw createRouteError("Este sistema ainda nao foi liberado para este bot pelo desenvolvedor.", 403);
+    throw createRouteError("Este sistema ainda não foi liberado para este bot pelo desenvolvedor.", 403);
   }
 
   if (guildId) {
@@ -624,7 +624,7 @@ async function validateResources(
   );
 
   if (!channelChecks.every(Boolean)) {
-    throw createRouteError("Um dos canais selecionados nao pertence a este servidor.", 400);
+    throw createRouteError("Um dos canais selecionados não pertence a este servidor.", 400);
   }
 
   const roleIds = [input.addRoleId, input.removeRoleId].filter((roleId): roleId is string => Boolean(roleId));

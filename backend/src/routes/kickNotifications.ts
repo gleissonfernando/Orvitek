@@ -206,7 +206,7 @@ kickNotificationsRouter.put("/:guildId/api/config", requireAuth, async (req, res
     const input = validateApiSchema.parse(req.body);
 
     if (!input) {
-      throw createServiceError("Credenciais da Kick API obrigatorias.", 400);
+      throw createServiceError("Credenciais da Kick API obrigatórias.", 400);
     }
 
     const config = await saveKickApiConfig(guildId, {
@@ -391,13 +391,13 @@ async function handleKickWebhook(req: Request, res: Response, next: NextFunction
     });
 
     if (!valid) {
-      console.warn("[kick:webhook] assinatura invalida.", {
+      console.warn("[kick:webhook] assinatura inválida.", {
         eventType,
         messageId
       });
 
       return res.status(401).json({
-        message: "Assinatura Kick invalida."
+        message: "Assinatura Kick inválida."
       });
     }
 
@@ -491,7 +491,7 @@ async function assertCanManageGuild(req: Request, guildId: string, botId: string
 
   if (botId ? !(await canUseAnyKickModule(user, botId, guildId)) : !canManageDashboardGuild(user, guildId)) {
     await writeKickAudit({
-      action: `sem permissao tentou ${action}`,
+      action: `sem permissão tentou ${action}`,
       botId,
       guildId,
       userId: user.discordId
@@ -505,7 +505,7 @@ async function assertCanReadGuild(req: Request, guildId: string, botId: string |
 
   if (botId ? !(await canReadAnyKickModule(user, botId, guildId)) : !canManageDashboardGuild(user, guildId)) {
     await writeKickAudit({
-      action: `sem permissao tentou ${action}`,
+      action: `sem permissão tentou ${action}`,
       botId,
       guildId,
       userId: user.discordId
@@ -578,7 +578,7 @@ async function writeKickAudit(input: {
     guildId: input.guildId,
     userId: input.userId,
     type: "audit.kick",
-    message: `Usuario ${input.action}.`,
+    message: `Usuário ${input.action}.`,
     metadata: {
       action: input.action,
       botId: input.botId,

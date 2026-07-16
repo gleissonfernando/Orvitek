@@ -419,7 +419,7 @@ export function ClipsPanel({ botId, canManage, guild, platform = "twitch", refre
             <Button asChild variant="outline">
               <a href={config.publicUrl} rel="noreferrer" target="_blank">
                 <ExternalLink className="h-4 w-4" />
-                Painel publico
+                Painel público
               </a>
             </Button>
           ) : null}
@@ -552,7 +552,7 @@ export function ClipsPanel({ botId, canManage, guild, platform = "twitch", refre
           <Card>
             <CardHeader>
               <CardTitle>Personalização</CardTitle>
-              <CardDescription>Mensagem, cor e mencao do alerta.</CardDescription>
+              <CardDescription>Mensagem, cor e menção do alerta.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
               <Field label="Mensagem personalizada">
@@ -574,7 +574,7 @@ export function ClipsPanel({ botId, canManage, guild, platform = "twitch", refre
                     <input className="social-input" onChange={(event) => updateForm("embedColor", event.target.value)} value={form.embedColor} />
                   </div>
                 </Field>
-                <Field label="Mencao">
+                <Field label="Menção">
                   <select className="social-input" onChange={(event) => updateForm("mentionType", event.target.value as ClipMentionType)} value={form.mentionType}>
                     <option value="none">Ninguem</option>
                     <option value="everyone">@everyone</option>
@@ -747,7 +747,7 @@ function ClipsConfigList({
         <span>Canal</span>
         <span>Status</span>
         <span>Última verificação</span>
-        <span className="text-right">Acoes</span>
+        <span className="text-right">Ações</span>
       </div>
       <div className="divide-y divide-zinc-900">
         {configs.map((item) => (

@@ -91,7 +91,7 @@ export async function getKickLivestreamsByUserIds(userIds: string[]) {
 
 async function getAppAccessToken() {
   if (!env.KICK_CLIENT_ID || !(env.KICK_CLIENT_SECRET || env.KICK_API_KEY)) {
-    throw new Error("Credenciais da Kick API nao configuradas no bot.");
+    throw new Error("Credenciais da Kick API não configuradas no bot.");
   }
 
   if (tokenCache && tokenCache.expiresAt > Date.now() + 60_000) {

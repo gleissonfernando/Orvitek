@@ -36,7 +36,7 @@ livesRouter.get("/", async (req, res) => {
 
   if (guildId && !(await canReadScopedGuild(req, guildId, botId))) {
     return res.status(403).json({
-      message: "Servidor nao encontrado ou sem o bot."
+      message: "Servidor não encontrado ou sem o bot."
     });
   }
 
@@ -54,13 +54,13 @@ livesRouter.post("/events", async (req, res, next) => {
 
     if (!botId) {
       return res.status(400).json({
-        message: "botId obrigatorio para registrar evento de live."
+        message: "botId obrigatório para registrar evento de live."
       });
     }
 
     if (!isBotRequest(req) && !(await canManageScopedGuild(req, input.guildId, botId))) {
       return res.status(403).json({
-        message: "Servidor nao encontrado ou sem o bot."
+        message: "Servidor não encontrado ou sem o bot."
       });
     }
 

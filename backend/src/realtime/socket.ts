@@ -269,7 +269,7 @@ function scheduleBotDisconnectOffline(io: Server, botId: string) {
         return;
       }
 
-      void updateDevBotRuntimeStatus(botId, "offline", "Bot sem conexao realtime com o backend.");
+      void updateDevBotRuntimeStatus(botId, "offline", "Bot sem conexão realtime com o backend.");
 
       if ((getBotStatus().botId ?? null) === botId) {
         io.emit("bot:status", updateBotStatus({

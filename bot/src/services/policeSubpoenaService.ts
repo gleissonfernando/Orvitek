@@ -85,7 +85,7 @@ export async function openSubpoenaFlow(interaction: ChatInputCommandInteraction,
   }
 
   const settings = await getFreshGuildSettings(context, interaction.guild.id, interaction.client.user?.id).catch((error) => {
-    console.error("[police-subpoena] falha ao carregar configuracao:", error instanceof Error ? error.message : error);
+    console.error("[police-subpoena] falha ao carregar configuração:", error instanceof Error ? error.message : error);
     return null;
   });
   if (!settings) {

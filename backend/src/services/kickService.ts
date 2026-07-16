@@ -257,7 +257,7 @@ export async function ensureKickWebhookEventSubscriptions(
   const broadcasterId = Number(broadcasterUserId);
 
   if (!Number.isSafeInteger(broadcasterId) || broadcasterId <= 0) {
-    throw new Error("ID do canal Kick invalido para configurar o webhook.");
+    throw new Error("ID do canal Kick inválido para configurar o webhook.");
   }
 
   const current = await kickApiGet<KickEventSubscriptionsResponse>("/events/subscriptions", {
@@ -326,7 +326,7 @@ export function buildKickOAuthUrl(input: {
   state: string;
 }) {
   if (!env.KICK_CLIENT_ID) {
-    throw new Error("KICK_CLIENT_ID nao configurado.");
+    throw new Error("KICK_CLIENT_ID não configurado.");
   }
 
   const url = new URL("https://id.kick.com/oauth/authorize");
@@ -365,7 +365,7 @@ export async function exchangeKickOAuthCode(code: string, redirectUri: string, c
 
 export async function refreshKickOAuthToken(refreshToken: string): Promise<KickOAuthToken> {
   try {
-    console.info("[kick:oauth] renovando token de usuario.");
+    console.info("[kick:oauth] renovando token de usuário.");
     const { data } = await axios.post<KickTokenResponse>(
       KICK_OAUTH_TOKEN_URL,
       new URLSearchParams({
@@ -382,7 +382,7 @@ export async function refreshKickOAuthToken(refreshToken: string): Promise<KickO
       }
     );
 
-    console.info("[kick:oauth] token de usuario renovado.");
+    console.info("[kick:oauth] token de usuário renovado.");
     return normalizeKickOAuthToken(data);
   } catch (error) {
     throw normalizeKickApiError(error, "refresh_token");
@@ -397,7 +397,7 @@ export async function getKickAuthenticatedUser(token: KickOAuthToken): Promise<K
   const user = data.data?.[0];
 
   if (!user?.user_id) {
-    throw new Error("Usuario Kick nao encontrado.");
+    throw new Error("Usuário Kick não encontrado.");
   }
 
   const username = String(user.name || user.user_id).trim();
@@ -420,7 +420,7 @@ async function getKickAppAccessToken(credentials?: KickApiCredentials | null) {
   const cacheKey = clientId;
 
   if (!clientId || !clientSecret) {
-    throw new Error("Credenciais da Kick API nao configuradas.");
+    throw new Error("Credenciais da Kick API não configuradas.");
   }
 
   const cachedToken = tokenCache.get(cacheKey);
@@ -460,7 +460,7 @@ async function kickApiGet<T>(path: string, input: {
       });
 
       if (attempt > 1) {
-        console.info(`[kick:api] ${input.operation} recuperou apos retry ${attempt}.`);
+        console.info(`[kick:api] ${input.operation} recuperou após retry ${attempt}.`);
       }
 
       return data;
@@ -512,7 +512,7 @@ async function kickApiPost<T>(
       });
 
       if (attempt > 1) {
-        console.info(`[kick:api] ${input.operation} recuperou apos retry ${attempt}.`);
+        console.info(`[kick:api] ${input.operation} recuperou após retry ${attempt}.`);
       }
 
       return data;
@@ -546,7 +546,7 @@ async function requestKickAppAccessToken(input: {
   clientSecret: string;
 }) {
   if (!input.clientId || !input.clientSecret) {
-    throw new Error("Credenciais da Kick API nao configuradas.");
+    throw new Error("Credenciais da Kick API não configuradas.");
   }
 
   try {
@@ -603,11 +603,11 @@ function normalizeKickApiError(error: unknown, operation: string) {
   const status = error.response?.status ?? null;
 
   if (status === 401) {
-    return new Error("Kick API retornou 401: token invalido ou expirado. Reconecte a conta Kick se o erro continuar.");
+    return new Error("Kick API retornou 401: token inválido ou expirado. Reconecte a conta Kick se o erro continuar.");
   }
 
   if (status === 403) {
-    return new Error("Kick API retornou 403: permissao ou escopo insuficiente para esta operacao.");
+    return new Error("Kick API retornou 403: permissão ou escopo insuficiente para esta operação.");
   }
 
   if (status === 429) {
@@ -702,7 +702,7 @@ function kickClientSecret() {
   const secret = env.KICK_CLIENT_SECRET || env.KICK_API_KEY;
 
   if (!env.KICK_CLIENT_ID || !secret) {
-    throw new Error("Credenciais OAuth da Kick nao configuradas.");
+    throw new Error("Credenciais OAuth da Kick não configuradas.");
   }
 
   return secret;

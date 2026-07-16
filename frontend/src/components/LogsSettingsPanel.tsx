@@ -53,11 +53,11 @@ const LOG_CATEGORIES: Array<{
   label: string;
   icon: typeof Bot;
 }> = [
-  { id: "members", label: "Entrada e saida de membros", icon: UsersRound },
+  { id: "members", label: "Entrada e saída de membros", icon: UsersRound },
   { id: "messages", label: "Mensagens editadas e apagadas", icon: MessageSquareText },
   { id: "roles", label: "Alterações de cargos", icon: UserRound },
   { id: "moderation", label: "Moderação e segurança", icon: Shield },
-  { id: "dashboard", label: "Acoes feitas na dashboard", icon: LayoutDashboard },
+  { id: "dashboard", label: "Ações feitas na dashboard", icon: LayoutDashboard },
   { id: "automation", label: "Automações e módulos", icon: Gauge }
 ];
 

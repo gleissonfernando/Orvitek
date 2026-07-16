@@ -148,8 +148,8 @@ export async function registerDeletedMessageLog(context: BotContext, input: Regi
   const channelLabel = snapshot.channelName ? `#${snapshot.channelName}` : `<#${snapshot.channelId}>`;
   const authorLabel = snapshot.authorTag ?? snapshot.authorUsername ?? snapshot.authorId ?? "autor desconhecido";
   const contentState = snapshot.content.trim()
-    ? "conteudo preservado"
-    : "conteudo indisponivel no cache";
+    ? "conteúdo preservado"
+    : "conteúdo indisponível no cache";
 
   await context.api.postLog({
     action: "delete",
@@ -171,10 +171,10 @@ export async function registerDeletedMessageLog(context: BotContext, input: Regi
       module: input.module ?? "Logs de mensagens apagadas",
       reason: input.reason ?? null,
       ruleId: input.ruleId ?? null,
-      unavailableReason: snapshot.content.trim() ? null : "A mensagem nao estava no cache do Discord nem no cache temporario do bot."
+      unavailableReason: snapshot.content.trim() ? null : "A mensagem não estava no cache do Discord nem no cache temporário do bot."
     }
   }).catch((error) => {
-    console.warn("[deleted-message-log] nao foi possivel registrar log:", errorMessage(error));
+    console.warn("[deleted-message-log] não foi possível registrar log:", errorMessage(error));
   });
 }
 
@@ -191,7 +191,7 @@ export async function registerBulkDeletedMessageLogs(
       deletionType: input.deletionType ?? "MODERATOR",
       message,
       module: input.module ?? "Logs de mensagens apagadas",
-      reason: input.reason ?? "Exclusao em massa"
+      reason: input.reason ?? "Exclusão em massa"
     }));
   }
 

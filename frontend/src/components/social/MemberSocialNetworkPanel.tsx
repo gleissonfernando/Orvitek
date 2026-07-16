@@ -405,7 +405,7 @@ export function MemberSocialNetworkPanel({ botId, canManage, guild }: MemberSoci
           <div className="min-w-0">
             <h3 className="text-xl font-semibold text-white">Rede Social dos Membros</h3>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-500">
-              Cadastre membros, organize links e publique uma embed unica no canal da comunidade.
+              Cadastre membros, organize links e publique uma embed única no canal da comunidade.
             </p>
           </div>
         </div>

@@ -46,9 +46,9 @@ export const DEV_MODULES = [
   { id: "price-tables", label: "Tabela de Precos" },
   { id: "network", label: "Rede Social dos Membros" },
   { id: "x-monitor", label: "X Monitor" },
-  { id: "verification", label: "Sistema de Verificacao" },
+  { id: "verification", label: "Sistema de Verificação" },
   { id: "welcome", label: "Sistema de Boas-vindas" },
-  { id: "leave", label: "Sistema de Saida" },
+  { id: "leave", label: "Sistema de Saída" },
   { id: "logs", label: "Sistema de Logs" },
   { id: "roles", label: "Sistema de Cargos" },
   { id: "tickets", label: "Sistema de Tickets" },
@@ -62,47 +62,47 @@ export const DEV_MODULES = [
   { id: "server-cloner", label: "Clonagem de Servidor" },
   { id: "server-generator", label: "Gerador Inteligente de Servidores" },
   { id: "safe-bot", label: "SelfBot Protection" },
-  { id: "account-age-security", label: "Seguranca por Idade da Conta" },
+  { id: "account-age-security", label: "Segurança por Idade da Conta" },
   { id: "anti-ban", label: "Sistema Anti Ban" },
   { id: "anti-abuse", label: "DEV Control Panel - Anti Abuse" },
   { id: "suspicious-servers", label: "Servidores Suspeitos" },
   { id: "global-blacklist", label: "Blacklist Global" },
-  { id: "advanced-permissions", label: "Gerenciamento de Permissoes" },
-  { id: "invite-cleanup", label: "Limpeza Automatica de Convites" },
+  { id: "advanced-permissions", label: "Gerenciamento de Permissões" },
+  { id: "invite-cleanup", label: "Limpeza Automática de Convites" },
   { id: "server-backup", label: "Backup Completo" },
-  { id: "vanity-url-protection", label: "Protecao da URL Personalizada" },
+  { id: "vanity-url-protection", label: "Proteção da URL Personalizada" },
   { id: "hide-empty-voice", label: "Esconder Chamadas Vazias" },
   { id: "anti-disconnect", label: "Anti Disconnect" },
   { id: "auto-unmute", label: "Auto Desmutar" },
   { id: "temporary-voice", label: "Chamadas Temporárias" },
-  { id: "tag-verification", label: "Verificacao de Tag" },
-  { id: "bio-url-verification", label: "Verificacao de URL na Bio" },
+  { id: "tag-verification", label: "Verificação de Tag" },
+  { id: "bio-url-verification", label: "Verificação de URL na Bio" },
   { id: "first-lady", label: "Sistema Primeira Dama" },
   { id: "fivem", label: "FiveM" },
-  { id: "fivem-factions", label: "FiveM - Sistema de Faccao" },
+  { id: "fivem-factions", label: "FiveM - Sistema de Facção" },
   { id: "fivem-corporations", label: "FiveM - Sistema de Corporacoes" },
-  { id: "fivem-absences", label: "FiveM - Sistema de Ausencias" },
+  { id: "fivem-absences", label: "FiveM - Sistema de Ausências" },
   { id: "fivem-orders", label: "Sistema de Encomendas RP" },
   { id: "fivem-washing", label: "FiveM - Sistema de Lavagem" },
   { id: "fivem-drugs", label: "FiveM - Sistema de Drogas" },
   { id: "fivem-ammo", label: "FiveM - Sistema de Municoes" },
   { id: "fivem-finance", label: "FiveM - Sistema Financeiro" },
   { id: "fivem-goals", label: "FiveM - Sistema de Metas" },
-  { id: "fivem-hierarchy", label: "Policia - Hierarquia" },
-  { id: "fivem-actions", label: "FiveM - Acoes FAC" },
-  { id: "police-absences", label: "Policia - Sistema de Ausencias" },
-  { id: "police-actions", label: "Policia - Acoes" },
-  { id: "police-iab", label: "Policia - Denuncia IAB" },
-  { id: "police-hr", label: "Policia - RH Policial" },
-  { id: "police-daf-roster", label: "Policia - Escalacao DAF" },
-  { id: "police-courses", label: "Policia - Cursos Policiais" },
-  { id: "police-patrol-reports", label: "Policia - Relatorios de Patrulhamento" },
-  { id: "police-hidden-channel", label: "Policia - Canal Oculto" },
-  { id: "police-dm", label: "Policia - DM Policial" },
-  { id: "rh-admin", label: "Policia - RH Administrativo" },
-  { id: "police-subpoenas", label: "Policia - Intimacao" },
-  { id: "police-open-duty", label: "Policia - Notificar / Ponto Aberto" },
-  { id: "fivem-fac", label: "FiveM - FAC Ausencia" },
+  { id: "fivem-hierarchy", label: "Polícia - Hierarquia" },
+  { id: "fivem-actions", label: "FiveM - Ações FAC" },
+  { id: "police-absences", label: "Polícia - Sistema de Ausências" },
+  { id: "police-actions", label: "Polícia - Ações" },
+  { id: "police-iab", label: "Polícia - Denúncia IAB" },
+  { id: "police-hr", label: "Polícia - RH Policial" },
+  { id: "police-daf-roster", label: "Polícia - Escalacao DAF" },
+  { id: "police-courses", label: "Polícia - Cursos Políciais" },
+  { id: "police-patrol-reports", label: "Polícia - Relatórios de Patrulhamento" },
+  { id: "police-hidden-channel", label: "Polícia - Canal Oculto" },
+  { id: "police-dm", label: "Polícia - DM Policial" },
+  { id: "rh-admin", label: "Polícia - RH Administrativo" },
+  { id: "police-subpoenas", label: "Polícia - Intimacao" },
+  { id: "police-open-duty", label: "Polícia - Notificar / Ponto Aberto" },
+  { id: "fivem-fac", label: "FiveM - FAC Ausência" },
   { id: "avisos", label: "Mensagens e Personalizacao" }
 ] as const;
 
@@ -527,7 +527,7 @@ export async function scanAccessibleDevBots(user: AuthSessionUser, options: Acce
           memberRoleIds: [],
           requiredRoleIds: [],
           requiredUserIds: [],
-          reason: "Sua conta Discord nao aparece como membro do servidor deste painel."
+          reason: "Sua conta Discord não aparece como membro do servidor deste painel."
         }]
       };
     }
@@ -789,7 +789,7 @@ export async function createDevBot(input: CreateDevBotInput) {
   );
 
   if (existingBot) {
-    throw createDevBotError("Este Client ID ja esta cadastrado no sistema.", 409);
+    throw createDevBotError("Este Client ID já está cadastrado no sistema.", 409);
   }
 
   const botName = detectedGuild.botName || `Bot ${clientId}`;
@@ -875,7 +875,7 @@ export async function registerPrimaryDevBot(input: RegisterPrimaryDevBotInput): 
   const token = normalizeDiscordBotToken(env.DISCORD_BOT_TOKEN);
 
   if (!token) {
-    throw createDevBotError("DISCORD_BOT_TOKEN nao configurado no servidor.", 400);
+    throw createDevBotError("DISCORD_BOT_TOKEN não configurado no servidor.", 400);
   }
 
   const expectedClientId = env.DISCORD_CLIENT_ID.trim() || undefined;
@@ -908,7 +908,7 @@ export async function registerPrimaryDevBot(input: RegisterPrimaryDevBotInput): 
   const current = await devBots.findOne({ _id: existingBotId });
 
   if (!current) {
-    throw createDevBotError("Bot nao encontrado para atualizar.", 404);
+    throw createDevBotError("Bot não encontrado para atualizar.", 404);
   }
 
   const now = new Date();
@@ -948,7 +948,7 @@ export async function registerPrimaryDevBot(input: RegisterPrimaryDevBotInput): 
   const bot = await getDevBot(existingBotId);
 
   if (!bot) {
-    throw createDevBotError("Bot nao encontrado depois da atualizacao.", 404);
+    throw createDevBotError("Bot não encontrado depois da atualização.", 404);
   }
 
   emitRealtime("dev:bot_updated", toDashboardBotDto(bot));
@@ -1158,7 +1158,7 @@ async function testDiscordBotTokenForClient(token: string, expectedClientId?: st
   if (!normalizedToken) {
     return {
       status: "invalid_token" as const,
-      message: "Token invalido.",
+      message: "Token inválido.",
       avatarUrl: null,
       clientId: null,
       botId: null,
@@ -1178,7 +1178,7 @@ async function testDiscordBotTokenForClient(token: string, expectedClientId?: st
     if (expectedClientId && data.id !== expectedClientId) {
       return {
         status: "invalid_token" as const,
-        message: `O token pertence ao Client ID ${data.id}, nao ao Client ID informado.`,
+        message: `O token pertence ao Client ID ${data.id}, não ao Client ID informado.`,
         avatarUrl: getDiscordAvatarUrl(data.id, data.avatar, "bot"),
         clientId: data.id,
         botId: data.id,
@@ -1201,7 +1201,7 @@ async function testDiscordBotTokenForClient(token: string, expectedClientId?: st
 
     return {
       status: status as MongoDevBotStatus,
-      message: status === "invalid_token" ? "Token invalido. Verifique os dados do bot." : "Erro ao conectar com a API do Discord.",
+      message: status === "invalid_token" ? "Token inválido. Verifique os dados do bot." : "Erro ao conectar com a API do Discord.",
       avatarUrl: null,
       clientId: null,
       botId: null,
@@ -1285,11 +1285,11 @@ async function assertDiscordBotOwnedByUser(token: string, userId: string, expect
     ].filter((ownerId): ownerId is string => Boolean(ownerId)));
 
     if (data.id !== expectedClientId) {
-      throw createDevBotError("O token informado nao pertence ao Client ID detectado.", 400);
+      throw createDevBotError("O token informado não pertence ao Client ID detectado.", 400);
     }
 
     if (!allowedOwnerIds.has(userId)) {
-      throw createDevBotError("Este bot nao pertence a sua conta Discord ou ao seu time de aplicativos.", 403);
+      throw createDevBotError("Este bot não pertence a sua conta Discord ou ao seu time de aplicativos.", 403);
     }
   } catch (error) {
     if (isDevBotError(error)) {
@@ -1298,8 +1298,8 @@ async function assertDiscordBotOwnedByUser(token: string, userId: string, expect
 
     const status = axios.isAxiosError(error) ? error.response?.status : null;
     const message = status === 401
-      ? "Token invalido. Verifique os dados do bot."
-      : "Nao foi possivel confirmar se este bot pertence a sua conta Discord.";
+      ? "Token inválido. Verifique os dados do bot."
+      : "Não foi possível confirmar se este bot pertence a sua conta Discord.";
 
     throw createDevBotError(message, status === 401 ? 400 : 403);
   }
@@ -1548,7 +1548,7 @@ export async function syncDevBotProfile(
       oldName: current.name
     }
   }).catch((error) => {
-    console.warn("[dev-bot] nao foi possivel registrar log de perfil atualizado:", error instanceof Error ? error.message : error);
+    console.warn("[dev-bot] não foi possível registrar log de perfil atualizado:", error instanceof Error ? error.message : error);
   });
 
   emitRealtime("dev:bot_updated", toDashboardBotDto(dto));
@@ -1803,7 +1803,7 @@ export async function getSecurityProtectionAccess(botId: string): Promise<Securi
   const bot = await getDevBot(botId);
 
   if (!bot) {
-    throw new Error("Bot nao encontrado.");
+    throw new Error("Bot não encontrado.");
   }
 
   const access = await readSecurityProtectionAccess(botId);
@@ -1818,7 +1818,7 @@ export async function setSecurityProtectionAccess(input: {
   const bot = await getDevBot(input.botId);
 
   if (!bot) {
-    throw new Error("Bot nao encontrado.");
+    throw new Error("Bot não encontrado.");
   }
 
   const { securityFeatureAccess } = await getMongoCollections();
@@ -1950,7 +1950,7 @@ export async function authorizeBotRuntimeModule(input: {
       checkedAt,
       guildId: input.guildId,
       moduleId,
-      reason: "Bot nao identificado na requisicao runtime.",
+      reason: "Bot não identificado na requisicao runtime.",
       reasonCode: "missing_bot_id",
       releaseModuleId
     });
@@ -1962,7 +1962,7 @@ export async function authorizeBotRuntimeModule(input: {
       checkedAt,
       guildId: input.guildId,
       moduleId,
-      reason: "Modulo nao reconhecido pela dashboard.",
+      reason: "Módulo não reconhecido pela dashboard.",
       reasonCode: "unknown_module",
       releaseModuleId: null
     });
@@ -1984,7 +1984,7 @@ export async function authorizeBotRuntimeModule(input: {
       checkedAt,
       guildId: input.guildId,
       moduleId,
-      reason: "Bot nao encontrado na dashboard.",
+      reason: "Bot não encontrado na dashboard.",
       reasonCode: "bot_not_found",
       releaseModuleId
     });
@@ -2013,7 +2013,7 @@ export async function authorizeBotRuntimeModule(input: {
       guildAuthorized: false,
       guildId: input.guildId,
       moduleId,
-      reason: "Servidor nao esta aprovado para este bot.",
+      reason: "Servidor não está aprovado para este bot.",
       reasonCode: "guild_inactive",
       releaseModuleId
     });
@@ -2028,7 +2028,7 @@ export async function authorizeBotRuntimeModule(input: {
       guildAuthorized: false,
       guildId: input.guildId,
       moduleId,
-      reason: "Servidor nao esta vinculado a este bot.",
+      reason: "Servidor não está vinculado a este bot.",
       reasonCode: "guild_not_registered",
       releaseModuleId
     });
@@ -2059,8 +2059,8 @@ export async function authorizeBotRuntimeModule(input: {
       moduleId,
       moduleReleased: false,
       reason: !securityReleased
-        ? "Protecao/SafeBot nao foi liberada pelo Dev para este bot."
-        : "Modulo nao foi liberado para este bot.",
+        ? "Proteção/SafeBot não foi liberada pelo Dev para este bot."
+        : "Módulo não foi liberado para este bot.",
       reasonCode: !securityReleased ? "security_feature_not_released" : "module_not_released",
       releaseModuleId
     });
@@ -2103,7 +2103,7 @@ export async function authorizeBotRuntimeModule(input: {
       moduleEnabled: false,
       moduleId,
       moduleReleased: true,
-      reason: "Modulo esta desativado para este bot/servidor.",
+      reason: "Módulo está desativado para este bot/servidor.",
       reasonCode: "module_disabled",
       releaseModuleId
     });
@@ -2125,7 +2125,7 @@ export async function authorizeBotRuntimeModule(input: {
     moduleReleased: true,
     plan: license.plan,
     policy: "fail_closed",
-    reason: "Modulo autorizado para este bot e servidor.",
+    reason: "Módulo autorizado para este bot e servidor.",
     reasonCode: "allowed",
     releaseModuleId
   };
@@ -2378,7 +2378,7 @@ function evaluateRuntimeLicenseState(...configs: Array<MongoBotGuildModuleConfig
       return {
         expiresAt,
         plan,
-        reason: "Licenca do modulo esta inativa na dashboard.",
+        reason: "Licença do módulo está inativa na dashboard.",
         reasonCode: "license_inactive",
         status,
         valid: false
@@ -2391,7 +2391,7 @@ function evaluateRuntimeLicenseState(...configs: Array<MongoBotGuildModuleConfig
       return {
         expiresAt,
         plan,
-        reason: "Licenca do modulo esta expirada.",
+        reason: "Licença do módulo está expirada.",
         reasonCode: "license_expired",
         status,
         valid: false
@@ -2402,7 +2402,7 @@ function evaluateRuntimeLicenseState(...configs: Array<MongoBotGuildModuleConfig
       return {
         expiresAt,
         plan,
-        reason: "Licenca do modulo esta bloqueada.",
+        reason: "Licença do módulo está bloqueada.",
         reasonCode: "license_blocked",
         status,
         valid: false
@@ -2412,7 +2412,7 @@ function evaluateRuntimeLicenseState(...configs: Array<MongoBotGuildModuleConfig
     return {
       expiresAt,
       plan,
-      reason: "Licenca do modulo nao esta ativa.",
+      reason: "Licença do módulo não está ativa.",
       reasonCode: "license_inactive",
       status,
       valid: false
@@ -2423,7 +2423,7 @@ function evaluateRuntimeLicenseState(...configs: Array<MongoBotGuildModuleConfig
     return {
       expiresAt,
       plan,
-      reason: "Licenca do modulo esta expirada.",
+      reason: "Licença do módulo está expirada.",
       reasonCode: "license_expired",
       status,
       valid: false
@@ -2433,7 +2433,7 @@ function evaluateRuntimeLicenseState(...configs: Array<MongoBotGuildModuleConfig
   return {
     expiresAt,
     plan,
-    reason: "Licenca valida.",
+    reason: "Licença válida.",
     reasonCode: "license_valid",
     status,
     valid: true
@@ -2534,7 +2534,7 @@ async function enableSelfBotDefaults(bot: DevBotDto) {
           messageId: resources.messageId
         }, bot.id);
       } catch (error) {
-        console.warn(`[safe-bot] criacao automatica falhou ao liberar o modulo em ${guildId}:`, error instanceof Error ? error.message : error);
+        console.warn(`[safe-bot] criacao automática falhou ao liberar o módulo em ${guildId}:`, error instanceof Error ? error.message : error);
       }
     }
 
@@ -2663,7 +2663,7 @@ async function fetchDiscordBotGuild(token: string, guildId: string): Promise<Det
     const hasAdministrator = (botPermissions & 0x8n) === 0x8n;
 
     if (!hasAdministrator) {
-      throw createDevBotError("O bot precisa estar no servidor com permissao de Administrador para liberar o painel completo.", 400);
+      throw createDevBotError("O bot precisa estar no servidor com permissão de Administrador para liberar o painel completo.", 400);
     }
 
     return {
@@ -2688,15 +2688,15 @@ async function fetchDiscordBotGuild(token: string, guildId: string): Promise<Det
 
     if (axios.isAxiosError(error)) {
       if (error.response?.status === 401) {
-        throw createDevBotError("Token do bot invalido.", 400);
+        throw createDevBotError("Token do bot inválido.", 400);
       }
 
       if (error.response?.status === 403 || error.response?.status === 404) {
-        throw createDevBotError("O bot nao esta no servidor informado ou nao consegue acessar os dados dele.", 400);
+        throw createDevBotError("O bot não está no servidor informado ou não consegue acessar os dados dele.", 400);
       }
     }
 
-    throw createDevBotError("Nao foi possivel detectar o servidor no Discord.", 502);
+    throw createDevBotError("Não foi possível detectar o servidor no Discord.", 502);
   }
 }
 
@@ -2829,7 +2829,7 @@ function decryptSecret(value: string) {
   const [ivValue, tagValue, encryptedValue] = value.split(".");
 
   if (!ivValue || !tagValue || !encryptedValue) {
-    throw new Error("Token protegido invalido.");
+    throw new Error("Token protegido inválido.");
   }
 
   const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), Buffer.from(ivValue, "base64url"));
@@ -2971,7 +2971,7 @@ async function checkAccessDevBotGuild(
       memberRoleIds: [],
       requiredRoleIds: [],
       requiredUserIds: [],
-      reason: "Este bot nao esta vinculado ao servidor selecionado."
+      reason: "Este bot não está vinculado ao servidor selecionado."
     };
   }
 
@@ -2991,7 +2991,7 @@ async function checkAccessDevBotGuild(
       memberRoleIds: [],
       requiredRoleIds: [],
       requiredUserIds: [],
-      reason: "Usuario Dev liberado."
+      reason: "Usuário Dev liberado."
     };
   }
 
@@ -3034,7 +3034,7 @@ async function checkConfiguredPanelRole(
 ): Promise<PanelRoleAccessResult> {
   const access = await getPersistedDashboardAccess(guildId, bot._id).catch((error) => {
     console.warn(
-      `[access] nao foi possivel ler usuarios liberados do bot ${bot._id} no servidor ${guildId}:`,
+      `[access] não foi possível ler usuarios liberados do bot ${bot._id} no servidor ${guildId}:`,
       error instanceof Error ? error.message : error
     );
     return null;
@@ -3052,7 +3052,7 @@ async function checkConfiguredPanelRole(
       memberRoleIds: [],
       requiredRoleIds: [],
       requiredUserIds: [],
-      reason: "Nenhuma configuracao de usuarios liberados foi encontrada para este bot/servidor."
+      reason: "Nenhuma configuração de usuários liberados foi encontrada para este bot/servidor."
     };
 
     await writeAccessValidationLog(userId, bot, guildId, result);
@@ -3072,7 +3072,7 @@ async function checkConfiguredPanelRole(
       memberRoleIds: [],
       requiredRoleIds: access.roleIds,
       requiredUserIds,
-      reason: "O acesso ao site por usuario esta desativado neste servidor."
+      reason: "O acesso ao site por usuário está desativado neste servidor."
     };
 
     await writeAccessValidationLog(userId, bot, guildId, result);
@@ -3095,7 +3095,7 @@ async function checkConfiguredPanelRole(
       memberRoleIds: [],
       requiredRoleIds: [],
       requiredUserIds: [],
-      reason: "Nenhum usuario foi salvo como liberado para acessar este painel."
+      reason: "Nenhum usuário foi salvo como liberado para acessar este painel."
     };
 
     await writeAccessValidationLog(userId, bot, guildId, result);
@@ -3114,7 +3114,7 @@ async function checkConfiguredPanelRole(
       memberRoleIds: [],
       requiredRoleIds: [],
       requiredUserIds,
-      reason: "Usuario liberado diretamente encontrado na configuracao do painel."
+      reason: "Usuário liberado diretamente encontrado na configuração do painel."
     };
 
     await writeAccessValidationLog(userId, bot, guildId, result);
@@ -3138,8 +3138,8 @@ async function checkConfiguredPanelRole(
       requiredRoleIds,
       requiredUserIds,
       reason: accessLevel
-        ? "Cargo liberado encontrado na configuracao do painel."
-        : memberRoleLookup.reason ?? "Seu usuario Discord nao possui nenhum cargo liberado para este painel."
+        ? "Cargo liberado encontrado na configuração do painel."
+        : memberRoleLookup.reason ?? "Seu usuário Discord não possui nenhum cargo liberado para este painel."
     };
 
     await writeAccessValidationLog(userId, bot, guildId, result, memberRoleLookup.source);
@@ -3157,7 +3157,7 @@ async function checkConfiguredPanelRole(
     memberRoleIds: [],
     requiredRoleIds: [],
     requiredUserIds,
-    reason: "Seu usuario Discord nao esta na lista de pessoas liberadas para este painel."
+    reason: "Seu usuário Discord não está na lista de pessoas liberadas para este painel."
   };
 
   await writeAccessValidationLog(userId, bot, guildId, result);
@@ -3188,7 +3188,7 @@ async function getDashboardMemberRoleIds(
     reason: [
       oauthRoleIds.reason,
       botRoleIds.reason,
-      "Entre novamente pelo Discord e confira se o Server Members Intent esta ativo no bot."
+      "Entre novamente pelo Discord e confira se o Server Members Intent está ativo no bot."
     ].filter(Boolean).join(" ")
   };
 }
@@ -3216,11 +3216,11 @@ async function fetchBotGuildMemberRoleIds(userId: string, bot: MongoDevBot, guil
 
     if (status === 403 || status === 404) {
       console.warn(
-        `[discord] bot ${bot._id} nao conseguiu ler o membro ${userId} no servidor ${guildId} (HTTP ${status}). Tentando OAuth do usuario.`
+        `[discord] bot ${bot._id} não conseguiu ler o membro ${userId} no servidor ${guildId} (HTTP ${status}). Tentando OAuth do usuário.`
       );
     } else {
       console.warn(
-        `[discord] nao foi possivel validar cargo do painel em ${guildId}:`,
+        `[discord] não foi possível validar cargo do painel em ${guildId}:`,
         error instanceof Error ? error.message : error
       );
     }
@@ -3229,8 +3229,8 @@ async function fetchBotGuildMemberRoleIds(userId: string, bot: MongoDevBot, guil
       roleIds: null,
       source: "bot",
       reason: status === 403 || status === 404
-        ? `O bot nao conseguiu ler este membro no Discord (HTTP ${status}).`
-        : "O bot nao conseguiu consultar os cargos do membro no Discord."
+        ? `O bot não conseguiu ler este membro no Discord (HTTP ${status}).`
+        : "O bot não conseguiu consultar os cargos do membro no Discord."
     };
   }
 }
@@ -3245,11 +3245,11 @@ async function fetchOAuthGuildMemberRoleIds(
   const refreshToken = options.discordRefreshToken?.trim() || storedTokens?.refreshToken;
 
   if (!accessToken) {
-    console.warn(`[access] usuario ${userId} precisa entrar novamente pelo Discord para validar cargos do servidor ${guildId}.`);
+    console.warn(`[access] usuário ${userId} precisa entrar novamente pelo Discord para validar cargos do servidor ${guildId}.`);
     return {
       roleIds: null,
       source: null,
-      reason: "A sessao Discord nao tem token OAuth salvo para ler cargos."
+      reason: "A sessão Discord não tem token OAuth salvo para ler cargos."
     };
   }
 
@@ -3279,13 +3279,13 @@ async function fetchOAuthGuildMemberRoleIds(
     };
   } catch (error) {
     console.warn(
-      `[discord] nao foi possivel renovar OAuth do usuario ${userId} para validar cargos:`,
+      `[discord] não foi possível renovar OAuth do usuário ${userId} para validar cargos:`,
       readDiscordErrorMessage(error)
     );
     return {
       roleIds: null,
       source: "oauth",
-      reason: "Nao foi possivel renovar a autorizacao Discord para ler cargos."
+      reason: "Não foi possível renovar a autorizacao Discord para ler cargos."
     };
   }
 }
@@ -3305,12 +3305,12 @@ async function fetchOAuthGuildMemberRoleIdsWithToken(accessToken: string, guildI
     const status = axios.isAxiosError(error) ? error.response?.status ?? null : null;
 
     if (status === 403) {
-      console.warn(`[discord] OAuth sem permissao guilds.members.read para validar cargos do servidor ${guildId}.`);
+      console.warn(`[discord] OAuth sem permissão guilds.members.read para validar cargos do servidor ${guildId}.`);
     } else if (status === 404) {
-      console.warn(`[discord] usuario OAuth nao encontrado como membro do servidor ${guildId}.`);
+      console.warn(`[discord] usuário OAuth não encontrado como membro do servidor ${guildId}.`);
     } else if (status !== 401) {
       console.warn(
-        `[discord] nao foi possivel validar cargo via OAuth no servidor ${guildId}:`,
+        `[discord] não foi possível validar cargo via OAuth no servidor ${guildId}:`,
         readDiscordErrorMessage(error)
       );
     }
@@ -3319,12 +3319,12 @@ async function fetchOAuthGuildMemberRoleIdsWithToken(accessToken: string, guildI
       roleIds: null,
       status,
       reason: status === 403
-        ? "A autorizacao Discord nao liberou a leitura de cargos. Clique em Sair e entre novamente pelo Discord."
+        ? "A autorizacao Discord não liberou a leitura de cargos. Clique em Sair e entre novamente pelo Discord."
         : status === 404
-          ? "Sua conta nao foi encontrada como membro do servidor no OAuth do Discord."
+          ? "Sua conta não foi encontrada como membro do servidor no OAuth do Discord."
           : status === 401
             ? "A autorizacao Discord expirou."
-            : "Nao foi possivel consultar os cargos pelo OAuth do Discord."
+            : "Não foi possível consultar os cargos pelo OAuth do Discord."
     };
   }
 }
@@ -3387,7 +3387,7 @@ async function writeAccessValidationLog(
       userId
     }
   }).catch((error) => {
-    console.warn("[access] nao foi possivel registrar auditoria de acesso:", error instanceof Error ? error.message : error);
+    console.warn("[access] não foi possível registrar auditoria de acesso:", error instanceof Error ? error.message : error);
   });
 }
 

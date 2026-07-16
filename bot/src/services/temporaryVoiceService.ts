@@ -630,7 +630,7 @@ async function createTemporaryCallTranscript(context: BotContext, call: Temporar
     partialReason: isPartial ? reason : null,
     temporaryPasswordTtlHours: 72,
     ticketId: call.id,
-    type: "Canal Temporario"
+    type: "Canal Temporário"
   });
 }
 
@@ -722,7 +722,7 @@ async function deleteConfiguredAutoDeleteChannel(channel: VoiceChannel, context:
   }
 
   const channelName = fresh.name;
-  await fresh.delete("Canal de voz configurado para exclusao automatica quando vazio");
+  await fresh.delete("Canal de voz configurado para exclusão automática quando vazio");
   await context.api.postLog({
     guildId: settings.guildId,
     message: `Call selecionada deletada automaticamente: ${channelName}.`,

@@ -28,7 +28,7 @@ export const apagaHistoricoCommand: BotCommand = {
 
     if (!interaction.options.getBoolean("confirmar", true)) {
       await interaction.reply({
-        content: "Operacao cancelada. Use `confirmar:true` apenas quando quiser apagar os historicos de teste.",
+        content: "Operação cancelada. Use `confirmar:true` apenas quando quiser apagar os historicos de teste.",
         ephemeral: true
       });
       return;
@@ -40,7 +40,7 @@ export const apagaHistoricoCommand: BotCommand = {
     const roleIds = memberRoleIds(interaction.member);
 
     if (!canUseFacHistoryReset(settings, roleIds)) {
-      await interaction.editReply("Voce precisa de um cargo aprovador configurado no sistema FAC para usar este comando.");
+      await interaction.editReply("Você precisa de um cargo aprovador configurado no sistema FAC para usar este comando.");
       return;
     }
 
@@ -51,7 +51,7 @@ export const apagaHistoricoCommand: BotCommand = {
     const channelDeletion = await deleteLinkedDiscordChannels(guild, result.discordChannelIds.all, interaction);
 
     await interaction.editReply([
-      "Historico de teste apagado.",
+      "Histórico de teste apagado.",
       "",
       `FAC ausencias: ${result.deleted.facAbsences}`,
       `Pedido Set: ${result.deleted.manualRegistrationSubmissions} pedidos e ${result.deleted.manualRegistrationLogs} logs`,
@@ -89,7 +89,7 @@ async function deleteLinkedDiscordChannels(guild: Guild, channelIds: string[], i
       continue;
     }
 
-    await channel.delete(`Historico FAC apagado por ${interaction.user.tag} (${interaction.user.id})`)
+    await channel.delete(`Histórico FAC apagado por ${interaction.user.tag} (${interaction.user.id})`)
       .then(() => {
         deleted += 1;
       })

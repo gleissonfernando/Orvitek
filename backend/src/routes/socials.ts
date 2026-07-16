@@ -103,7 +103,7 @@ socialsRouter.post("/update", requireAuth, async (req, res, next) => {
     const botId = await resolveRequestBotId(req);
     const user = res.locals.dashboardAuth.user as AuthSessionUser;
 
-    await assertCanManageGuild(req, input.guildId, botId, "publicou a Network");
+    await assertCanManageGuild(req, input.guildId, botId, "públicou a Network");
 
     if (input.channelId) {
       await assertPanelChannelReady(input.guildId, input.channelId, botId);
@@ -268,7 +268,7 @@ async function assertCanManageGuild(req: Request, guildId: string, botId: string
   const user = req.res?.locals.dashboardAuth.user as AuthSessionUser;
 
   if (botId ? !(await canUseDevBotModule(user, botId, guildId, "network")) : !canManageDashboardGuild(user, guildId)) {
-    throw createServiceError(`Voce nao tem permissao para ${action} deste servidor.`, 403);
+    throw createServiceError(`Você não tem permissão para ${action} deste servidor.`, 403);
   }
 }
 
@@ -276,7 +276,7 @@ async function assertCanReadGuild(req: Request, guildId: string, botId: string |
   const user = req.res?.locals.dashboardAuth.user as AuthSessionUser;
 
   if (botId ? !(await canReadDevBotModule(user, botId, guildId, "network")) : !canManageDashboardGuild(user, guildId)) {
-    throw createServiceError(`Voce nao tem permissao para ${action} deste servidor.`, 403);
+    throw createServiceError(`Você não tem permissão para ${action} deste servidor.`, 403);
   }
 }
 
@@ -285,7 +285,7 @@ async function assertPanelChannelReady(guildId: string, channelId: string, botId
 
   if (!validation.ok) {
     throw createServiceError(
-      validation.reason ?? "Nao foi possivel validar as permissoes do bot no canal do painel.",
+      validation.reason ?? "Não foi possível validar as permissões do bot no canal do painel.",
       400
     );
   }

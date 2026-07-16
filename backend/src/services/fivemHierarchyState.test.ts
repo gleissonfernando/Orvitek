@@ -6,7 +6,7 @@ import {
   sameHierarchyConfig
 } from "./fivemHierarchyState";
 
-test("fingerprint de configuracao independe da ordem das chaves", () => {
+test("fingerprint de configuração independe da ordem das chaves", () => {
   assert.equal(
     hierarchyConfigFingerprint({ channelId: "12345", enabled: true, roles: ["1", "2"] }),
     hierarchyConfigFingerprint({ roles: ["1", "2"], enabled: true, channelId: "12345" })
@@ -14,7 +14,7 @@ test("fingerprint de configuracao independe da ordem das chaves", () => {
   assert.equal(sameHierarchyConfig({ enabled: true }, { enabled: false }), false);
 });
 
-test("dedupe exige mesma guild, bot, canal e conjunto nao vazio de cargos", () => {
+test("dedupe exige mesma guild, bot, canal e conjunto não vazio de cargos", () => {
   const first = hierarchyDedupeFingerprint({
     botId: "bot-a",
     guildId: "guild-a",

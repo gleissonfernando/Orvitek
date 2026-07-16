@@ -391,7 +391,7 @@ async function assertCanReadClips(user: AuthSessionUser, guildId: string, botId:
     const permissions = await getBotApiPermissions(botId);
 
     if (!permissions?.enabledModules.includes(moduleId)) {
-      throw createRouteError(`O modulo de clipes ${platform === "kick" ? "Kick" : "Twitch"} nao foi liberado para este bot.`, 403);
+      throw createRouteError(`O módulo de clipes ${platform === "kick" ? "Kick" : "Twitch"} não foi liberado para este bot.`, 403);
     }
 
     if (await canReadDevBotModule(user, botId, guildId, moduleId)) {
@@ -405,7 +405,7 @@ async function assertCanReadClips(user: AuthSessionUser, guildId: string, botId:
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para acessar clipes deste servidor.", 403);
+  throw createRouteError("Você não tem permissão para acessar clipes deste servidor.", 403);
 }
 
 async function assertCanManageClips(user: AuthSessionUser, guildId: string, botId: string | null, platform: "twitch" | "kick") {
@@ -415,7 +415,7 @@ async function assertCanManageClips(user: AuthSessionUser, guildId: string, botI
     const permissions = await getBotApiPermissions(botId);
 
     if (!permissions?.enabledModules.includes(moduleId)) {
-      throw createRouteError(`O modulo de clipes ${platform === "kick" ? "Kick" : "Twitch"} nao foi liberado para este bot.`, 403);
+      throw createRouteError(`O módulo de clipes ${platform === "kick" ? "Kick" : "Twitch"} não foi liberado para este bot.`, 403);
     }
 
     if (await canUseDevBotModule(user, botId, guildId, moduleId)) {
@@ -429,7 +429,7 @@ async function assertCanManageClips(user: AuthSessionUser, guildId: string, botI
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para configurar clipes deste servidor.", 403);
+  throw createRouteError("Você não tem permissão para configurar clipes deste servidor.", 403);
 }
 
 async function hasClipsRoleAccess(user: AuthSessionUser, guildId: string, botId: string | null, platform: "twitch" | "kick") {

@@ -77,7 +77,7 @@ export function startFivemFacService(client: Client, context: BotContext) {
       return;
     }
 
-    console.log(`[fivem-fac] configuracao atualizada em tempo real para ${payload.guildId}.`);
+    console.log(`[fivem-fac] configuração atualizada em tempo real para ${payload.guildId}.`);
   });
 
   context.socket.onFivemFacPanelPublish((payload) => {
@@ -98,13 +98,13 @@ export function startFivemFacService(client: Client, context: BotContext) {
     }
 
     void updateFivemFacAbsenceMessage(client, absence).catch((error) => {
-      console.warn(`[fivem-fac] falha ao atualizar mensagem da ausencia ${absence.id}:`, errorMessage(error));
+      console.warn(`[fivem-fac] falha ao atualizar mensagem da ausência ${absence.id}:`, errorMessage(error));
     });
   });
 
   void context.api.getActiveFivemFacConfigs()
-    .then((configs) => console.log(`[fivem-fac] ${configs.length} configuracao(oes) ativa(s) carregada(s).`))
-    .catch((error) => console.warn("[fivem-fac] nao foi possivel carregar configuracoes:", errorMessage(error)));
+    .then((configs) => console.log(`[fivem-fac] ${configs.length} configuração(oes) ativa(s) carregada(s).`))
+    .catch((error) => console.warn("[fivem-fac] não foi possível carregar configurações:", errorMessage(error)));
 
   void processDueFivemFacAbsences(client, context);
   void processPendingFivemFacPanelRequests(client, context);
@@ -132,12 +132,12 @@ export async function handleFivemFacInteraction(interaction: Interaction, contex
   }
 
   if (!isBotModuleEnabled("fivem-fac")) {
-    await replySafely(interaction, "O sistema FAC nao foi liberado para este bot na dashboard.");
+    await replySafely(interaction, "O sistema FAC não foi liberado para este bot na dashboard.");
     return true;
   }
 
   if (!interaction.guild) {
-    await replySafely(interaction, "Este recurso esta disponivel apenas em servidores.");
+    await replySafely(interaction, "Este recurso está disponível apenas em servidores.");
     return true;
   }
 
@@ -264,13 +264,13 @@ async function showRequestModal(interaction: ButtonInteraction) {
 async function showRejectModal(interaction: ButtonInteraction, absenceId: string) {
   const modal = new ModalBuilder()
     .setCustomId(`${REJECT_MODAL_PREFIX}:${absenceId}`)
-    .setTitle("Reprovar Ausencia");
+    .setTitle("Reprovar Ausência");
 
   modal.addComponents(
     new ActionRowBuilder<TextInputBuilder>().addComponents(
       new TextInputBuilder()
         .setCustomId("reason")
-        .setLabel("Motivo da reprovacao")
+        .setLabel("Motivo da reprovação")
         .setMaxLength(800)
         .setRequired(true)
         .setStyle(TextInputStyle.Paragraph)
@@ -324,7 +324,7 @@ async function submitAbsenceRequest(interaction: ModalSubmitInteraction, context
     if (!hasMemberRole(interaction, settings)) {
       await interaction.editReply(facNoticePayload({
         accentColor: 0xef4444,
-        description: "Voce nao possui um cargo autorizado para solicitar ausencia pelo FAC.",
+        description: "Você não possui um cargo autorizado para solicitar ausência pelo FAC.",
         title: "🚫 Acesso negado"
       }));
       return;
@@ -348,7 +348,7 @@ async function submitAbsenceRequest(interaction: ModalSubmitInteraction, context
       startDate
     }));
   } catch (error) {
-    await interaction.editReply(readRequestErrorMessage(error) ?? "Nao foi possivel preparar sua solicitacao de ausencia.");
+    await interaction.editReply(readRequestErrorMessage(error) ?? "Não foi possível preparar sua solicitação de ausência.");
   }
 }
 
@@ -362,7 +362,7 @@ async function confirmAbsenceRequest(interaction: ButtonInteraction, context: Bo
     await interaction.editReply({
       ...facNoticePayload({
         accentColor: 0xf59e0b,
-        description: "Esta solicitacao expirou. Abra o formulario novamente para enviar um novo pedido.",
+        description: "Esta solicitação expirou. Abra o formulario novamente para enviar um novo pedido.",
         title: "⏳ Solicitação expirada"
       })
     });
@@ -377,7 +377,7 @@ async function confirmAbsenceRequest(interaction: ButtonInteraction, context: Bo
     await interaction.editReply({
       ...facNoticePayload({
         accentColor: 0xef4444,
-        description: "Nao foi possivel identificar o servidor desta solicitacao.",
+        description: "Não foi possível identificar o servidor desta solicitação.",
         title: "❌ Servidor não encontrado"
       })
     });
@@ -391,7 +391,7 @@ async function confirmAbsenceRequest(interaction: ButtonInteraction, context: Bo
       await interaction.editReply({
         ...facNoticePayload({
           accentColor: 0xef4444,
-          description: "Voce nao possui um cargo autorizado para solicitar ausencia pelo FAC.",
+          description: "Você não possui um cargo autorizado para solicitar ausência pelo FAC.",
           title: "🚫 Acesso negado"
         })
       });
@@ -418,18 +418,18 @@ async function confirmAbsenceRequest(interaction: ButtonInteraction, context: Bo
     }
 
     if (absence.status === "approved") {
-      await sendFacLog(guild, settings, "Solicitacao autoaprovada", absence, "automatic");
+      await sendFacLog(guild, settings, "Solicitação autoaprovada", absence, "automatic");
       const startedResult = await startApprovedAbsenceIfDue(guild, context, settings, absence, "automatic");
       absence = startedResult.absence;
     }
 
-    await sendFacLog(guild, settings, "Solicitacao criada", absence, interaction.user.id);
+    await sendFacLog(guild, settings, "Solicitação criada", absence, interaction.user.id);
     await interaction.editReply({
       ...facNoticePayload({
         accentColor: channelResult.channel ? 0x22c55e : 0xf59e0b,
         description: channelResult.channel
           ? `${settings.messages.requestCreated}\n\n**Canal de aprovação:** <#${channelResult.channel.id}>\n**Status atual:** ${statusLabel(absence.status)}`
-          : `${settings.messages.requestCreated}\n\nA solicitacao foi salva, mas nao consegui criar o canal de aprovacao. Avise a equipe para acompanhar manualmente.`,
+          : `${settings.messages.requestCreated}\n\nA solicitação foi salva, mas não consegui criar o canal de aprovacao. Avise a equipe para acompanhar manualmente.`,
         title: channelResult.channel ? "✅ Solicitação enviada" : "⚠️ Solicitação registrada"
       })
     });
@@ -437,7 +437,7 @@ async function confirmAbsenceRequest(interaction: ButtonInteraction, context: Bo
     await interaction.editReply({
       ...facNoticePayload({
         accentColor: 0xef4444,
-        description: readRequestErrorMessage(error) ?? "Nao foi possivel criar sua solicitacao de ausencia.",
+        description: readRequestErrorMessage(error) ?? "Não foi possível criar sua solicitação de ausência.",
         title: "❌ Solicitação não enviada"
       })
     });
@@ -478,7 +478,7 @@ async function showMyAbsences(interaction: ButtonInteraction, context: BotContex
     if (!absences.length) {
       await interaction.editReply(facNoticePayload({
         accentColor: 0x64748b,
-        description: "Voce ainda nao possui ausencias registradas neste servidor.",
+        description: "Você ainda não possui ausências registradas neste servidor.",
         title: "📭 Nenhuma ausência encontrada"
       }));
       return;
@@ -492,7 +492,7 @@ async function showMyAbsences(interaction: ButtonInteraction, context: BotContex
   } catch (error) {
     await interaction.editReply(facNoticePayload({
       accentColor: 0xef4444,
-      description: readRequestErrorMessage(error) ?? "Nao foi possivel buscar suas ausencias.",
+      description: readRequestErrorMessage(error) ?? "Não foi possível buscar suas ausências.",
       title: "❌ Consulta indisponível"
     }));
   }
@@ -520,7 +520,7 @@ async function approveAbsence(interaction: ButtonInteraction, context: BotContex
     if (!hasApproverRole(interaction, settings)) {
       await interaction.editReply(facNoticePayload({
         accentColor: 0xef4444,
-        description: "Voce precisa de um cargo aprovador configurado no FAC para aprovar ausencias.",
+        description: "Você precisa de um cargo aprovador configurado no FAC para aprovar ausências.",
         title: "🚫 Acesso negado"
       }));
       return;
@@ -535,7 +535,7 @@ async function approveAbsence(interaction: ButtonInteraction, context: BotContex
     absence = startedResult.absence;
     await updateAbsenceMessage(interaction, settings, absence);
     if (!startedResult.changed) {
-      await sendFacLog(guild, settings, "Solicitacao aprovada", absence, interaction.user.id);
+      await sendFacLog(guild, settings, "Solicitação aprovada", absence, interaction.user.id);
       await notifyAbsenceUser(guild, absence, settings.messages.approved);
     } else {
       await notifyAbsenceUser(guild, absence, settings.messages.started);
@@ -550,7 +550,7 @@ async function approveAbsence(interaction: ButtonInteraction, context: BotContex
   } catch (error) {
     await interaction.editReply(facNoticePayload({
       accentColor: 0xef4444,
-      description: readRequestErrorMessage(error) ?? "Nao foi possivel aprovar essa ausencia.",
+      description: readRequestErrorMessage(error) ?? "Não foi possível aprovar essa ausência.",
       title: "❌ Aprovação não concluída"
     }));
   }
@@ -578,7 +578,7 @@ async function rejectAbsence(interaction: ModalSubmitInteraction, context: BotCo
     if (!hasApproverRole(interaction, settings)) {
       await interaction.editReply(facNoticePayload({
         accentColor: 0xef4444,
-        description: "Voce precisa de um cargo aprovador configurado no FAC para reprovar ausencias.",
+        description: "Você precisa de um cargo aprovador configurado no FAC para reprovar ausências.",
         title: "🚫 Acesso negado"
       }));
       return;
@@ -592,7 +592,7 @@ async function rejectAbsence(interaction: ModalSubmitInteraction, context: BotCo
     });
 
     await updateAbsenceMessage(interaction, settings, absence);
-    await sendFacLog(guild, settings, "Solicitacao reprovada", absence, interaction.user.id, reason);
+    await sendFacLog(guild, settings, "Solicitação reprovada", absence, interaction.user.id, reason);
     await notifyAbsenceUser(guild, absence, `${settings.messages.rejected}\nMotivo: ${reason}`);
     await interaction.editReply(facNoticePayload({
       accentColor: 0xef4444,
@@ -602,7 +602,7 @@ async function rejectAbsence(interaction: ModalSubmitInteraction, context: BotCo
   } catch (error) {
     await interaction.editReply(facNoticePayload({
       accentColor: 0xef4444,
-      description: readRequestErrorMessage(error) ?? "Nao foi possivel reprovar essa ausencia.",
+      description: readRequestErrorMessage(error) ?? "Não foi possível reprovar essa ausência.",
       title: "❌ Reprovação não concluída"
     }));
   }
@@ -630,7 +630,7 @@ async function closeAbsence(interaction: ButtonInteraction, context: BotContext,
     if (!hasApproverRole(interaction, settings)) {
       await interaction.editReply(facNoticePayload({
         accentColor: 0xef4444,
-        description: "Voce precisa de um cargo aprovador configurado no FAC para encerrar ausencias.",
+        description: "Você precisa de um cargo aprovador configurado no FAC para encerrar ausências.",
         title: "🚫 Acesso negado"
       }));
       return;
@@ -645,8 +645,8 @@ async function closeAbsence(interaction: ButtonInteraction, context: BotContext,
     });
 
     await updateAbsenceMessage(interaction, settings, absence);
-    await sendFacLog(guild, settings, roleRemoved ? "Cargo removido" : "Ausencia encerrada", absence, interaction.user.id);
-    await notifyAbsenceUser(guild, absence, "Sua ausencia foi encerrada pela equipe.");
+    await sendFacLog(guild, settings, roleRemoved ? "Cargo removido" : "Ausência encerrada", absence, interaction.user.id);
+    await notifyAbsenceUser(guild, absence, "Sua ausência foi encerrada pela equipe.");
     await interaction.editReply(facNoticePayload({
       accentColor: 0x22c55e,
       description: roleRemoved
@@ -657,7 +657,7 @@ async function closeAbsence(interaction: ButtonInteraction, context: BotContext,
   } catch (error) {
     await interaction.editReply(facNoticePayload({
       accentColor: 0xef4444,
-      description: readRequestErrorMessage(error) ?? "Nao foi possivel encerrar essa ausencia.",
+      description: readRequestErrorMessage(error) ?? "Não foi possível encerrar essa ausência.",
       title: "❌ Encerramento não concluído"
     }));
   }
@@ -689,13 +689,13 @@ async function publishFivemFacPanel(client: Client, context: BotContext, guildId
   const settings = await context.api.getFivemFacSettings(guildId);
 
   if (!settings.enabled || !settings.panelChannelId) {
-    throw new Error("FAC nao esta ativo ou sem canal de painel.");
+    throw new Error("FAC não está ativo ou sem canal de painel.");
   }
 
   const channel = await guild.channels.fetch(settings.panelChannelId);
 
   if (!channel || !channel.isTextBased()) {
-    throw new Error("Canal de painel FAC invalido.");
+    throw new Error("Canal de painel FAC inválido.");
   }
 
   assertPanelChannelPermissions(channel, client, "FAC", { requirePinMessages: false });
@@ -712,7 +712,7 @@ async function publishFivemFacPanel(client: Client, context: BotContext, guildId
 
     await oldMessage.edit(payload);
     if (oldMessage.pinned) {
-      await oldMessage.unpin("Painel FAC nao e mais fixado automaticamente.").catch(() => null);
+      await oldMessage.unpin("Painel FAC não é mais fixado automaticamente.").catch(() => null);
     }
     console.log(`[fivem-fac] painel atualizado em ${guild.name}.`);
     return settings;
@@ -757,7 +757,7 @@ async function createAbsenceChannel(guild: Guild, settings: FivemFacSettings, ab
         allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
       }))
     ],
-    reason: "Canal privado para solicitacao de ausencia FAC",
+    reason: "Canal privado para solicitação de ausência FAC",
     type: ChannelType.GuildText
   });
   const message = await channel.send(buildAbsenceReviewPayload(absence, channel.guild));
@@ -781,7 +781,7 @@ async function processDueFivemFacAbsences(client: Client, context: BotContext) {
 
     for (const absence of absences) {
       await processDueAbsence(client, context, absence, today).catch((error) => {
-        console.warn(`[fivem-fac] falha ao processar ausencia ${absence.id}:`, errorMessage(error));
+        console.warn(`[fivem-fac] falha ao processar ausência ${absence.id}:`, errorMessage(error));
       });
     }
   } catch (error) {
@@ -833,7 +833,7 @@ async function processDueAbsence(client: Client, context: BotContext, absence: F
     const result = await context.api.markFivemFacAbsenceStarted(current.id, roleAdded);
     current = result.absence;
     if (result.changed) {
-      await sendFacLog(guild, settings, roleAdded ? "Ausencia iniciada com cargo" : "Ausencia iniciada sem cargo", current, null);
+      await sendFacLog(guild, settings, roleAdded ? "Ausência iniciada com cargo" : "Ausência iniciada sem cargo", current, null);
       await notifyAbsenceUser(guild, current, settings.messages.started);
       await updateStoredAbsenceMessage(guild, current);
     }
@@ -844,7 +844,7 @@ async function processDueAbsence(client: Client, context: BotContext, absence: F
     const result = await context.api.markFivemFacAbsenceFinished(current.id, roleRemoved);
     current = result.absence;
     if (result.changed) {
-      await sendFacLog(guild, settings, roleRemoved ? "Ausencia finalizada com cargo removido" : "Ausencia finalizada sem cargo", current, null);
+      await sendFacLog(guild, settings, roleRemoved ? "Ausência finalizada com cargo removido" : "Ausência finalizada sem cargo", current, null);
       await notifyAbsenceUser(guild, current, settings.messages.finished);
       await updateStoredAbsenceMessage(guild, current);
     }
@@ -865,7 +865,7 @@ async function startApprovedAbsenceIfDue(guild: Guild, context: BotContext, sett
   });
   const result = await context.api.markFivemFacAbsenceStarted(absence.id, roleAdded);
   if (result.changed) {
-    await sendFacLog(guild, settings, roleAdded ? "Ausencia iniciada com cargo" : "Ausencia iniciada sem cargo", result.absence, actorId);
+    await sendFacLog(guild, settings, roleAdded ? "Ausência iniciada com cargo" : "Ausência iniciada sem cargo", result.absence, actorId);
     await updateStoredAbsenceMessage(guild, result.absence);
   }
   return result;
@@ -886,7 +886,7 @@ async function addAbsenceRole(guild: Guild, settings: FivemFacSettings, absence:
     return true;
   }
 
-  await member.roles.add(settings.absenceRoleId, "Inicio de ausencia FAC");
+  await member.roles.add(settings.absenceRoleId, "Inicio de ausência FAC");
   return true;
 }
 
@@ -905,7 +905,7 @@ async function removeAbsenceRole(guild: Guild, settings: FivemFacSettings, absen
     return true;
   }
 
-  await member.roles.remove(settings.absenceRoleId, "Fim de ausencia FAC");
+  await member.roles.remove(settings.absenceRoleId, "Fim de ausência FAC");
   return true;
 }
 
@@ -1419,7 +1419,7 @@ function statusEmoji(status: FivemFacAbsence["status"], guild: Guild | null = nu
 
 function formatActor(actorId: string | null | undefined) {
   if (!actorId || actorId === "automatic") {
-    return "Automatico";
+    return "Automático";
   }
 
   return `<@${actorId}>`;

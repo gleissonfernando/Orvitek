@@ -33,7 +33,7 @@ export function FivemResourceSelect({
     <div className="grid gap-2 text-xs font-medium text-zinc-400">
       <div className="flex items-center justify-between gap-3">
         <span>{label}</span>
-        <span className="text-[11px] text-zinc-600">{options.length} opcao(oes)</span>
+        <span className="text-[11px] text-zinc-600">{options.length} opção(oes)</span>
       </div>
       {selected ? (
         <div className="flex min-h-9 items-center gap-2 rounded-lg border border-zinc-800 bg-black/40 px-3 text-sm text-zinc-200">
@@ -44,7 +44,7 @@ export function FivemResourceSelect({
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-900 hover:text-white disabled:pointer-events-none disabled:opacity-40"
             disabled={disabled}
             onClick={() => onChange(null)}
-            title="Limpar selecao"
+            title="Limpar seleção"
             type="button"
           >
             <X className="h-3.5 w-3.5" />

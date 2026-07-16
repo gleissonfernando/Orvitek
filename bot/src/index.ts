@@ -133,12 +133,12 @@ if (needsMusic) {
       initializeLavalink(client);
     })
     .catch((error) => {
-      console.warn("[music:lavalink] falha ao carregar modulo:", error instanceof Error ? error.message : error);
+      console.warn("[music:lavalink] falha ao carregar módulo:", error instanceof Error ? error.message : error);
     });
 }
 
 if (!env.DISCORD_BOT_TOKEN) {
-  console.error("[bot] DISCORD_BOT_TOKEN nao configurado.");
+  console.error("[bot] DISCORD_BOT_TOKEN não configurado.");
   process.exit(1);
 }
 
@@ -244,7 +244,7 @@ memoryMonitor.unref();
 startBot().catch((error) => {
   console.error("[bot] falha ao conectar:", error);
   if (isInvalidTokenError(error)) {
-    console.error("[bot] token invalido; encerrando sem reconexao automatica.");
+    console.error("[bot] token inválido; encerrando sem reconexao automática.");
     process.exit(0);
   }
   scheduleReconnect("falha inicial de login");

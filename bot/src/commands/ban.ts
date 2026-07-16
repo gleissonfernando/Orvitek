@@ -13,7 +13,7 @@ export const banCommand: BotCommand = {
   async execute(interaction, context) {
     if (!interaction.guild) {
       await interaction.reply({
-        content: "Comando disponivel apenas em servidores.",
+        content: "Comando disponível apenas em servidores.",
         ephemeral: true
       });
       return;

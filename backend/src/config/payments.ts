@@ -34,7 +34,7 @@ export function getMercadoPagoRuntimeConfig(): MercadoPagoRuntimeConfig {
   if (!publicKey) errors.push(`MERCADOPAGO_${environment === "test" ? "TEST" : "PROD"}_PUBLIC_KEY ausente.`);
   if (!webhookSecret) errors.push(`MERCADOPAGO_${environment === "test" ? "TEST" : "PROD"}_WEBHOOK_SECRET ausente.`);
   if (environment === "production" && !env.PAYMENTS_ALLOW_LIVE_CHARGES) {
-    errors.push("PAYMENTS_ALLOW_LIVE_CHARGES precisa estar true para criar cobrancas em producao.");
+    errors.push("PAYMENTS_ALLOW_LIVE_CHARGES precisa estar true para criar cobrancas em produção.");
   }
 
   const enabled = env.MERCADOPAGO_ENABLED;
@@ -78,15 +78,15 @@ export function requireMercadoPagoOperational(options: { allowDisabled?: boolean
   const config = getMercadoPagoRuntimeConfig();
 
   if (!options.allowDisabled && !config.enabled) {
-    throw paymentConfigError("Mercado Pago esta desativado no servidor.", 503);
+    throw paymentConfigError("Mercado Pago está desativado no servidor.", 503);
   }
 
   if (!config.accessToken || !config.credentialsConfigured || (options.requireWebhook && !config.webhookConfigured)) {
-    throw paymentConfigError("Mercado Pago indisponivel por credenciais ausentes ou invalidas.", 503);
+    throw paymentConfigError("Mercado Pago indisponível por credenciais ausentes ou inválidas.", 503);
   }
 
   if (!options.allowDisabled && config.environment === "production" && !env.PAYMENTS_ALLOW_LIVE_CHARGES) {
-    throw paymentConfigError("Cobrancas de producao bloqueadas por PAYMENTS_ALLOW_LIVE_CHARGES.", 503);
+    throw paymentConfigError("Cobrancas de produção bloqueadas por PAYMENTS_ALLOW_LIVE_CHARGES.", 503);
   }
 
   return config;

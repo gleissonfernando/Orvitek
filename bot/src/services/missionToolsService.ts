@@ -686,7 +686,7 @@ async function handleUsernameCheckerButton(interaction: ButtonInteraction, conte
     });
     checker.on("hit", (username: string) => {
       void context.api.updateMissionToolsUser(guildId, interaction.user.id, {
-        usernameCheckerLastEvent: `Disponivel: ${username}`,
+        usernameCheckerLastEvent: `Disponível: ${username}`,
         usernameCheckerUpdatedAt: new Date().toISOString()
       });
     });

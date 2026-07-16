@@ -106,7 +106,7 @@ dashboardRouter.get("/:slug", async (req, res, next) => {
         username: auth.user.username,
         dashboardSlug: input.slug,
         result: "denied",
-        reason: "Dashboard nao pertence ao usuario autenticado."
+        reason: "Dashboard não pertence ao usuário autenticado."
       });
       return res.status(403).json({
         message: ACCESS_DENIED_MESSAGE,
@@ -120,7 +120,7 @@ dashboardRouter.get("/:slug", async (req, res, next) => {
       dashboardSlug: input.slug,
       botId: bot.id,
       result: "allowed",
-      reason: "Dashboard liberada para o usuario autenticado."
+      reason: "Dashboard liberada para o usuário autenticado."
     });
 
     const scopedGuilds = scopedBotDashboardGuilds(auth.user, bot);
@@ -165,7 +165,7 @@ dashboardRouter.patch("/selected-guild", async (req, res, next) => {
         botId,
         guildId: input.selectedGuildId,
         result: "denied",
-        reason: "Servidor nao pertence ao escopo autorizado do usuario."
+        reason: "Servidor não pertence ao escopo autorizado do usuário."
       });
       return res.status(403).json({
         message: ACCESS_DENIED_MESSAGE,

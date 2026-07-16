@@ -21,18 +21,18 @@ const ACTIVE_STATUSES = new Set<FivemFacAbsence["status"]>(["pending", "approved
 export const removerCommand: BotCommand = {
   data: new SlashCommandBuilder()
     .setName("remover")
-    .setDescription("Remove estados temporarios de usuarios.")
+    .setDescription("Remove estados temporarios de usuários.")
     .addSubcommand((subcommand) => subcommand
       .setName("cargo")
-      .setDescription("Remove o cargo de ausencia de um usuario e encerra a ausencia.")
+      .setDescription("Remove o cargo de ausência de um usuário e encerra a ausência.")
       .addUserOption((option) => option
         .setName("usuario")
-        .setDescription("Usuario que tera a ausencia removida.")
+        .setDescription("Usuário que terá a ausência removida.")
         .setRequired(true))),
   moduleId: MODULE_ID,
   async execute(interaction, context) {
     if (interaction.options.getSubcommand() !== "cargo") {
-      await interaction.reply({ content: "Subcomando invalido.", ephemeral: true });
+      await interaction.reply({ content: "Subcomando inválido.", ephemeral: true });
       return;
     }
 
@@ -48,7 +48,7 @@ export const removerCommand: BotCommand = {
     const roleIds = memberRoleIds(interaction.member);
 
     if (!canModerateAbsences(settings, roleIds)) {
-      await interaction.reply({ content: "Voce precisa de um cargo aprovador do sistema de ausencias para remover essa ausencia.", ephemeral: true });
+      await interaction.reply({ content: "Você precisa de um cargo aprovador do sistema de ausências para remover essa ausência.", ephemeral: true });
       return;
     }
 
@@ -56,15 +56,15 @@ export const removerCommand: BotCommand = {
     const absence = pickActiveAbsence(absences);
 
     if (!absence) {
-      await interaction.reply({ content: `Nao encontrei ausencia aberta para ${target}.`, ephemeral: true });
+      await interaction.reply({ content: `Não encontrei ausência aberta para ${target}.`, ephemeral: true });
       return;
     }
 
     await interaction.reply(ephemeralPanel({
       actions: [confirmationActions(absence.id, target.id)],
-      description: `Confirme para remover o cargo de ausencia de ${target} e encerrar a ausencia.`,
+      description: `Confirme para remover o cargo de ausência de ${target} e encerrar a ausência.`,
       fields: absenceFields(absence, settings),
-      title: "Remover Cargo de Ausencia"
+      title: "Remover Cargo de Ausência"
     }));
   }
 };
@@ -76,8 +76,8 @@ export async function handleRemoverInteraction(interaction: Interaction, context
 
   if (interaction.customId.startsWith(CANCEL_PREFIX)) {
     await interaction.update(ephemeralPanel({
-      description: "Operacao cancelada. Nenhum cargo ou registro de ausencia foi alterado.",
-      title: "Remocao Cancelada"
+      description: "Operação cancelada. Nenhum cargo ou registro de ausência foi alterado.",
+      title: "Remoção Cancelada"
     }));
     return true;
   }
@@ -95,8 +95,8 @@ async function confirmRemoval(interaction: ButtonInteraction, context: BotContex
 
   if (!guild) {
     await interaction.update(ephemeralPanel({
-      description: "Esta acao precisa ser executada dentro de um servidor.",
-      title: "Remocao Nao Concluida"
+      description: "Esta ação precisa ser executada dentro de um servidor.",
+      title: "Remoção Não Concluída"
     }));
     return;
   }
@@ -105,8 +105,8 @@ async function confirmRemoval(interaction: ButtonInteraction, context: BotContex
 
   if (!absenceId || !targetUserId) {
     await interaction.update(ephemeralPanel({
-      description: "Este painel nao possui os dados necessarios para concluir a remocao.",
-      title: "Painel Invalido"
+      description: "Este painel não possui os dados necessarios para concluir a remoção.",
+      title: "Painel Inválido"
     }));
     return;
   }
@@ -116,8 +116,8 @@ async function confirmRemoval(interaction: ButtonInteraction, context: BotContex
 
   if (!canModerateAbsences(settings, roleIds)) {
     await interaction.update(ephemeralPanel({
-      description: "Voce nao tem mais um cargo aprovador configurado para concluir esta remocao.",
-      title: "Permissao Insuficiente"
+      description: "Você não tem mais um cargo aprovador configurado para concluir esta remoção.",
+      title: "Permissão Insuficiente"
     }));
     return;
   }
@@ -126,35 +126,35 @@ async function confirmRemoval(interaction: ButtonInteraction, context: BotContex
 
   if (!absence || absence.guildId !== guild.id || absence.userId !== targetUserId) {
     await interaction.update(ephemeralPanel({
-      description: "A ausencia selecionada nao foi encontrada ou nao pertence a este usuario.",
-      title: "Ausencia Indisponivel"
+      description: "A ausência selecionada não foi encontrada ou não pertence a este usuário.",
+      title: "Ausência Indisponível"
     }));
     return;
   }
 
   if (!ACTIVE_STATUSES.has(absence.status)) {
     await interaction.update(ephemeralPanel({
-      description: "Esta ausencia ja foi encerrada ou recusada.",
+      description: "Esta ausência já foi encerrada ou recusada.",
       fields: absenceFields(absence, settings),
-      title: "Ausencia Ja Encerrada"
+      title: "Ausência Já Encerrada"
     }));
     return;
   }
 
   let roleRemoved = false;
-  let roleNote = "Nenhum cargo de ausencia esta configurado.";
+  let roleNote = "Nenhum cargo de ausência está configurado.";
 
   if (settings.absenceRoleId) {
     const targetMember = await guild.members.fetch(absence.userId).catch(() => null);
     if (!targetMember) {
-      roleNote = "Usuario nao encontrado no servidor. A ausencia sera encerrada mesmo assim.";
+      roleNote = "Usuário não encontrado no servidor. A ausência será encerrada mesmo assim.";
     } else if (targetMember.roles.cache.has(settings.absenceRoleId)) {
-      await targetMember.roles.remove(settings.absenceRoleId, `Ausencia removida por ${interaction.user.tag}`);
+      await targetMember.roles.remove(settings.absenceRoleId, `Ausência removida por ${interaction.user.tag}`);
       roleRemoved = true;
       roleNote = `Cargo <@&${settings.absenceRoleId}> removido.`;
     } else {
       roleRemoved = true;
-      roleNote = `O usuario ja estava sem o cargo <@&${settings.absenceRoleId}>.`;
+      roleNote = `O usuário já estava sem o cargo <@&${settings.absenceRoleId}>.`;
     }
   }
 
@@ -174,7 +174,7 @@ async function confirmRemoval(interaction: ButtonInteraction, context: BotContex
     caseId: absence.id,
     status: "success",
     type: "police.absence.role_removed",
-    message: "Cargo de ausencia removido manualmente.",
+    message: "Cargo de ausência removido manualmente.",
     metadata: {
       absenceId: absence.id,
       roleId: settings.absenceRoleId,
@@ -183,9 +183,9 @@ async function confirmRemoval(interaction: ButtonInteraction, context: BotContex
   }).catch(() => undefined);
 
   await interaction.update(ephemeralPanel({
-    description: `Ausencia encerrada para <@${closed.userId}>.\n${roleNote}`,
+    description: `Ausência encerrada para <@${closed.userId}>.\n${roleNote}`,
     fields: absenceFields(closed, settings),
-    title: "Cargo de Ausencia Removido"
+    title: "Cargo de Ausência Removido"
   }));
 }
 
@@ -206,8 +206,8 @@ function confirmationActions(absenceId: string, targetUserId: string) {
 
 function absenceFields(absence: FivemFacAbsence, settings: FivemFacSettings) {
   return [
-    `**Usuario:** <@${absence.userId}>\n**Status:** ${absence.status}\n**Periodo:** ${formatDate(absence.startDate)} ate ${formatDate(absence.endDate)}`,
-    `**Cargo de ausencia:** ${settings.absenceRoleId ? `<@&${settings.absenceRoleId}>` : "Nao configurado"}\n**Motivo:** ${truncate(absence.reason, 450)}`
+    `**Usuário:** <@${absence.userId}>\n**Status:** ${absence.status}\n**Periodo:** ${formatDate(absence.startDate)} ate ${formatDate(absence.endDate)}`,
+    `**Cargo de ausência:** ${settings.absenceRoleId ? `<@&${settings.absenceRoleId}>` : "Não configurado"}\n**Motivo:** ${truncate(absence.reason, 450)}`
   ];
 }
 

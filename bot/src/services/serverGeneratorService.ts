@@ -99,13 +99,13 @@ const typeProfiles: Record<ServerType, { categorySeeds: string[]; channelSeeds: 
   fivem: {
     categorySeeds: ["informacoes", "cidade", "whitelist", "faccoes", "policia", "mecanica", "eventos", "staff", "logs"],
     channelSeeds: ["regras", "avisos", "whitelist", "denuncias", "suporte", "clips", "radio", "patrulha", "oficina", "logs"],
-    roleSeeds: ["Fundador", "Prefeitura", "Staff", "Policia", "Mecanico", "Faccoes", "Cidadao"],
+    roleSeeds: ["Fundador", "Prefeitura", "Staff", "Polícia", "Mecânico", "Facções", "Cidadão"],
     systems: ["whitelist", "denuncias", "tickets", "logs", "faccoes"]
   },
   "gta-rp": {
     categorySeeds: ["entrada", "cidade", "organizacoes", "departamentos", "midia", "voz", "staff"],
     channelSeeds: ["regras", "avisos", "passaporte", "denuncias", "eventos", "clips", "geral", "logs"],
-    roleSeeds: ["Fundador", "Direcao", "Admin", "Suporte", "Policia", "Hospital", "Cidadao"],
+    roleSeeds: ["Fundador", "Direção", "Admin", "Suporte", "Polícia", "Hospital", "Cidadão"],
     systems: ["whitelist", "suporte", "denuncias", "eventos"]
   },
   streamer: {
@@ -117,7 +117,7 @@ const typeProfiles: Record<ServerType, { categorySeeds: string[]; channelSeeds: 
   gamer: {
     categorySeeds: ["lobby", "squads", "ranked", "midia", "torneios", "suporte"],
     channelSeeds: ["regras", "procurar-time", "chat", "clips", "partidas", "vitorias", "voz-1", "voz-2"],
-    roleSeeds: ["Lider", "Capitao", "Coach", "Player", "Streamer", "Membro"],
+    roleSeeds: ["Líder", "Capitao", "Coach", "Player", "Streamer", "Membro"],
     systems: ["squads", "ranked", "torneios", "clips"]
   },
   business: {
@@ -128,14 +128,14 @@ const typeProfiles: Record<ServerType, { categorySeeds: string[]; channelSeeds: 
   },
   store: {
     categorySeeds: ["loja", "catalogo", "atendimento", "pedidos", "clientes", "staff"],
-    channelSeeds: ["produtos", "precos", "comprar", "ticket", "feedbacks", "entregas", "logs"],
+    channelSeeds: ["produtos", "preços", "comprar", "ticket", "feedbacks", "entregas", "logs"],
     roleSeeds: ["Dono", "Gerente", "Vendedor", "Suporte", "Cliente", "VIP"],
     systems: ["tickets", "pedidos", "feedbacks", "catalogo"]
   },
   "bot-support": {
     categorySeeds: ["central", "documentacao", "suporte", "status", "comunidade", "equipe"],
     channelSeeds: ["como-usar", "updates", "bugs", "sugestoes", "tickets", "status", "logs"],
-    roleSeeds: ["Developer", "Admin", "Suporte", "Tester", "Parceiro", "Usuario"],
+    roleSeeds: ["Developer", "Admin", "Suporte", "Tester", "Parceiro", "Usuário"],
     systems: ["tickets", "bugs", "status", "sugestoes"]
   },
   anime: {
@@ -195,7 +195,7 @@ const typeProfiles: Record<ServerType, { categorySeeds: string[]; channelSeeds: 
   clan: {
     categorySeeds: ["quartel", "treinos", "squads", "guerras", "midia", "staff"],
     channelSeeds: ["avisos", "recrutamento", "estrategias", "treino", "partidas", "voz-alpha", "voz-bravo"],
-    roleSeeds: ["Lider", "Oficial", "Recrutador", "Elite", "Membro", "Recruta"],
+    roleSeeds: ["Líder", "Oficial", "Recrutador", "Elite", "Membro", "Recruta"],
     systems: ["recrutamento", "treinos", "guerras", "squads"]
   },
   esports: {
@@ -303,7 +303,7 @@ export async function showServerGeneratorModal(interaction: ChatInputCommandInte
             .setCustomId("categoryTarget")
             .setLabel(categoryMode === "custom" ? "Quantidade de categorias" : "Categorias (opcional)")
             .setMaxLength(2)
-            .setPlaceholder(categoryMode === "custom" ? "Ex: 8" : "Deixe vazio para automatico")
+            .setPlaceholder(categoryMode === "custom" ? "Ex: 8" : "Deixe vazio para automático")
             .setRequired(categoryMode === "custom")
             .setStyle(TextInputStyle.Short)
         )
@@ -328,7 +328,7 @@ export async function handleServerGeneratorInteraction(interaction: Interaction,
   const member = interaction.member as GuildMember | null;
   if (!member?.permissions.has(PermissionFlagsBits.ManageGuild)) {
     await interaction.reply({
-      content: "Voce precisa da permissao Gerenciar Servidor para usar o gerador.",
+      content: "Você precisa da permissão Gerenciar Servidor para usar o gerador.",
       ephemeral: true
     });
     return true;
@@ -337,7 +337,7 @@ export async function handleServerGeneratorInteraction(interaction: Interaction,
   const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe().catch(() => null);
   if (!botMember?.permissions.has(PermissionFlagsBits.ManageChannels) || !botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
     await interaction.reply({
-      content: "O bot precisa das permissoes Gerenciar Canais e Gerenciar Cargos para criar a estrutura.",
+      content: "O bot precisa das permissões Gerenciar Canais e Gerenciar Cargos para criar a estrutura.",
       ephemeral: true
     });
     return true;
@@ -366,7 +366,7 @@ export async function handleServerGeneratorInteraction(interaction: Interaction,
     await interaction.editReply(doneText(plan, createdCategories.categories.length, createdChannels.total, plan.roles.length, Date.now() - startedAt, interaction.guild));
   } catch (error) {
     console.error("[server-generator] falha ao criar servidor:", error);
-    await interaction.editReply(`Nao foi possivel finalizar a criacao: ${friendlyError(error)}`);
+    await interaction.editReply(`Não foi possível finalizar a criacao: ${friendlyError(error)}`);
   }
 
   return true;
@@ -441,7 +441,7 @@ function generateStreamerPlan(input: GeneratorInput, random: RandomSource, syste
     {
       name: "📢・Central",
       channels: textChannels(input, [
-        ["📌・regras", "Regras, conduta e informacoes importantes."],
+        ["📌・regras", "Regras, conduta e informações importantes."],
         ["📣・avisos", "Avisos oficiais da live e da comunidade."],
         ["🔴・lives", "Notificações quando a live estiver online."]
       ])
@@ -451,7 +451,7 @@ function generateStreamerPlan(input: GeneratorInput, random: RandomSource, syste
       channels: textChannels(input, [
         ["🎞️・clips", "Melhores momentos enviados pela comunidade."],
         ["📸・bastidores", "Bastidores, previas e novidades do criador."],
-        ["💡・ideias", "Ideias de conteudo, quadros e desafios."]
+        ["💡・ideias", "Ideias de conteúdo, quadros e desafios."]
       ])
     },
     {
@@ -465,8 +465,8 @@ function generateStreamerPlan(input: GeneratorInput, random: RandomSource, syste
     {
       name: "⭐・Benefícios",
       channels: textChannels(input, [
-        ["⭐・subs", "Area especial para inscritos e apoiadores."],
-        ["💎・vip", "Beneficios, sorteios e novidades VIP."],
+        ["⭐・subs", "Área especial para inscritos e apoiadores."],
+        ["💎・vip", "Benefícios, sorteios e novidades VIP."],
         ["🎁・sorteios", "Sorteios e recompensas da comunidade."]
       ])
     },
@@ -482,9 +482,9 @@ function generateStreamerPlan(input: GeneratorInput, random: RandomSource, syste
       name: "🛡️・Staff",
       privateStaff: true,
       channels: textChannels(input, [
-        ["🧰・staff-chat", "Organizacao interna da equipe."],
+        ["🧰・staff-chat", "Organização interna da equipe."],
         ["📋・logs", "Registros internos e auditoria."],
-        ["✅・tarefas", "Checklist de moderacao, lives e eventos."]
+        ["✅・tarefas", "Checklist de moderação, lives e eventos."]
       ])
     }
   ];
@@ -499,7 +499,7 @@ function generateStreamerPlan(input: GeneratorInput, random: RandomSource, syste
     categories,
     panels: panelDefinitions(input, systems, random),
     roles,
-    summary: `${input.serverName} recebeu estrutura streamer com central, conteudo, comunidade, beneficios, calls e staff.`
+    summary: `${input.serverName} recebeu estrutura streamer com central, conteúdo, comunidade, benefícios, calls e staff.`
   };
 }
 
@@ -649,8 +649,8 @@ async function ensureNoEmptyCategories(categories: CategoryChannel[], textChanne
   await firstCategory.guild.channels.create({
     name: "inicio",
     parent: firstCategory.id,
-    reason: "Gerador Inteligente de Servidores - validacao",
-    topic: "Canal inicial criado pela validacao automatica.",
+    reason: "Gerador Inteligente de Servidores - validação",
+    topic: "Canal inicial criado pela validação automática.",
     type: ChannelType.GuildText
   });
 }
@@ -676,7 +676,7 @@ function panelDefinitions(input: GeneratorInput, systems: string[], random: Rand
     {
       channelHint: "sugestoes",
       title: "Painel de Sugestoes",
-      body: "Envie ideias com contexto, impacto esperado e exemplos. Sugestoes repetidas serao agrupadas pela staff."
+      body: "Envie ideias com contexto, impacto esperado e exemplos. Sugestoes repetidas serão agrupadas pela staff."
     },
     {
       channelHint: "avisos",

@@ -237,7 +237,7 @@ function ensureOAuthConfigured(res: Parameters<Parameters<typeof authRouter.get>
   if (!env.DISCORD_CLIENT_ID || !env.DISCORD_CLIENT_SECRET || !env.DISCORD_OAUTH_REDIRECT_URI) {
     console.warn(`[auth] oauth config incompleto: client_id=${diagnostics.clientId} redirect_uri=${diagnostics.redirectUri} client_secret=${diagnostics.clientSecret}.`);
     res.status(503).json({
-      message: "OAuth2 Discord ainda nao esta configurado."
+      message: "OAuth2 Discord ainda não está configurado."
     });
     return false;
   }
@@ -342,7 +342,7 @@ authRouter.get("/discord/bot/:slug", async (req, res, next) => {
 
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
       return res.status(400).json({
-        message: "Dashboard invalida."
+        message: "Dashboard inválida."
       });
     }
 
@@ -350,7 +350,7 @@ authRouter.get("/discord/bot/:slug", async (req, res, next) => {
 
     if (!bot) {
       return res.status(404).json({
-        message: "Bot nao encontrado."
+        message: "Bot não encontrado."
       });
     }
 
@@ -404,7 +404,7 @@ authRouter.get("/discord/callback", async (req, res, next) => {
     console.info(`[auth] callback Discord recebido: code=${code ? "present" : "missing"} state=${state ? "present" : "missing"} client_id=${diagnostics.clientId} redirect_uri=${diagnostics.redirectUri}.`);
 
     if (!code || !state || !verifiedState) {
-      console.warn("[auth] callback recusado: state ausente ou invalido.");
+      console.warn("[auth] callback recusado: state ausente ou inválido.");
       clearAuthCookies(res);
       await saveSession(req).catch(() => undefined);
       return res.redirect(errorRedirectUrl("callback"));
@@ -414,7 +414,7 @@ authRouter.get("/discord/callback", async (req, res, next) => {
     console.info("[auth] oauth: trocando code do Discord.");
     const tokens = await withAuthTimeout("discord_token_exchange", exchangeDiscordCode(code));
     await withAuthTimeout("bot_guilds_refresh", ensureBotGuildsLoaded());
-    console.info("[auth] oauth: buscando usuario e guilds do Discord.");
+    console.info("[auth] oauth: buscando usuário e guilds do Discord.");
     const [discordUser, discordGuilds] = await Promise.all([
       withAuthTimeout("discord_user_fetch", fetchDiscordUser(tokens.access_token)),
       withAuthTimeout("discord_guilds_fetch", fetchDiscordGuilds(tokens.access_token))
@@ -436,7 +436,7 @@ authRouter.get("/discord/callback", async (req, res, next) => {
       authorized: false,
       lastLoginAt: new Date().toISOString()
     };
-    console.info(`[auth] oauth: usuario autenticado discordId=${discordUser.id}.`);
+    console.info(`[auth] oauth: usuário autenticado discordId=${discordUser.id}.`);
 
     let botSlugForAccess: string | null = null;
     let redirectTo = verifiedState.returnTo;
@@ -463,7 +463,7 @@ authRouter.get("/discord/callback", async (req, res, next) => {
 
       issueAuthCookies(res, req.session.user, false);
       await saveSession(req);
-      console.info(`[auth] oauth: sessao de cliente criada para ${discordUser.id}; redirect=${redirectTo}.`);
+      console.info(`[auth] oauth: sessão de cliente criada para ${discordUser.id}; redirect=${redirectTo}.`);
       return res.redirect(authCallbackLandingUrl(redirectTo));
     }
 
@@ -543,7 +543,7 @@ authRouter.get("/discord/callback", async (req, res, next) => {
 
     issueAuthCookies(res, req.session.user, false);
     await saveSession(req);
-    console.info(`[auth] oauth: sessao temporaria criada para ${discordUser.id}; redirect=${redirectTo}.`);
+    console.info(`[auth] oauth: sessão temporaria criada para ${discordUser.id}; redirect=${redirectTo}.`);
     return res.redirect(authCallbackLandingUrl(redirectTo));
   } catch (error) {
     console.error("[auth] oauth: falha no callback:", error instanceof Error ? error.message : error);
@@ -568,7 +568,7 @@ authRouter.get("/me", async (req, res, next) => {
 
     if (!auth) {
       return res.status(401).json({
-        message: "Sessao nao autenticada."
+        message: "Sessão não autenticada."
       });
     }
 
@@ -597,7 +597,7 @@ authRouter.post("/refresh", async (req, res, next) => {
     await saveSession(req);
 
     return res.status(401).json({
-      message: "Renovacao automatica de sessao desativada. Autentique novamente pelo Discord."
+      message: "Renovacao automática de sessão desativada. Autentique novamente pelo Discord."
     });
   } catch (error) {
     return next(error);
@@ -688,7 +688,7 @@ async function refreshAuthUserGuilds(req: Request, user: AuthSessionUser) {
       selectedGuildId
     };
   } catch (error) {
-    console.warn("[auth] nao foi possivel atualizar servidores do usuario:", error instanceof Error ? error.message : error);
+    console.warn("[auth] não foi possível atualizar servidores do usuário:", error instanceof Error ? error.message : error);
     return user;
   }
 }

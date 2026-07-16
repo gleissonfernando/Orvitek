@@ -11,13 +11,13 @@ xWebhookRouter.get("/", (req, res) => {
 
   if (!crcToken) {
     return res.status(400).json({
-      message: "crc_token obrigatorio."
+      message: "crc_token obrigatório."
     });
   }
 
   if (!consumerSecret) {
     return res.status(503).json({
-      message: "X_CONSUMER_SECRET nao configurado no backend."
+      message: "X_CONSUMER_SECRET não configurado no backend."
     });
   }
 
@@ -33,7 +33,7 @@ xWebhookRouter.get("/", (req, res) => {
 xWebhookRouter.post("/", (req, res) => {
   if (!isValidWebhookSignature(req)) {
     return res.status(401).json({
-      message: "Assinatura do webhook do X invalida."
+      message: "Assinatura do webhook do X inválida."
     });
   }
 

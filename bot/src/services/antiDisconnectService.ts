@@ -45,7 +45,7 @@ export async function handleAntiDisconnectVoiceStateUpdate(oldState: VoiceState,
   const audit = await findRecentDisconnectExecutor(oldState);
   if (!audit.executorId) {
     if (audit.reason) {
-      await writeAntiDisconnectLog(context, oldState.guild.id, config, "anti_disconnect.audit_failed", `Anti Disconnect nao conseguiu ler o audit log para ${member.user.tag}: ${audit.reason}.`, { botId, channelId: oldState.channel.id, reason: audit.reason, userId: member.id }, member.id);
+      await writeAntiDisconnectLog(context, oldState.guild.id, config, "anti_disconnect.audit_failed", `Anti Disconnect não conseguiu ler o audit log para ${member.user.tag}: ${audit.reason}.`, { botId, channelId: oldState.channel.id, reason: audit.reason, userId: member.id }, member.id);
     }
     return;
   }
@@ -121,13 +121,13 @@ async function reconnectMember(
   const botMember = oldState.guild.members.me ?? await oldState.guild.members.fetchMe().catch(() => null);
   const permissions = botMember ? channel.permissionsFor(botMember) : null;
   if (!permissions?.has(PermissionFlagsBits.Connect) || !permissions.has(PermissionFlagsBits.MoveMembers)) {
-    await writeAntiDisconnectLog(context, oldState.guild.id, config, "anti_disconnect.permission_failed", "Anti Disconnect sem permissao para conectar ou mover membros.", { botId, channelId: channel.id, executorId, userId: member.id }, member.id);
+    await writeAntiDisconnectLog(context, oldState.guild.id, config, "anti_disconnect.permission_failed", "Anti Disconnect sem permissão para conectar ou mover membros.", { botId, channelId: channel.id, executorId, userId: member.id }, member.id);
     return;
   }
 
   try {
-    await freshMember.voice.setChannel(channel, "Anti Disconnect: reconexao automatica apos disconnect indevido.");
-    await writeAntiDisconnectLog(context, oldState.guild.id, config, "anti_disconnect.reconnected", `Anti Disconnect reconectou ${freshMember.user.tag} apos remocao indevida.`, { botId, channelId: channel.id, executorId, userId: member.id }, member.id);
+    await freshMember.voice.setChannel(channel, "Anti Disconnect: reconexao automática após disconnect indevido.");
+    await writeAntiDisconnectLog(context, oldState.guild.id, config, "anti_disconnect.reconnected", `Anti Disconnect reconectou ${freshMember.user.tag} após remoção indevida.`, { botId, channelId: channel.id, executorId, userId: member.id }, member.id);
   } catch (error) {
     await writeAntiDisconnectLog(context, oldState.guild.id, config, "anti_disconnect.failed", `Anti Disconnect falhou ao reconectar ${freshMember.user.tag}: ${readError(error)}.`, { botId, channelId: channel.id, executorId, userId: member.id }, member.id);
   }

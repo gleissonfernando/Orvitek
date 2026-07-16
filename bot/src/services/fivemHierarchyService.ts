@@ -112,7 +112,7 @@ export const hierarchyCommand: BotCommand = {
       return;
     }
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: "Voce precisa de permissao para gerenciar o servidor.", ephemeral: true });
+      await interaction.reply({ content: "Você precisa de permissão para gerenciar o servidor.", ephemeral: true });
       return;
     }
 
@@ -162,13 +162,13 @@ async function handleHierarchyPanelUpdateEvent(
   const panelId = payload.panelId ?? null;
   const guild = client.guilds.cache.get(payload.guildId);
   if (!guild) {
-    return { error: "O bot nao esta conectado ao servidor selecionado.", ok: false, panelId: panelId ?? "unknown" };
+    return { error: "O bot não está conectado ao servidor selecionado.", ok: false, panelId: panelId ?? "unknown" };
   }
   invalidateHierarchyRefreshGeneration(payload.guildId, panelId);
 
   if (payload.action === "delete" || payload.action === "unpublish") {
     if (!panelId) {
-      return { error: "Painel de hierarquia nao informado para exclusao.", ok: false, panelId: "unknown" };
+      return { error: "Painel de hierarquia não informado para exclusão.", ok: false, panelId: "unknown" };
     }
     await cancelHierarchyPanelUpdates(payload.guildId, panelId, payload.action === "delete");
     hierarchyPanelCaches.delete(panelCacheKey(payload.guildId, panelId));
@@ -295,13 +295,13 @@ export async function refreshHierarchyPanelsForGuild(guild: Guild, context: BotC
   });
   if (!scoped.length) {
     return panelId
-      ? [{ error: "Painel ativo nao encontrado para este bot. Salve o painel como ativo e confira se o bot DEV correto esta selecionado.", ok: false, panelId }]
+      ? [{ error: "Painel ativo não encontrado para este bot. Salve o painel como ativo e confira se o bot DEV correto está selecionado.", ok: false, panelId }]
       : [];
   }
   const fetchedMembers = await fetchAllHierarchyMembers(guild, "buscar membros do servidor");
   if (!fetchedMembers) {
     return scoped.map((panel) => ({
-      error: "Nao consegui buscar a lista completa de membros no Discord; painel preservado para evitar remover nomes indevidamente.",
+      error: "Não consegui buscar a lista completa de membros no Discord; painel preservado para evitar remover nomes indevidamente.",
       ok: false,
       panelId: panel.id
     }));
@@ -373,7 +373,7 @@ async function refreshHierarchyPanelsIncrementally(guild: Guild, context: BotCon
     if (!fetchedMembers) {
       for (const panel of scoped.filter((item) => fallbackPanelIds.has(item.id))) {
         results.push({
-          error: "Nao consegui reconstruir a lista completa de membros no Discord; painel preservado para evitar remover nomes indevidamente.",
+          error: "Não consegui reconstruir a lista completa de membros no Discord; painel preservado para evitar remover nomes indevidamente.",
           ok: false,
           panelId: panel.id
         });
@@ -553,11 +553,11 @@ async function publishHierarchyPanelWithLocks(input: HierarchyPublishInput, isCa
 async function publishHierarchyPanelUnlocked(input: HierarchyPublishInput, isCancelled: () => boolean, lock: HierarchyPanelLock): Promise<HierarchyPublishResult> {
   const { cache, context, guild, panel } = input;
   if (isCancelled()) return hierarchyCancelledResult(panel.id);
-  if (!panel.enabled) return { error: "O painel de hierarquia esta desativado.", ok: false, panelId: panel.id };
-  if (!panel.panelChannelId) return { error: "Canal do painel de hierarquia nao configurado.", ok: false, panelId: panel.id };
+  if (!panel.enabled) return { error: "O painel de hierarquia está desativado.", ok: false, panelId: panel.id };
+  if (!panel.panelChannelId) return { error: "Canal do painel de hierarquia não configurado.", ok: false, panelId: panel.id };
   const channel = await guild.channels.fetch(panel.panelChannelId).catch(() => null);
   if (!channel || !("send" in channel) || !("messages" in channel)) {
-    const error = "Canal do painel nao encontrado ou nao e um canal de texto.";
+    const error = "Canal do painel não encontrado ou não é um canal de texto.";
     await logPublishFailure(context, guild.id, panel, error);
     return { error, ok: false, panelId: panel.id };
   }
@@ -583,8 +583,8 @@ async function publishHierarchyPanelUnlocked(input: HierarchyPublishInput, isCan
     });
     if (!message) {
       if (!isDiscordUnknownMessageError(fetchError)) {
-        await logPublishFailure(context, guild.id, panel, `Mensagem salva do painel nao foi encontrada para edicao: ${discordErrorMessage(fetchError)}.`, permissionReport);
-        return { error: "Nao foi possivel validar a mensagem salva do painel. O bot nao enviou outra mensagem para evitar duplicidade.", ok: false, panelId: panel.id };
+        await logPublishFailure(context, guild.id, panel, `Mensagem salva do painel não foi encontrada para edição: ${discordErrorMessage(fetchError)}.`, permissionReport);
+        return { error: "Não foi possível validar a mensagem salva do painel. O bot não enviou outra mensagem para evitar duplicidade.", ok: false, panelId: panel.id };
       }
       await logStaleHierarchyPanelMessage(context, guild.id, panel, panel.panelMessageId, permissionReport);
     } else {
@@ -694,7 +694,7 @@ function inspectPublishPermissions(guild: Guild, channel: PublishPermissionChann
     [PermissionFlagsBits.ViewChannel, "Ver Canal"],
     [PermissionFlagsBits.SendMessages, "Enviar Mensagens"],
     [PermissionFlagsBits.EmbedLinks, "Inserir Links"],
-    [PermissionFlagsBits.ReadMessageHistory, "Ler Historico"]
+    [PermissionFlagsBits.ReadMessageHistory, "Ler Histórico"]
   ];
   const diagnostic: Array<[bigint, string]> = editingExistingMessage
     ? [[PermissionFlagsBits.ManageMessages, "Gerenciar Mensagens"]]
@@ -746,7 +746,7 @@ async function logStaleHierarchyPanelMessage(context: BotContext, guildId: strin
     module: "fivem-hierarchy",
     action: "panel.stale_message",
     type: "fivem_hierarchy.stale_message",
-    message: `Mensagem salva do painel de hierarquia nao existe mais. Publicando um novo painel e atualizando o ID salvo.`,
+    message: `Mensagem salva do painel de hierarquia não existe mais. Publicando um novo painel e atualizando o ID salvo.`,
     metadata: { channelId: panel.panelChannelId, panelId: panel.id, permissionReport, staleMessageId }
   }).catch(() => null);
 }
@@ -1256,7 +1256,7 @@ async function logMissingHierarchyRoles(context: BotContext, guild: Guild, panel
     module: "fivem-hierarchy",
     action: "panel.missing_roles",
     type: "fivem_hierarchy.missing_roles",
-    message: `Cargos configurados na hierarquia nao existem mais no servidor: ${missing.map((item) => `${item.name} (${item.roleId})`).join(", ")}`,
+    message: `Cargos configurados na hierarquia não existem mais no servidor: ${missing.map((item) => `${item.name} (${item.roleId})`).join(", ")}`,
     metadata: { missing, panelId: panel.id }
   }).catch(() => null);
   if (panel.logChannelId) {

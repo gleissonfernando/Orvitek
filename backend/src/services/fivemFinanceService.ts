@@ -39,7 +39,7 @@ export function defaultFivemFinanceSettings(guildId: string, botId: string | nul
     guildId,
     logChannelId: null,
     panelChannelId: null,
-    panelDescription: "Gerencie entradas e saidas de dinheiro da FAC de forma automatica, segura e organizada. Toda movimentacao exige comprovante por imagem e e registrada nas logs financeiras.",
+    panelDescription: "Gerencie entradas e saidas de dinheiro da FAC de forma automática, segura e organizada. Toda movimentação exige comprovante por imagem e e registrada nas logs financeiras.",
     panelImage: null,
     panelMessageId: null,
     panelTitle: `${fixedSystemEmojiText("dinheiro")} Controle Financeiro da FAC`,
@@ -125,12 +125,12 @@ async function createFivemFinanceTransactionLocked(input: {
   const settings = await getFivemFinanceSettings(input.guildId, normalizedBotId);
   if (!settings.enabled) throw financeError("Sistema financeiro desativado.", 409);
   const amount = money(input.amount);
-  if (amount <= 0) throw financeError("Valor invalido.", 400);
+  if (amount <= 0) throw financeError("Valor inválido.", 400);
   if (amount > settings.maxTransactionAmount) throw financeError("Valor acima do limite configurado.", 409);
   const reason = normalizeText(input.reason, 1000);
-  if (settings.requireReason && !reason) throw financeError("O motivo e obrigatorio.", 400);
+  if (settings.requireReason && !reason) throw financeError("O motivo e obrigatório.", 400);
   const { fivemFinanceTransactions } = await getMongoCollections();
-  if (input.tempChannelId && await fivemFinanceTransactions.findOne({ ...scopeQuery(input.guildId, normalizedBotId), tempChannelId: input.tempChannelId, status: { $ne: "cancelled" } })) throw financeError("Este canal ja possui movimentacao registrada.", 409);
+  if (input.tempChannelId && await fivemFinanceTransactions.findOne({ ...scopeQuery(input.guildId, normalizedBotId), tempChannelId: input.tempChannelId, status: { $ne: "cancelled" } })) throw financeError("Este canal já possui movimentação registrada.", 409);
   const laundryOrderId = typeof input.metadata?.laundryOrderId === "string" ? input.metadata.laundryOrderId : null;
   if (laundryOrderId) {
     const duplicate = await fivemFinanceTransactions.findOne({ ...scopeQuery(input.guildId, normalizedBotId), "metadata.laundryOrderId": laundryOrderId, status: { $ne: "cancelled" } });
@@ -181,7 +181,7 @@ export async function updateFivemFinanceTransaction(guildId: string, botId: stri
   const current = await fivemFinanceTransactions.findOne({ _id: id, ...scopeQuery(guildId, normalizedBotId) });
   if (!current) return null;
   const amount = input.amount === undefined ? current.amount : money(input.amount);
-  if (amount <= 0) throw financeError("Valor invalido.", 400);
+  if (amount <= 0) throw financeError("Valor inválido.", 400);
   const delta = (current.type === "add" ? amount : -amount) - (current.type === "add" ? current.amount : -current.amount);
   const next = {
     amount,

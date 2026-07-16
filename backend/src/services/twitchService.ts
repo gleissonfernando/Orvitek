@@ -283,11 +283,11 @@ export async function getTwitchSubscribers(input: {
   const token = input.accessToken?.trim() || env.TWITCH_BROADCASTER_ACCESS_TOKEN.trim();
 
   if (!env.TWITCH_CLIENT_ID) {
-    throw new Error("TWITCH_CLIENT_ID nao configurado.");
+    throw new Error("TWITCH_CLIENT_ID não configurado.");
   }
 
   if (!token) {
-    throw new Error("TWITCH_BROADCASTER_ACCESS_TOKEN nao configurado para validar subs da live.");
+    throw new Error("TWITCH_BROADCASTER_ACCESS_TOKEN não configurado para validar subs da live.");
   }
 
   const max = Math.max(1, Math.min(input.max ?? 1000, 5000));
@@ -338,11 +338,11 @@ export async function getTwitchFollowers(input: {
   const token = input.accessToken?.trim() || env.TWITCH_BROADCASTER_ACCESS_TOKEN.trim();
 
   if (!env.TWITCH_CLIENT_ID) {
-    throw new Error("TWITCH_CLIENT_ID nao configurado.");
+    throw new Error("TWITCH_CLIENT_ID não configurado.");
   }
 
   if (!token) {
-    throw new Error("TWITCH_BROADCASTER_ACCESS_TOKEN nao configurado para validar followers da live.");
+    throw new Error("TWITCH_BROADCASTER_ACCESS_TOKEN não configurado para validar followers da live.");
   }
 
   const max = Math.max(1, Math.min(input.max ?? 1000, 5000));
@@ -399,7 +399,7 @@ export function buildTwitchOAuthUrl(input: {
   state: string;
 }) {
   if (!env.TWITCH_CLIENT_ID) {
-    throw new Error("TWITCH_CLIENT_ID nao configurado.");
+    throw new Error("TWITCH_CLIENT_ID não configurado.");
   }
 
   const url = new URL("https://id.twitch.tv/oauth2/authorize");
@@ -418,7 +418,7 @@ export function twitchGiveawayScopes() {
 
 export async function exchangeTwitchOAuthCode(code: string, redirectUri: string): Promise<TwitchOAuthToken> {
   if (!env.TWITCH_CLIENT_ID || !env.TWITCH_CLIENT_SECRET) {
-    throw new Error("Credenciais OAuth da Twitch nao configuradas.");
+    throw new Error("Credenciais OAuth da Twitch não configuradas.");
   }
 
   const { data } = await axios.post<TwitchOAuthTokenResponse>(
@@ -443,7 +443,7 @@ export async function exchangeTwitchOAuthCode(code: string, redirectUri: string)
 
 export async function refreshTwitchOAuthToken(refreshToken: string): Promise<TwitchOAuthToken> {
   if (!env.TWITCH_CLIENT_ID || !env.TWITCH_CLIENT_SECRET) {
-    throw new Error("Credenciais OAuth da Twitch nao configuradas.");
+    throw new Error("Credenciais OAuth da Twitch não configuradas.");
   }
 
   const { data } = await axios.post<TwitchOAuthTokenResponse>(
@@ -473,7 +473,7 @@ export async function getTwitchAuthenticatedUser(token: TwitchOAuthToken): Promi
   const user = data.data[0];
 
   if (!user) {
-    throw new Error("Usuario Twitch nao encontrado.");
+    throw new Error("Usuário Twitch não encontrado.");
   }
 
   return {
@@ -527,7 +527,7 @@ async function getAppAccessToken() {
   const clientSecret = env.TWITCH_CLIENT_SECRET.trim();
 
   if (!clientId || !clientSecret) {
-    throw new Error("Credenciais da Twitch API nao configuradas.");
+    throw new Error("Credenciais da Twitch API não configuradas.");
   }
 
   if (tokenCache && tokenCache.expiresAt > Date.now() + 60_000) {
@@ -558,7 +558,7 @@ async function getAppAccessToken() {
     return tokenCache.accessToken;
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 401) {
-      throw new Error("Credenciais da Twitch invalidas. Confira TWITCH_CLIENT_ID e TWITCH_CLIENT_SECRET no .env e reinicie o backend.");
+      throw new Error("Credenciais da Twitch inválidas. Confira TWITCH_CLIENT_ID e TWITCH_CLIENT_SECRET no .env e reinicie o backend.");
     }
 
     throw error;

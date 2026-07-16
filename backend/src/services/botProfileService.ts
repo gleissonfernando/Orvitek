@@ -37,7 +37,7 @@ export async function fetchBotProfile(): Promise<BotProfile> {
       connected: true
     };
   } catch (error) {
-    console.warn("[discord] nao foi possivel buscar perfil do bot:", error instanceof Error ? error.message : error);
+    console.warn("[discord] não foi possível buscar perfil do bot:", error instanceof Error ? error.message : error);
     return disconnectedBotProfile();
   }
 }

@@ -101,7 +101,7 @@ emojiClonerRouter.post("/application/bot/guild-event", requireBot, async (req, r
     const input = applicationBotEventSchema.parse(req.body);
 
     if (!botId) {
-      return res.status(400).json({ message: "Bot nao identificado." });
+      return res.status(400).json({ message: "Bot não identificado." });
     }
 
     return res.json(await handleApplicationEmojiGuildEvent({
@@ -153,7 +153,7 @@ emojiClonerRouter.post("/bot-token/clone-selected", requireAuth, async (req, res
     const botId = await resolveRequestBotId(req);
 
     if (botId && !(await canUseDevBotModule(user, botId, input.targetGuildId, "emoji-cloner"))) {
-      return res.status(403).json({ message: "Modulo de clonagem de emojis nao liberado para este bot neste servidor." });
+      return res.status(403).json({ message: "Módulo de clonagem de emojis não liberado para este bot neste servidor." });
     }
 
     const token = normalizeDiscordBotToken(input.token, user.discordId, input.targetGuildId);
@@ -191,19 +191,19 @@ emojiClonerRouter.post("/fake-token/validate", requireAuth, async (req, res, nex
 
     if (process.env.NODE_ENV === "production") {
       return res.status(403).json({
-        message: "Modo de teste indisponivel em producao."
+        message: "Modo de teste indisponível em produção."
       });
     }
 
     if (!enabled) {
       return res.status(403).json({
-        message: "Sistema de token  para clonagem de emojis esta desativado."
+        message: "Sistema de token  para clonagem de emojis está desativado."
       });
     }
 
     if (looksLikeDiscordUserToken(input.token) || !input.token.startsWith(prefix)) {
       return res.status(400).json({
-        message: "Token de usuario invalido."
+        message: "Token de usuário inválido."
       });
     }
 
@@ -217,7 +217,7 @@ emojiClonerRouter.post("/fake-token/validate", requireAuth, async (req, res, nex
 
     return res.json({
       accepted: true,
-      message: "Token do usuario aceito. Modo de teste ativado para clonagem de emojis.",
+      message: "Token do usuário aceito. Modo de teste ativado para clonagem de emojis.",
       tokenMasked: maskFakeToken(input.token, prefix)
     });
   } catch (error) {
@@ -233,11 +233,11 @@ emojiClonerRouter.post("/:guildId/clone", requireAuth, async (req, res, next) =>
     const input = cloneSchema.parse(req.body);
 
     if (!guildId) {
-      return res.status(400).json({ message: "guildId obrigatorio." });
+      return res.status(400).json({ message: "guildId obrigatório." });
     }
 
     if (!botId || !(await canUseDevBotModule(user, botId, guildId, "emoji-cloner"))) {
-      return res.status(403).json({ message: "Modulo de clonagem de emojis nao liberado para este bot neste servidor." });
+      return res.status(403).json({ message: "Módulo de clonagem de emojis não liberado para este bot neste servidor." });
     }
 
     return res.json(await cloneEmojiForDashboard({
@@ -281,7 +281,7 @@ emojiClonerRouter.post("/application/sync", requireAuth, async (req, res, next) 
     const input = applicationSyncSchema.parse(req.body);
 
     if (!botId || !(await canUseDevBotModule(user, botId, input.guildId, "emoji-cloner"))) {
-      return res.status(403).json({ message: "Modulo de emojis nao liberado para este bot neste servidor." });
+      return res.status(403).json({ message: "Módulo de emojis não liberado para este bot neste servidor." });
     }
 
     return res.json(await syncGuildEmojisToApplication({
@@ -384,7 +384,7 @@ emojiClonerRouter.patch("/application/settings/:guildId", requireAuth, async (re
     const input = applicationSettingsSchema.parse(req.body);
 
     if (!botId || !(await canUseDevBotModule(user, botId, guildId, "emoji-cloner"))) {
-      return res.status(403).json({ message: "Modulo de emojis nao liberado para este bot neste servidor." });
+      return res.status(403).json({ message: "Módulo de emojis não liberado para este bot neste servidor." });
     }
 
     return res.json({
@@ -467,7 +467,7 @@ emojiClonerRouter.post("/library/:emojiId/resend", requireAuth, async (req, res,
     const input = resendSchema.parse(req.body);
 
     if (!botId || !(await canUseDevBotModule(user, botId, input.guildId, "emoji-cloner"))) {
-      return res.status(403).json({ message: "Modulo de clonagem de emojis nao liberado para este bot neste servidor." });
+      return res.status(403).json({ message: "Módulo de clonagem de emojis não liberado para este bot neste servidor." });
     }
 
     const library = await listEmojiLibrary({
@@ -478,7 +478,7 @@ emojiClonerRouter.post("/library/:emojiId/resend", requireAuth, async (req, res,
     const item = library.find((entry) => entry.id === req.params.emojiId);
 
     if (!item) {
-      return res.status(404).json({ message: "Emoji nao encontrado na sua Biblioteca." });
+      return res.status(404).json({ message: "Emoji não encontrado na sua Biblioteca." });
     }
 
     return res.json(await cloneEmojiForDashboard({
@@ -505,7 +505,7 @@ async function cloneEmojiForDashboard(input: {
   const botToken = await getDevBotToken(input.botId);
 
   if (!botToken) {
-    throw Object.assign(new Error("Bot sem credencial valida cadastrada."), { statusCode: 400 });
+    throw Object.assign(new Error("Bot sem credencial válida cadastrada."), { statusCode: 400 });
   }
 
   await createEmojiCloneLog(input.botId, input.guildId, input.userId, "emoji_clone.received", `Emoji recebido: ${input.name}.`);
@@ -536,10 +536,10 @@ async function cloneEmojiForDashboard(input: {
       botId: input.botId,
       guildId: input.guildId,
       kind: "duplicate",
-      message: "Emoji ja existente.",
+      message: "Emoji já existente.",
       userId: input.userId
     });
-    await createEmojiCloneLog(input.botId, input.guildId, input.userId, "emoji_clone.duplicate", `Emoji ja existente: ${input.name}.`);
+    await createEmojiCloneLog(input.botId, input.guildId, input.userId, "emoji_clone.duplicate", `Emoji já existente: ${input.name}.`);
 
     return {
       duplicate: true,
@@ -664,7 +664,7 @@ async function resolveEmojiImage(value: string): Promise<{
       : null;
 
   if (!url) {
-    throw Object.assign(new Error("Informe um upload, URL de imagem ou codigo de emoji valido."), { statusCode: 400 });
+    throw Object.assign(new Error("Informe um upload, URL de imagem ou código de emoji válido."), { statusCode: 400 });
   }
 
   const idMatch = url.match(/\/emojis\/(?<id>\d{5,32})\.(?<ext>png|gif|webp|jpg|jpeg)/i);
@@ -987,19 +987,19 @@ async function downloadImageAsDataUri(url: string) {
   const response = await fetch(url);
 
   if (!response.ok) {
-    throw Object.assign(new Error("Nao foi possivel baixar a imagem do emoji."), { statusCode: 400 });
+    throw Object.assign(new Error("Não foi possível baixar a imagem do emoji."), { statusCode: 400 });
   }
 
   const contentType = response.headers.get("content-type")?.split(";")[0]?.toLowerCase() ?? "";
 
   if (!/^image\/(png|gif|webp|jpe?g)$/.test(contentType)) {
-    throw Object.assign(new Error("Formato de imagem invalido para emoji."), { statusCode: 400 });
+    throw Object.assign(new Error("Formato de imagem inválido para emoji."), { statusCode: 400 });
   }
 
   const buffer = Buffer.from(await response.arrayBuffer());
 
   if (buffer.length > 256 * 1024) {
-    throw Object.assign(new Error("Emoji muito grande. Limite maximo: 256 KiB."), { statusCode: 400 });
+    throw Object.assign(new Error("Emoji muito grande. Limite máximo: 256 KiB."), { statusCode: 400 });
   }
 
   return `data:${contentType};base64,${buffer.toString("base64")}`;
@@ -1010,15 +1010,15 @@ function assertImageSize(dataUri: string) {
   const bytes = Buffer.byteLength(base64, "base64");
 
   if (bytes > 256 * 1024) {
-    throw Object.assign(new Error("Emoji muito grande. Limite maximo: 256 KiB."), { statusCode: 400 });
+    throw Object.assign(new Error("Emoji muito grande. Limite máximo: 256 KiB."), { statusCode: 400 });
   }
 }
 
 function friendlyDiscordEmojiError(message: string | undefined, status: number) {
-  if (status === 403) return "O bot precisa da permissao Criar Expressoes ou Gerenciar Expressoes neste servidor.";
+  if (status === 403) return "O bot precisa da permissão Criar Expressões ou Gerenciar Expressões neste servidor.";
   if (status === 429) return "O Discord limitou as requisicoes. Aguarde alguns segundos e tente novamente.";
   if (message) return message;
-  return "Nao foi possivel criar o emoji no Discord.";
+  return "Não foi possível criar o emoji no Discord.";
 }
 
 function createDataUriFingerprint(value: string) {

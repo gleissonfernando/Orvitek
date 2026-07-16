@@ -4,7 +4,7 @@ import type { BotCommand } from "../types";
 export const gravarCommand: BotCommand = {
   data: new SlashCommandBuilder()
     .setName("gravar")
-    .setDescription("Gerencia gravacoes de canais de voz.")
+    .setDescription("Gerencia gravações de canais de voz.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand((subcommand) =>
       subcommand
@@ -14,7 +14,7 @@ export const gravarCommand: BotCommand = {
     .addSubcommand((subcommand) =>
       subcommand
         .setName("parar")
-        .setDescription("Encerra a gravacao de voz em andamento.")
+        .setDescription("Encerra a gravação de voz em andamento.")
     ),
   moduleId: "voice-recorder",
   async execute(interaction, context) {

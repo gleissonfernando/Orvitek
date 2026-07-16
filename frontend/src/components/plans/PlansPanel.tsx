@@ -43,7 +43,7 @@ export function PlansPanel() {
       setDashboard(next);
       setSelectedWorkspaceId((current) => current ?? next.workspaces[0]?.id ?? null);
     } catch (loadError) {
-      setError(readError(loadError, "Nao foi possivel carregar seus planos."));
+      setError(readError(loadError, "Não foi possível carregar seus planos."));
     } finally {
       setLoading(false);
     }
@@ -89,7 +89,7 @@ export function PlansPanel() {
       }
       await load();
     } catch (requestError) {
-      setError(readError(requestError, "Nao foi possivel registrar interesse no plano."));
+      setError(readError(requestError, "Não foi possível registrar interesse no plano."));
     } finally {
       setBusyKey(null);
     }
@@ -105,10 +105,10 @@ export function PlansPanel() {
     try {
       await createWorkspaceBot(selectedWorkspace.id, botForm);
       setBotForm(emptyBotForm);
-      setNotice("Bot cadastrado com token protegido. O token nao fica visivel na dashboard.");
+      setNotice("Bot cadastrado com token protegido. O token não fica visivel na dashboard.");
       await load();
     } catch (requestError) {
-      setError(readError(requestError, "Nao foi possivel cadastrar o bot."));
+      setError(readError(requestError, "Não foi possível cadastrar o bot."));
     } finally {
       setBusyKey(null);
     }
@@ -122,7 +122,7 @@ export function PlansPanel() {
       await validateWorkspaceBot(selectedWorkspace.id, credentialId);
       await load();
     } catch (requestError) {
-      setError(readError(requestError, "Nao foi possivel validar este bot."));
+      setError(readError(requestError, "Não foi possível validar este bot."));
     } finally {
       setBusyKey(null);
     }
@@ -136,7 +136,7 @@ export function PlansPanel() {
       await deleteWorkspaceBot(selectedWorkspace.id, credentialId);
       await load();
     } catch (requestError) {
-      setError(readError(requestError, "Nao foi possivel remover este bot."));
+      setError(readError(requestError, "Não foi possível remover este bot."));
     } finally {
       setBusyKey(null);
     }
@@ -213,8 +213,8 @@ export function PlansPanel() {
                 <CardContent className="space-y-4">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <LifetimeInfo label="Status da licença" value={subscription.status === "active" ? "Ativa" : statusLabel(subscription.status)} />
-                    <LifetimeInfo label="Data da compra" value={subscription.startedAt ? new Date(subscription.startedAt).toLocaleDateString("pt-BR") : "Nao informado"} />
-                    <LifetimeInfo label="Hospedagem ativa" value={readStringMetadata(subscription.metadata, ["hosting", "status"]) === "active" ? "Sim" : "Nao"} />
+                    <LifetimeInfo label="Data da compra" value={subscription.startedAt ? new Date(subscription.startedAt).toLocaleDateString("pt-BR") : "Não informado"} />
+                    <LifetimeInfo label="Hospedagem ativa" value={readStringMetadata(subscription.metadata, ["hosting", "status"]) === "active" ? "Sim" : "Não"} />
                     <LifetimeInfo label="Dias gratis" value={String(freeDaysRemaining)} />
                     <LifetimeInfo label="Valor da hospedagem" value={formatMoney(hostingPrice, plan?.currency ?? "BRL")} />
                     <LifetimeInfo label="Proximo vencimento" value={nextDueAt ? new Date(nextDueAt).toLocaleDateString("pt-BR") : "Sem vencimento"} />

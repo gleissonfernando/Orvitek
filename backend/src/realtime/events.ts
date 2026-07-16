@@ -13,7 +13,7 @@ export function devBotRealtimeRoom(botId: string) {
 export function dashboardLogRealtimeRoom(guildId: string, botId: string) {
   const normalizedBotId = botId.trim();
   if (!normalizedBotId) {
-    throw new Error("botId obrigatorio para room de logs.");
+    throw new Error("botId obrigatório para room de logs.");
   }
 
   return `dashboard-logs:${normalizedBotId}:${guildId}`;

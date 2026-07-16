@@ -190,7 +190,7 @@ export function canManageFivemHierarchyPanel(panel: FivemHierarchyPanelDto, acto
 
 export async function assertCanManageFivemHierarchyPanel(guildId: string, botId: string, panelId: string, actorId: string, actorRoleIds: string[], isGuildManager = false) {
   const panel = await getFivemHierarchyPanel(guildId, panelId, botId);
-  if (!panel) throw createHierarchyError("Painel de hierarquia nao encontrado.", 404);
+  if (!panel) throw createHierarchyError("Painel de hierarquia não encontrado.", 404);
   if (!canManageFivemHierarchyPanel(panel, actorId, actorRoleIds, isGuildManager)) {
     await writeFivemHierarchyLogBestEffort({ action: "access.denied", botId, details: { origin: "Discord" }, guildId, panelId, userId: actorId });
     throw createHierarchyError("Você não possui autorização para gerenciar esta hierarquia.", 403);
@@ -214,7 +214,7 @@ export async function createFivemHierarchyPanel(
   origin: "Dashboard" | "Discord" = "Dashboard"
 ) {
   const normalizedBotId = normalizeBotId(botId);
-  if (!normalizedBotId) throw createHierarchyError("Bot vinculado obrigatorio para criar a hierarquia.", 400);
+  if (!normalizedBotId) throw createHierarchyError("Bot vinculado obrigatório para criar a hierarquia.", 400);
   await ensureFivemHierarchyMigration(guildId, normalizedBotId);
   const { clientRequestId, ...panelInput } = input;
   const creationKey = createHierarchyCreationKey(guildId, normalizedBotId, clientRequestId);
@@ -227,7 +227,7 @@ export async function createFivemHierarchyPanel(
   }
   const duplicateName = (await fivemHierarchyPanels.find({ ...scopeQuery(guildId, normalizedBotId), deletedAt: null }).toArray())
     .some((panel) => normalizeHierarchyName(panel.name) === normalizeHierarchyName(normalizedConfig.name));
-  if (duplicateName) throw createHierarchyError("Ja existe uma hierarquia com este nome no servidor.", 409);
+  if (duplicateName) throw createHierarchyError("Já existe uma hierarquia com este nome no servidor.", 409);
 
   const now = new Date();
   const panelId = randomUUID();
@@ -295,11 +295,11 @@ export async function updateFivemHierarchyPanel(
   origin: "Dashboard" | "Discord" = "Dashboard"
 ) {
   const normalizedBotId = normalizeBotId(botId);
-  if (!normalizedBotId) throw createHierarchyError("Bot vinculado obrigatorio para editar a hierarquia.", 400);
+  if (!normalizedBotId) throw createHierarchyError("Bot vinculado obrigatório para editar a hierarquia.", 400);
   await ensureFivemHierarchyMigration(guildId, normalizedBotId);
   const { fivemHierarchyPanels } = await getMongoCollections();
   const current = await fivemHierarchyPanels.findOne({ _id: panelId, ...scopeQuery(guildId, normalizedBotId), deletedAt: null });
-  if (!current) throw createHierarchyError("Painel de hierarquia nao encontrado.", 404);
+  if (!current) throw createHierarchyError("Painel de hierarquia não encontrado.", 404);
   const currentRevision = configRevisionOf(current);
   if (input.configRevision !== undefined && input.configRevision !== currentRevision) {
     throw createHierarchyError("Esta hierarquia foi atualizada por outro usuário. Recarregue as informações antes de continuar.", 409);
@@ -309,7 +309,7 @@ export async function updateFivemHierarchyPanel(
   const nextConfig = normalizePanelInput(mergedInput);
   const duplicateName = (await fivemHierarchyPanels.find({ ...scopeQuery(guildId, normalizedBotId), _id: { $ne: panelId }, deletedAt: null }).toArray())
     .some((panel) => normalizeHierarchyName(panel.name) === normalizeHierarchyName(nextConfig.name));
-  if (duplicateName) throw createHierarchyError("Ja existe outra hierarquia com este nome no servidor.", 409);
+  if (duplicateName) throw createHierarchyError("Já existe outra hierarquia com este nome no servidor.", 409);
   if (sameHierarchyConfig(panelConfigSnapshot(current), nextConfig)) {
     return toPanelDto(current);
   }
@@ -343,12 +343,12 @@ export async function updateFivemHierarchyPanel(
 
   if (!result.modifiedCount) {
     const latest = await fivemHierarchyPanels.findOne({ _id: panelId, ...scopeQuery(guildId, normalizedBotId) });
-    if (!latest || latest.deletedAt) throw createHierarchyError("Painel de hierarquia nao encontrado.", 404);
-    throw createHierarchyError("A hierarquia foi alterada por outra solicitacao. Recarregue os dados e tente novamente.", 409);
+    if (!latest || latest.deletedAt) throw createHierarchyError("Painel de hierarquia não encontrado.", 404);
+    throw createHierarchyError("A hierarquia foi alterada por outra solicitação. Recarregue os dados e tente novamente.", 409);
   }
 
   const row = await fivemHierarchyPanels.findOne({ _id: panelId, ...scopeQuery(guildId, normalizedBotId), deletedAt: null });
-  if (!row) throw createHierarchyError("Painel de hierarquia nao encontrado apos a atualizacao.", 409);
+  if (!row) throw createHierarchyError("Painel de hierarquia não encontrado após a atualização.", 409);
   await writeFivemHierarchyLogBestEffort({
     action: "panel.updated",
     botId: normalizedBotId,
@@ -384,7 +384,7 @@ export async function updateFivemHierarchyPanel(
 
 export async function deleteFivemHierarchyPanel(guildId: string, botId: string, panelId: string, actorId: string | null) {
   const normalizedBotId = normalizeBotId(botId);
-  if (!normalizedBotId) throw createHierarchyError("Bot vinculado obrigatorio para excluir a hierarquia.", 400);
+  if (!normalizedBotId) throw createHierarchyError("Bot vinculado obrigatório para excluir a hierarquia.", 400);
   await ensureFivemHierarchyMigration(guildId, normalizedBotId);
   const { fivemHierarchyPanels } = await getMongoCollections();
   const current = await fivemHierarchyPanels.findOne({ _id: panelId, ...scopeQuery(guildId, normalizedBotId), deletedAt: null });
@@ -415,7 +415,7 @@ export async function deleteFivemHierarchyPanel(guildId: string, botId: string, 
     },
     { returnDocument: "after" }
   );
-  if (!row) throw createHierarchyError("A hierarquia foi alterada por outra solicitacao. Recarregue os dados e tente novamente.", 409);
+  if (!row) throw createHierarchyError("A hierarquia foi alterada por outra solicitação. Recarregue os dados e tente novamente.", 409);
 
   await writeFivemHierarchyLogBestEffort({
     action: "panel.deleted",
@@ -443,7 +443,7 @@ export async function deleteFivemHierarchyPanel(guildId: string, botId: string, 
 
 export async function requestFivemHierarchyPanelPublish(guildId: string, botId: string, panelId: string, actorId: string | null) {
   const panel = await getFivemHierarchyPanel(guildId, panelId, botId);
-  if (!panel) throw createHierarchyError("Painel de hierarquia nao encontrado.", 404);
+  if (!panel) throw createHierarchyError("Painel de hierarquia não encontrado.", 404);
   if (!panel.enabled) throw createHierarchyError("Ative o painel de hierarquia antes de publicar.", 400);
   if (!panel.panelChannelId) throw createHierarchyError("Configure o canal do painel de hierarquia.", 400);
   await writeFivemHierarchyLogBestEffort({
@@ -479,15 +479,15 @@ export async function requestFivemHierarchyPanelPublish(guildId: string, botId: 
   }
 
   const error = responses.find((response) => response?.error)?.error;
-  throw createHierarchyError(error ?? "O bot V2 nao respondeu a solicitacao de publicacao.", 409);
+  throw createHierarchyError(error ?? "O bot V2 não respondeu a solicitação de publicação.", 409);
 }
 
 export async function removeFivemHierarchyPanelPublication(guildId: string, botId: string, panelId: string, actorId: string | null) {
   const normalizedBotId = normalizeBotId(botId);
-  if (!normalizedBotId) throw createHierarchyError("Bot vinculado obrigatorio para remover a publicacao.", 400);
+  if (!normalizedBotId) throw createHierarchyError("Bot vinculado obrigatório para remover a publicação.", 400);
   const { fivemHierarchyPanels } = await getMongoCollections();
   const current = await fivemHierarchyPanels.findOne({ _id: panelId, ...scopeQuery(guildId, normalizedBotId), deletedAt: null });
-  if (!current) throw createHierarchyError("Painel de hierarquia nao encontrado.", 404);
+  if (!current) throw createHierarchyError("Painel de hierarquia não encontrado.", 404);
   const revision = configRevisionOf(current);
   const now = new Date();
   const pendingCleanup = addPendingCleanup(current.pendingCleanup, current.panelChannelId, current.panelMessageId, "channel_changed", now);
@@ -522,7 +522,7 @@ export async function updateFivemHierarchyPanelState(
   const now = new Date();
   const normalizedMessageId = normalizeSnowflake(input.messageId);
   const normalizedHash = normalizeContentHash(input.contentHash);
-  if (!normalizedMessageId || !normalizedHash) throw createHierarchyError("Estado V2 do painel invalido.", 400);
+  if (!normalizedMessageId || !normalizedHash) throw createHierarchyError("Estado V2 do painel inválido.", 400);
   const current = await fivemHierarchyPanels.findOne({ _id: panelId, ...scopeQuery(guildId, botId) });
   assertWritablePanelState(current, input, now);
 
@@ -556,7 +556,7 @@ export async function updateFivemHierarchyPanelState(
     },
     { returnDocument: "after" }
   );
-  if (!row) throw createHierarchyError("Lock ou revisao da hierarquia expirou durante a gravacao do estado.", 409);
+  if (!row) throw createHierarchyError("Lock ou revisao da hierarquia expirou durante a gravação do estado.", 409);
   const dto = toPanelDto(row);
   emitFivemHierarchyPanelUpdated(guildId, botId, "panel.state_updated", dto);
   return dto;
@@ -566,7 +566,7 @@ export async function acquireFivemHierarchyPanelLock(guildId: string, botId: str
   await ensureFivemHierarchyMigration(guildId, botId);
   const { fivemHierarchyPanels } = await getMongoCollections();
   const current = await fivemHierarchyPanels.findOne({ _id: panelId, ...scopeQuery(guildId, botId) });
-  if (!current || current.deletedAt) throw createHierarchyError("Painel de hierarquia nao encontrado.", 404);
+  if (!current || current.deletedAt) throw createHierarchyError("Painel de hierarquia não encontrado.", 404);
   if (!current.enabled) throw createHierarchyError("Painel de hierarquia desativado.", 409);
   const revision = configRevisionOf(current);
   const now = new Date();
@@ -697,10 +697,10 @@ export async function recordFivemHierarchyAudit(input: { action: string; botId: 
 
 function resolveIdempotentCreate(existing: MongoFivemHierarchyPanel, normalizedConfig: NormalizedPanelConfig) {
   if (existing.deletedAt) {
-    throw createHierarchyError("clientRequestId ja foi utilizado por uma hierarquia excluida.", 409);
+    throw createHierarchyError("clientRequestId já foi utilizado por uma hierarquia excluida.", 409);
   }
   if (!sameHierarchyConfig(panelConfigSnapshot(existing), normalizedConfig)) {
-    throw createHierarchyError("clientRequestId ja foi utilizado com outro conteudo.", 409);
+    throw createHierarchyError("clientRequestId já foi utilizado com outro conteúdo.", 409);
   }
   return toPanelDto(existing);
 }
@@ -871,7 +871,7 @@ function assertWritablePanelState(
   input: { configRevision: number; instanceId: string; lockToken: string },
   now: Date
 ): asserts current is MongoFivemHierarchyPanel {
-  if (!current || current.deletedAt) throw createHierarchyError("Painel de hierarquia nao encontrado.", 404);
+  if (!current || current.deletedAt) throw createHierarchyError("Painel de hierarquia não encontrado.", 404);
   if (!current.enabled) throw createHierarchyError("Painel de hierarquia desativado.", 409);
   if (configRevisionOf(current) !== input.configRevision) throw createHierarchyError("Revisao da hierarquia desatualizada.", 409);
   const lock = current.updateLock;

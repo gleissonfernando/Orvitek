@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildMercadoPagoPixOrderBody, buildMercadoPagoPixPaymentBody, buildMercadoPagoPreferenceBody, mercadoPagoOrderStatusToInternal, mercadoPagoStatusToInternal, validateMercadoPagoWebhookSignature } from "./mercadoPagoService";
 
-test("valida assinatura oficial do webhook Mercado Pago", () => {
+test("válida assinatura oficial do webhook Mercado Pago", () => {
   const secret = "test-secret";
   const dataId = "123456789";
   const requestId = "request-1";

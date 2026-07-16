@@ -210,7 +210,7 @@ async function sendLogChannel(interaction: ButtonInteraction, config: DmBarConfi
     description: "Registro interno do sistema Barra DM.",
     fields: [
       `**Status:** ${status}\n**Enviado por:** <@${interaction.user.id}> (${interaction.user.id})\n**Recebeu:** <@${target.id}> (${target.id})\n**Data:** <t:${Math.floor(Date.now() / 1000)}:F>`,
-      `**Titulo:** ${draft.title}\n**Conteudo:**\n${draft.message.slice(0, 1500)}${error ? `\n**Erro:** ${error}` : ""}`
+      `**Titulo:** ${draft.title}\n**Conteúdo:**\n${draft.message.slice(0, 1500)}${error ? `\n**Erro:** ${error}` : ""}`
     ],
     guild: interaction.guild,
     image: config.mainImageUrl ? { imageEnabled: true, imagePosition: "top", imageUrl: resolvePanelImageUrl(config.mainImageUrl) } : null,
@@ -221,7 +221,7 @@ async function sendLogChannel(interaction: ButtonInteraction, config: DmBarConfi
 }
 function variables(author: User, target: User, guildName: string, message: string, title: string, observation: string) {
   const now = new Date();
-  return { "{usuario}": `<@${target.id}>`, "{usuario_nome}": target.username, "{usuario_nick}": target.username, "{autor}": `<@${author.id}>`, "{autor_nome}": author.username, "{servidor}": guildName, "{data}": now.toLocaleDateString("pt-BR"), "{hora}": now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }), "{id_usuario}": target.id, "{id_autor}": author.id, "{mensagem}": message, "{titulo}": title, "{observacao}": observation };
+  return { "{usuário}": `<@${target.id}>`, "{usuario_nome}": target.username, "{usuario_nick}": target.username, "{autor}": `<@${author.id}>`, "{autor_nome}": author.username, "{servidor}": guildName, "{data}": now.toLocaleDateString("pt-BR"), "{hora}": now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }), "{id_usuario}": target.id, "{id_autor}": author.id, "{mensagem}": message, "{titulo}": title, "{observação}": observation };
 }
 function stripSenderLines(text: string) {
   return text

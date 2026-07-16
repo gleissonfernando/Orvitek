@@ -86,7 +86,7 @@ fivemOrdersRouter.use(requireAuthOrBot);
 fivemOrdersRouter.get("/:guildId", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId); const botId = await resolveRequestBotId(req);
-    if (isBotRequest(req)) await assertRuntime(botId, guildId); else if (!(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Modulo de encomendas nao liberado." });
+    if (isBotRequest(req)) await assertRuntime(botId, guildId); else if (!(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Módulo de encomendas não liberado." });
     return res.json(await getFivemOrderDashboard(guildId, botId));
   } catch (error) { return next(error); }
 });
@@ -94,7 +94,7 @@ fivemOrdersRouter.get("/:guildId", async (req, res, next) => {
 fivemOrdersRouter.put("/:guildId/settings", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId); const botId = await resolveRequestBotId(req); const input = settingsSchema.parse(req.body);
-    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para configurar encomendas." });
+    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para configurar encomendas." });
     return res.json({ settings: await saveFivemOrderSettings(guildId, botId, input, res.locals.dashboardAuth.user.discordId) });
   } catch (error) { return next(error); }
 });
@@ -102,26 +102,26 @@ fivemOrdersRouter.put("/:guildId/settings", async (req, res, next) => {
 fivemOrdersRouter.post("/:guildId/products", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId); const botId = await resolveRequestBotId(req); const input = productSchema.parse(req.body);
-    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para criar produtos." });
+    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para criar produtos." });
     return res.status(201).json({ product: await createFivemOrderProduct(guildId, botId, input, res.locals.dashboardAuth.user.discordId) });
   } catch (error) { return next(error); }
 });
 
 fivemOrdersRouter.post("/:guildId/families", async (req, res, next) => {
-  try { const guildId = snowflake.parse(req.params.guildId); const botId = await resolveRequestBotId(req); const input = familySchema.parse(req.body); if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para criar familias." }); return res.status(201).json({ family: await createFivemOrderFamily(guildId, botId, input, res.locals.dashboardAuth.user.discordId) }); } catch (error) { return next(error); }
+  try { const guildId = snowflake.parse(req.params.guildId); const botId = await resolveRequestBotId(req); const input = familySchema.parse(req.body); if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para criar famílias." }); return res.status(201).json({ family: await createFivemOrderFamily(guildId, botId, input, res.locals.dashboardAuth.user.discordId) }); } catch (error) { return next(error); }
 });
 fivemOrdersRouter.patch("/:guildId/families/:familyId", async (req, res, next) => {
-  try { const guildId = snowflake.parse(req.params.guildId); const familyId = z.string().min(1).max(80).parse(req.params.familyId); const botId = await resolveRequestBotId(req); const input = familySchema.partial().parse(req.body); if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para editar familias." }); const family = await updateFivemOrderFamily(guildId, botId, familyId, input, res.locals.dashboardAuth.user.discordId); if (!family) return res.status(404).json({ message: "Familia nao encontrada." }); return res.json({ family }); } catch (error) { return next(error); }
+  try { const guildId = snowflake.parse(req.params.guildId); const familyId = z.string().min(1).max(80).parse(req.params.familyId); const botId = await resolveRequestBotId(req); const input = familySchema.partial().parse(req.body); if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para editar famílias." }); const family = await updateFivemOrderFamily(guildId, botId, familyId, input, res.locals.dashboardAuth.user.discordId); if (!family) return res.status(404).json({ message: "Família não encontrada." }); return res.json({ family }); } catch (error) { return next(error); }
 });
 fivemOrdersRouter.delete("/:guildId/families/:familyId", async (req, res, next) => {
-  try { const guildId = snowflake.parse(req.params.guildId); const familyId = z.string().min(1).max(80).parse(req.params.familyId); const botId = await resolveRequestBotId(req); if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para excluir familias." }); const family = await deleteFivemOrderFamily(guildId, botId, familyId, res.locals.dashboardAuth.user.discordId); if (!family) return res.status(404).json({ message: "Familia nao encontrada." }); return res.json({ family }); } catch (error) { return next(error); }
+  try { const guildId = snowflake.parse(req.params.guildId); const familyId = z.string().min(1).max(80).parse(req.params.familyId); const botId = await resolveRequestBotId(req); if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para excluir famílias." }); const family = await deleteFivemOrderFamily(guildId, botId, familyId, res.locals.dashboardAuth.user.discordId); if (!family) return res.status(404).json({ message: "Família não encontrada." }); return res.json({ family }); } catch (error) { return next(error); }
 });
 
 fivemOrdersRouter.patch("/:guildId/products/:productId", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId); const productId = z.string().min(1).max(80).parse(req.params.productId); const botId = await resolveRequestBotId(req); const input = productSchema.partial().parse(req.body);
-    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para editar produtos." });
-    const product = await updateFivemOrderProduct(guildId, botId, productId, input, res.locals.dashboardAuth.user.discordId); if (!product) return res.status(404).json({ message: "Produto nao encontrado." });
+    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para editar produtos." });
+    const product = await updateFivemOrderProduct(guildId, botId, productId, input, res.locals.dashboardAuth.user.discordId); if (!product) return res.status(404).json({ message: "Produto não encontrado." });
     return res.json({ product });
   } catch (error) { return next(error); }
 });
@@ -129,8 +129,8 @@ fivemOrdersRouter.patch("/:guildId/products/:productId", async (req, res, next) 
 fivemOrdersRouter.delete("/:guildId/products/:productId", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId); const productId = z.string().min(1).max(80).parse(req.params.productId); const botId = await resolveRequestBotId(req);
-    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para excluir produtos." });
-    const product = await deleteFivemOrderProduct(guildId, botId, productId, res.locals.dashboardAuth.user.discordId); if (!product) return res.status(404).json({ message: "Produto nao encontrado." });
+    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para excluir produtos." });
+    const product = await deleteFivemOrderProduct(guildId, botId, productId, res.locals.dashboardAuth.user.discordId); if (!product) return res.status(404).json({ message: "Produto não encontrado." });
     return res.json({ product });
   } catch (error) { return next(error); }
 });
@@ -138,8 +138,8 @@ fivemOrdersRouter.delete("/:guildId/products/:productId", async (req, res, next)
 fivemOrdersRouter.patch("/:guildId/orders/:orderId/status", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId); const orderId = z.string().min(1).max(80).parse(req.params.orderId); const botId = await resolveRequestBotId(req); const input = z.object({ note: z.string().max(500).nullable().optional(), status: statusSchema }).parse(req.body);
-    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para atualizar encomendas." });
-    const order = await updateFivemOrderStatus(guildId, botId, orderId, input.status, res.locals.dashboardAuth.user.discordId, input.note); if (!order) return res.status(404).json({ message: "Encomenda nao encontrada." });
+    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para atualizar encomendas." });
+    const order = await updateFivemOrderStatus(guildId, botId, orderId, input.status, res.locals.dashboardAuth.user.discordId, input.note); if (!order) return res.status(404).json({ message: "Encomenda não encontrada." });
     return res.json({ order });
   } catch (error) { return next(error); }
 });
@@ -147,7 +147,7 @@ fivemOrdersRouter.patch("/:guildId/orders/:orderId/status", async (req, res, nex
 fivemOrdersRouter.post("/:guildId/panel", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId); const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para publicar o painel." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para publicar o painel." });
     return res.json({ settings: await requestFivemOrderPanelPublish(guildId, botId, res.locals.dashboardAuth.user.discordId) });
   } catch (error) { return next(error); }
 });
@@ -168,19 +168,19 @@ fivemOrdersRouter.post("/bot/:guildId/families", requireBot, async (req, res, ne
   try { const guildId = snowflake.parse(req.params.guildId); const input = familySchema.parse(req.body); const actorId = snowflake.parse(req.body.actorId); const botId = await resolveRequestBotId(req); await assertRuntime(botId, guildId); return res.status(201).json({ family: await createFivemOrderFamily(guildId, botId, input, actorId) }); } catch (error) { return next(error); }
 });
 fivemOrdersRouter.patch("/bot/:guildId/families/:familyId", requireBot, async (req, res, next) => {
-  try { const guildId = snowflake.parse(req.params.guildId); const familyId = z.string().min(1).max(80).parse(req.params.familyId); const input = familySchema.partial().parse(req.body); const actorId = snowflake.parse(req.body.actorId); const botId = await resolveRequestBotId(req); await assertRuntime(botId, guildId); const family = await updateFivemOrderFamily(guildId, botId, familyId, input, actorId); if (!family) return res.status(404).json({ message: "Familia nao encontrada." }); return res.json({ family }); } catch (error) { return next(error); }
+  try { const guildId = snowflake.parse(req.params.guildId); const familyId = z.string().min(1).max(80).parse(req.params.familyId); const input = familySchema.partial().parse(req.body); const actorId = snowflake.parse(req.body.actorId); const botId = await resolveRequestBotId(req); await assertRuntime(botId, guildId); const family = await updateFivemOrderFamily(guildId, botId, familyId, input, actorId); if (!family) return res.status(404).json({ message: "Família não encontrada." }); return res.json({ family }); } catch (error) { return next(error); }
 });
 fivemOrdersRouter.delete("/bot/:guildId/families/:familyId", requireBot, async (req, res, next) => {
-  try { const guildId = snowflake.parse(req.params.guildId); const familyId = z.string().min(1).max(80).parse(req.params.familyId); const actorId = snowflake.parse(req.query.actorId); const botId = await resolveRequestBotId(req); await assertRuntime(botId, guildId); const family = await deleteFivemOrderFamily(guildId, botId, familyId, actorId); if (!family) return res.status(404).json({ message: "Familia nao encontrada." }); return res.json({ family }); } catch (error) { return next(error); }
+  try { const guildId = snowflake.parse(req.params.guildId); const familyId = z.string().min(1).max(80).parse(req.params.familyId); const actorId = snowflake.parse(req.query.actorId); const botId = await resolveRequestBotId(req); await assertRuntime(botId, guildId); const family = await deleteFivemOrderFamily(guildId, botId, familyId, actorId); if (!family) return res.status(404).json({ message: "Família não encontrada." }); return res.json({ family }); } catch (error) { return next(error); }
 });
 fivemOrdersRouter.patch("/bot/:guildId/products/:productId", requireBot, async (req, res, next) => {
-  try { const guildId = snowflake.parse(req.params.guildId); const productId = z.string().min(1).max(80).parse(req.params.productId); const input = productSchema.partial().parse(req.body); const actorId = snowflake.parse(req.body.actorId); const botId = await resolveRequestBotId(req); await assertRuntime(botId, guildId); const product = await updateFivemOrderProduct(guildId, botId, productId, input, actorId); if (!product) return res.status(404).json({ message: "Produto nao encontrado." }); return res.json({ product }); } catch (error) { return next(error); }
+  try { const guildId = snowflake.parse(req.params.guildId); const productId = z.string().min(1).max(80).parse(req.params.productId); const input = productSchema.partial().parse(req.body); const actorId = snowflake.parse(req.body.actorId); const botId = await resolveRequestBotId(req); await assertRuntime(botId, guildId); const product = await updateFivemOrderProduct(guildId, botId, productId, input, actorId); if (!product) return res.status(404).json({ message: "Produto não encontrado." }); return res.json({ product }); } catch (error) { return next(error); }
 });
 fivemOrdersRouter.delete("/bot/:guildId/products/:productId", requireBot, async (req, res, next) => {
-  try { const guildId = snowflake.parse(req.params.guildId); const productId = z.string().min(1).max(80).parse(req.params.productId); const actorId = snowflake.parse(req.query.actorId); const botId = await resolveRequestBotId(req); await assertRuntime(botId, guildId); const product = await deleteFivemOrderProduct(guildId, botId, productId, actorId); if (!product) return res.status(404).json({ message: "Produto nao encontrado." }); return res.json({ product }); } catch (error) { return next(error); }
+  try { const guildId = snowflake.parse(req.params.guildId); const productId = z.string().min(1).max(80).parse(req.params.productId); const actorId = snowflake.parse(req.query.actorId); const botId = await resolveRequestBotId(req); await assertRuntime(botId, guildId); const product = await deleteFivemOrderProduct(guildId, botId, productId, actorId); if (!product) return res.status(404).json({ message: "Produto não encontrado." }); return res.json({ product }); } catch (error) { return next(error); }
 });
 fivemOrdersRouter.patch("/bot/orders/:orderId/status", requireBot, async (req, res, next) => {
-  try { const orderId = z.string().min(1).max(80).parse(req.params.orderId); const input = updateStatusSchema.parse(req.body); const botId = await resolveRequestBotId(req); await assertRuntime(botId, input.guildId); const order = await updateFivemOrderStatus(input.guildId, botId, orderId, input.status, input.actorId, input.note); if (!order) return res.status(404).json({ message: "Encomenda nao encontrada." }); return res.json({ order }); } catch (error) { return next(error); }
+  try { const orderId = z.string().min(1).max(80).parse(req.params.orderId); const input = updateStatusSchema.parse(req.body); const botId = await resolveRequestBotId(req); await assertRuntime(botId, input.guildId); const order = await updateFivemOrderStatus(input.guildId, botId, orderId, input.status, input.actorId, input.note); if (!order) return res.status(404).json({ message: "Encomenda não encontrada." }); return res.json({ order }); } catch (error) { return next(error); }
 });
 fivemOrdersRouter.put("/bot/:guildId/panel-state", requireBot, async (req, res, next) => {
   try { const guildId = snowflake.parse(req.params.guildId); const input = z.object({ messageId: optionalSnowflake }).parse(req.body); const botId = await resolveRequestBotId(req); await assertRuntime(botId, guildId); return res.json({ settings: await saveFivemOrderSettings(guildId, botId, { panelMessageId: input.messageId || null }, null) }); } catch (error) { return next(error); }

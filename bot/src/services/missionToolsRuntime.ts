@@ -223,7 +223,7 @@ function abortError(signal?: AbortSignal): Error {
     return reason;
   }
 
-  return new Error(typeof reason === "string" && reason ? reason : "Operacao cancelada.");
+  return new Error(typeof reason === "string" && reason ? reason : "Operação cancelada.");
 }
 
 function throwIfAborted(signal?: AbortSignal) {
@@ -336,7 +336,7 @@ export class MissionQueue {
 
   enqueue(job: MissionJob) {
     if (this.hasJobForUser(job.userId)) {
-      void job.onRejected("Voce ja tem uma operacao na fila ou em andamento.");
+      void job.onRejected("Você já tem uma operação na fila ou em andamento.");
       return false;
     }
 
@@ -463,14 +463,14 @@ function toProgress(secondsDone: number, secondsNeeded: number) {
 export async function runMissionFlow(token: string, reportStatus: MissionStatusReporter, signal?: AbortSignal) {
   throwIfAborted(signal);
   await reportStatus({
-    detail: "Buscando missoes disponiveis.",
+    detail: "Buscando missoes disponíveis.",
     state: "Waiting"
   });
 
   const { body, status } = await discordRequest<{ quests?: any[] }>(token, "GET", "/quests/@me");
   throwIfAuthStatus(status, "mission-list");
   if (status !== 200 || !Array.isArray(body?.quests)) {
-    throw new Error("Discord nao retornou a lista de missoes. Verifique o token.");
+    throw new Error("Discord não retornou a lista de missoes. Verifique o token.");
   }
 
   const quests = body.quests.filter((quest) => quest.id !== "1412491570820812933" && !questCompleted(quest) && !questExpired(quest));
@@ -478,7 +478,7 @@ export async function runMissionFlow(token: string, reportStatus: MissionStatusR
   if (!quests.length) {
     await reportStatus(
       {
-        detail: "Nenhuma missao valida foi encontrada.",
+        detail: "Nenhuma missao válida foi encontrada.",
         progress: 100,
         state: "Completed",
         totalMissions: 0
@@ -508,7 +508,7 @@ export async function runMissionFlow(token: string, reportStatus: MissionStatusR
 
     try {
       if (!supported) {
-        throw new Error(`Missao "${name}" nao tem tarefa suportada.`);
+        throw new Error(`Missao "${name}" não tem tarefa suportada.`);
       }
 
       if (!quest?.user_status?.enrolled_at) {
@@ -520,7 +520,7 @@ export async function runMissionFlow(token: string, reportStatus: MissionStatusR
 
         if (enroll.status < 200 || enroll.status >= 300) {
           throwIfAuthStatus(enroll.status, "mission-enroll");
-          throw new Error(`Nao foi possivel entrar na missao "${name}" (HTTP ${enroll.status}).`);
+          throw new Error(`Não foi possível entrar na missao "${name}" (HTTP ${enroll.status}).`);
         }
 
         quest.user_status = enroll.body?.user_status ?? enroll.body ?? quest.user_status;
@@ -590,7 +590,7 @@ async function runQuestTask(
   const secondsNeeded = Number(task?.target ?? 0);
 
   if (!Number.isFinite(secondsNeeded) || secondsNeeded <= 0) {
-    throw new Error(`Missao "${name}" tem tempo alvo invalido.`);
+    throw new Error(`Missao "${name}" tem tempo alvo inválido.`);
   }
 
   if (taskName === "WATCH_VIDEO" || taskName === "WATCH_VIDEO_ON_MOBILE") {
@@ -672,7 +672,7 @@ async function runQuestTask(
     return;
   }
 
-  throw new Error(`Tipo de missao "${taskName}" nao suportado em Node.`);
+  throw new Error(`Tipo de missao "${taskName}" não suportado em Node.`);
 }
 
 export async function runDiscordDmCleanup(options: {
@@ -840,7 +840,7 @@ class DiscordDmCleaner {
 
   private async deleteOwnMessages(messages: DmMessage[]) {
     if (!this.currentUserId) {
-      throw new Error("Usuario atual nao carregado.");
+      throw new Error("Usuário atual não carregado.");
     }
 
     for (const message of messages) {
@@ -1248,7 +1248,7 @@ export class DiscordUsernameChecker extends EventEmitter {
 
   async start(options: CheckerOptions = {}) {
     if (this.isRunning) {
-      throw new Error("Checker ja esta rodando.");
+      throw new Error("Checker já está rodando.");
     }
 
     this.isRunning = true;

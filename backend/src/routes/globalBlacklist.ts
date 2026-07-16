@@ -67,7 +67,7 @@ globalBlacklistRouter.patch("/:guildId/settings", requireAuth, async (req, res, 
     const botId = await resolveRequestBotId(req);
     const input = settingsSchema.parse(req.body);
     if (!botId || !(await canUseDevBotModule(res.locals.dashboardAuth.user, botId, guildId, MODULE_ID))) {
-      return res.status(403).json({ message: "Sem permissao para configurar Blacklist Global." });
+      return res.status(403).json({ message: "Sem permissão para configurar Blacklist Global." });
     }
     return res.json({ settings: await saveGlobalBlacklistSettings(guildId, botId, input, res.locals.dashboardAuth.user.discordId) });
   } catch (error) {
@@ -81,7 +81,7 @@ globalBlacklistRouter.post("/:guildId/entries", requireAuth, async (req, res, ne
     const botId = await resolveRequestBotId(req);
     const input = manualEntrySchema.parse(req.body);
     if (!botId || !(await canUseDevBotModule(res.locals.dashboardAuth.user, botId, guildId, MODULE_ID))) {
-      return res.status(403).json({ message: "Sem permissao para adicionar blacklist." });
+      return res.status(403).json({ message: "Sem permissão para adicionar blacklist." });
     }
     return res.status(201).json({ entry: await addGlobalBlacklistEntry({ ...input, addedBy: res.locals.dashboardAuth.user.discordId, addedByType: "staff", botId, evidence: { manual: true }, guildId, safeBotModule: null }) });
   } catch (error) {
@@ -96,7 +96,7 @@ globalBlacklistRouter.delete("/:guildId/entries/:userId", requireAuth, async (re
     const botId = await resolveRequestBotId(req);
     const input = removeSchema.parse(req.body ?? {});
     if (!botId || !(await canUseDevBotModule(res.locals.dashboardAuth.user, botId, guildId, MODULE_ID))) {
-      return res.status(403).json({ message: "Sem permissao para remover blacklist." });
+      return res.status(403).json({ message: "Sem permissão para remover blacklist." });
     }
     return res.json({ entry: await removeGlobalBlacklistEntry(guildId, botId, userId, res.locals.dashboardAuth.user.discordId, input.reason) });
   } catch (error) {

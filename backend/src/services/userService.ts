@@ -62,7 +62,7 @@ export async function saveDiscordUser(user: DiscordUser, tokens: DiscordTokenRes
       lastLoginAt
     };
   } catch (error) {
-    console.warn("[mongo] usuario mantido apenas em sessao:", error instanceof Error ? error.message : error);
+    console.warn("[mongo] usuário mantido apenas em sessão:", error instanceof Error ? error.message : error);
     return {
       id: user.id,
       discordId: user.id,
@@ -100,7 +100,7 @@ export async function getStoredDiscordTokens(discordId: string) {
         }
       : null;
   } catch (error) {
-    console.warn("[mongo] nao foi possivel ler token OAuth do usuario:", error instanceof Error ? error.message : error);
+    console.warn("[mongo] não foi possível ler token OAuth do usuário:", error instanceof Error ? error.message : error);
     return null;
   }
 }
@@ -121,7 +121,7 @@ export async function updateStoredDiscordTokens(discordId: string, tokens: Disco
       }
     );
   } catch (error) {
-    console.warn("[mongo] nao foi possivel atualizar token OAuth do usuario:", error instanceof Error ? error.message : error);
+    console.warn("[mongo] não foi possível atualizar token OAuth do usuário:", error instanceof Error ? error.message : error);
   }
 }
 
@@ -139,7 +139,7 @@ export async function clearStoredDiscordTokens(discordId: string) {
       }
     );
   } catch (error) {
-    console.warn("[mongo] nao foi possivel limpar tokens OAuth do usuario:", error instanceof Error ? error.message : error);
+    console.warn("[mongo] não foi possível limpar tokens OAuth do usuário:", error instanceof Error ? error.message : error);
   }
 }
 
@@ -168,7 +168,7 @@ export async function saveDiscordAccessSnapshot(
       }
     );
   } catch (error) {
-    console.warn("[mongo] snapshot de acesso mantido apenas em sessao:", error instanceof Error ? error.message : error);
+    console.warn("[mongo] snapshot de acesso mantido apenas em sessão:", error instanceof Error ? error.message : error);
   }
 }
 
@@ -187,6 +187,6 @@ export async function saveSelectedGuild(userId: string, selectedGuildId: string)
       }
     );
   } catch (error) {
-    console.warn("[mongo] selectedGuildId mantido apenas em sessao:", error instanceof Error ? error.message : error);
+    console.warn("[mongo] selectedGuildId mantido apenas em sessão:", error instanceof Error ? error.message : error);
   }
 }

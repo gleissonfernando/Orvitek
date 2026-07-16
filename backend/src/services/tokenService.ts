@@ -153,7 +153,7 @@ function verifyToken(token: string, expectedType: "access" | "refresh") {
   const payload = jwt.verify(token, env.JWT_SECRET) as DashboardTokenPayload;
 
   if (payload.type !== expectedType || !payload.user) {
-    throw new Error("Token invalido.");
+    throw new Error("Token inválido.");
   }
 
   return payload;

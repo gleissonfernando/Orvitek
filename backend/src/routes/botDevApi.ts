@@ -125,7 +125,7 @@ botDevApiRouter.get("/runtime/modules", async (req, res, next) => {
 
     if (!permissions) {
       return res.status(404).json({
-        error: "Bot nao encontrado."
+        error: "Bot não encontrado."
       });
     }
 
@@ -147,7 +147,7 @@ botDevApiRouter.post("/runtime/status", async (req, res, next) => {
 
     if (!botId) {
       return res.status(400).json({
-        message: "Bot nao identificado na requisicao runtime."
+        message: "Bot não identificado na requisicao runtime."
       });
     }
 
@@ -218,7 +218,7 @@ botDevApiRouter.post("/guilds/:guildId/commands/:commandName/authorize", async (
 
     if (!commandName || !guildId) {
       return res.status(400).json({
-        message: "guildId e commandName sao obrigatorios."
+        message: "guildId e commandName são obrigatorios."
       });
     }
 
@@ -244,7 +244,7 @@ botDevApiRouter.get("/:botId/permissions", async (req, res, next) => {
 
     if (!permissions) {
       return res.status(404).json({
-        error: "Bot nao encontrado."
+        error: "Bot não encontrado."
       });
     }
 
@@ -260,7 +260,7 @@ botDevApiRouter.get("/:botId/guild/:guildId/modules", async (req, res, next) => 
 
     if (!permissions) {
       return res.status(404).json({
-        error: "Bot nao encontrado."
+        error: "Bot não encontrado."
       });
     }
 
@@ -280,7 +280,7 @@ botDevApiRouter.get("/:botId/guild/:guildId/config", async (req, res, next) => {
 
     if (!permissions) {
       return res.status(404).json({
-        error: "Bot nao encontrado."
+        error: "Bot não encontrado."
       });
     }
 

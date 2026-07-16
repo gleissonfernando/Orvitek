@@ -197,7 +197,7 @@ export async function removeGlobalBlacklistEntry(guildId: string, botId: string 
     { returnDocument: "after" }
   );
   await insertHistory({ action: "removed", actorId, botId: normalizeBotId(botId), evidence: {}, guildId, infractionType: "manual_remove", reason: normalizeText(reason, 1000) ?? "Removido manualmente", safeBotModule: null, userId });
-  if (!saved) throw Object.assign(new Error("Usuario nao esta ativo na Blacklist Global."), { statusCode: 404 });
+  if (!saved) throw Object.assign(new Error("Usuário não está ativo na Blacklist Global."), { statusCode: 404 });
   return toEntryDto(saved);
 }
 

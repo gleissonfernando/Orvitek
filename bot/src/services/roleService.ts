@@ -14,7 +14,7 @@ export async function applyAutomaticRoles(context: BotContext, member: GuildMemb
   }
 
   if (member.pending) {
-    console.log(`[roles] aguardando ${member.user.tag} concluir a verificacao de entrada em ${member.guild.name}.`);
+    console.log(`[roles] aguardando ${member.user.tag} concluir a verificação de entrada em ${member.guild.name}.`);
     return;
   }
 
@@ -55,7 +55,7 @@ export async function applyAutomaticRoles(context: BotContext, member: GuildMemb
   }
 
   if (!roles.length) {
-    void writeRoleLog(context, member, settings.botId, "dashboard.roles.assignment_failed", "Nenhum cargo automatico pode ser atribuido.", {
+    void writeRoleLog(context, member, settings.botId, "dashboard.roles.assignment_failed", "Nenhum cargo automático pode ser atribuido.", {
       roleIds: [...roleIds]
     });
     console.warn(`[roles] nenhum cargo configurado pode ser atribuido em ${member.guild.name}.`);
@@ -76,7 +76,7 @@ export async function applyAutomaticRoles(context: BotContext, member: GuildMemb
     try {
       await member.roles.add(missingRoleIds, "Cargos automaticos via dashboard");
 
-      void writeRoleLog(context, member, settings.botId, "dashboard.roles.assigned", `${missingRoleIds.length} cargo(s) automatico(s) aplicado(s).`, {
+      void writeRoleLog(context, member, settings.botId, "dashboard.roles.assigned", `${missingRoleIds.length} cargo(s) automático(s) aplicado(s).`, {
         roleIds: missingRoleIds
       });
       console.log(`[roles] ${missingRoleIds.length} cargo(s) aplicado(s) a ${member.user.tag} em ${member.guild.name}.`);
@@ -90,7 +90,7 @@ export async function applyAutomaticRoles(context: BotContext, member: GuildMemb
     }
   }
 
-  void writeRoleLog(context, member, settings.botId, "dashboard.roles.assignment_failed", "Nao foi possivel aplicar os cargos automaticos.", {
+  void writeRoleLog(context, member, settings.botId, "dashboard.roles.assignment_failed", "Não foi possível aplicar os cargos automaticos.", {
     error: errorMessage(lastError),
     roleIds: missingRoleIds
   });
@@ -116,7 +116,7 @@ async function loadSettings(context: BotContext, member: GuildMember) {
   }
 
   console.error(
-    `[roles] nao foi possivel carregar as configuracoes de ${member.guild.name}:`,
+    `[roles] não foi possível carregar as configuracoes de ${member.guild.name}:`,
     errorMessage(lastError)
   );
   return null;

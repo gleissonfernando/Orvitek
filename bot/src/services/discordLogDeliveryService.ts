@@ -59,7 +59,7 @@ async function deliverDiscordLog(context: BotContext, log: DiscordLogDispatchEve
   const channel = await guild.channels.fetch(targetChannelId).catch(() => null);
 
   if (!channel?.isTextBased() || !channel.isSendable()) {
-    console.warn(`[logs] canal ${targetChannelId} indisponivel no servidor ${guild.id}.`);
+    console.warn(`[logs] canal ${targetChannelId} indisponível no servidor ${guild.id}.`);
     return;
   }
 
@@ -98,7 +98,7 @@ async function deliverDiscordLog(context: BotContext, log: DiscordLogDispatchEve
 
   if (log.userId) {
     embed.addFields({
-      name: "Usuario",
+      name: "Usuário",
       value: `<@${log.userId}> (\`${log.userId}\`)`
     });
     const user = await guild.client.users.fetch(log.userId).catch(() => null);
@@ -128,14 +128,14 @@ async function deliverDeletedMessageLog(
   const guildName = metadata.guildName || fallbackGuildName;
   const channelName = metadata.channelName ? `#${metadata.channelName}` : metadata.channelId ? `<#${metadata.channelId}>` : "canal desconhecido";
   const authorName = metadata.authorDisplayName || metadata.authorTag || metadata.authorUsername || "Autor desconhecido";
-  const content = metadata.content?.trim() || metadata.unavailableReason || "Conteudo nao disponivel no cache do bot.";
-  const sentAt = metadata.createdAt ? formatDate(metadata.createdAt) : "Nao informado";
+  const content = metadata.content?.trim() || metadata.unavailableReason || "Conteúdo não disponível no cache do bot.";
+  const sentAt = metadata.createdAt ? formatDate(metadata.createdAt) : "Não informado";
   const deletedAt = metadata.deletedAt ? formatDate(metadata.deletedAt) : formatDate(log.createdAt);
   const executor = metadata.executorId
     ? `<@${metadata.executorId}>${metadata.executorTag ? ` (${metadata.executorTag})` : ""}`
-    : "Nao identificado";
+    : "Não identificado";
   const moduleName = metadata.module || "Logs de mensagens apagadas";
-  const reason = metadata.reason || "Nao informado";
+  const reason = metadata.reason || "Não informado";
   const maxContentInPanel = 2_800;
   const files = [buildDeletedMessagePreview(metadata, guildName)];
   const textOverflow = content.length > maxContentInPanel;
@@ -160,8 +160,8 @@ async function deliverDeletedMessageLog(
       new TextDisplayBuilder().setContent([
         "## Autor",
         `**Nome:** ${limitInline(authorName, 120)}`,
-        metadata.authorUsername ? `**Usuario:** ${limitInline(metadata.authorUsername, 120)}` : null,
-        metadata.authorId ? `**ID:** \`${metadata.authorId}\`` : "**ID:** nao informado",
+        metadata.authorUsername ? `**Usuário:** ${limitInline(metadata.authorUsername, 120)}` : null,
+        metadata.authorId ? `**ID:** \`${metadata.authorId}\`` : "**ID:** não informado",
         `**Mensagem enviada em:** ${sentAt}`
       ].filter(Boolean).join("\n")),
       new TextDisplayBuilder().setContent([
@@ -174,13 +174,13 @@ async function deliverDeletedMessageLog(
         limitText(mediaLines, 1_500)
       ].join("\n")),
       new TextDisplayBuilder().setContent([
-        "## Detalhes da exclusao",
+        "## Detalhes da exclusão",
         metadata.channelId ? `**Canal:** ${channelName}\n**ID do canal:** \`${metadata.channelId}\`` : null,
         metadata.authorId ? `**Autor:** ${metadata.authorUsername ? `@${metadata.authorUsername}` : authorName}\n**ID do autor:** \`${metadata.authorId}\`` : null,
         metadata.messageId ? `**ID da mensagem:** \`${metadata.messageId}\`` : null,
-        `**Modulo responsavel:** ${limitInline(moduleName, 120)}`,
+        `**Módulo responsável:** ${limitInline(moduleName, 120)}`,
         metadata.ruleId ? `**Regra acionada:** \`${metadata.ruleId}\`` : null,
-        `**Acao:** ${metadata.action || "DELETE"}`,
+        `**Ação:** ${metadata.action || "DELETE"}`,
         `**Tipo:** ${metadata.deletionType || "UNKNOWN"}`,
         `**Executor:** ${executor}`,
         `**Motivo:** ${limitInline(reason, 240)}`,
@@ -282,7 +282,7 @@ function deletedMessageMetadata(metadata: unknown): DeletedMessageLogMetadata {
 function buildDeletedMessagePreview(metadata: DeletedMessageLogMetadata, guildName: string) {
   const authorName = metadata.authorDisplayName || metadata.authorTag || metadata.authorUsername || "Autor desconhecido";
   const channelName = metadata.channelName ? `#${metadata.channelName}` : metadata.channelId ? `#${metadata.channelId}` : "canal desconhecido";
-  const content = metadata.content?.trim() || metadata.unavailableReason || "Conteudo nao disponivel.";
+  const content = metadata.content?.trim() || metadata.unavailableReason || "Conteúdo não disponível.";
   const contentLines = wrapText(content, 78).slice(0, 18);
   const height = Math.min(920, 250 + contentLines.length * 24);
   const svg = [
@@ -298,10 +298,10 @@ function buildDeletedMessagePreview(metadata: DeletedMessageLogMetadata, guildNa
     `<text x="138" y="198" fill="#ffffff" font-family="Arial, sans-serif" font-size="21" font-weight="700">${escapeXml(limitInline(authorName, 70))}</text>`,
     `<text x="138" y="229" fill="#a1a1aa" font-family="Arial, sans-serif" font-size="16">Enviada em ${escapeXml(metadata.createdAt ? formatDate(metadata.createdAt) : "horario desconhecido")}</text>`,
     "<rect x=\"48\" y=\"306\" width=\"1024\" height=\"" + Math.max(130, contentLines.length * 28 + 40) + "\" rx=\"8\" fill=\"#15161b\" stroke=\"#383a45\"/>",
-    `<text x="76" y="344" fill="#f8fafc" font-family="Arial, sans-serif" font-size="20" font-weight="700">Conteudo removido</text>`,
+    `<text x="76" y="344" fill="#f8fafc" font-family="Arial, sans-serif" font-size="20" font-weight="700">Conteúdo removido</text>`,
     ...contentLines.map((line, index) => `<text x="76" y="${384 + index * 24}" fill="#e4e4e7" font-family="Consolas, monospace" font-size="17">${escapeXml(line)}</text>`),
-    `<text x="48" y="${height - 80}" fill="#a1a1aa" font-family="Arial, sans-serif" font-size="16">ID usuario: ${escapeXml(metadata.authorId ?? "nao informado")} | ID mensagem: ${escapeXml(metadata.messageId ?? "nao informado")}</text>`,
-    `<text x="48" y="${height - 50}" fill="#a1a1aa" font-family="Arial, sans-serif" font-size="16">ID servidor: ${escapeXml(metadata.guildId ?? "nao informado")} | ID canal: ${escapeXml(metadata.channelId ?? "nao informado")}</text>`,
+    `<text x="48" y="${height - 80}" fill="#a1a1aa" font-family="Arial, sans-serif" font-size="16">ID usuário: ${escapeXml(metadata.authorId ?? "não informado")} | ID mensagem: ${escapeXml(metadata.messageId ?? "não informado")}</text>`,
+    `<text x="48" y="${height - 50}" fill="#a1a1aa" font-family="Arial, sans-serif" font-size="16">ID servidor: ${escapeXml(metadata.guildId ?? "não informado")} | ID canal: ${escapeXml(metadata.channelId ?? "não informado")}</text>`,
     "</svg>"
   ].join("");
 
@@ -419,7 +419,7 @@ function logTitle(log: DiscordLogDispatchEvent) {
     "voice.move": "🔁 Movimentação em Call",
     "voice.temporary_call": "🎧 Call Temporária",
     "roles.update": "Cargos atualizados",
-    "dashboard.settings.updated": "Configuracao atualizada"
+    "dashboard.settings.updated": "Configuração atualizada"
   };
 
   return titles[log.type] ?? CATEGORY_LABELS[logCategoryForType(log.type)];
@@ -444,7 +444,7 @@ function metadataFields(metadata: unknown) {
   const record = metadata as Record<string, unknown>;
   const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
 
-  addMetadataField(fields, "Conteudo", record.content);
+  addMetadataField(fields, "Conteúdo", record.content);
   addMetadataField(fields, "Antes", record.before);
   addMetadataField(fields, "Depois", record.after);
   addMetadataField(fields, "Motivo", record.reason);

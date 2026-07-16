@@ -78,7 +78,7 @@ export async function updateHierarchyForwardingRule(
   const current = await hierarchyForwarding.findOne({ ...scope(guildId, botId), _id: ruleId });
 
   if (!current) {
-    throw serviceError("Encaminhamento nao encontrado.", 404);
+    throw serviceError("Encaminhamento não encontrado.", 404);
   }
 
   const next = {
@@ -108,7 +108,7 @@ export async function updateHierarchyForwardingRule(
   );
 
   const updated = await hierarchyForwarding.findOne({ ...scope(guildId, botId), _id: ruleId });
-  if (!updated) throw serviceError("Encaminhamento nao encontrado.", 404);
+  if (!updated) throw serviceError("Encaminhamento não encontrado.", 404);
   await audit("updated", guildId, botId, actorId, updated, current);
 
   return toDto(updated);
@@ -124,7 +124,7 @@ export async function duplicateHierarchyForwardingRule(
   const current = await hierarchyForwarding.findOne({ ...scope(guildId, botId), _id: ruleId });
 
   if (!current) {
-    throw serviceError("Encaminhamento nao encontrado.", 404);
+    throw serviceError("Encaminhamento não encontrado.", 404);
   }
 
   return createHierarchyForwardingRule(
@@ -149,7 +149,7 @@ export async function deleteHierarchyForwardingRule(
   const current = await hierarchyForwarding.findOne({ ...scope(guildId, botId), _id: ruleId });
 
   if (!current) {
-    throw serviceError("Encaminhamento nao encontrado.", 404);
+    throw serviceError("Encaminhamento não encontrado.", 404);
   }
 
   await hierarchyForwarding.updateOne(
@@ -166,7 +166,7 @@ export async function resolveHierarchyForwarding(
 ) {
   const roleIds = [...new Set(denouncedRoleIds.filter((roleId) => snowflakePattern.test(roleId)))];
   if (!roleIds.length) {
-    throw serviceError("Nao foi possivel identificar o cargo do denunciado.", 400);
+    throw serviceError("Não foi possível identificar o cargo do denunciado.", 400);
   }
 
   const { hierarchyForwarding } = await getMongoCollections();
@@ -180,7 +180,7 @@ export async function resolveHierarchyForwarding(
   );
 
   if (!rule) {
-    throw serviceError("Nao existe um destino configurado para este cargo. Acesse Dashboard -> Corregedoria -> Orgaos e configure os cargos responsaveis e o campo Escalar para.", 400);
+    throw serviceError("Não existe um destino configurado para este cargo. Acesse Dashboard -> Corregedoria -> Órgãos e configure os cargos responsáveis e o campo Escalar para.", 400);
   }
 
   return toDto(rule);
@@ -188,10 +188,10 @@ export async function resolveHierarchyForwarding(
 
 function validateInput(input: HierarchyForwardingRuleInput) {
   if (!snowflakePattern.test(input.denouncedRoleId)) {
-    throw serviceError("Cargo denunciado invalido.", 400);
+    throw serviceError("Cargo denunciado inválido.", 400);
   }
   if (!input.destinationCategoryId.trim()) {
-    throw serviceError("Destino responsavel obrigatorio.", 400);
+    throw serviceError("Destino responsável obrigatório.", 400);
   }
 }
 
@@ -205,7 +205,7 @@ async function assertNoActiveDuplicate(guildId: string, botId: string | null, de
   });
 
   if (duplicate) {
-    throw serviceError("Este cargo ja possui um encaminhamento ativo.", 409);
+    throw serviceError("Este cargo já possui um encaminhamento ativo.", 409);
   }
 }
 

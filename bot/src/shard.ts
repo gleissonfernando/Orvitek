@@ -3,7 +3,7 @@ import { ShardingManager } from "discord.js";
 
 const token = process.env.DISCORD_BOT_TOKEN?.trim();
 if (!token) {
-  console.error("[sharding] DISCORD_BOT_TOKEN nao configurado.");
+  console.error("[sharding] DISCORD_BOT_TOKEN não configurado.");
   process.exit(1);
 }
 

@@ -131,7 +131,7 @@ const tagVerificationConfigSchema = z.object({
   }
 
   if (!config.roleId) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: "Selecione o cargo que sera entregue.", path: ["roleId"] });
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Selecione o cargo que será entregue.", path: ["roleId"] });
   }
 });
 
@@ -162,7 +162,7 @@ advancedModulesRouter.get("/:botId/:guildId/:moduleId", async (req, res, next) =
 
     if (!(await canReadDevBotModule(user, botId, guildId, moduleId))) {
       return res.status(403).json({
-        message: "Este modulo nao foi liberado para este bot ou voce nao tem permissao para visualiza-lo."
+        message: "Este módulo não foi liberado para este bot ou você não tem permissão para visualiza-lo."
       });
     }
 
@@ -184,7 +184,7 @@ advancedModulesRouter.patch("/:botId/:guildId/:moduleId", async (req, res, next)
 
     if (!(await canUseDevBotModule(user, botId, guildId, moduleId))) {
       return res.status(403).json({
-        message: "Este modulo nao foi liberado para este bot ou voce nao tem permissao para configura-lo."
+        message: "Este módulo não foi liberado para este bot ou você não tem permissão para configura-lo."
       });
     }
 
@@ -251,13 +251,13 @@ advancedModulesRouter.post("/:botId/:guildId/tag-verification/run", async (req, 
     const user = res.locals.dashboardAuth.user as AuthSessionUser;
 
     if (!(await canUseDevBotModule(user, botId, guildId, "tag-verification"))) {
-      return res.status(403).json({ message: "Este modulo nao foi liberado para este bot ou servidor." });
+      return res.status(403).json({ message: "Este módulo não foi liberado para este bot ou servidor." });
     }
 
     const module = await getBotGuildModuleConfig(botId, guildId, "tag-verification");
 
     if (module.config.enabled !== true) {
-      return res.status(409).json({ message: "Ative e salve a Verificacao de Tag antes de executar." });
+      return res.status(409).json({ message: "Ative e salve a Verificação de Tag antes de executar." });
     }
 
     const responses = await emitRealtimeToRoomWithAck<
@@ -268,7 +268,7 @@ advancedModulesRouter.post("/:botId/:guildId/tag-verification/run", async (req, 
 
     if (!result) {
       const error = responses.find((item): item is { error: string } => "error" in item)?.error;
-      return res.status(503).json({ message: error || "O bot nao respondeu a verificacao manual." });
+      return res.status(503).json({ message: error || "O bot não respondeu a verificação manual." });
     }
 
     return res.json({ result });
@@ -340,7 +340,7 @@ function normalizeModuleConfig(moduleId: z.infer<typeof moduleIdSchema>, config:
     });
 
     if (!result.success) {
-      const error = new Error(result.error.issues[0]?.message ?? "Configuracao de Verificacao de Tag invalida.");
+      const error = new Error(result.error.issues[0]?.message ?? "Configuração de Verificação de Tag inválida.");
       Object.assign(error, { statusCode: 400 });
       throw error;
     }
@@ -354,7 +354,7 @@ function normalizeModuleConfig(moduleId: z.infer<typeof moduleIdSchema>, config:
 async function validateTagVerificationRole(botId: string, guildId: string, roleId: string) {
   const token = await getDevBotToken(botId);
   if (!token) {
-    const error = new Error("O token deste bot nao esta disponivel para validar o cargo.");
+    const error = new Error("O token deste bot não está disponível para validar o cargo.");
     Object.assign(error, { statusCode: 400 });
     throw error;
   }
@@ -366,13 +366,13 @@ async function validateTagVerificationRole(botId: string, guildId: string, roleI
   }
 
   const messages = {
-    bot_missing_manage_roles: "Bot sem permissao para gerenciar cargos.",
-    role_above_bot: "Cargo selecionado esta acima do cargo do bot.",
-    role_managed: "Cargo selecionado e gerenciado por uma integracao.",
-    role_not_found: "Cargo nao encontrado."
+    bot_missing_manage_roles: "Bot sem permissão para gerenciar cargos.",
+    role_above_bot: "Cargo selecionado está acima do cargo do bot.",
+    role_managed: "Cargo selecionado e gerenciado por uma integração.",
+    role_not_found: "Cargo não encontrado."
   } as const;
 
-  const error = new Error(validation.reason ? messages[validation.reason] : "Nao foi possivel validar o cargo selecionado.");
+  const error = new Error(validation.reason ? messages[validation.reason] : "Não foi possível validar o cargo selecionado.");
   Object.assign(error, { statusCode: 400 });
   throw error;
 }
@@ -385,7 +385,7 @@ async function writeModuleConfigLogs(input: {
   previousConfig: Record<string, unknown>;
   user: AuthSessionUser;
 }) {
-  const label = input.moduleId === "auto-unmute" ? "Auto Desmutar" : input.moduleId === "anti-disconnect" ? "Anti Disconnect" : input.moduleId === "anti-abuse" ? "Anti Abuse" : input.moduleId === "tag-verification" ? "Verificacao de Tag" : input.moduleId;
+  const label = input.moduleId === "auto-unmute" ? "Auto Desmutar" : input.moduleId === "anti-disconnect" ? "Anti Disconnect" : input.moduleId === "anti-abuse" ? "Anti Abuse" : input.moduleId === "tag-verification" ? "Verificação de Tag" : input.moduleId;
   const enabled = input.config.enabled === true;
   const wasEnabled = input.previousConfig.enabled === true;
 
@@ -394,7 +394,7 @@ async function writeModuleConfigLogs(input: {
     guildId: input.guildId,
     userId: input.user.discordId ?? input.user.id,
     type: `${input.moduleId}.config_updated`,
-    message: `${label}: configuracao salva para este bot e servidor.`,
+    message: `${label}: configuração salva para este bot e servidor.`,
     metadata: {
       botId: input.botId,
       guildId: input.guildId,

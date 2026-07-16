@@ -183,7 +183,7 @@ const DEFAULT_FIELDS: FivemGoalFieldDto[] = [
   { id: "euro_sujo", label: "Euro Sujo", maxLength: 80, minLength: 1, placeholder: "Ex: 100000", required: true, style: "short" },
   { id: "itens", label: "Itens", maxLength: 300, minLength: 1, placeholder: "Ex: 5 Diamantes", required: true, style: "short" },
   { id: "quantidade", label: "Quantidade", maxLength: 80, minLength: 1, placeholder: "Ex: 5", required: true, style: "short" },
-  { id: "observacao", label: "Observacao", maxLength: 1000, minLength: null, placeholder: "Detalhes extras", required: false, style: "paragraph" }
+  { id: "observacao", label: "Observação", maxLength: 1000, minLength: null, placeholder: "Detalhes extras", required: false, style: "paragraph" }
 ];
 
 const DEFAULT_ITEMS: FivemGoalItemDto[] = [
@@ -206,7 +206,7 @@ export function defaultFivemGoalSettings(guildId: string, botId: string | null =
     logChannelId: null,
     managerRoleId: null,
     requestPanelChannelId: null,
-    requestPanelDescription: "Solicite seu canal individual de meta para enviar comprovantes, acompanhar sua producao semanal e visualizar seu progresso.",
+    requestPanelDescription: "Solicite seu canal individual de meta para enviar comprovantes, acompanhar sua produção semanal e visualizar seu progresso.",
     requestPanelEnabled: true,
     requestPanelMessageId: null,
     requestPanelTitle: "Sistema de Metas FiveM",
@@ -252,7 +252,7 @@ export async function saveFivemGoalSettings(guildId: string, botId: string | nul
 export async function requestFivemGoalPanelPublish(guildId: string, botId: string, actorId: string | null) {
   const settings = await getFivemGoalSettings(guildId, botId);
   if (!settings.enabled) throw new Error("Ative o sistema de metas antes de publicar o painel.");
-  if (!settings.requestPanelChannelId) throw new Error("Configure o canal do painel de solicitacao de meta.");
+  if (!settings.requestPanelChannelId) throw new Error("Configure o canal do painel de solicitação de meta.");
 
   await writeFivemGoalLog({
     action: "request_panel.publish_requested",
@@ -441,7 +441,7 @@ export async function deleteFivemGoalConfig(guildId: string, botId: string | nul
   if (!current) return null;
   const historyCount = await fivemGoalSubmissions.countDocuments({ ...scopeQuery(guildId, normalizedBotId), metaId });
   if (deleteHistory && historyCount > 0) {
-    throw new Error("Metas com historico nao podem ser apagadas fisicamente. Desative ou arquive a meta.");
+    throw new Error("Metas com histórico não podem ser apagadas fisicamente. Desative ou arquive a meta.");
   }
   if (deleteHistory) await fivemGoalConfigs.deleteOne({ _id: metaId, ...scopeQuery(guildId, normalizedBotId) });
   else await fivemGoalConfigs.updateOne(
@@ -655,7 +655,7 @@ async function ensureDefaultGoalConfigFromLegacy(settings: FivemGoalSettingsDto,
   const doc: MongoFivemGoalConfig = {
     _id: randomUUID(),
     ...normalizeConfigInput({
-      description: "Meta migrada automaticamente da configuracao antiga.",
+      description: "Meta migrada automaticamente da configuração antiga.",
       fields: settings.fields,
       logChannelId: settings.logChannelId,
       managerRoleIds: settings.managerRoleId ? [settings.managerRoleId] : [],
@@ -688,7 +688,7 @@ function normalizeSettings(settings: FivemGoalSettingsDto): FivemGoalSettingsDto
     logChannelId: normalizeSnowflake(settings.logChannelId),
     managerRoleId: normalizeSnowflake(settings.managerRoleId),
     requestPanelChannelId: normalizeSnowflake(settings.requestPanelChannelId),
-    requestPanelDescription: normalizeText(settings.requestPanelDescription, 900) || "Solicite seu canal individual de meta para enviar comprovantes, acompanhar sua producao semanal e visualizar seu progresso.",
+    requestPanelDescription: normalizeText(settings.requestPanelDescription, 900) || "Solicite seu canal individual de meta para enviar comprovantes, acompanhar sua produção semanal e visualizar seu progresso.",
     requestPanelEnabled: settings.requestPanelEnabled !== false,
     requestPanelMessageId: normalizeSnowflake(settings.requestPanelMessageId),
     requestPanelTitle: normalizeText(settings.requestPanelTitle, 120) || "Sistema de Metas FiveM",
@@ -743,7 +743,7 @@ function toSettingsDto(settings: MongoFivemGoalSettings): FivemGoalSettingsDto {
     logChannelId: settings.logChannelId,
     managerRoleId: settings.managerRoleId,
     requestPanelChannelId: settings.requestPanelChannelId ?? null,
-    requestPanelDescription: settings.requestPanelDescription ?? "Solicite seu canal individual de meta para enviar comprovantes, acompanhar sua producao semanal e visualizar seu progresso.",
+    requestPanelDescription: settings.requestPanelDescription ?? "Solicite seu canal individual de meta para enviar comprovantes, acompanhar sua produção semanal e visualizar seu progresso.",
     requestPanelEnabled: settings.requestPanelEnabled !== false,
     requestPanelMessageId: settings.requestPanelMessageId ?? null,
     requestPanelTitle: settings.requestPanelTitle ?? "Sistema de Metas FiveM",

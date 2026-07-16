@@ -185,7 +185,7 @@ export async function saveServerBackupSettings(botId: string, guildId: string, i
     { $set: { ...next, updatedAt: now, updatedBy: actorId }, $setOnInsert: { _id: randomUUID() } },
     { upsert: true }
   );
-  await createLog({ botId, guildId, userId: actorId, type: next.autoEnabled ? "server-backup.auto_enabled" : "server-backup.config_updated", message: "Backup Completo: configuracao salva.", metadata: { frequency: next.frequency, limit: next.limit } }).catch(() => null);
+  await createLog({ botId, guildId, userId: actorId, type: next.autoEnabled ? "server-backup.auto_enabled" : "server-backup.config_updated", message: "Backup Completo: configuração salva.", metadata: { frequency: next.frequency, limit: next.limit } }).catch(() => null);
   return getServerBackupSettings(botId, guildId);
 }
 
@@ -229,10 +229,10 @@ export async function processQueuedServerBackupCapture(payload: Record<string, u
   if (!snapshotId) throw new Error("Job de backup sem snapshotId.");
   const { serverBackupSnapshots } = await getMongoCollections();
   const pending = await serverBackupSnapshots.findOne({ _id: snapshotId });
-  if (!pending) throw new Error(`Snapshot ${snapshotId} nao encontrado.`);
+  if (!pending) throw new Error(`Snapshot ${snapshotId} não encontrado.`);
   if (pending.status === "completed" || pending.status === "partial") return;
   const botToken = await getDevBotToken(pending.botId);
-  if (!botToken) throw new Error("Token do bot nao configurado para criar backup.");
+  if (!botToken) throw new Error("Token do bot não configurado para criar backup.");
 
   try {
     const snapshot = await captureSnapshot(botToken, pending.botId, pending.guildId);
@@ -303,7 +303,7 @@ async function runAutomaticServerBackupTick() {
           botId: settings.botId,
           guildId: settings.guildId,
           type: "server-backup.auto_failed",
-          message: "Backup automatico ignorado: token do bot nao configurado.",
+          message: "Backup automático ignorado: token do bot não configurado.",
           metadata: { frequency: settings.frequency }
         }).catch(() => null);
         continue;
@@ -325,7 +325,7 @@ async function runAutomaticServerBackupTick() {
 export async function deleteServerBackup(botId: string, guildId: string, backupId: string, actorId: string | null) {
   const { serverBackupSnapshots } = await getMongoCollections();
   const result = await serverBackupSnapshots.deleteOne({ _id: backupId, botId, guildId });
-  if (!result.deletedCount) throw Object.assign(new Error("Backup nao encontrado."), { statusCode: 404 });
+  if (!result.deletedCount) throw Object.assign(new Error("Backup não encontrado."), { statusCode: 404 });
   await createLog({ botId, guildId, userId: actorId, type: "server-backup.deleted", message: "Backup apagado.", metadata: { backupId } }).catch(() => null);
 }
 
@@ -376,7 +376,7 @@ export async function restoreServerBackup(input: { actorId: string | null; botId
   const preview = await previewServerBackupRestore(input);
   const targetGuildId = preview.targetGuildId;
   if (!preview.canRestore) {
-    throw Object.assign(new Error(`Nao foi possivel iniciar a restauracao porque o bot nao possui permissoes suficientes no servidor de destino. Conceda: ${preview.missingPermissions.join(", ")}.`), { statusCode: 400 });
+    throw Object.assign(new Error(`Não foi possível iniciar a restauração porque o bot não possui permissoes suficientes no servidor de destino. Conceda: ${preview.missingPermissions.join(", ")}.`), { statusCode: 400 });
   }
   const now = new Date();
   const { serverBackupRestoreJobs } = await getMongoCollections();
@@ -412,18 +412,18 @@ export async function restoreServerBackup(input: { actorId: string | null; botId
 
 export async function processQueuedServerBackupRestore(payload: Record<string, unknown>, context: BackgroundJobContext) {
   const restoreJobId = typeof payload.restoreJobId === "string" ? payload.restoreJobId : null;
-  if (!restoreJobId) throw new Error("Job de restauracao sem restoreJobId.");
+  if (!restoreJobId) throw new Error("Job de restauração sem restoreJobId.");
 
   const { serverBackupRestoreJobs } = await getMongoCollections();
   const job = await serverBackupRestoreJobs.findOne({ _id: restoreJobId });
-  if (!job) throw new Error(`Restauracao ${restoreJobId} nao encontrada.`);
+  if (!job) throw new Error(`Restauração ${restoreJobId} não encontrada.`);
   if (job.status === "completed" || job.status === "partial") return;
 
   const sourceGuildId = job.sourceGuildId ?? job.guildId;
   const targetGuildId = job.targetGuildId ?? job.guildId;
   const backup = await getSnapshotOrThrow(job.botId, sourceGuildId, job.backupId);
   const botToken = await getDevBotToken(job.botId);
-  if (!botToken) throw new Error("Token do bot nao configurado para processar a restauracao.");
+  if (!botToken) throw new Error("Token do bot não configurado para processar a restauração.");
   const preview = job.preview as unknown as RestorePreview;
   const startedAt = new Date();
   await serverBackupRestoreJobs.updateOne(
@@ -446,7 +446,7 @@ export async function processQueuedServerBackupRestore(payload: Record<string, u
       guildId: targetGuildId,
       userId: job.createdBy,
       type: "server-backup.restore_progress",
-      message: latest?.message ?? `Restauracao em ${result.progressPercent}%.`,
+      message: latest?.message ?? `Restauração em ${result.progressPercent}%.`,
       metadata: { attempt: context.attempt, backupId: job.backupId, jobId: job._id, progress: result.progressPercent, sourceGuildId, summary: result.summary, targetGuildId }
     }).catch(() => null);
   };
@@ -471,9 +471,9 @@ export async function processQueuedServerBackupRestore(payload: Record<string, u
   await serverBackupRestoreJobs.updateOne({ _id: job._id }, { $set: { completedAt, progress: 100, result, status, updatedAt: completedAt } });
   emitRestoreProgress({ ...runningJob, completedAt, progress: 100, result, status, updatedAt: completedAt }, sourceGuildId, targetGuildId);
   const metadata = { attempt: context.attempt, backupId: job.backupId, result, sourceGuildId, targetGuildId };
-  await createLog({ botId: job.botId, guildId: targetGuildId, userId: job.createdBy, type: status === "completed" ? "server-backup.restored" : "server-backup.restore_partial", message: `Restauracao finalizada com status ${status}. Origem ${sourceGuildId}, destino ${targetGuildId}.`, metadata }).catch(() => null);
+  await createLog({ botId: job.botId, guildId: targetGuildId, userId: job.createdBy, type: status === "completed" ? "server-backup.restored" : "server-backup.restore_partial", message: `Restauração finalizada com status ${status}. Origem ${sourceGuildId}, destino ${targetGuildId}.`, metadata }).catch(() => null);
   if (targetGuildId !== sourceGuildId) {
-    await createLog({ botId: job.botId, guildId: sourceGuildId, userId: job.createdBy, type: "server-backup.sent_to_guild", message: `Backup enviado para restauracao no servidor ${targetGuildId} com status ${status}.`, metadata }).catch(() => null);
+    await createLog({ botId: job.botId, guildId: sourceGuildId, userId: job.createdBy, type: "server-backup.sent_to_guild", message: `Backup enviado para restauração no servidor ${targetGuildId} com status ${status}.`, metadata }).catch(() => null);
   }
 }
 
@@ -611,7 +611,7 @@ async function executeRestore(
     progress: [],
     summary: { roles: 0, categories: 0, channels: 0, permissions: 0, emojis: 0, stickers: 0, settings: 0, reused: 0, failed: 0 }
   };
-  addRestoreProgress(result, "start", "running", "Iniciando restauracao.");
+  addRestoreProgress(result, "start", "running", "Iniciando restauração.");
   await checkpoint(result, 5, startedAt, onProgress);
   const roles = Array.isArray(snapshot.roles) ? [...snapshot.roles].filter((role) => role.name !== "@everyone" && !role.managed && !role.tags?.bot_id).sort((a, b) => a.position - b.position) : [];
   const channels = Array.isArray(snapshot.channels) ? [...snapshot.channels].sort((a, b) => a.position - b.position) : [];
@@ -678,7 +678,7 @@ async function executeRestore(
         targetRoles.push(created);
         result.summary.roles += 1;
       } catch (error) {
-        addRestoreError(result, `role:${role.name}`, `Cargo ${role.name} nao foi restaurado porque esta acima do cargo do bot, e gerenciado pelo Discord ou falhou: ${errorMessage(error)}`);
+        addRestoreError(result, `role:${role.name}`, `Cargo ${role.name} não foi restaurado porque esta acima do cargo do bot, e gerenciado pelo Discord ou falhou: ${errorMessage(error)}`);
       }
     }
     await restoreRolePositions(botToken, guildId, roles, result);
@@ -749,10 +749,10 @@ async function executeRestore(
   }
 
   if (parts.includes("permissions")) {
-    addRestoreProgress(result, "permissions", "running", "Aplicando permissoes dos canais.");
+    addRestoreProgress(result, "permissions", "running", "Aplicando permissões dos canais.");
     await restoreChannelPermissions(botToken, channels, result, mode === "missing" ? reusedChannelIds : new Set());
     result.completedSteps.push("permissions");
-    addRestoreProgress(result, "permissions", "completed", `${result.summary.permissions} permissao(oes) aplicada(s).`);
+    addRestoreProgress(result, "permissions", "completed", `${result.summary.permissions} permissão(oes) aplicada(s).`);
     await checkpoint(result, 72, startedAt, onProgress);
   }
 
@@ -773,7 +773,7 @@ async function executeRestore(
   }
 
   if (parts.includes("settings")) {
-    addRestoreProgress(result, "settings", "running", "Restaurando configuracoes do servidor e do bot com IDs convertidos.");
+    addRestoreProgress(result, "settings", "running", "Restaurando configurações do servidor e do bot com IDs convertidos.");
     try {
       await restoreGuildSettings(botToken, guildId, snapshot.guild ?? {}, result.idMap);
       const mappedSettings = remapIdsDeep(snapshot.internalSettings ?? {}, result.idMap, collectSnapshotIds(snapshot));
@@ -783,14 +783,14 @@ async function executeRestore(
       addRestoreError(result, "settings", errorMessage(error));
     }
     result.completedSteps.push("settings");
-    addRestoreProgress(result, "settings", "completed", `${result.summary.settings} configuracao(oes) interna(s) restaurada(s).`);
+    addRestoreProgress(result, "settings", "completed", `${result.summary.settings} configuração(oes) interna(s) restaurada(s).`);
     await checkpoint(result, 96, startedAt, onProgress);
   }
   if (parts.includes("panels")) {
     result.completedSteps.push("panels");
-    addRestoreProgress(result, "panels", "warning", "Paineis foram marcados como restaurados no relatorio; reenvio depende das configuracoes internas mapeadas.");
+    addRestoreProgress(result, "panels", "warning", "Paineis foram marcados como restaurados no relatório; reenvio depende das configurações internas mapeadas.");
   }
-  addRestoreProgress(result, "finish", result.errors.length ? "warning" : "completed", result.errors.length ? `Restauracao finalizada com ${result.errors.length} falha(s).` : "Backup restaurado com sucesso.");
+  addRestoreProgress(result, "finish", result.errors.length ? "warning" : "completed", result.errors.length ? `Restauração finalizada com ${result.errors.length} falha(s).` : "Backup restaurado com sucesso.");
   await checkpoint(result, 100, startedAt, onProgress);
   return result;
 }
@@ -808,7 +808,7 @@ async function validateRestorePermissions(botToken: string, guildId: string, par
       discordGet(botToken, `/guilds/${guildId}/roles`)
     ]);
   } catch {
-    throw Object.assign(new Error("Nao foi possivel validar o servidor de destino. Confirme se o bot esta no servidor informado."), { statusCode: 400 });
+    throw Object.assign(new Error("Não foi possível validar o servidor de destino. Confirme se o bot está no servidor informado."), { statusCode: 400 });
   }
   const permissions = computeMemberPermissions(member, roles, guild.owner_id, guildId);
   const botHighestRolePosition = Math.max(0, ...(member.roles ?? []).map((roleId: string) => roles.find((role: any) => role.id === roleId)?.position ?? 0));
@@ -824,10 +824,10 @@ async function validateRestorePermissions(botToken: string, guildId: string, par
   }
   const warnings = [];
   if (missingPermissions.length) {
-    warnings.push("O bot precisa das permissoes de gerenciamento para restaurar tudo.");
+    warnings.push("O bot precisa das permissões de gerenciamento para restaurar tudo.");
   }
   if (!administrator) {
-    warnings.push("Administrador nao e obrigatorio, mas reduz falhas de permissao durante a restauracao.");
+    warnings.push("Administrador não é obrigatório, mas reduz falhas de permissão durante a restauração.");
   }
   return { missingPermissions, warnings };
 }
@@ -930,7 +930,7 @@ async function restoreEmojis(botToken: string, guildId: string, source: unknown,
         continue;
       }
       if (typeof emoji.data !== "string" || !emoji.data.startsWith("data:")) {
-        throw new Error(emoji.assetError || "arquivo do emoji nao foi incorporado ao backup");
+        throw new Error(emoji.assetError || "arquivo do emoji não foi incorporado ao backup");
       }
       const created = await discordPost(botToken, `/guilds/${guildId}/emojis`, {
         image: emoji.data,
@@ -971,7 +971,7 @@ async function restoreStickers(botToken: string, guildId: string, source: unknow
         continue;
       }
       if (typeof sticker.data !== "string" || !sticker.data.startsWith("data:")) {
-        throw new Error(sticker.assetError || "arquivo do sticker nao foi incorporado ao backup");
+        throw new Error(sticker.assetError || "arquivo do sticker não foi incorporado ao backup");
       }
       const created = await discordPostMultipart(botToken, `/guilds/${guildId}/stickers`, {
         description: String(sticker.description ?? "Sticker restaurado do backup").slice(0, 100),
@@ -1054,7 +1054,7 @@ async function restoreChannelPermissions(botToken: string, channels: any[], resu
     for (const overwrite of channel.permission_overwrites) {
       const mapped = mapPermissionOverwrite(overwrite, result.idMap);
       if (!mapped) {
-        addRestoreError(result, `permission:${channel.name}`, `Overwrite ${overwrite.id} ignorado porque o cargo antigo nao existe no servidor destino.`);
+        addRestoreError(result, `permission:${channel.name}`, `Overwrite ${overwrite.id} ignorado porque o cargo antigo não existe no servidor destino.`);
         continue;
       }
       try {
@@ -1126,12 +1126,12 @@ async function enforceBackupLimit(botId: string, guildId: string) {
 async function getSnapshotOrThrow(botId: string, guildId: string, backupId: string) {
   const { serverBackupSnapshots } = await getMongoCollections();
   const backup = await serverBackupSnapshots.findOne({ _id: backupId, botId, guildId });
-  if (!backup) throw Object.assign(new Error("Backup nao encontrado."), { statusCode: 404 });
+  if (!backup) throw Object.assign(new Error("Backup não encontrado."), { statusCode: 404 });
   if (backup.status === "failed" || !isValidSnapshot(backup.snapshot)) {
-    throw Object.assign(new Error("O backup esta incompleto ou corrompido e nao pode ser restaurado."), { statusCode: 422 });
+    throw Object.assign(new Error("O backup está incompleto ou corrompido e não pode ser restaurado."), { statusCode: 422 });
   }
   if (backup.checksum && backup.checksum !== snapshotChecksum(backup.snapshot)) {
-    throw Object.assign(new Error("A verificacao de integridade do backup falhou."), { statusCode: 422 });
+    throw Object.assign(new Error("A verificação de integridade do backup falhou."), { statusCode: 422 });
   }
   return backup;
 }
@@ -1158,7 +1158,7 @@ async function discordDelete(token: string, path: string) {
 
 async function discordPostMultipart(token: string, path: string, input: { description: string; file: string; name: string; tags: string }) {
   const asset = parseDataUri(input.file);
-  if (!asset) throw new Error("Arquivo incorporado ao backup e invalido.");
+  if (!asset) throw new Error("Arquivo incorporado ao backup e inválido.");
   const form = new FormData();
   form.append("name", input.name);
   form.append("description", input.description);

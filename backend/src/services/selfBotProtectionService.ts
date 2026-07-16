@@ -308,7 +308,7 @@ export function defaultSelfBotProtectionSettings(guildId: string, botId: string)
     antiBotAction: "manual",
     raidLockdownEnabled: false,
     dmWarningEnabled: false,
-    dmWarningMessage: "Você violou a proteção {protecao} no servidor {servidor}.",
+    dmWarningMessage: "Você violou a proteção {proteção} no servidor {servidor}.",
     moduleLogChannelIds: {},
     capsMinLength: 12,
     capsPercentage: 70,

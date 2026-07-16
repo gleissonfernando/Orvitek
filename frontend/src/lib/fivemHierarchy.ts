@@ -65,7 +65,7 @@ export function isLocalHierarchyPanelId(panelId: string) {
 
 export function hierarchyPanelDraftId(clientRequestId: string) {
   if (!CLIENT_REQUEST_ID_PATTERN.test(clientRequestId)) {
-    throw new Error("clientRequestId de painel de hierarquia invalido.");
+    throw new Error("clientRequestId de painel de hierarquia inválido.");
   }
 
   return `new:${clientRequestId}`;

@@ -148,7 +148,7 @@ async function saveMemberPanelImage(mode: MemberPanelMode, guildId: string, buff
   const extension = MIME_EXTENSIONS[mimeType];
 
   if (!extension) {
-    throw new Error("Formato invalido. Envie GIF, PNG, JPG ou WEBP.");
+    throw new Error("Formato inválido. Envie GIF, PNG, JPG ou WEBP.");
   }
 
   await fs.mkdir(WELCOME_UPLOAD_DIR, { recursive: true });
@@ -167,7 +167,7 @@ export async function sendWelcomePanelToDiscord(settings: GuildSettingsDto, user
     botToken,
     channelId: settings.welcomeChannelId,
     payload: createWelcomePanelEmbeds(settings, userMention),
-    missingChannelMessage: "Selecione o canal onde o painel sera enviado.",
+    missingChannelMessage: "Selecione o canal onde o painel será enviado.",
     testErrorLabel: "boas-vindas"
   });
 }
@@ -177,7 +177,7 @@ export async function sendLeavePanelToDiscord(settings: GuildSettingsDto, userMe
     botToken,
     channelId: settings.leaveChannelId,
     payload: createLeavePanelEmbed(settings, userMention),
-    missingChannelMessage: "Selecione o canal onde o painel de saida sera enviado.",
+    missingChannelMessage: "Selecione o canal onde o painel de saída será enviado.",
     testErrorLabel: "saida"
   });
 }
@@ -198,7 +198,7 @@ async function sendMemberPanelToDiscord({
   const token = botToken || env.DISCORD_BOT_TOKEN;
 
   if (!token) {
-    throw new Error("DISCORD_BOT_TOKEN nao configurado.");
+    throw new Error("DISCORD_BOT_TOKEN não configurado.");
   }
 
   if (!channelId) {
@@ -206,7 +206,7 @@ async function sendMemberPanelToDiscord({
   }
 
   if (!payload) {
-    throw new Error("Configure titulo, texto, dicas, rodape ou imagem antes de testar.");
+    throw new Error("Configure titulo, texto, dicas, rodapé ou imagem antes de testar.");
   }
 
   const response = await fetch(`${DISCORD_API_URL}/channels/${channelId}/messages`, {

@@ -19,22 +19,22 @@ const statusConfig: Record<PaymentReturnStatus, {
   failure: {
     accent: "text-red-300",
     icon: AlertCircle,
-    label: "Pagamento nao concluido",
-    message: "A compra nao foi aprovada. Voce pode tentar novamente pelo painel de planos.",
-    title: "Nao conseguimos confirmar sua compra"
+    label: "Pagamento não concluído",
+    message: "A compra não foi aprovada. Você pode tentar novamente pelo painel de planos.",
+    title: "Não conseguimos confirmar sua compra"
   },
   pending: {
     accent: "text-[#FFEA70]",
     icon: Clock3,
     label: "Pagamento em analise",
-    message: "Recebemos o retorno do Mercado Pago e a confirmacao pode levar alguns minutos.",
-    title: "Seu pagamento esta pendente"
+    message: "Recebemos o retorno do Mercado Pago e a confirmação pode levar alguns minutos.",
+    title: "Seu pagamento está pendente"
   },
   success: {
     accent: "text-[#FFD500]",
     icon: CheckCircle2,
     label: "Pagamento confirmado",
-    message: "O pedido interno foi confirmado pelo backend. Se a ativacao ainda nao aparecer, atualize o painel em alguns instantes.",
+    message: "O pedido interno foi confirmado pelo backend. Se a ativacao ainda não aparecer, atualize o painel em alguns instantes.",
     title: "Pagamento aprovado"
   }
 };
@@ -70,7 +70,7 @@ export function PaymentReturnPage({ status }: PaymentReturnPageProps) {
           timer = window.setTimeout(loadStatus, 5000);
         }
       } catch {
-        if (!cancelled) setOrderError("Nao foi possivel consultar o pedido interno agora.");
+        if (!cancelled) setOrderError("Não foi possível consultar o pedido interno agora.");
       } finally {
         if (!cancelled) setLoadingOrder(false);
       }
@@ -100,7 +100,7 @@ export function PaymentReturnPage({ status }: PaymentReturnPageProps) {
       }
       setOrder(next);
     } catch {
-      setOrderError("Nao foi possivel criar uma nova tentativa de checkout.");
+      setOrderError("Não foi possível criar uma nova tentativa de checkout.");
     } finally {
       setLoadingOrder(false);
     }
@@ -129,9 +129,9 @@ export function PaymentReturnPage({ status }: PaymentReturnPageProps) {
           <div className="mt-7 grid gap-3 rounded-lg border border-zinc-800 bg-black/25 p-4 sm:grid-cols-2">
             <PaymentDetail label="Status interno" value={loadingOrder ? "Consultando..." : order?.status ?? statusLabel(verifiedStatus)} />
             <PaymentDetail label="Status Mercado Pago" value={paymentStatus ?? "Aguardando webhook"} />
-            <PaymentDetail label="Payment ID" value={order?.mercadoPagoPaymentId ?? paymentId ?? "Nao informado"} />
-            <PaymentDetail label="Pedido interno" value={orderReference ?? "Nao informado"} />
-            <PaymentDetail label="Preference ID" value={preferenceId ?? "Nao informado"} />
+            <PaymentDetail label="Payment ID" value={order?.mercadoPagoPaymentId ?? paymentId ?? "Não informado"} />
+            <PaymentDetail label="Pedido interno" value={orderReference ?? "Não informado"} />
+            <PaymentDetail label="Preference ID" value={preferenceId ?? "Não informado"} />
             <PaymentDetail label="Valor confirmado" value={order ? formatMoney(order.amountInCents, order.currency) : "Aguardando pedido"} />
           </div>
           {loadingOrder || orderError ? (

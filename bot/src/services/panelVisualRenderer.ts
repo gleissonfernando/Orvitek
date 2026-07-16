@@ -152,7 +152,7 @@ export function createV2Footer(footer: ComponentsV2FooterConfig) {
     accessory: {
       type: 11,
       media: { url: image },
-      description: normalized.description || "Imagem de rodape"
+      description: normalized.description || "Imagem de rodapé"
     }
   };
 }

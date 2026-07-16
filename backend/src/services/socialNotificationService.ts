@@ -83,7 +83,7 @@ export async function previewTwitchChannel(input: string) {
   });
 
   if (!twitchUser) {
-    throw createServiceError("Canal da Twitch nao encontrado.", 404);
+    throw createServiceError("Canal da Twitch não encontrado.", 404);
   }
 
   return {
@@ -232,7 +232,7 @@ export async function createTwitchNotification(guildId: string, input: CreateTwi
   });
 
   if (!twitchUser) {
-    throw createServiceError("Canal da Twitch nao encontrado.", 404);
+    throw createServiceError("Canal da Twitch não encontrado.", 404);
   }
 
   const now = new Date();
@@ -273,7 +273,7 @@ export async function createTwitchNotification(guildId: string, input: CreateTwi
     });
 
     if (existing) {
-      throw createServiceError("Este canal da Twitch ja esta cadastrado neste servidor.", 409);
+      throw createServiceError("Este canal da Twitch já está cadastrado neste servidor.", 409);
     }
 
     await socialNotifications.insertOne(doc);
@@ -287,7 +287,7 @@ export async function createTwitchNotification(guildId: string, input: CreateTwi
     }
 
     if (isUniqueConstraint(error)) {
-      throw createServiceError("Este canal da Twitch ja esta cadastrado neste servidor.", 409);
+      throw createServiceError("Este canal da Twitch já está cadastrado neste servidor.", 409);
     }
 
     const dto = toDto(doc);
@@ -317,7 +317,7 @@ export async function updateTwitchNotification(
       || current.guildId !== guildId
       || normalizeBotId(current.botId) !== normalizedBotId
     ) {
-      throw createServiceError("Notificacao nao encontrada.", 404);
+      throw createServiceError("Notificação não encontrada.", 404);
     }
 
     const updated = await socialNotifications.findOneAndUpdate(
@@ -334,7 +334,7 @@ export async function updateTwitchNotification(
     );
 
     if (!updated) {
-      throw createServiceError("Notificacao nao encontrada.", 404);
+      throw createServiceError("Notificação não encontrada.", 404);
     }
 
     const dto = toDto(updated);
@@ -351,7 +351,7 @@ export async function updateTwitchNotification(
       || current.guildId !== guildId
       || normalizeBotId(current.botId) !== normalizedBotId
     ) {
-      throw createServiceError("Notificacao nao encontrada.", 404);
+      throw createServiceError("Notificação não encontrada.", 404);
     }
 
     const updated: SocialNotificationDto = {
@@ -393,14 +393,14 @@ export async function updateTwitchNotificationState(
     );
 
     if (!updated) {
-      throw createServiceError("Notificacao nao encontrada.", 404);
+      throw createServiceError("Notificação não encontrada.", 404);
     }
 
     return toDto(updated);
   } catch {
     const current = memoryNotifications.get(id);
     if (!current || normalizeBotId(current.botId) !== normalizedBotId) {
-      throw createServiceError("Notificacao nao encontrada.", 404);
+      throw createServiceError("Notificação não encontrada.", 404);
     }
 
     const updated: SocialNotificationDto = {
@@ -463,7 +463,7 @@ export async function claimTwitchLiveStart(
   } catch {
     const current = memoryNotifications.get(id);
     if (!current || normalizeBotId(current.botId) !== normalizedBotId) {
-      throw createServiceError("Notificacao nao encontrada.", 404);
+      throw createServiceError("Notificação não encontrada.", 404);
     }
 
     if (current.lastStreamId === input.streamId) {
@@ -510,7 +510,7 @@ export async function sendTwitchNotificationTest(
     : notification.twitchChannelUrl;
 
   if (!(await isGuildTextChannel(guildId, notification.discordChannelId, botToken))) {
-    throw createServiceError("O canal configurado nao pertence a este servidor.", 400);
+    throw createServiceError("O canal configurado não pertence a este servidor.", 400);
   }
 
   await sendDiscordLivePanel({
@@ -582,7 +582,7 @@ export async function deleteTwitchNotification(guildId: string, id: string, user
       || current.guildId !== guildId
       || normalizeBotId(current.botId) !== normalizedBotId
     ) {
-      throw createServiceError("Notificacao nao encontrada.", 404);
+      throw createServiceError("Notificação não encontrada.", 404);
     }
 
     await socialNotifications.deleteOne({
@@ -604,7 +604,7 @@ export async function deleteTwitchNotification(guildId: string, id: string, user
       || current.guildId !== guildId
       || normalizeBotId(current.botId) !== normalizedBotId
     ) {
-      throw createServiceError("Notificacao nao encontrada.", 404);
+      throw createServiceError("Notificação não encontrada.", 404);
     }
 
     memoryNotifications.delete(id);
@@ -623,7 +623,7 @@ function normalizeAndValidateChannel(input: string) {
   const channel = normalizeTwitchChannel(input);
 
   if (!channel || !/^[a-z0-9_]{3,25}$/i.test(channel)) {
-    throw createServiceError("Informe uma URL valida da Twitch.", 400);
+    throw createServiceError("Informe uma URL válida da Twitch.", 400);
   }
 
   return channel;
@@ -649,7 +649,7 @@ async function assertGuildLimit(guildId: string, botId: string | null) {
 
   if (count >= TWITCH_NOTIFICATION_LIMIT) {
     throw createServiceError(
-      `Voce atingiu o limite de ${TWITCH_NOTIFICATION_LIMIT.toLocaleString("pt-BR")} canais Twitch neste servidor.`,
+      `Você atingiu o limite de ${TWITCH_NOTIFICATION_LIMIT.toLocaleString("pt-BR")} canais Twitch neste servidor.`,
       400
     );
   }
@@ -782,7 +782,7 @@ async function findTwitchNotification(guildId: string, id: string, botId?: strin
     if (
       !notification
     ) {
-      throw createServiceError("Notificacao nao encontrada.", 404);
+      throw createServiceError("Notificação não encontrada.", 404);
     }
 
     return toDto(notification);
@@ -798,7 +798,7 @@ async function findTwitchNotification(guildId: string, id: string, botId?: strin
       || notification.guildId !== guildId
       || normalizeBotId(notification.botId) !== normalizedBotId
     ) {
-      throw createServiceError("Notificacao nao encontrada.", 404);
+      throw createServiceError("Notificação não encontrada.", 404);
     }
 
     return notification;
@@ -943,7 +943,7 @@ async function claimLegacyTwitchNotificationsForBot(botId: string | null) {
 
     await Promise.all(guildIds.map((guildId) => claimLegacyTwitchNotifications(guildId, botId)));
   } catch (error) {
-    console.warn("[social-notifications] nao foi possivel revisar lives antigas do bot:", error instanceof Error ? error.message : error);
+    console.warn("[social-notifications] não foi possível revisar lives antigas do bot:", error instanceof Error ? error.message : error);
   }
 }
 
@@ -1036,7 +1036,7 @@ async function sendDiscordLivePanel(input: {
   const token = input.botToken || env.DISCORD_BOT_TOKEN;
 
   if (!token) {
-    throw createServiceError("DISCORD_BOT_TOKEN nao configurado.", 503);
+    throw createServiceError("DISCORD_BOT_TOKEN não configurado.", 503);
   }
 
   const mention = formatMention(input.notification);
@@ -1200,12 +1200,12 @@ function warnLegacyTwitchClaimFailure(error: unknown) {
   if (isMongoWriteBlockedMessage(message)) {
     if (!legacyTwitchClaimWarningEmitted) {
       legacyTwitchClaimWarningEmitted = true;
-      console.warn("[social-notifications] MongoDB bloqueou escritas por quota; vinculo legado de lives sera retomado quando o Atlas liberar escrita.");
+      console.warn("[social-notifications] MongoDB bloqueou escritas por quota; vínculo legado de lives será retomado quando o Atlas liberar escrita.");
     }
     return;
   }
 
-  console.warn("[social-notifications] nao foi possivel vincular lives antigas ao bot:", message);
+  console.warn("[social-notifications] não foi possível vincular lives antigas ao bot:", message);
 }
 
 function readErrorMessage(error: unknown) {

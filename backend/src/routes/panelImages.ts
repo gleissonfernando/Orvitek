@@ -163,7 +163,7 @@ async function assertCanRead(user: AuthSessionUser, guildId: string, botId: stri
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para ver imagens dos paineis deste bot.", 403);
+  throw createRouteError("Você não tem permissão para ver imagens dos paineis deste bot.", 403);
 }
 
 async function assertCanManage(user: AuthSessionUser, guildId: string, botId: string, moduleId = MODULE_ID) {
@@ -171,7 +171,7 @@ async function assertCanManage(user: AuthSessionUser, guildId: string, botId: st
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para configurar imagens dos paineis deste bot.", 403);
+  throw createRouteError("Você não tem permissão para configurar imagens dos paineis deste bot.", 403);
 }
 
 function moduleIdForPanel(panelId: string) {

@@ -168,7 +168,7 @@ const DEFAULT_EMBED_COLOR_BY_PLATFORM: Record<ClipPlatform, string> = {
   kick: "#53FC18"
 };
 const CLIPS_CHECK_INTERVAL = 30_000;
-const KICK_CLIP_PROVIDER_STATUS = "A API oficial da Kick ainda nao disponibiliza endpoint/evento de clipes. O provider ja monitora live e fica pronto para captura assim que o endpoint existir.";
+const KICK_CLIP_PROVIDER_STATUS = "A API oficial da Kick ainda não disponibiliza endpoint/evento de clipes. O provider já monitora live e fica pronto para captura assim que o endpoint existir.";
 
 export async function validateTwitchClipChannel(input: string) {
   const twitchChannelName = normalizeAndValidateTwitchChannel(input);
@@ -177,7 +177,7 @@ export async function validateTwitchClipChannel(input: string) {
   });
 
   if (!twitchUser) {
-    throw createClipsError("Canal da Twitch nao encontrado.", 404);
+    throw createClipsError("Canal da Twitch não encontrado.", 404);
   }
 
   return {
@@ -197,7 +197,7 @@ export async function validateKickClipChannel(input: string, guildId?: string | 
   });
 
   if (!channel) {
-    throw createClipsError("Canal da Kick nao encontrado.", 404);
+    throw createClipsError("Canal da Kick não encontrado.", 404);
   }
 
   return {
@@ -299,7 +299,7 @@ export async function saveClipsConfig(
   const discordChannelId = input.discordChannelId?.trim() || null;
 
   if (discordChannelId && !(await isGuildTextChannel(guildId, discordChannelId, botToken))) {
-    throw createClipsError("O canal selecionado nao pertence a este servidor.", 400);
+    throw createClipsError("O canal selecionado não pertence a este servidor.", 400);
   }
 
   const allowedRoleIds = sanitizeRoleIds(input.allowedRoleIds);
@@ -313,11 +313,11 @@ export async function saveClipsConfig(
   ].filter((roleId): roleId is string => Boolean(roleId));
 
   if (roleIdsToValidate.length && !(await areGuildRoles(guildId, [...new Set(roleIdsToValidate)], botToken))) {
-    throw createClipsError("Um dos cargos selecionados nao pertence a este servidor.", 400);
+    throw createClipsError("Um dos cargos selecionados não pertence a este servidor.", 400);
   }
 
   if (mentionType === "role" && !mentionRoleId) {
-    throw createClipsError("Selecione o cargo que sera mencionado.", 400);
+    throw createClipsError("Selecione o cargo que será mencionado.", 400);
   }
 
   const { clipsConfig } = await getMongoCollections();
@@ -372,7 +372,7 @@ export async function saveClipsConfig(
   );
 
   if (!saved) {
-    throw createClipsError("Nao foi possivel salvar a configuracao de clipes.", 500);
+    throw createClipsError("Não foi possível salvar a configuração de clipes.", 500);
   }
 
   await writeConfigLogs(current, saved, userId);
@@ -412,7 +412,7 @@ export async function enableClipsConfig(guildId: string, userId: string, botId?:
   );
 
   if (!updated) {
-    throw createClipsError("Configuracao de clipes nao encontrada.", 404);
+    throw createClipsError("Configuração de clipes não encontrada.", 404);
   }
 
   await writeClipLog(updated, "clips.enabled", userId, `Sistema de clipes ${platformLabel(platform)} ativado.`);
@@ -438,7 +438,7 @@ export async function disableClipsConfig(guildId: string, userId: string, botId?
   );
 
   if (!updated) {
-    throw createClipsError("Configuracao de clipes nao encontrada.", 404);
+    throw createClipsError("Configuração de clipes não encontrada.", 404);
   }
 
   await writeClipLog(updated, "clips.disabled", userId, `Sistema de clipes ${platformLabel(platform)} desativado.`);
@@ -464,7 +464,7 @@ export async function deleteClipsConfig(guildId: string, userId: string, botId?:
   );
 
   if (!updated) {
-    throw createClipsError("Configuracao de clipes nao encontrada.", 404);
+    throw createClipsError("Configuração de clipes não encontrada.", 404);
   }
 
   await writeClipLog(updated, "clips.config.deleted", userId, `Canal de clipes ${platformLabel(platform)} removido: ${displayNameForConfig(updated)}.`);
@@ -597,7 +597,7 @@ export async function getPublicKickClips(channelInput: string): Promise<PublicKi
   );
 
   if (!config) {
-    throw createClipsError("Painel publico de clipes Kick nao encontrado.", 404);
+    throw createClipsError("Painel público de clipes Kick não encontrado.", 404);
   }
 
   const botId = normalizeBotId(config.botId);
@@ -656,7 +656,7 @@ export async function updateClipLiveSession(configId: string, input: UpdateClipL
   const config = await getClipConfigById(configId, botId);
 
   if (!config) {
-    throw createClipsError("Configuracao de clipes nao encontrada.", 404);
+    throw createClipsError("Configuração de clipes não encontrada.", 404);
   }
 
   const normalizedBotId = normalizeBotId(config.botId);
@@ -786,7 +786,7 @@ export async function isClipSent(configId: string, clipId: string, botId?: strin
   const config = await getClipConfigById(configId, botId);
 
   if (!config) {
-    throw createClipsError("Configuracao de clipes nao encontrada.", 404);
+    throw createClipsError("Configuração de clipes não encontrada.", 404);
   }
 
   const platform = normalizePlatform(config.platform);
@@ -806,7 +806,7 @@ export async function recordClipSent(configId: string, input: RecordClipSentInpu
   const config = await getClipConfigById(configId, botId);
 
   if (!config) {
-    throw createClipsError("Configuracao de clipes nao encontrada.", 404);
+    throw createClipsError("Configuração de clipes não encontrada.", 404);
   }
 
   const platform = normalizePlatform(config.platform);
@@ -854,8 +854,8 @@ export async function recordClipSent(configId: string, input: RecordClipSentInpu
     };
   } catch (error) {
     if (error instanceof MongoServerError && error.code === 11000) {
-      await writeClipLog(config, "clips.duplicate", null, `Clipe ignorado por ja ter sido registrado: ${input.clipId}`);
-      throw createClipsError("Clipe ja registrado.", 409);
+      await writeClipLog(config, "clips.duplicate", null, `Clipe ignorado por já ter sido registrado: ${input.clipId}`);
+      throw createClipsError("Clipe já registrado.", 409);
     }
 
     throw error;
@@ -871,7 +871,7 @@ export async function sendClipsTest(guildId: string, userId: string, botId?: str
   }
 
   if (!(await isGuildTextChannel(guildId, config.discordChannelId, botToken))) {
-    throw createClipsError("O canal configurado nao pertence a este servidor.", 400);
+    throw createClipsError("O canal configurado não pertence a este servidor.", 400);
   }
 
   const messageId = await sendDiscordClipMessage({
@@ -908,7 +908,7 @@ async function sendDiscordClipMessage(input: {
   const token = input.botToken || env.DISCORD_BOT_TOKEN;
 
   if (!token) {
-    throw createClipsError("DISCORD_BOT_TOKEN nao configurado.", 503);
+    throw createClipsError("DISCORD_BOT_TOKEN não configurado.", 503);
   }
 
   const mention = formatMention(input.config);
@@ -1038,7 +1038,7 @@ async function writeConfigLogs(current: MongoClipsConfig | null, saved: MongoCli
   const platform = normalizePlatform(saved.platform);
 
   if (!current) {
-    await writeClipLog(saved, "clips.config.created", userId, `Configuracao de clipes ${platformLabel(platform)} criada.`);
+    await writeClipLog(saved, "clips.config.created", userId, `Configuração de clipes ${platformLabel(platform)} criada.`);
     return;
   }
 
@@ -1286,7 +1286,7 @@ function normalizeAndValidateTwitchChannel(input: string) {
   const channel = normalizeTwitchChannel(input);
 
   if (!channel || !/^[a-z0-9_]{3,25}$/i.test(channel)) {
-    throw createClipsError("Informe um canal ou link valido da Twitch.", 400);
+    throw createClipsError("Informe um canal ou link válido da Twitch.", 400);
   }
 
   return channel;
@@ -1296,7 +1296,7 @@ function normalizeAndValidateKickChannel(input: string) {
   const channel = normalizeKickChannel(input);
 
   if (!channel || !/^[a-z0-9][a-z0-9_-]{1,24}$/i.test(channel)) {
-    throw createClipsError("Informe um canal ou link valido da Kick.", 400);
+    throw createClipsError("Informe um canal ou link válido da Kick.", 400);
   }
 
   return channel;
@@ -1409,7 +1409,7 @@ async function findCurrentClipsConfig(
     });
 
     if (!current) {
-      throw createClipsError("Configuracao de clipes nao encontrada.", 404);
+      throw createClipsError("Configuração de clipes não encontrada.", 404);
     }
 
     return current;
@@ -1434,7 +1434,7 @@ async function getClipConfigForGuildAction(guildId: string, botId: string | null
       });
 
   if (!config) {
-    throw createClipsError("Configuracao de clipes nao encontrada.", 404);
+    throw createClipsError("Configuração de clipes não encontrada.", 404);
   }
 
   return config;

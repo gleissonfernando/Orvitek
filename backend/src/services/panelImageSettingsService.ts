@@ -115,7 +115,7 @@ export async function savePanelImageSettings(
   actorId: string | null
 ) {
   if (input.imageEnabled === true && input.imageUrl !== undefined && !normalizeImageUrl(input.imageUrl)) {
-    throw Object.assign(new Error("URL de imagem invalida. Use HTTPS ou envie um arquivo suportado."), { statusCode: 400 });
+    throw Object.assign(new Error("URL de imagem inválida. Use HTTPS ou envie um arquivo suportado."), { statusCode: 400 });
   }
   const current = await getPanelImageSettings(guildId, botId, panelId);
   const next = normalizeSettings({
@@ -359,7 +359,7 @@ async function toDtoWithMigration(settings: MongoPanelImageSettings): Promise<Pa
     return {
       ...toDto(settings),
       imageEnabled: false,
-      imageInvalidReason: "Essa imagem foi enviada antes da correcao de armazenamento persistente e nao foi encontrada no servidor. Envie novamente para que ela fique salva permanentemente.",
+      imageInvalidReason: "Essa imagem foi enviada antes da correcao de armazenamento persistente e não foi encontrada no servidor. Envie novamente para que ela fique salva permanentemente.",
       imagePosition: "none"
     };
   }
@@ -398,7 +398,7 @@ function normalizeBlocks(blocks: MongoPanelBlock[] | undefined | null): MongoPan
 
 function normalizeBlock(block: MongoPanelBlock, index: number): MongoPanelBlock | null {
   const id = block.id?.trim() || `blk_${Date.now()}_${index}`;
-  if (block.type === "text") return { editable: block.editable !== false, id, order: index, type: "text", content: String(block.content ?? "").slice(0, 4000) || "-# Rodape do painel" };
+  if (block.type === "text") return { editable: block.editable !== false, id, order: index, type: "text", content: String(block.content ?? "").slice(0, 4000) || "-# Rodapé do painel" };
   if (block.type === "separator") return { divider: block.divider !== false, id, order: index, spacing: block.spacing === "large" ? "large" : "small", type: "separator" };
   if (block.type === "media_gallery") {
     const items = (block.items ?? []).map((item) => ({ description: item.description?.slice(0, 1024) ?? null, spoiler: Boolean(item.spoiler), url: normalizeImageUrl(item.url) })).filter((item) => item.url).slice(0, 10);
@@ -413,7 +413,7 @@ function normalizeBlock(block: MongoPanelBlock, index: number): MongoPanelBlock 
     return { accessory, id, order: index, texts, type: "section" };
   }
   if (block.type === "footer") {
-    const text = String(block.text ?? "").slice(0, 4000) || "-# Rodape do painel";
+    const text = String(block.text ?? "").slice(0, 4000) || "-# Rodapé do painel";
     const imageUrl = normalizeImageUrl(block.imageUrl);
     const attachmentName = normalizeAttachmentName(block.attachmentName);
     return {
@@ -438,7 +438,7 @@ function legacyBlocks(panelId: string, imageEnabled: boolean, imageUrl: string, 
   const order = position === "top" || position === "banner" ? 0 : position === "middle" ? 2 : 10;
   if (position === "thumbnail" || position === "side" || position === "footer") {
     if (position === "footer") {
-      return [{ altText: "Imagem de rodape", id: `${panelId}_legacy_footer`, imageUrl, order, text: "-# Rodape do painel", type: "footer" }];
+      return [{ altText: "Imagem de rodapé", id: `${panelId}_legacy_footer`, imageUrl, order, text: "-# Rodapé do painel", type: "footer" }];
     }
     return [{ accessory: { kind: "thumbnail", url: imageUrl }, id: `${panelId}_legacy_section`, order, texts: ["## Imagem do painel"], type: "section" }];
   }

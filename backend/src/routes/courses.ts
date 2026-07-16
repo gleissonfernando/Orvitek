@@ -339,7 +339,7 @@ coursesRouter.get("/:guildId", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para ver cursos." });
+    if (!botId || isBotRequest(req) || !(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para ver cursos." });
     return res.json(await getCoursesDashboard(botId, guildId));
   } catch (error) {
     return next(error);
@@ -350,7 +350,7 @@ coursesRouter.patch("/:guildId/settings", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para configurar cursos." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para configurar cursos." });
     const settings = await saveCourseSettings(botId, guildId, sanitizeSettings(settingsSchema.parse(req.body ?? {})), res.locals.dashboardAuth.user.discordId);
     return res.json({ settings });
   } catch (error) {
@@ -362,7 +362,7 @@ coursesRouter.get("/:guildId/instructors/settings", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para ver configuracao de instrutores." });
+    if (!botId || isBotRequest(req) || !(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para ver configuração de instrutores." });
     return res.json({ settings: await getInstructorTrackingSettings(botId, guildId) });
   } catch (error) { return next(error); }
 });
@@ -371,7 +371,7 @@ coursesRouter.patch("/:guildId/instructors/settings", async (req, res, next) => 
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para configurar instrutores." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para configurar instrutores." });
     const settings = await saveInstructorTrackingSettings(botId, guildId, instructorTrackingSettingsSchema.parse(req.body ?? {}), res.locals.dashboardAuth.user.discordId);
     return res.json({ settings });
   } catch (error) { return next(error); }
@@ -381,7 +381,7 @@ coursesRouter.get("/:guildId/history/settings", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para ver configuracao de historico." });
+    if (!botId || isBotRequest(req) || !(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para ver configuração de histórico." });
     return res.json({ settings: await getCourseHistorySettings(botId, guildId) });
   } catch (error) { return next(error); }
 });
@@ -390,7 +390,7 @@ coursesRouter.patch("/:guildId/history/settings", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para configurar historico." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para configurar histórico." });
     const settings = await saveCourseHistorySettings(botId, guildId, historySettingsSchema.parse(req.body ?? {}), res.locals.dashboardAuth.user.discordId);
     return res.json({ settings });
   } catch (error) { return next(error); }
@@ -400,7 +400,7 @@ coursesRouter.post("/:guildId/panel", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para publicar painel de cursos." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para publicar painel de cursos." });
     const settings = await requestCoursePanelPublish(botId, guildId, res.locals.dashboardAuth.user.discordId);
     return res.json({ settings });
   } catch (error) {
@@ -412,7 +412,7 @@ coursesRouter.get("/:guildId/departments", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para ver DPs." });
+    if (!botId || isBotRequest(req) || !(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para ver DPs." });
     return res.json({ departments: await listCourseDepartments(botId, guildId, req.query.activeOnly === "true") });
   } catch (error) {
     return next(error);
@@ -423,7 +423,7 @@ coursesRouter.post("/:guildId/departments", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para cadastrar DPs." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para cadastrar DPs." });
     const department = await createCourseDepartment(botId, guildId, departmentSchema.parse(req.body ?? {}), res.locals.dashboardAuth.user.discordId);
     return res.status(201).json({ department });
   } catch (error) {
@@ -436,7 +436,7 @@ coursesRouter.patch("/:guildId/departments/:departmentId", async (req, res, next
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para editar DPs." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para editar DPs." });
     const department = await updateCourseDepartment(botId, guildId, routeParam(req, "departmentId"), departmentUpdateSchema.parse(req.body ?? {}), res.locals.dashboardAuth.user.discordId);
     return res.json({ department });
   } catch (error) {
@@ -449,7 +449,7 @@ coursesRouter.delete("/:guildId/departments/:departmentId", async (req, res, nex
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para excluir DPs." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para excluir DPs." });
     return res.json(await deleteCourseDepartment(botId, guildId, routeParam(req, "departmentId"), res.locals.dashboardAuth.user.discordId));
   } catch (error) {
     if (error instanceof CourseDepartmentError) return replyDepartmentError(res, error);
@@ -461,7 +461,7 @@ coursesRouter.post("/:guildId/courses", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para cadastrar cursos." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para cadastrar cursos." });
     const parsed = courseSchema.parse(req.body ?? {});
     const course = await createCourse(botId, guildId, { ...sanitizeCourse(parsed), name: parsed.name }, res.locals.dashboardAuth.user.discordId);
     return res.status(201).json({ course });
@@ -474,10 +474,10 @@ coursesRouter.patch("/:guildId/courses/:courseId", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para editar cursos." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para editar cursos." });
     const parsed = courseSchema.partial({ name: true }).parse(req.body ?? {});
     const course = await updateCourse(botId, guildId, routeParam(req, "courseId"), sanitizeCourse(parsed), res.locals.dashboardAuth.user.discordId);
-    if (!course) return res.status(404).json({ message: "Curso nao encontrado." });
+    if (!course) return res.status(404).json({ message: "Curso não encontrado." });
     return res.json({ course });
   } catch (error) {
     return next(error);
@@ -488,9 +488,9 @@ coursesRouter.delete("/:guildId/courses/:courseId", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para excluir cursos." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para excluir cursos." });
     const course = await deleteCourse(botId, guildId, routeParam(req, "courseId"), res.locals.dashboardAuth.user.discordId);
-    if (!course) return res.status(404).json({ message: "Curso nao encontrado." });
+    if (!course) return res.status(404).json({ message: "Curso não encontrado." });
     return res.json({ course });
   } catch (error) {
     return next(error);
@@ -501,7 +501,7 @@ coursesRouter.get("/:guildId/courses/:courseId/exam", async (req, res, next) => 
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para ver provas." });
+    if (!botId || isBotRequest(req) || !(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para ver provas." });
     return res.json(await getCourseExamDashboard(botId, guildId, routeParam(req, "courseId")));
   } catch (error) { return next(error); }
 });
@@ -510,7 +510,7 @@ coursesRouter.patch("/:guildId/courses/:courseId/exam/settings", async (req, res
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para configurar provas." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para configurar provas." });
     const settings = await saveCourseExamSettings(botId, guildId, routeParam(req, "courseId"), examSettingsSchema.parse(req.body ?? {}), res.locals.dashboardAuth.user.discordId);
     return res.json({ settings });
   } catch (error) { return next(error); }
@@ -520,7 +520,7 @@ coursesRouter.post("/:guildId/courses/:courseId/exam/questions", async (req, res
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para criar perguntas." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para criar perguntas." });
     const question = await createCourseExamQuestion(botId, guildId, routeParam(req, "courseId"), examQuestionSchema.parse(req.body ?? {}), res.locals.dashboardAuth.user.discordId);
     return res.status(201).json({ question });
   } catch (error) { return next(error); }
@@ -530,9 +530,9 @@ coursesRouter.patch("/:guildId/courses/:courseId/exam/questions/:questionId", as
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para editar perguntas." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para editar perguntas." });
     const question = await updateCourseExamQuestion(botId, guildId, routeParam(req, "courseId"), routeParam(req, "questionId"), examQuestionSchema.partial({ prompt: true }).parse(req.body ?? {}), res.locals.dashboardAuth.user.discordId);
-    if (!question) return res.status(404).json({ message: "Pergunta nao encontrada." });
+    if (!question) return res.status(404).json({ message: "Pergunta não encontrada." });
     return res.json({ question });
   } catch (error) { return next(error); }
 });
@@ -541,9 +541,9 @@ coursesRouter.delete("/:guildId/courses/:courseId/exam/questions/:questionId", a
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para excluir perguntas." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para excluir perguntas." });
     const question = await deleteCourseExamQuestion(botId, guildId, routeParam(req, "courseId"), routeParam(req, "questionId"), res.locals.dashboardAuth.user.discordId);
-    if (!question) return res.status(404).json({ message: "Pergunta nao encontrada." });
+    if (!question) return res.status(404).json({ message: "Pergunta não encontrada." });
     return res.json({ question });
   } catch (error) { return next(error); }
 });
@@ -552,9 +552,9 @@ coursesRouter.post("/:guildId/courses/:courseId/exam/questions/:questionId/dupli
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para duplicar perguntas." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para duplicar perguntas." });
     const question = await duplicateCourseExamQuestion(botId, guildId, routeParam(req, "courseId"), routeParam(req, "questionId"), res.locals.dashboardAuth.user.discordId);
-    if (!question) return res.status(404).json({ message: "Pergunta nao encontrada." });
+    if (!question) return res.status(404).json({ message: "Pergunta não encontrada." });
     return res.status(201).json({ question });
   } catch (error) { return next(error); }
 });
@@ -563,7 +563,7 @@ coursesRouter.post("/:guildId/courses/:courseId/exam/questions/reorder", async (
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para reordenar perguntas." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para reordenar perguntas." });
     const { questionIds } = reorderExamQuestionsSchema.parse(req.body ?? {});
     return res.json({ questions: await reorderCourseExamQuestions(botId, guildId, routeParam(req, "courseId"), questionIds, res.locals.dashboardAuth.user.discordId) });
   } catch (error) { return next(error); }
@@ -573,14 +573,14 @@ coursesRouter.post("/:guildId/courses/:courseId/exam/attempts/:attemptId/review"
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para corrigir provas." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para corrigir provas." });
     const attemptId = routeParam(req, "attemptId");
     const courseId = routeParam(req, "courseId");
     const bundle = await getCourseExamAttemptBundle(botId, guildId, attemptId);
-    if (!bundle || bundle.attempt.courseId !== courseId) return res.status(404).json({ message: "Tentativa nao encontrada." });
+    if (!bundle || bundle.attempt.courseId !== courseId) return res.status(404).json({ message: "Tentativa não encontrada." });
     const parsed = reviewSchema.parse({ ...(req.body ?? {}), actorId: res.locals.dashboardAuth.user.discordId });
     const attempt = await reviewCourseExamAttempt(botId, guildId, attemptId, parsed.actorId, parsed.status, parsed.rejectionReason, parsed.manualScore);
-    if (!attempt) return res.status(404).json({ message: "Tentativa nao encontrada." });
+    if (!attempt) return res.status(404).json({ message: "Tentativa não encontrada." });
     emitRealtime("courses:exam_reviewed", { actorId: parsed.actorId, attemptId, botId, courseId, guildId, status: parsed.status });
     return res.json({ attempt });
   } catch (error) { return next(error); }
@@ -643,7 +643,7 @@ coursesRouter.delete("/bot/:guildId/history/items/:historyId", requireBot, async
     const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
     const parsed = historyRemoveSchema.parse(req.body ?? {});
     const item = await removeStudentCourseHistory(botId, guildId, routeParam(req, "historyId"), parsed.actorId, parsed.reason);
-    if (!item) return res.status(404).json({ message: "Historico nao encontrado." });
+    if (!item) return res.status(404).json({ message: "Histórico não encontrado." });
     return res.json({ item });
   } catch (error) { return next(error); }
 });
@@ -685,7 +685,7 @@ coursesRouter.get("/bot/:guildId/exam-attempts/:attemptId", requireBot, async (r
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
     const bundle = await getCourseExamAttemptBundle(botId, guildId, routeParam(req, "attemptId"));
-    if (!bundle) return res.status(404).json({ message: "Tentativa nao encontrada." });
+    if (!bundle) return res.status(404).json({ message: "Tentativa não encontrada." });
     return res.json(bundle);
   } catch (error) { return next(error); }
 });
@@ -695,7 +695,7 @@ coursesRouter.patch("/bot/:guildId/exam-attempts/:attemptId/identification", req
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
     const attempt = await updateCourseExamIdentification(botId, guildId, routeParam(req, "attemptId"), identificationSchema.parse(req.body ?? {}));
-    if (!attempt) return res.status(404).json({ message: "Tentativa nao encontrada." });
+    if (!attempt) return res.status(404).json({ message: "Tentativa não encontrada." });
     return res.json({ attempt });
   } catch (error) { return next(error); }
 });
@@ -722,7 +722,7 @@ coursesRouter.post("/bot/:guildId/exam-attempts/:attemptId/finalize", requireBot
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
     const result = await finalizeCourseExamAttempt(botId, guildId, routeParam(req, "attemptId"));
-    if (!result) return res.status(404).json({ message: "Tentativa nao encontrada." });
+    if (!result) return res.status(404).json({ message: "Tentativa não encontrada." });
     return res.json(result);
   } catch (error) { return next(error); }
 });
@@ -733,7 +733,7 @@ coursesRouter.post("/bot/:guildId/exam-attempts/:attemptId/review", requireBot, 
     const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
     const parsed = reviewSchema.parse(req.body ?? {});
     const attempt = await reviewCourseExamAttempt(botId, guildId, routeParam(req, "attemptId"), parsed.actorId, parsed.status, parsed.rejectionReason, parsed.manualScore);
-    if (!attempt) return res.status(404).json({ message: "Tentativa nao encontrada." });
+    if (!attempt) return res.status(404).json({ message: "Tentativa não encontrada." });
     return res.json({ attempt });
   } catch (error) { return next(error); }
 });
@@ -850,7 +850,7 @@ coursesRouter.patch("/bot/:guildId/courses/:courseId", requireBot, async (req, r
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
     const course = await updateCourse(botId, guildId, routeParam(req, "courseId"), sanitizeCourse(courseSchema.partial({ name: true }).parse(req.body ?? {})), req.get("x-actor-id") ?? null);
-    if (!course) return res.status(404).json({ message: "Curso nao encontrado." });
+    if (!course) return res.status(404).json({ message: "Curso não encontrado." });
     return res.json({ course });
   } catch (error) {
     return next(error);
@@ -873,7 +873,7 @@ coursesRouter.get("/bot/:guildId/courses/:courseId", requireBot, async (req, res
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
     const course = await getCourse(botId, guildId, routeParam(req, "courseId"));
-    if (!course) return res.status(404).json({ message: "Curso nao encontrado." });
+    if (!course) return res.status(404).json({ message: "Curso não encontrado." });
     return res.json({ course });
   } catch (error) {
     return next(error);
@@ -909,7 +909,7 @@ coursesRouter.get("/bot/:guildId/publications/:publicationId", requireBot, async
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
     const publication = await getCoursePublication(botId, guildId, routeParam(req, "publicationId"));
-    if (!publication) return res.status(404).json({ message: "Publicacao nao encontrada." });
+    if (!publication) return res.status(404).json({ message: "Publicação não encontrada." });
     return res.json({ publication });
   } catch (error) {
     return next(error);
@@ -998,7 +998,7 @@ coursesRouter.post("/bot/:guildId/publications/:publicationId/leave", requireBot
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
     const result = await leaveCoursePublication(botId, guildId, routeParam(req, "publicationId"), leaveSchema.parse(req.body ?? {}).userId);
-    if (result.error === "not_found") return res.status(404).json({ message: "Publicacao nao encontrada." });
+    if (result.error === "not_found") return res.status(404).json({ message: "Publicação não encontrada." });
     return res.json(result);
   } catch (error) {
     return next(error);
@@ -1011,7 +1011,7 @@ coursesRouter.post("/bot/:guildId/publications/:publicationId/status", requireBo
     const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
     const input = statusSchema.parse(req.body ?? {});
     const publication = await setCoursePublicationStatus(botId, guildId, routeParam(req, "publicationId"), input.status, input.actorId);
-    if (!publication) return res.status(404).json({ message: "Publicacao nao encontrada." });
+    if (!publication) return res.status(404).json({ message: "Publicação não encontrada." });
     return res.json({ publication });
   } catch (error) {
     return next(error);
@@ -1034,7 +1034,7 @@ coursesRouter.get("/bot/:guildId/schedules/:requestId", requireBot, async (req, 
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
     const request = await getScheduleRequest(botId, guildId, routeParam(req, "requestId"));
-    if (!request) return res.status(404).json({ message: "Solicitacao nao encontrada." });
+    if (!request) return res.status(404).json({ message: "Solicitação não encontrada." });
     return res.json({ request });
   } catch (error) {
     return next(error);
@@ -1047,7 +1047,7 @@ coursesRouter.post("/bot/:guildId/schedules/:requestId/decision", requireBot, as
     const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
     const input = scheduleDecisionSchema.parse(req.body ?? {});
     const request = await updateScheduleRequest(botId, guildId, routeParam(req, "requestId"), { decidedAt: new Date(), decidedBy: input.actorId, status: input.status });
-    if (!request) return res.status(404).json({ message: "Solicitacao nao encontrada." });
+    if (!request) return res.status(404).json({ message: "Solicitação não encontrada." });
     return res.json({ request });
   } catch (error) {
     return next(error);
@@ -1060,7 +1060,7 @@ coursesRouter.patch("/bot/:guildId/schedules/:requestId/message", requireBot, as
     const botId = await assertRuntime(await resolveRequestBotId(req), guildId);
     const input = messageStateSchema.parse(req.body ?? {});
     const request = await updateScheduleRequest(botId, guildId, routeParam(req, "requestId"), { messageId: input.messageId || null });
-    if (!request) return res.status(404).json({ message: "Solicitacao nao encontrada." });
+    if (!request) return res.status(404).json({ message: "Solicitação não encontrada." });
     return res.json({ request });
   } catch (error) {
     return next(error);
@@ -1096,7 +1096,7 @@ async function canManage(req: Request, guildId: string, botId: string) {
 
 async function assertRuntime(botId: string | null, guildId: string) {
   const validGuildId = snowflake.parse(guildId);
-  if (!botId) throw Object.assign(new Error("Bot nao identificado."), { statusCode: 403 });
+  if (!botId) throw Object.assign(new Error("Bot não identificado."), { statusCode: 403 });
   const authorization = await authorizeBotRuntimeModule({ botId, guildId: validGuildId, moduleId: COURSES_MODULE_ID });
   if (!authorization.allowed) throw Object.assign(new Error(authorization.reason), { statusCode: 403 });
   return botId;

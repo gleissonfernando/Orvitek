@@ -48,17 +48,17 @@ export async function upsertDevPermission(input: {
   userId: string;
 }) {
   if (!(await canManageDevPermissions(input.actorId))) {
-    throw createDevPermissionError("Voce nao tem permissao para gerenciar acessos DEV.", 403);
+    throw createDevPermissionError("Você não tem permissão para gerenciar acessos DEV.", 403);
   }
 
   const userId = input.userId.trim();
 
   if (!/^\d{5,32}$/.test(userId)) {
-    throw createDevPermissionError("Discord ID invalido.", 400);
+    throw createDevPermissionError("Discord ID inválido.", 400);
   }
 
   if (isDashboardDevUserId(userId)) {
-    throw createDevPermissionError("O owner principal ja possui acesso permanente.", 400);
+    throw createDevPermissionError("O owner principal já possui acesso permanente.", 400);
   }
 
   const { devPermissions } = await getMongoCollections();
@@ -81,17 +81,17 @@ export async function upsertDevPermission(input: {
   );
 
   const saved = await devPermissions.findOne({ userId });
-  if (!saved) throw createDevPermissionError("Acesso DEV nao encontrado depois de salvar.", 500);
+  if (!saved) throw createDevPermissionError("Acesso DEV não encontrado depois de salvar.", 500);
   return toDevPermissionDto(saved);
 }
 
 export async function deleteDevPermission(actorId: string, userId: string) {
   if (!(await canManageDevPermissions(actorId))) {
-    throw createDevPermissionError("Voce nao tem permissao para gerenciar acessos DEV.", 403);
+    throw createDevPermissionError("Você não tem permissão para gerenciar acessos DEV.", 403);
   }
 
   if (isDashboardDevUserId(userId)) {
-    throw createDevPermissionError("O owner principal nao pode ser removido.", 400);
+    throw createDevPermissionError("O owner principal não pode ser removido.", 400);
   }
 
   const { devPermissions } = await getMongoCollections();

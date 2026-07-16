@@ -39,7 +39,7 @@ export function TwitchChannelItem({ channelName, notification, onDelete, onEdit,
 
           <div className="grid gap-2 text-xs text-zinc-500 sm:grid-cols-3 lg:min-w-[420px]">
             <Fact label="Canal Discord" value={channelName} />
-            <Fact label="Mencao" value={roleName} />
+            <Fact label="Menção" value={roleName} />
             <div className="rounded-lg border border-zinc-900 bg-black/40 p-3">
               <p>Cor da embed</p>
               <div className="mt-1 flex items-center gap-2">

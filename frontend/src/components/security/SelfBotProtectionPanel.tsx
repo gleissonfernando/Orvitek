@@ -198,7 +198,7 @@ const emptySettings: SelfBotProtectionSettings = {
   antiBotAction: "manual",
   raidLockdownEnabled: false,
   dmWarningEnabled: false,
-  dmWarningMessage: "Você violou a proteção {protecao} no servidor {servidor}.",
+  dmWarningMessage: "Você violou a proteção {proteção} no servidor {servidor}.",
   moduleLogChannelIds: {},
   capsMinLength: 12,
   capsPercentage: 70,
@@ -503,8 +503,8 @@ export function SelfBotProtectionPanel({
 
       setSettings(result.settings);
       setMessage(result.settings.enabled && !result.setup.ok
-        ? `SelfBot Protection salvo, mas os canais ainda nao foram criados: ${result.setup.error ?? "verifique as permissoes do bot."}`
-        : "SelfBot Protection salvo e estrutura automatica confirmada.");
+        ? `SelfBot Protection salvo, mas os canais ainda não foram criados: ${result.setup.error ?? "verifique as permissões do bot."}`
+        : "SelfBot Protection salvo e estrutura automática confirmada.");
     } catch (error) {
       setMessage(readRequestMessage(error) ?? "Não foi possível salvar o SelfBot Protection.");
     } finally {
@@ -596,7 +596,7 @@ export function SelfBotProtectionPanel({
               label="Canal de logs"
               onChange={(value) => updateSetting("logChannelId", value || null)}
               options={channels.map((channel) => ({ label: `#${channel.name}`, value: channel.id }))}
-              placeholder="Criar canal padrao"
+              placeholder="Criar canal padrão"
               value={settings.logChannelId ?? ""}
             />
             <SelectField
@@ -652,7 +652,7 @@ export function SelfBotProtectionPanel({
             <div className="grid gap-4 lg:grid-cols-2">
               <Checklist
                 disabled={disabled}
-                emptyText="Nenhum canal disponivel."
+                emptyText="Nenhum canal disponível."
                 icon={Hash}
                 items={channels.map((channel) => ({ id: channel.id, label: `#${channel.name}` }))}
                 label="Canais ignorados"
@@ -661,7 +661,7 @@ export function SelfBotProtectionPanel({
               />
               <Checklist
                 disabled={disabled}
-                emptyText="Nenhum canal disponivel."
+                emptyText="Nenhum canal disponível."
                 icon={ShieldCheck}
                 items={channels.map((channel) => ({ id: channel.id, label: `#${channel.name}` }))}
                 label="Canais protegidos"
@@ -670,7 +670,7 @@ export function SelfBotProtectionPanel({
               />
               <Checklist
                 disabled={disabled}
-                emptyText="Nenhum canal disponivel."
+                emptyText="Nenhum canal disponível."
                 icon={ImageOff}
                 items={channels.map((channel) => ({ id: channel.id, label: `#${channel.name}` }))}
                 label="Canais permitidos para fotos"
@@ -679,7 +679,7 @@ export function SelfBotProtectionPanel({
               />
               <Checklist
                 disabled={disabled}
-                emptyText="Nenhum canal disponivel."
+                emptyText="Nenhum canal disponível."
                 icon={Link2}
                 items={channels.map((channel) => ({ id: channel.id, label: `#${channel.name}` }))}
                 label="Canais permitidos para links"
@@ -732,7 +732,7 @@ export function SelfBotProtectionPanel({
               <NumberField disabled={disabled} label="Stickers: janela" max={3600} min={1} onChange={(value) => updateSetting("stickerWindowSeconds", value)} value={settings.stickerWindowSeconds} />
               <NumberField disabled={disabled} label="Nickname: alterações" max={50} min={1} onChange={(value) => updateSetting("nicknameChangeLimit", value)} value={settings.nicknameChangeLimit} />
               <NumberField disabled={disabled} label="Nickname: janela" max={3600} min={1} onChange={(value) => updateSetting("nicknameWindowSeconds", value)} value={settings.nicknameWindowSeconds} />
-              <NumberField disabled={disabled} label="Caps: minimo" max={500} min={4} onChange={(value) => updateSetting("capsMinLength", value)} value={settings.capsMinLength} />
+              <NumberField disabled={disabled} label="Caps: mínimo" max={500} min={4} onChange={(value) => updateSetting("capsMinLength", value)} value={settings.capsMinLength} />
               <NumberField disabled={disabled} label="Caps: porcentagem" max={100} min={40} onChange={(value) => updateSetting("capsPercentage", value)} value={settings.capsPercentage} />
               <NumberField disabled={disabled} label="Texto repetido" max={25} min={2} onChange={(value) => updateSetting("repeatedTextLimit", value)} value={settings.repeatedTextLimit} />
               <NumberField disabled={disabled} label="Janela repeticao" max={3600} min={1} onChange={(value) => updateSetting("repeatedTextWindowSeconds", value)} value={settings.repeatedTextWindowSeconds} />
@@ -757,7 +757,7 @@ export function SelfBotProtectionPanel({
               <label className="grid gap-2 text-sm md:col-span-2">
                 <span className="font-medium text-zinc-200">Mensagem da DM</span>
                 <textarea className="min-h-24 rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-zinc-100" disabled={disabled || !settings.dmWarningEnabled} onChange={(event) => updateSetting("dmWarningMessage", event.target.value)} value={settings.dmWarningMessage} />
-                <span className="text-xs text-zinc-500">Variáveis: {'{protecao}'}, {'{modulo}'}, {'{servidor}'}, {'{usuario}'}</span>
+                <span className="text-xs text-zinc-500">Variáveis: {'{proteção}'}, {'{modulo}'}, {'{servidor}'}, {'{usuário}'}</span>
               </label>
             </div>
           </Section>
@@ -936,7 +936,7 @@ function StatsGrid({ stats }: { stats: SelfBotProtectionStats }) {
     ["Spam bloqueado", stats.blockedSpam],
     ["Imagens removidas", stats.removedImages],
     ["Links bloqueados", stats.blockedLinks],
-    ["Usuarios punidos", stats.punishedUsers],
+    ["Usuários punidos", stats.punishedUsers],
     ["Hoje", stats.infractionsToday],
     ["Semana", stats.infractionsWeek],
     ["Mes", stats.infractionsMonth]
@@ -1098,7 +1098,7 @@ function RoleSelect({
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >
-        <option value="">Usar padrao</option>
+        <option value="">Usar padrão</option>
         {roles.map((role) => (
           <option key={role.id} value={role.id}>@{role.name}</option>
         ))}
@@ -1262,7 +1262,7 @@ function DailyBars({ stats }: { stats: SelfBotProtectionStats }) {
 
 function IncidentList({ incidents }: { incidents: SelfBotProtectionIncident[] }) {
   if (!incidents.length) {
-    return <p className="py-8 text-center text-sm text-zinc-600">Nenhum historico registrado.</p>;
+    return <p className="py-8 text-center text-sm text-zinc-600">Nenhum histórico registrado.</p>;
   }
 
   return (

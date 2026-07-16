@@ -101,14 +101,14 @@ export function TwitchNotificationCard({
       {totalPages > 1 ? (
         <div className="mt-4 flex items-center justify-between gap-3 border-t border-zinc-900 pt-4">
           <p className="text-xs text-zinc-500">
-            Pagina <span className="font-medium text-zinc-200">{page}</span> de {totalPages.toLocaleString("pt-BR")}
+            Página <span className="font-medium text-zinc-200">{page}</span> de {totalPages.toLocaleString("pt-BR")}
           </p>
           <div className="flex gap-2">
             <Button
               disabled={page <= 1}
               onClick={() => onPageChange(page - 1)}
               size="icon"
-              title="Pagina anterior"
+              title="Página anterior"
               variant="outline"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -117,7 +117,7 @@ export function TwitchNotificationCard({
               disabled={page >= totalPages}
               onClick={() => onPageChange(page + 1)}
               size="icon"
-              title="Proxima pagina"
+              title="Próxima página"
               variant="outline"
             >
               <ChevronRight className="h-4 w-4" />

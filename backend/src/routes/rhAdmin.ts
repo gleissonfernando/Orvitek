@@ -109,7 +109,7 @@ rhAdminRouter.get("/:guildId", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para ver o RH Administrativo." });
+    if (!botId || isBotRequest(req) || !(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para ver o RH Administrativo." });
     return res.json(await getRhAdminDashboard(botId, guildId));
   } catch (error) {
     return next(error);
@@ -120,7 +120,7 @@ rhAdminRouter.patch("/:guildId/settings", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para configurar o RH Administrativo." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para configurar o RH Administrativo." });
     const settings = await saveRhAdminSettings(botId, guildId, sanitizeSettings(settingsSchema.parse(req.body ?? {})), res.locals.dashboardAuth.user.discordId);
     return res.json({ settings });
   } catch (error) {
@@ -132,7 +132,7 @@ rhAdminRouter.post("/:guildId/panel", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para publicar painel RH." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para publicar painel RH." });
     const settings = await requestRhAdminPanelPublish(botId, guildId, res.locals.dashboardAuth.user.discordId);
     return res.json({ settings });
   } catch (error) {
@@ -248,7 +248,7 @@ rhAdminRouter.post("/bot/:guildId/absences/:absenceId/finish", requireBot, async
 rhAdminRouter.get("/bot/absences/due", requireBot, async (req, res, next) => {
   try {
     const botId = await resolveRequestBotId(req);
-    if (!botId) return res.status(403).json({ message: "Bot nao identificado." });
+    if (!botId) return res.status(403).json({ message: "Bot não identificado." });
     return res.json({ absences: await listDueRhAbsences(botId) });
   } catch (error) {
     return next(error);
@@ -300,7 +300,7 @@ async function canManage(req: Request, guildId: string, botId: string) {
 
 async function assertRuntime(botId: string | null, guildId: string) {
   const validGuildId = snowflake.parse(guildId);
-  if (!botId) throw Object.assign(new Error("Bot nao identificado."), { statusCode: 403 });
+  if (!botId) throw Object.assign(new Error("Bot não identificado."), { statusCode: 403 });
   const authorization = await authorizeBotRuntimeModule({ botId, guildId: validGuildId, moduleId: RH_ADMIN_MODULE_ID });
   if (!authorization.allowed) throw Object.assign(new Error("O módulo RH Administrativo não está liberado para este servidor. Entre em contato com a administração do bot."), { statusCode: 403 });
   return botId;

@@ -104,7 +104,7 @@ export async function savePersistentImage(input: {
     await createLog({
       botId: input.botId,
       guildId: input.guildId,
-      message: `Imagem ${input.imageType} do modulo ${input.moduleId} enviada para armazenamento persistente.`,
+      message: `Imagem ${input.imageType} do módulo ${input.moduleId} enviada para armazenamento persistente.`,
       metadata: {
         imageType: input.imageType,
         mimeType: input.mimeType,
@@ -147,7 +147,7 @@ export async function removePersistentImageByUrl(input: {
     await createLog({
       botId: input.botId,
       guildId: input.guildId,
-      message: `Imagem ${input.imageType} do modulo ${input.moduleId} removida.`,
+      message: `Imagem ${input.imageType} do módulo ${input.moduleId} removida.`,
       metadata: {
         imageType: input.imageType,
         moduleId: input.moduleId,
@@ -211,15 +211,15 @@ export async function migrateLocalImageToPersistent(input: {
 
 export function validatePersistentImage(buffer: Buffer, mimeType: string) {
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
-    throw Object.assign(new Error("Arquivo de imagem obrigatorio."), { statusCode: 400 });
+    throw Object.assign(new Error("Arquivo de imagem obrigatório."), { statusCode: 400 });
   }
 
   if (buffer.length > PERSISTENT_IMAGE_MAX_BYTES) {
-    throw Object.assign(new Error("Imagem muito grande. Envie um arquivo de ate 10MB."), { statusCode: 413 });
+    throw Object.assign(new Error("Imagem muito grande. Envie um arquivo de até 10MB."), { statusCode: 413 });
   }
 
   if (!PERSISTENT_IMAGE_MIME_EXTENSIONS[mimeType]) {
-    throw Object.assign(new Error("Formato invalido. Envie GIF, PNG, JPG ou WEBP."), { statusCode: 400 });
+    throw Object.assign(new Error("Formato inválido. Envie GIF, PNG, JPG ou WEBP."), { statusCode: 400 });
   }
 }
 

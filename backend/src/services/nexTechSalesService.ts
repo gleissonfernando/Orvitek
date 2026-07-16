@@ -279,7 +279,7 @@ export async function ensureNexTechSalesSettings(botId: string, guildId: string,
         secretEncrypted: null,
         webhookSecretEncrypted: null,
         webhookUrl: null,
-        instructions: "Registre a venda como pendente e marque como paga depois da confirmacao.",
+        instructions: "Registre a venda como pendente e marque como paga depois da confirmação.",
         updatedAt: now
       }
     ],
@@ -554,7 +554,7 @@ export async function saveNexTechProductBannerUpload(input: {
   const extension = PRODUCT_IMAGE_EXTENSIONS[input.mimeType];
 
   if (!extension) {
-    throw createNexTechSalesError("Formato de imagem nao suportado.", 400);
+    throw createNexTechSalesError("Formato de imagem não suportado.", 400);
   }
 
   const { nexTechProducts } = await getMongoCollections();
@@ -563,7 +563,7 @@ export async function saveNexTechProductBannerUpload(input: {
   const product = await nexTechProducts.findOne({ _id: input.productId, ...scope });
 
   if (!product) {
-    throw createNexTechSalesError("Produto nao encontrado.", 404);
+    throw createNexTechSalesError("Produto não encontrado.", 404);
   }
 
   await fs.mkdir(PRODUCT_UPLOAD_DIR, { recursive: true });
@@ -711,7 +711,7 @@ export async function createProductCheckout(storeId: string, slug: string, input
   const plan = product.plans[input.planType];
 
   if (!plan.enabled) {
-    throw createNexTechSalesError("Plano indisponivel para este produto.", 400);
+    throw createNexTechSalesError("Plano indisponível para este produto.", 400);
   }
 
   const provider = settings.paymentProviders.find((item) => item.id === input.paymentProviderId && item.enabled)
@@ -770,7 +770,7 @@ export async function createProductCheckout(storeId: string, slug: string, input
     purchasedRoleId: plan.discordRoleId,
     externalReference: checkout.externalReference,
     status: "pending",
-    notes: `Checkout publico ${input.planType}`,
+    notes: `Checkout público ${input.planType}`,
     paidAt: null,
     expiresAt: null,
     createdBy: null,
@@ -855,7 +855,7 @@ export async function updateNexTechSaleStatus(botId: string, guildId: string, sa
 
 export async function recordNexTechSaleDeliveryResult(botId: string | null, guildId: string, input: NexTechSaleDeliveryResultInput) {
   if (!botId) {
-    throw createNexTechSalesError("Bot nao identificado para registrar entrega da venda.", 400);
+    throw createNexTechSalesError("Bot não identificado para registrar entrega da venda.", 400);
   }
 
   const { nexTechSales } = await getMongoCollections();
@@ -1025,7 +1025,7 @@ function toLifetimeLicenseDto(subscription: MongoNexTechSubscription): NexTechLi
     hostingStatus: subscription.hostingStatus ?? "active",
     licenseStatus: subscription.licenseStatus ?? "active",
     licenseType: subscription.licenseType ?? "lifetime",
-    moduleName: subscription.productName ?? "Modulo",
+    moduleName: subscription.productName ?? "Módulo",
     nextHostingDueAt: subscription.nextHostingDueAt?.toISOString() ?? null,
     ownerUserId: subscription.ownerUserId,
     purchaseDate: subscription.startsAt.toISOString(),
@@ -1203,7 +1203,7 @@ async function createMercadoPagoProductPreference(
     successUrl: string;
   }
 ) {
-  const accessToken = decryptProviderSecret(provider, "Access Token do Mercado Pago nao configurado.");
+  const accessToken = decryptProviderSecret(provider, "Access Token do Mercado Pago não configurado.");
   const failureUrl = buildProductPaymentResultUrl(settings.storeId, context.saleId, "failure");
   const pendingUrl = buildProductPaymentResultUrl(settings.storeId, context.saleId, "pending");
   const notificationUrl = provider.webhookUrl || buildMercadoPagoNotificationUrl(settings.storeId, provider.gatewayId);
@@ -1272,7 +1272,7 @@ function mercadoPagoProviderEnvironment(provider: MongoNexTechSalesPaymentProvid
 }
 
 async function getMercadoPagoPayment(provider: MongoNexTechSalesPaymentProvider, paymentId: string) {
-  const accessToken = decryptProviderSecret(provider, "Access Token do Mercado Pago nao configurado.");
+  const accessToken = decryptProviderSecret(provider, "Access Token do Mercado Pago não configurado.");
   const response = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(paymentId)}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`
@@ -1281,7 +1281,7 @@ async function getMercadoPagoPayment(provider: MongoNexTechSalesPaymentProvider,
   const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
 
   if (!response.ok) {
-    throw createNexTechSalesError(readMercadoPagoError(payload) ?? "Nao foi possivel consultar o pagamento no Mercado Pago.", 502);
+    throw createNexTechSalesError(readMercadoPagoError(payload) ?? "Não foi possível consultar o pagamento no Mercado Pago.", 502);
   }
 
   return payload;
@@ -1450,7 +1450,7 @@ async function queueNexTechSaleDelivery(
       { _id: sale._id, ownerUserId: settings.ownerUserId, storeId: settings.storeId },
       {
         $set: {
-          deliveryError: "Comprador sem ID Discord valido.",
+          deliveryError: "Comprador sem ID Discord válido.",
           deliveryStatus: "failed",
           updatedAt: now
         }

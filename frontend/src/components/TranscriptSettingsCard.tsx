@@ -53,7 +53,7 @@ export function TranscriptSettingsCard({
       .catch((requestError) => {
         setChannels([]);
         setRoles([]);
-        setError(readErrorMessage(requestError, "Nao foi possivel carregar canais e cargos."));
+        setError(readErrorMessage(requestError, "Não foi possível carregar canais e cargos."));
       })
       .finally(() => setLoadingOptions(false));
   }, [botId, guild]);
@@ -72,9 +72,9 @@ export function TranscriptSettingsCard({
     try {
       const saved = await patchGuildSettings(guild.id, { globalLogConfig: draft }, botId);
       onSettingsChange(saved);
-      setStatus("Configuracao de transcript salva.");
+      setStatus("Configuração de transcript salva.");
     } catch (requestError) {
-      setError(readErrorMessage(requestError, "Nao foi possivel salvar a configuracao de transcript."));
+      setError(readErrorMessage(requestError, "Não foi possível salvar a configuração de transcript."));
     } finally {
       setSaving(false);
     }
@@ -114,7 +114,7 @@ export function TranscriptSettingsCard({
               onChange={(event) => update("transcriptChannelId", event.target.value || null)}
               value={draft.transcriptChannelId ?? ""}
             >
-              <option value="">Nao definido</option>
+              <option value="">Não definido</option>
               {channels.map((channel) => (
                 <option key={channel.id} value={channel.id}>#{channel.name}</option>
               ))}
@@ -141,7 +141,7 @@ export function TranscriptSettingsCard({
           <ToggleRow
             checked={draft.transcriptRequired}
             disabled={disabled}
-            label="Transcript obrigatorio"
+            label="Transcript obrigatório"
             onChange={(checked) => update("transcriptRequired", checked)}
           />
           <ToggleRow

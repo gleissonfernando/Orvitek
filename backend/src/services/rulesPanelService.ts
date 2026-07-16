@@ -11,11 +11,11 @@ type DiscordMessage = {
 
 export async function publishRulesPanelToDiscord(settings: GuildSettingsDto, botToken: string | null) {
   if (!botToken) {
-    throw new Error("Token do bot nao configurado para publicar o painel de regras.");
+    throw new Error("Token do bot não configurado para publicar o painel de regras.");
   }
 
   if (!settings.rulesChannelId) {
-    throw new Error("Selecione o canal onde o painel de regras sera enviado.");
+    throw new Error("Selecione o canal onde o painel de regras será enviado.");
   }
 
   const payload = buildRulesPanelPayload(settings);

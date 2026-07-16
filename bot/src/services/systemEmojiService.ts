@@ -86,13 +86,13 @@ export async function validateSystemEmojisOnStartup(client: Client<true>, contex
   try {
     await refreshSystemEmojis(context);
   } catch (error) {
-    console.warn("[system-emojis] nao foi possivel carregar configuracao; usando fallbacks:", error instanceof Error ? error.message : error);
+    console.warn("[system-emojis] não foi possível carregar configuração; usando fallbacks:", error instanceof Error ? error.message : error);
   }
 
   const caches = await Promise.all([...client.guilds.cache.values()].map((guild) => cacheGuildSystemEmojis(guild, context)));
   const found = caches.reduce((total, cache) => total + [...cache.emojis.values()].filter((item) => item.found).length, 0);
   const total = caches.length * SYSTEM_EMOJIS.length;
-  console.log(`[system-emojis] cache por servidor concluido: ${found}/${total} encontrado(s) em ${caches.length} servidor(es).`);
+  console.log(`[system-emojis] cache por servidor concluído: ${found}/${total} encontrado(s) em ${caches.length} servidor(es).`);
 }
 
 export async function cacheGuildSystemEmojis(guild: Guild, context?: BotContext | null) {
@@ -129,7 +129,7 @@ export async function cacheGuildSystemEmojis(guild: Guild, context?: BotContext 
         sourceGuildId: item.found ? guild.id : null
       }))
     }).catch((error) => {
-      console.warn(`[system-emojis] nao foi possivel registrar validacao do servidor ${guild.id}:`, error instanceof Error ? error.message : error);
+      console.warn(`[system-emojis] não foi possível registrar validação do servidor ${guild.id}:`, error instanceof Error ? error.message : error);
     });
   }
 

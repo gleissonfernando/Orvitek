@@ -34,7 +34,7 @@ const serviceSchema = z.object({
   manualApproval: z.boolean().default(true),
   name: z.string().min(1).max(100),
   order: z.number().int().min(0).max(500).default(0),
-  serviceType: z.string().min(1).max(80).default("servico")
+  serviceType: z.string().min(1).max(80).default("serviço")
 });
 const settingsSchema = z.object({
   approveRoleIds: z.array(snowflake).max(100).optional(),
@@ -86,7 +86,7 @@ manualPaymentsRouter.get("/:guildId", async (req, res, next) => {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
     if (isBotRequest(req)) await assertRuntime(botId, guildId);
-    else if (!(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Modulo de pagamentos nao liberado." });
+    else if (!(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Módulo de pagamentos não liberado." });
     return res.json(await getManualPaymentsDashboard(guildId, botId));
   } catch (error) {
     return next(error);
@@ -97,7 +97,7 @@ manualPaymentsRouter.put("/:guildId/settings", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para configurar pagamentos." });
+    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para configurar pagamentos." });
     return res.json({ settings: await saveManualPaymentSettings(guildId, botId, sanitizeSettings(settingsSchema.parse(req.body ?? {})), res.locals.dashboardAuth.user.discordId) });
   } catch (error) {
     return next(error);
@@ -108,7 +108,7 @@ manualPaymentsRouter.post("/:guildId/panel", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para publicar painel de vendas." });
+    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para publicar painel de vendas." });
     return res.json({ settings: await requestManualPaymentPanelPublish(guildId, botId, res.locals.dashboardAuth.user.discordId) });
   } catch (error) {
     return next(error);
@@ -144,7 +144,7 @@ manualPaymentsRouter.post("/bot/:guildId/orders", requireBot, async (req, res, n
     const botId = await resolveRequestBotId(req);
     await assertRuntime(botId, guildId);
     const order = await createManualPaymentOrder(guildId, botId, orderCreateSchema.parse(req.body ?? {}));
-    if (!order) return res.status(404).json({ message: "Servico indisponivel." });
+    if (!order) return res.status(404).json({ message: "Servico indisponível." });
     return res.status(201).json({ order });
   } catch (error) {
     return next(error);
@@ -170,7 +170,7 @@ manualPaymentsRouter.patch("/bot/:guildId/orders/:orderId", requireBot, async (r
     const botId = await resolveRequestBotId(req);
     await assertRuntime(botId, guildId);
     const order = await updateManualPaymentOrder(guildId, botId, orderId, sanitizePatch(orderPatchSchema.parse(req.body ?? {})));
-    if (!order) return res.status(404).json({ message: "Pedido nao encontrado." });
+    if (!order) return res.status(404).json({ message: "Pedido não encontrado." });
     return res.json({ order });
   } catch (error) {
     return next(error);

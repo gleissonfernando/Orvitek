@@ -49,7 +49,7 @@ export async function showPolicePatrolViewer(interaction: ChatInputCommandIntera
   const settings = await context.api.getPolicePatrolSettings(interaction.guild.id); const member = await interaction.guild.members.fetch(interaction.user.id);
   if (!hasRoleOrAdmin(member, settings.viewerRoleIds)) { await interaction.reply({ content: "Você não possui permissão para visualizar todos os relatórios.", ephemeral: true }); return; }
   const select = new UserSelectMenuBuilder().setCustomId(`${PREFIX}:officer`).setPlaceholder("Escolha um policial").setMinValues(1).setMaxValues(1);
-  await interaction.reply({ components: [{ type: 17, accent_color: 0x2563eb, components: [{ type: 10, content: `# ${systemEmojiText("prancheta", interaction.guild)} Consultar Relatórios Policiais\nEscolha o policial para ver relatórios e estatísticas.` }, new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(select)] }], flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
+  await interaction.reply({ components: [{ type: 17, accent_color: 0x2563eb, components: [{ type: 10, content: `# ${systemEmojiText("prancheta", interaction.guild)} Consultar Relatórios Políciais\nEscolha o policial para ver relatórios e estatísticas.` }, new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(select)] }], flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
 }
 
 export async function handlePolicePatrolInteraction(interaction: Interaction, context: BotContext) {

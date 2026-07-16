@@ -30,7 +30,7 @@ export async function deleteMaintenanceChannels(
 
   const guild = client.guilds.cache.get(input.guildId) ?? await client.guilds.fetch(input.guildId).catch(() => null);
   if (!guild) {
-    const failed = channelIds.map((channelId) => ({ channelId, message: "Servidor nao encontrado no cache do bot." }));
+    const failed = channelIds.map((channelId) => ({ channelId, message: "Servidor não encontrado no cache do bot." }));
     await logChannelCleanup(context, input.guildId, input.userId ?? null, 0, failed, input.reason);
     return { deleted: 0, failed };
   }

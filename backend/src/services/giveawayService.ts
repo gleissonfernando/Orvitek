@@ -263,7 +263,7 @@ export async function getRouletteGiveaway(token: string) {
   const giveaway = await findGiveawayByToken(token);
 
   if (!giveaway) {
-    throw createGiveawayError("Roleta nao encontrada.", 404);
+    throw createGiveawayError("Roleta não encontrada.", 404);
   }
 
   return toGiveawayDto(giveaway);
@@ -290,7 +290,7 @@ export async function createGiveaway(
   }
 
   if (discordChannelId && !(await isGuildTextChannel(guildId, discordChannelId, botToken))) {
-    throw createGiveawayError("O canal selecionado nao pertence a este servidor.", 400);
+    throw createGiveawayError("O canal selecionado não pertence a este servidor.", 400);
   }
 
   const live = await resolveGiveawayLive(input.liveUrl, guildId, normalizedBotId);
@@ -361,11 +361,11 @@ export async function updateGiveaway(
   const current = await findGiveawayById(giveawayId, normalizedBotId);
 
   if (!current) {
-    throw createGiveawayError("Sorteio nao encontrado.", 404);
+    throw createGiveawayError("Sorteio não encontrado.", 404);
   }
 
   if (current.status === "ended") {
-    throw createGiveawayError("Sorteios encerrados nao podem ser editados.", 400);
+    throw createGiveawayError("Sorteios encerrados não podem ser editados.", 400);
   }
 
   const discordChannelId = normalizeDiscordChannelId(input.discordChannelId);
@@ -375,7 +375,7 @@ export async function updateGiveaway(
   }
 
   if (discordChannelId && !(await isGuildTextChannel(current.guildId, discordChannelId, botToken))) {
-    throw createGiveawayError("O canal selecionado nao pertence a este servidor.", 400);
+    throw createGiveawayError("O canal selecionado não pertence a este servidor.", 400);
   }
 
   const live = await resolveGiveawayLive(input.liveUrl, current.guildId, normalizedBotId);
@@ -425,7 +425,7 @@ export async function updateGiveaway(
   );
 
   if (!updated) {
-    throw createGiveawayError("Sorteio nao encontrado.", 404);
+    throw createGiveawayError("Sorteio não encontrado.", 404);
   }
 
   await writeGiveawayLog(updated, "giveaway.updated", actorId, `Sorteio atualizado: ${updated.title}.`);
@@ -440,7 +440,7 @@ export async function publishGiveawayPanel(giveawayId: string, actorId: string, 
   const giveaway = await findGiveawayById(giveawayId, normalizeBotId(botId));
 
   if (!giveaway) {
-    throw createGiveawayError("Sorteio nao encontrado.", 404);
+    throw createGiveawayError("Sorteio não encontrado.", 404);
   }
 
   if (!giveaway.discordChannelId) {
@@ -458,11 +458,11 @@ export async function startGiveaway(giveawayId: string, actorId: string | null, 
   const giveaway = await findGiveawayById(giveawayId, normalizedBotId);
 
   if (!giveaway) {
-    throw createGiveawayError("Sorteio nao encontrado.", 404);
+    throw createGiveawayError("Sorteio não encontrado.", 404);
   }
 
   if (giveaway.status === "ended") {
-    throw createGiveawayError("Sorteio encerrado nao pode ser iniciado.", 400);
+    throw createGiveawayError("Sorteio encerrado não pode ser iniciado.", 400);
   }
 
   if (!giveaway.liveUrl || !giveawayHasResolvedChannel(giveaway)) {
@@ -503,7 +503,7 @@ export async function startGiveaway(giveawayId: string, actorId: string | null, 
   if (!updated) {
     const current = await findGiveawayById(giveawayId, normalizedBotId);
     if (current?.status === "running") return toGiveawayDto(current);
-    throw createGiveawayError("Sorteio nao esta mais disponivel para iniciar.", 409);
+    throw createGiveawayError("Sorteio não está mais disponível para iniciar.", 409);
   }
 
   await writeGiveawayLog(updated, "giveaway.started", actorId, `Sorteio iniciado com ${participants.length} participante(s): ${updated.title}.`);
@@ -541,7 +541,7 @@ export async function endGiveaway(giveawayId: string, actorId: string | null, bo
   if (!updated) {
     const current = await findGiveawayById(giveawayId, normalizedBotId);
     if (current?.status === "ended") return toGiveawayDto(current);
-    throw createGiveawayError("Sorteio nao esta mais disponivel para encerrar.", 409);
+    throw createGiveawayError("Sorteio não está mais disponível para encerrar.", 409);
   }
 
   await writeGiveawayLog(updated, "giveaway.ended", actorId, `Sorteio encerrado: ${updated.title}.`);
@@ -556,14 +556,14 @@ export async function syncGiveawayParticipants(giveawayId: string, actorId: stri
   const giveaway = await findGiveawayById(giveawayId, normalizedBotId);
 
   if (!giveaway) {
-    throw createGiveawayError("Sorteio nao encontrado.", 404);
+    throw createGiveawayError("Sorteio não encontrado.", 404);
   }
 
   const sync = await syncGiveawayParticipantsForDocument(giveaway, actorId, "manual");
   const updated = await findGiveawayById(giveaway._id, normalizedBotId);
 
   if (!updated) {
-    throw createGiveawayError("Sorteio nao encontrado apos sincronizar.", 404);
+    throw createGiveawayError("Sorteio não encontrado após sincronizar.", 404);
   }
 
   await writeGiveawayLog(
@@ -654,16 +654,16 @@ export async function recordGiveawayChatEvent(giveawayId: string, input: Giveawa
   const giveaway = await findGiveawayById(giveawayId, normalizedBotId);
 
   if (!giveaway) {
-    throw createGiveawayError("Sorteio nao encontrado.", 404);
+    throw createGiveawayError("Sorteio não encontrado.", 404);
   }
 
   if (giveaway.status === "ended") {
-    throw createGiveawayError("Sorteio encerrado nao recebe novos participantes.", 400);
+    throw createGiveawayError("Sorteio encerrado não recebe novos participantes.", 400);
   }
 
   if (!giveawayMatchesPlatform(giveaway, input.platform)) {
-    recordDiagnostic(giveaway, input.platform, "error", `[${input.platform.toUpperCase()}] Evento ignorado: plataforma nao pertence ao sorteio.`, input.raw);
-    throw createGiveawayError("Este evento nao pertence a plataforma configurada no sorteio.", 400);
+    recordDiagnostic(giveaway, input.platform, "error", `[${input.platform.toUpperCase()}] Evento ignorado: plataforma não pertence ao sorteio.`, input.raw);
+    throw createGiveawayError("Este evento não pertence a plataforma configurada no sorteio.", 400);
   }
 
   const username = normalizeUsername(input.username);
@@ -688,7 +688,7 @@ export async function recordGiveawayChatEvent(giveawayId: string, input: Giveawa
   recordDiagnostic(giveaway, input.platform, "info", `[${input.platform.toUpperCase()}] Mensagem recebida de ${participant.displayName}.`, input.raw);
 
   if (!eligible) {
-    recordDiagnostic(giveaway, input.platform, "debug", `[${input.platform.toUpperCase()}] Usuario ${participant.displayName} nao atende ao criterio atual.`, {
+    recordDiagnostic(giveaway, input.platform, "debug", `[${input.platform.toUpperCase()}] Usuário ${participant.displayName} não atende ao critério atual.`, {
       mode: giveaway.participantMode,
       participant
     });
@@ -717,7 +717,7 @@ export async function recordGiveawayChatEvent(giveawayId: string, input: Giveawa
   );
 
   if (!updated) {
-    throw createGiveawayError("Sorteio nao encontrado ao adicionar participante.", 404);
+    throw createGiveawayError("Sorteio não encontrado ao adicionar participante.", 404);
   }
 
   recordDiagnostic(updated, input.platform, "info", existed
@@ -739,7 +739,7 @@ export async function getGiveawayDiagnostics(token: string) {
   const giveaway = await findGiveawayByToken(token);
 
   if (!giveaway) {
-    throw createGiveawayError("Roleta nao encontrada.", 404);
+    throw createGiveawayError("Roleta não encontrada.", 404);
   }
 
   return diagnosticsForGiveaway(giveaway);
@@ -749,7 +749,7 @@ export async function setGiveawayDebugMode(token: string, debug: boolean) {
   const giveaway = await findGiveawayByToken(token);
 
   if (!giveaway) {
-    throw createGiveawayError("Roleta nao encontrada.", 404);
+    throw createGiveawayError("Roleta não encontrada.", 404);
   }
 
   const diagnostics = diagnosticsForGiveaway(giveaway);
@@ -762,7 +762,7 @@ export async function testGiveawayIntegration(token: string) {
   const giveaway = await findGiveawayByToken(token);
 
   if (!giveaway) {
-    throw createGiveawayError("Roleta nao encontrada.", 404);
+    throw createGiveawayError("Roleta não encontrada.", 404);
   }
 
   const report: string[] = [];
@@ -784,7 +784,7 @@ export async function testGiveawayIntegration(token: string) {
       username: "testetwitch"
     });
   } else {
-    report.push("• Twitch nao configurada neste sorteio.");
+    report.push("• Twitch não configurada neste sorteio.");
   }
 
   if (giveaway.kickChannelName || giveaway.kickUserId) {
@@ -803,14 +803,14 @@ export async function testGiveawayIntegration(token: string) {
       username: "testekick"
     });
   } else {
-    report.push("• Kick nao configurada neste sorteio.");
+    report.push("• Kick não configurada neste sorteio.");
   }
 
   for (const simulation of simulations) {
     await recordGiveawayChatEvent(giveaway._id, simulation, giveaway.botId);
   }
 
-  report.push("✓ Simulacao de mensagem concluida.");
+  report.push("✓ Simulacao de mensagem concluída.");
   report.push("✓ Sistema pronto para sorteios.");
 
   return {
@@ -823,7 +823,7 @@ export async function getGiveawayIdentity(token: string, accountIds?: { kick?: s
   const giveaway = await findGiveawayByToken(token);
 
   if (!giveaway) {
-    throw createGiveawayError("Roleta nao encontrada.", 404);
+    throw createGiveawayError("Roleta não encontrada.", 404);
   }
 
   const accounts = await getConnectedGiveawayAccounts(accountIds);
@@ -842,11 +842,11 @@ export async function enterGiveaway(token: string, accountIds: { kick?: string; 
   const giveaway = await findGiveawayByToken(token);
 
   if (!giveaway) {
-    throw createGiveawayError("Roleta nao encontrada.", 404);
+    throw createGiveawayError("Roleta não encontrada.", 404);
   }
 
   if (giveaway.status === "ended") {
-    throw createGiveawayError("Este sorteio ja foi encerrado.", 400);
+    throw createGiveawayError("Este sorteio já foi encerrado.", 400);
   }
 
   const ids = [accountIds.twitch, accountIds.kick].filter((id): id is string => Boolean(id));
@@ -866,7 +866,7 @@ export async function enterGiveaway(token: string, accountIds: { kick?: string; 
       giveaway,
       verification.participant.source === "twitch" ? "giveaway.twitch.verification" : "giveaway.kick.verification",
       verification.participant.platformUserId ?? verification.participant.id,
-      `${verification.participant.displayName}: ${verification.eligible ? "verificacao aprovada" : verification.reason ?? "verificacao recusada"}.`
+      `${verification.participant.displayName}: ${verification.eligible ? "verificação aprovada" : verification.reason ?? "verificação recusada"}.`
     );
 
     if (verification.eligible) {
@@ -894,7 +894,7 @@ export async function enterGiveaway(token: string, accountIds: { kick?: string; 
   );
 
   if (!updated) {
-    throw createGiveawayError("Sorteio nao encontrado apos entrar.", 404);
+    throw createGiveawayError("Sorteio não encontrado após entrar.", 404);
   }
 
   for (const verification of verifications) {
@@ -910,7 +910,7 @@ export async function enterGiveaway(token: string, accountIds: { kick?: string; 
         updated,
         "giveaway.participant.removed",
         verification.participant.platformUserId ?? verification.participant.id,
-        `${verification.participant.displayName} removido do sorteio: ${verification.reason ?? "nao elegivel"}.`
+        `${verification.participant.displayName} removido do sorteio: ${verification.reason ?? "não elegivel"}.`
       );
     }
   }
@@ -937,16 +937,16 @@ export async function spinGiveawayRoulette(token: string): Promise<GiveawaySpinR
     const giveaway = await findGiveawayByToken(token);
 
     if (!giveaway) {
-      throw createGiveawayError("Roleta nao encontrada.", 404);
+      throw createGiveawayError("Roleta não encontrada.", 404);
     }
 
     if (giveaway.status !== "running") {
-      throw createGiveawayError(giveaway.status === "ended" ? "Esta roleta ja foi encerrada." : "O sorteio ainda nao foi iniciado.", 400);
+      throw createGiveawayError(giveaway.status === "ended" ? "Esta roleta já foi encerrada." : "O sorteio ainda não foi iniciado.", 400);
     }
 
     if (giveaway.winners.length >= giveaway.winnerCount) {
       const ended = await endGiveaway(giveaway._id, null, giveaway.botId);
-      throw createGiveawayError(`Limite de ${ended.winnerCount} ganhador(es) ja foi atingido.`, 400);
+      throw createGiveawayError(`Limite de ${ended.winnerCount} ganhador(es) já foi atingido.`, 400);
     }
 
     const freshParticipants = (giveaway.participants ?? []).filter((participant) => participant.eligible !== false);
@@ -956,13 +956,13 @@ export async function spinGiveawayRoulette(token: string): Promise<GiveawaySpinR
     ));
 
     if (!eligibleParticipants.length) {
-      throw createGiveawayError("Nao existem participantes elegiveis para sortear.", 400);
+      throw createGiveawayError("Não existem participantes elegiveis para sortear.", 400);
     }
 
     const participant = pickWeightedParticipant(eligibleParticipants);
 
     if (!participant) {
-      throw createGiveawayError("Nao foi possivel selecionar um participante.", 500);
+      throw createGiveawayError("Não foi possível selecionar um participante.", 500);
     }
 
     const now = new Date();
@@ -1014,7 +1014,7 @@ export async function spinGiveawayRoulette(token: string): Promise<GiveawaySpinR
     const updated = await findGiveawayById(giveaway._id, normalizeBotId(giveaway.botId));
 
     if (!updated) {
-      throw createGiveawayError("Sorteio nao encontrado apos girar a roleta.", 404);
+      throw createGiveawayError("Sorteio não encontrado após girar a roleta.", 404);
     }
 
     await writeGiveawayLog(updated, "giveaway.winner", null, `Ganhador sorteado: ${winner.displayName}.`);
@@ -1027,7 +1027,7 @@ export async function spinGiveawayRoulette(token: string): Promise<GiveawaySpinR
     };
   }
 
-  throw createGiveawayError("Nao foi possivel confirmar o vencedor. Tente girar novamente.", 409);
+  throw createGiveawayError("Não foi possível confirmar o vencedor. Tente girar novamente.", 409);
 }
 
 export async function updateGiveawayPanelState(
@@ -1056,7 +1056,7 @@ export async function updateGiveawayPanelState(
   );
 
   if (!updated) {
-    throw createGiveawayError("Sorteio nao encontrado.", 404);
+    throw createGiveawayError("Sorteio não encontrado.", 404);
   }
 
   emitGiveawayUpdated(updated);
@@ -1185,7 +1185,7 @@ async function resolveGiveawayLive(value: string, guildId: string, botId: string
   const platform = detectGiveawayPlatform(value);
 
   if (platform === "youtube") {
-    throw createGiveawayError("YouTube ainda nao esta disponivel para sorteios. Informe uma URL valida da Twitch ou Kick.", 400);
+    throw createGiveawayError("YouTube ainda não está disponível para sorteios. Informe uma URL válida da Twitch ou Kick.", 400);
   }
 
   if (platform === "kick") {
@@ -1199,15 +1199,15 @@ async function resolveTwitchLive(value: string) {
   const channel = normalizeTwitchChannel(value);
 
   if (!channel || !/^[a-z0-9_]{3,25}$/i.test(channel)) {
-    throw createGiveawayError("Informe uma URL valida da Twitch ou Kick.", 400);
+    throw createGiveawayError("Informe uma URL válida da Twitch ou Kick.", 400);
   }
 
   const user = await getTwitchUser(channel).catch((error) => {
-    throw createGiveawayError(error instanceof Error ? error.message : "Nao foi possivel consultar a Twitch.", 503);
+    throw createGiveawayError(error instanceof Error ? error.message : "Não foi possível consultar a Twitch.", 503);
   });
 
   if (!user) {
-    throw createGiveawayError("Canal da Twitch nao encontrado.", 404);
+    throw createGiveawayError("Canal da Twitch não encontrado.", 404);
   }
 
   const stream = await getTwitchStream(user.login).catch(() => null);
@@ -1245,21 +1245,21 @@ async function resolveKickGiveawayChannel(value: string, guildId: string, botId:
   const channel = normalizeKickChannel(value);
 
   if (!channel || !/^[a-z0-9_-]{3,25}$/i.test(channel)) {
-    throw createGiveawayError("Informe uma URL valida da Twitch ou Kick.", 400);
+    throw createGiveawayError("Informe uma URL válida da Twitch ou Kick.", 400);
   }
 
   const credentials = await resolveKickApiCredentials(guildId, botId);
   const kick = await getKickChannel(channel, credentials).catch((error) => {
-    throw createGiveawayError(error instanceof Error ? error.message : "Nao foi possivel consultar a Kick.", 503);
+    throw createGiveawayError(error instanceof Error ? error.message : "Não foi possível consultar a Kick.", 503);
   });
 
   if (!kick) {
-    throw createGiveawayError("Canal da Kick nao encontrado.", 404);
+    throw createGiveawayError("Canal da Kick não encontrado.", 404);
   }
 
   await ensureKickWebhookEventSubscriptions(kick.broadcasterUserId, credentials).catch((error) => {
     throw createGiveawayError(
-      `Canal Kick encontrado, mas nao foi possivel ativar o webhook: ${error instanceof Error ? error.message : String(error)}`,
+      `Canal Kick encontrado, mas não foi possível ativar o webhook: ${error instanceof Error ? error.message : String(error)}`,
       503
     );
   });
@@ -1287,7 +1287,7 @@ async function resolveKickGiveawayChannel(value: string, guildId: string, botId:
       url: `https://kick.com/${kick.slug}`,
       verified: kick.verified,
       viewerCount: kick.viewerCount,
-      warning: "A Kick pode limitar a verificacao automatica de subs nesta conta/API. Se nao encontrar participantes, confira os eventos/webhook da Kick ou atualize pelo painel."
+      warning: "A Kick pode limitar a verificação automática de subs nesta conta/API. Se não encontrar participantes, confira os eventos/webhook da Kick ou atualize pelo painel."
     },
     url: `https://kick.com/${kick.slug}`
   };
@@ -1346,7 +1346,7 @@ async function syncGiveawayParticipantsForDocument(
 
     return sync;
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Nao foi possivel sincronizar participantes.";
+    const message = error instanceof Error ? error.message : "Não foi possível sincronizar participantes.";
     const { giveaways } = await getMongoCollections();
 
     await giveaways.updateOne(
@@ -1710,7 +1710,7 @@ function detectGiveawayPlatform(value: string) {
   const normalized = value.trim().toLowerCase();
 
   if (!normalized) {
-    throw createGiveawayError("Informe uma URL valida da Twitch ou Kick.", 400);
+    throw createGiveawayError("Informe uma URL válida da Twitch ou Kick.", 400);
   }
 
   if (/(^|\/\/|www\.)kick\.com\//i.test(normalized) || /^kick\.com\//i.test(normalized)) {
@@ -1752,7 +1752,7 @@ function normalizeUsername(value: string) {
   const normalized = value.trim().replace(/^@+/, "");
 
   if (!normalized) {
-    throw createGiveawayError("Usuario do chat invalido.", 400);
+    throw createGiveawayError("Usuário do chat inválido.", 400);
   }
 
   return normalized.slice(0, 80);
@@ -1777,7 +1777,7 @@ function pickWeightedParticipant(participants: MongoGiveawayParticipant[]) {
   const fallback = participants[participants.length - 1];
 
   if (!fallback) {
-    throw createGiveawayError("Nao foi possivel selecionar um participante.", 500);
+    throw createGiveawayError("Não foi possível selecionar um participante.", 500);
   }
 
   return fallback;
@@ -1791,7 +1791,7 @@ function buildRouletteUrl(token: string) {
   const origin = env.SITE_ORIGIN || env.FRONTEND_URL;
 
   if (!origin) {
-    throw createGiveawayError("SITE_ORIGIN ou FRONTEND_URL precisa estar configurada para gerar o link publico da roleta.", 503);
+    throw createGiveawayError("SITE_ORIGIN ou FRONTEND_URL precisa estar configurada para gerar o link público da roleta.", 503);
   }
 
   return `${origin}/roulette/${encodeURIComponent(token)}`;

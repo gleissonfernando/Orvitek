@@ -39,7 +39,7 @@ logsRouter.get("/", async (req, res) => {
 
   if (!guildId || !botId) {
     return res.status(400).json({
-      message: "guildId e botId sao obrigatorios para consultar logs."
+      message: "guildId e botId são obrigatorios para consultar logs."
     });
   }
 
@@ -54,7 +54,7 @@ logsRouter.get("/", async (req, res) => {
 
   if (!(await canReadScopedGuild(req, guildId, botId))) {
     return res.status(403).json({
-      message: "Servidor nao encontrado ou sem o bot."
+      message: "Servidor não encontrado ou sem o bot."
     });
   }
 
@@ -105,7 +105,7 @@ logsRouter.post("/", async (req, res, next) => {
 
     if (!botId) {
       return res.status(400).json({
-        message: "botId obrigatorio para registrar logs."
+        message: "botId obrigatório para registrar logs."
       });
     }
 
@@ -127,7 +127,7 @@ logsRouter.post("/", async (req, res, next) => {
 
     if (!isBotRequest(req) && !(await canManageScopedGuild(req, input.guildId, botId))) {
       return res.status(403).json({
-        message: "Servidor nao encontrado ou sem o bot."
+        message: "Servidor não encontrado ou sem o bot."
       });
     }
 

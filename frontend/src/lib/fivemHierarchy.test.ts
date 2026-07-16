@@ -71,13 +71,13 @@ test("payload editavel nunca envia estado oficial controlado pelo bot", () => {
     "updatedAt",
     "updatedBy"
   ]) {
-    assert.equal(keys.includes(forbidden), false, `${forbidden} nao deve ser enviado pela dashboard`);
+    assert.equal(keys.includes(forbidden), false, `${forbidden} não deve ser enviado pela dashboard`);
   }
 
   assert.equal(payload.panelChannelId, "98765");
   assert.equal(payload.hierarchies[0]?.roleId, "54321");
 });
 
-test("chave de criacao invalida e rejeitada", () => {
+test("chave de criacao inválida e rejeitada", () => {
   assert.throws(() => hierarchyPanelDraftId("new"), /invalido/i);
 });

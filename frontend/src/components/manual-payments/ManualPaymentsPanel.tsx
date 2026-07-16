@@ -17,7 +17,7 @@ const defaultDraft: SaveManualPaymentSettingsPayload = {
   enabled: false,
   finalizeRoleIds: [],
   maxPaymentMinutes: 60,
-  paymentInstructions: "Envie o comprovante no canal de pagamento e aguarde a aprovacao da equipe.",
+  paymentInstructions: "Envie o comprovante no canal de pagamento e aguarde a aprovação da equipe.",
   pixKeyType: "random",
   services: []
 };
@@ -32,7 +32,7 @@ function emptyService(order: number): ManualPaymentService {
     description: "",
     id: crypto.randomUUID(),
     manualApproval: true,
-    name: "Novo servico",
+    name: "Novo serviço",
     order,
     serviceType: "service"
   };
@@ -56,7 +56,7 @@ export function ManualPaymentsPanel({ botId, canManage, guild }: Props) {
         setDraft(toPayload(data.settings));
         setOrders(data.orders);
       })
-      .catch((error) => setMessage(readError(error, "Nao foi possivel carregar pagamentos.")))
+      .catch((error) => setMessage(readError(error, "Não foi possível carregar pagamentos.")))
       .finally(() => setLoading(false));
   }, [botId, guild]);
 
@@ -88,9 +88,9 @@ export function ManualPaymentsPanel({ botId, canManage, guild }: Props) {
       const saved = await saveManualPaymentSettings(botId, guild.id, draft);
       setSettings(saved);
       setDraft(toPayload(saved));
-      setMessage("Configuracoes salvas.");
+      setMessage("Configurações salvas.");
     } catch (error) {
-      setMessage(readError(error, "Nao foi possivel salvar pagamentos."));
+      setMessage(readError(error, "Não foi possível salvar pagamentos."));
     } finally {
       setSaving(false);
     }
@@ -104,9 +104,9 @@ export function ManualPaymentsPanel({ botId, canManage, guild }: Props) {
       const saved = await publishManualPaymentPanel(botId, guild.id);
       setSettings(saved);
       setDraft(toPayload(saved));
-      setMessage("Publicacao enviada ao bot.");
+      setMessage("Publicação enviada ao bot.");
     } catch (error) {
-      setMessage(readError(error, "Nao foi possivel publicar o painel."));
+      setMessage(readError(error, "Não foi possível publicar o painel."));
     } finally {
       setSaving(false);
     }
@@ -122,11 +122,11 @@ export function ManualPaymentsPanel({ botId, canManage, guild }: Props) {
         <Card>
           <CardHeader>
             <CardTitle>Pagamentos</CardTitle>
-            <CardDescription>{loading ? "Carregando..." : "Pix manual, canais temporarios, aprovacao e atendimento."}</CardDescription>
+            <CardDescription>{loading ? "Carregando..." : "Pix manual, canais temporarios, aprovação e atendimento."}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="grid gap-3 md:grid-cols-2">
-              <Toggle checked={Boolean(draft.enabled)} disabled={!canManage} label="Modulo ativo" onChange={(checked) => patch({ enabled: checked })} />
+              <Toggle checked={Boolean(draft.enabled)} disabled={!canManage} label="Módulo ativo" onChange={(checked) => patch({ enabled: checked })} />
               <Field disabled={!canManage} label="Canal do painel de vendas" onChange={(value) => patch({ salePanelChannelId: value || null })} value={draft.salePanelChannelId ?? ""} />
               <Field disabled={!canManage} label="Categoria de pagamento" onChange={(value) => patch({ paymentCategoryId: value || null })} value={draft.paymentCategoryId ?? ""} />
               <Field disabled={!canManage} label="Categoria de atendimento" onChange={(value) => patch({ attendanceCategoryId: value || null })} value={draft.attendanceCategoryId ?? ""} />
@@ -159,7 +159,7 @@ export function ManualPaymentsPanel({ botId, canManage, guild }: Props) {
         <Card>
           <CardHeader>
             <CardTitle>Resumo</CardTitle>
-            <CardDescription>{settings?.salePanelMessageId ? `Painel ${settings.salePanelMessageId}` : "Painel ainda nao publicado"}</CardDescription>
+            <CardDescription>{settings?.salePanelMessageId ? `Painel ${settings.salePanelMessageId}` : "Painel ainda não publicado"}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-zinc-400">
             <Summary label="Servicos ativos" value={String(services.filter((service) => service.active).length)} />
@@ -174,7 +174,7 @@ export function ManualPaymentsPanel({ botId, canManage, guild }: Props) {
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <CardTitle>Catalogo de servicos</CardTitle>
+              <CardTitle>Catalogo de serviços</CardTitle>
               <CardDescription>Itens que aparecem no painel de venda do Discord.</CardDescription>
             </div>
             <Button disabled={!canManage} onClick={() => patch({ services: [...(draft.services ?? []), emptyService(draft.services?.length ?? 0)] })} size="sm" type="button">
@@ -196,23 +196,23 @@ export function ManualPaymentsPanel({ botId, canManage, guild }: Props) {
                 </div>
               </div>
               <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_1fr_150px_150px_120px]">
-                <Field disabled={!canManage} label="Descricao" onChange={(value) => patchService(service.id, { description: value || null })} value={service.description ?? ""} />
+                <Field disabled={!canManage} label="Descrição" onChange={(value) => patchService(service.id, { description: value || null })} value={service.description ?? ""} />
                 <Field disabled={!canManage} label="Banner" onChange={(value) => patchService(service.id, { bannerUrl: value || null })} value={service.bannerUrl ?? ""} />
                 <Toggle checked={service.active} disabled={!canManage} label="Ativo" onChange={(checked) => patchService(service.id, { active: checked })} />
                 <Toggle checked={service.createServiceChannel} disabled={!canManage} label="Criar canal" onChange={(checked) => patchService(service.id, { createServiceChannel: checked })} />
                 <Toggle checked={service.manualApproval} disabled={!canManage} label="Aprovar" onChange={(checked) => patchService(service.id, { manualApproval: checked })} />
               </div>
-              <Textarea disabled={!canManage} label="Texto especifico do servico" onChange={(value) => patchService(service.id, { customText: value || null })} value={service.customText ?? ""} />
+              <Textarea disabled={!canManage} label="Texto especifico do serviço" onChange={(value) => patchService(service.id, { customText: value || null })} value={service.customText ?? ""} />
             </div>
           ))}
-          {services.length === 0 ? <p className="text-sm text-zinc-500">Nenhum servico cadastrado.</p> : null}
+          {services.length === 0 ? <p className="text-sm text-zinc-500">Nenhum serviço cadastrado.</p> : null}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
           <CardTitle>Pedidos recentes</CardTitle>
-          <CardDescription>Ultimas compras e estados persistidos.</CardDescription>
+          <CardDescription>Últimas compras e estados persistidos.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {orders.slice(0, 12).map((order) => (

@@ -22,7 +22,7 @@ export type OpenDutyDeliveryInput = {
   targetId: string;
 };
 
-export const DEFAULT_OPEN_DUTY_MESSAGE = `Prezada(o) {usuario}:
+export const DEFAULT_OPEN_DUTY_MESSAGE = `Prezada(o) {usuário}:
 
 Verificamos que seu ponto de serviço permanece aberto mesmo sem estar em atividade. Reforçamos que essa prática não está de acordo com as diretrizes do departamento.
 

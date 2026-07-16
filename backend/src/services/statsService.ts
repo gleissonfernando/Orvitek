@@ -228,7 +228,7 @@ export async function refreshBotGuildsFromDiscord() {
 
     return botGuilds;
   } catch (error) {
-    console.warn("[discord] nao foi possivel sincronizar servidores do bot:", error instanceof Error ? error.message : error);
+    console.warn("[discord] não foi possível sincronizar servidores do bot:", error instanceof Error ? error.message : error);
     return botStatus.botGuilds;
   }
 }

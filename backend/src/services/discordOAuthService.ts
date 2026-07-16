@@ -155,7 +155,7 @@ export async function fetchDiscordUserById(userId: string) {
       email: data.email ?? null
     };
   } catch (error) {
-    console.warn("[discord] nao foi possivel buscar usuario pelo bot:", error instanceof Error ? error.message : error);
+    console.warn("[discord] não foi possível buscar usuário pelo bot:", error instanceof Error ? error.message : error);
     return null;
   }
 }
@@ -226,15 +226,15 @@ function oauthErrorHint(error?: string, description?: string) {
   const text = `${error ?? ""} ${description ?? ""}`.toLowerCase();
 
   if (text.includes("redirect_uri")) {
-    return "redirect_uri invalido ou diferente do cadastrado no Developer Portal";
+    return "redirect_uri inválido ou diferente do cadastrado no Developer Portal";
   }
 
   if (text.includes("client_secret")) {
-    return "client_secret invalido para o client_id configurado";
+    return "client_secret inválido para o client_id configurado";
   }
 
   if (text.includes("unknown") || text.includes("invalid_client") || text.includes("client_id")) {
-    return "client_id invalido ou aplicativo Discord incorreto";
+    return "client_id inválido ou aplicativo Discord incorreto";
   }
 
   return "resposta OAuth recusada pelo Discord";

@@ -95,7 +95,7 @@ priceTablesRouter.get("/:guildId", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para ver tabelas de precos." });
+    if (!botId || isBotRequest(req) || !(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para ver tabelas de preços." });
     return res.json(await listPriceTables(botId, guildId));
   } catch (error) {
     return next(error);
@@ -106,7 +106,7 @@ priceTablesRouter.post("/:guildId", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para criar tabelas de precos." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para criar tabelas de preços." });
     const table = await savePriceTable(botId, guildId, null, sanitizeTable(tableSchema.parse(req.body ?? {})), res.locals.dashboardAuth.user.discordId);
     return res.status(201).json({ table });
   } catch (error) {
@@ -118,9 +118,9 @@ priceTablesRouter.patch("/:guildId/:tableId", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para editar tabelas de precos." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para editar tabelas de preços." });
     const table = await savePriceTable(botId, guildId, req.params.tableId, sanitizeTable(tableSchema.parse(req.body ?? {})), res.locals.dashboardAuth.user.discordId);
-    if (!table) return res.status(404).json({ message: "Tabela de precos nao encontrada." });
+    if (!table) return res.status(404).json({ message: "Tabela de preços não encontrada." });
     return res.json({ table });
   } catch (error) {
     return next(error);
@@ -131,9 +131,9 @@ priceTablesRouter.delete("/:guildId/:tableId", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para excluir tabelas de precos." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para excluir tabelas de preços." });
     const table = await deletePriceTable(botId, guildId, req.params.tableId, res.locals.dashboardAuth.user.discordId);
-    if (!table) return res.status(404).json({ message: "Tabela de precos nao encontrada." });
+    if (!table) return res.status(404).json({ message: "Tabela de preços não encontrada." });
     return res.json({ table });
   } catch (error) {
     return next(error);
@@ -144,9 +144,9 @@ priceTablesRouter.post("/:guildId/:tableId/publish", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para publicar tabelas de precos." });
+    if (!botId || isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para publicar tabelas de preços." });
     const table = await requestPriceTablePublish(botId, guildId, req.params.tableId, res.locals.dashboardAuth.user.discordId);
-    if (!table) return res.status(404).json({ message: "Tabela de precos nao encontrada." });
+    if (!table) return res.status(404).json({ message: "Tabela de preços não encontrada." });
     return res.json({ table });
   } catch (error) {
     return next(error);
@@ -160,7 +160,7 @@ priceTablesRouter.get("/bot/:guildId/:tableId/runtime", requireBot, async (req, 
     const botId = await resolveRequestBotId(req);
     const runtimeBotId = await assertRuntime(botId, guildId);
     const table = await getPriceTableRuntime(runtimeBotId, guildId, tableId);
-    if (!table) return res.status(404).json({ message: "Tabela de precos indisponivel." });
+    if (!table) return res.status(404).json({ message: "Tabela de preços indisponível." });
     return res.json({ table });
   } catch (error) {
     return next(error);
@@ -189,7 +189,7 @@ priceTablesRouter.post("/bot/:guildId/requests", requireBot, async (req, res, ne
       ...requestSchema.parse(req.body ?? {}),
       ticketChannelId: req.body?.ticketChannelId || null
     });
-    if (!request) return res.status(404).json({ message: "Tabela de precos indisponivel." });
+    if (!request) return res.status(404).json({ message: "Tabela de preços indisponível." });
     return res.status(201).json({ request });
   } catch (error) {
     return next(error);
@@ -207,7 +207,7 @@ async function canManage(req: Request, guildId: string, botId: string) {
 }
 
 async function assertRuntime(botId: string | null, guildId: string) {
-  if (!botId) throw Object.assign(new Error("Bot nao identificado."), { statusCode: 403 });
+  if (!botId) throw Object.assign(new Error("Bot não identificado."), { statusCode: 403 });
   const authorization = await authorizeBotRuntimeModule({ botId, guildId, moduleId: PRICE_TABLES_MODULE_ID });
   if (!authorization.allowed) throw Object.assign(new Error(authorization.reason), { statusCode: 403 });
   return botId;

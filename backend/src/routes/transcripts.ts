@@ -24,7 +24,7 @@ const createTranscriptSchema = z.object({
   ticketId: z.string().optional().nullable(),
   channelId: z.string().optional().nullable(),
   channelName: z.string().optional().nullable(),
-  type: z.enum(["Denuncia", "Ticket", "Canal Temporario", "Suporte", "Outro"]).optional(),
+  type: z.enum(["Denúncia", "Ticket", "Canal Temporário", "Suporte", "Outro"]).optional(),
   categoryName: z.string().optional().nullable(),
   openedById: z.string().optional().nullable(),
   ownerId: z.string().optional().nullable(),
@@ -77,7 +77,7 @@ const createTranscriptSchema = z.object({
 export const publicTranscriptsRouter = Router();
 export const transcriptsRouter = Router();
 
-const transcriptIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{2,120}$/, "Transcript invalido.");
+const transcriptIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{2,120}$/, "Transcript inválido.");
 
 publicTranscriptsRouter.use((req, res, next) => {
   res.setHeader("Cache-Control", "no-store");
@@ -98,7 +98,7 @@ publicTranscriptsRouter.get("/:id", async (req, res, next) => {
     const transcriptId = transcriptIdSchema.parse(req.params.id);
     const meta = await getTranscriptPublicMeta(transcriptId);
     if (!meta) {
-      return res.status(404).send(renderLoginPage(null, "Transcript nao encontrado."));
+      return res.status(404).send(renderLoginPage(null, "Transcript não encontrado."));
     }
     return res.send(renderLoginPage(meta));
   } catch (error) {
@@ -134,10 +134,10 @@ publicTranscriptsRouter.get("/:id/download", async (req, res, next) => {
   try {
     const transcriptId = transcriptIdSchema.parse(req.params.id);
     if (req.query.token !== "session") {
-      return res.status(401).send("Senha obrigatoria.");
+      return res.status(401).send("Senha obrigatória.");
     }
     const transcript = await getTranscriptForExport(transcriptId);
-    if (!transcript) return res.status(404).send("Transcript nao encontrado.");
+    if (!transcript) return res.status(404).send("Transcript não encontrado.");
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="transcript-${transcript._id}.html"`);
     return res.send(transcript.htmlContent || renderTranscriptHtml(transcript, "Protegido"));
@@ -150,11 +150,11 @@ publicTranscriptsRouter.get("/:id/export.:format", async (req, res, next) => {
   try {
     const transcriptId = transcriptIdSchema.parse(req.params.id);
     if (req.query.token !== "session") {
-      return res.status(401).send("Senha obrigatoria.");
+      return res.status(401).send("Senha obrigatória.");
     }
 
     const transcript = await getTranscriptForExport(transcriptId);
-    if (!transcript) return res.status(404).send("Transcript nao encontrado.");
+    if (!transcript) return res.status(404).send("Transcript não encontrado.");
 
     const format = req.params.format;
     const fileBase = `transcript-${transcript._id}`;
@@ -184,7 +184,7 @@ transcriptsRouter.use(requireAuthOrBot);
 transcriptsRouter.post("/bot", async (req, res, next) => {
   try {
     if (!isBotRequest(req)) {
-      return res.status(403).json({ message: "Rota disponivel apenas para o bot." });
+      return res.status(403).json({ message: "Rota disponível apenas para o bot." });
     }
     const botId = await resolveRequestBotId(req);
     const input = createTranscriptSchema.parse({ ...req.body, botId });
@@ -198,12 +198,12 @@ transcriptsRouter.post("/bot", async (req, res, next) => {
 transcriptsRouter.post("/bot/:id/passwords", async (req, res, next) => {
   try {
     if (!isBotRequest(req)) {
-      return res.status(403).json({ message: "Rota disponivel apenas para o bot." });
+      return res.status(403).json({ message: "Rota disponível apenas para o bot." });
     }
     const ttlHours = Number(req.body?.ttlHours ?? 72);
     const transcriptId = transcriptIdSchema.parse(req.params.id);
     const result = await createNewTemporaryPassword(transcriptId, ttlHours);
-    if (!result) return res.status(404).json({ message: "Transcript nao encontrado." });
+    if (!result) return res.status(404).json({ message: "Transcript não encontrado." });
     return res.status(201).json(result);
   } catch (error) {
     return next(error);
@@ -213,12 +213,12 @@ transcriptsRouter.post("/bot/:id/passwords", async (req, res, next) => {
 transcriptsRouter.post("/:id/passwords", async (req, res, next) => {
   try {
     if (!(await canManageTranscript(req))) {
-      return res.status(403).json({ message: "Sem permissao para alterar este transcript." });
+      return res.status(403).json({ message: "Sem permissão para alterar este transcript." });
     }
     const ttlHours = Number(req.body?.ttlHours ?? 72);
     const transcriptId = transcriptIdSchema.parse(req.params.id);
     const result = await createNewTemporaryPassword(transcriptId, ttlHours);
-    if (!result) return res.status(404).json({ message: "Transcript nao encontrado." });
+    if (!result) return res.status(404).json({ message: "Transcript não encontrado." });
     return res.status(201).json(result);
   } catch (error) {
     return next(error);
@@ -228,7 +228,7 @@ transcriptsRouter.post("/:id/passwords", async (req, res, next) => {
 transcriptsRouter.post("/bot/:id/passwords/revoke", async (req, res, next) => {
   try {
     if (!isBotRequest(req)) {
-      return res.status(403).json({ message: "Rota disponivel apenas para o bot." });
+      return res.status(403).json({ message: "Rota disponível apenas para o bot." });
     }
     const transcriptId = transcriptIdSchema.parse(req.params.id);
     await revokeTranscriptTemporaryPasswords(transcriptId);
@@ -241,7 +241,7 @@ transcriptsRouter.post("/bot/:id/passwords/revoke", async (req, res, next) => {
 transcriptsRouter.post("/:id/passwords/revoke", async (req, res, next) => {
   try {
     if (!(await canManageTranscript(req))) {
-      return res.status(403).json({ message: "Sem permissao para alterar este transcript." });
+      return res.status(403).json({ message: "Sem permissão para alterar este transcript." });
     }
     const transcriptId = transcriptIdSchema.parse(req.params.id);
     await revokeTranscriptTemporaryPasswords(transcriptId);
@@ -254,11 +254,11 @@ transcriptsRouter.post("/:id/passwords/revoke", async (req, res, next) => {
 transcriptsRouter.delete("/bot/:id", async (req, res, next) => {
   try {
     if (!isBotRequest(req)) {
-      return res.status(403).json({ message: "Rota disponivel apenas para o bot." });
+      return res.status(403).json({ message: "Rota disponível apenas para o bot." });
     }
     const transcriptId = transcriptIdSchema.parse(req.params.id);
     const transcript = await softDeleteTranscript(transcriptId);
-    if (!transcript) return res.status(404).json({ message: "Transcript nao encontrado." });
+    if (!transcript) return res.status(404).json({ message: "Transcript não encontrado." });
     return res.json({ ok: true });
   } catch (error) {
     return next(error);
@@ -268,11 +268,11 @@ transcriptsRouter.delete("/bot/:id", async (req, res, next) => {
 transcriptsRouter.delete("/:id", async (req, res, next) => {
   try {
     if (!(await canManageTranscript(req))) {
-      return res.status(403).json({ message: "Sem permissao para excluir este transcript." });
+      return res.status(403).json({ message: "Sem permissão para excluir este transcript." });
     }
     const transcriptId = transcriptIdSchema.parse(req.params.id);
     const transcript = await softDeleteTranscript(transcriptId);
-    if (!transcript) return res.status(404).json({ message: "Transcript nao encontrado." });
+    if (!transcript) return res.status(404).json({ message: "Transcript não encontrado." });
     return res.json({ ok: true });
   } catch (error) {
     return next(error);
@@ -315,8 +315,8 @@ function renderLoginPage(meta: Awaited<ReturnType<typeof getTranscriptPublicMeta
   <main>
     <div class="eyebrow">North Police Department - Logs</div>
     <h1>🔐 Acesso ao Transcript</h1>
-    <p>Este registro e protegido por senha. Todas as tentativas de acesso sao registradas para auditoria.</p>
-    <p>Digite a senha autorizada para visualizar o historico completo deste atendimento.</p>
+    <p>Este registro e protegido por senha. Todas as tentativas de acesso são registradas para auditoria.</p>
+    <p>Digite a senha autorizada para visualizar o histórico completo deste atendimento.</p>
     ${statusMessage}
     <form method="post">
       <label for="password">Senha</label>

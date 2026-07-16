@@ -135,7 +135,7 @@ export function AddTwitchChannelModal({ botId, error, guildId, onClose, onSubmit
           <Field label="Cargo para mencionar">
             <select className="social-input" onChange={(event) => setMentionRoleId(event.target.value)} value={mentionRoleId}>
               <option value="everyone">@everyone</option>
-              <option value="">Sem mencao</option>
+              <option value="">Sem menção</option>
               {options.roles
                 .filter((role) => role.name !== "@everyone")
                 .map((role) => (

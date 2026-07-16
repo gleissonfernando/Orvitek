@@ -180,7 +180,7 @@ function readAuthError() {
   }
 
   if (reason === "callback") {
-    return "A resposta do Discord expirou ou nao corresponde a sua sessao. Tente autenticar novamente.";
+    return "A resposta do Discord expirou ou não corresponde a sua sessão. Tente autenticar novamente.";
   }
 
   if (reason === "denied") {
@@ -313,7 +313,7 @@ function LoadingScreen() {
       >
         <Loader2 className="h-8 w-8 animate-spin text-[#FFD500]" />
         <p className="mt-4 text-sm font-medium text-white">Carregando painel</p>
-        <p className="mt-1 text-xs text-zinc-500">Sincronizando sessao Discord</p>
+        <p className="mt-1 text-xs text-zinc-500">Sincronizando sessão Discord</p>
       </motion.div>
     </main>
   );

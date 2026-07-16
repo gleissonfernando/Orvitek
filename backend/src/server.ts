@@ -34,7 +34,7 @@ httpServer.listen(env.PORT, env.HOST, () => {
     console.log(`[transcripts] rota publica pronta em ${transcriptStatus.route} (porta ${transcriptStatus.port})`);
     void runTranscriptUrlStartupMigration();
   } else {
-    console.error(`[transcripts] configuracao invalida: ${transcriptStatus.error}`);
+    console.error(`[transcripts] configuração inválida: ${transcriptStatus.error}`);
   }
   if (env.BACKGROUND_WORKER_ENABLED) startBackgroundJobWorker();
   if (env.SCHEDULER_ENABLED) {
@@ -45,11 +45,11 @@ httpServer.listen(env.PORT, env.HOST, () => {
   void markDevBotsOfflineAfterBackendRestart()
     .then((count) => {
       if (count > 0) {
-        console.log(`[dev-bot] ${count} bot(s) marcado(s) como offline apos restart do backend.`);
+        console.log(`[dev-bot] ${count} bot(s) marcado(s) como offline após restart do backend.`);
       }
     })
     .catch((error) => {
-      console.warn("[dev-bot] nao foi possivel reconciliar status no boot:", error instanceof Error ? error.message : error);
+      console.warn("[dev-bot] não foi possível reconciliar status no boot:", error instanceof Error ? error.message : error);
     })
     .then(() => runAccessControlStartupAudit())
     .catch((error) => {
@@ -59,23 +59,23 @@ httpServer.listen(env.PORT, env.HOST, () => {
       if (env.START_REGISTERED_DEV_BOTS) {
         void startRegisteredDevBots()
           .then((count) => {
-            console.log(`[dev-bot] start automatico concluido para ${count} bot(s) cadastrado(s).`);
+            console.log(`[dev-bot] start automático concluído para ${count} bot(s) cadastrado(s).`);
           })
           .catch((error) => {
-            console.warn("[dev-bot] start automatico falhou:", error instanceof Error ? error.message : error);
+            console.warn("[dev-bot] start automático falhou:", error instanceof Error ? error.message : error);
           });
       } else {
-        console.log("[dev-bot] start automatico desativado. Use START_REGISTERED_DEV_BOTS=true para habilitar.");
+        console.log("[dev-bot] start automático desativado. Use START_REGISTERED_DEV_BOTS=true para habilitar.");
       }
     });
   setTimeout(() => {
     void seedDefaultPanelEmojisForAllBots()
       .then((results) => {
         const ok = results.filter((result) => result.ok).length;
-        if (ok > 0) console.log(`[default-panel-emojis] pacote padrao processado para ${ok} bot(s).`);
+        if (ok > 0) console.log(`[default-panel-emojis] pacote padrão processado para ${ok} bot(s).`);
       })
       .catch((error) => {
-        console.warn("[default-panel-emojis] falha ao processar pacote padrao:", error instanceof Error ? error.message : error);
+        console.warn("[default-panel-emojis] falha ao processar pacote padrão:", error instanceof Error ? error.message : error);
       });
   }, 20_000).unref();
 });

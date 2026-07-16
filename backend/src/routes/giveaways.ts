@@ -274,7 +274,7 @@ giveawaysRouter.get("/bot/:giveawayId", requireBot, async (req, res, next) => {
 
     if (!giveaway) {
       return res.status(404).json({
-        message: "Sorteio nao encontrado."
+        message: "Sorteio não encontrado."
       });
     }
 
@@ -471,7 +471,7 @@ async function assertCanReadGiveaway(user: AuthSessionUser, guildId: string, bot
     const permissions = await getBotApiPermissions(botId);
 
     if (!permissions?.enabledModules.includes("giveaway")) {
-      throw createRouteError("O modulo de sorteio nao foi liberado para este bot.", 403);
+      throw createRouteError("O módulo de sorteio não foi liberado para este bot.", 403);
     }
 
     if (await canReadDevBotModule(user, botId, guildId, "giveaway")) {
@@ -481,7 +481,7 @@ async function assertCanReadGiveaway(user: AuthSessionUser, guildId: string, bot
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para acessar sorteios deste servidor.", 403);
+  throw createRouteError("Você não tem permissão para acessar sorteios deste servidor.", 403);
 }
 
 async function assertCanManageGiveaway(user: AuthSessionUser, guildId: string, botId: string | null) {
@@ -489,7 +489,7 @@ async function assertCanManageGiveaway(user: AuthSessionUser, guildId: string, b
     const permissions = await getBotApiPermissions(botId);
 
     if (!permissions?.enabledModules.includes("giveaway")) {
-      throw createRouteError("O modulo de sorteio nao foi liberado para este bot.", 403);
+      throw createRouteError("O módulo de sorteio não foi liberado para este bot.", 403);
     }
 
     if (await canUseDevBotModule(user, botId, guildId, "giveaway")) {
@@ -499,14 +499,14 @@ async function assertCanManageGiveaway(user: AuthSessionUser, guildId: string, b
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para configurar sorteios deste servidor.", 403);
+  throw createRouteError("Você não tem permissão para configurar sorteios deste servidor.", 403);
 }
 
 async function assertGiveawayBelongsToGuild(giveawayId: string, guildId: string, botId: string | null) {
   const giveaway = await getGiveaway(giveawayId, botId);
 
   if (!giveaway || giveaway.guildId !== guildId) {
-    throw createRouteError("Sorteio nao encontrado neste servidor.", 404);
+    throw createRouteError("Sorteio não encontrado neste servidor.", 404);
   }
 }
 

@@ -355,7 +355,7 @@ export async function syncGuildEmojisToApplication(input: {
     job.finishedAt = new Date();
     await applicationEmojiJobs.updateOne({ _id: job._id }, { $set: job });
     await createApplicationEmojiLog(input, "application_emoji.sync.completed", `Sincronizacao concluida: ${job.sent} enviados, ${job.updated} atualizados, ${job.skipped} ignorados, ${job.failed} erros.`);
-    emitProgress(input, job, job.total, "Sincronizacao concluida.");
+    emitProgress(input, job, job.total, "Sincronização concluída.");
 
     return {
       job: toJobDto(job),
@@ -414,7 +414,7 @@ export async function handleApplicationEmojiGuildEvent(input: {
   if (!settings) {
     return {
       skipped: true,
-      reason: "Sincronizacao automatica desativada."
+      reason: "Sincronização automática desativada."
     };
   }
 
@@ -467,7 +467,7 @@ export async function createApplicationEmojiZip(input: {
     const data = await fetchEmojiBuffer(item.url, input.signal).catch(() => null);
     if (input.signal?.aborted) throw new DOMException("Download cancelado", "AbortError");
     if (!data?.length) {
-      console.warn(`[emoji-download] Emoji indisponivel: ${item.applicationName}`);
+      console.warn(`[emoji-download] Emoji indisponível: ${item.applicationName}`);
       return null;
     }
     const extension = detectEmojiExtension(data, item.animated);
@@ -528,7 +528,7 @@ async function resolveBotAndToken(botId: string) {
   const [bot, token] = await Promise.all([getDevBot(botId), getDevBotToken(botId)]);
 
   if (!bot?.clientId || !token) {
-    throw Object.assign(new Error("Bot sem token valido cadastrado no DEV."), { statusCode: 400 });
+    throw Object.assign(new Error("Bot sem token válido cadastrado no DEV."), { statusCode: 400 });
   }
 
   return {
@@ -630,14 +630,14 @@ async function downloadEmoji(url: string) {
   const response = await fetch(url);
 
   if (!response.ok) {
-    throw new Error("Nao foi possivel baixar emoji.");
+    throw new Error("Não foi possível baixar emoji.");
   }
 
   const contentType = response.headers.get("content-type")?.split(";")[0]?.toLowerCase() ?? "image/png";
   const buffer = Buffer.from(await response.arrayBuffer());
 
   if (!/^image\/(png|gif|webp|jpe?g)$/.test(contentType)) {
-    throw new Error("Formato de emoji invalido.");
+    throw new Error("Formato de emoji inválido.");
   }
 
   if (!buffer.length || buffer.length > MAX_EMOJI_BYTES) {
@@ -790,10 +790,10 @@ function safeFileName(value: string) {
 function friendlyError(error: unknown) {
   const message = error instanceof Error ? error.message : "falha desconhecida";
   const status = typeof error === "object" && error && "discordStatus" in error ? Number((error as { discordStatus?: unknown }).discordStatus) : 0;
-  if (status === 401) return "Token do bot invalido.";
-  if (status === 403) return "O bot precisa de acesso a aplicacao/servidor e permissao para gerenciar emojis.";
-  if (status === 404) return "Servidor, aplicacao ou emoji nao encontrado.";
-  if (status === 429) return "Rate limit do Discord. A sincronizacao sera retomada com pausa automatica.";
+  if (status === 401) return "Token do bot inválido.";
+  if (status === 403) return "O bot precisa de acesso a aplicacao/servidor e permissão para gerenciar emojis.";
+  if (status === 404) return "Servidor, aplicacao ou emoji não encontrado.";
+  if (status === 429) return "Rate limit do Discord. A sincronização será retomada com pausa automática.";
   return message;
 }
 

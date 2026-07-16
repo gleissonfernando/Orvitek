@@ -20,16 +20,16 @@ export function runtimeModuleDenialMessage(authorization: BotRuntimeModuleAuthor
     case "module_disabled":
       return `${label} esta liberado para este bot, mas esta desativado nas configuracoes deste servidor. Ative o sistema no painel e tente novamente.`;
     case "module_not_released":
-      return `${label} nao foi liberado para este bot na dashboard DEV.`;
+      return `${label} não foi liberado para este bot na dashboard DEV.`;
     case "dashboard_unavailable":
-      return `Nao foi possivel validar ${label.toLowerCase()} na dashboard agora. Tente novamente em instantes.`;
+      return `Não foi possível validar ${label.toLowerCase()} na dashboard agora. Tente novamente em instantes.`;
     case "guild_not_registered":
     case "guild_inactive":
-      return `${label} nao esta ativo para este servidor: ${authorization.reason}`;
+      return `${label} não esta ativo para este servidor: ${authorization.reason}`;
     default:
       return authorization.reason?.trim()
-        ? `${label} nao esta disponivel neste servidor: ${authorization.reason}`
-        : `${label} nao esta disponivel neste servidor.`;
+        ? `${label} não esta disponível neste servidor: ${authorization.reason}`
+        : `${label} não esta disponível neste servidor.`;
   }
 }
 
@@ -55,7 +55,7 @@ export async function getRuntimeModuleAuthorization(context: BotContext, guildId
       moduleReleased: allowed,
       plan: null,
       policy: "fail_closed",
-      reason: allowed ? "Modulo autorizado pela configuracao local do bot." : "Modulo nao foi liberado na configuracao local do bot.",
+      reason: allowed ? "Módulo autorizado pela configuração local do bot." : "Módulo não foi liberado na configuração local do bot.",
       reasonCode: allowed ? "allowed" : "module_not_released",
       releaseModuleId: moduleId
     };
@@ -77,7 +77,7 @@ export async function getRuntimeModuleAuthorization(context: BotContext, guildId
   const request = context.api.authorizeRuntimeModule(guildId, moduleId)
     .then((authorization) => {
       if (authorization.botId && authorization.botId !== botId) {
-        return deniedRuntimeModuleAuthorization(botId, guildId, moduleId, "A dashboard respondeu com outro bot para este modulo.", "bot_mismatch");
+        return deniedRuntimeModuleAuthorization(botId, guildId, moduleId, "A dashboard respondeu com outro bot para este módulo.", "bot_mismatch");
       }
 
       authorizationCache.set(key, {
@@ -88,11 +88,11 @@ export async function getRuntimeModuleAuthorization(context: BotContext, guildId
     })
     .catch((error) => {
       console.warn(
-        `[runtime] modulo ${moduleId} bloqueado em ${guildId}:`,
+        `[runtime] módulo ${moduleId} bloqueado em ${guildId}:`,
         error instanceof Error ? error.message : error
       );
       authorizationCache.delete(key);
-      return deniedRuntimeModuleAuthorization(botId, guildId, moduleId, "Nao foi possivel validar este modulo na dashboard.", "dashboard_unavailable");
+      return deniedRuntimeModuleAuthorization(botId, guildId, moduleId, "Não foi possível validar este módulo na dashboard.", "dashboard_unavailable");
     })
     .finally(() => {
       if (authorizationRequests.get(key) === request) {

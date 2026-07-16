@@ -19,7 +19,7 @@ export async function enforceAccountAgeSecurity(context: BotContext, member: Gui
   }
 
   const settings = await getCachedGuildSettings(context, member.guild.id, member.client.user.id).catch((error) => {
-    console.warn("[account-age-security] nao foi possivel carregar configuracoes:", errorMessage(error));
+    console.warn("[account-age-security] não foi possível carregar configurações:", errorMessage(error));
     return null;
   });
 
@@ -38,7 +38,7 @@ export async function enforceAccountAgeSecurity(context: BotContext, member: Gui
   }
 
   await notifyMember(member, decision).catch((error) => {
-    console.warn("[account-age-security] nao foi possivel avisar o membro:", errorMessage(error));
+    console.warn("[account-age-security] não foi possível avisar o membro:", errorMessage(error));
   });
 
   let removed = false;
@@ -46,14 +46,14 @@ export async function enforceAccountAgeSecurity(context: BotContext, member: Gui
 
   try {
     if (!member.kickable) {
-      throw new Error("O bot nao pode remover este membro por falta de permissao ou hierarquia de cargos.");
+      throw new Error("O bot não pode remover este membro por falta de permissão ou hierarquia de cargos.");
     }
 
     await member.kick(`Conta Discord com menos de ${decision.minDays} dia(s).`);
     removed = true;
   } catch (error) {
     removalError = errorMessage(error);
-    console.warn("[account-age-security] nao foi possivel remover o membro:", removalError);
+    console.warn("[account-age-security] não foi possível remover o membro:", removalError);
   }
 
   await Promise.allSettled([
@@ -79,9 +79,9 @@ function accountAgeDecision(member: GuildMember, minDays: number): AccountAgeDec
 
 async function notifyMember(member: GuildMember, decision: AccountAgeDecision) {
   await member.send([
-    `Voce foi removido de ${member.guild.name}.`,
-    `Motivo: sua conta Discord tem ${decision.accountAgeDays} dia(s) e o minimo exigido e ${decision.minDays} dia(s).`,
-    "Tente entrar novamente quando sua conta atingir a idade minima ou solicite liberacao para a equipe."
+    `Você foi removido de ${member.guild.name}.`,
+    `Motivo: sua conta Discord tem ${decision.accountAgeDays} dia(s) e o mínimo exigido e ${decision.minDays} dia(s).`,
+    "Tente entrar novamente quando sua conta atingir a idade minima ou solicite liberação para a equipe."
   ].join("\n"));
 }
 
@@ -108,13 +108,13 @@ async function sendDiscordLog(
     .setColor(removed ? 0xed4245 : 0xf59e0b)
     .setTitle("Entrada bloqueada por idade da conta")
     .setDescription([
-      `**Usuario:** ${member.user.tag}`,
+      `**Usuário:** ${member.user.tag}`,
       `**ID:** \`${member.id}\``,
       `**Conta criada em:** <t:${unixSeconds(decision.accountCreatedAt)}:F>`,
       `**Idade da conta:** ${decision.accountAgeDays} dia(s)`,
-      `**Minimo exigido:** ${decision.minDays} dia(s)`,
+      `**Mínimo exigido:** ${decision.minDays} dia(s)`,
       `**Tentativa de entrada:** <t:${unixSeconds(decision.attemptAt)}:F>`,
-      `**Status:** ${removed ? "Usuario removido automaticamente" : `Falha ao remover: ${removalError ?? "erro desconhecido"}`}`
+      `**Status:** ${removed ? "Usuário removido automaticamente" : `Falha ao remover: ${removalError ?? "erro desconhecido"}`}`
     ].join("\n"))
     .setTimestamp(decision.attemptAt);
 
@@ -151,7 +151,7 @@ async function writeDashboardLog(
       username: member.user.tag
     }
   }).catch((error) => {
-    console.warn("[account-age-security] nao foi possivel registrar log na API:", errorMessage(error));
+    console.warn("[account-age-security] não foi possível registrar log na API:", errorMessage(error));
   });
 }
 

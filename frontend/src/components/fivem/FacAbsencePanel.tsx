@@ -92,24 +92,24 @@ export function FacAbsencePanel({ botId, canManage, guild, variant = "fac" }: Fa
   const canUse = Boolean(botId && guild);
   const copy = variant === "police"
     ? {
-        description: "Ausencias para policiais e oficiais.",
-        empty: "Selecione um bot e um servidor para configurar a ausencia policial.",
-        loadError: "Nao foi possivel carregar a ausencia policial.",
-        panelTitle: "Ausencia Policial",
-        publishError: "Nao foi possivel publicar o painel de ausencia policial.",
-        saveButton: "Salvar Policia",
-        saveError: "Nao foi possivel salvar a ausencia policial.",
-        saveSuccess: "Configuracao de ausencia policial salva."
+        description: "Ausências para policiais e oficiais.",
+        empty: "Selecione um bot e um servidor para configurar a ausência policial.",
+        loadError: "Não foi possível carregar a ausência policial.",
+        panelTitle: "Ausência Policial",
+        publishError: "Não foi possível publicar o painel de ausência policial.",
+        saveButton: "Salvar Polícia",
+        saveError: "Não foi possível salvar a ausência policial.",
+        saveSuccess: "Configuração de ausência policial salva."
       }
     : {
-        description: "Ausencias para faccoes e organizacoes.",
+        description: "Ausências para facções e organizações.",
         empty: "Selecione um bot e um servidor para configurar o FiveM FAC.",
-        loadError: "Nao foi possivel carregar o FAC.",
+        loadError: "Não foi possível carregar o FAC.",
         panelTitle: "FiveM FAC",
-        publishError: "Nao foi possivel publicar o painel FAC.",
+        publishError: "Não foi possível publicar o painel FAC.",
         saveButton: "Salvar FAC",
-        saveError: "Nao foi possivel salvar o FAC.",
-        saveSuccess: "Configuracao do FAC salva."
+        saveError: "Não foi possível salvar o FAC.",
+        saveSuccess: "Configuração do FAC salva."
       };
   const assignableRoles = useMemo(() => roles.filter((role) => role.assignable), [roles]);
   const regularRoles = useMemo(() => roles.filter((role) => role.id !== guild?.id), [roles, guild?.id]);
@@ -321,7 +321,7 @@ export function FacAbsencePanel({ botId, canManage, guild, variant = "fac" }: Fa
               <SelectField
                 disabled={!canManage}
                 icon={ShieldCheck}
-                label="Cargo de ausencia"
+                label="Cargo de ausência"
                 onChange={(value) => updateSetting("absenceRoleId", value)}
                 options={assignableRoles.map((role) => ({ label: role.name, value: role.id }))}
                 value={settings.absenceRoleId}
@@ -422,7 +422,7 @@ export function FacAbsencePanel({ botId, canManage, guild, variant = "fac" }: Fa
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CalendarClock className="h-5 w-5 text-zinc-300" />
-              Ausencias
+              Ausências
             </CardTitle>
             <CardDescription>{absences.length} registro(s) recentes.</CardDescription>
           </CardHeader>
@@ -442,7 +442,7 @@ export function FacAbsencePanel({ botId, canManage, guild, variant = "fac" }: Fa
               </div>
             ) : (
               <div className="flex min-h-40 items-center justify-center rounded-lg border border-dashed border-zinc-800 bg-zinc-950/60 text-sm text-zinc-500">
-                Nenhuma ausencia registrada.
+                Nenhuma ausência registrada.
               </div>
             )}
           </CardContent>
@@ -554,12 +554,12 @@ function AbsenceRow({
     }
 
     if (!FAC_PHOTO_TYPES.has(file.type)) {
-      setPhotoMessage("Formato invalido. Envie PNG, JPG, JPEG, WEBP ou GIF.");
+      setPhotoMessage("Formato inválido. Envie PNG, JPG, JPEG, WEBP ou GIF.");
       return;
     }
 
     if (file.size > FAC_PHOTO_MAX_SIZE) {
-      setPhotoMessage("A foto deve ter no maximo 10 MB.");
+      setPhotoMessage("A foto deve ter no máximo 10 MB.");
       return;
     }
 
@@ -618,11 +618,11 @@ function AbsenceRow({
       <div className="mt-3 border-t border-zinc-900 pt-3">
         <div className="flex items-center gap-2 text-xs font-medium text-zinc-300">
           <Camera className="h-3.5 w-3.5 text-zinc-500" />
-          Foto da Ausencia
+          Foto da Ausência
         </div>
         {currentPhotoUrl ? (
           <div className="mt-2 overflow-hidden rounded-md border border-zinc-900 bg-zinc-950">
-            <img alt="Foto da ausencia" className="h-32 w-full object-cover" src={currentPhotoUrl} />
+            <img alt="Foto da ausência" className="h-32 w-full object-cover" src={currentPhotoUrl} />
           </div>
         ) : (
           <div className="mt-2 flex h-24 items-center justify-center rounded-md border border-dashed border-zinc-800 bg-zinc-950 text-xs text-zinc-600">

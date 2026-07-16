@@ -211,7 +211,7 @@ export function GiveawayRoulettePage({ token }: GiveawayRoulettePageProps) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#060606] px-4 text-center text-white">
         <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-6">
-          <p className="text-sm text-zinc-300">{message ?? "Roleta indisponivel."}</p>
+          <p className="text-sm text-zinc-300">{message ?? "Roleta indisponível."}</p>
         </div>
       </main>
     );
@@ -516,7 +516,7 @@ function PlatformDiagnostic({
       </div>
       <div className="mt-3 grid gap-2 text-xs text-zinc-500">
         <p>Canal: <span className="text-zinc-300">{state?.channel ?? "Não configurado"}</span></p>
-        <p>Usuarios recebidos: <span className="text-zinc-300">{state?.usersReceived ?? 0}</span></p>
+        <p>Usuários recebidos: <span className="text-zinc-300">{state?.usersReceived ?? 0}</span></p>
         <p>Token: <span className="text-zinc-300">{state?.tokenStatus ?? "unknown"}</span></p>
         <p className="truncate">Ultima msg: <span className="text-zinc-300">{state?.lastMessage ?? "Nenhuma"}</span></p>
         {state?.lastError ? <p className="text-red-300">Erro: {state.lastError}</p> : null}

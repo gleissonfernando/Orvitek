@@ -64,7 +64,7 @@ fivemFinanceRouter.use(requireAuthOrBot);
 fivemFinanceRouter.get("/:guildId", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId); const botId = await resolveRequestBotId(req);
-    if (isBotRequest(req)) await assertRuntime(botId, guildId); else if (!(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Modulo financeiro nao liberado." });
+    if (isBotRequest(req)) await assertRuntime(botId, guildId); else if (!(await canRead(req, guildId, botId))) return res.status(403).json({ message: "Módulo financeiro não liberado." });
     return res.json(await getFivemFinanceDashboard(guildId, botId));
   } catch (error) { return next(error); }
 });
@@ -72,7 +72,7 @@ fivemFinanceRouter.get("/:guildId", async (req, res, next) => {
 fivemFinanceRouter.put("/:guildId/settings", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId); const botId = await resolveRequestBotId(req); const input = settingsSchema.parse(req.body);
-    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para configurar financeiro." });
+    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para configurar financeiro." });
     return res.json({ settings: await saveFivemFinanceSettings(guildId, botId, input, res.locals.dashboardAuth.user.discordId) });
   } catch (error) { return next(error); }
 });
@@ -80,7 +80,7 @@ fivemFinanceRouter.put("/:guildId/settings", async (req, res, next) => {
 fivemFinanceRouter.post("/:guildId/panel", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId); const botId = await resolveRequestBotId(req);
-    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para publicar painel." });
+    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para publicar painel." });
     return res.json({ settings: await requestFivemFinancePanelPublish(guildId, botId) });
   } catch (error) { return next(error); }
 });
@@ -88,9 +88,9 @@ fivemFinanceRouter.post("/:guildId/panel", async (req, res, next) => {
 fivemFinanceRouter.patch("/:guildId/transactions/:id", async (req, res, next) => {
   try {
     const guildId = snowflake.parse(req.params.guildId); const botId = await resolveRequestBotId(req); const input = correctionSchema.parse(req.body);
-    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para corrigir movimentacoes." });
+    if (isBotRequest(req) || !(await canManage(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para corrigir movimentações." });
     const transaction = await updateFivemFinanceTransaction(guildId, botId, req.params.id, input, res.locals.dashboardAuth.user.discordId);
-    if (!transaction) return res.status(404).json({ message: "Movimentacao nao encontrada." });
+    if (!transaction) return res.status(404).json({ message: "Movimentação não encontrada." });
     return res.json({ transaction });
   } catch (error) { return next(error); }
 });
@@ -113,7 +113,7 @@ fivemFinanceRouter.patch("/bot/:guildId/transactions/:id/log", requireBot, async
     const id = z.string().min(1).max(120).parse(req.params.id);
     const input = z.object({ logChannelId: optionalSnowflake, logMessageId: optionalSnowflake }).parse(req.body);
     const transaction = await updateFivemFinanceTransactionLog(guildId, botId, id, input);
-    if (!transaction) return res.status(404).json({ message: "Movimentacao nao encontrada." });
+    if (!transaction) return res.status(404).json({ message: "Movimentação não encontrada." });
     return res.json({ transaction });
   } catch (error) { return next(error); }
 });

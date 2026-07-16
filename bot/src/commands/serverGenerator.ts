@@ -62,7 +62,7 @@ export const serverGeneratorCommand: BotCommand = {
       .setDescription("Quantidade de categorias")
       .setRequired(false)
       .addChoices(
-        { name: "Automatico", value: "auto" },
+        { name: "Automático", value: "auto" },
         { name: "Personalizado", value: "custom" }
       )),
   moduleId: "server-generator",

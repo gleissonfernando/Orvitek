@@ -224,7 +224,7 @@ export function VoiceRecorderPanel({ botId, canManage, guild }: VoiceRecorderPan
         ...current,
         settings: saved
       }));
-      setMessage("Configuracao do Voice Recorder salva.");
+      setMessage("Configuração do Voice Recorder salva.");
     } catch (error) {
       setMessage(readRequestMessage(error) ?? "Não foi possível salvar o Voice Recorder.");
     } finally {
@@ -320,7 +320,7 @@ export function VoiceRecorderPanel({ botId, canManage, guild }: VoiceRecorderPan
                   <Mic2 className="h-5 w-5 text-zinc-300" />
                   Voice Recorder
                 </CardTitle>
-                <CardDescription>Gravacao persistente de canais de voz com historico, logs e arquivos.</CardDescription>
+                <CardDescription>Gravação persistente de canais de voz com histórico, logs e arquivos.</CardDescription>
               </div>
               <Badge variant={settings.enabled ? "success" : "muted"}>
                 {settings.enabled ? "Sistema ativo" : "Sistema inativo"}
@@ -405,7 +405,7 @@ export function VoiceRecorderPanel({ botId, canManage, guild }: VoiceRecorderPan
           </CardHeader>
           <CardContent className="space-y-4">
             <StatusRow label="Sistema" value={settings.enabled ? "Ativo" : "Inativo"} variant={settings.enabled ? "success" : "muted"} />
-            <StatusRow label="Gravacao" value={activeRecording ? statusLabel(activeRecording.status) : "Nenhuma"} variant={activeRecording ? "warning" : "muted"} />
+            <StatusRow label="Gravação" value={activeRecording ? statusLabel(activeRecording.status) : "Nenhuma"} variant={activeRecording ? "warning" : "muted"} />
             <StatusRow label="Cargos permitidos" value={`${settings.allowedRoleIds.length} cargo(s)`} variant={settings.allowedRoleIds.length ? "success" : "danger"} />
             <StatusRow label="Canal de logs" value={settings.logChannelId ? channelLabel(channels, settings.logChannelId) : "Não configurado"} variant={settings.logChannelId ? "success" : "warning"} />
 
@@ -440,7 +440,7 @@ export function VoiceRecorderPanel({ botId, canManage, guild }: VoiceRecorderPan
         <CardContent className="space-y-5">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <TextField label="Buscar" onChange={(value) => setFilters((current) => ({ ...current, search: value }))} value={filters.search} />
-            <TextField label="Usuario" onChange={(value) => setFilters((current) => ({ ...current, userId: value }))} value={filters.userId} />
+            <TextField label="Usuário" onChange={(value) => setFilters((current) => ({ ...current, userId: value }))} value={filters.userId} />
             <SelectField
               disabled={false}
               icon={Mic2}
@@ -570,7 +570,7 @@ function RoleChecklist({
             <span className="min-w-0 flex-1 truncate">{role.name}</span>
           </label>
         )) : (
-          <span className="px-2 py-3 text-sm text-zinc-500">Nenhum cargo disponivel.</span>
+          <span className="px-2 py-3 text-sm text-zinc-500">Nenhum cargo disponível.</span>
         )}
       </div>
     </div>

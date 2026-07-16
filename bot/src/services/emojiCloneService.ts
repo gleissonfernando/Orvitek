@@ -67,7 +67,7 @@ export async function handleEmojiCloneInteraction(interaction: Interaction, cont
 
   if (interaction.isButton() && customId === "emoji_clone_start") {
     await interaction.reply({
-      content: "O formulario vai pedir o servidor de origem, seu ID do Discord e o servidor destino. Nunca envie noToken de usuario Discord.",
+      content: "O formulario vai pedir o servidor de origem, seu ID do Discord e o servidor destino. Nunca envie noToken de usuário Discord.",
       components: [
         new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
           new StringSelectMenuBuilder()
@@ -144,7 +144,7 @@ export async function handleEmojiCloneInteraction(interaction: Interaction, cont
     const actorDiscordId = interaction.fields.getTextInputValue("actorDiscordId").trim();
     if (!/^\d{5,32}$/.test(actorDiscordId)) {
       await interaction.reply({
-        content: "Informe um ID de Discord valido. Nao envie noToken de usuario.",
+        content: "Informe um ID de Discord válido. Não envie noToken de usuário.",
         ephemeral: true
       });
       return true;
@@ -152,7 +152,7 @@ export async function handleEmojiCloneInteraction(interaction: Interaction, cont
 
     if (actorDiscordId !== interaction.user.id) {
       await interaction.reply({
-        content: "O ID do Discord informado precisa ser o mesmo usuario que iniciou a clonagem.",
+        content: "O ID do Discord informado precisa ser o mesmo usuário que iniciou a clonagem.",
         ephemeral: true
       });
       return true;
@@ -161,7 +161,7 @@ export async function handleEmojiCloneInteraction(interaction: Interaction, cont
     const destinationGuildId = interaction.fields.getTextInputValue("destinationGuildId").trim();
     if (!/^\d{5,32}$/.test(destinationGuildId)) {
       await interaction.reply({
-        content: "Informe um ID de servidor destino valido.",
+        content: "Informe um ID de servidor destino válido.",
         ephemeral: true
       });
       return true;
@@ -169,7 +169,7 @@ export async function handleEmojiCloneInteraction(interaction: Interaction, cont
 
     if (destinationGuildId !== interaction.guild.id) {
       await interaction.reply({
-        content: "Por seguranca, o servidor destino precisa ser o mesmo servidor onde este painel foi usado.",
+        content: "Por segurança, o servidor destino precisa ser o mesmo servidor onde este painel foi usado.",
         ephemeral: true
       });
       return true;
@@ -177,7 +177,7 @@ export async function handleEmojiCloneInteraction(interaction: Interaction, cont
 
     if (looksLikeDiscordUserToken(source)) {
       await interaction.reply({
-        content: "Nao envie noToken de usuario Discord. Por seguranca, use apenas o ID do servidor de origem ou o emoji/link.",
+        content: "Não envie noToken de usuário Discord. Por segurança, use apenas o ID do servidor de origem ou o emoji/link.",
         ephemeral: true
       });
       return true;
@@ -188,7 +188,7 @@ export async function handleEmojiCloneInteraction(interaction: Interaction, cont
 
     if (sourceGuildId && !context.client.guilds.cache.has(sourceGuildId)) {
       await interaction.reply({
-        content: "Para clonar todos por ID do servidor, o bot precisa estar no servidor de origem. Se ele estiver apenas no destino, cole os codigos ou links dos emojis.",
+        content: "Para clonar todos por ID do servidor, o bot precisa estar no servidor de origem. Se ele estiver apenas no destino, cole os códigos ou links dos emojis.",
         ephemeral: true
       });
       return true;
@@ -197,7 +197,7 @@ export async function handleEmojiCloneInteraction(interaction: Interaction, cont
     const candidates = await resolveCandidates(context, source, mode, settings);
 
     if (!candidates.length) {
-      await interaction.reply({ content: "Nenhum emoji acessivel foi encontrado. Use o ID de um servidor onde o bot esta presente, ou cole codigos/links de emojis validos.", ephemeral: true });
+      await interaction.reply({ content: "Nenhum emoji acessível foi encontrado. Use o ID de um servidor onde o bot está presente, ou cole códigos/links de emojis validos.", ephemeral: true });
       return true;
     }
 
@@ -236,7 +236,7 @@ export async function handleEmojiCloneInteraction(interaction: Interaction, cont
     const job = jobs.get(customId.split(":")[1] ?? "");
 
     if (!job || job.guildId !== interaction.guild.id || job.userId !== interaction.user.id) {
-      await interaction.reply({ content: "Essa clonagem expirou ou pertence a outro usuario.", ephemeral: true });
+      await interaction.reply({ content: "Essa clonagem expirou ou pertence a outro usuário.", ephemeral: true });
       return true;
     }
 
@@ -248,7 +248,7 @@ export async function handleEmojiCloneInteraction(interaction: Interaction, cont
   if (interaction.isButton() && customId.startsWith("emoji_clone_report:")) {
     const job = jobs.get(customId.split(":")[1] ?? "");
     await interaction.reply({
-      content: job ? reportText(job).slice(0, 1900) : "Relatorio nao encontrado.",
+      content: job ? reportText(job).slice(0, 1900) : "Relatório não encontrado.",
       ephemeral: true
     });
     return true;
@@ -269,7 +269,7 @@ export function emojiClonePanelPayload(ephemeral = false) {
         { type: 10, content: "> Olá, membro! Acesse o painel de clonagem de emojis abaixo e divirta-se clonando." },
         { type: 14, divider: true, spacing: 1 },
         { type: 10, content: `## ${systemEmojiText("exclamacao")} | Funcionalidades Importantes:` },
-        { type: 10, content: `• ${systemEmojiText("link")} | Para clonar por ID do servidor, informe origem e destino; nesse modo o bot precisa estar nos dois servidores.\n• ${systemEmojiText("robo")} | Se o bot estiver apenas no destino, cole codigos ou links dos emojis que deseja clonar.\n• ${systemEmojiText("perigo")} | O sistema respeita permissoes, bots autorizados e configuracoes do board.` },
+        { type: 10, content: `• ${systemEmojiText("link")} | Para clonar por ID do servidor, informe origem e destino; nesse modo o bot precisa estar nos dois servidores.\n• ${systemEmojiText("robo")} | Se o bot estiver apenas no destino, cole códigos ou links dos emojis que deseja clonar.\n• ${systemEmojiText("perigo")} | O sistema respeita permissoes, bots autorizados e configuracoes do board.` },
         { type: 14, divider: true, spacing: 1 },
         {
           type: 1,
@@ -336,7 +336,7 @@ async function runCloneJob(job: CloneJob, interaction: Interaction, context: Bot
         context.socket.emitLog({
           guildId: job.guildId,
           type: "emoji_clone.duplicate",
-          message: `Emoji ja existente ignorado: ${name}.`,
+          message: `Emoji já existente ignorado: ${name}.`,
           userId: job.userId,
           metadata: {
             emojiId: existing.id,
@@ -412,7 +412,7 @@ async function runCloneJob(job: CloneJob, interaction: Interaction, context: Bot
       errorReason: item.errorReason
     }))
   }).catch((error) => {
-    console.warn("[emoji-cloner] nao foi possivel gravar historico:", error instanceof Error ? error.message : error);
+    console.warn("[emoji-cloner] não foi possível gravar histórico:", error instanceof Error ? error.message : error);
   });
   await sendCloneLog(interaction.guild, job, context, success, failed);
 }
@@ -478,28 +478,28 @@ function parseEmojiSources(value: string): CloneCandidate[] {
 }
 
 async function validateActor(guild: Guild, member: GuildMember, settings: GuildSettings, context: BotContext) {
-  if (!settings.emojiCloneEnabled) return "A clonagem de emojis esta desativada no board.";
+  if (!settings.emojiCloneEnabled) return "A clonagem de emojis está desativada no board.";
 
   const runtimeBotId = currentRuntimeBotId();
   const allowedBotIds = new Set(settings.emojiCloneAllowedBotIds);
   if (allowedBotIds.size && !allowedBotIds.has(context.client.user?.id ?? "") && (!runtimeBotId || !allowedBotIds.has(runtimeBotId))) {
-    return "Este bot nao esta liberado no board para clonar emojis.";
+    return "Este bot não está liberado no board para clonar emojis.";
   }
 
   const me = guild.members.me ?? await guild.members.fetchMe().catch(() => null);
   if (!me?.permissions.has(PermissionFlagsBits.CreateGuildExpressions) && !me?.permissions.has(PermissionFlagsBits.ManageGuildExpressions)) {
-    return "O bot precisa da permissao Criar Expressoes ou Gerenciar Expressoes.";
+    return "O bot precisa da permissão Criar Expressões ou Gerenciar Expressões.";
   }
 
   if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
     const allowed = new Set(settings.emojiCloneAllowedRoleIds);
     if (!member.roles.cache.some((role) => allowed.has(role.id))) {
-      return "Voce nao tem permissao para usar a clonagem de emojis neste servidor.";
+      return "Você não tem permissão para usar a clonagem de emojis neste servidor.";
     }
   }
 
   if (guild.emojis.cache.size >= emojiLimit(guild)) {
-    return "Este servidor nao possui espaco para novos emojis.";
+    return "Este servidor não possui espaço para novos emojis.";
   }
 
   return null;
@@ -507,11 +507,11 @@ async function validateActor(guild: Guild, member: GuildMember, settings: GuildS
 
 async function downloadEmoji(url: string) {
   const response = await fetch(url);
-  if (!response.ok) throw new Error("Nao foi possivel baixar a imagem do emoji.");
+  if (!response.ok) throw new Error("Não foi possível baixar a imagem do emoji.");
   const contentType = response.headers.get("content-type") ?? "";
-  if (!/image\/(png|gif|webp|jpe?g|avif)/i.test(contentType)) throw new Error("Formato de imagem invalido.");
+  if (!/image\/(png|gif|webp|jpe?g|avif)/i.test(contentType)) throw new Error("Formato de imagem inválido.");
   const buffer = Buffer.from(await response.arrayBuffer());
-  if (buffer.length > MAX_EMOJI_BYTES) throw new Error("Emoji muito grande. Limite maximo: 256 KiB.");
+  if (buffer.length > MAX_EMOJI_BYTES) throw new Error("Emoji muito grande. Limite máximo: 256 KiB.");
   return buffer;
 }
 
@@ -523,7 +523,7 @@ function confirmationComponents(job: CloneJob) {
       type: 17,
       accent_color: 0x2ecc71,
       components: [
-        { type: 10, content: "# Confirmacao de Clonagem" },
+        { type: 10, content: "# Confirmação de Clonagem" },
         { type: 10, content: `Foram encontrados:\nEmojis estaticos: ${staticCount}\nEmojis animados: ${animatedCount}\nTotal: ${job.items.length}\nPrefixo aplicado: ${job.prefix ?? "nenhum"}` },
         {
           type: 1,
@@ -552,7 +552,7 @@ function doneComponents(job: CloneJob, success: number, failed: number) {
         {
           type: 1,
           components: [
-            { type: 2, custom_id: `emoji_clone_report:${job.id}`, label: "Ver Relatorio", style: 2 },
+            { type: 2, custom_id: `emoji_clone_report:${job.id}`, label: "Ver Relatório", style: 2 },
             { type: 2, custom_id: "emoji_clone_start", label: "Clonar Novamente", style: 1 }
           ]
         }
@@ -614,8 +614,8 @@ async function sendCloneLog(guild: Guild, job: CloneJob, context: BotContext, su
 
   await channel.send({
     content: [
-      "Relatorio de Clonagem de Emojis",
-      `Usuario: <@${job.userId}>`,
+      "Relatório de Clonagem de Emojis",
+      `Usuário: <@${job.userId}>`,
       `Servidor: ${guild.name}`,
       `Total: ${job.items.length}`,
       `Clonados: ${success}`,

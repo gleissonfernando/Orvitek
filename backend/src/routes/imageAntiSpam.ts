@@ -115,7 +115,7 @@ imageAntiSpamRouter.patch("/bot/incidents/:incidentId", requireBot, async (req, 
         ? "image_anti_spam.member_kicked"
         : "image_anti_spam.incident",
       message: incident.action === "kick"
-        ? `Usuario ${incident.username ?? incident.userId} expulso por spam recorrente de imagens.`
+        ? `Usuário ${incident.username ?? incident.userId} expulso por spam recorrente de imagens.`
         : `${incident.removedImages} midia(s) removida(s) de ${incident.username ?? incident.userId}.`,
       metadata: {
         action: incident.action,
@@ -218,7 +218,7 @@ async function assertCanRead(user: AuthSessionUser, guildId: string, botId: stri
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para acessar o SelfBot deste bot.", 403);
+  throw createRouteError("Você não tem permissão para acessar o SelfBot deste bot.", 403);
 }
 
 async function assertCanManage(user: AuthSessionUser, guildId: string, botId: string) {
@@ -228,18 +228,18 @@ async function assertCanManage(user: AuthSessionUser, guildId: string, botId: st
     return;
   }
 
-  throw createRouteError("Voce nao tem permissao para configurar o SelfBot deste bot.", 403);
+  throw createRouteError("Você não tem permissão para configurar o SelfBot deste bot.", 403);
 }
 
 async function assertBotModuleLicense(botId: string, guildId?: string) {
   const permissions = await getBotApiPermissions(botId);
 
   if (!permissions) {
-    throw createRouteError("Bot nao encontrado.", 404);
+    throw createRouteError("Bot não encontrado.", 404);
   }
 
   if (!permissions.enabledModules.includes(RELEASE_MODULE_ID)) {
-    throw createRouteError("O SelfBot nao foi liberado para este bot.", 403);
+    throw createRouteError("O SelfBot não foi liberado para este bot.", 403);
   }
 
   if (guildId) {
@@ -270,13 +270,13 @@ async function validateResources(
   );
 
   if (!channelChecks.every(Boolean)) {
-    throw createRouteError("Um dos canais selecionados nao pertence a este servidor.", 400);
+    throw createRouteError("Um dos canais selecionados não pertence a este servidor.", 400);
   }
 
   const roleIds = [...new Set(input.immuneRoleIds ?? [])];
 
   if (roleIds.length && !(await areGuildRoles(guildId, roleIds, botToken))) {
-    throw createRouteError("Um dos cargos imunes nao pertence a este servidor.", 400);
+    throw createRouteError("Um dos cargos imunes não pertence a este servidor.", 400);
   }
 }
 

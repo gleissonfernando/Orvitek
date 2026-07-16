@@ -194,7 +194,7 @@ export async function getKickIntegrationStatus(guildId: string, botId?: string |
     .at(-1) ?? null;
 
   let apiStatus: KickStatusPayload["apiStatus"] = credentials ? "ok" : "not_configured";
-  let apiMessage = credentials ? "API Kick configurada." : "KICK_CLIENT_ID e KICK_CLIENT_SECRET nao configurados.";
+  let apiMessage = credentials ? "API Kick configurada." : "KICK_CLIENT_ID e KICK_CLIENT_SECRET não configurados.";
 
   if (credentials) {
     try {
@@ -202,7 +202,7 @@ export async function getKickIntegrationStatus(guildId: string, botId?: string |
       apiMessage = "API conectada com sucesso.";
     } catch (error) {
       apiStatus = "error";
-      apiMessage = error instanceof Error ? error.message : "Credenciais invalidas.";
+      apiMessage = error instanceof Error ? error.message : "Credenciais inválidas.";
     }
   }
 
@@ -233,14 +233,14 @@ export async function saveKickApiConfig(
   const redirectUri = input.redirectUri?.trim() || null;
 
   if (!clientId || !clientSecret) {
-    throw createServiceError("Client ID e Client Secret da Kick sao obrigatorios.", 400);
+    throw createServiceError("Client ID e Client Secret da Kick são obrigatorios.", 400);
   }
 
   await validateKickApiCredentials({
     clientId,
     clientSecret
   }).catch((error) => {
-    throw createServiceError(error instanceof Error ? error.message : "Credenciais invalidas.", 400);
+    throw createServiceError(error instanceof Error ? error.message : "Credenciais inválidas.", 400);
   });
 
   const now = new Date();
@@ -294,7 +294,7 @@ export async function saveKickApiConfig(
     guildId,
     userId,
     type: "social.kick.api_saved",
-    message: "Configuracao da API Kick salva.",
+    message: "Configuração da API Kick salva.",
     metadata: {
       module: KICK_MODULE_ID,
       clientId
@@ -317,7 +317,7 @@ export async function previewKickChannel(input: string, guildId?: string, botId?
   });
 
   if (!channel) {
-    throw createServiceError("Canal da Kick nao encontrado.", 404);
+    throw createServiceError("Canal da Kick não encontrado.", 404);
   }
 
   return kickChannelPreview(channel);
@@ -456,12 +456,12 @@ export async function createKickNotification(guildId: string, input: CreateKickN
   });
 
   if (!channel) {
-    throw createServiceError("Canal da Kick nao encontrado.", 404);
+    throw createServiceError("Canal da Kick não encontrado.", 404);
   }
 
   await ensureKickWebhookEventSubscriptions(channel.broadcasterUserId, credentials).catch((error) => {
     throw createServiceError(
-      `Canal Kick encontrado, mas nao foi possivel ativar o webhook: ${error instanceof Error ? error.message : String(error)}`,
+      `Canal Kick encontrado, mas não foi possível ativar o webhook: ${error instanceof Error ? error.message : String(error)}`,
       503
     );
   });
@@ -512,7 +512,7 @@ export async function createKickNotification(guildId: string, input: CreateKickN
     });
 
     if (existing) {
-      throw createServiceError("Este canal da Kick ja esta cadastrado neste servidor.", 409);
+      throw createServiceError("Este canal da Kick já está cadastrado neste servidor.", 409);
     }
 
     await socialNotifications.insertOne(doc);
@@ -526,7 +526,7 @@ export async function createKickNotification(guildId: string, input: CreateKickN
     }
 
     if (isUniqueConstraint(error)) {
-      throw createServiceError("Este canal da Kick ja esta cadastrado neste servidor.", 409);
+      throw createServiceError("Este canal da Kick já está cadastrado neste servidor.", 409);
     }
 
     const dto = toDto(doc);
@@ -552,7 +552,7 @@ export async function updateKickNotification(
     });
 
     if (!current || current.guildId !== guildId || normalizeBotId(current.botId) !== normalizedBotId) {
-      throw createServiceError("Notificacao Kick nao encontrada.", 404);
+      throw createServiceError("Notificação Kick não encontrada.", 404);
     }
 
     const updated = await socialNotifications.findOneAndUpdate(
@@ -570,7 +570,7 @@ export async function updateKickNotification(
     );
 
     if (!updated) {
-      throw createServiceError("Notificacao Kick nao encontrada.", 404);
+      throw createServiceError("Notificação Kick não encontrada.", 404);
     }
 
     const dto = toDto(updated);
@@ -583,7 +583,7 @@ export async function updateKickNotification(
 
     const current = memoryNotifications.get(id);
     if (!current || current.guildId !== guildId || normalizeBotId(current.botId) !== normalizedBotId) {
-      throw createServiceError("Notificacao Kick nao encontrada.", 404);
+      throw createServiceError("Notificação Kick não encontrada.", 404);
     }
 
     const updated: KickNotificationDto = {
@@ -626,14 +626,14 @@ export async function updateKickNotificationState(
     );
 
     if (!updated) {
-      throw createServiceError("Notificacao Kick nao encontrada.", 404);
+      throw createServiceError("Notificação Kick não encontrada.", 404);
     }
 
     return toDto(updated);
   } catch {
     const current = memoryNotifications.get(id);
     if (!current || normalizeBotId(current.botId) !== normalizedBotId) {
-      throw createServiceError("Notificacao Kick nao encontrada.", 404);
+      throw createServiceError("Notificação Kick não encontrada.", 404);
     }
 
     const updated: KickNotificationDto = {
@@ -701,7 +701,7 @@ export async function claimKickLiveStart(
   } catch {
     const current = memoryNotifications.get(id);
     if (!current || normalizeBotId(current.botId) !== normalizedBotId) {
-      throw createServiceError("Notificacao Kick nao encontrada.", 404);
+      throw createServiceError("Notificação Kick não encontrada.", 404);
     }
 
     if (current.lastStreamId === input.streamId) {
@@ -743,7 +743,7 @@ export async function sendKickNotificationTest(
   const simulatedStream = stream ?? simulatedKickStream(notification);
 
   if (!(await isGuildTextChannel(guildId, notification.discordChannelId, botToken))) {
-    throw createServiceError("O canal configurado nao pertence a este servidor.", 400);
+    throw createServiceError("O canal configurado não pertence a este servidor.", 400);
   }
 
   await sendDiscordKickLiveStart({
@@ -816,7 +816,7 @@ export async function deleteKickNotification(guildId: string, id: string, userId
     });
 
     if (!current || current.guildId !== guildId || normalizeBotId(current.botId) !== normalizedBotId) {
-      throw createServiceError("Notificacao Kick nao encontrada.", 404);
+      throw createServiceError("Notificação Kick não encontrada.", 404);
     }
 
     await socialNotifications.deleteOne({
@@ -835,7 +835,7 @@ export async function deleteKickNotification(guildId: string, id: string, userId
 
     const current = memoryNotifications.get(id);
     if (!current || current.guildId !== guildId || normalizeBotId(current.botId) !== normalizedBotId) {
-      throw createServiceError("Notificacao Kick nao encontrada.", 404);
+      throw createServiceError("Notificação Kick não encontrada.", 404);
     }
 
     memoryNotifications.delete(id);
@@ -853,7 +853,7 @@ export async function processKickWebhookStatus(
   const channelSlug = normalizeKickChannel(String(broadcaster?.channel_slug || broadcaster?.username || ""));
 
   if (!userId && !channelSlug) {
-    throw createServiceError("Webhook Kick sem broadcaster valido.", 400);
+    throw createServiceError("Webhook Kick sem broadcaster válido.", 400);
   }
 
   const notifications = await findKickNotificationsByBroadcaster({
@@ -948,7 +948,7 @@ export async function findKickNotification(guildId: string, id: string, botId?: 
     });
 
     if (!notification) {
-      throw createServiceError("Notificacao Kick nao encontrada.", 404);
+      throw createServiceError("Notificação Kick não encontrada.", 404);
     }
 
     return toDto(notification);
@@ -960,7 +960,7 @@ export async function findKickNotification(guildId: string, id: string, botId?: 
     const notification = memoryNotifications.get(id);
 
     if (!notification || notification.guildId !== guildId || normalizeBotId(notification.botId) !== normalizedBotId) {
-      throw createServiceError("Notificacao Kick nao encontrada.", 404);
+      throw createServiceError("Notificação Kick não encontrada.", 404);
     }
 
     return notification;
@@ -1203,7 +1203,7 @@ function decryptSecret(value: string) {
   const [ivValue, tagValue, encryptedValue] = value.split(".");
 
   if (!ivValue || !tagValue || !encryptedValue) {
-    throw new Error("Segredo Kick protegido invalido.");
+    throw new Error("Segredo Kick protegido inválido.");
   }
 
   const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), Buffer.from(ivValue, "base64url"));
@@ -1244,7 +1244,7 @@ export async function sendDiscordKickLiveStart(input: {
   const token = input.botToken || env.DISCORD_BOT_TOKEN;
 
   if (!token) {
-    throw createServiceError("DISCORD_BOT_TOKEN nao configurado.", 503);
+    throw createServiceError("DISCORD_BOT_TOKEN não configurado.", 503);
   }
 
   const mention = formatMention(input.notification);
@@ -1334,12 +1334,12 @@ export async function sendDiscordKickLiveEnd(input: {
   const token = input.botToken || env.DISCORD_BOT_TOKEN;
 
   if (!token) {
-    throw createServiceError("DISCORD_BOT_TOKEN nao configurado.", 503);
+    throw createServiceError("DISCORD_BOT_TOKEN não configurado.", 503);
   }
 
   const startedAt = input.notification.lastLiveAt ? new Date(input.notification.lastLiveAt) : null;
   const endedAt = input.endedAt ? new Date(input.endedAt) : new Date();
-  const duration = startedAt ? formatDuration(Math.max(0, endedAt.getTime() - startedAt.getTime())) : "Nao registrado";
+  const duration = startedAt ? formatDuration(Math.max(0, endedAt.getTime() - startedAt.getTime())) : "Não registrado";
   const response = await fetch(`https://discord.com/api/v10/channels/${input.notification.discordChannelId}/messages`, {
     method: "POST",
     headers: {
@@ -1390,7 +1390,7 @@ function normalizeAndValidateKickChannel(input: string) {
   const channel = normalizeKickChannel(input);
 
   if (!channel || !/^[a-z0-9_-]{3,25}$/i.test(channel)) {
-    throw createServiceError("Informe uma URL valida da Kick.", 400);
+    throw createServiceError("Informe uma URL válida da Kick.", 400);
   }
 
   return channel;
@@ -1416,7 +1416,7 @@ async function assertGuildLimit(guildId: string, botId: string | null) {
 
   if (count >= KICK_NOTIFICATION_LIMIT) {
     throw createServiceError(
-      `Voce atingiu o limite de ${KICK_NOTIFICATION_LIMIT.toLocaleString("pt-BR")} canais Kick neste servidor.`,
+      `Você atingiu o limite de ${KICK_NOTIFICATION_LIMIT.toLocaleString("pt-BR")} canais Kick neste servidor.`,
       400
     );
   }

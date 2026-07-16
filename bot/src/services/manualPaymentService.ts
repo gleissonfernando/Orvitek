@@ -44,7 +44,7 @@ export async function handleManualPaymentInteraction(interaction: Interaction, c
   if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:status:`)) { await setServiceStatus(interaction, context); return true; }
   if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:finish:`)) { await finishOrder(interaction, context); return true; }
   if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:support:`)) { await openSupport(interaction); return true; }
-  if (interaction.isButton() && (interaction.customId.startsWith(`${PREFIX}:add_staff:`) || interaction.customId.startsWith(`${PREFIX}:remove_staff:`) || interaction.customId.startsWith(`${PREFIX}:send_data:`))) { await interaction.reply({ content: "Use as permissoes do canal para ajustar equipe ou envie os dados diretamente neste atendimento.", ephemeral: true }); return true; }
+  if (interaction.isButton() && (interaction.customId.startsWith(`${PREFIX}:add_staff:`) || interaction.customId.startsWith(`${PREFIX}:remove_staff:`) || interaction.customId.startsWith(`${PREFIX}:send_data:`))) { await interaction.reply({ content: "Use as permissões do canal para ajustar equipe ou envie os dados diretamente neste atendimento.", ephemeral: true }); return true; }
   if (interaction.isModalSubmit() && interaction.customId.startsWith(`${PREFIX}:reason:`)) { await submitReason(interaction, context); return true; }
   return false;
 }
@@ -100,7 +100,7 @@ function createSalesPanel(settings: ManualPaymentSettings) {
     accentColor: parseColor(settings.color),
     actions,
     description: settings.salePanelDescription,
-    fields: services.map((service) => `**${service.name}** - ${money(service.amount)}\n${service.description ?? "Servico disponivel para compra."}`),
+    fields: services.map((service) => `**${service.name}** - ${money(service.amount)}\n${service.description ?? "Servico disponível para compra."}`),
     image: settings.bannerUrl ? { imageEnabled: true, imagePosition: "top", imageUrl: settings.bannerUrl } : null,
     moduleId: "manual-payments",
     title: settings.salePanelTitle
@@ -113,9 +113,9 @@ async function startPurchase(interaction: ButtonInteraction, context: BotContext
   const serviceId = interaction.customId.split(":")[2] ?? "";
   const runtime = await context.api.getManualPaymentRuntime(interaction.guild.id);
   const service = runtime.settings.services.find((item) => item.id === serviceId && item.active);
-  if (!runtime.settings.enabled || !service) return interaction.editReply("Servico indisponivel.");
+  if (!runtime.settings.enabled || !service) return interaction.editReply("Servico indisponível.");
   const order = await context.api.createManualPaymentOrder(interaction.guild.id, { serviceId, userId: interaction.user.id, username: interaction.user.username });
-  if (order.paymentChannelId) return interaction.editReply(`Voce ja tem um canal para este pedido: <#${order.paymentChannelId}>.`);
+  if (order.paymentChannelId) return interaction.editReply(`Você já tem um canal para este pedido: <#${order.paymentChannelId}>.`);
   const channel = await createPaymentChannel(interaction.guild, runtime.settings, order, interaction.user.id);
   const updated = await context.api.updateManualPaymentOrder(interaction.guild.id, order.id, { action: "payment_channel_created", paymentChannelId: channel.id });
   const message = await channel.send(createPaymentPanel(runtime.settings, updated, service));
@@ -146,7 +146,7 @@ function createPaymentPanel(settings: ManualPaymentSettings, order: ManualPaymen
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`${PREFIX}:pix_key:${order.id}`).setLabel("Pagar com chave Pix").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(`${PREFIX}:pix_qr:${order.id}`).setLabel("Pagar com QR Code").setStyle(ButtonStyle.Primary).setDisabled(!settings.pixQrCodeUrl),
-      new ButtonBuilder().setCustomId(`${PREFIX}:paid:${order.id}`).setLabel("Ja fiz o pagamento").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`${PREFIX}:paid:${order.id}`).setLabel("Já fiz o pagamento").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`${PREFIX}:cancel_customer:${order.id}`).setLabel("Cancelar compra").setStyle(ButtonStyle.Danger)
     )
   ];
@@ -157,7 +157,7 @@ function createPaymentPanel(settings: ManualPaymentSettings, order: ManualPaymen
     fields: [
       `**Cliente:** <@${order.userId}>\n**Servico:** ${order.serviceName}\n**Valor:** ${money(order.amount)}\n**Status:** ${statusLabel(order.status)}`,
       `**Instrucoes**\n${service?.customText ?? settings.paymentInstructions}`,
-      `**Pix**\nRecebedor: ${settings.receiverName ?? "Nao informado"}\nBanco: ${settings.receiverBank ?? "Nao informado"}\nChave: ${settings.pixKey ?? "Nao configurada"}`,
+      `**Pix**\nRecebedor: ${settings.receiverName ?? "Não informado"}\nBanco: ${settings.receiverBank ?? "Não informado"}\nChave: ${settings.pixKey ?? "Não configurada"}`,
       order.proofUrl ? `**Comprovante:** [abrir arquivo](${order.proofUrl})` : "**Comprovante:** aguardando envio neste canal."
     ],
     image: settings.pixQrCodeUrl && order.paymentMethod === "PIX_QR_CODE" ? { imageEnabled: true, imagePosition: "bottom", imageUrl: settings.pixQrCodeUrl } : null,
@@ -172,11 +172,11 @@ async function choosePaymentMethod(interaction: ButtonInteraction, context: BotC
   const runtime = await context.api.getManualPaymentRuntime(interaction.guild.id);
   const order = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: paymentMethod === "PIX_KEY" ? "pix_key_selected" : "pix_qr_selected", channelId: interaction.channelId, paymentMethod });
   await refreshPaymentPanel(interaction.guild, context, runtime.settings, order);
-  await interaction.reply({ content: paymentMethod === "PIX_KEY" ? `**Chave Pix:** \`${runtime.settings.pixKey ?? "nao configurada"}\`` : runtime.settings.pixQrCodeUrl ? `QR Code: ${runtime.settings.pixQrCodeUrl}` : "QR Code nao configurado.", ephemeral: true });
+  await interaction.reply({ content: paymentMethod === "PIX_KEY" ? `**Chave Pix:** \`${runtime.settings.pixKey ?? "não configurada"}\`` : runtime.settings.pixQrCodeUrl ? `QR Code: ${runtime.settings.pixQrCodeUrl}` : "QR Code não configurado.", ephemeral: true });
 }
 
 async function askProof(interaction: ButtonInteraction) {
-  await interaction.reply({ content: "Envie o comprovante como imagem ou arquivo neste canal. O pedido so vai para aprovacao depois do anexo.", ephemeral: true });
+  await interaction.reply({ content: "Envie o comprovante como imagem ou arquivo neste canal. O pedido so vai para aprovação depois do anexo.", ephemeral: true });
 }
 
 async function customerCancel(interaction: ButtonInteraction, context: BotContext) {
@@ -206,10 +206,10 @@ async function sendStaffApprovalLog(guild: Guild, context: BotContext, settings:
       )
     ],
     description: `Pedido #${String(order.orderNumber).padStart(3, "0")} aguardando aprovacao manual.`,
-    fields: [`Cliente: <@${order.userId}>\nServico: **${order.serviceName}**\nValor: **${money(order.amount)}**\nStatus: ${statusLabel(order.status)}\nCanal: ${order.paymentChannelId ? `<#${order.paymentChannelId}>` : "nao informado"}`, order.proofUrl ? `Comprovante: ${order.proofUrl}` : "Sem comprovante."],
+    fields: [`Cliente: <@${order.userId}>\nServico: **${order.serviceName}**\nValor: **${money(order.amount)}**\nStatus: ${statusLabel(order.status)}\nCanal: ${order.paymentChannelId ? `<#${order.paymentChannelId}>` : "não informado"}`, order.proofUrl ? `Comprovante: ${order.proofUrl}` : "Sem comprovante."],
     image: order.proofUrl ? { imageEnabled: true, imagePosition: "bottom", imageUrl: order.proofUrl } : null,
     moduleId: "manual-payments",
-    title: "Aprovacao de pagamento"
+    title: "Aprovação de pagamento"
   });
   const message = await channel.send(payload);
   await context.api.updateManualPaymentOrder(guild.id, order.id, { action: "staff_log_sent", staffMessageId: message.id });
@@ -221,9 +221,9 @@ async function approvePayment(interaction: ButtonInteraction, context: BotContex
   await interaction.deferReply({ ephemeral: true });
   const orderId = interaction.customId.split(":")[2] ?? "";
   const runtime = await context.api.getManualPaymentRuntime(interaction.guild.id);
-  if (!(await hasAnyRole(interaction.guild, interaction.user.id, runtime.settings.approveRoleIds))) return interaction.editReply("Voce nao pode aprovar pagamentos.");
+  if (!(await hasAnyRole(interaction.guild, interaction.user.id, runtime.settings.approveRoleIds))) return interaction.editReply("Você não pode aprovar pagamentos.");
   const current = await context.api.getManualPaymentOrder(interaction.guild.id, orderId);
-  if (!current?.proofUrl) return interaction.editReply("Nao e possivel aprovar sem comprovante.");
+  if (!current?.proofUrl) return interaction.editReply("Não e possível aprovar sem comprovante.");
   const approved = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: "payment_approved", channelId: interaction.channelId, staffId: interaction.user.id, status: "APPROVED" });
   const serviceChannel = await createServiceChannel(interaction.guild, runtime.settings, approved, interaction.user.id);
   const updated = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: "service_channel_created", serviceChannelId: serviceChannel.id, staffId: interaction.user.id, status: "IN_PROGRESS" });
@@ -255,7 +255,7 @@ function createServicePanel(settings: ManualPaymentSettings, order: ManualPaymen
     actions: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(`${PREFIX}:send_data:${order.id}`).setLabel("Enviar dados").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`${PREFIX}:status:IN_PROGRESS:${order.id}`).setLabel("Em producao").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(`${PREFIX}:status:IN_PROGRESS:${order.id}`).setLabel("Em produção").setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId(`${PREFIX}:status:WAITING_CUSTOMER:${order.id}`).setLabel("Aguardando cliente").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId(`${PREFIX}:status:DELIVERED:${order.id}`).setLabel("Marcar entregue").setStyle(ButtonStyle.Success)
       ),
@@ -267,10 +267,10 @@ function createServicePanel(settings: ManualPaymentSettings, order: ManualPaymen
       )
     ],
     description: `Pedido #${String(order.orderNumber).padStart(3, "0")} - ${statusLabel(order.status)}`,
-    fields: [`Cliente: <@${order.userId}>\nServico: **${order.serviceName}**\nValor pago: **${money(order.amount)}**\nAprovado por: ${order.approvedBy ? `<@${order.approvedBy}>` : "staff"}`, "Cliente e equipe podem conversar neste canal ate a entrega. Depois de finalizado, use apenas o sistema de ticket/suporte."],
+    fields: [`Cliente: <@${order.userId}>\nServico: **${order.serviceName}**\nValor pago: **${money(order.amount)}**\nAprovado por: ${order.approvedBy ? `<@${order.approvedBy}>` : "staff"}`, "Cliente e equipe podem conversar neste canal até a entrega. Depois de finalizado, use apenas o sistema de ticket/suporte."],
     image: settings.bannerUrl ? { imageEnabled: true, imagePosition: "top", imageUrl: settings.bannerUrl } : null,
     moduleId: "manual-payments",
-    title: "Atendimento / Producao"
+    title: "Atendimento / Produção"
   });
 }
 
@@ -279,7 +279,7 @@ async function setServiceStatus(interaction: ButtonInteraction, context: BotCont
   const [, , status, orderId] = interaction.customId.split(":");
   await interaction.deferReply({ ephemeral: true });
   const runtime = await context.api.getManualPaymentRuntime(interaction.guild.id);
-  if (!(await hasAnyRole(interaction.guild, interaction.user.id, runtime.settings.finalizeRoleIds))) return interaction.editReply("Voce nao pode atualizar este atendimento.");
+  if (!(await hasAnyRole(interaction.guild, interaction.user.id, runtime.settings.finalizeRoleIds))) return interaction.editReply("Você não pode atualizar este atendimento.");
   const order = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId ?? "", { action: `status_${status}`, channelId: interaction.channelId, staffId: interaction.user.id, status: status as ManualPaymentOrderStatus });
   await interaction.message.edit(createServicePanel(runtime.settings, order)).catch(() => null);
   await interaction.editReply(`Status atualizado para ${statusLabel(order.status)}.`);
@@ -290,9 +290,9 @@ async function finishOrder(interaction: ButtonInteraction, context: BotContext) 
   const orderId = interaction.customId.split(":")[2] ?? "";
   await interaction.deferReply({ ephemeral: true });
   const runtime = await context.api.getManualPaymentRuntime(interaction.guild.id);
-  if (!(await hasAnyRole(interaction.guild, interaction.user.id, runtime.settings.finalizeRoleIds))) return interaction.editReply("Voce nao pode finalizar este pedido.");
+  if (!(await hasAnyRole(interaction.guild, interaction.user.id, runtime.settings.finalizeRoleIds))) return interaction.editReply("Você não pode finalizar este pedido.");
   const order = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: "order_finished", channelId: interaction.channelId, staffId: interaction.user.id, status: "FINISHED" });
-  await interaction.editReply("Pedido finalizado. Este canal sera fechado.");
+  await interaction.editReply("Pedido finalizado. Este canal será fechado.");
   if (order.serviceChannelId) setTimeout(() => void interaction.guild?.channels.cache.get(order.serviceChannelId ?? "")?.delete("Pedido finalizado").catch(() => null), 5000).unref();
 }
 
@@ -309,7 +309,7 @@ async function submitReason(interaction: ModalSubmitInteraction, context: BotCon
   const [, , kind, orderId] = interaction.customId.split(":");
   const runtime = await context.api.getManualPaymentRuntime(interaction.guild.id);
   const roleIds = kind === "reject" ? runtime.settings.rejectRoleIds : runtime.settings.finalizeRoleIds;
-  if (!(await hasAnyRole(interaction.guild, interaction.user.id, roleIds))) return interaction.editReply("Voce nao possui permissao.");
+  if (!(await hasAnyRole(interaction.guild, interaction.user.id, roleIds))) return interaction.editReply("Você não possui permissão.");
   const reason = interaction.fields.getTextInputValue("reason");
   const status = kind === "reject" ? "REJECTED" : "CANCELLED_BY_STAFF";
   const order = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId ?? "", { action: kind === "reject" ? "payment_rejected" : "cancelled_by_staff", channelId: interaction.channelId, reason, staffId: interaction.user.id, status });
@@ -325,7 +325,7 @@ async function requestNewProof(interaction: ButtonInteraction, context: BotConte
   const orderId = interaction.customId.split(":")[2] ?? "";
   await interaction.deferReply({ ephemeral: true });
   const runtime = await context.api.getManualPaymentRuntime(interaction.guild.id);
-  if (!(await hasAnyRole(interaction.guild, interaction.user.id, runtime.settings.rejectRoleIds))) return interaction.editReply("Voce nao pode solicitar comprovante.");
+  if (!(await hasAnyRole(interaction.guild, interaction.user.id, runtime.settings.rejectRoleIds))) return interaction.editReply("Você não pode solicitar comprovante.");
   const order = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: "new_proof_requested", channelId: interaction.channelId, staffId: interaction.user.id, status: "PENDING_PAYMENT" });
   const channel = order.paymentChannelId ? interaction.guild.channels.cache.get(order.paymentChannelId) : null;
   if (channel?.isSendable()) await channel.send(`<@${order.userId}> envie um novo comprovante neste canal.`).catch(() => null);
@@ -344,16 +344,16 @@ async function expirePaymentChannel(guild: Guild, context: BotContext, orderId: 
   const runtime = await context.api.getManualPaymentRuntime(guild.id).catch(() => null);
   const order = runtime?.orders.find((item) => item.id === orderId);
   if (!runtime || !order || order.status !== "PENDING_PAYMENT") return;
-  await context.api.updateManualPaymentOrder(guild.id, order.id, { action: "payment_expired", status: "CANCELLED_BY_STAFF", reason: "Tempo maximo de pagamento expirado." }).catch(() => null);
+  await context.api.updateManualPaymentOrder(guild.id, order.id, { action: "payment_expired", status: "CANCELLED_BY_STAFF", reason: "Tempo máximo de pagamento expirado." }).catch(() => null);
   if (order.paymentChannelId) await guild.channels.cache.get(order.paymentChannelId)?.delete("Pagamento expirado").catch(() => null);
 }
 
 async function openOrderChannel(interaction: ButtonInteraction) {
-  await interaction.reply({ content: "Use o botao/link do proprio Discord para abrir o canal do pedido.", ephemeral: true });
+  await interaction.reply({ content: "Use o botão/link do próprio Discord para abrir o canal do pedido.", ephemeral: true });
 }
 
 async function openSupport(interaction: ButtonInteraction) {
-  await interaction.reply({ content: "Depois da finalizacao, use o painel normal de tickets/suporte do servidor.", ephemeral: true });
+  await interaction.reply({ content: "Depois da finalização, use o painel normal de tickets/suporte do servidor.", ephemeral: true });
 }
 
 async function hasAnyRole(guild: Guild, userId: string, roleIds: string[]) {
@@ -369,11 +369,11 @@ function statusLabel(status: ManualPaymentOrderStatus) {
     CANCELLED_BY_STAFF: "Cancelado pelo staff",
     DELIVERED: "Servico entregue",
     FINISHED: "Finalizado",
-    IN_PROGRESS: "Em producao",
+    IN_PROGRESS: "Em produção",
     PENDING_PAYMENT: "Aguardando pagamento",
     REJECTED: "Pagamento recusado",
     WAITING_CUSTOMER: "Aguardando cliente",
-    WAITING_STAFF_APPROVAL: "Aguardando aprovacao do staff"
+    WAITING_STAFF_APPROVAL: "Aguardando aprovação do staff"
   } as const)[status];
 }
 

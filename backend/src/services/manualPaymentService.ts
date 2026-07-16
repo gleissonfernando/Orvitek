@@ -98,7 +98,7 @@ export async function ensureManualPaymentSettings(guildId: string, botId: string
     logViewRoleIds: [],
     maxPaymentMinutes: 60,
     paymentCategoryId: null,
-    paymentInstructions: "Envie o pagamento via Pix e anexe o comprovante neste canal. A aprovacao e feita manualmente pela equipe.",
+    paymentInstructions: "Envie o pagamento via Pix e anexe o comprovante neste canal. A aprovação e feita manualmente pela equipe.",
     pixKey: null,
     pixKeyType: "random",
     pixQrCodeUrl: null,
@@ -106,9 +106,9 @@ export async function ensureManualPaymentSettings(guildId: string, botId: string
     receiverName: null,
     rejectRoleIds: [],
     salePanelChannelId: null,
-    salePanelDescription: "Escolha um servico abaixo para iniciar a compra com pagamento manual.",
+    salePanelDescription: "Escolha um serviço abaixo para iniciar a compra com pagamento manual.",
     salePanelMessageId: null,
-    salePanelTitle: "Servicos disponiveis",
+    salePanelTitle: "Servicos disponíveis",
     services: [],
     supportPanelChannelId: null,
     updatedAt: new Date(),
@@ -128,14 +128,14 @@ export async function saveManualPaymentSettings(guildId: string, botId: string |
     { $set: { ...patch, updatedAt: new Date(), updatedBy: actorId } }
   );
   const settings = await manualPaymentSettings.findOne({ _id: current._id });
-  await writeAudit(settings ?? current, actorId, "settings_updated", "Configuracao de pagamentos manuais atualizada.");
+  await writeAudit(settings ?? current, actorId, "settings_updated", "Configuração de pagamentos manuais atualizada.");
   return toSettingsDto(settings ?? current);
 }
 
 export async function requestManualPaymentPanelPublish(guildId: string, botId: string | null, actorId: string | null) {
   const settings = await ensureManualPaymentSettings(guildId, botId);
   emitRealtime("manual-payments:panel_publish", { botId: settings.botId, guildId });
-  await writeAudit(settings, actorId, "panel_publish_requested", "Publicacao do painel de pagamentos solicitada.");
+  await writeAudit(settings, actorId, "panel_publish_requested", "Publicação do painel de pagamentos solicitada.");
   return toSettingsDto(settings);
 }
 
@@ -204,7 +204,7 @@ export async function updateManualPaymentOrder(guildId: string, botId: string | 
   if (!current) return null;
 
   if (input.status === "APPROVED" && !current.proofUrl && !input.proofUrl) {
-    throw Object.assign(new Error("Nao e possivel aprovar sem comprovante."), { statusCode: 400 });
+    throw Object.assign(new Error("Não e possível aprovar sem comprovante."), { statusCode: 400 });
   }
   if (input.status === "FINISHED" && current.status !== "DELIVERED") {
     throw Object.assign(new Error("Marque como entregue antes de finalizar."), { statusCode: 400 });
@@ -300,7 +300,7 @@ function normalizeService(service: MongoManualPaymentService, index: number): Mo
     manualApproval: service.manualApproval !== false,
     name: service.name?.trim() || `Servico ${index + 1}`,
     order: Number.isFinite(service.order) ? service.order : index,
-    serviceType: service.serviceType?.trim() || "servico"
+    serviceType: service.serviceType?.trim() || "serviço"
   };
 }
 

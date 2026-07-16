@@ -7,7 +7,7 @@ async function main() {
     backfillScheduledGiveaways(),
     backfillServerBackupRestoreJobs()
   ]);
-  console.log("[backfill] concluido.");
+  console.log("[backfill] concluído.");
 }
 
 void main().then(

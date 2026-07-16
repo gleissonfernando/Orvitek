@@ -61,7 +61,7 @@ export function registerEvents(client: Client, context: BotContext) {
   client.on(Events.InteractionCreate, (interaction) => {
     const accepted = runEvent("interactionCreate", () => handleInteractionCreate(interaction, context));
     if (!accepted && interaction.isRepliable()) {
-      void interaction.reply({ content: "O sistema esta processando muitas solicitacoes. Tente novamente em instantes.", ephemeral: true }).catch(() => undefined);
+      void interaction.reply({ content: "O sistema está processando muitas solicitacoes. Tente novamente em instantes.", ephemeral: true }).catch(() => undefined);
     }
   });
   client.on(Events.UserUpdate, (_oldUser, newUser) => {

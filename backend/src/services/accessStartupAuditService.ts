@@ -30,9 +30,9 @@ export async function runAccessControlStartupAudit() {
   }
 
   if (corrections.length) {
-    console.log(`[access-audit] ${corrections.length} configuracao(oes) de acesso corrigida(s).`);
+    console.log(`[access-audit] ${corrections.length} configuração(oes) de acesso corrigida(s).`);
   } else {
-    console.log("[access-audit] configuracoes de acesso verificadas sem inconsistencias.");
+    console.log("[access-audit] configurações de acesso verificadas sem inconsistencias.");
   }
 
   return corrections;
@@ -157,8 +157,8 @@ async function writeStartupAuditLog(correction: AuditCorrection) {
     userId: null,
     type: "access.startup_audit",
     message: correction.disabled
-      ? "Auditoria de acesso desativou liberacao sem usuarios cadastrados."
-      : "Auditoria de acesso removeu cargos invalidos da liberacao.",
+      ? "Auditoria de acesso desativou liberação sem usuários cadastrados."
+      : "Auditoria de acesso removeu cargos invalidos da liberação.",
     metadata: {
       checkedAt: new Date().toISOString(),
       disabled: correction.disabled === true,
@@ -166,7 +166,7 @@ async function writeStartupAuditLog(correction: AuditCorrection) {
       retainedRoleIds: correction.retainedRoleIds
     }
   }).catch((error) => {
-    console.warn("[access-audit] nao foi possivel registrar log:", error instanceof Error ? error.message : error);
+    console.warn("[access-audit] não foi possível registrar log:", error instanceof Error ? error.message : error);
   });
 }
 

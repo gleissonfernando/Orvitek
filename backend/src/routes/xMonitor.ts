@@ -193,7 +193,7 @@ async function assertCanManageXMonitor(req: Request, guildId: string, botId: str
   const user = req.res?.locals.dashboardAuth.user as AuthSessionUser;
 
   if (botId ? !(await canUseDevBotModule(user, botId, guildId, "x-monitor")) : !canManageDashboardGuild(user, guildId)) {
-    throw createServiceError(`Voce nao tem permissao para ${action} neste servidor.`, 403);
+    throw createServiceError(`Você não tem permissão para ${action} neste servidor.`, 403);
   }
 }
 
@@ -201,7 +201,7 @@ async function assertCanReadXMonitor(req: Request, guildId: string, botId: strin
   const user = req.res?.locals.dashboardAuth.user as AuthSessionUser;
 
   if (botId ? !(await canReadDevBotModule(user, botId, guildId, "x-monitor")) : !canManageDashboardGuild(user, guildId)) {
-    throw createServiceError(`Voce nao tem permissao para ${action} neste servidor.`, 403);
+    throw createServiceError(`Você não tem permissão para ${action} neste servidor.`, 403);
   }
 }
 

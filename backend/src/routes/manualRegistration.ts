@@ -132,7 +132,7 @@ manualRegistrationRouter.get("/:guildId/settings", async (req, res, next) => {
     if (isBotRequest(req)) await assertRuntimeModule(botId, guildId);
 
     if (!isBotRequest(req) && !(await canReadScopedGuild(req, guildId, botId))) {
-      return res.status(403).json({ message: "Servidor nao encontrado ou modulo nao liberado." });
+      return res.status(403).json({ message: "Servidor não encontrado ou módulo não liberado." });
     }
 
     return res.json({
@@ -152,7 +152,7 @@ manualRegistrationRouter.put("/:guildId/settings", async (req, res, next) => {
     const input = settingsSchema.parse(req.body);
 
     if (isBotRequest(req) || !(await canManageScopedGuild(req, guildId, botId))) {
-      return res.status(403).json({ message: "Sem permissao para alterar cadastro manual." });
+      return res.status(403).json({ message: "Sem permissão para alterar cadastro manual." });
     }
 
     return res.json({
@@ -167,7 +167,7 @@ manualRegistrationRouter.post("/:guildId/panel", async (req, res, next) => {
   try {
     const guildId = snowflakeSchema.parse(req.params.guildId);
     const botId = await resolveRequestBotId(req);
-    if (!botId || isBotRequest(req) || !(await canManageScopedGuild(req, guildId, botId))) return res.status(403).json({ message: "Sem permissao para publicar o Pedido de Set." });
+    if (!botId || isBotRequest(req) || !(await canManageScopedGuild(req, guildId, botId))) return res.status(403).json({ message: "Sem permissão para publicar o Pedido de Set." });
     return res.json({ settings: await requestManualRegistrationPanelPublish(guildId, botId, res.locals.dashboardAuth.user.discordId) });
   } catch (error) {
     return next(error);
@@ -180,7 +180,7 @@ manualRegistrationRouter.delete("/:guildId/submissions/:id", async (req, res, ne
     const id = z.string().min(1).parse(req.params.id);
     const botId = await resolveRequestBotId(req);
     if (isBotRequest(req) || !(await canManageScopedGuild(req, guildId, botId))) {
-      return res.status(403).json({ message: "Sem permissao para excluir este cadastro." });
+      return res.status(403).json({ message: "Sem permissão para excluir este cadastro." });
     }
     const reason = z.string().trim().min(3).max(800).parse(req.body?.reason); await deleteManualRegistrationSubmission(guildId, botId, id, res.locals.dashboardAuth.user.discordId, reason);
     return res.json({ ok: true });
@@ -195,7 +195,7 @@ manualRegistrationRouter.post("/:guildId/submissions/manual", async (req, res, n
     const input = dashboardRegistrationSchema.parse(req.body);
     const botId = await resolveRequestBotId(req);
     if (!botId || isBotRequest(req) || !(await canManageScopedGuild(req, guildId, botId))) {
-      return res.status(403).json({ message: "Sem permissao para cadastrar este membro." });
+      return res.status(403).json({ message: "Sem permissão para cadastrar este membro." });
     }
     return res.status(201).json({
       submission: await createManualRegistrationDashboardSubmission({ ...input, actorId: res.locals.dashboardAuth.user.discordId, botId, guildId })
