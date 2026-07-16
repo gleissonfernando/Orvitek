@@ -89,6 +89,7 @@ export async function handleFivemActionInteraction(interaction: Interaction, con
   else if (interaction.isButton() && action === "start") await startAction(interaction, context, id!);
   else if (interaction.isButton() && action === "cancel") await cancelAction(interaction, context, id!);
   else if (interaction.isButton() && action === "result") await chooseResult(interaction, context, id!);
+  else if (interaction.isButton() && action === "finish_result") await finishActionFromButton(interaction, context, id!);
   else if (interaction.isButton() && action === "page") await showActionPage(interaction, context, id!);
   else if (interaction.isStringSelectMenu() && action === "finish") await showFinishModal(interaction, context, id!);
   else if (interaction.isModalSubmit() && action === "finish_modal") await finishAction(interaction, context, id!);
@@ -416,12 +417,33 @@ async function chooseResult(interaction: any, context: BotContext, sessionId: st
   const session = await context.api.getFivemActionSession(sessionId);
   if (session.openerId !== interaction.user.id) { await interaction.reply({ content: "Você não é o responsável por esta ação.", ephemeral: true }); return; }
   if (session.status !== "active") { await interaction.reply({ content: "O resultado só pode ser informado depois que a ação for iniciada.", ephemeral: true }); return; }
-  const select = new StringSelectMenuBuilder().setCustomId(`${PREFIX}:finish:${sessionId}`).setPlaceholder("Escolha o resultado").addOptions(
-    { label: "Vitória", value: "victory", emoji: systemComponentEmoji("visto", interaction.guild) },
-    { label: "Derrota", value: "defeat", emoji: systemComponentEmoji("exclamacao", interaction.guild) },
-    { label: "Empate", value: "draw", emoji: "⚪" }
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`${PREFIX}:finish_result:${sessionId}|victory`).setLabel("Vitória").setEmoji(systemComponentEmoji("visto", interaction.guild)).setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`${PREFIX}:finish_result:${sessionId}|defeat`).setLabel("Derrota").setEmoji(systemComponentEmoji("exclamacao", interaction.guild)).setStyle(ButtonStyle.Danger)
   );
-  await interaction.reply({ components: [{ type: 17, accent_color: 0x7c3aed, components: [{ type: 10, content: `## ${systemEmojiText("trofeu", interaction.guild)} Resultado de ${session.actionName}\n${systemEmojiText("homem", interaction.guild)} Somente você pode concluir esta ação.` }, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)] }], flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
+  await interaction.reply({
+    components: [{
+      type: 17,
+      accent_color: parseColor(session.actionColor),
+      components: [
+        { type: 10, content: [
+          `## ${systemEmojiText("trofeu", interaction.guild)} Resultado da ação`,
+          `${systemEmojiText("arma", interaction.guild)} **Ação:** ${session.actionName}`,
+          `${systemEmojiText("homem", interaction.guild)} Selecione o resultado final. O relatório será enviado automaticamente no canal configurado.`
+        ].join("\n") },
+        row
+      ]
+    }],
+    flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
+  });
+}
+
+async function finishActionFromButton(interaction: any, context: BotContext, token: string) {
+  await interaction.deferReply({ ephemeral: true });
+  const [sessionId, resultRaw] = token.split("|");
+  const result = resultRaw as "victory" | "defeat";
+  if (!sessionId || !["victory", "defeat"].includes(result)) return void await interaction.editReply("Resultado inválido.");
+  await completeAction(interaction, context, sessionId, result, {});
 }
 
 async function showFinishModal(interaction: StringSelectMenuInteraction, context: BotContext, sessionId: string) {
@@ -444,12 +466,26 @@ async function finishAction(interaction: ModalSubmitInteraction, context: BotCon
   const [sessionId, resultRaw] = token.split("|");
   const result = resultRaw as "victory" | "defeat" | "draw";
   if (!sessionId || !["victory", "defeat", "draw"].includes(result)) return void await interaction.editReply("Resultado inválido.");
+  await completeAction(interaction, context, sessionId, result, {
+    note: interaction.fields.getTextInputValue("note") || null,
+    occurrence: interaction.fields.getTextInputValue("occurrence") || null,
+    summary: interaction.fields.getTextInputValue("summary") || null
+  });
+}
+
+async function completeAction(
+  interaction: { editReply: (options: any) => Promise<unknown>; guild: any; user: { id: string } },
+  context: BotContext,
+  sessionId: string,
+  result: "victory" | "defeat" | "draw",
+  details: { note?: string | null; occurrence?: string | null; summary?: string | null }
+) {
   let session: FivemActionSession;
   try {
     session = await context.api.finishFivemActionSession(sessionId, interaction.user.id, result, {
-      note: interaction.fields.getTextInputValue("note") || null,
-      occurrence: interaction.fields.getTextInputValue("occurrence") || null,
-      summary: interaction.fields.getTextInputValue("summary") || null
+      note: details.note ?? null,
+      occurrence: details.occurrence ?? null,
+      summary: details.summary ?? null
     });
   } catch (error) {
     await interaction.editReply(`Não foi possível salvar o resultado: ${publicErrorMessage(error)}`);
@@ -478,7 +514,7 @@ async function refreshSessionMessage(interaction: any, session: FivemActionSessi
   if (message) await message.edit(sessionPayload(session, interaction.guild));
 }
 
-async function sendReport(interaction: ModalSubmitInteraction, context: BotContext, session: FivemActionSession) {
+async function sendReport(interaction: { guild: any }, context: BotContext, session: FivemActionSession) {
   const dashboard = await context.api.getFivemActionDashboard(session.guildId, session.architecture);
   let channel = dashboard.settings.reportChannelId ? await interaction.guild!.channels.fetch(dashboard.settings.reportChannelId).catch(() => null) : null;
   if (!channel) channel = await interaction.guild!.channels.create({ name: "relatorio-de-acoes", type: ChannelType.GuildText, parent: dashboard.settings.categoryId ?? undefined, reason: "Relatórios do Sistema de Ações" });
