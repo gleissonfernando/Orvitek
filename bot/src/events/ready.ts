@@ -47,7 +47,6 @@ import { startSocialNetworkPanelSync } from "../services/socialNetworkPanelServi
 import { startSocialNotificationMonitor } from "../services/socialNotificationMonitor";
 import { validateSystemEmojisOnStartup } from "../services/systemEmojiService";
 import { startTemporaryVoiceService } from "../services/temporaryVoiceService";
-import { clearVisibleModeCache, preloadVisibleModeUsers, visibleModeSocketMatches } from "../services/visibleModeService";
 import { startAutomatedLogService } from "../services/automatedLogService";
 import { startTagVerificationService, stopTagVerificationService } from "../services/tagVerificationService";
 import { startXMonitor } from "../services/xMonitor";
@@ -156,11 +155,6 @@ export async function handleReady(client: Client<true>, context: BotContext) {
       clearPoliceHiddenChannelSettingsCache(payload.guildId);
     }
   });
-  context.socket.onVisibleModeUsersUpdated((payload) => {
-    if (visibleModeSocketMatches(payload)) {
-      clearVisibleModeCache(payload.guildId);
-    }
-  });
   context.socket.onDmBarSettingsUpdated((payload) => {
     if (!runtimeBotId || !payload.botId || payload.botId === runtimeBotId) {
       clearDmBarConfigCache(payload.guildId);
@@ -173,7 +167,6 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   startMaintenanceService(context);
 
   await syncVisibleGuildCommands(client, context, "ready");
-  void preloadVisibleModeUsers(client, context);
 
   if (isBotModuleEnabled("live")) {
     startSocialNotificationMonitor(client, context.api);

@@ -139,11 +139,6 @@ export type PoliceHiddenChannelSettingsEvent = {
   botId?: string | null;
   guildId: string;
 };
-export type VisibleModeUsersEvent = {
-  botId?: string | null;
-  guildId: string;
-  userId?: string | null;
-};
 export type DmBarSettingsEvent = {
   botId?: string | null;
   guildId: string;
@@ -286,7 +281,6 @@ export class BotSocketClient {
   private fivemHierarchyPanelUpdateHandler: ((payload: FivemHierarchyPanelUpdateEvent, ack?: FivemHierarchyPanelUpdateAck) => void) | null = null;
   private fivemFacAbsenceUpdateHandler: ((payload: FivemFacAbsenceUpdateEvent) => void) | null = null;
   private policeHiddenChannelSettingsHandler: ((payload: PoliceHiddenChannelSettingsEvent) => void) | null = null;
-  private visibleModeUsersHandler: ((payload: VisibleModeUsersEvent) => void) | null = null;
   private dmBarSettingsHandler: ((payload: DmBarSettingsEvent) => void) | null = null;
   private missionToolsSettingsHandler: ((payload: MissionToolsSettingsEvent) => void) | null = null;
   private missionToolsPanelPublishHandler: ((payload: MissionToolsPanelPublishEvent) => void) | null = null;
@@ -408,9 +402,6 @@ export class BotSocketClient {
 
     if (this.policeHiddenChannelSettingsHandler) {
       this.socket.on("police-hidden-channel:settings_updated", this.policeHiddenChannelSettingsHandler);
-    }
-    if (this.visibleModeUsersHandler) {
-      this.socket.on("visible-mode:users_updated", this.visibleModeUsersHandler);
     }
     if (this.dmBarSettingsHandler) {
       this.socket.on("dm-bar:settings_updated", this.dmBarSettingsHandler);
@@ -657,12 +648,6 @@ export class BotSocketClient {
     this.policeHiddenChannelSettingsHandler = handler;
     this.socket?.off("police-hidden-channel:settings_updated");
     this.socket?.on("police-hidden-channel:settings_updated", handler);
-  }
-
-  onVisibleModeUsersUpdated(handler: (payload: VisibleModeUsersEvent) => void) {
-    this.visibleModeUsersHandler = handler;
-    this.socket?.off("visible-mode:users_updated");
-    this.socket?.on("visible-mode:users_updated", handler);
   }
 
   onDmBarSettingsUpdated(handler: (payload: DmBarSettingsEvent) => void) {

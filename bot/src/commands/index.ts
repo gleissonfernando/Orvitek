@@ -27,7 +27,7 @@ import { policeSubpoenaCommand } from "../services/policeSubpoenaService";
 import { courseCommand, cursosHistoricoCommand, instrutoresCommand, publicarCursoCommand, removerCursoHistoricoCommand } from "../services/courseSystemService";
 import { rhAdminCommand } from "../services/rhAdminService";
 import { removerCommand } from "./remover";
-import { visibleCommand, visibleConfigCommand } from "../services/visibleModeService";
+import { visibleMessageCommand } from "../services/visibleMessageService";
 import type { BotCommand } from "../types";
 
 export function createCommandCollection() {
@@ -64,8 +64,7 @@ export function createCommandCollection() {
     publicarCursoCommand,
     rhAdminCommand,
     removerCommand,
-    visibleCommand,
-    visibleConfigCommand,
+    visibleMessageCommand,
     sistemaCommand,
     iabCommand,
     serverClonerCommand,
