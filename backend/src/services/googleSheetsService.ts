@@ -138,8 +138,21 @@ async function googleError(response: Response) {
   const text = await response.text().catch(() => "");
   try {
     const data = JSON.parse(text) as { error?: { message?: string } };
-    return data.error?.message || `Google Sheets retornou HTTP ${response.status}.`;
+    const message = data.error?.message || `Google Sheets retornou HTTP ${response.status}.`;
+    return friendlyGoogleSheetsError(message, response.status);
   } catch {
-    return text || `Google Sheets retornou HTTP ${response.status}.`;
+    return friendlyGoogleSheetsError(text || `Google Sheets retornou HTTP ${response.status}.`, response.status);
   }
+}
+
+function friendlyGoogleSheetsError(message: string, status: number) {
+  if (status === 404 || /requested entity was not found/i.test(message)) {
+    return "Planilha Google não encontrada ou sem acesso. Use um link do Google Planilhas e compartilhe a planilha com o e-mail da conta de serviço.";
+  }
+
+  if (status === 403 || /permission|insufficient|forbidden/i.test(message)) {
+    return "Sem permissão para acessar a planilha. Compartilhe a Google Sheets com o e-mail da conta de serviço com permissão de Editor.";
+  }
+
+  return message;
 }

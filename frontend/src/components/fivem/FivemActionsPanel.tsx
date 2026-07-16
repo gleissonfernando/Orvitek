@@ -112,12 +112,12 @@ export function FivemActionsPanel({ botId, canManage, fixedArchitecture, guild }
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="font-semibold text-white">Google Planilhas</p>
-              <p className="mt-1 text-sm text-zinc-500">Cada evento da ação atualiza a linha oficial da planilha.</p>
+              <p className="mt-1 text-sm text-zinc-500">Use uma Google Sheets compartilhada com a conta de serviço. Links do OneDrive/Excel não são compatíveis.</p>
             </div>
             <label className="flex items-center gap-2 text-sm"><Switch checked={settings.spreadsheetEnabled ?? false} disabled={!canManage} onCheckedChange={(spreadsheetEnabled) => patchSettings({ spreadsheetEnabled })} />Sincronizar</label>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <label className="text-sm text-zinc-300">Link ou ID da Google Sheets<input className="mt-2 h-11 w-full rounded-lg border border-zinc-800 bg-black px-3" placeholder="https://docs.google.com/spreadsheets/d/..." value={settings.spreadsheetId ?? ""} disabled={!canManage} onChange={(e) => patchSettings({ spreadsheetId: e.target.value || null })} /></label>
+            <label className="text-sm text-zinc-300">Link ou ID da Google Planilhas<input className="mt-2 h-11 w-full rounded-lg border border-zinc-800 bg-black px-3" placeholder="https://docs.google.com/spreadsheets/d/..." value={settings.spreadsheetId ?? ""} disabled={!canManage} onChange={(e) => patchSettings({ spreadsheetId: e.target.value || null })} /></label>
             <label className="text-sm text-zinc-300">Nome da aba<input className="mt-2 h-11 w-full rounded-lg border border-zinc-800 bg-black px-3" value={settings.spreadsheetSheetName ?? "Ações Polícia"} disabled={!canManage} onChange={(e) => patchSettings({ spreadsheetSheetName: e.target.value || "Ações Polícia" })} /></label>
           </div>
           {settings.spreadsheetEnabled && settings.spreadsheetId && !settings.spreadsheetSyncError ? <p className="mt-3 flex items-center gap-2 text-sm text-emerald-300"><CheckCircle2 className="h-4 w-4" />Google conectado</p> : null}

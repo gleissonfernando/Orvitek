@@ -311,6 +311,9 @@ function normalizeSpreadsheetId(value: string | null | undefined) {
   if (value == null) return value;
   const trimmed = value.trim();
   if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed) && !/^https:\/\/docs\.google\.com\/spreadsheets\/d\//i.test(trimmed)) {
+    throw serviceError("Use um link do Google Planilhas. Links do OneDrive/Excel não são compatíveis com a integração Google Sheets.", 400);
+  }
   const urlMatch = /\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/.exec(trimmed);
   const candidate = urlMatch?.[1] ?? trimmed;
   if (!/^[a-zA-Z0-9_-]{20,}$/.test(candidate)) {
