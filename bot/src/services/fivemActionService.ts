@@ -311,7 +311,7 @@ async function publishMainPanel(client: Client, context: BotContext, config: Fiv
         console.warn(`[fivem-actions] falha ao editar painel salvo; publicando nova mensagem guild=${config.guildId} architecture=${config.architecture} message=${config.panelMessageId}:`, errorMessage(error));
       }
     }
-    console.warn(`[fivem-actions] painel salvo nao encontrado; publicando nova mensagem guild=${config.guildId} architecture=${config.architecture} message=${config.panelMessageId}`);
+    console.warn(`[fivem-actions] painel salvo não encontrado; publicando nova mensagem guild=${config.guildId} architecture=${config.architecture} message=${config.panelMessageId}`);
   }
   const message = await channel.send(payload);
   await context.api.updateFivemActionPanelState({ guildId: config.guildId, architecture: config.architecture, panelMessageId: message.id });
@@ -323,7 +323,7 @@ async function openAction(interaction: StringSelectMenuInteraction, context: Bot
   const [architectureRaw, actionId] = (interaction.values[0] ?? "").split("|");
   const architecture = architectureRaw as FivemActionArchitecture;
   if (!actionId || !["fac", "police"].includes(architecture)) return void await interaction.editReply("Ação inválida.");
-  if (!isFivemActionRuntimeEnabled(architecture)) return void await interaction.editReply(architecture === "police" ? "Acoes policiais nao liberadas para este bot." : "Acoes FAC nao liberadas para este bot.");
+  if (!isFivemActionRuntimeEnabled(architecture)) return void await interaction.editReply(architecture === "police" ? "Ações policiais não liberadas para este bot." : "Ações FAC não liberadas para este bot.");
   const dashboard = await context.api.getFivemActionDashboard(interaction.guildId!, architecture);
   const action = dashboard.actions.find((item) => item.id === actionId);
   if (!action) return void await interaction.editReply("Ação não encontrada.");
@@ -356,7 +356,7 @@ async function createActionWithMode(interaction: any, context: BotContext, token
   const architecture = architectureRaw as FivemActionArchitecture;
   const mode = modeRaw as FivemActionMode;
   if (!actionId || !["fac", "police"].includes(architecture) || !["shootout", "escape"].includes(mode)) return void await interaction.editReply("Ação inválida.");
-  if (!isFivemActionRuntimeEnabled(architecture)) return void await interaction.editReply(architecture === "police" ? "Acoes policiais nao liberadas para este bot." : "Acoes FAC nao liberadas para este bot.");
+  if (!isFivemActionRuntimeEnabled(architecture)) return void await interaction.editReply(architecture === "police" ? "Ações policiais não liberadas para este bot." : "Ações FAC não liberadas para este bot.");
   const dashboard = await context.api.getFivemActionDashboard(interaction.guildId!, architecture);
   const channelId = dashboard.settings.actionChannelId;
   if (!channelId) return void await interaction.editReply("Canal de ações não configurado.");
@@ -371,7 +371,7 @@ async function createActionWithMode(interaction: any, context: BotContext, token
 async function showActionPage(interaction: any, context: BotContext, token: string) {
   const [architectureRaw, pageRaw] = token.split("|");
   const architecture = architectureRaw as FivemActionArchitecture;
-  if (!isFivemActionRuntimeEnabled(architecture)) return void await interaction.reply({ content: architecture === "police" ? "Acoes policiais nao liberadas para este bot." : "Acoes FAC nao liberadas para este bot.", ephemeral: true });
+  if (!isFivemActionRuntimeEnabled(architecture)) return void await interaction.reply({ content: architecture === "police" ? "Ações policiais não liberadas para este bot." : "Ações FAC não liberadas para este bot.", ephemeral: true });
   const page = Math.max(0, Number.parseInt(pageRaw ?? "0", 10) || 0);
   const dashboard = await context.api.getFivemActionDashboard(interaction.guildId, architecture);
   const actions = dashboard.actions.filter((item) => item.enabled).sort((a, b) => a.order - b.order);

@@ -13,7 +13,7 @@ export function FivemResourceSelect({
   label,
   onChange,
   options,
-  placeholder = "Nao configurado",
+  placeholder = "Não configurado",
   prefix = "",
   value
 }: {

@@ -57,8 +57,8 @@ export function FivemActionsPanel({ botId, canManage, fixedArchitecture, guild }
   if (!botId || !guild) return <Empty text="Selecione um bot e um servidor para configurar o Sistema de Ações." />;
   if (loading || !dashboard) return <Empty loading text="Carregando Sistema de Ações..." />;
   const settings = dashboard.settings;
-  const scopedTitle = architecture === "police" ? "Acoes Policiais" : "Acoes FAC";
-  const scopedDescription = architecture === "police" ? "Sistema policial separado, com painel, acoes e relatorios proprios." : "Sistema FAC separado, com painel, acoes e relatorios proprios.";
+  const scopedTitle = architecture === "police" ? "Ações Policiais" : "Ações FAC";
+  const scopedDescription = architecture === "police" ? "Sistema policial separado, com painel, ações e relatórios próprios." : "Sistema FAC separado, com painel, ações e relatórios próprios.";
   const HeaderIcon = architecture === "police" ? Shield : Activity;
   const patchSettings = (patch: Partial<typeof settings>) => setDashboard((current) => current ? { ...current, settings: { ...current.settings, ...patch } } : current);
   const activeSessions = dashboard.history.filter((session) => session.status === "forming" || session.status === "active").length;
