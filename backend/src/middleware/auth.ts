@@ -7,7 +7,8 @@ import { getBotStatus, refreshBotGuildsFromDiscord } from "../services/statsServ
 import { clearAuthCookies, issueAuthCookies, resolveAuthFromRequest, type DashboardAuth } from "../services/tokenService";
 
 const VERIFIED_ACCESS_RECHECK_MS = 3 * 1000;
-const ACCESS_DENIED_MESSAGE = "Você não está liberado para acessar esta dashboard.";
+export const ACCESS_DENIED_MESSAGE = "Você não possui acesso a esta dashboard. Verifique se o plano está em dia ou entre em contato com o suporte.";
+export const SUPPORT_DISCORD_URL = "https://discord.gg/KAGgfuTcDS";
 const AUTH_MIDDLEWARE_TIMEOUT_MS = 12_000;
 
 export function isBotRequest(req: Request) {
@@ -67,7 +68,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         result: "denied",
         reason: ACCESS_DENIED_MESSAGE
       });
-      return res.status(403).json({ message: ACCESS_DENIED_MESSAGE });
+      return res.status(403).json({ message: ACCESS_DENIED_MESSAGE, supportUrl: SUPPORT_DISCORD_URL });
     }
 
     req.session.user = freshAuth.user;

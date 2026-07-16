@@ -21,6 +21,7 @@ import {
   Gift,
   Globe2,
   Hash,
+  Headphones,
   ImageIcon,
   ListChecks,
   Loader2,
@@ -88,6 +89,7 @@ const PANEL_EMOJIS = {
   homem: "<:homem:1525682211985035416>",
   prancheta: "<:prancheta:1525682244893544489>"
 } as const;
+const SUPPORT_URL = "https://discord.gg/KAGgfuTcDS";
 import { LiveNotificationsPanel } from "../components/social/LiveNotificationsPanel";
 import { MemberSocialNetworkPanel } from "../components/social/MemberSocialNetworkPanel";
 import { XMonitorPanel } from "../components/social/XMonitorPanel";
@@ -853,7 +855,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
         ?? null;
 
       if (!targetBot) {
-        setDashboardRouteError("Nenhuma dashboard liberada para este usuário.");
+        setDashboardRouteError("Você não possui acesso a esta dashboard. Verifique se o plano está em dia ou entre em contato com o suporte.");
         return;
       }
 
@@ -882,7 +884,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
           return;
         }
 
-        setDashboardRouteError(readResponseMessage(error) ?? "Acesso negado. Você não tem permissão para acessar esta dashboard.");
+        setDashboardRouteError(readResponseMessage(error) ?? "Você não possui acesso a esta dashboard. Verifique se o plano está em dia ou entre em contato com o suporte.");
       })
       .finally(() => {
         if (mounted) {
@@ -4132,17 +4134,25 @@ function userFivemModuleLabel(module: FivemModuleDefinition) {
 function DashboardRouteError({ message }: { message: string }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#050505] px-4">
-      <Card className="w-full max-w-md border-red-500/20 bg-zinc-950/90">
+      <Card className="w-full max-w-lg border-red-500/20 bg-zinc-950/90">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Bot className="h-5 w-5 text-red-300" />
-            Dashboard indisponivel
+            Acesso não liberado
           </CardTitle>
-          <CardDescription>{message}</CardDescription>
+          <CardDescription>
+            {message || "Você não possui acesso a esta dashboard. Verifique se o plano está em dia ou entre em contato com o suporte."}
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Button className="w-full" onClick={() => window.history.back()}>
+        <CardContent className="flex flex-col gap-3 sm:flex-row">
+          <Button className="flex-1" onClick={() => window.history.back()} variant="outline">
             Voltar
+          </Button>
+          <Button asChild className="flex-1">
+            <a href={SUPPORT_URL} rel="noreferrer" target="_blank">
+              <Headphones className="h-4 w-4" />
+              Falar com suporte
+            </a>
           </Button>
         </CardContent>
       </Card>

@@ -12,7 +12,7 @@ import {
   getDiscordOAuthDiagnostics
 } from "../services/discordOAuthService";
 import { toDashboardGuilds } from "../services/guildService";
-import { requireAuthenticated } from "../middleware/auth";
+import { ACCESS_DENIED_MESSAGE, SUPPORT_DISCORD_URL, requireAuthenticated } from "../middleware/auth";
 import {
   applyDashboardAccessValidation,
   createDeniedAccessUser,
@@ -34,7 +34,6 @@ import { canAccessDevDashboard } from "../services/devPermissionService";
 export const authRouter = Router();
 const errorPath = "/auth/error";
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
-const ACCESS_DENIED_MESSAGE = "Você não está liberado para acessar esta dashboard.";
 const AUTH_STAGE_TIMEOUT_MS = 15_000;
 
 function isApiAuthMount(req: Request) {
@@ -642,6 +641,7 @@ authRouter.post("/verify", requireAuthenticated, async (req, res, next) => {
 
       return res.status(403).json({
         message: ACCESS_DENIED_MESSAGE,
+        supportUrl: SUPPORT_DISCORD_URL,
         validation
       });
     }

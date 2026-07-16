@@ -3,7 +3,7 @@ import { checkSiteAccess, clearTabVerification, getSession, logout as logoutRequ
 import { appUrl, dashboardSlugFromPath, dashboardUrl, isDashboardRoutePath } from "../lib/urls";
 import type { AccessValidationResult, AuthResponse } from "../types";
 
-const ACCESS_DENIED_MESSAGE = "Você não está liberado para acessar esta dashboard.";
+const ACCESS_DENIED_MESSAGE = "Você não possui acesso a esta dashboard. Verifique se o plano está em dia ou entre em contato com o suporte.";
 const AUTH_TIMEOUT_MS = 18_000;
 export type AuthStatus =
   | "Conectando ao Discord..."

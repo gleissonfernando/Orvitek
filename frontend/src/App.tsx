@@ -145,11 +145,11 @@ function readAuthError() {
   }
 
   if (authError === "denied") {
-    return "Voce nao esta liberado para acessar esta dashboard.";
+    return "Você não possui acesso a esta dashboard. Verifique se o plano está em dia ou entre em contato com o suporte.";
   }
 
   if (reason === "permission") {
-    return "Sua conta foi autenticada, mas nao possui permissao suficiente para acesso administrativo.";
+    return "Você não possui acesso a esta dashboard. Verifique se o plano está em dia ou entre em contato com o suporte.";
   }
 
   if (reason === "callback") {
@@ -157,7 +157,7 @@ function readAuthError() {
   }
 
   if (reason === "denied") {
-    return "Você não está liberado para acessar esta dashboard.";
+    return "Você não possui acesso a esta dashboard. Verifique se o plano está em dia ou entre em contato com o suporte.";
   }
 
   return "Não foi possível conectar com o Discord. Verifique se o aplicativo está configurado corretamente.";

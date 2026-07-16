@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth } from "../middleware/auth";
+import { ACCESS_DENIED_MESSAGE, SUPPORT_DISCORD_URL, requireAuth } from "../middleware/auth";
 import { recordAccessAttempt } from "../services/accessAuditService";
 import { canManageDashboardGuild } from "../services/dashboardGuildAccessService";
 import { fetchBotProfile } from "../services/botProfileService";
@@ -109,7 +109,8 @@ dashboardRouter.get("/:slug", async (req, res, next) => {
         reason: "Dashboard nao pertence ao usuario autenticado."
       });
       return res.status(403).json({
-        message: "Acesso negado."
+        message: ACCESS_DENIED_MESSAGE,
+        supportUrl: SUPPORT_DISCORD_URL
       });
     }
 
@@ -167,7 +168,8 @@ dashboardRouter.patch("/selected-guild", async (req, res, next) => {
         reason: "Servidor nao pertence ao escopo autorizado do usuario."
       });
       return res.status(403).json({
-        message: "Acesso negado."
+        message: ACCESS_DENIED_MESSAGE,
+        supportUrl: SUPPORT_DISCORD_URL
       });
     }
 
