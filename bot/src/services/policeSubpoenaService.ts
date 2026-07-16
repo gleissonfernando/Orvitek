@@ -56,6 +56,7 @@ type CaseState = Draft & {
 
 const PREFIX = "police_subpoena";
 const MODULE_ID = "police-subpoenas";
+const SUPPORT_URL = "https://discord.gg/KAGgfuTcDS";
 const cases = new Map<string, CaseState>();
 const flowDrafts = new Map<string, { selectedCompetence: Competence; targetId: string }>();
 const relayingMessages = new Set<string>();
@@ -89,8 +90,8 @@ export async function openSubpoenaFlow(interaction: ChatInputCommandInteraction,
   });
   if (!settings) {
     await interaction.reply({
-      content: "Não consegui carregar a configuração de intimações agora. Se o sistema acabou de reiniciar ou saiu de manutenção, tente novamente em alguns segundos.",
-      flags: MessageFlags.Ephemeral
+      ...maintenanceSupportPanel(interaction.guild),
+      flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
     });
     return;
   }
@@ -590,6 +591,14 @@ async function sendCompetenceDestinationNotice(guild: Guild, settings: GuildSett
 
 function panel(settings: GuildSettings | null, title: string, description: string, actions: unknown[], guild: Guild | null = null) {
   return withTopLevelActions(renderComponentsV2Panel({ accentColor: color(settings?.reportSystem.panelColor), actions: [], description, fields: [], guild, image: null, moduleId: "police-subpoena-flow", title: `${systemEmojiText("prancheta", guild)} ${title}` }), actions);
+}
+
+function maintenanceSupportPanel(guild: Guild) {
+  return panel(null, "Sistema em manutenção", "O sistema entrou em manutenção. Entre em contato com o suporte em caso de dúvida.", [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setLabel("Servidor de suporte").setStyle(ButtonStyle.Link).setURL(SUPPORT_URL)
+    )
+  ], guild);
 }
 
 function withTopLevelActions<T extends ReturnType<typeof renderComponentsV2Panel>>(payload: T, actions: unknown[] = []): T {
