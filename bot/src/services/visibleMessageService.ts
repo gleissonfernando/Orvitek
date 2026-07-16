@@ -39,7 +39,7 @@ async function sendVisibleMessage(interaction: ChatInputCommandInteraction, _con
     return;
   }
 
-  const member = interaction.member as GuildMember | null;
+  const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => interaction.member as GuildMember | null);
   const channel = interaction.channel as TextBasedChannel & TextChannel;
   const me = interaction.guild.members.me ?? await interaction.guild.members.fetchMe().catch(() => null);
   const botPermissions = me ? channel.permissionsFor(me) : null;
@@ -70,19 +70,27 @@ async function sendVisibleMessage(interaction: ChatInputCommandInteraction, _con
 
   try {
     const webhook = await getOrCreateVisibleWebhook(channel);
+    const visibleIdentity = resolveVisibleIdentity(interaction, member);
     await webhook.send({
       allowedMentions: { parse: [] },
-      avatarURL: interaction.user.displayAvatarURL({ size: 256 }),
+      avatarURL: visibleIdentity.avatarURL,
       content: text || undefined,
       files: attachment ? [attachmentToFile(attachment)] : undefined,
-      username: (member?.displayName || interaction.user.globalName || interaction.user.username).slice(0, 80)
+      username: visibleIdentity.username
     });
 
-    await interaction.editReply("Mensagem visível enviada.");
+    await interaction.editReply(`Mensagem visível enviada como ${visibleIdentity.username}.`);
   } catch (error) {
     console.error("[visible-message] falha ao enviar:", error instanceof Error ? error.message : error);
     await interaction.editReply("Não foi possível enviar a mensagem visível neste canal.");
   }
+}
+
+function resolveVisibleIdentity(interaction: ChatInputCommandInteraction, member: GuildMember | null) {
+  return {
+    avatarURL: member?.displayAvatarURL({ size: 256 }) ?? interaction.user.displayAvatarURL({ size: 256 }),
+    username: (member?.displayName || interaction.user.globalName || interaction.user.username).slice(0, 80)
+  };
 }
 
 async function getOrCreateVisibleWebhook(channel: TextChannel) {
