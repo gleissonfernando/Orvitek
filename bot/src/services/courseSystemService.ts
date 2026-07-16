@@ -3403,6 +3403,7 @@ async function examResultPanel(interaction: ButtonInteraction | ModalSubmitInter
   const finalScore = attempt.finalScore ?? attempt.score;
   const status = examFinalStatusLabel(attempt);
   const rpName = attempt.studentIdentification?.rpFullName?.trim() || "Não informado";
+  const imageUrl = courseResultAvatar(interaction);
   return renderComponentsV2Panel({
     accentColor: examResultAccent(attempt),
     description: "Resultado final da avaliação.",
@@ -3426,10 +3427,15 @@ async function examResultPanel(interaction: ButtonInteraction | ModalSubmitInter
       ].join("\n\n")
     ],
     guild: interaction.guild,
-    image: member ? { imageEnabled: true, imagePosition: "thumbnail", imageUrl: member.displayAvatarURL({ size: 128 }) } : null,
+    image: imageUrl ? { imageEnabled: true, imagePosition: "thumbnail", imageUrl } : null,
     moduleId: "courses",
-    title: "📋 Resultado da Avaliação"
+    title: `${systemEmojiText("prancheta", interaction.guild)} Resultado da Avaliação`
   });
+}
+
+function courseResultAvatar(interaction: ButtonInteraction | ModalSubmitInteraction) {
+  return interaction.guild?.iconURL({ size: 128 })
+    ?? interaction.client.user.displayAvatarURL({ size: 128 });
 }
 
 async function showExamResultAnswers(interaction: ButtonInteraction, context: BotContext) {
