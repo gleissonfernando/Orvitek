@@ -179,6 +179,8 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "police-dm", label: "Polícia - DM Policial" },
   { id: "police-subpoenas", label: "Polícia - Intimacao" },
   { id: "police-open-duty", label: "Polícia - Notificar / Ponto Aberto" },
+  { id: "police-time-clock", label: "Polícia - Relógio de Ponto" },
+  { id: "auto-activity-clock", label: "FAÇA - Ponto Automático" },
   { id: "fivem-fac", label: "FiveM - FAC Ausência" },
   { id: "avisos", label: "Mensagens e Personalização" }
 ];

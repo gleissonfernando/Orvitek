@@ -92,6 +92,8 @@ export type ViewId =
   | "police-hidden-channel"
   | "police-dm"
   | "police-open-duty"
+  | "police-time-clock"
+  | "auto-activity-clock"
   | "fivem-orders"
   | "fivem-families"
   | "fivem-washing"
@@ -176,6 +178,8 @@ const navItems: NavItem[] = [
   { id: "police-hidden-channel", label: "Canal Oculto", icon: EyeOff, moduleId: "police-hidden-channel" },
   { id: "police-dm", label: "Barra DM", icon: UserPlus, moduleId: "police-dm" },
   { id: "police-open-duty", label: "Notificar / Ponto", icon: Bell, moduleId: "police-open-duty" },
+  { id: "police-time-clock", label: "Relógio de Ponto", icon: CalendarClock, moduleId: "police-time-clock" },
+  { id: "auto-activity-clock", label: "Ponto Automático", icon: Activity, moduleId: "auto-activity-clock" },
   { id: "fivem-orders", label: "Encomendas RP", icon: Archive, moduleId: "fivem-orders" },
   { id: "fivem-families", label: "Famílias", icon: Users, moduleIds: ["fivem-orders", "fivem-drugs", "fivem-washing"] },
   { id: "fivem-washing", label: "Sistema de Lavagem", icon: CircleDollarSign, moduleId: "fivem-washing" },
@@ -205,6 +209,8 @@ function navSectionForItem(item: NavItem): NavSectionId {
     || item.id === "police-hidden-channel"
     || item.id === "police-dm"
     || item.id === "police-open-duty"
+    || item.id === "police-time-clock"
+    || item.id === "auto-activity-clock"
     || item.id === "courses"
     || item.id === "rh-admin"
     || item.moduleId === "fivem-hierarchy"
@@ -216,6 +222,8 @@ function navSectionForItem(item: NavItem): NavSectionId {
     || item.moduleId === "police-hidden-channel"
     || item.moduleId === "police-dm"
     || item.moduleId === "police-open-duty"
+    || item.moduleId === "police-time-clock"
+    || item.moduleId === "auto-activity-clock"
     || item.moduleId === "rh-admin"
   ) {
     return "police";

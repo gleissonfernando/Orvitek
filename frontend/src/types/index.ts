@@ -860,6 +860,19 @@ export type LiveDetectionSettings = {
   updatedBy: string | null;
 };
 
+export type PoliceTimeClockSettings = {
+  botId: string; guildId: string; enabled: boolean; panelChannelId: string | null; panelMessageId: string | null; logChannelId: string | null; managerRoleId: string | null; closeRoleId: string | null; reportRoleId: string | null; exportRoleId: string | null; adminRoleId: string | null; allowManualEntry: boolean; allowManualExit: boolean; allowAutomaticEntry: boolean; allowForcedClose: boolean; allowHistory: boolean; allowExport: boolean; maxHours: number | null; timezone: string; timeFormat: "24h" | "12h"; autoUpdatePanel: boolean; createdAt: string; updatedAt: string; updatedBy: string | null;
+};
+export type PoliceTimeClockSession = { id: string; botId: string; guildId: string; userId: string; username: string; roleNames: string[]; status: "open" | "closed" | "forced"; origin: "manual" | "automatic" | "forced"; startedAt: string; endedAt: string | null; durationMs: number | null; netDurationMs: number | null; createdBy: string | null; closedBy: string | null; closeReason: string | null; createdAt: string; updatedAt: string };
+export type PoliceTimeClockDashboard = { active: PoliceTimeClockSession[]; history: PoliceTimeClockSession[]; settings: PoliceTimeClockSettings; summary: { activeCount: number; averageDurationMs: number; totalDurationMs: number; totalEntries: number } };
+
+export type AutoActivityClockSettings = {
+  botId: string; guildId: string; enabled: boolean; panelChannelId: string | null; panelMessageId: string | null; logChannelId: string | null; viewRoleIds: string[]; manualEntryRoleIds: string[]; manualExitRoleIds: string[]; closeRoleIds: string[]; historyRoleIds: string[]; exportRoleIds: string[]; updatePanelRoleIds: string[]; adminRoleIds: string[]; cityManagerRoleIds: string[]; allowedUserIds: string[]; blockedUserIds: string[]; minMinutes: number; maxHours: number | null; autoUpdatePanel: boolean; createdAt: string; updatedAt: string; updatedBy: string | null;
+};
+export type AutoActivityClockCity = { id: string; botId: string; guildId: string; name: string; aliases: string[]; enabled: boolean; createdAt: string; updatedAt: string; updatedBy: string | null };
+export type AutoActivityClockSession = { id: string; botId: string; guildId: string; userId: string; username: string; cityId: string; cityName: string; statusDiscord: string; status: "open" | "closed" | "forced"; origin: "automatic" | "manual" | "forced"; startedAt: string; endedAt: string | null; durationMs: number | null; createdAt: string; updatedAt: string };
+export type AutoActivityClockDashboard = { active: AutoActivityClockSession[]; cities: AutoActivityClockCity[]; history: AutoActivityClockSession[]; settings: AutoActivityClockSettings; summary: { activeCount: number; averageDurationMs: number; totalDurationMs: number; totalEntries: number } };
+
 export type Ticket = {
   id: string;
   botId: string | null;

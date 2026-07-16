@@ -639,6 +639,82 @@ export type LiveDetectionSettings = {
   updatedBy: string | null;
 };
 
+export type PoliceTimeClockSettings = {
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  panelChannelId: string | null;
+  panelMessageId: string | null;
+  logChannelId: string | null;
+  managerRoleId: string | null;
+  closeRoleId: string | null;
+  reportRoleId: string | null;
+  exportRoleId: string | null;
+  adminRoleId: string | null;
+  allowManualEntry: boolean;
+  allowManualExit: boolean;
+  allowAutomaticEntry: boolean;
+  allowForcedClose: boolean;
+  allowHistory: boolean;
+  allowExport: boolean;
+  maxHours: number | null;
+  timezone: string;
+  timeFormat: "24h" | "12h";
+  autoUpdatePanel: boolean;
+  createdAt: string;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+export type PoliceTimeClockSession = {
+  id: string;
+  botId: string;
+  guildId: string;
+  userId: string;
+  username: string;
+  roleNames: string[];
+  status: "open" | "closed" | "forced";
+  origin: "manual" | "automatic" | "forced";
+  startedAt: string;
+  endedAt: string | null;
+  durationMs: number | null;
+  netDurationMs: number | null;
+  createdBy: string | null;
+  closedBy: string | null;
+  closeReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+export type PoliceTimeClockDashboard = { active: PoliceTimeClockSession[]; history: PoliceTimeClockSession[]; settings: PoliceTimeClockSettings; summary: { activeCount: number; averageDurationMs: number; totalDurationMs: number; totalEntries: number } };
+
+export type AutoActivityClockSettings = {
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  panelChannelId: string | null;
+  panelMessageId: string | null;
+  logChannelId: string | null;
+  viewRoleIds: string[];
+  manualEntryRoleIds: string[];
+  manualExitRoleIds: string[];
+  closeRoleIds: string[];
+  historyRoleIds: string[];
+  exportRoleIds: string[];
+  updatePanelRoleIds: string[];
+  adminRoleIds: string[];
+  cityManagerRoleIds: string[];
+  allowedUserIds: string[];
+  blockedUserIds: string[];
+  minMinutes: number;
+  maxHours: number | null;
+  autoUpdatePanel: boolean;
+  createdAt: string;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+export type AutoActivityClockCity = { id: string; botId: string; guildId: string; name: string; aliases: string[]; enabled: boolean; createdAt: string; updatedAt: string; updatedBy: string | null };
+export type AutoActivityClockSession = { id: string; botId: string; guildId: string; userId: string; username: string; cityId: string; cityName: string; statusDiscord: string; status: "open" | "closed" | "forced"; origin: "automatic" | "manual" | "forced"; startedAt: string; endedAt: string | null; durationMs: number | null; createdAt: string; updatedAt: string };
+export type AutoActivityClockDashboard = { active: AutoActivityClockSession[]; cities: AutoActivityClockCity[]; history: AutoActivityClockSession[]; settings: AutoActivityClockSettings; summary: { activeCount: number; averageDurationMs: number; totalDurationMs: number; totalEntries: number } };
+
 export type BotCommandAuthorization = {
   allowed: boolean;
   botId: string | null;
@@ -2069,6 +2145,58 @@ export class ApiClient {
   async removeLiveDetectionSettings(guildId: string) {
     const { data } = await this.http.delete<{ settings: LiveDetectionSettings }>(`/lives/settings/${guildId}`);
     return data.settings;
+  }
+
+  async getPoliceTimeClockDashboard(guildId: string) {
+    const { data } = await this.http.get<PoliceTimeClockDashboard>(`/police-time-clock/bot/${guildId}/dashboard`);
+    return data;
+  }
+
+  async getPoliceTimeClockSettings(guildId: string) {
+    const { data } = await this.http.get<{ settings: PoliceTimeClockSettings }>(`/police-time-clock/bot/${guildId}/config`);
+    return data.settings;
+  }
+
+  async savePoliceTimeClockSettings(guildId: string, payload: Partial<PoliceTimeClockSettings>, actorId?: string | null) {
+    const { data } = await this.http.patch<{ settings: PoliceTimeClockSettings }>(`/police-time-clock/bot/${guildId}/config`, payload, {
+      headers: actorId ? { "x-actor-id": actorId } : undefined
+    });
+    return data.settings;
+  }
+
+  async openPoliceTimeClockSession(guildId: string, payload: { createdBy?: string | null; origin?: "manual" | "automatic"; roleNames?: string[]; userId: string; username: string }) {
+    const { data } = await this.http.post<{ session: PoliceTimeClockSession }>(`/police-time-clock/bot/${guildId}/open`, payload);
+    return data.session;
+  }
+
+  async closePoliceTimeClockSession(guildId: string, payload: { closedBy?: string | null; forced?: boolean; reason?: string | null; userId: string }) {
+    const { data } = await this.http.post<{ session: PoliceTimeClockSession }>(`/police-time-clock/bot/${guildId}/close`, payload);
+    return data.session;
+  }
+
+  async getAutoActivityClockDashboard(guildId: string) {
+    const { data } = await this.http.get<AutoActivityClockDashboard>(`/auto-activity-clock/bot/${guildId}/dashboard`);
+    return data;
+  }
+
+  async getAutoActivityClockSettings(guildId: string) {
+    const { data } = await this.http.get<{ settings: AutoActivityClockSettings }>(`/auto-activity-clock/bot/${guildId}/config`);
+    return data.settings;
+  }
+
+  async matchAutoActivityClockCity(guildId: string, activityName: string) {
+    const { data } = await this.http.post<{ city: Pick<AutoActivityClockCity, "aliases" | "enabled" | "id" | "name"> | null }>(`/auto-activity-clock/bot/${guildId}/match-city`, { activityName });
+    return data.city;
+  }
+
+  async openAutoActivityClockSession(guildId: string, payload: { cityId: string; cityName: string; statusDiscord: string; userId: string; username: string }) {
+    const { data } = await this.http.post<{ session: AutoActivityClockSession }>(`/auto-activity-clock/bot/${guildId}/open`, payload);
+    return data.session;
+  }
+
+  async closeAutoActivityClockSession(guildId: string, payload: { statusDiscord?: string | null; userId: string }) {
+    const { data } = await this.http.post<{ session: AutoActivityClockSession }>(`/auto-activity-clock/bot/${guildId}/close`, payload);
+    return data.session;
   }
 
   async authorizeCommand(input: { channelId?: string | null; commandName: string; guildId: string; userId?: string | null }) {

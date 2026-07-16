@@ -30,6 +30,8 @@ import { rhAdminCommand } from "../services/rhAdminService";
 import { removerCommand } from "./remover";
 import { visibleMessageCommand } from "../services/visibleMessageService";
 import { livesCommand } from "../services/liveService";
+import { pontosAutomaticosCommand } from "../services/autoActivityClockBotService";
+import { barraCommand, relogioDePontoCommand } from "../services/policeTimeClockBotService";
 import type { BotCommand } from "../types";
 
 export function createCommandCollection() {
@@ -73,7 +75,10 @@ export function createCommandCollection() {
     sistemaCommand,
     iabCommand,
     serverClonerCommand,
-    serverGeneratorCommand
+    serverGeneratorCommand,
+    barraCommand,
+    relogioDePontoCommand,
+    pontosAutomaticosCommand
   ].forEach((command) => {
     if (commands.has(command.data.name)) {
       throw new Error(`Comando duplicado registrado: /${command.data.name}`);

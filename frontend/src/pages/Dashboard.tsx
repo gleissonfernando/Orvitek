@@ -111,11 +111,13 @@ import {
   deleteFivemGoalConfig,
   deleteGuildChannels,
   deleteFivemHierarchyPanel,
+  deleteAutoActivityClockCity,
   deleteLiveDetectionSettings,
   fetchEmojiCloneBotTokenEmojis,
   getAdvancedModuleConfig,
   getApplicationEmojiSettings,
   getApplicationEmojis,
+  getAutoActivityClockDashboard,
   getClipsConfig,
   getCustomerPlansDashboard,
   getDashboardBySlug,
@@ -135,6 +137,7 @@ import {
   getLives,
   getLogs,
   getManualRegistrationDashboard,
+  getPoliceTimeClockDashboard,
   getSelfBotProtection,
   getServerBackupDashboard,
   getSocialNotifications,
@@ -151,11 +154,14 @@ import {
   removeAllApplicationEmojis,
   resendEmojiFromLibrary,
   saveAdvancedModuleConfig,
+  saveAutoActivityClockCity,
+  saveAutoActivityClockSettings,
   saveFivemGoalSettings,
   saveFivemHierarchyPanel,
   saveGlobalBlacklistSettings,
   saveLiveDetectionSettings,
   saveManualRegistrationSettings,
+  savePoliceTimeClockSettings,
   saveServerBackupSettings,
   syncApplicationEmojis,
   updateFivemGoalConfig,
@@ -173,6 +179,7 @@ import type {
   ApplicationEmojiItem,
   ApplicationEmojiPage,
   ApplicationEmojiSettings,
+  AutoActivityClockDashboard,
   AuthResponse,
   BotStatus,
   ClipSent,
@@ -215,6 +222,7 @@ import type {
   ManualRegistrationSetRole,
   ManualRegistrationSubmission,
   MaintenanceState,
+  PoliceTimeClockDashboard,
   SelfBotProtectionSettings,
   ServerBackupDashboard,
   ServerBackupRestoreMode,
@@ -566,6 +574,20 @@ const moduleCatalog: ModuleDefinition[] = [
     description: "Notificações policiais por DM, canal mencionado, contador de avisos verbais e alertas administrativos.",
     icon: Bell,
     view: "police-open-duty"
+  },
+  {
+    id: "police-time-clock",
+    title: "Relógio de Ponto",
+    description: "Controle de entrada, saída, histórico e relatórios de serviço policial.",
+    icon: Clock3,
+    view: "police-time-clock"
+  },
+  {
+    id: "auto-activity-clock",
+    title: "Ponto Automático",
+    description: "Abre e fecha ponto automaticamente por atividade do Discord em cidades RP.",
+    icon: Activity,
+    view: "auto-activity-clock"
   },
   {
     id: "courses",
@@ -1574,6 +1596,20 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
           <OpenDutyNotificationsPanel
             botId={activeBotId}
             canManage={canManageModule(selectedBot, "police-open-duty", canManageDashboard)}
+            guild={selectedGuild}
+          />
+        ) : null}
+        {activeView === "police-time-clock" ? (
+          <PoliceTimeClockPanel
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "police-time-clock", canManageDashboard)}
+            guild={selectedGuild}
+          />
+        ) : null}
+        {activeView === "auto-activity-clock" ? (
+          <AutoActivityClockPanel
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "auto-activity-clock", canManageDashboard)}
             guild={selectedGuild}
           />
         ) : null}
@@ -4806,6 +4842,165 @@ function LiveDetectionPanel({
       </CardContent>
     </Card>
   );
+}
+
+function PoliceTimeClockPanel({ botId, canManage, guild }: { botId?: string | null; canManage: boolean; guild: DashboardGuild | null }) {
+  const [dashboard, setDashboard] = useState<PoliceTimeClockDashboard | null>(null);
+  const [channels, setChannels] = useState<GuildChannelOption[]>([]);
+  const [roles, setRoles] = useState<GuildRoleOption[]>([]);
+  const [message, setMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!guild || !botId) return;
+    Promise.all([getPoliceTimeClockDashboard(guild.id, botId), getGuildLiveOptions(guild.id, botId)])
+      .then(([data, options]) => { if (mounted) { setDashboard(data); setChannels(options.channels); setRoles(options.roles); } })
+      .catch((error) => { if (mounted) setMessage(readResponseMessage(error) ?? "Não foi possível carregar o Relógio de Ponto."); });
+    return () => { mounted = false; };
+  }, [botId, guild]);
+
+  async function patch(payload: Partial<PoliceTimeClockDashboard["settings"]>) {
+    if (!guild || !botId || !dashboard) return;
+    setSaving(true); setMessage(null);
+    try {
+      const settings = await savePoliceTimeClockSettings(guild.id, botId, payload);
+      setDashboard({ ...dashboard, settings });
+      setMessage("Configuração salva.");
+    } catch (error) {
+      setMessage(readResponseMessage(error) ?? "Não foi possível salvar.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!dashboard) return <Card><CardContent className="flex min-h-32 items-center justify-center p-6 text-sm text-zinc-400"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Carregando Relógio de Ponto...</CardContent></Card>;
+  const disabled = !canManage || saving;
+
+  return (
+    <div className="space-y-4">
+      {message ? <div className="rounded-lg border border-[#FFD500]/25 bg-[#FFD500]/10 px-4 py-3 text-sm font-semibold text-white">{message}</div> : null}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div><CardTitle>Relógio de Ponto</CardTitle><CardDescription>Controle policial de entrada, saída, histórico e relatórios.</CardDescription></div>
+            <div className="flex items-center gap-3"><span className="text-sm text-zinc-300">{dashboard.settings.enabled ? "Ativo" : "Desativado"}</span><Switch checked={dashboard.settings.enabled} disabled={disabled} onCheckedChange={(checked) => void patch({ enabled: checked })} /></div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <FivemChannelSelect channels={channels} disabled={disabled} label="Canal do painel" onChange={(value) => void patch({ panelChannelId: value || null })} placeholder="Selecionar canal" value={dashboard.settings.panelChannelId ?? ""} />
+            <FivemChannelSelect channels={channels} disabled={disabled} label="Canal de logs" onChange={(value) => void patch({ logChannelId: value || null })} placeholder="Sem logs" value={dashboard.settings.logChannelId ?? ""} />
+            <RoleSelect disabled={disabled} label="Cargo que gerencia" onChange={(value) => void patch({ managerRoleId: value || null })} roles={roles} value={dashboard.settings.managerRoleId ?? ""} />
+            <RoleSelect disabled={disabled} label="Cargo que fecha ponto" onChange={(value) => void patch({ closeRoleId: value || null })} roles={roles} value={dashboard.settings.closeRoleId ?? ""} />
+            <RoleSelect disabled={disabled} label="Cargo de relatórios" onChange={(value) => void patch({ reportRoleId: value || null })} roles={roles} value={dashboard.settings.reportRoleId ?? ""} />
+            <RoleSelect disabled={disabled} label="Administrador do sistema" onChange={(value) => void patch({ adminRoleId: value || null })} roles={roles} value={dashboard.settings.adminRoleId ?? ""} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <SimpleCheck label="Entrada manual" checked={dashboard.settings.allowManualEntry} disabled={disabled} onChange={(checked) => void patch({ allowManualEntry: checked })} />
+            <SimpleCheck label="Saída manual" checked={dashboard.settings.allowManualExit} disabled={disabled} onChange={(checked) => void patch({ allowManualExit: checked })} />
+            <SimpleCheck label="Fechamento forçado" checked={dashboard.settings.allowForcedClose} disabled={disabled} onChange={(checked) => void patch({ allowForcedClose: checked })} />
+            <SimpleCheck label="Histórico" checked={dashboard.settings.allowHistory} disabled={disabled} onChange={(checked) => void patch({ allowHistory: checked })} />
+          </div>
+        </CardContent>
+      </Card>
+      <ClockOverviewCard active={dashboard.active.map((item) => ({ id: item.id, label: item.username, meta: `Entrada ${new Date(item.startedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` }))} history={dashboard.history.map((item) => ({ id: item.id, label: item.username, meta: formatMs(item.durationMs ?? 0) }))} summary={dashboard.summary} />
+    </div>
+  );
+}
+
+function AutoActivityClockPanel({ botId, canManage, guild }: { botId?: string | null; canManage: boolean; guild: DashboardGuild | null }) {
+  const [dashboard, setDashboard] = useState<AutoActivityClockDashboard | null>(null);
+  const [channels, setChannels] = useState<GuildChannelOption[]>([]);
+  const [cityName, setCityName] = useState("");
+  const [cityAliases, setCityAliases] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const reload = useCallback(async () => {
+    if (!guild || !botId) return;
+    const [data, options] = await Promise.all([getAutoActivityClockDashboard(guild.id, botId), getGuildLiveOptions(guild.id, botId)]);
+    setDashboard(data); setChannels(options.channels);
+  }, [botId, guild]);
+
+  useEffect(() => { void reload().catch((error) => setMessage(readResponseMessage(error) ?? "Não foi possível carregar o Ponto Automático.")); }, [reload]);
+
+  async function patch(payload: Partial<AutoActivityClockDashboard["settings"]>) {
+    if (!guild || !botId || !dashboard) return;
+    setSaving(true); setMessage(null);
+    try {
+      const settings = await saveAutoActivityClockSettings(guild.id, botId, payload);
+      setDashboard({ ...dashboard, settings });
+      setMessage("Configuração salva.");
+    } catch (error) { setMessage(readResponseMessage(error) ?? "Não foi possível salvar."); }
+    finally { setSaving(false); }
+  }
+
+  async function addCity() {
+    if (!guild || !botId || !cityName.trim()) return;
+    setSaving(true);
+    try {
+      await saveAutoActivityClockCity(guild.id, botId, { aliases: cityAliases.split(",").map((item) => item.trim()).filter(Boolean), name: cityName.trim() });
+      setCityName(""); setCityAliases(""); await reload(); setMessage("Cidade salva.");
+    } catch (error) { setMessage(readResponseMessage(error) ?? "Não foi possível salvar a cidade."); }
+    finally { setSaving(false); }
+  }
+
+  async function removeCity(cityId: string) {
+    if (!guild || !botId) return;
+    await deleteAutoActivityClockCity(guild.id, botId, cityId); await reload();
+  }
+
+  if (!dashboard) return <Card><CardContent className="flex min-h-32 items-center justify-center p-6 text-sm text-zinc-400"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Carregando Ponto Automático...</CardContent></Card>;
+  const disabled = !canManage || saving;
+
+  return (
+    <div className="space-y-4">
+      {message ? <div className="rounded-lg border border-[#FFD500]/25 bg-[#FFD500]/10 px-4 py-3 text-sm font-semibold text-white">{message}</div> : null}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div><CardTitle>Sistema de Ponto Automático</CardTitle><CardDescription>Detecta cidades RP pela atividade do Discord e abre/fecha ponto automaticamente.</CardDescription></div>
+            <div className="flex items-center gap-3"><span className="text-sm text-zinc-300">{dashboard.settings.enabled ? "Ativo" : "Desativado"}</span><Switch checked={dashboard.settings.enabled} disabled={disabled} onCheckedChange={(checked) => void patch({ enabled: checked })} /></div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <FivemChannelSelect channels={channels} disabled={disabled} label="Canal do painel" onChange={(value) => void patch({ panelChannelId: value || null })} placeholder="Selecionar canal" value={dashboard.settings.panelChannelId ?? ""} />
+            <FivemChannelSelect channels={channels} disabled={disabled} label="Canal de logs" onChange={(value) => void patch({ logChannelId: value || null })} placeholder="Sem logs" value={dashboard.settings.logChannelId ?? ""} />
+          </div>
+          <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto]">
+            <input className="h-10 rounded-md border border-zinc-800 bg-black px-3 text-sm text-white" disabled={disabled} onChange={(event) => setCityName(event.target.value)} placeholder="Nome da cidade" value={cityName} />
+            <input className="h-10 rounded-md border border-zinc-800 bg-black px-3 text-sm text-white" disabled={disabled} onChange={(event) => setCityAliases(event.target.value)} placeholder="Aliases separados por vírgula" value={cityAliases} />
+            <Button disabled={disabled || !cityName.trim()} onClick={() => void addCity()}>Adicionar cidade</Button>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {dashboard.cities.map((city) => <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3" key={city.id}><p className="font-semibold text-white">{city.name}</p><p className="text-xs text-zinc-500">{city.aliases.join(", ") || "Sem aliases"}</p><Button className="mt-3" disabled={disabled} onClick={() => void removeCity(city.id)} size="sm" variant="outline">Remover</Button></div>)}
+          </div>
+        </CardContent>
+      </Card>
+      <ClockOverviewCard active={dashboard.active.map((item) => ({ id: item.id, label: item.username, meta: item.cityName }))} history={dashboard.history.map((item) => ({ id: item.id, label: item.username, meta: `${item.cityName} • ${formatMs(item.durationMs ?? 0)}` }))} summary={dashboard.summary} />
+    </div>
+  );
+}
+
+function SimpleCheck({ checked, disabled, label, onChange }: { checked: boolean; disabled: boolean; label: string; onChange: (checked: boolean) => void }) {
+  return <label className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300"><input checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} type="checkbox" />{label}</label>;
+}
+
+function ClockOverviewCard({ active, history, summary }: { active: Array<{ id: string; label: string; meta: string }>; history: Array<{ id: string; label: string; meta: string }>; summary: { activeCount: number; averageDurationMs: number; totalDurationMs: number; totalEntries: number } }) {
+  return <Card><CardHeader><CardTitle>Resumo</CardTitle><CardDescription>Dados recentes persistidos no banco.</CardDescription></CardHeader><CardContent className="grid gap-4 lg:grid-cols-3"><MetricCard icon={Users} label="Ativos" value={String(summary.activeCount)} /><MetricCard icon={Clock3} label="Tempo médio" value={formatMs(summary.averageDurationMs)} /><MetricCard icon={ScrollText} label="Histórico" value={String(summary.totalEntries)} /><div className="lg:col-span-3 grid gap-4 md:grid-cols-2"><MiniList items={active} title="Em serviço" /><MiniList items={history.slice(0, 8)} title="Histórico recente" /></div></CardContent></Card>;
+}
+
+function MiniList({ items, title }: { items: Array<{ id: string; label: string; meta: string }>; title: string }) {
+  return <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3"><p className="mb-3 text-sm font-semibold text-white">{title}</p><div className="space-y-2">{items.length ? items.map((item) => <div className="flex justify-between gap-3 text-sm" key={item.id}><span className="truncate text-zinc-200">{item.label}</span><span className="shrink-0 text-zinc-500">{item.meta}</span></div>) : <p className="text-sm text-zinc-500">Nenhum registro.</p>}</div></div>;
+}
+
+function formatMs(ms: number) {
+  const minutes = Math.max(0, Math.floor(ms / 60000));
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return hours ? `${hours}h ${rest}m` : `${rest}m`;
 }
 
 function ModerationView({

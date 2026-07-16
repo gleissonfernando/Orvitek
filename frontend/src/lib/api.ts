@@ -3,6 +3,9 @@ import type { InternalAxiosRequestConfig } from "axios";
 import type {
   AccessValidationResult,
   AdvancedModuleConfig,
+  AutoActivityClockCity,
+  AutoActivityClockDashboard,
+  AutoActivityClockSettings,
   ApplicationEmojiPage,
   ApplicationEmojiSettings,
   ApplicationEmojiSyncResult,
@@ -92,6 +95,8 @@ import type {
   PanelImageSettings,
   Pd7Dashboard,
   Pd7Settings,
+  PoliceTimeClockDashboard,
+  PoliceTimeClockSettings,
   PriceTable,
   PriceTablesDashboard,
   PublicNexTechProduct,
@@ -1695,6 +1700,12 @@ export async function removeDmBarImage(guildId: string, botId: string, imageType
 export async function getOpenDutyDashboard(guildId: string, botId: string) { const { data } = await api.get<OpenDutyDashboard>(`/open-duty-notifications/${guildId}`, { params: botParams(botId) }); return data; }
 export async function saveOpenDutySettings(guildId: string, botId: string, payload: SaveOpenDutySettingsPayload) { const { data } = await api.patch<{ settings: import("../types").OpenDutySettings }>(`/open-duty-notifications/${guildId}/config`, payload, { params: botParams(botId) }); return data.settings; }
 export async function resetOpenDutyCounter(guildId: string, botId: string, userId: string) { const { data } = await api.post<{ counter: { total: number; userId: string } }>(`/open-duty-notifications/${guildId}/reset-counter`, { userId }, { params: botParams(botId) }); return data.counter; }
+export async function getPoliceTimeClockDashboard(guildId: string, botId: string) { const { data } = await api.get<PoliceTimeClockDashboard>(`/police-time-clock/${guildId}`, { params: botParams(botId) }); return data; }
+export async function savePoliceTimeClockSettings(guildId: string, botId: string, payload: Partial<PoliceTimeClockSettings>) { const { data } = await api.patch<{ settings: PoliceTimeClockSettings }>(`/police-time-clock/${guildId}/config`, payload, { params: botParams(botId) }); return data.settings; }
+export async function getAutoActivityClockDashboard(guildId: string, botId: string) { const { data } = await api.get<AutoActivityClockDashboard>(`/auto-activity-clock/${guildId}`, { params: botParams(botId) }); return data; }
+export async function saveAutoActivityClockSettings(guildId: string, botId: string, payload: Partial<AutoActivityClockSettings>) { const { data } = await api.patch<{ settings: AutoActivityClockSettings }>(`/auto-activity-clock/${guildId}/config`, payload, { params: botParams(botId) }); return data.settings; }
+export async function saveAutoActivityClockCity(guildId: string, botId: string, payload: { aliases?: string[]; cityId?: string | null; enabled?: boolean; name: string }) { const { data } = await api.post<{ city: AutoActivityClockCity }>(`/auto-activity-clock/${guildId}/cities`, payload, { params: botParams(botId) }); return data.city; }
+export async function deleteAutoActivityClockCity(guildId: string, botId: string, cityId: string) { await api.delete(`/auto-activity-clock/${guildId}/cities/${cityId}`, { params: botParams(botId) }); }
 
 export async function getGlobalBlacklistDashboard(guildId: string, botId?: string | null) {
   const { data } = await api.get<GlobalBlacklistDashboard>(`/global-blacklist/${guildId}`, {

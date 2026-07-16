@@ -1640,6 +1640,137 @@ export type MongoLiveDetectionSettings = {
   updatedBy: string | null;
 };
 
+export type MongoPoliceTimeClockSettings = {
+  _id?: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  panelChannelId: string | null;
+  panelMessageId: string | null;
+  logChannelId: string | null;
+  managerRoleId: string | null;
+  closeRoleId: string | null;
+  reportRoleId: string | null;
+  exportRoleId: string | null;
+  adminRoleId: string | null;
+  allowManualEntry: boolean;
+  allowManualExit: boolean;
+  allowAutomaticEntry: boolean;
+  allowForcedClose: boolean;
+  allowHistory: boolean;
+  allowExport: boolean;
+  maxHours: number | null;
+  timezone: string;
+  timeFormat: "24h" | "12h";
+  autoUpdatePanel: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  updatedBy: string | null;
+};
+
+export type MongoPoliceTimeClockSession = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  userId: string;
+  username: string;
+  roleNames: string[];
+  status: "open" | "closed" | "forced";
+  origin: "manual" | "automatic" | "forced";
+  startedAt: Date;
+  endedAt: Date | null;
+  durationMs: number | null;
+  netDurationMs: number | null;
+  createdBy: string | null;
+  closedBy: string | null;
+  closeReason: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoPoliceTimeClockLog = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  userId: string | null;
+  adminId: string | null;
+  action: string;
+  result: "success" | "error" | "denied" | "info";
+  message: string;
+  metadata?: unknown;
+  createdAt: Date;
+};
+
+export type MongoAutoActivityClockSettings = {
+  _id?: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  panelChannelId: string | null;
+  panelMessageId: string | null;
+  logChannelId: string | null;
+  viewRoleIds: string[];
+  manualEntryRoleIds: string[];
+  manualExitRoleIds: string[];
+  closeRoleIds: string[];
+  historyRoleIds: string[];
+  exportRoleIds: string[];
+  updatePanelRoleIds: string[];
+  adminRoleIds: string[];
+  cityManagerRoleIds: string[];
+  allowedUserIds: string[];
+  blockedUserIds: string[];
+  minMinutes: number;
+  maxHours: number | null;
+  autoUpdatePanel: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  updatedBy: string | null;
+};
+
+export type MongoAutoActivityClockCity = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  name: string;
+  aliases: string[];
+  enabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  updatedBy: string | null;
+};
+
+export type MongoAutoActivityClockSession = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  userId: string;
+  username: string;
+  cityId: string;
+  cityName: string;
+  statusDiscord: string;
+  status: "open" | "closed" | "forced";
+  origin: "automatic" | "manual" | "forced";
+  startedAt: Date;
+  endedAt: Date | null;
+  durationMs: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoAutoActivityClockLog = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  userId: string | null;
+  adminId: string | null;
+  action: string;
+  result: "success" | "error" | "denied" | "info";
+  message: string;
+  metadata?: unknown;
+  createdAt: Date;
+};
+
 export type MongoKickApiConfig = {
   _id: string;
   botId?: string | null;
@@ -4063,6 +4194,13 @@ export async function getMongoCollections() {
     serviceHeartbeats: db.collection<MongoServiceHeartbeat>("service_heartbeats"),
     logEntries: db.collection<MongoLogEntry>("LogEntry"),
     liveDetectionSettings: db.collection<MongoLiveDetectionSettings>("live_detection_settings"),
+    policeTimeClockSettings: db.collection<MongoPoliceTimeClockSettings>("police_time_clock_settings"),
+    policeTimeClockSessions: db.collection<MongoPoliceTimeClockSession>("police_time_clock_sessions"),
+    policeTimeClockLogs: db.collection<MongoPoliceTimeClockLog>("police_time_clock_logs"),
+    autoActivityClockSettings: db.collection<MongoAutoActivityClockSettings>("auto_activity_clock_settings"),
+    autoActivityClockCities: db.collection<MongoAutoActivityClockCity>("auto_activity_clock_cities"),
+    autoActivityClockSessions: db.collection<MongoAutoActivityClockSession>("auto_activity_clock_sessions"),
+    autoActivityClockLogs: db.collection<MongoAutoActivityClockLog>("auto_activity_clock_logs"),
     socialNotifications: db.collection<MongoSocialNotification>("social_notifications"),
     kickApiConfigs: db.collection<MongoKickApiConfig>("kick_api_configs"),
     socialMembers: db.collection<MongoSocialMember>("social_members"),
@@ -4346,6 +4484,18 @@ async function createMongoIndexes(db: Db) {
     db.collection<MongoLogEntry>("LogEntry").createIndex({ botId: 1, guildId: 1, caseId: 1, createdAt: -1 }),
     db.collection<MongoLiveDetectionSettings>("live_detection_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
     db.collection<MongoLiveDetectionSettings>("live_detection_settings").createIndex({ botId: 1, enabled: 1, updatedAt: -1 }),
+    db.collection<MongoPoliceTimeClockSettings>("police_time_clock_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    db.collection<MongoPoliceTimeClockSession>("police_time_clock_sessions").createIndex({ botId: 1, guildId: 1, status: 1, startedAt: -1 }),
+    db.collection<MongoPoliceTimeClockSession>("police_time_clock_sessions").createIndex({ botId: 1, guildId: 1, userId: 1, status: 1 }),
+    db.collection<MongoPoliceTimeClockSession>("police_time_clock_sessions").createIndex({ botId: 1, guildId: 1, userId: 1, startedAt: -1 }),
+    db.collection<MongoPoliceTimeClockLog>("police_time_clock_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoAutoActivityClockSettings>("auto_activity_clock_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    db.collection<MongoAutoActivityClockCity>("auto_activity_clock_cities").createIndex({ botId: 1, guildId: 1, name: 1 }, { unique: true }),
+    db.collection<MongoAutoActivityClockCity>("auto_activity_clock_cities").createIndex({ botId: 1, guildId: 1, enabled: 1, updatedAt: -1 }),
+    db.collection<MongoAutoActivityClockSession>("auto_activity_clock_sessions").createIndex({ botId: 1, guildId: 1, status: 1, startedAt: -1 }),
+    db.collection<MongoAutoActivityClockSession>("auto_activity_clock_sessions").createIndex({ botId: 1, guildId: 1, userId: 1, status: 1 }),
+    db.collection<MongoAutoActivityClockSession>("auto_activity_clock_sessions").createIndex({ botId: 1, guildId: 1, userId: 1, startedAt: -1 }),
+    db.collection<MongoAutoActivityClockLog>("auto_activity_clock_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
     db.collection<MongoTranscript>("transcripts").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
     db.collection<MongoTranscript>("transcripts").createIndex({ botId: 1, guildId: 1, ticketId: 1 }),
     db.collection<MongoTranscript>("transcripts").createIndex({ botId: 1, guildId: 1, type: 1, status: 1, createdAt: -1 }),
