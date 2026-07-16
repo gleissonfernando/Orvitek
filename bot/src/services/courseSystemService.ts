@@ -2686,6 +2686,7 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
   const publicationMentionRoleId = settings.publicationMentionRoleId;
   const publicationMention = publicationMentionRoleId ? `<@&${publicationMentionRoleId}>` : null;
   const students = coursePublicationStudents(publication, guild);
+  const mentionUsers = coursePublicationMentionUsers(publication);
   const full = publication.students.length >= publication.capacity;
   const statusText = coursePublicationPlainStatusLabel(publication, full);
   const canJoin = publication.status === "open" && !full;
@@ -2761,7 +2762,7 @@ function coursePublicationPanel(course: Course, publication: CoursePublication, 
   ];
   return componentsV2Payload({
     accentColor: parseColor(course.color),
-    allowedMentions: allowPublicationMention && publicationMentionRoleId ? { roles: [publicationMentionRoleId] } : { parse: [] as never[] },
+    allowedMentions: coursePublicationAllowedMentions(publicationMentionRoleId, allowPublicationMention, mentionUsers),
     components,
     footer: "© NexTech Systems"
   }) as ReturnType<typeof renderComponentsV2Panel>;
@@ -2776,14 +2777,34 @@ function separator() {
 }
 
 function coursePublicationStudents(publication: CoursePublication, guild: { members: { cache: Map<string, GuildMember> } }) {
+  void guild;
   if (!publication.students.length) return "Nenhum aluno confirmado.";
   const visible = publication.students.slice(0, 20).map((id) => {
-    const member = guild.members.cache.get(id);
-    return `☑ ${member?.displayName ?? `<@${id}>`}`;
+    return `☑ <@${id}>`;
   });
   const remaining = publication.students.length - visible.length;
   if (remaining > 0) visible.push(`+ ${remaining} aluno(s)`);
   return visible.join("\n");
+}
+
+function coursePublicationMentionUsers(publication: CoursePublication) {
+  return uniqueIds([
+    publication.instructorId,
+    publication.startedBy,
+    publication.proofStartedBy,
+    publication.finishedBy,
+    publication.cancelledBy,
+    ...publication.students.slice(0, 20)
+  ]);
+}
+
+function coursePublicationAllowedMentions(roleId: string | null | undefined, allowRole: boolean, userIds: string[]) {
+  const roles = allowRole && roleId ? [roleId] : [];
+  return {
+    ...(roles.length ? { roles } : {}),
+    ...(userIds.length ? { users: userIds } : {}),
+    ...(roles.length || userIds.length ? {} : { parse: [] as never[] })
+  };
 }
 
 function coursePublicationInitialPost(course: Course, publication: CoursePublication, settings: CourseSettings, guild: { members: { cache: Map<string, GuildMember> } }, allowPublicationMention = false) {
