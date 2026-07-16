@@ -23,6 +23,7 @@ import { iabCommand, sistemaCommand } from "./reportSystem";
 import { policePatrolReportCommand, viewPolicePatrolReportCommand } from "./policePatrolReports";
 import { policeHiddenChannelCommand } from "../services/policeHiddenChannelService";
 import { dmBarCommand } from "../services/dmBarService";
+import { dafCommand, escalaDafCommand } from "../services/dafScaleService";
 import { policeSubpoenaCommand } from "../services/policeSubpoenaService";
 import { courseCommand, cursosHistoricoCommand, instrutoresCommand, publicarCursoCommand, removerCursoHistoricoCommand } from "../services/courseSystemService";
 import { rhAdminCommand } from "../services/rhAdminService";
@@ -56,6 +57,8 @@ export function createCommandCollection() {
     viewPolicePatrolReportCommand,
     policeHiddenChannelCommand,
     dmBarCommand,
+    dafCommand,
+    escalaDafCommand,
     policeSubpoenaCommand,
     courseCommand,
     instrutoresCommand,

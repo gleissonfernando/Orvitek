@@ -671,6 +671,11 @@ export type FivemActionSettings = { id: string; botId: string; guildId: string; 
 export type FivemActionDefinition = { id: string; architecture: FivemActionArchitecture; name: string; description: string; emoji: string | null; imageUrl: string | null; color: string; maxParticipants: number; enabled: boolean; order: number };
 export type FivemActionParticipant = { userId: string; username: string; roleIds: string[]; position: "confirmed" | "reserve"; joinedAt: string; leftAt: string | null };
 export type FivemActionSession = { id: string; botId: string; guildId: string; architecture: FivemActionArchitecture; actionId: string; actionName: string; actionDescription: string; actionEmoji: string | null; actionImageUrl: string | null; actionColor: string; mode: FivemActionMode | null; openerId: string; openerName: string; channelId: string | null; messageId: string | null; sheetRow: number | null; sheetSyncStatus: "pending" | "synced" | "failed" | null; sheetSyncError: string | null; sheetLastSyncAt: string | null; status: "forming" | "active" | "victory" | "defeat" | "draw" | "cancelled"; maxParticipants: number; participants: FivemActionParticipant[]; startedAt: string | null; cancelledAt: string | null; cancelledBy: string | null; cancellationReason: string | null; finishedAt: string | null; resultNote: string | null; resultSummary: string | null; resultOccurrence: string | null; createdAt: string; updatedAt: string };
+export type DafScaleRole = "pilot" | "shooter";
+export type DafScaleSettings = { id: string; botId: string; guildId: string; enabled: boolean; panelChannelId: string | null; logChannelId: string | null; participantRoleId: string | null; configRoleId: string | null; pilotRoleId: string | null; shooterRoleId: string | null; maxPilots: number; maxShooters: number; panelMessageId: string | null; createdAt: string; updatedAt: string; updatedBy: string | null };
+export type DafScaleEntry = { id: string; botId: string; guildId: string; userId: string; username: string; role: DafScaleRole; joinedAt: string; updatedAt: string };
+export type DafScaleState = { settings: DafScaleSettings; entries: DafScaleEntry[]; pilots: DafScaleEntry[]; shooters: DafScaleEntry[] };
+export type DafScaleActionResult = { action: "join" | "leave" | "switch" | "none"; entry: DafScaleEntry | null; previousRole: DafScaleRole | null; settings: DafScaleSettings; state: DafScaleState };
 export type PolicePatrolSettings = { id: string; botId: string; guildId: string; enabled: boolean; creatorRoleIds: string[]; viewerRoleIds: string[]; deleteRoleIds: string[]; supervisorRoleIds: string[]; logChannelId: string | null; temporaryCategoryId: string | null; deleteDelayMinutes: number; defaultExportFormat: "html" | "pdf" | "json" };
 export type PolicePatrolReport = { id: string; botId: string; guildId: string; officerId: string; officerName: string; authorId: string; authorName: string; patrolType: string | null; initialNotes: string | null; patrolStart: string | null; patrolEnd: string | null; durationMinutes: number | null; channelId: string | null; panelMessageId: string | null; lastAuthorMessageId: string | null; messageCount: number; attachmentCount: number; status: "draft" | "active" | "finished" | "cancelled"; createdAt: string; startedAt: string | null; finishedAt: string | null; deleteAt: string | null };
 export type PolicePatrolMessage = { id: string; discordMessageId: string; authorId: string; content: string; attachments: Array<{ id: string; name: string; url: string; contentType: string | null; size: number }>; embeds: unknown[]; stickers: Array<{ id: string; name: string; format: number }>; emojis: string[]; createdAt: string };
@@ -3416,6 +3421,35 @@ export class ApiClient {
   async recordOpenDutyDelivery(guildId: string, input: { edited: boolean; errorReason?: string | null; executorId: string; message: string; status: "sent" | "failed" | "cancelled" | "denied"; targetId: string }) {
     const { data } = await this.http.post<{ alertTriggered: boolean; counterTotal: number; settings: OpenDutySettings }>("/open-duty-notifications/bot/" + guildId + "/deliveries", input);
     return data;
+  }
+
+  async getDafScaleState(guildId: string) {
+    const { data } = await this.http.get<DafScaleState>(`/daf-scale/bot/${guildId}/state`);
+    return data;
+  }
+
+  async saveDafScaleSettings(guildId: string, input: Partial<DafScaleSettings>, actorId?: string | null) {
+    const { data } = await this.http.patch<{ settings: DafScaleSettings }>(`/daf-scale/bot/${guildId}/settings`, input, { headers: actorId ? { "x-actor-id": actorId } : undefined });
+    return data.settings;
+  }
+
+  async updateDafScalePanelMessage(guildId: string, messageId: string | null, actorId?: string | null) {
+    const { data } = await this.http.patch<{ settings: DafScaleSettings }>(`/daf-scale/bot/${guildId}/panel-message`, { messageId }, { headers: actorId ? { "x-actor-id": actorId } : undefined });
+    return data.settings;
+  }
+
+  async joinDafScale(guildId: string, input: { role: DafScaleRole; roleIds: string[]; userId: string; username: string }) {
+    const { data } = await this.http.post<DafScaleActionResult>(`/daf-scale/bot/${guildId}/join`, input);
+    return data;
+  }
+
+  async leaveDafScale(guildId: string, input: { userId: string; username: string }) {
+    const { data } = await this.http.post<DafScaleActionResult>(`/daf-scale/bot/${guildId}/leave`, input);
+    return data;
+  }
+
+  async recordDafScaleAudit(guildId: string, input: { action: "join" | "leave" | "switch" | "refresh" | "publish" | "config"; metadata?: Record<string, unknown> | null; previousRole?: DafScaleRole | null; role?: DafScaleRole | null; userId: string; username: string }) {
+    await this.http.post(`/daf-scale/bot/${guildId}/audit`, input);
   }
 
   async getFivemActionDashboard(guildId: string, architecture: FivemActionArchitecture) {

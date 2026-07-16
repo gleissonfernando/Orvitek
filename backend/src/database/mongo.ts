@@ -2129,6 +2129,51 @@ export type MongoFivemActionSession = {
   updatedAt: Date;
 };
 
+export type MongoDafScaleRole = "pilot" | "shooter";
+
+export type MongoDafScaleSettings = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  panelChannelId: string | null;
+  logChannelId: string | null;
+  participantRoleId: string | null;
+  configRoleId: string | null;
+  pilotRoleId: string | null;
+  shooterRoleId: string | null;
+  maxPilots: number;
+  maxShooters: number;
+  panelMessageId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  updatedBy: string | null;
+};
+
+export type MongoDafScaleEntry = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  userId: string;
+  username: string;
+  role: MongoDafScaleRole;
+  joinedAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoDafScaleAudit = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  userId: string;
+  username: string;
+  action: "join" | "leave" | "switch" | "refresh" | "publish" | "config";
+  role: MongoDafScaleRole | null;
+  previousRole: MongoDafScaleRole | null;
+  createdAt: Date;
+  metadata?: Record<string, unknown> | null;
+};
+
 export type MongoPolicePatrolSettings = {
   _id: string; botId: string; guildId: string; enabled: boolean;
   creatorRoleIds: string[]; viewerRoleIds: string[]; deleteRoleIds: string[]; supervisorRoleIds: string[];
@@ -4021,6 +4066,9 @@ export async function getMongoCollections() {
     fivemActionSettings: db.collection<MongoFivemActionSettings>("fivem_action_settings"),
     fivemActionDefinitions: db.collection<MongoFivemActionDefinition>("fivem_action_definitions"),
     fivemActionSessions: db.collection<MongoFivemActionSession>("fivem_action_sessions"),
+    dafScaleSettings: db.collection<MongoDafScaleSettings>("daf_scale_settings"),
+    dafScaleEntries: db.collection<MongoDafScaleEntry>("daf_scale_entries"),
+    dafScaleAudits: db.collection<MongoDafScaleAudit>("daf_scale_audits"),
     policePatrolSettings: db.collection<MongoPolicePatrolSettings>("police_patrol_settings"),
     policePatrolReports: db.collection<MongoPolicePatrolReport>("police_patrol_reports"),
     policePatrolMessages: db.collection<MongoPolicePatrolMessage>("police_patrol_messages"),
@@ -4740,6 +4788,10 @@ async function ensureFivemModuleIndexes(db: Db) {
     db.collection<MongoFivemActionDefinition>("fivem_action_definitions").createIndex({ botId: 1, guildId: 1, architecture: 1, order: 1 }),
     db.collection<MongoFivemActionSession>("fivem_action_sessions").createIndex({ botId: 1, guildId: 1, architecture: 1, createdAt: -1 }),
     db.collection<MongoFivemActionSession>("fivem_action_sessions").createIndex({ botId: 1, guildId: 1, status: 1 }),
+    db.collection<MongoDafScaleSettings>("daf_scale_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    db.collection<MongoDafScaleEntry>("daf_scale_entries").createIndex({ botId: 1, guildId: 1, userId: 1 }, { unique: true }),
+    db.collection<MongoDafScaleEntry>("daf_scale_entries").createIndex({ botId: 1, guildId: 1, role: 1, joinedAt: 1 }),
+    db.collection<MongoDafScaleAudit>("daf_scale_audits").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
     db.collection<MongoPolicePatrolSettings>("police_patrol_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
     db.collection<MongoPolicePatrolReport>("police_patrol_reports").createIndex({ botId: 1, guildId: 1, officerId: 1, createdAt: -1 }),
     db.collection<MongoPolicePatrolReport>("police_patrol_reports").createIndex({ openKey: 1 }, { unique: true, partialFilterExpression: { openKey: { $type: "string" } } }),
