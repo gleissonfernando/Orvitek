@@ -415,24 +415,34 @@ async function cancelAction(interaction: any, context: BotContext, sessionId: st
 
 async function chooseResult(interaction: any, _context: BotContext, sessionId: string) {
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`${PREFIX}:finish_result:${sessionId}|victory`).setLabel("Vitória").setEmoji(systemComponentEmoji("visto", interaction.guild)).setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`${PREFIX}:finish_result:${sessionId}|defeat`).setLabel("Derrota").setEmoji(systemComponentEmoji("exclamacao", interaction.guild)).setStyle(ButtonStyle.Danger)
+    new ButtonBuilder().setCustomId(`${PREFIX}:finish_result:${sessionId}|victory`).setLabel("Vitória").setEmoji("🏆").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`${PREFIX}:finish_result:${sessionId}|defeat`).setLabel("Derrota").setEmoji("❌").setStyle(ButtonStyle.Danger)
   );
-  await interaction.reply({
-    components: [{
-      type: 17,
-      accent_color: 0x7c3aed,
-      components: [
-        { type: 10, content: [
-          `## ${systemEmojiText("trofeu", interaction.guild)} Resultado da ação`,
-          `${systemEmojiText("homem", interaction.guild)} Selecione o resultado final. O sistema vai validar se você é o responsável e se a ação está iniciada.`,
-          `${systemEmojiText("folha", interaction.guild)} O relatório será enviado automaticamente no canal configurado.`
-        ].join("\n") },
-        row
-      ]
-    }],
-    flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
-  });
+  const content = [
+    `## ${systemEmojiText("trofeu", interaction.guild)} Resultado da ação`,
+    `${systemEmojiText("homem", interaction.guild)} Selecione o resultado final. O sistema vai validar se você é o responsável e se a ação está iniciada.`,
+    `${systemEmojiText("folha", interaction.guild)} O relatório será enviado automaticamente no canal configurado.`
+  ].join("\n");
+  try {
+    await interaction.reply({
+      components: [{
+        type: 17,
+        accent_color: 0x7c3aed,
+        components: [
+          { type: 10, content },
+          row
+        ]
+      }],
+      flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
+    });
+  } catch (error) {
+    console.warn("[fivem-actions] falha ao abrir painel V2 de resultado; usando fallback:", errorMessage(error));
+    await interaction.reply({
+      content,
+      components: [row],
+      flags: MessageFlags.Ephemeral
+    });
+  }
 }
 
 async function finishActionFromButton(interaction: any, context: BotContext, token: string) {
