@@ -262,9 +262,9 @@ export async function getFivemActionSession(botId: string, sessionId: string) {
 }
 
 const POLICE_ACTION_SHEET_HEADERS = [
-  "ID", "Ação", "Tipo", "Responsável", "Status", "Data", "Hora Criação", "Hora Início", "Hora Final",
-  "Duração", "Participantes", "Quantidade", "Limite", "Resultado", "Observação", "Resumo", "Ocorrência", "Última Atualização"
+  "Data", "Tipo da Ação", "Horário da Criação", "Responsável", "Horário de Início", "Duração", "Resultado"
 ];
+const GOOGLE_SHEET_CLEAR_WIDTH = 26;
 
 async function syncFivemActionSessionToSheet(botId: string, sessionId: string, reason: string) {
   const { fivemActionSessions, fivemActionSettings } = await getMongoCollections();
@@ -278,7 +278,7 @@ async function syncFivemActionSessionToSheet(botId: string, sessionId: string, r
   }
   const sheetName = settings.spreadsheetSheetName?.trim() || "Ações Polícia";
   try {
-    await ensureSheetHeaders({ headers: POLICE_ACTION_SHEET_HEADERS, sheetName, spreadsheetId: settings.spreadsheetId });
+    await ensureSheetHeaders({ headers: padSheetHeader(POLICE_ACTION_SHEET_HEADERS), sheetName, spreadsheetId: settings.spreadsheetId });
     const row = sessionRow(session);
     const now = new Date();
     if (session.sheetRow) {
@@ -338,7 +338,7 @@ async function testFivemActionSpreadsheet(settings: MongoFivemActionSettings) {
     return;
   }
   try {
-    await ensureSheetHeaders({ headers: POLICE_ACTION_SHEET_HEADERS, sheetName, spreadsheetId: settings.spreadsheetId! });
+    await ensureSheetHeaders({ headers: padSheetHeader(POLICE_ACTION_SHEET_HEADERS), sheetName, spreadsheetId: settings.spreadsheetId! });
     await fivemActionSettings.updateOne(
       { _id: settings._id },
       { $set: { spreadsheetLastSyncAt: new Date(), spreadsheetSyncError: null, updatedAt: new Date() } }
@@ -357,30 +357,30 @@ async function setSheetSyncFailure(botId: string, sessionId: string, message: st
 }
 
 function sessionRow(session: MongoFivemActionSession) {
-  const active = session.participants.filter((item) => !item.leftAt && participantPosition(item) === "confirmed");
   const created = new Date(session.createdAt);
   const started = session.startedAt ? new Date(session.startedAt) : null;
-  const finished = session.finishedAt ? new Date(session.finishedAt) : null;
-  return [
-    session._id.slice(0, 8).toUpperCase(),
-    session.actionName,
-    actionModeText(session.mode),
-    session.openerName,
-    sheetStatusText(session.status),
+  const ended = session.finishedAt
+    ? new Date(session.finishedAt)
+    : session.cancelledAt
+      ? new Date(session.cancelledAt)
+      : null;
+  return padSheetRow([
     formatDate(created),
+    session.actionName,
     formatTime(created),
+    session.openerName,
     started ? formatTime(started) : "",
-    finished ? formatTime(finished) : "",
-    started && finished ? `${Math.max(0, Math.round((finished.getTime() - started.getTime()) / 60000))} min` : "",
-    active.map((item) => item.username).join(", "),
-    active.length,
-    session.maxParticipants,
-    resultText(session.status),
-    session.resultNote ?? "",
-    session.resultSummary ?? "",
-    session.resultOccurrence ?? "",
-    formatDateTime(new Date())
-  ];
+    started && ended ? formatDuration(started, ended) : "",
+    resultText(session.status)
+  ]);
+}
+
+function padSheetRow(values: unknown[]) {
+  return [...values, ...Array(Math.max(0, GOOGLE_SHEET_CLEAR_WIDTH - values.length)).fill("")];
+}
+
+function padSheetHeader(values: string[]) {
+  return [...values, ...Array(Math.max(0, GOOGLE_SHEET_CLEAR_WIDTH - values.length)).fill("")];
 }
 
 function formatDate(value: Date) {
@@ -391,19 +391,14 @@ function formatTime(value: Date) {
   return value.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
 }
 
-function formatDateTime(value: Date) {
-  return value.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-}
-
-function actionModeText(mode: MongoFivemActionMode | null | undefined) {
-  return mode === "shootout" ? "Tiro" : mode === "escape" ? "Fuga de carro" : "";
-}
-
-function sheetStatusText(status: MongoFivemActionSession["status"]) {
-  if (status === "forming") return "Preparando";
-  if (status === "active") return "Em Andamento";
-  if (status === "cancelled") return "Cancelada";
-  return "Finalizada";
+function formatDuration(started: Date, ended: Date) {
+  const totalSeconds = Math.max(0, Math.floor((ended.getTime() - started.getTime()) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, "0")}min`;
+  if (minutes > 0) return `${minutes}min ${String(seconds).padStart(2, "0")}s`;
+  return `${seconds}s`;
 }
 
 function resultText(status: MongoFivemActionSession["status"]) {
