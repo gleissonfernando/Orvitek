@@ -9,7 +9,7 @@ import {
   type MongoFivemActionSettings
 } from "../database/mongo";
 import { dashboardLogRealtimeRoom, emitRealtimeToRoom } from "../realtime/events";
-import { appendSheetRow, ensureSheetHeaders, googleSheetsConfigured, updateSheetRow } from "./googleSheetsService";
+import { MISSING_GOOGLE_SHEETS_CREDENTIALS_MESSAGE, appendSheetRow, ensureSheetHeaders, googleSheetsConfigured, updateSheetRow } from "./googleSheetsService";
 
 export const FIVEM_ACTIONS_MODULE_ID = "fivem-actions";
 export const POLICE_ACTIONS_MODULE_ID = "police-actions";
@@ -273,7 +273,7 @@ async function syncFivemActionSessionToSheet(botId: string, sessionId: string, r
   const settings = await fivemActionSettings.findOne({ botId, guildId: session.guildId, architecture: "police" });
   if (!settings?.spreadsheetEnabled || !settings.spreadsheetId) return;
   if (!googleSheetsConfigured()) {
-    await setSheetSyncFailure(botId, sessionId, "Credenciais do Google Sheets não configuradas.");
+    await setSheetSyncFailure(botId, sessionId, MISSING_GOOGLE_SHEETS_CREDENTIALS_MESSAGE);
     return;
   }
   const sheetName = settings.spreadsheetSheetName?.trim() || "Ações Polícia";
@@ -330,7 +330,7 @@ async function testFivemActionSpreadsheet(settings: MongoFivemActionSettings) {
   if (!googleSheetsConfigured()) {
     await fivemActionSettings.updateOne(
       { _id: settings._id },
-      { $set: { spreadsheetLastSyncAt: null, spreadsheetSyncError: "Credenciais do Google Sheets não configuradas.", updatedAt: new Date() } }
+      { $set: { spreadsheetLastSyncAt: null, spreadsheetSyncError: MISSING_GOOGLE_SHEETS_CREDENTIALS_MESSAGE, updatedAt: new Date() } }
     );
     return;
   }

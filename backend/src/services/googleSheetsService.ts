@@ -3,6 +3,7 @@ import { createSign } from "node:crypto";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
+export const MISSING_GOOGLE_SHEETS_CREDENTIALS_MESSAGE = "Credenciais do Google Sheets não configuradas. Configure GOOGLE_SERVICE_ACCOUNT_B64 ou GOOGLE_SERVICE_ACCOUNT_JSON no ambiente do backend.";
 
 type ServiceAccount = {
   client_email: string;
@@ -55,7 +56,7 @@ export async function ensureSheetHeaders(input: { spreadsheetId: string; sheetNa
 async function getAccessToken() {
   if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) return cachedToken.accessToken;
   const account = loadServiceAccount();
-  if (!account) throw new Error("Credenciais do Google Sheets não configuradas.");
+  if (!account) throw new Error(MISSING_GOOGLE_SHEETS_CREDENTIALS_MESSAGE);
   const now = Math.floor(Date.now() / 1000);
   const assertion = signJwt({
     aud: TOKEN_URL,
@@ -87,7 +88,12 @@ function signJwt(payload: Record<string, unknown>, privateKey: string) {
 function loadServiceAccount(): ServiceAccount | null {
   const rawJson = clean(process.env.GOOGLE_SERVICE_ACCOUNT_JSON)
     ?? clean(process.env.GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON)
-    ?? decodeBase64(clean(process.env.GOOGLE_SERVICE_ACCOUNT_B64) ?? clean(process.env.GOOGLE_SHEETS_SERVICE_ACCOUNT_B64));
+    ?? clean(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON)
+    ?? decodeBase64(
+      clean(process.env.GOOGLE_SERVICE_ACCOUNT_B64)
+      ?? clean(process.env.GOOGLE_SHEETS_SERVICE_ACCOUNT_B64)
+      ?? clean(process.env.GOOGLE_APPLICATION_CREDENTIALS_B64)
+    );
   if (rawJson) {
     try {
       const parsed = JSON.parse(rawJson) as Partial<ServiceAccount>;
@@ -96,8 +102,8 @@ function loadServiceAccount(): ServiceAccount | null {
       return null;
     }
   }
-  const clientEmail = clean(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) ?? clean(process.env.GOOGLE_SHEETS_CLIENT_EMAIL);
-  const privateKey = clean(process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY) ?? clean(process.env.GOOGLE_SHEETS_PRIVATE_KEY);
+  const clientEmail = clean(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) ?? clean(process.env.GOOGLE_SHEETS_CLIENT_EMAIL) ?? clean(process.env.GOOGLE_CLIENT_EMAIL);
+  const privateKey = clean(process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY) ?? clean(process.env.GOOGLE_SHEETS_PRIVATE_KEY) ?? clean(process.env.GOOGLE_PRIVATE_KEY);
   return clientEmail && privateKey ? { client_email: clientEmail, private_key: privateKey } : null;
 }
 
