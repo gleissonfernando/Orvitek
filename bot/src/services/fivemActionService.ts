@@ -74,6 +74,7 @@ export async function handleFivemActionInteraction(interaction: Interaction, con
     return true;
   }
   if (interaction.isButton() && action === "config") await showActionConfig(interaction, context, id as FivemActionArchitecture);
+  else if (interaction.isButton() && action === "config_refresh") await showActionConfig(interaction, context, id as FivemActionArchitecture);
   else if (interaction.isButton() && action === "config_channels") await showActionChannelConfig(interaction, context, id as FivemActionArchitecture);
   else if (interaction.isButton() && action === "config_actions") await showActionCreateModal(interaction, context, id as FivemActionArchitecture);
   else if (interaction.isButton() && action === "config_sheet") await showActionSheetModal(interaction, context, id as FivemActionArchitecture);
@@ -131,7 +132,7 @@ function actionConfigPanel(dashboard: Awaited<ReturnType<BotContext["api"]["getF
     new ButtonBuilder().setCustomId(`${PREFIX}:config_actions:${architecture}`).setLabel("Cadastrar ações").setEmoji("➕").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`${PREFIX}:config_sheet:${architecture}`).setLabel("Cadastro da planilha").setEmoji("📄").setStyle(ButtonStyle.Secondary).setDisabled(architecture !== "police"),
     new ButtonBuilder().setCustomId(`${PREFIX}:config_publish:${architecture}`).setLabel(settings.panelMessageId ? "Atualizar painel" : "Publicar painel").setEmoji("📌").setStyle(ButtonStyle.Success).setDisabled(!settings.panelChannelId || !settings.actionChannelId || !actions.length),
-    new ButtonBuilder().setCustomId(`${PREFIX}:config:${architecture}`).setLabel("Atualizar visão").setEmoji("🔄").setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId(`${PREFIX}:config_refresh:${architecture}`).setLabel("Atualizar visão").setEmoji("🔄").setStyle(ButtonStyle.Secondary)
   );
 
   return {
