@@ -131,7 +131,6 @@ const RUNTIME_MODULE_RELEASE_ALIASES: Record<string, (typeof DEV_MODULES)[number
 };
 const DEV_MODULE_RELEASE_ALIASES: Record<string, string[]> = {
   courses: ["police-courses"],
-  "payment-gateway": ["nex-tech-sales"],
   "police-courses": ["courses"],
   "rh-admin": ["police-hr"],
   "police-hr": ["rh-admin"]

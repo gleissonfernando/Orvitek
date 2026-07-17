@@ -203,6 +203,10 @@ type BotMenuId =
   | "settings"
   | "moderation"
   | "tickets"
+  | "sales"
+  | "payment-gateway"
+  | "manual-payments"
+  | "price-tables"
   | "manual-registration"
   | "verification"
   | "logs"
@@ -316,6 +320,36 @@ const botMenuItems: BotMenuItem[] = [
     description: "Atendimento e suporte",
     icon: Ticket,
     moduleIds: ["tickets"]
+  },
+  {
+    id: "sales",
+    label: "Vendas e Pagamentos",
+    description: "Sistema de vendas, Mercado Pago, pagamento manual e tabelas",
+    icon: CreditCard,
+    moduleIds: ["nex-tech-sales"],
+    children: [
+      {
+        id: "payment-gateway",
+        label: "Pagamento Automático",
+        description: "Mercado Pago por bot com confirmação automática",
+        icon: CreditCard,
+        moduleIds: ["payment-gateway"]
+      },
+      {
+        id: "manual-payments",
+        label: "Pagamento Manual",
+        description: "Pix manual, comprovantes e aprovação por equipe",
+        icon: CreditCard,
+        moduleIds: ["manual-payments"]
+      },
+      {
+        id: "price-tables",
+        label: "Painel de Vendas",
+        description: "Tabelas de preços e publicação no Discord",
+        icon: ScrollText,
+        moduleIds: ["price-tables"]
+      }
+    ]
   },
   {
     id: "verification",
@@ -1118,7 +1152,11 @@ export function DevPanel({
             bot={selectedBot}
             enabled={selectedBot.enabledModules.includes("nex-tech-sales")}
             guilds={guilds}
-            onToggle={(checked) => void handleToggleModule(selectedBot, "nex-tech-sales", checked)}
+            manualPaymentsEnabled={selectedBot.enabledModules.includes("manual-payments")}
+            onToggleManualPayments={(checked) => void handleToggleModule(selectedBot, "manual-payments", checked)}
+            onTogglePaymentGateway={(checked) => void handleToggleModule(selectedBot, "payment-gateway", checked)}
+            onToggleSales={(checked) => void handleToggleModule(selectedBot, "nex-tech-sales", checked)}
+            paymentGatewayEnabled={selectedBot.enabledModules.includes("payment-gateway")}
           />
         ) : (
           <Card className="border-[#FFD500]/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(255,213,0,0.08)]">
@@ -3303,12 +3341,20 @@ function NexTechSalesWorkspace({
   bot,
   enabled,
   guilds,
-  onToggle
+  manualPaymentsEnabled,
+  onToggleManualPayments,
+  onTogglePaymentGateway,
+  onToggleSales,
+  paymentGatewayEnabled
 }: {
   bot: DevBot;
   enabled: boolean;
   guilds: DashboardMeGuild[];
-  onToggle: (checked: boolean) => void;
+  manualPaymentsEnabled: boolean;
+  onToggleManualPayments: (checked: boolean) => void;
+  onTogglePaymentGateway: (checked: boolean) => void;
+  onToggleSales: (checked: boolean) => void;
+  paymentGatewayEnabled: boolean;
 }) {
   const guildOptions = useMemo(() => buildBotGuildOptions(bot, guilds), [bot, guilds]);
   const [guildId, setGuildId] = useState(bot.mainGuildId || guildOptions[0]?.id || "");
@@ -3420,6 +3466,11 @@ function NexTechSalesWorkspace({
   }
 
   async function handleSaveProvider() {
+    if (!paymentGatewayEnabled) {
+      setMessage("Libere Pagamento Automático para este bot antes de salvar Mercado Pago.");
+      return;
+    }
+
     if (!guildId || !providerForm.label.trim()) return;
     setSaving("provider");
     setMessage(null);
@@ -3437,6 +3488,11 @@ function NexTechSalesWorkspace({
   }
 
   async function handleTestProvider() {
+    if (!paymentGatewayEnabled) {
+      setPaymentTestMessage("Libere Pagamento Automático para este bot antes de testar Mercado Pago.");
+      return;
+    }
+
     if (!guildId || !providerForm.label.trim()) return;
     setSaving("provider-test");
     setMessage(null);
@@ -3668,17 +3724,18 @@ function NexTechSalesWorkspace({
               >
                 {guildOptions.map((guild) => <option key={guild.id} value={guild.id}>{guild.name}</option>)}
               </select>
-              {!enabled ? (
-                <Button onClick={() => onToggle(true)} variant="outline">
-                  <Power className="h-4 w-4" />
-                  Liberar módulo
-                </Button>
-              ) : (
-                <Button onClick={() => onToggle(false)} variant="outline">
-                  <Power className="h-4 w-4" />
-                  Desativar módulo
-                </Button>
-              )}
+              <Button onClick={() => onToggleSales(!enabled)} variant={enabled ? "outline" : "default"}>
+                <Power className="h-4 w-4" />
+                {enabled ? "Desativar vendas" : "Liberar vendas"}
+              </Button>
+              <Button onClick={() => onTogglePaymentGateway(!paymentGatewayEnabled)} variant={paymentGatewayEnabled ? "outline" : "default"}>
+                <CreditCard className="h-4 w-4" />
+                {paymentGatewayEnabled ? "Desativar Mercado Pago" : "Liberar Mercado Pago"}
+              </Button>
+              <Button onClick={() => onToggleManualPayments(!manualPaymentsEnabled)} variant="outline">
+                <CreditCard className="h-4 w-4" />
+                {manualPaymentsEnabled ? "Desativar manual" : "Liberar manual"}
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -3720,7 +3777,7 @@ function NexTechSalesWorkspace({
                 Libere o módulo Sistema de Vendas para o bot selecionado antes de configurar produtos, checkout automático, tickets e fila.
               </p>
             </div>
-            <Button onClick={() => onToggle(true)}>
+            <Button onClick={() => onToggleSales(true)}>
               <Power className="h-4 w-4" />
               Liberar para este bot
             </Button>
@@ -3789,6 +3846,20 @@ function NexTechSalesWorkspace({
                 <CardDescription>Gateway separado do Pagamento Manual. Usa as credenciais do bot, cria checkout Mercado Pago e confirma automaticamente via webhook assinado.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
+                {!paymentGatewayEnabled ? (
+                  <div className="flex flex-col gap-3 rounded-lg border border-amber-400/25 bg-amber-500/[0.08] p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-white">Pagamento Automático bloqueado neste bot</p>
+                      <p className="mt-1 text-xs font-medium text-zinc-300">
+                        Libere o módulo Pagamento Automático para permitir configuração das credenciais Mercado Pago.
+                      </p>
+                    </div>
+                    <Button onClick={() => onTogglePaymentGateway(true)}>
+                      <Power className="h-4 w-4" />
+                      Liberar Mercado Pago
+                    </Button>
+                  </div>
+                ) : null}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <DevInput label="Nome" onChange={(value) => setProviderForm((current) => ({ ...current, label: value }))} value={providerForm.label} />
                   <select
@@ -3817,11 +3888,11 @@ function NexTechSalesWorkspace({
                 <p className="text-xs font-medium text-zinc-500">Deixe Access Token, Client Secret e Webhook Secret vazios ao editar para manter os segredos já salvos.</p>
                 {paymentTestMessage ? <p className="rounded-lg border border-zinc-800 bg-black/35 p-3 text-xs font-semibold text-zinc-300">{paymentTestMessage}</p> : null}
                 <div className="flex flex-wrap gap-2">
-                  <Button disabled={saving === "provider"} onClick={() => void handleSaveProvider()}>
+                  <Button disabled={!paymentGatewayEnabled || saving === "provider"} onClick={() => void handleSaveProvider()}>
                     {saving === "provider" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
                     Salvar configuração
                   </Button>
-                  <Button disabled={saving === "provider-test"} onClick={() => void handleTestProvider()} variant="outline">
+                  <Button disabled={!paymentGatewayEnabled || saving === "provider-test"} onClick={() => void handleTestProvider()} variant="outline">
                     {saving === "provider-test" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                     Testar conexão
                   </Button>

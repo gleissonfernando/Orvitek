@@ -820,7 +820,6 @@ const policeTranscriptViews = new Set<ViewId>([
 ]);
 const moduleReleaseAliases: Record<string, string[]> = {
   courses: ["police-courses"],
-  "payment-gateway": ["nex-tech-sales"],
   "police-courses": ["courses"],
   "rh-admin": ["police-hr"],
   "police-hr": ["rh-admin"]
