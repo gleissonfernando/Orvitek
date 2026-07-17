@@ -17,6 +17,7 @@ import { isBotModuleEnabled } from "../config/env";
 import type { BotCommand, BotContext } from "../types";
 import { releaseDeletionLogReservation, reserveDeletedMessageLog } from "./deletedMessageLogService";
 import type { VisibleMessageUser } from "./apiClient";
+import { getActiveTicketForMessageChannel } from "./ticketChannelGuard";
 
 const MODULE_ID = "visible-message";
 const WEBHOOK_NAME = "NexTech Mensagem Visível";
@@ -112,6 +113,8 @@ export async function handleVisibleMessageInteraction(interaction: Interaction, 
 
 export async function handleVisibleMessageMessage(message: Message, context: BotContext) {
   if (!isBotModuleEnabled(MODULE_ID) || !message.guild || message.author.bot || message.webhookId) return false;
+  const ticket = await getActiveTicketForMessageChannel(message, context);
+  if (!ticket) return false;
 
   const enabled = await isActiveVisibleUser(message.guild.id, message.author.id, context).catch((error) => {
     console.warn("[visible-message] falha ao consultar usuário:", error instanceof Error ? error.message : error);

@@ -8,6 +8,8 @@ import {
   RoleSelectMenuBuilder,
   SlashCommandBuilder,
   StringSelectMenuBuilder,
+  TextBasedChannel,
+  TextChannel,
   UserSelectMenuBuilder,
   type ChatInputCommandInteraction,
   type Interaction,
@@ -15,8 +17,11 @@ import {
 } from "discord.js";
 import type { BotCommand, BotContext } from "../types";
 import type { MessageControlStatus, MessageControlUser } from "./apiClient";
+import { releaseDeletionLogReservation, reserveDeletedMessageLog } from "./deletedMessageLogService";
+import { getActiveTicketForMessageChannel } from "./ticketChannelGuard";
 
 const PREFIX = "message_control";
+const WEBHOOK_NAME = "NexTech Equipe";
 const CACHE_TTL_MS = 30_000;
 const userConfigCache = new Map<string, { expiresAt: number; user: MessageControlUser | null }>();
 const managerSettingsCache = new Map<string, { expiresAt: number; roleIds: string[]; userIds: string[] }>();
@@ -185,13 +190,70 @@ export async function handleMessageControlInteraction(interaction: Interaction, 
   return false;
 }
 
-export async function shouldBypassMessageControl(message: Message, context: BotContext) {
+export async function handleMessageControlMessage(message: Message, context: BotContext) {
   if (!isMessageControlEnabled() || !message.guild || message.author.bot || message.webhookId) return false;
+  const ticket = await getActiveTicketForMessageChannel(message, context);
+  if (!ticket) return false;
+
   const config = await getMessageControlUserConfig(message.guild.id, message.author.id, context).catch((error) => {
     console.warn("[message-control] falha ao consultar configuração individual:", error instanceof Error ? error.message : error);
     return null;
   });
-  return Boolean(config?.autorizado && config.status === "pessoal");
+  if (!config?.autorizado || config.status === "pessoal") return false;
+
+  if (!message.channel.isTextBased() || message.channel.isDMBased() || !("permissionsFor" in message.channel)) return false;
+  const channel = message.channel as TextBasedChannel & TextChannel;
+  const me = message.guild.members.me ?? await message.guild.members.fetchMe().catch(() => null);
+  const permissions = me ? channel.permissionsFor(me) : null;
+  if (!permissions?.has(PermissionFlagsBits.SendMessages) || !permissions.has(PermissionFlagsBits.ManageMessages) || !permissions.has(PermissionFlagsBits.ManageWebhooks)) {
+    console.warn(`[message-control] permissões insuficientes guild=${message.guild.id} channel=${message.channelId}`);
+    return false;
+  }
+
+  const payload = relayPayload(message);
+  if (!payload.content && !payload.files?.length && !payload.embeds?.length) return false;
+
+  const identity = resolveTeamIdentity(message);
+
+  try {
+    const webhook = await getOrCreateTeamWebhook(channel);
+    const reservation = await reserveDeletedMessageLog(message).catch((error) => {
+      console.warn("[message-control] falha ao reservar log de exclusão:", error instanceof Error ? error.message : error);
+      return null;
+    });
+    try {
+      await message.delete();
+    } catch (error) {
+      releaseDeletionLogReservation(reservation);
+      throw error;
+    }
+
+    await webhook.send({
+      allowedMentions: { parse: [] },
+      avatarURL: identity.avatarURL,
+      content: payload.content,
+      embeds: payload.embeds,
+      files: payload.files,
+      username: identity.username
+    });
+
+    await context.api.recordTicketEvent(ticket.id, {
+      authorId: null,
+      content: payload.content ?? "[anexo/embed]",
+      eventType: "message_control.team_message",
+      guildId: message.guild.id,
+      metadata: {
+        channelId: message.channelId,
+        originalAuthorId: message.author.id,
+        originalMessageId: message.id
+      }
+    }).catch(() => null);
+
+    return true;
+  } catch (error) {
+    console.error("[message-control] falha ao enviar mensagem como equipe:", error instanceof Error ? error.message : error);
+    return false;
+  }
 }
 
 export function clearMessageControlCache(guildId?: string | null, discordId?: string | null) {
@@ -453,4 +515,40 @@ function cacheKey(guildId: string, discordId: string) {
 
 function isMessageControlEnabled() {
   return true;
+}
+
+function relayPayload(message: Message) {
+  return {
+    content: message.content ? message.content.slice(0, 2000) : undefined,
+    embeds: message.embeds.map((embed) => embed.toJSON()).slice(0, 10),
+    files: message.attachments.map((attachment) => ({
+      attachment: attachment.url,
+      name: attachment.name ?? `arquivo-${attachment.id}`
+    })).slice(0, 10)
+  };
+}
+
+function resolveTeamIdentity(message: Message) {
+  const botUser = message.client.user;
+  return {
+    avatarURL: botUser?.displayAvatarURL({ forceStatic: false, size: 256 }) ?? message.guild?.iconURL({ forceStatic: false, size: 256 }) ?? undefined,
+    username: sanitizeWebhookUsername(message.guild?.name ? `Equipe ${message.guild.name}` : "Equipe")
+  };
+}
+
+async function getOrCreateTeamWebhook(channel: TextChannel) {
+  const webhooks = await channel.fetchWebhooks();
+  const existing = webhooks.find((webhook) => webhook.name === WEBHOOK_NAME && webhook.owner?.id === channel.client.user?.id);
+  if (existing) return existing;
+  return channel.createWebhook({ name: WEBHOOK_NAME, reason: "Controle de mensagem em ticket" });
+}
+
+function sanitizeWebhookUsername(username: string) {
+  const normalized = username
+    .replace(/@everyone/gi, "everyone")
+    .replace(/@here/gi, "here")
+    .trim()
+    .slice(0, 80);
+
+  return normalized || "Equipe";
 }

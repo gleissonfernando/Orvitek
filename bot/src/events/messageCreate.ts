@@ -16,7 +16,7 @@ import { handlePoliceSubpoenaMessage } from "../services/policeSubpoenaService";
 import { handleReportSystemMessage } from "../services/reportSystemService";
 import { handleCourseExamMessage } from "../services/courseSystemService";
 import { rememberDeletedMessageSnapshot } from "../services/deletedMessageLogService";
-import { shouldBypassMessageControl } from "../services/messageControlService";
+import { handleMessageControlMessage } from "../services/messageControlService";
 import { handleVisibleMessageMessage } from "../services/visibleMessageService";
 
 const MUSIC_PREFIX_COMMANDS = new Set(["music", "play", "artist", "pause", "resume", "skip", "stop", "queue", "clearqueue", "nowplaying", "volume", "loop", "shuffle"]);
@@ -33,7 +33,7 @@ export async function handleMessageCreate(message: Message, context: BotContext)
     console.error("[police-patrol] falha ao salvar mensagem:", error instanceof Error ? error.message : error);
   });
 
-  if (await shouldBypassMessageControl(message, context)) {
+  if (await handleMessageControlMessage(message, context)) {
     return;
   }
 
