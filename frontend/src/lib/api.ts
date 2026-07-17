@@ -2230,6 +2230,11 @@ export async function getBotGuildConfig(botId: string, guildId: string) {
   return data.config;
 }
 
+export async function getDashboardBotGuildConfig(botId: string, guildId: string) {
+  const { data } = await api.get<{ config: BotGuildConfig }>(`/dashboard/bots/${botId}/guilds/${guildId}/config`);
+  return data.config;
+}
+
 export async function updateBotGuildConfig(botId: string, guildId: string, payload: Pick<BotGuildConfig, "guildName" | "modules">) {
   const { data } = await api.patch<{ config: BotGuildConfig }>(`/dev/bots/${botId}/guilds/${guildId}/config`, payload);
   return data.config;

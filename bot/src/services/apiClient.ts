@@ -1,7 +1,7 @@
 import axios, { type AxiosInstance } from "axios";
 import http from "node:http";
 import https from "node:https";
-import { env } from "../config/env";
+import { currentRuntimeBotId, env } from "../config/env";
 import type { GuildSettings } from "../types";
 
 export type CreateLogInput = {
@@ -2105,8 +2105,7 @@ export class ApiClient {
     this.http = axios.create({
       baseURL: env.BACKEND_API_URL,
       headers: {
-        "x-bot-token": env.BOT_API_TOKEN,
-        ...(env.DASHBOARD_BOT_ID ? { "x-dashboard-bot-id": env.DASHBOARD_BOT_ID } : {})
+        "x-bot-token": env.BOT_API_TOKEN
       },
       httpAgent: new http.Agent({ keepAlive: true, maxSockets: 100 }),
       httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 100 }),
@@ -2116,6 +2115,11 @@ export class ApiClient {
     this.http.interceptors.request.use((config) => {
       if (!env.BACKEND_API_URL) {
         throw new Error("BACKEND_API_URL não configurado.");
+      }
+
+      const botId = (currentRuntimeBotId() ?? env.DASHBOARD_BOT_ID.trim()) || null;
+      if (botId) {
+        config.headers.set("x-dashboard-bot-id", botId);
       }
 
       recordApiRequest(config.method, config.url);

@@ -502,11 +502,10 @@ async function applyFilterChannelPunishment(
 ): Promise<SequencePunishmentOutcome> {
   const reason = "SafeBot: mensagem enviada no canal de filtro.";
   const deleteOutcome = await forceDeleteFilterChannelMessage(context, message, reason);
-  const alertOutcome = await sendPrivateFilterChannelAlert(member, message);
   const progressive = await applyProgressivePunishment(message, context, "filter-channel", "Canal exclusivo do SafeBot", "Mensagem enviada no canal exclusivo do SafeBot.");
 
   if (progressive) {
-    return mergePunishmentOutcomes(deleteOutcome, alertOutcome, progressive);
+    return mergePunishmentOutcomes(deleteOutcome, progressive);
   }
 
   const configured = await applyConfiguredPunishment(
@@ -519,7 +518,7 @@ async function applyFilterChannelPunishment(
     deleteOutcome.succeeded ? [] : [message]
   );
 
-  return mergePunishmentOutcomes(deleteOutcome, alertOutcome, configured);
+  return mergePunishmentOutcomes(deleteOutcome, configured);
 }
 
 async function forceDeleteFilterChannelMessage(context: BotContext, message: Message, reason: string): Promise<SequencePunishmentOutcome> {
@@ -535,35 +534,6 @@ async function forceDeleteFilterChannelMessage(context: BotContext, message: Mes
     return {
       actions: [],
       error: `delete_message: ${errorMessage(error)}`,
-      step: null,
-      succeeded: false
-    };
-  }
-}
-
-async function sendPrivateFilterChannelAlert(member: GuildMember, message: Message): Promise<SequencePunishmentOutcome> {
-  try {
-    await member.send({
-      allowedMentions: {
-        parse: []
-      },
-      content: [
-        `Sua mensagem em ${message.guild?.name ?? "este servidor"} foi removida.`,
-        "",
-        "O canal do SafeBot é exclusivo para detectar spam automatizado. Não envie mensagens ali."
-      ].join("\n")
-    });
-
-    return {
-      actions: ["warn"],
-      error: null,
-      step: null,
-      succeeded: true
-    };
-  } catch (error) {
-    return {
-      actions: [],
-      error: `private_alert: ${errorMessage(error)}`,
       step: null,
       succeeded: false
     };

@@ -5,7 +5,7 @@ import { recordAccessAttempt } from "../services/accessAuditService";
 import { canManageDashboardGuild } from "../services/dashboardGuildAccessService";
 import { fetchBotProfile } from "../services/botProfileService";
 import { canAccessDevPanel } from "../services/devAccessService";
-import { canAccessDevBotGuild, getAccessibleDashboardBotBySlug, listAccessibleDashboardBots } from "../services/devBotService";
+import { canAccessDevBotGuild, getAccessibleDashboardBotBySlug, getBotGuildConfig, listAccessibleDashboardBots } from "../services/devBotService";
 import { getMaintenanceState } from "../services/maintenanceService";
 import { mergeAuthorizedBotGuilds } from "../services/statsService";
 import { issueAuthCookies, type DashboardAuth } from "../services/tokenService";
@@ -84,6 +84,30 @@ dashboardRouter.get("/me", async (_req, res, next) => {
       canViewDev,
       selectedGuildId,
       guilds
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+dashboardRouter.get("/bots/:botId/guilds/:guildId/config", async (req, res, next) => {
+  try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+    const input = z.object({
+      botId: z.string().min(1),
+      guildId: z.string().regex(/^\d{5,32}$/)
+    }).parse(req.params);
+    const canViewDev = await canAccessDevPanel(auth.user);
+
+    if (!canViewDev && !(await canAccessDevBotGuild(auth.user, input.botId, input.guildId))) {
+      return res.status(403).json({
+        message: ACCESS_DENIED_MESSAGE,
+        supportUrl: SUPPORT_DISCORD_URL
+      });
+    }
+
+    return res.json({
+      config: await getBotGuildConfig(input.botId, input.guildId)
     });
   } catch (error) {
     return next(error);

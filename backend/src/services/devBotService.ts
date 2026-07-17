@@ -134,6 +134,7 @@ const DEV_MODULE_RELEASE_ALIASES: Record<string, string[]> = {
   "rh-admin": ["police-hr"],
   "police-hr": ["rh-admin"]
 };
+const SERVER_RELEASE_REQUIRED_MODULE_IDS = new Set(["police-daf-roster", "message-control", "visible-message"]);
 const RUNTIME_INACTIVE_BOT_STATUSES = new Set<MongoDevBotStatus>(["error", "invalid_token"]);
 const RUNTIME_ACTIVE_LICENSE_STATUSES = new Set(["active", "ativo", "approved", "aprovado", "enabled", "liberado", "valid", "valido"]);
 const RUNTIME_EXPIRED_LICENSE_STATUSES = new Set(["expired", "expirado", "expirada"]);
@@ -735,7 +736,13 @@ export async function canUseDevBotModule(
     }
   );
 
-  return Boolean(bot);
+  if (!bot) {
+    return false;
+  }
+
+  return isServerReleaseRequiredModule(moduleId)
+    ? isModuleReleasedForServer(botId, guildId, moduleId)
+    : true;
 }
 
 export async function canReadDevBotModule(
@@ -766,7 +773,13 @@ export async function canReadDevBotModule(
     }
   );
 
-  return Boolean(bot);
+  if (!bot) {
+    return false;
+  }
+
+  return isServerReleaseRequiredModule(moduleId)
+    ? isModuleReleasedForServer(botId, guildId, moduleId)
+    : true;
 }
 
 export async function createDevBot(input: CreateDevBotInput) {
@@ -2243,6 +2256,10 @@ async function isRuntimeModuleEnabled(input: {
     return false;
   }
 
+  if (isServerReleaseRequiredModule(input.moduleId) || isServerReleaseRequiredModule(input.releaseModuleId)) {
+    return input.moduleConfig?.enabled === true;
+  }
+
   if (input.releaseModuleId === "safe-bot" || SELF_BOT_RUNTIME_MODULES.has(input.moduleId)) {
     const [guildSettings, settings] = await Promise.all([
       getGuildSettings(input.guildId, input.botId),
@@ -2513,6 +2530,28 @@ function devBotModuleReleaseIds(moduleId: string) {
   const canonicalModuleId = LEGACY_MODULE_ALIASES[moduleId] ?? moduleId;
 
   return [...new Set([moduleId, canonicalModuleId, ...(DEV_MODULE_RELEASE_ALIASES[moduleId] ?? [])])];
+}
+
+function isServerReleaseRequiredModule(moduleId: string) {
+  return devBotModuleReleaseIds(moduleId).some((candidate) => SERVER_RELEASE_REQUIRED_MODULE_IDS.has(candidate));
+}
+
+async function isModuleReleasedForServer(botId: string, guildId: string, moduleId: string) {
+  const { botGuildConfigs } = await getMongoCollections();
+  const config = await botGuildConfigs.findOne(
+    {
+      botId,
+      guildId
+    },
+    {
+      projection: {
+        modules: 1
+      }
+    }
+  );
+  const moduleIds = devBotModuleReleaseIds(moduleId);
+
+  return moduleIds.some((candidate) => config?.modules?.[candidate]?.enabled === true);
 }
 
 async function enableSelfBotDefaults(bot: DevBotDto) {

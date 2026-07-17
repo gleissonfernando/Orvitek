@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth, requireBot } from "../middleware/auth";
-import { canReadDevBotModule, canUseDevBotModule, getBotApiPermissions } from "../services/devBotService";
+import { authorizeBotRuntimeModule, canReadDevBotModule, canUseDevBotModule, getBotApiPermissions } from "../services/devBotService";
 import {
   addMessageControlUser,
   clearMessageControlUsers,
@@ -85,8 +85,9 @@ messageControlRouter.delete("/:guildId/users", requireAuth, async (req, res, nex
 messageControlRouter.get("/bot/:guildId/users", requireBot, async (req, res, next) => {
   try {
     const botId = await botIdFor(req);
-    await licensed(botId);
-    res.json({ users: await listMessageControlUsers(botId, snowflake.parse(req.params.guildId)) });
+    const guildId = snowflake.parse(req.params.guildId);
+    await licensed(botId, guildId);
+    res.json({ users: await listMessageControlUsers(botId, guildId) });
   } catch (error) {
     next(error);
   }
@@ -95,8 +96,9 @@ messageControlRouter.get("/bot/:guildId/users", requireBot, async (req, res, nex
 messageControlRouter.get("/bot/:guildId/settings", requireBot, async (req, res, next) => {
   try {
     const botId = await botIdFor(req);
-    await licensed(botId);
-    res.json({ settings: await getMessageControlSettings(botId, snowflake.parse(req.params.guildId)) });
+    const guildId = snowflake.parse(req.params.guildId);
+    await licensed(botId, guildId);
+    res.json({ settings: await getMessageControlSettings(botId, guildId) });
   } catch (error) {
     next(error);
   }
@@ -105,11 +107,12 @@ messageControlRouter.get("/bot/:guildId/settings", requireBot, async (req, res, 
 messageControlRouter.patch("/bot/:guildId/settings", requireBot, async (req, res, next) => {
   try {
     const botId = await botIdFor(req);
-    await licensed(botId);
+    const guildId = snowflake.parse(req.params.guildId);
+    await licensed(botId, guildId);
     res.json({
       settings: await saveMessageControlSettings(
         botId,
-        snowflake.parse(req.params.guildId),
+        guildId,
         settingsSchema.parse(req.body),
         req.header("x-actor-id") ?? null
       )
@@ -122,9 +125,10 @@ messageControlRouter.patch("/bot/:guildId/settings", requireBot, async (req, res
 messageControlRouter.get("/bot/:guildId/users/:discordId", requireBot, async (req, res, next) => {
   try {
     const botId = await botIdFor(req);
-    await licensed(botId);
+    const guildId = snowflake.parse(req.params.guildId);
+    await licensed(botId, guildId);
     res.json({
-      user: await getMessageControlUser(botId, snowflake.parse(req.params.guildId), snowflake.parse(req.params.discordId))
+      user: await getMessageControlUser(botId, guildId, snowflake.parse(req.params.discordId))
     });
   } catch (error) {
     next(error);
@@ -134,11 +138,12 @@ messageControlRouter.get("/bot/:guildId/users/:discordId", requireBot, async (re
 messageControlRouter.patch("/bot/:guildId/users/:discordId/status", requireBot, async (req, res, next) => {
   try {
     const botId = await botIdFor(req);
-    await licensed(botId);
+    const guildId = snowflake.parse(req.params.guildId);
+    await licensed(botId, guildId);
     res.json({
       user: await setMessageControlUserStatus(
         botId,
-        snowflake.parse(req.params.guildId),
+        guildId,
         snowflake.parse(req.params.discordId),
         statusSchema.parse(req.body).status,
         req.header("x-actor-id") ?? null
@@ -152,9 +157,10 @@ messageControlRouter.patch("/bot/:guildId/users/:discordId/status", requireBot, 
 messageControlRouter.post("/bot/:guildId/users", requireBot, async (req, res, next) => {
   try {
     const botId = await botIdFor(req);
-    await licensed(botId);
+    const guildId = snowflake.parse(req.params.guildId);
+    await licensed(botId, guildId);
     res.status(201).json({
-      user: await addMessageControlUser(botId, snowflake.parse(req.params.guildId), parseUser(req.body), req.header("x-actor-id") ?? null)
+      user: await addMessageControlUser(botId, guildId, parseUser(req.body), req.header("x-actor-id") ?? null)
     });
   } catch (error) {
     next(error);
@@ -164,9 +170,10 @@ messageControlRouter.post("/bot/:guildId/users", requireBot, async (req, res, ne
 messageControlRouter.delete("/bot/:guildId/users/:discordId", requireBot, async (req, res, next) => {
   try {
     const botId = await botIdFor(req);
-    await licensed(botId);
+    const guildId = snowflake.parse(req.params.guildId);
+    await licensed(botId, guildId);
     res.json({
-      user: await removeMessageControlUser(botId, snowflake.parse(req.params.guildId), snowflake.parse(req.params.discordId), req.header("x-actor-id") ?? null)
+      user: await removeMessageControlUser(botId, guildId, snowflake.parse(req.params.discordId), req.header("x-actor-id") ?? null)
     });
   } catch (error) {
     next(error);
@@ -176,8 +183,9 @@ messageControlRouter.delete("/bot/:guildId/users/:discordId", requireBot, async 
 messageControlRouter.delete("/bot/:guildId/users", requireBot, async (req, res, next) => {
   try {
     const botId = await botIdFor(req);
-    await licensed(botId);
-    res.json({ users: await clearMessageControlUsers(botId, snowflake.parse(req.params.guildId), req.header("x-actor-id") ?? null) });
+    const guildId = snowflake.parse(req.params.guildId);
+    await licensed(botId, guildId);
+    res.json({ users: await clearMessageControlUsers(botId, guildId, req.header("x-actor-id") ?? null) });
   } catch (error) {
     next(error);
   }
@@ -200,9 +208,14 @@ async function botIdFor(req: any) {
   return value;
 }
 
-async function licensed(botId: string) {
+async function licensed(botId: string, guildId?: string) {
   const permissions = await getBotApiPermissions(botId);
   if (!permissions) throw routeError("Bot não encontrado.", 404);
+
+  if (guildId) {
+    const authorization = await authorizeBotRuntimeModule({ botId, guildId, moduleId: MESSAGE_CONTROL_MODULE_ID });
+    if (!authorization.allowed) throw routeError(authorization.reason, 403);
+  }
 }
 
 async function authorize(user: any, botId: string, guildId: string, manage: boolean) {

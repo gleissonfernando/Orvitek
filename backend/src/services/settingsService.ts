@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { fixedSystemEmojiText, normalizeFixedSystemEmojiText } from "../config/systemEmojis";
 import { ensureGuild, getMongoCollections, type MongoGuildSettings, type MongoSafeBotMessageState } from "../database/mongo";
 import {
+  highestDashboardAccessLevel,
   normalizeDashboardAccessLevel,
   type DashboardAccessLevel
 } from "./dashboardPermissionService";
@@ -487,10 +488,23 @@ export async function getPersistedDashboardAccess(
   );
   const specificAccess = specificSettings ? toPersistedDashboardAccess(specificSettings, normalizedBotId) : null;
   const legacyAccess = legacySettings ? toPersistedDashboardAccess(legacySettings, normalizedBotId) : null;
+  const globalUserPermissions = await getGlobalDashboardUserPermissions(guildId);
 
-  if (specificAccess?.enabled && accessHasEntries(specificAccess)) return specificAccess;
-  if (legacyAccess?.enabled && accessHasEntries(legacyAccess)) return legacyAccess;
-  return specificAccess ?? legacyAccess;
+  if (specificAccess?.enabled && accessHasEntries(specificAccess)) return withGlobalDashboardUserPermissions(specificAccess, globalUserPermissions);
+  if (legacyAccess?.enabled && accessHasEntries(legacyAccess)) return withGlobalDashboardUserPermissions(legacyAccess, globalUserPermissions);
+  if (specificAccess) return withGlobalDashboardUserPermissions(specificAccess, globalUserPermissions);
+  if (legacyAccess) return withGlobalDashboardUserPermissions(legacyAccess, globalUserPermissions);
+  if (Object.keys(globalUserPermissions).length) {
+    return {
+      botId: normalizedBotId,
+      guildId,
+      enabled: true,
+      roleIds: [],
+      rolePermissions: {},
+      userPermissions: globalUserPermissions
+    };
+  }
+  return null;
 }
 
 export async function updateGuildSettings(
@@ -706,6 +720,10 @@ export async function updateGuildSettings(
         upsert: true
       }
     );
+
+    if ("dashboardUserPermissions" in input) {
+      await syncDashboardUserPermissionsAcrossGuild(guildId, normalizedBotId, next.dashboardUserPermissions);
+    }
   } catch (error) {
     console.error("[mongo] não foi possível persistir settings:", error);
     throw createSettingsPersistenceError(error);
@@ -983,6 +1001,78 @@ function normalizeRoleIds(roleIds: string[]) {
 
 function accessHasEntries(access: PersistedDashboardAccess) {
   return access.roleIds.length > 0 || Object.keys(access.userPermissions).length > 0;
+}
+
+async function getGlobalDashboardUserPermissions(guildId: string) {
+  const { guildSettings } = await getMongoCollections();
+  const settings = await guildSettings.find(
+    {
+      guildId,
+      verificationEnabled: true
+    },
+    {
+      projection: {
+        dashboardUserPermissions: 1
+      }
+    }
+  ).toArray();
+
+  return mergeDashboardUserPermissionMaps(
+    settings.map((item) => normalizeUserPermissionMap(item.dashboardUserPermissions ?? {}))
+  );
+}
+
+function withGlobalDashboardUserPermissions(
+  access: PersistedDashboardAccess,
+  globalUserPermissions: Record<string, DashboardAccessLevel>
+): PersistedDashboardAccess {
+  if (!Object.keys(globalUserPermissions).length) {
+    return access;
+  }
+
+  return {
+    ...access,
+    enabled: true,
+    userPermissions: mergeDashboardUserPermissionMaps([access.userPermissions, globalUserPermissions])
+  };
+}
+
+function mergeDashboardUserPermissionMaps(permissionMaps: Array<Record<string, DashboardAccessLevel>>) {
+  const permissions: Record<string, DashboardAccessLevel> = {};
+
+  for (const permissionMap of permissionMaps) {
+    for (const [userId, level] of Object.entries(permissionMap)) {
+      permissions[userId] = highestDashboardAccessLevel([permissions[userId], level]) ?? level;
+    }
+  }
+
+  return permissions;
+}
+
+async function syncDashboardUserPermissionsAcrossGuild(
+  guildId: string,
+  botId: string | null,
+  userPermissions: Record<string, DashboardAccessLevel>
+) {
+  const { guildSettings } = await getMongoCollections();
+  await guildSettings.updateMany(
+    { guildId },
+    {
+      $set: {
+        dashboardUserPermissions: userPermissions,
+        updatedAt: new Date()
+      }
+    }
+  );
+
+  for (const [key, settings] of memorySettings.entries()) {
+    if (settings.guildId === guildId && key !== settingsKey(guildId, botId)) {
+      memorySettings.set(key, {
+        ...settings,
+        dashboardUserPermissions: userPermissions
+      });
+    }
+  }
 }
 
 function normalizeRolePermissionMap(

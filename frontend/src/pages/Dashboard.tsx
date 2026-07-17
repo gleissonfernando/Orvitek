@@ -123,9 +123,9 @@ import {
   getClipsConfig,
   getCustomerPlansDashboard,
   getDashboardBySlug,
+  getDashboardBotGuildConfig,
   getDashboardMe,
   getDashboardMaintenanceState,
-  getBotGuildConfig,
   getFivemModules,
   getFivemGoals,
   getFivemHierarchy,
@@ -187,6 +187,7 @@ import type {
   AutoActivityClockDashboard,
   AuthResponse,
   BotStatus,
+  BotGuildConfig,
   ClipSent,
   ClipsConfig,
   CustomerPlansDashboard,
@@ -797,6 +798,7 @@ const moduleReleaseAliases: Record<string, string[]> = {
   "rh-admin": ["police-hr"],
   "police-hr": ["rh-admin"]
 };
+const serverReleasedModuleIds = new Set(["police-daf-roster", "message-control", "visible-message"]);
 
 function moduleReleaseIds(moduleId: string) {
   return [moduleId, ...(moduleReleaseAliases[moduleId] ?? [])];
@@ -804,6 +806,16 @@ function moduleReleaseIds(moduleId: string) {
 
 function hasReleasedModule(enabledModules: string[], moduleId: string) {
   return moduleReleaseIds(moduleId).some((candidate) => enabledModules.includes(candidate));
+}
+
+function filterServerReleasedModules(enabledModules: string[], config: BotGuildConfig | null) {
+  return enabledModules.filter((moduleId) => {
+    if (!serverReleasedModuleIds.has(moduleId)) {
+      return true;
+    }
+
+    return config?.modules?.[moduleId]?.enabled === true;
+  });
 }
 
 export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardProps) {
@@ -828,6 +840,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
   const [savingKey, setSavingKey] = useState<BooleanSettingKey | null>(null);
   const [overviewDetails, setOverviewDetails] = useState<OverviewDetails>(emptyOverviewDetails);
   const [fivemModules, setFivemModules] = useState<FivemModuleDefinition[]>([]);
+  const [botGuildConfig, setBotGuildConfig] = useState<BotGuildConfig | null>(null);
 
   const panelBots = dashboardProfile?.bots ?? emptyPanelBots;
   const dashboardProfileGuilds = dashboardProfile?.guilds ?? null;
@@ -840,7 +853,12 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
     [panelBots, selectedBotId]
   );
   const activeBotId = selectedBot?.id ?? null;
-  const enabledModules = selectedBot?.enabledModules ?? emptyEnabledModules;
+  const releasedEnabledModules = selectedBot?.enabledModules ?? emptyEnabledModules;
+  const releasedEnabledModulesKey = releasedEnabledModules.join("|");
+  const enabledModules = useMemo(
+    () => filterServerReleasedModules(releasedEnabledModules, botGuildConfig),
+    [botGuildConfig, releasedEnabledModulesKey]
+  );
   const enabledModulesKey = enabledModules.join("|");
   const scopedDashboardGuilds = useMemo(
     () => selectedBot
@@ -976,6 +994,28 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
       mounted = false;
     };
   }, [dashboardProfileLoading, dashboardRouteError, selectedBot?.id]);
+
+  useEffect(() => {
+    setBotGuildConfig(null);
+
+    if (!activeBotId || !selectedGuildId) {
+      return;
+    }
+
+    let mounted = true;
+
+    getDashboardBotGuildConfig(activeBotId, selectedGuildId)
+      .then((config) => {
+        if (mounted) setBotGuildConfig(config);
+      })
+      .catch(() => {
+        if (mounted) setBotGuildConfig(null);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [activeBotId, selectedGuildId]);
 
   useEffect(() => {
     if (dashboardProfileLoading || !selectedBot) return;
@@ -7976,7 +8016,7 @@ function ServerClonerView({
     let mounted = true;
     setLoading(true);
 
-    getBotGuildConfig(botId, form.destinationGuildId)
+    getDashboardBotGuildConfig(botId, form.destinationGuildId)
       .then((config) => {
         if (!mounted) return;
 

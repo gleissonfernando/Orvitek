@@ -83,6 +83,7 @@ import { createDashboardSocket } from "../../lib/socket";
 import { dashboardUrl } from "../../lib/urls";
 import type {
     AuthUser,
+    BotGuildConfig,
     CreateDevBotPayload,
     DashboardBot,
     DashboardMeGuild,
@@ -264,10 +265,25 @@ const POLICE_RELEASE_MODULE_IDS = [
   "police-daf-roster",
   "police-courses",
   "police-patrol-reports",
+  "visible-message",
   "message-control",
   "police-dm",
   "police-subpoenas",
   "police-open-duty"
+] as const;
+const POLICE_SERVER_RELEASE_MODULES = [
+  {
+    description: "Mostra e autoriza a Escalacao DAF somente neste servidor.",
+    id: "police-daf-roster",
+    moduleIds: ["police-daf-roster"],
+    label: "DAF"
+  },
+  {
+    description: "Mostra e autoriza Mensagem Visível e Controle de Mensagem somente neste servidor.",
+    id: "message-control",
+    moduleIds: ["visible-message", "message-control"],
+    label: "Mensagem"
+  }
 ] as const;
 
 const botMenuItems: BotMenuItem[] = [
@@ -2227,6 +2243,10 @@ function BotModuleWorkspace({
               <SystemEmojisPanel bot={bot} guilds={guilds} />
             ) : null}
 
+            {activeMenuId === "police" && !normalizedQuery ? (
+              <PoliceServerReleasePanel bot={bot} guilds={guilds} />
+            ) : null}
+
             {(activeMenuId === "database-maintenance" || activeMenuId === "system-emojis") && !normalizedQuery ? null : filteredModules.length ? (
               <div className="space-y-7">
                 {moduleSections.map((section) => (
@@ -2262,6 +2282,164 @@ function BotModuleWorkspace({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function PoliceServerReleasePanel({ bot, guilds }: { bot: DevBot; guilds: DashboardMeGuild[] }) {
+  const guildNameById = useMemo(() => new Map(guilds.map((guild) => [guild.id, guild.name])), [guilds]);
+  const guildOptions = useMemo(() => {
+    const ids = [...new Set([bot.mainGuildId, ...bot.guildIds])].filter(Boolean);
+
+    return ids.map((id) => ({
+      id,
+      name: guildNameById.get(id) ?? (id === bot.mainGuildId ? bot.mainGuildName || `Servidor ${id}` : `Servidor ${id}`)
+    }));
+  }, [bot.guildIds, bot.mainGuildId, bot.mainGuildName, guildNameById]);
+  const [guildId, setGuildId] = useState(bot.mainGuildId);
+  const [config, setConfig] = useState<BotGuildConfig | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [savingModuleId, setSavingModuleId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const globalEnabledSet = new Set(bot.enabledModules);
+  const selectedGuildName = guildOptions.find((guild) => guild.id === guildId)?.name ?? `Servidor ${guildId}`;
+
+  useEffect(() => {
+    setGuildId((current) => guildOptions.some((guild) => guild.id === current) ? current : guildOptions[0]?.id ?? bot.mainGuildId);
+  }, [bot.id, bot.mainGuildId, guildOptions]);
+
+  useEffect(() => {
+    if (!guildId) {
+      setConfig(null);
+      return;
+    }
+
+    let mounted = true;
+    setLoading(true);
+    setMessage(null);
+
+    getBotGuildConfig(bot.id, guildId)
+      .then((nextConfig) => {
+        if (mounted) setConfig(nextConfig);
+      })
+      .catch((error) => {
+        if (mounted) {
+          setConfig(null);
+          setMessage(readRequestMessage(error) ?? "Não foi possível carregar a liberação deste servidor.");
+        }
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [bot.id, guildId]);
+
+  async function toggleServerModule(moduleId: string, enabled: boolean) {
+    const previous = config;
+    const releaseModule = POLICE_SERVER_RELEASE_MODULES.find((module) => module.id === moduleId);
+    const moduleIds = releaseModule?.moduleIds ?? [moduleId];
+    const nextModules = moduleIds.reduce<Record<string, Record<string, unknown>>>(
+      (current, currentModuleId) => ({
+        ...current,
+        [currentModuleId]: {
+          ...(config?.modules?.[currentModuleId] ?? {}),
+          enabled
+        }
+      }),
+      { ...(config?.modules ?? {}) }
+    );
+    const optimisticConfig: BotGuildConfig = config
+      ? { ...config, modules: nextModules }
+      : {
+          botId: bot.id,
+          createdAt: new Date().toISOString(),
+          guildId,
+          guildName: selectedGuildName,
+          id: `${bot.id}:${guildId}`,
+          modules: nextModules,
+          updatedAt: new Date().toISOString()
+        };
+
+    setConfig(optimisticConfig);
+    setSavingModuleId(moduleId);
+    setMessage(null);
+
+    try {
+      const saved = await updateBotGuildConfig(bot.id, guildId, {
+        guildName: selectedGuildName,
+        modules: nextModules
+      });
+      setConfig(saved);
+      setMessage(`${enabled ? "Liberado" : "Bloqueado"} para ${selectedGuildName}.`);
+    } catch (error) {
+      setConfig(previous);
+      setMessage(readRequestMessage(error) ?? "Não foi possível salvar a liberação deste servidor.");
+    } finally {
+      setSavingModuleId(null);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-[#FFD500]/15 bg-black/25 p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-[#FFEA70]" />
+            <h4 className="text-sm font-bold text-white">Liberação Polícia por servidor</h4>
+          </div>
+          <p className="mt-1 text-xs font-medium text-zinc-400">
+            DAF e Mensagem só aparecem e funcionam no servidor marcado aqui.
+          </p>
+        </div>
+        <label className="block min-w-[240px] text-xs font-semibold text-zinc-400">
+          Servidor
+          <select
+            className="mt-1 h-10 w-full rounded-lg border border-zinc-800 bg-black/50 px-3 text-sm font-semibold text-white outline-none focus:border-[#FFEA70]"
+            onChange={(event) => setGuildId(event.target.value)}
+            value={guildId}
+          >
+            {guildOptions.map((guild) => (
+              <option key={guild.id} value={guild.id}>{guild.name}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {message ? (
+        <div className="mt-3 rounded-lg border border-[#FFEA70]/20 bg-[#FFD500]/[0.07] px-3 py-2 text-xs font-semibold text-[#FFEA70]">
+          {message}
+        </div>
+      ) : null}
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        {POLICE_SERVER_RELEASE_MODULES.map((module) => {
+          const globallyEnabled = module.moduleIds.some((moduleId) => globalEnabledSet.has(moduleId));
+          const enabled = module.moduleIds.some((moduleId) => config?.modules?.[moduleId]?.enabled === true);
+          const saving = savingModuleId === module.id;
+
+          return (
+            <div className="flex min-h-[86px] items-center gap-4 rounded-lg border border-zinc-800 bg-zinc-950/70 px-4 py-3" key={module.id}>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-white">{module.label}</p>
+                <p className="mt-1 text-xs font-medium text-zinc-400">{module.description}</p>
+                {!globallyEnabled ? (
+                  <p className="mt-1 text-xs font-semibold text-amber-300">Ative esse módulo no bot antes de liberar por servidor.</p>
+                ) : null}
+              </div>
+              {saving || loading ? <Loader2 className="h-4 w-4 animate-spin text-zinc-400" /> : null}
+              <Switch
+                checked={enabled}
+                className="shrink-0"
+                disabled={loading || savingModuleId !== null || !globallyEnabled}
+                onCheckedChange={(checked) => void toggleServerModule(module.id, checked)}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
