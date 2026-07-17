@@ -576,6 +576,13 @@ const moduleCatalog: ModuleDefinition[] = [
     view: "visible-message"
   },
   {
+    id: "message-control",
+    title: "Controle de Mensagem",
+    description: "Controle individual para alternar mensagens entre modo oculto e pessoal.",
+    icon: MessageCircle,
+    view: "message-control"
+  },
+  {
     id: "police-dm",
     title: "Barra DM",
     description: "Envio de mensagens privadas com painel visual, permissões e logs.",
@@ -741,6 +748,7 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   "police-patrol-reports": "police-patrol-reports",
   "police-hidden-channel": "police-hidden-channel",
   "visible-message": "visible-message",
+  "message-control": "message-control",
   "police-dm": "police-dm",
   "police-open-duty": "police-open-duty",
   "police-time-clock": "police-time-clock",
@@ -806,8 +814,6 @@ const moduleReleaseAliases: Record<string, string[]> = {
   "rh-admin": ["police-hr"],
   "police-hr": ["rh-admin"]
 };
-const serverReleasedModuleIds = new Set(["police-daf-roster", "message-control", "visible-message"]);
-
 function moduleReleaseIds(moduleId: string) {
   return [moduleId, ...(moduleReleaseAliases[moduleId] ?? [])];
 }
@@ -816,14 +822,8 @@ function hasReleasedModule(enabledModules: string[], moduleId: string) {
   return moduleReleaseIds(moduleId).some((candidate) => enabledModules.includes(candidate));
 }
 
-function filterServerReleasedModules(enabledModules: string[], config: BotGuildConfig | null) {
-  return enabledModules.filter((moduleId) => {
-    if (!serverReleasedModuleIds.has(moduleId)) {
-      return true;
-    }
-
-    return config?.modules?.[moduleId]?.enabled === true;
-  });
+function filterServerReleasedModules(enabledModules: string[], _config: BotGuildConfig | null) {
+  return enabledModules;
 }
 
 export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardProps) {
@@ -1660,6 +1660,9 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             canManage={canManageModule(selectedBot, "visible-message", canManageDashboard)}
             guild={selectedGuild}
           />
+        ) : null}
+        {activeView === "message-control" ? (
+          <MessageControlPanel bot={selectedBot} guild={selectedGuild} />
         ) : null}
         {activeView === "police-dm" ? (
           <DmBarPanel
@@ -4580,6 +4583,60 @@ function DafRosterPanel({ bot, guild }: { bot: DashboardBot | null; guild: Dashb
           <div>
             <p className="text-xs font-semibold uppercase text-zinc-500">Módulo</p>
             <p className="mt-1 font-mono text-sm text-zinc-300">police-daf-roster</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MessageControlPanel({ bot, guild }: { bot: DashboardBot | null; guild: DashboardGuild | null }) {
+  const commandItems = [
+    { command: "/mensagem config", description: "Abrir o painel de usuários, permissões e modos individuais." },
+    { command: "/mensagem ativar", description: "Reativar o modo oculto para as mensagens do usuário cadastrado." },
+    { command: "/mensagem desativar", description: "Permitir que as mensagens passem pela própria conta Discord." }
+  ];
+
+  return (
+    <Card className="border-[#FFD500]/25 bg-[#0b0b0b]">
+      <CardHeader>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-[#FFEA70]">
+              <MessageCircle className="h-5 w-5" />
+              <CardTitle>Controle de Mensagem</CardTitle>
+            </div>
+            <CardDescription className="mt-2">
+              Sistema liberado para o bot selecionado. O gerenciamento operacional fica no painel do Discord.
+            </CardDescription>
+          </div>
+          <Badge variant="success">Liberado</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-3">
+          {commandItems.map((item) => (
+            <div key={item.command} className="rounded-lg border border-zinc-800 bg-black/30 p-4">
+              <code className="rounded-md border border-[#FFD500]/25 bg-[#FFD500]/10 px-2 py-1 text-sm font-semibold text-[#FFEA70]">
+                {item.command}
+              </code>
+              <p className="mt-3 text-sm text-zinc-300">{item.description}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-3 rounded-lg border border-zinc-800 bg-black/25 p-4">
+          <div>
+            <p className="text-xs font-semibold uppercase text-zinc-500">Bot</p>
+            <p className="mt-1 truncate text-sm font-semibold text-zinc-100">{bot?.name ?? "Bot selecionado"}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase text-zinc-500">Servidor</p>
+            <p className="mt-1 truncate text-sm font-semibold text-zinc-100">{guild?.name ?? bot?.mainGuildName ?? "Servidor configurado"}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase text-zinc-500">Módulo</p>
+            <p className="mt-1 font-mono text-sm text-zinc-300">message-control</p>
           </div>
         </div>
       </CardContent>
