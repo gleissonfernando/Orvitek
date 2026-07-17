@@ -51,6 +51,7 @@ type DiscordGuildMember = {
 type DiscordMessage = {
   id: string;
   author?: { id?: string };
+  components?: unknown[];
   content?: string;
 };
 
@@ -235,11 +236,14 @@ export async function ensureSafeBotDiscordResources(
       type: 0
     }, "SafeBot: canal de logs criado automaticamente");
   const messages = await discordFetch<DiscordMessage[]>(`/channels/${filterChannel.id}/messages?limit=100`, botToken);
-  const existingWarning = messages.find((message) =>
+  const warningMessages = messages.filter((message) =>
     message.author?.id === bot.id
-    && (message.content?.includes("Qualquer mensagem enviada nesta sala")
-      || message.content?.includes("Não envie mensagens aqui"))
+    && isSafeBotWarningMessage(message)
   );
+  const existingWarning = warningMessages[0] ?? null;
+  if (existingWarning && warningMessages.length > 1) {
+    await deleteDuplicateSafeBotWarningMessages(filterChannel.id, existingWarning.id, warningMessages, botToken);
+  }
   const warning = existingWarning ?? await discordPost<DiscordMessage>(`/channels/${filterChannel.id}/messages`, botToken, {
     allowed_mentions: { parse: [] },
     content: [
@@ -258,6 +262,44 @@ export async function ensureSafeBotDiscordResources(
     messageId: warning.id,
     roleId: role.id
   };
+}
+
+async function deleteDuplicateSafeBotWarningMessages(
+  channelId: string,
+  keepMessageId: string,
+  messages: DiscordMessage[],
+  botToken: string
+) {
+  await Promise.allSettled(
+    messages
+      .filter((message) => message.id !== keepMessageId)
+      .map((message) => discordDelete(
+        `/channels/${channelId}/messages/${message.id}`,
+        botToken,
+        "SafeBot: aviso duplicado do canal filter removido"
+      ))
+  );
+}
+
+function isSafeBotWarningMessage(message: DiscordMessage) {
+  const components = serializeDiscordComponents(message.components);
+  return message.content?.includes("Qualquer mensagem enviada nesta sala")
+    || message.content?.includes("Não envie mensagens aqui")
+    || components.includes("Qualquer mensagem enviada nesta sala")
+    || components.includes("Não envie mensagens aqui")
+    || components.includes("Nao envie mensagens aqui");
+}
+
+function serializeDiscordComponents(components: unknown[] | undefined) {
+  if (!components?.length) {
+    return "";
+  }
+
+  try {
+    return JSON.stringify(components);
+  } catch {
+    return "";
+  }
 }
 
 export async function getGuildLiveOptions(

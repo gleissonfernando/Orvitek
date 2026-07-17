@@ -191,13 +191,6 @@ export function DevDashboard({ auth, initialView = "bots", onLogout }: DevDashbo
             </div>
             <div className="min-w-0">
               <h1 className="truncate text-2xl font-bold text-white">Painel DEV</h1>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Badge className="border-[#FFD500]/30 bg-[#FFD500]/10 text-[#FFEA70]" variant="muted">Bots</Badge>
-                <Badge className="text-zinc-100" variant="muted">FiveM</Badge>
-                <Badge className="text-zinc-100" variant="muted">Polícia</Badge>
-                <Badge className="text-zinc-100" variant="muted">Módulos globais</Badge>
-                <Badge className="text-zinc-100" variant="muted">Logs técnicos</Badge>
-              </div>
             </div>
           </div>
 
@@ -213,32 +206,6 @@ export function DevDashboard({ auth, initialView = "bots", onLogout }: DevDashbo
 
       <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 lg:px-8">
         {!isBotManagerView(activeView) ? <DevUserCard user={auth.user} canViewDev={profile.canViewDev} /> : null}
-
-        <div className="flex gap-2 overflow-x-auto lg:hidden">
-          {[
-            { id: "bots" as const, label: "Dashboard" },
-            { id: "connected" as const, label: "Bots conectados" },
-            { id: "bot-menu" as const, label: "Menu do Bot" },
-            { id: "cloning" as const, label: "Clonagem" },
-            { id: "sales" as const, label: "Sistema de Vendas" },
-            { id: "plans" as const, label: "Planos" },
-            { id: "discloud" as const, label: "DisCloud" },
-            { id: "fivem" as const, label: "FiveM" },
-            { id: "police" as const, label: "Polícia" },
-            { id: "logs" as const, label: "Logs" },
-            { id: "access" as const, label: "Acessos" },
-            { id: "maintenance" as const, label: "Manutenção" }
-          ].map((item) => (
-            <Button
-              key={item.id}
-              onClick={() => handleChangeView(item.id)}
-              size="sm"
-              variant={activeView === item.id ? "default" : "outline"}
-            >
-              {item.label}
-            </Button>
-          ))}
-        </div>
 
         {isBotManagerView(activeView) ? (
           <DevPanel

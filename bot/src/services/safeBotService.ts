@@ -1491,6 +1491,7 @@ async function reconcileFilterWarning(channel: NonNullable<Awaited<ReturnType<ty
     const existing = await channel.messages.fetch(state.messageId).catch(() => null);
 
     if (existing && existing.author.id === channel.client.user?.id) {
+      await deleteDuplicateSafeBotWarnings(channel, existing.id);
       console.log("[safe-bot] Mensagem SafeBot já existe, não será reenviada");
       return;
     }
@@ -1504,6 +1505,7 @@ async function reconcileFilterWarning(channel: NonNullable<Awaited<ReturnType<ty
     const currentWarning = await findExistingSafeBotWarning(channel);
 
     if (currentWarning) {
+      await deleteDuplicateSafeBotWarnings(channel, currentWarning.id);
       console.log("[safe-bot] Mensagem SafeBot já existe, não será reenviada");
       await context.api.saveSafeBotMessageState(channel.guild.id, {
         channelId: channel.id,
@@ -1558,6 +1560,24 @@ async function reconcileFilterWarning(channel: NonNullable<Awaited<ReturnType<ty
 async function findExistingSafeBotWarning(channel: NonNullable<Awaited<ReturnType<typeof findTextChannel>>>) {
   const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
   return messages?.find((message) => isFilterWarningMessage(message)) ?? null;
+}
+
+async function deleteDuplicateSafeBotWarnings(
+  channel: NonNullable<Awaited<ReturnType<typeof findTextChannel>>>,
+  keepMessageId: string
+) {
+  const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+  if (!messages) {
+    return;
+  }
+
+  await Promise.allSettled(
+    messages
+      .filter((message) => message.id !== keepMessageId && isFilterWarningMessage(message) && message.deletable)
+      .map((message) => message.delete().catch((error) => {
+        console.warn(`[safe-bot] não foi possível apagar aviso duplicado ${message.id}:`, errorMessage(error));
+      }))
+  );
 }
 
 async function deleteStoredSafeBotMessage(guild: Guild, channelId: string, messageId: string) {
