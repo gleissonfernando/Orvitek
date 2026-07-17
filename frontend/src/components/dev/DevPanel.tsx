@@ -905,9 +905,11 @@ export function DevPanel({
   }
 
   async function handleToggleModule(bot: DevBot, moduleId: string, checked: boolean) {
+    const canonicalModuleId = canonicalDevModuleId(moduleId);
+    const currentModules = normalizeDevModuleIds(bot.enabledModules);
     const nextModules = checked
-      ? [...new Set([...bot.enabledModules, ...(isFiveMModule(moduleId) && !isPoliceReleaseModule(moduleId) && moduleId !== "fivem" ? ["fivem"] : []), moduleId])]
-      : bot.enabledModules.filter((item) => item !== moduleId);
+      ? [...new Set([...currentModules, ...(isFiveMModule(canonicalModuleId) && !isPoliceReleaseModule(canonicalModuleId) && canonicalModuleId !== "fivem" ? ["fivem"] : []), canonicalModuleId])]
+      : currentModules.filter((item) => !sameDevModule(item, canonicalModuleId));
 
     setBots((current) => current.map((item) => (item.id === bot.id ? { ...item, enabledModules: nextModules } : item)));
 
@@ -2070,7 +2072,8 @@ function BotModuleWorkspace({
   const [favoriteIds, setFavoriteIds] = useState<string[]>(() => readFavoriteModules(bot.id));
   const categories = moduleDashboardCategories(modules);
   const activeCategory = categories.find((item) => item.id === activeMenuId) ?? categories[0];
-  const enabledSet = new Set(bot.enabledModules);
+  const enabledModules = normalizeDevModuleIds(bot.enabledModules);
+  const enabledSet = new Set(enabledModules);
   const favoriteSet = new Set(favoriteIds);
   const normalizedQuery = query.trim().toLowerCase();
   const favoriteModules = modules.filter((module) => favoriteSet.has(module.id));
@@ -2090,7 +2093,7 @@ function BotModuleWorkspace({
 
     return module.label.toLowerCase().includes(normalizedQuery) || module.id.toLowerCase().includes(normalizedQuery);
   });
-  const activeModules = modules.filter((module) => enabledSet.has(module.id));
+  const activeModules = modules.filter((module) => enabledSet.has(canonicalDevModuleId(module.id)));
   const inactiveCount = Math.max(0, modules.length - activeModules.length);
   const securityModules = modulesForMenu({
     id: "moderation",
@@ -2195,7 +2198,7 @@ function BotModuleWorkspace({
               />
               <BotMenuCategoryButton
                 active={activeMenuId === "favorites"}
-                count={favoriteModules.filter((module) => enabledSet.has(module.id)).length}
+                count={favoriteModules.filter((module) => enabledSet.has(canonicalDevModuleId(module.id))).length}
                 icon={Star}
                 label="Favoritos"
                 onClick={() => onSelectMenu("favorites")}
@@ -2220,7 +2223,7 @@ function BotModuleWorkspace({
               {categories.map((item) => (
                 <BotMenuCategoryButton
                   active={activeMenuId === item.id}
-                  count={countEnabledMenuModules(item, modules, bot.enabledModules)}
+                  count={countEnabledMenuModules(item, modules, enabledModules)}
                   icon={item.icon}
                   key={item.id}
                   label={item.label}
@@ -2248,7 +2251,7 @@ function BotModuleWorkspace({
                         : activeCategory?.description ?? "Controle rápido dos módulos deste bot."}
                   </p>
                 </div>
-                <Badge variant="muted">{filteredModules.filter((module) => enabledSet.has(module.id)).length}/{filteredModules.length} ativos</Badge>
+                <Badge variant="muted">{filteredModules.filter((module) => enabledSet.has(canonicalDevModuleId(module.id))).length}/{filteredModules.length} ativos</Badge>
               </div>
             </div>
 
@@ -2282,12 +2285,12 @@ function BotModuleWorkspace({
                         <h4 className="truncate text-sm font-bold uppercase tracking-[0.14em] text-[#FFEA70]" title={section.label}>{section.label}</h4>
                         {section.description ? <p className="mt-1 line-clamp-1 text-xs font-medium text-zinc-500" title={section.description}>{section.description}</p> : null}
                       </div>
-                      <Badge variant="muted">{section.modules.filter((module) => enabledSet.has(module.id)).length}/{section.modules.length} ativos</Badge>
+                      <Badge variant="muted">{section.modules.filter((module) => enabledSet.has(canonicalDevModuleId(module.id))).length}/{section.modules.length} ativos</Badge>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
                       {section.modules.map((module, index) => (
                         <ModuleDashboardCard
-                          enabled={enabledSet.has(module.id)}
+                          enabled={enabledSet.has(canonicalDevModuleId(module.id))}
                           favorite={favoriteSet.has(module.id)}
                           index={index}
                           key={module.id}
@@ -4992,7 +4995,8 @@ function BotMenuButton({
           {item.children.map((child) => {
             const childActive = activeMenuId === child.id;
             const childModules = modulesForMenu(child, modules);
-            const childCount = childModules.filter((module) => selectedModules.includes(module.id)).length;
+            const selectedSet = new Set(normalizeDevModuleIds(selectedModules));
+            const childCount = childModules.filter((module) => selectedSet.has(canonicalDevModuleId(module.id))).length;
 
             return (
               <button
@@ -5016,7 +5020,8 @@ function BotMenuButton({
 }
 
 function BotOverview({ bot, modules }: { bot: DevBot; modules: DevModuleDefinition[] }) {
-  const activeModules = modules.filter((module) => bot.enabledModules.includes(module.id));
+  const enabledSet = new Set(normalizeDevModuleIds(bot.enabledModules));
+  const activeModules = modules.filter((module) => enabledSet.has(canonicalDevModuleId(module.id)));
 
   return (
     <div className="grid gap-4 sm:grid-cols-3">
@@ -5150,15 +5155,17 @@ function ModuleSwitchSection({
     return null;
   }
 
+  const enabledSet = new Set(normalizeDevModuleIds(enabledModules));
+
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-bold text-white">{title}</h3>
-        <Badge variant="muted">{modules.filter((module) => enabledModules.includes(module.id)).length}/{modules.length}</Badge>
+        <Badge variant="muted">{modules.filter((module) => enabledSet.has(canonicalDevModuleId(module.id))).length}/{modules.length}</Badge>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
         {modules.map((module) => {
-          const enabled = enabledModules.includes(module.id);
+          const enabled = enabledSet.has(canonicalDevModuleId(module.id));
 
           return (
             <div
@@ -5338,6 +5345,8 @@ function modulesForMenu(item: BotMenuItem, modules: DevModuleDefinition[], inclu
 }
 
 function visibleBotMenuItems(items: BotMenuItem[], modules: DevModuleDefinition[], enabledModules: string[]): BotMenuItem[] {
+  const enabledSet = new Set(normalizeDevModuleIds(enabledModules));
+
   return items.flatMap((item) => {
     if (item.id === "overview" || item.id === "settings") {
       return [item];
@@ -5346,7 +5355,7 @@ function visibleBotMenuItems(items: BotMenuItem[], modules: DevModuleDefinition[
     const children = item.children
       ? visibleBotMenuItems(item.children, modules, enabledModules).filter((child) => item.id !== "fivem" || !isPoliceReleaseModule(child.id))
       : undefined;
-    const ownEnabled = modulesForMenu(item, modules).some((module) => enabledModules.includes(module.id));
+    const ownEnabled = modulesForMenu(item, modules).some((module) => enabledSet.has(canonicalDevModuleId(module.id)));
 
     if (!ownEnabled && !children?.length) {
       return [];
@@ -5438,7 +5447,25 @@ function modulesForIds(modules: DevModuleDefinition[], moduleIds: string[], used
 }
 
 function countEnabledMenuModules(item: BotMenuItem, modules: DevModuleDefinition[], selectedModules: string[]) {
-  return modulesForMenu(item, modules, true).filter((module) => selectedModules.includes(module.id)).length;
+  const enabledSet = new Set(normalizeDevModuleIds(selectedModules));
+
+  return modulesForMenu(item, modules, true).filter((module) => enabledSet.has(canonicalDevModuleId(module.id))).length;
+}
+
+const DEV_MODULE_ALIASES: Record<string, string> = {
+  "fivem-fac": "fivem-absences"
+};
+
+function canonicalDevModuleId(moduleId: string) {
+  return DEV_MODULE_ALIASES[moduleId] ?? moduleId;
+}
+
+function normalizeDevModuleIds(moduleIds: string[]) {
+  return [...new Set(moduleIds.map(canonicalDevModuleId))];
+}
+
+function sameDevModule(left: string, right: string) {
+  return canonicalDevModuleId(left) === canonicalDevModuleId(right);
 }
 
 function isFiveMModule(moduleId: string) {

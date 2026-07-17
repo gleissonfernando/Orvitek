@@ -1269,7 +1269,7 @@ function DevFiveMManager({
     .filter((module) => scope === "police" ? isPoliceModule(module.id) : isFiveMManagerModule(module.id))
     .map(toFiveMModuleView);
   const enabled = new Set((selectedBot?.enabledModules ?? []).map((moduleId) => moduleId === "fivem-fac" ? "fivem-absences" : moduleId));
-  const activeModuleCount = viewModules.filter((module) => enabled.has(module.id)).length;
+  const activeModuleCount = viewModules.filter((module) => enabled.has(normalizeFiveMModuleId(module.id))).length;
   const stats = {
     active: activeModuleCount,
     corporations: enabled.has("fivem-corporations") ? 1 : 0,
@@ -1357,13 +1357,14 @@ function DevFiveMManager({
 
     const previousBot = selectedBot;
     const normalizedModules = normalizeFiveMModules(selectedBot.enabledModules);
+    const canonicalModuleId = normalizeFiveMModuleId(moduleId);
     const nextModules = scope === "police"
       ? checked
-        ? [...new Set([...normalizedModules, moduleId])]
-        : normalizedModules.filter((currentModuleId) => currentModuleId !== moduleId)
+        ? [...new Set([...normalizedModules, canonicalModuleId])]
+        : normalizedModules.filter((currentModuleId) => currentModuleId !== canonicalModuleId)
       : checked
-        ? [...new Set([...normalizedModules, "fivem", moduleId])]
-        : nextFiveMModulesAfterDisable(normalizedModules, moduleId);
+        ? [...new Set([...normalizedModules, "fivem", canonicalModuleId])]
+        : nextFiveMModulesAfterDisable(normalizedModules, canonicalModuleId);
     const optimisticBot = {
       ...selectedBot,
       enabledModules: nextModules
@@ -1415,10 +1416,11 @@ function DevFiveMManager({
     setSavingModuleId(moduleId);
     setMessage(null);
     try {
-      const nextBotModules = selectedBot && enabled.has(moduleId)
+      const canonicalModuleId = normalizeFiveMModuleId(moduleId);
+      const nextBotModules = selectedBot && enabled.has(canonicalModuleId)
         ? scope === "police"
-          ? normalizeFiveMModules(selectedBot.enabledModules).filter((currentModuleId) => currentModuleId !== moduleId)
-          : nextFiveMModulesAfterDisable(normalizeFiveMModules(selectedBot.enabledModules), moduleId)
+          ? normalizeFiveMModules(selectedBot.enabledModules).filter((currentModuleId) => currentModuleId !== canonicalModuleId)
+          : nextFiveMModulesAfterDisable(normalizeFiveMModules(selectedBot.enabledModules), canonicalModuleId)
         : null;
       await deleteDevFivemModule(moduleId);
       if (selectedBot && nextBotModules) {
@@ -1510,7 +1512,7 @@ function DevFiveMManager({
               {copy.loading}
             </div>
           ) : viewModules.map((module) => {
-            const active = enabled.has(module.id);
+            const active = enabled.has(normalizeFiveMModuleId(module.id));
             const custom = !module.builtIn;
 
             return (
@@ -1597,7 +1599,11 @@ function FiveMStat({ icon: Icon, label, value }: { icon: LucideIcon; label: stri
 }
 
 function normalizeFiveMModules(moduleIds: string[]) {
-  return moduleIds.map((moduleId) => moduleId === "fivem-fac" ? "fivem-absences" : moduleId);
+  return [...new Set(moduleIds.map(normalizeFiveMModuleId))];
+}
+
+function normalizeFiveMModuleId(moduleId: string) {
+  return moduleId === "fivem-fac" ? "fivem-absences" : moduleId;
 }
 
 function nextFiveMModulesAfterDisable(moduleIds: string[], disabledModuleId: string) {
