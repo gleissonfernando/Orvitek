@@ -279,7 +279,7 @@ devRouter.use(devPlansRouter);
 
 devRouter.get("/modules", (_req, res) => {
   return res.json({
-    modules: DEV_MODULES.filter((module) => module.id !== "fivem-fac")
+    modules: DEV_MODULES
   });
 });
 

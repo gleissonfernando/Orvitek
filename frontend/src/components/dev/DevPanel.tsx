@@ -1439,11 +1439,12 @@ function BulkBotPowerPanel({
 }
 
 function mergeDevModules(modules: DevModuleDefinition[]) {
-  const apiModules = new Map(modules.map((module) => [module.id, module]));
+  const visibleModules = modules.filter((module) => !isHiddenDevModule(module.id));
+  const apiModules = new Map(visibleModules.map((module) => [module.id, module]));
 
   return [
     ...fallbackModules.map((module) => apiModules.get(module.id) ?? module),
-    ...modules.filter((module) => !fallbackModules.some((fallback) => fallback.id === module.id))
+    ...visibleModules.filter((module) => !fallbackModules.some((fallback) => fallback.id === module.id))
   ];
 }
 
@@ -5454,6 +5455,12 @@ function countEnabledMenuModules(item: BotMenuItem, modules: DevModuleDefinition
 const DEV_MODULE_ALIASES: Record<string, string> = {
   "fivem-fac": "fivem-absences"
 };
+
+const HIDDEN_DEV_MODULE_IDS = new Set(["fivem-fac"]);
+
+function isHiddenDevModule(moduleId: string) {
+  return HIDDEN_DEV_MODULE_IDS.has(moduleId);
+}
 
 function canonicalDevModuleId(moduleId: string) {
   return DEV_MODULE_ALIASES[moduleId] ?? moduleId;
