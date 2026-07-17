@@ -13,6 +13,7 @@ import {
   type ButtonInteraction,
   type ChannelSelectMenuInteraction,
   type ChatInputCommandInteraction,
+  type Guild,
   type GuildMember,
   type Interaction,
   type ModalSubmitInteraction,
@@ -70,7 +71,7 @@ async function openNotificationPanel(interaction: ChatInputCommandInteraction, c
     return;
   }
 
-  const settings = await context.api.getOpenDutySettings(interaction.guild.id);
+  const settings = await getSettingsWithResolvedMentionChannel(interaction.guild, context);
   if (!settings.enabled) {
     await interaction.reply({ content: "O sistema de Ponto Aberto está desativado.", ephemeral: true });
     return;
@@ -107,7 +108,7 @@ async function openNotificationPanel(interaction: ChatInputCommandInteraction, c
 
 async function openConfigSummary(interaction: ChatInputCommandInteraction, context: BotContext) {
   if (!interaction.guild) return interaction.reply({ content: "Use este comando dentro de um servidor.", ephemeral: true });
-  const settings = await context.api.getOpenDutySettings(interaction.guild.id);
+  const settings = await getSettingsWithResolvedMentionChannel(interaction.guild, context);
   await interaction.reply({
     ...configPanel(settings),
     flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
@@ -129,7 +130,9 @@ async function sendDraft(interaction: ButtonInteraction, context: BotContext, dr
   await interaction.deferUpdate();
   const draft = await resolveDraft(interaction, context, draftId);
   if (!draft) return interaction.followUp({ content: "Não consegui recuperar os dados deste painel. Execute /notificar novamente.", ephemeral: true });
-  const settings = await context.api.getOpenDutySettings(draft.guildId);
+  const settings = interaction.guild
+    ? await getSettingsWithResolvedMentionChannel(interaction.guild, context)
+    : await context.api.getOpenDutySettings(draft.guildId);
   const target = await interaction.client.users.fetch(draft.targetId).catch(() => null);
   if (!target) return interaction.followUp({ content: "Usuário não encontrado.", ephemeral: true });
 
@@ -179,7 +182,9 @@ async function editDraft(interaction: ButtonInteraction, context: BotContext, dr
 async function submitEdit(interaction: ModalSubmitInteraction, context: BotContext, draftId: string) {
   const draft = await resolveDraft(interaction, context, draftId);
   if (!draft) return interaction.reply({ content: "Não consegui recuperar os dados deste painel. Execute /notificar novamente.", ephemeral: true });
-  const settings = await context.api.getOpenDutySettings(draft.guildId);
+  const settings = interaction.guild
+    ? await getSettingsWithResolvedMentionChannel(interaction.guild, context)
+    : await context.api.getOpenDutySettings(draft.guildId);
   const target = await interaction.client.users.fetch(draft.targetId).catch(() => null);
   const message = interaction.fields.getTextInputValue("message");
   drafts.set(draftId, { ...draft, edited: true, message });
@@ -221,7 +226,9 @@ async function resolveDraft(interaction: ButtonInteraction | ModalSubmitInteract
   if (!targetId) return null;
   const target = await interaction.client.users.fetch(targetId).catch(() => null);
   if (!target) return null;
-  const settings = await context.api.getOpenDutySettings(guildId);
+  const settings = interaction.guild
+    ? await getSettingsWithResolvedMentionChannel(interaction.guild, context)
+    : await context.api.getOpenDutySettings(guildId);
   const recoveredMessage = sourceMessage ? extractNotificationMessage(sourceMessage) : null;
   const draft: NotificationDraft = {
     edited: Boolean(recoveredMessage),
@@ -234,13 +241,42 @@ async function resolveDraft(interaction: ButtonInteraction | ModalSubmitInteract
   return draft;
 }
 
+async function getSettingsWithResolvedMentionChannel(guild: Guild, context: BotContext) {
+  const settings = await context.api.getOpenDutySettings(guild.id);
+
+  if (settings.mentionChannelId) {
+    return settings;
+  }
+
+  const channel = guild.channels.cache.find((item) => {
+    if (item.type !== ChannelType.GuildText && item.type !== ChannelType.GuildAnnouncement) {
+      return false;
+    }
+
+    return normalizeChannelName(item.name) === "justificar-ponto";
+  });
+
+  if (!channel) {
+    return settings;
+  }
+
+  const saved = await context.api.saveOpenDutySettings(guild.id, {
+    mentionChannelId: channel.id
+  }, context.client.user?.id ?? null).catch(() => null);
+
+  return saved ?? {
+    ...settings,
+    mentionChannelId: channel.id
+  };
+}
+
 function dmPayload(settings: OpenDutySettings, target: User, message: string) {
   const components: unknown[] = [];
   const banner = settings.dmBannerUrl ? resolvePanelImageUrl(settings.dmBannerUrl) : null;
   const footerImage = settings.footerImageUrl ? resolvePanelImageUrl(settings.footerImageUrl) : null;
   const pushBanner = () => { if (banner) components.push({ type: 12, items: [{ media: { url: banner }, description: "Ponto Aberto" }] }); };
   if (settings.imagePosition === "top") pushBanner();
-  components.push({ type: 10, content: replaceSystemEmojis(`# ${systemEmojiText("alerta")} Notificacao de Ponto Aberto\n${message}`).slice(0, 3900) });
+  components.push({ type: 10, content: replaceSystemEmojis(`# ⚠️ Notificação de Ponto Aberto\n\n${ensureMentionTargets(message, target, settings)}`).slice(0, 3900) });
   if (settings.imagePosition === "middle") pushBanner();
   if (settings.imagePosition === "bottom") pushBanner();
   return {
@@ -352,13 +388,42 @@ function canUse(member: GuildMember, userId: string, settings: OpenDutySettings)
 }
 
 function renderMessage(template: string, target: User, settings: OpenDutySettings) {
-  const channelMention = settings.mentionChannelId ? `<#${settings.mentionChannelId}>` : "";
-  return template
+  const channelMention = mentionChannel(settings);
+  return ensureMentionTargets(template
     .replaceAll("{usuário}", `<@${target.id}>`)
-    .replaceAll("<@usuário>", `<@${target.id}>`)
+    .replaceAll("{usuario}", `<@${target.id}>`)
     .replaceAll("<@usuário>", `<@${target.id}>`)
     .replaceAll("{canal}", channelMention)
-    .replaceAll("{channel}", channelMention);
+    .replaceAll("{channel}", channelMention), target, settings);
+}
+
+function ensureMentionTargets(message: string, target: User, settings: OpenDutySettings) {
+  const userMention = `<@${target.id}>`;
+  const channelMention = mentionChannel(settings);
+  let next = message.trim();
+
+  if (!next.includes(userMention)) {
+    next = `Prezada(o) ${userMention},\n\n${next}`;
+  }
+
+  if (settings.mentionChannelId && !next.includes(channelMention)) {
+    next = `${next}\n\nCanal de justificativa: ${channelMention}`;
+  }
+
+  return next;
+}
+
+function mentionChannel(settings: OpenDutySettings) {
+  return settings.mentionChannelId ? `<#${settings.mentionChannelId}>` : "#justificar-ponto";
+}
+
+function normalizeChannelName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 function hasChannelVariable(template: string) {

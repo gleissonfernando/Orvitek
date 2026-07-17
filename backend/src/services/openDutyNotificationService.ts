@@ -22,13 +22,33 @@ export type OpenDutyDeliveryInput = {
   targetId: string;
 };
 
-export const DEFAULT_OPEN_DUTY_MESSAGE = `Prezada(o) {usuário}:
+const LEGACY_OPEN_DUTY_MESSAGE = `Prezada(o) {usuário}:
 
 Verificamos que seu ponto de serviço permanece aberto mesmo sem estar em atividade. Reforçamos que essa prática não está de acordo com as diretrizes do departamento.
 
 Pedimos que, ao encerrar o serviço ou se ausentar, feche corretamente o ponto. Caso a situação continue ocorrendo, poderá haver aplicação de multa administrativa.
 
 Se você esqueceu o ponto aberto, por favor, justifique em {canal}.`;
+
+export const DEFAULT_OPEN_DUTY_MESSAGE = `Prezada(o) {usuário},
+
+Verificamos que seu ponto de serviço permanece aberto, mesmo sem haver registro de atividade. Essa situação está em desacordo com as normas e diretrizes do departamento.
+
+📌 Ajuste seu ponto
+
+Solicitamos que ajuste seu ponto imediatamente. Caso tenha encerrado seu expediente ou esteja ausente, feche corretamente o ponto de serviço para manter o registro atualizado.
+
+A reincidência dessa ocorrência poderá resultar na aplicação das medidas administrativas cabíveis, incluindo multa administrativa.
+
+📝 Esqueceu o ponto aberto?
+
+Caso tenha esquecido de encerrar o ponto, realize a justificativa em:
+
+⭐ North Police Department → {canal}
+
+──────────────────────────────
+
+Agradecemos sua colaboração e contamos com seu comprometimento para manter os registros de serviço sempre atualizados.`;
 
 export const DEFAULT_OPEN_DUTY_ALERT = "O usuário atingiu 3 avisos verbais por manter o ponto aberto sem estar em atividade. Verifique a possibilidade de multa administrativa conforme as diretrizes do departamento.";
 
@@ -49,7 +69,19 @@ export async function getOpenDutyDashboard(botId: string | null, guildId: string
 export async function getOpenDutySettings(botId: string | null, guildId: string) {
   const { openDutySettings } = await getMongoCollections();
   const existing = await openDutySettings.findOne(scope(botId, guildId));
-  if (existing) return mapSettings(existing);
+  if (existing) {
+    if (isLegacyDefaultMessage(existing.defaultMessage)) {
+      await openDutySettings.updateOne({ _id: existing._id }, {
+        $set: {
+          defaultMessage: DEFAULT_OPEN_DUTY_MESSAGE,
+          updatedAt: new Date()
+        }
+      });
+      existing.defaultMessage = DEFAULT_OPEN_DUTY_MESSAGE;
+    }
+
+    return mapSettings(existing);
+  }
 
   const now = new Date();
   const doc: MongoOpenDutySettings = {
@@ -168,6 +200,14 @@ export async function resetOpenDutyCounter(botId: string | null, guildId: string
 
 function shouldTriggerFineLog(total: number) {
   return total >= 3;
+}
+
+function isLegacyDefaultMessage(message: string) {
+  return normalizeTemplate(message) === normalizeTemplate(LEGACY_OPEN_DUTY_MESSAGE);
+}
+
+function normalizeTemplate(message: string) {
+  return message.replace(/\r\n/g, "\n").trim();
 }
 
 function mapSettings(settings: MongoOpenDutySettings) {
