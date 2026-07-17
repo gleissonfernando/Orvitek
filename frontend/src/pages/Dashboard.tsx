@@ -897,7 +897,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
     selectedBot ? hasReleasedModule(selectedBot.enabledModules, moduleId) : canManageDashboard
   );
   const canReleaseServerModule = (moduleId: string) => canManageModule(selectedBot, moduleId, canManageDashboard);
-  const isServerModuleReleased = (moduleId: string) => botGuildConfig?.modules?.[moduleId]?.enabled === true;
+  const isServerModuleReleased = (moduleId: string) => botGuildConfig?.modules?.[moduleId]?.enabled !== false;
   const availableModules = useMemo(
     () => moduleCatalog.filter((module) => hasReleasedModule(enabledModules, module.id)),
     [enabledModulesKey]

@@ -2257,7 +2257,7 @@ async function isRuntimeModuleEnabled(input: {
   }
 
   if (isServerReleaseRequiredModule(input.moduleId) || isServerReleaseRequiredModule(input.releaseModuleId)) {
-    return input.moduleConfig?.enabled === true;
+    return true;
   }
 
   if (input.releaseModuleId === "safe-bot" || SELF_BOT_RUNTIME_MODULES.has(input.moduleId)) {
@@ -2550,8 +2550,17 @@ async function isModuleReleasedForServer(botId: string, guildId: string, moduleI
     }
   );
   const moduleIds = devBotModuleReleaseIds(moduleId);
+  const moduleConfigs = moduleIds.map((candidate) => config?.modules?.[candidate]).filter(Boolean);
 
-  return moduleIds.some((candidate) => config?.modules?.[candidate]?.enabled === true);
+  if (moduleConfigs.some((moduleConfig) => moduleConfig?.enabled === true)) {
+    return true;
+  }
+
+  if (moduleConfigs.some((moduleConfig) => moduleConfig?.enabled === false)) {
+    return false;
+  }
+
+  return true;
 }
 
 async function enableSelfBotDefaults(bot: DevBotDto) {
