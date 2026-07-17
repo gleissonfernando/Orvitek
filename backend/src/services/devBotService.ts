@@ -42,7 +42,7 @@ export const DEV_MODULES = [
   { id: "kick-clips", label: "Clipes Kick" },
   { id: "giveaway", label: "Sistema de Sorteio" },
   { id: "nex-tech-sales", label: "Sistema de Vendas" },
-  { id: "manual-payments", label: "Sistema de Pagamentos" },
+  { id: "manual-payments", label: "Pagamento Manual" },
   { id: "price-tables", label: "Tabela de Precos" },
   { id: "network", label: "Rede Social dos Membros" },
   { id: "x-monitor", label: "X Monitor" },

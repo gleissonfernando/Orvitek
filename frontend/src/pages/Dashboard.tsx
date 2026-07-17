@@ -361,7 +361,7 @@ const moduleCatalog: ModuleDefinition[] = [
   },
   {
     id: "manual-payments",
-    title: "Pagamentos",
+    title: "Pagamento Manual",
     description: "Gerencia Pix manual, comprovantes, aprovação e atendimento por canais.",
     icon: CreditCard,
     view: "manual-payments"

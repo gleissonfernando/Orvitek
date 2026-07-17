@@ -125,6 +125,7 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "kick-clips", label: "Clipes Kick" },
   { id: "giveaway", label: "Sistema de Sorteio" },
   { id: "nex-tech-sales", label: "Sistema de Vendas" },
+  { id: "manual-payments", label: "Pagamento Manual" },
   { id: "network", label: "Rede Social dos Membros" },
   { id: "x-monitor", label: "X Monitor" },
   { id: "verification", label: "Sistema de Verificação" },

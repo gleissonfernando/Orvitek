@@ -144,7 +144,7 @@ const navItems: NavItem[] = [
   { id: "x-monitor", label: "X Monitor", icon: AtSign, moduleId: "x-monitor" },
   { id: "moderation", label: "Moderação", icon: Shield, moduleId: "moderation" },
   { id: "rules", label: "Regras", icon: ScrollText, moduleId: "rules" },
-  { id: "manual-payments", label: "Pagamentos", icon: CreditCard, moduleId: "manual-payments" },
+  { id: "manual-payments", label: "Pagamento Manual", icon: CreditCard, moduleId: "manual-payments" },
   { id: "price-tables", label: "Painel de Vendas", icon: TableProperties, moduleId: "price-tables" },
   { id: "courses", label: "Cursos", icon: BookOpen, moduleIds: ["courses", "police-courses"] },
   { id: "rh-admin", label: "RH Administrativo", icon: ShieldCheck, moduleIds: ["rh-admin", "police-hr"] },
