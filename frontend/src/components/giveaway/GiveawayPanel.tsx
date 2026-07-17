@@ -6,6 +6,7 @@ import {
   Clock,
   ExternalLink,
   Gift,
+  Link2,
   Loader2,
   Pencil,
   Play,
@@ -14,6 +15,7 @@ import {
   Save,
   Search,
   Send,
+  Sparkles,
   Square,
   Trophy,
   Users
@@ -97,6 +99,22 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
     liveValidated &&
     !saving
   );
+  const panelStats = useMemo(() => {
+    const running = giveaways.filter((giveaway) => giveaway.status === "running").length;
+    const waiting = giveaways.filter((giveaway) => giveaway.status === "waiting").length;
+    const participants = giveaways.reduce((total, giveaway) => total + giveaway.participants.length, 0);
+    const winners = giveaways.reduce((total, giveaway) => total + giveaway.winners.length, 0);
+
+    return {
+      participants,
+      running,
+      total: giveaways.length,
+      waiting,
+      winners
+    };
+  }, [giveaways]);
+  const selectedDiscordChannel = options?.channels.find((channel) => channel.id === form.discordChannelId)?.name ?? null;
+  const messageTone = message && /não|erro|falha|inválid|aguarde/i.test(message) ? "danger" : "success";
 
   useEffect(() => {
     if (!guild) {
@@ -384,77 +402,209 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
   }
 
   return (
-    <div className="space-y-5">
+    <section className="space-y-5">
+      <Card className="overflow-hidden border-zinc-800 bg-zinc-950/85">
+        <CardContent className="p-5 sm:p-6">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex min-w-0 items-start gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-[#FFD500]/25 bg-[#FFD500]/10 text-[#FFEA70]">
+                <Gift className="h-7 w-7" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-2xl font-bold tracking-normal text-white">Sorteios</h2>
+                  <Badge variant={panelStats.running ? "success" : "muted"}>
+                    {panelStats.running ? `${panelStats.running} ativo(s)` : "Nenhum ativo"}
+                  </Badge>
+                </div>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
+                  Crie sorteios para Twitch ou Kick, publique o painel no Discord e controle a roleta em tempo real.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={actionId === "sync-options"} onClick={() => void handleSyncOptions()} variant="outline">
+                {actionId === "sync-options" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Sincronizar canais
+              </Button>
+              <Button onClick={handleNew} variant="secondary">
+                <Gift className="h-4 w-4" />
+                Novo sorteio
+              </Button>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatTile icon={Gift} label="Sorteios criados" value={String(panelStats.total)} />
+            <StatTile icon={Radio} label="Em andamento" value={String(panelStats.running)} tone="success" />
+            <StatTile icon={Users} label="Participantes" value={formatNumber(panelStats.participants)} />
+            <StatTile icon={Trophy} label="Ganhadores" value={formatNumber(panelStats.winners)} tone="warning" />
+          </div>
+        </CardContent>
+      </Card>
+
       {message ? (
-        <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-100">
+        <div className={messageTone === "danger"
+          ? "rounded-lg border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-100"
+          : "rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100"}
+        >
           {message}
         </div>
       ) : null}
 
-      <Card className="border-zinc-800 bg-zinc-950/80">
-        <CardHeader className="border-b border-zinc-900 p-5 sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle>Sorteio</CardTitle>
-              <CardDescription>{editingGiveaway ? "Editando painel e roleta." : "Crie um painel com roleta para Twitch ou Kick."}</CardDescription>
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
+        <Card className="border-zinc-800 bg-zinc-950/80">
+          <CardHeader className="border-b border-zinc-900 p-5 sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-lg">{editingGiveaway ? "Editar sorteio" : "Criar sorteio"}</CardTitle>
+                <CardDescription>{editingGiveaway ? editingGiveaway.title : "Configuração principal do painel e da roleta."}</CardDescription>
+              </div>
+              <Badge variant={editingGiveaway ? "warning" : "default"}>
+                {editingGiveaway ? "Editando" : "Novo"}
+              </Badge>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button disabled={actionId === "sync-options"} onClick={() => void handleSyncOptions()} size="sm" variant="outline">
-                {actionId === "sync-options" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                Sincronizar canais
-              </Button>
-              <Button onClick={handleNew} size="sm" variant="outline">
-                <Gift className="h-4 w-4" />
-                Novo
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="grid gap-4 p-5 sm:p-6 lg:grid-cols-2">
-          <FormField label="Nome do sorteio">
-            <input
-              className="social-input h-11"
-              disabled={!canManage}
-              onChange={(event) => updateForm("title", event.target.value)}
-              placeholder="Sorteio da live"
-              value={form.title}
-            />
-          </FormField>
-
-          <FormField label="Premio">
-            <input
-              className="social-input h-11"
-              disabled={!canManage}
-              onChange={(event) => updateForm("prizeName", event.target.value)}
-              placeholder="Produto, pix, skin, gift card"
-              value={form.prizeName}
-            />
-          </FormField>
-
-          <FormField className="lg:col-span-2" label="URL da live ou canal">
-            <div className="flex flex-col gap-2 sm:flex-row">
+          </CardHeader>
+          <CardContent className="grid gap-4 p-5 sm:p-6 lg:grid-cols-2">
+            <FormField label="Nome do sorteio">
               <input
                 className="social-input h-11"
                 disabled={!canManage}
-                onChange={(event) => updateForm("liveUrl", event.target.value)}
-                placeholder="https://kick.com/canal ou https://www.twitch.tv/canal"
-                value={form.liveUrl}
+                onChange={(event) => updateForm("title", event.target.value)}
+                placeholder="Sorteio da live"
+                value={form.title}
               />
-              <Button
-                className="h-11 shrink-0"
-                disabled={!canManage || livePreviewLoading || !normalizedLiveUrl}
-                onClick={() => void handleVerifyLiveChannel()}
-                type="button"
-                variant="outline"
-              >
-                {livePreviewLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                Buscar
-              </Button>
-            </div>
-          </FormField>
+            </FormField>
 
+            <FormField label="Premio">
+              <input
+                className="social-input h-11"
+                disabled={!canManage}
+                onChange={(event) => updateForm("prizeName", event.target.value)}
+                placeholder="Produto, pix, skin, gift card"
+                value={form.prizeName}
+              />
+            </FormField>
+
+            <FormField className="lg:col-span-2" label="URL da live ou canal">
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  className="social-input h-11"
+                  disabled={!canManage}
+                  onChange={(event) => updateForm("liveUrl", event.target.value)}
+                  placeholder="https://kick.com/canal ou https://www.twitch.tv/canal"
+                  value={form.liveUrl}
+                />
+                <Button
+                  className="h-11 shrink-0"
+                  disabled={!canManage || livePreviewLoading || !normalizedLiveUrl}
+                  onClick={() => void handleVerifyLiveChannel()}
+                  type="button"
+                  variant="outline"
+                >
+                  {livePreviewLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  Buscar
+                </Button>
+              </div>
+            </FormField>
+
+            <ParticipantModeCard
+              onChange={(value) => updateForm("participantMode", value)}
+              platform={livePreview?.platform ?? (livePlatform === "youtube" ? null : livePlatform)}
+              value={form.participantMode}
+            />
+
+            <FormField label="Canal do Discord">
+              <select
+                className="social-input h-11"
+                disabled={!canManage}
+                onChange={(event) => updateForm("discordChannelId", event.target.value)}
+                value={form.discordChannelId}
+              >
+                <option value="">Selecione um canal</option>
+                {(options?.channels ?? []).map((channel) => (
+                  <option key={channel.id} value={channel.id}>
+                    #{channel.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+
+            <div className="grid gap-4 sm:grid-cols-3 lg:col-span-2">
+              <FormField label="Ganhadores">
+                <input
+                  className="social-input h-11"
+                  disabled={!canManage}
+                  max={50}
+                  min={1}
+                  onChange={(event) => updateForm("winnerCount", Number(event.target.value))}
+                  type="number"
+                  value={form.winnerCount}
+                />
+              </FormField>
+
+              <FormField label="Iniciar em minutos">
+                <input
+                  className="social-input h-11"
+                  disabled={!canManage}
+                  min={0}
+                  onChange={(event) => updateForm("startDelayMinutes", Number(event.target.value))}
+                  type="number"
+                  value={form.startDelayMinutes}
+                />
+              </FormField>
+
+              <FormField label="Encerrar em minutos">
+                <input
+                  className="social-input h-11"
+                  disabled={!canManage}
+                  min={0}
+                  onChange={(event) => updateForm("endDelayMinutes", Number(event.target.value))}
+                  type="number"
+                  value={form.endDelayMinutes}
+                />
+              </FormField>
+            </div>
+
+            <FormField className="lg:col-span-2" label="Mensagem personalizada do painel">
+              <textarea
+                className="social-input min-h-24 resize-none py-3"
+                disabled={!canManage}
+                onChange={(event) => updateForm("customMessage", event.target.value)}
+                placeholder="Mensagem opcional enviada dentro da embed."
+                value={form.customMessage}
+              />
+            </FormField>
+
+            <div className="flex flex-col gap-4 rounded-lg border border-zinc-900 bg-black/35 p-4 sm:flex-row sm:items-center sm:justify-between lg:col-span-2">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-white">Permitir ganhador repetido</p>
+                <p className="mt-1 text-xs text-zinc-500">Desativado impede o mesmo participante de ganhar mais de uma vez neste sorteio.</p>
+              </div>
+              <Switch
+                checked={form.allowRepeatWinners}
+                disabled={!canManage}
+                onCheckedChange={(checked) => updateForm("allowRepeatWinners", checked)}
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2 lg:col-span-2">
+              <Button disabled={!canSubmit} onClick={() => void handleSubmit()}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {editingId ? "Salvar alterações" : "Criar sorteio"}
+              </Button>
+              {editingGiveaway?.rouletteUrl ? (
+                <Button onClick={() => window.open(editingGiveaway.rouletteUrl, "_blank", "noopener,noreferrer")} variant="outline">
+                  <ExternalLink className="h-4 w-4" />
+                  Abrir roleta
+                </Button>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-5">
           <LivePreviewCard
-            className="lg:col-span-2"
             error={livePreviewError}
             loading={livePreviewLoading}
             platform={livePlatform}
@@ -462,102 +612,33 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
             value={normalizedLiveUrl}
           />
 
-          <ParticipantModeCard
-            onChange={(value) => updateForm("participantMode", value)}
-            platform={livePreview?.platform ?? (livePlatform === "youtube" ? null : livePlatform)}
-            value={form.participantMode}
-          />
+          <Card className="border-zinc-800 bg-zinc-950/80">
+            <CardHeader className="border-b border-zinc-900">
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-[#FFEA70]" />
+                Resumo
+              </CardTitle>
+              <CardDescription>Estado atual antes de publicar.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 p-5">
+              <SummaryLine icon={Gift} label="Premio" value={form.prizeName.trim() || "Pendente"} />
+              <SummaryLine icon={Link2} label="Live" value={normalizedLiveUrl || "Pendente"} />
+              <SummaryLine icon={Users} label="Participação" value={participantModeLabel(form.participantMode)} />
+              <SummaryLine icon={Trophy} label="Ganhadores" value={`${Math.max(1, Number(form.winnerCount) || 1)} vencedor(es)`} />
+              <SummaryLine icon={Send} label="Canal Discord" value={selectedDiscordChannel ? `#${selectedDiscordChannel}` : "Pendente"} />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
-          <FormField label="Canal do Discord">
-            <select
-              className="social-input h-11"
-              disabled={!canManage}
-              onChange={(event) => updateForm("discordChannelId", event.target.value)}
-              value={form.discordChannelId}
-            >
-              <option value="">Selecione um canal</option>
-              {(options?.channels ?? []).map((channel) => (
-                <option key={channel.id} value={channel.id}>
-                  #{channel.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
-
-          <div className="grid gap-4 sm:grid-cols-3 lg:col-span-2">
-            <FormField label="Ganhadores">
-              <input
-                className="social-input h-11"
-                disabled={!canManage}
-                min={1}
-                max={50}
-                onChange={(event) => updateForm("winnerCount", Number(event.target.value))}
-                type="number"
-                value={form.winnerCount}
-              />
-            </FormField>
-
-            <FormField label="Iniciar em minutos">
-              <input
-                className="social-input h-11"
-                disabled={!canManage}
-                min={0}
-                onChange={(event) => updateForm("startDelayMinutes", Number(event.target.value))}
-                type="number"
-                value={form.startDelayMinutes}
-              />
-            </FormField>
-
-            <FormField label="Encerrar em minutos">
-              <input
-                className="social-input h-11"
-                disabled={!canManage}
-                min={0}
-                onChange={(event) => updateForm("endDelayMinutes", Number(event.target.value))}
-                type="number"
-                value={form.endDelayMinutes}
-              />
-            </FormField>
+      <section className="space-y-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Sorteios cadastrados</h3>
+            <p className="text-sm text-zinc-500">{panelStats.waiting} aguardando, {panelStats.running} em andamento.</p>
           </div>
+        </div>
 
-          <FormField className="lg:col-span-2" label="Mensagem personalizada do painel">
-            <textarea
-              className="social-input min-h-24 resize-none py-3"
-              disabled={!canManage}
-              onChange={(event) => updateForm("customMessage", event.target.value)}
-              placeholder="Mensagem opcional enviada dentro da embed."
-              value={form.customMessage}
-            />
-          </FormField>
-
-          <div className="flex flex-col gap-4 rounded-lg border border-zinc-900 bg-black/35 p-4 sm:flex-row sm:items-center sm:justify-between lg:col-span-2">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-white">Permitir ganhador repetido</p>
-              <p className="mt-1 text-xs text-zinc-500">Desativado impede o mesmo sub de ganhar mais de uma vez neste sorteio.</p>
-            </div>
-            <Switch
-              checked={form.allowRepeatWinners}
-              disabled={!canManage}
-              onCheckedChange={(checked) => updateForm("allowRepeatWinners", checked)}
-            />
-          </div>
-
-          <div className="flex flex-wrap gap-2 lg:col-span-2">
-            <Button disabled={!canSubmit} onClick={() => void handleSubmit()}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {editingId ? "Salvar alterações" : "Criar sorteio"}
-            </Button>
-            {editingGiveaway?.rouletteUrl ? (
-              <Button onClick={() => window.open(editingGiveaway.rouletteUrl, "_blank", "noopener,noreferrer")} variant="outline">
-                <ExternalLink className="h-4 w-4" />
-                Abrir roleta
-              </Button>
-            ) : null}
-          </div>
-        </CardContent>
-      </Card>
-
-      <section className="grid gap-3">
         {giveaways.length ? giveaways.map((giveaway) => (
           <GiveawayRow
             actionId={actionId}
@@ -575,6 +656,44 @@ export function GiveawayPanel({ botId, canManage, guild }: GiveawayPanelProps) {
           </Card>
         )}
       </section>
+    </section>
+  );
+}
+
+function StatTile({
+  icon: Icon,
+  label,
+  tone = "default",
+  value
+}: {
+  icon: typeof Gift;
+  label: string;
+  tone?: "default" | "success" | "warning";
+  value: string;
+}) {
+  const toneClass = tone === "success"
+    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+    : tone === "warning"
+      ? "border-[#FFD500]/25 bg-[#FFD500]/10 text-[#FFEA70]"
+      : "border-zinc-800 bg-black/30 text-zinc-200";
+
+  return (
+    <div className={`rounded-lg border p-4 ${toneClass}`}>
+      <Icon className="h-4 w-4 opacity-80" />
+      <p className="mt-3 text-xs font-semibold uppercase text-zinc-500">{label}</p>
+      <p className="mt-1 text-2xl font-black text-white">{value}</p>
+    </div>
+  );
+}
+
+function SummaryLine({ icon: Icon, label, value }: { icon: typeof Gift; label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 items-center gap-3 rounded-lg border border-zinc-900 bg-black/35 px-3 py-2.5">
+      <Icon className="h-4 w-4 shrink-0 text-zinc-400" />
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase text-zinc-600">{label}</p>
+        <p className="truncate text-sm font-medium text-zinc-100">{value}</p>
+      </div>
     </div>
   );
 }
@@ -600,48 +719,53 @@ function GiveawayRow({
   const totalTickets = giveaway.participants.reduce((total, participant) => total + Math.max(1, participant.tickets ?? 1), 0);
 
   return (
-    <Card className="border-zinc-800 bg-zinc-950/75">
-      <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate text-base font-semibold text-white">{giveaway.title}</h3>
-            <Badge className={status.className} variant="muted">{status.label}</Badge>
+    <Card className="overflow-hidden border-zinc-800 bg-zinc-950/75">
+      <CardContent className="p-0">
+        <div className={`h-1 w-full ${status.barClassName}`} />
+        <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="truncate text-base font-semibold text-white">{giveaway.title}</h3>
+              <Badge className={status.className} variant="muted">{status.label}</Badge>
+              <span className={platformPillClass(giveaway.livePlatform)}>{platformLabel(giveaway.livePlatform)}</span>
+            </div>
+            <p className="mt-1 truncate text-xs text-zinc-500">{giveaway.liveName} - {participantModeLabel(giveaway.participantMode)}</p>
+            <div className="mt-3 grid gap-2 text-xs text-zinc-500 sm:grid-cols-2 xl:grid-cols-4">
+              <InfoPill icon={Gift} label={giveaway.prizeName} />
+              <InfoPill icon={Users} label={`${giveaway.participants.length} participante(s) / ${totalTickets} ticket(s)`} />
+              <InfoPill icon={Trophy} label={`${giveaway.winners.length}/${giveaway.winnerCount} ganhador(es)`} />
+              <InfoPill icon={Clock} label={giveaway.scheduledStartAt ? `Inicia ${formatDate(giveaway.scheduledStartAt)}` : giveaway.scheduledEndAt ? `Encerra ${formatDate(giveaway.scheduledEndAt)}` : formatDate(giveaway.createdAt)} />
+            </div>
+            {giveaway.schedulerError || giveaway.lastSyncError ? (
+              <p className="mt-3 rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">{giveaway.schedulerError ?? giveaway.lastSyncError}</p>
+            ) : null}
           </div>
-          <div className="mt-2 grid gap-2 text-xs text-zinc-500 sm:grid-cols-2 xl:grid-cols-4">
-            <InfoPill icon={Gift} label={giveaway.prizeName} />
-            <InfoPill icon={Users} label={`${giveaway.participants.length} participante(s) / ${totalTickets} ticket(s)`} />
-            <InfoPill icon={Trophy} label={`${giveaway.winners.length}/${giveaway.winnerCount} ganhador(es)`} />
-            <InfoPill icon={Clock} label={giveaway.scheduledStartAt ? `Inicia ${formatDate(giveaway.scheduledStartAt)}` : giveaway.scheduledEndAt ? `Encerra ${formatDate(giveaway.scheduledEndAt)}` : formatDate(giveaway.createdAt)} />
-          </div>
-          {giveaway.schedulerError || giveaway.lastSyncError ? (
-            <p className="mt-2 text-xs text-red-300">{giveaway.schedulerError ?? giveaway.lastSyncError}</p>
-          ) : null}
-        </div>
 
-        <div className="flex flex-wrap gap-2 lg:justify-end">
-          <Button onClick={() => onEdit(giveaway)} size="sm" variant="outline">
-            <Pencil className="h-4 w-4" />
-            Editar
-          </Button>
-          <Button disabled={!canManage || panelLoading} onClick={() => onAction(giveaway, "panel")} size="sm" variant="outline">
-            {panelLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            Painel
-          </Button>
-          <Button disabled={!canManage || syncLoading || giveaway.status === "ended"} onClick={() => onAction(giveaway, "sync")} size="sm" variant="outline">
-            {syncLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            Atualizar
-          </Button>
-          <Button disabled={!canManage || giveaway.status !== "waiting" || startLoading} onClick={() => onAction(giveaway, "start")} size="sm">
-            {startLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            Iniciar
-          </Button>
-          <Button disabled={!canManage || giveaway.status === "ended" || endLoading} onClick={() => onAction(giveaway, "end")} size="sm" variant="destructive">
-            {endLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4" />}
-            Encerrar
-          </Button>
-          <Button onClick={() => window.open(giveaway.rouletteUrl, "_blank", "noopener,noreferrer")} size="icon" title="Abrir roleta" variant="outline">
-            <ExternalLink className="h-4 w-4" />
-          </Button>
+          <div className="flex flex-wrap gap-2 lg:max-w-[470px] lg:justify-end">
+            <Button onClick={() => onEdit(giveaway)} size="sm" variant="outline">
+              <Pencil className="h-4 w-4" />
+              Editar
+            </Button>
+            <Button disabled={!canManage || panelLoading} onClick={() => onAction(giveaway, "panel")} size="sm" variant="outline">
+              {panelLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Painel
+            </Button>
+            <Button disabled={!canManage || syncLoading || giveaway.status === "ended"} onClick={() => onAction(giveaway, "sync")} size="sm" variant="outline">
+              {syncLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Atualizar
+            </Button>
+            <Button disabled={!canManage || giveaway.status !== "waiting" || startLoading} onClick={() => onAction(giveaway, "start")} size="sm">
+              {startLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              Iniciar
+            </Button>
+            <Button disabled={!canManage || giveaway.status === "ended" || endLoading} onClick={() => onAction(giveaway, "end")} size="sm" variant="destructive">
+              {endLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4" />}
+              Encerrar
+            </Button>
+            <Button onClick={() => window.open(giveaway.rouletteUrl, "_blank", "noopener,noreferrer")} size="icon" title="Abrir roleta" variant="outline">
+              <ExternalLink className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -914,16 +1038,37 @@ function defaultParticipantMode(): GiveawayParticipantMode {
   return "all";
 }
 
-function platformLabel(platform: "twitch" | "kick" | "youtube") {
+function platformLabel(platform: "twitch" | "kick" | "youtube" | "multi") {
   if (platform === "kick") return "Kick";
+  if (platform === "multi") return "Twitch + Kick";
   if (platform === "youtube") return "YouTube";
   return "Twitch";
+}
+
+function platformPillClass(platform: Giveaway["livePlatform"]) {
+  if (platform === "kick") return "rounded-full border border-[#53fc18]/30 bg-[#53fc18]/10 px-2 py-0.5 text-xs font-bold text-[#53fc18]";
+  if (platform === "multi") return "rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2 py-0.5 text-xs font-bold text-cyan-200";
+  return "rounded-full border border-[#9146ff]/35 bg-[#9146ff]/15 px-2 py-0.5 text-xs font-bold text-[#d2b8ff]";
 }
 
 function platformClass(platform: "twitch" | "kick") {
   return platform === "kick"
     ? "border-[#53fc18]/30 bg-[#53fc18]/10 text-[#53fc18]"
     : "border-[#9146ff]/30 bg-[#9146ff]/10 text-[#c4a0ff]";
+}
+
+function participantModeLabel(mode: GiveawayParticipantMode) {
+  const labels: Record<GiveawayParticipantMode, string> = {
+    all: "Todos elegiveis",
+    kick_followers: "Seguidores Kick",
+    kick_subs: "Subs Kick",
+    twitch_followers: "Seguidores Twitch",
+    twitch_kick: "Twitch + Kick",
+    twitch_subs: "Subs Twitch",
+    twitch_subs_followers: "Subs + seguidores Twitch"
+  };
+
+  return labels[mode] ?? "Personalizado";
 }
 
 function formatNumber(value: number) {
@@ -952,6 +1097,7 @@ function upsertGiveaway(giveaways: Giveaway[], giveaway: Giveaway) {
 function statusMeta(status: Giveaway["status"]) {
   if (status === "running") {
     return {
+      barClassName: "bg-emerald-400",
       className: "border-emerald-500/25 bg-emerald-500/10 text-emerald-300",
       label: "Em andamento"
     };
@@ -959,12 +1105,14 @@ function statusMeta(status: Giveaway["status"]) {
 
   if (status === "ended") {
     return {
+      barClassName: "bg-red-400",
       className: "border-red-500/25 bg-red-500/10 text-red-300",
       label: "Encerrado"
     };
   }
 
   return {
+    barClassName: "bg-[#FFD500]",
     className: "border-yellow-500/25 bg-yellow-500/10 text-yellow-200",
     label: "Aguardando"
   };

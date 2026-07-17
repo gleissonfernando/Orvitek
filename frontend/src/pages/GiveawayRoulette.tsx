@@ -221,14 +221,14 @@ export function GiveawayRoulettePage({ token }: GiveawayRoulettePageProps) {
     ? "min-h-screen bg-[#f4f7fb] text-zinc-950"
     : overlay
       ? "min-h-screen bg-transparent text-white"
-      : "min-h-screen bg-[#060606] text-white";
+      : "min-h-screen bg-[#070707] text-white";
 
   return (
     <main className={`${pageClass} px-3 py-3 sm:px-5 sm:py-5`}>
       {showConfetti ? <Confetti /> : null}
       <div className="mx-auto grid max-w-7xl gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <section className={`${panelClass(theme, overlay)} min-h-[calc(100vh-40px)] overflow-hidden p-4 sm:p-5`}>
-          <header className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-center lg:justify-between">
+          <header className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${status.className}`}>{status.label}</span>
@@ -237,8 +237,8 @@ export function GiveawayRoulettePage({ token }: GiveawayRoulettePageProps) {
                   {participantModeLabel(giveaway.participantMode)}
                 </span>
               </div>
-              <h1 className="mt-3 truncate text-2xl font-bold sm:text-4xl">{giveaway.title}</h1>
-              <p className="mt-1 truncate text-sm text-zinc-400">Premio: {giveaway.prizeName}</p>
+              <h1 className="mt-3 break-words text-2xl font-black tracking-normal sm:text-4xl">{giveaway.title}</h1>
+              <p className="mt-1 truncate text-sm font-medium text-zinc-400">Premio: {giveaway.prizeName}</p>
             </div>
             {!overlay ? (
               <div className="flex flex-wrap gap-2">
@@ -257,7 +257,7 @@ export function GiveawayRoulettePage({ token }: GiveawayRoulettePageProps) {
 
           <div className="grid gap-5 pt-5 lg:grid-cols-[minmax(0,1fr)_260px]">
             <div className="flex min-h-[520px] flex-col items-center justify-center">
-              <div className="relative flex w-full max-w-[680px] items-center justify-center">
+              <div className="relative flex aspect-square w-full max-w-[710px] items-center justify-center rounded-full border border-white/10 bg-black/35 p-3 shadow-[0_36px_110px_rgba(0,0,0,0.58)]">
                 <div className="absolute -top-2 z-20 h-0 w-0 border-x-[22px] border-t-[42px] border-x-transparent border-t-white drop-shadow-[0_6px_12px_rgba(0,0,0,0.45)]" />
                 <Wheel participants={participants} rotation={rotation} segmentColors={segmentColors} spinning={spinning} />
               </div>
@@ -557,10 +557,13 @@ function HistoryPanel({ giveaway, history }: { giveaway: Giveaway; history: Spin
 
 function Metric({ icon: Icon, label, value }: { icon: typeof Users; label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.06] p-4">
-      <Icon className="h-4 w-4 text-zinc-400" />
+    <div className="rounded-lg border border-white/10 bg-white/[0.065] p-4 shadow-[0_16px_44px_rgba(0,0,0,0.28)]">
+      <div className="flex items-center justify-between gap-3">
+        <Icon className="h-4 w-4 text-emerald-300" />
+        <span className="h-2 w-2 rounded-full bg-emerald-300/80" />
+      </div>
       <p className="mt-3 text-xs font-semibold uppercase text-zinc-500">{label}</p>
-      <p className="mt-1 text-2xl font-black">{value}</p>
+      <p className="mt-1 text-3xl font-black tracking-normal">{value}</p>
     </div>
   );
 }
@@ -652,7 +655,7 @@ function panelClass(theme: "dark" | "light", overlay: boolean) {
   if (overlay) return "rounded-lg border border-white/10 bg-black/45 backdrop-blur-md";
   return theme === "light"
     ? "rounded-lg border border-zinc-200 bg-white shadow-sm"
-    : "rounded-lg border border-white/10 bg-zinc-950/86";
+    : "rounded-lg border border-white/10 bg-zinc-950/90 shadow-[0_26px_90px_rgba(0,0,0,0.42)]";
 }
 
 function participantLabel(participant: GiveawayParticipant) {
