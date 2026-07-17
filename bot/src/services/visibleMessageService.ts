@@ -118,6 +118,8 @@ export async function handleVisibleMessageMessage(message: Message, context: Bot
     return false;
   });
   if (!enabled) return false;
+  const visibleContent = parseVisibleMessageContent(message.content);
+  if (visibleContent === null) return false;
 
   if (!message.channel.isTextBased() || message.channel.isDMBased() || !("permissionsFor" in message.channel)) return false;
   const channel = message.channel as TextBasedChannel & TextChannel;
@@ -128,7 +130,7 @@ export async function handleVisibleMessageMessage(message: Message, context: Bot
     return false;
   }
 
-  const payload = relayPayload(message);
+  const payload = relayPayload(message, visibleContent);
   if (!payload.content && !payload.files?.length && !payload.embeds?.length) return false;
 
   const member = message.member ?? await message.guild.members.fetch(message.author.id).catch(() => null);
@@ -236,7 +238,9 @@ function panelText(users: VisibleMessageUser[]) {
     "",
     "━━━━━━━━━━━━━━━━━━━━━━",
     "",
-    `**Total:** ${users.length} usuário(s)`
+    `**Total:** ${users.length} usuário(s)`,
+    "",
+    "Para enviar pela Mensagem Visível, comece a mensagem com `.visivel`, `!visivel`, `.mv`, `!mv` ou `visivel:`. Conversa normal não será alterada."
   ].join("\n");
 }
 
@@ -270,15 +274,22 @@ async function isActiveVisibleUser(guildId: string, userId: string, context: Bot
   return enabled;
 }
 
-function relayPayload(message: Message) {
+function relayPayload(message: Message, content: string) {
   return {
-    content: message.content ? message.content.slice(0, 2000) : undefined,
+    content: content ? content.slice(0, 2000) : undefined,
     embeds: message.embeds.map((embed) => embed.toJSON()).slice(0, 10),
     files: message.attachments.map((attachment) => ({
       attachment: attachment.url,
       name: attachment.name ?? `arquivo-${attachment.id}`
     })).slice(0, 10)
   };
+}
+
+function parseVisibleMessageContent(content: string) {
+  const trimmed = content.trim();
+  const match = trimmed.match(/^(?:[.!](?:visivel|visível|mv)\b|vis[ií]vel\s*:)\s*/i);
+  if (!match) return null;
+  return trimmed.slice(match[0].length).trim();
 }
 
 function resolveVisibleIdentity(message: Message, member: GuildMember | null) {
