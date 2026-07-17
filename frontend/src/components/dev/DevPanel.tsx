@@ -70,6 +70,7 @@ import {
     stopAllDevBots,
     stopDevBot,
     syncSystemEmojis,
+    testNexTechPaymentProvider,
     updateBotGuildConfig,
     updateDevBotModules,
     updateDevBotToken,
@@ -3159,7 +3160,10 @@ const defaultSalesSettingsForm: SaveNexTechSalesSettingsPayload = {
 };
 
 const defaultProviderForm: SaveNexTechPaymentProviderPayload = {
+  clientId: "",
+  clientSecret: "",
   enabled: true,
+  environment: "production",
   instructions: "",
   label: "Mercado Pago",
   provider: "mercadopago",
@@ -3294,6 +3298,7 @@ function NexTechSalesWorkspace({
   const [saving, setSaving] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [paymentTestMessage, setPaymentTestMessage] = useState<string | null>(null);
   const editingProduct = useMemo(
     () => dashboard?.products.find((product) => product.id === editingProductId) ?? null,
     [dashboard?.products, editingProductId]
@@ -3379,6 +3384,7 @@ function NexTechSalesWorkspace({
     if (!guildId || !providerForm.label.trim()) return;
     setSaving("provider");
     setMessage(null);
+    setPaymentTestMessage(null);
     try {
       const settings = await saveNexTechPaymentProvider(bot.id, guildId, providerForm);
       setDashboard((current) => current ? { ...current, settings } : current);
@@ -3389,6 +3395,42 @@ function NexTechSalesWorkspace({
     } finally {
       setSaving(null);
     }
+  }
+
+  async function handleTestProvider() {
+    if (!guildId || !providerForm.label.trim()) return;
+    setSaving("provider-test");
+    setMessage(null);
+    setPaymentTestMessage(null);
+    try {
+      const result = await testNexTechPaymentProvider(bot.id, guildId, providerForm);
+      const methods = result.methods.length ? result.methods.slice(0, 6).join(", ") : "métodos carregados pela conta";
+      setPaymentTestMessage(`Mercado Pago conectado: ${result.account.name ?? result.account.email ?? result.account.id ?? "conta validada"} · ${result.account.country ?? "país não informado"} · ${methods}.`);
+      await refreshDashboard();
+    } catch (error) {
+      setPaymentTestMessage(readRequestMessage(error) ?? "Não foi possível testar o Mercado Pago.");
+      await refreshDashboard().catch(() => null);
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  function editPaymentProvider(provider: NexTechSalesPaymentProvider) {
+    setProviderForm({
+      clientId: provider.clientId ?? "",
+      clientSecret: "",
+      enabled: provider.enabled,
+      environment: provider.environment ?? "production",
+      id: provider.id,
+      instructions: provider.instructions ?? "",
+      label: provider.label,
+      provider: provider.provider,
+      publicKey: provider.publicKey ?? "",
+      secret: "",
+      webhookSecret: "",
+      webhookUrl: provider.webhookUrl ?? ""
+    });
+    setPaymentTestMessage(null);
   }
 
   async function handleDeleteProvider(provider: NexTechSalesPaymentProvider) {
@@ -3704,8 +3746,8 @@ function NexTechSalesWorkspace({
           <div className="space-y-6">
             <Card className="border-zinc-800/80 bg-zinc-950/80 hover:translate-y-0">
               <CardHeader>
-                <CardTitle className="text-white">Pagamentos modulares</CardTitle>
-                <CardDescription>Para Mercado Pago, use Checkout Pro: Public Key no campo público e Access Token no segredo.</CardDescription>
+                <CardTitle className="text-white">Pagamentos</CardTitle>
+                <CardDescription>Mercado Pago isolado por bot/servidor. O Access Token fica criptografado no backend e nunca volta para a dashboard.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -3717,25 +3759,59 @@ function NexTechSalesWorkspace({
                   >
                     <option value="mercadopago">Mercado Pago</option>
                   </select>
+                  <select
+                    className="h-11 rounded-lg border border-zinc-800 bg-black/40 px-3 text-sm font-semibold text-white outline-none"
+                    onChange={(event) => setProviderForm((current) => ({ ...current, environment: event.target.value as SaveNexTechPaymentProviderPayload["environment"] }))}
+                    value={providerForm.environment ?? "production"}
+                  >
+                    <option value="production">Produção</option>
+                    <option value="sandbox">Sandbox</option>
+                  </select>
                   <DevInput label={providerForm.provider === "mercadopago" ? "Public Key" : "Chave publica"} onChange={(value) => setProviderForm((current) => ({ ...current, publicKey: value }))} value={providerForm.publicKey ?? ""} />
                   <DevInput label={providerForm.provider === "mercadopago" ? "Access Token" : "Segredo/API token"} onChange={(value) => setProviderForm((current) => ({ ...current, secret: value }))} value={providerForm.secret ?? ""} />
+                  <DevInput label="Client ID" onChange={(value) => setProviderForm((current) => ({ ...current, clientId: value }))} value={providerForm.clientId ?? ""} />
+                  <DevInput label="Client Secret" onChange={(value) => setProviderForm((current) => ({ ...current, clientSecret: value }))} value={providerForm.clientSecret ?? ""} />
                   <DevInput label={providerForm.provider === "mercadopago" ? "Webhook opcional" : "Webhook"} onChange={(value) => setProviderForm((current) => ({ ...current, webhookUrl: value }))} value={providerForm.webhookUrl ?? ""} />
                   <DevInput label={providerForm.provider === "mercadopago" ? "Webhook secret" : "Segredo webhook"} onChange={(value) => setProviderForm((current) => ({ ...current, webhookSecret: value }))} value={providerForm.webhookSecret ?? ""} />
                   <DevInput label="Instrucoes" onChange={(value) => setProviderForm((current) => ({ ...current, instructions: value }))} value={providerForm.instructions ?? ""} />
                 </div>
-                <Button disabled={saving === "provider"} onClick={() => void handleSaveProvider()}>
-                  {saving === "provider" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                  Salvar pagamento
-                </Button>
+                <p className="text-xs font-medium text-zinc-500">Deixe Access Token, Client Secret e Webhook Secret vazios ao editar para manter os segredos já salvos.</p>
+                {paymentTestMessage ? <p className="rounded-lg border border-zinc-800 bg-black/35 p-3 text-xs font-semibold text-zinc-300">{paymentTestMessage}</p> : null}
+                <div className="flex flex-wrap gap-2">
+                  <Button disabled={saving === "provider"} onClick={() => void handleSaveProvider()}>
+                    {saving === "provider" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                    Salvar configuração
+                  </Button>
+                  <Button disabled={saving === "provider-test"} onClick={() => void handleTestProvider()} variant="outline">
+                    {saving === "provider-test" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                    Testar conexão
+                  </Button>
+                  <Button onClick={() => { setProviderForm(defaultProviderForm); setPaymentTestMessage(null); }} variant="outline">
+                    <RefreshCw className="h-4 w-4" />
+                    Limpar formulário
+                  </Button>
+                </div>
                 <div className="grid gap-2">
                   {dashboard?.settings.paymentProviders.map((provider) => (
                     <div className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-black/35 p-3" key={provider.id}>
                       <CreditCard className="h-4 w-4 text-[#FFEA70]" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-bold text-white">{provider.label}</p>
-                        <p className="truncate text-xs font-medium text-zinc-400">{provider.provider} · gateway {provider.gatewayId} {provider.secretConfigured ? "· segredo configurado" : ""}</p>
+                        <p className="truncate text-xs font-medium text-zinc-400">
+                          {provider.provider} · {provider.environment === "sandbox" ? "Sandbox" : "Produção"} · gateway {provider.gatewayId}
+                          {provider.secretMasked ? ` · token ${provider.secretMasked}` : ""}
+                        </p>
+                        <p className="truncate text-xs font-medium text-zinc-500">
+                          {[provider.accountName, provider.accountEmail, provider.accountCountry, provider.lastTestedAt ? `testado ${formatDate(provider.lastTestedAt)}` : null].filter(Boolean).join(" · ") || "Conexão ainda não testada"}
+                        </p>
                       </div>
+                      <Badge variant={provider.connectionStatus === "online" ? "success" : provider.connectionStatus === "offline" ? "danger" : "muted"}>
+                        {provider.connectionStatus === "online" ? "Online" : provider.connectionStatus === "offline" ? "Offline" : "Sem teste"}
+                      </Badge>
                       <Badge variant={provider.enabled ? "success" : "muted"}>{provider.enabled ? "Ativo" : "Off"}</Badge>
+                      <Button onClick={() => editPaymentProvider(provider)} size="icon" variant="outline">
+                        <Settings className="h-4 w-4" />
+                      </Button>
                       <Button disabled={saving === provider.id} onClick={() => void handleDeleteProvider(provider)} size="icon" variant="destructive">
                         <Trash2 className="h-4 w-4" />
                       </Button>

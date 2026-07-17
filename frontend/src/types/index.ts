@@ -2873,7 +2873,16 @@ export type NexTechSalesPaymentProvider = {
   gatewayId: string;
   ownerUserId: string;
   storeId: string;
+  accountCountry: string | null;
+  accountEmail: string | null;
+  accountName: string | null;
+  clientId: string | null;
+  clientSecretConfigured: boolean;
+  connectionStatus: "untested" | "online" | "offline";
   enabled: boolean;
+  environment: "sandbox" | "production";
+  lastConnectionError: string | null;
+  lastTestedAt: string | null;
   label: string;
   provider: NexTechPaymentProviderType;
   publicKey: string | null;
@@ -3301,7 +3310,10 @@ export type SaveNexTechSalesSettingsPayload = Partial<Pick<
 >>;
 
 export type SaveNexTechPaymentProviderPayload = {
+  clientId?: string | null;
+  clientSecret?: string | null;
   enabled: boolean;
+  environment?: "sandbox" | "production";
   id?: string | null;
   instructions?: string | null;
   label: string;
@@ -3310,6 +3322,18 @@ export type SaveNexTechPaymentProviderPayload = {
   secret?: string | null;
   webhookSecret?: string | null;
   webhookUrl?: string | null;
+};
+
+export type MercadoPagoConnectionTest = {
+  account: {
+    country: string | null;
+    email: string | null;
+    id: string | null;
+    name: string | null;
+  };
+  environment: "sandbox" | "production";
+  methods: string[];
+  status: "online";
 };
 
 export type SaveNexTechSalesPlanPayload = {

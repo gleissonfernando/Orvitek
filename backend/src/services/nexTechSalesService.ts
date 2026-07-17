@@ -30,9 +30,11 @@ export type NexTechSalesSettingsDto = Omit<MongoNexTechSalesSettings, "_id" | "c
   paymentProviders: NexTechSalesPaymentProviderDto[];
 };
 
-export type NexTechSalesPaymentProviderDto = Omit<MongoNexTechSalesPaymentProvider, "secretEncrypted" | "webhookSecretEncrypted" | "updatedAt"> & {
+export type NexTechSalesPaymentProviderDto = Omit<MongoNexTechSalesPaymentProvider, "clientSecretEncrypted" | "lastTestedAt" | "secretEncrypted" | "webhookSecretEncrypted" | "updatedAt"> & {
+  clientSecretConfigured: boolean;
   secretConfigured: boolean;
   secretMasked: string | null;
+  lastTestedAt: string | null;
   webhookSecretConfigured: boolean;
   updatedAt: string;
 };
@@ -136,7 +138,10 @@ export type SaveNexTechSalesSettingsInput = Partial<{
 }>;
 
 export type SavePaymentProviderInput = {
+  clientId?: string | null;
+  clientSecret?: string | null;
   enabled: boolean;
+  environment?: "sandbox" | "production";
   id?: string | null;
   instructions?: string | null;
   label: string;
@@ -145,6 +150,20 @@ export type SavePaymentProviderInput = {
   secret?: string | null;
   webhookSecret?: string | null;
   webhookUrl?: string | null;
+};
+
+export type TestPaymentProviderInput = SavePaymentProviderInput;
+
+export type MercadoPagoConnectionTestDto = {
+  account: {
+    country: string | null;
+    email: string | null;
+    id: string | null;
+    name: string | null;
+  };
+  environment: "sandbox" | "production";
+  methods: string[];
+  status: "online";
 };
 
 export type SavePlanInput = {
@@ -312,7 +331,11 @@ export async function ensureNexTechSalesSettings(botId: string, guildId: string,
         gatewayId: randomUUID(),
         ownerUserId,
         storeId,
+        clientId: null,
+        clientSecretEncrypted: null,
+        connectionStatus: "untested",
         enabled: true,
+        environment: "production",
         label: "Pagamento manual",
         provider: "manual",
         publicKey: null,
@@ -320,6 +343,8 @@ export async function ensureNexTechSalesSettings(botId: string, guildId: string,
         webhookSecretEncrypted: null,
         webhookUrl: null,
         instructions: "Registre a venda como pendente e marque como paga depois da confirmação.",
+        lastConnectionError: null,
+        lastTestedAt: null,
         updatedAt: now
       }
     ],
@@ -345,6 +370,12 @@ async function normalizeExistingSettings(settings: MongoNexTechSalesSettings) {
     gatewayId: provider.gatewayId || randomUUID(),
     ownerUserId: provider.ownerUserId || settings.ownerUserId,
     storeId: provider.storeId || storeId,
+    clientId: provider.clientId ?? null,
+    clientSecretEncrypted: provider.clientSecretEncrypted ?? null,
+    connectionStatus: provider.connectionStatus ?? "untested",
+    environment: provider.environment ?? "production",
+    lastConnectionError: provider.lastConnectionError ?? null,
+    lastTestedAt: provider.lastTestedAt ?? null,
     webhookSecretEncrypted: provider.webhookSecretEncrypted ?? null
   }));
 
@@ -403,12 +434,27 @@ export async function saveNexTechPaymentProvider(botId: string, guildId: string,
   const current = await ensureNexTechSalesSettings(botId, guildId, actorId);
   const now = new Date();
   const existing = current.paymentProviders.find((provider) => provider.id === input.id);
+  const accessToken = input.secret?.trim() || (existing?.secretEncrypted ? decryptSecret(existing.secretEncrypted) : "");
+
+  if (input.provider === "mercadopago" && input.enabled && !accessToken) {
+    throw createNexTechSalesError("Access Token do Mercado Pago é obrigatório para ativar este pagamento.", 400);
+  }
+
   const nextProvider: MongoNexTechSalesPaymentProvider = {
     id: existing?.id ?? randomUUID(),
     gatewayId: existing?.gatewayId ?? randomUUID(),
     ownerUserId: actorId,
     storeId: current.storeId,
+    accountCountry: existing?.accountCountry ?? null,
+    accountEmail: existing?.accountEmail ?? null,
+    accountName: existing?.accountName ?? null,
+    clientId: normalizeNullable(input.clientId),
+    clientSecretEncrypted: input.clientSecret?.trim() ? encryptSecret(input.clientSecret.trim()) : existing?.clientSecretEncrypted ?? null,
+    connectionStatus: existing?.connectionStatus ?? "untested",
     enabled: input.enabled,
+    environment: input.environment ?? existing?.environment ?? "production",
+    lastConnectionError: existing?.lastConnectionError ?? null,
+    lastTestedAt: existing?.lastTestedAt ?? null,
     label: input.label.trim(),
     provider: input.provider,
     publicKey: normalizeNullable(input.publicKey),
@@ -454,6 +500,73 @@ export async function deleteNexTechPaymentProvider(botId: string, guildId: strin
   );
 
   return (await nexTechSalesSettings.findOne({ _id: current._id, ownerUserId: actorId })) ?? current;
+}
+
+export async function testNexTechPaymentProvider(botId: string, guildId: string, input: TestPaymentProviderInput, actorId: string): Promise<MercadoPagoConnectionTestDto> {
+  const current = await ensureNexTechSalesSettings(botId, guildId, actorId);
+  const existing = current.paymentProviders.find((provider) => provider.id === input.id);
+  const accessToken = input.secret?.trim() || (existing?.secretEncrypted ? decryptSecret(existing.secretEncrypted) : "");
+
+  if (input.provider !== "mercadopago") {
+    throw createNexTechSalesError("Teste disponível apenas para Mercado Pago.", 400);
+  }
+  if (!accessToken) {
+    throw createNexTechSalesError("Informe ou salve o Access Token antes de testar.", 400);
+  }
+
+  const now = new Date();
+  const { nexTechSalesSettings } = await getMongoCollections();
+  const environment = input.environment ?? existing?.environment ?? "production";
+  let test: MercadoPagoConnectionTestDto;
+  try {
+    test = await testMercadoPagoAccessToken(accessToken, environment);
+  } catch (error) {
+    if (existing) {
+      const paymentProviders = current.paymentProviders.map((provider) => provider.id === existing.id ? {
+        ...provider,
+        connectionStatus: "offline" as const,
+        lastConnectionError: error instanceof Error ? error.message : "Falha ao testar Mercado Pago.",
+        lastTestedAt: now,
+        updatedAt: now
+      } : provider);
+      await nexTechSalesSettings.updateOne(
+        { _id: current._id, ownerUserId: actorId },
+        {
+          $set: {
+            paymentProviders,
+            updatedAt: now,
+            updatedBy: actorId
+          }
+        }
+      );
+    }
+    throw error;
+  }
+
+  if (existing) {
+    const paymentProviders = current.paymentProviders.map((provider) => provider.id === existing.id ? {
+      ...provider,
+      accountCountry: test.account.country,
+      accountEmail: test.account.email,
+      accountName: test.account.name,
+      connectionStatus: "online" as const,
+      lastConnectionError: null,
+      lastTestedAt: now,
+      updatedAt: now
+    } : provider);
+    await nexTechSalesSettings.updateOne(
+      { _id: current._id, ownerUserId: actorId },
+      {
+        $set: {
+          paymentProviders,
+          updatedAt: now,
+          updatedBy: actorId
+        }
+      }
+    );
+  }
+
+  return test;
 }
 
 export async function saveNexTechSalesPlan(botId: string, guildId: string, planId: string | null, input: SavePlanInput, actorId: string) {
@@ -1189,17 +1302,38 @@ function toPaymentProviderDto(provider: MongoNexTechSalesPaymentProvider): NexTe
     gatewayId: provider.gatewayId,
     ownerUserId: provider.ownerUserId,
     storeId: provider.storeId,
+    accountCountry: provider.accountCountry ?? null,
+    accountEmail: provider.accountEmail ?? null,
+    accountName: provider.accountName ?? null,
+    clientId: provider.clientId ?? null,
+    clientSecretConfigured: Boolean(provider.clientSecretEncrypted),
+    connectionStatus: provider.connectionStatus ?? "untested",
     enabled: provider.enabled,
+    environment: provider.environment ?? "production",
+    lastConnectionError: provider.lastConnectionError ?? null,
+    lastTestedAt: provider.lastTestedAt?.toISOString() ?? null,
     label: provider.label,
     provider: provider.provider,
     publicKey: provider.publicKey,
     webhookUrl: provider.webhookUrl,
     instructions: provider.instructions,
     secretConfigured: Boolean(provider.secretEncrypted),
-    secretMasked: provider.secretEncrypted ? "******** protegido" : null,
+    secretMasked: maskEncryptedSecret(provider.secretEncrypted),
     webhookSecretConfigured: Boolean(provider.webhookSecretEncrypted),
     updatedAt: provider.updatedAt.toISOString()
   };
+}
+
+function maskEncryptedSecret(value: string | null | undefined) {
+  if (!value) return null;
+
+  try {
+    const secret = decryptSecret(value);
+    const tail = secret.slice(-4).toUpperCase();
+    return `${"*".repeat(20)}${tail}`;
+  } catch {
+    return "********************";
+  }
 }
 
 function tenantScope(botId: string, guildId: string, ownerUserId: string, storeId: string) {
@@ -1363,6 +1497,13 @@ function mercadoPagoCheckoutPayerEmail(inputEmail: string | null | undefined, bu
 }
 
 function mercadoPagoProviderEnvironment(provider: MongoNexTechSalesPaymentProvider, accessToken: string): "test" | "production" | undefined {
+  if (provider.environment === "sandbox") {
+    return "test";
+  }
+  if (provider.environment === "production") {
+    return "production";
+  }
+
   const publicKey = provider.publicKey?.trim().toUpperCase() ?? "";
   const token = accessToken.trim().toUpperCase();
 
@@ -1375,6 +1516,53 @@ function mercadoPagoProviderEnvironment(provider: MongoNexTechSalesPaymentProvid
   }
 
   return undefined;
+}
+
+async function testMercadoPagoAccessToken(accessToken: string, environment: "sandbox" | "production"): Promise<MercadoPagoConnectionTestDto> {
+  const [account, paymentMethods] = await Promise.all([
+    fetchMercadoPagoJson("https://api.mercadopago.com/users/me", accessToken, "Não foi possível validar a conta Mercado Pago."),
+    fetchMercadoPagoJson("https://api.mercadopago.com/v1/payment_methods", accessToken, "Não foi possível carregar os métodos de pagamento Mercado Pago.").catch(() => [])
+  ]);
+  const accountRecord = account && typeof account === "object" ? account as Record<string, unknown> : {};
+  const methods = Array.isArray(paymentMethods)
+    ? paymentMethods.map((method) => {
+      const record = method && typeof method === "object" ? method as Record<string, unknown> : null;
+      return readStringField(record, "id") ?? readStringField(record, "name");
+    }).filter((method): method is string => Boolean(method))
+    : [];
+  const firstName = readStringField(accountRecord, "first_name");
+  const lastName = readStringField(accountRecord, "last_name");
+  const displayName = [firstName, lastName].filter(Boolean).join(" ").trim()
+    || readStringField(accountRecord, "nickname")
+    || readStringField(accountRecord, "business_name");
+
+  return {
+    account: {
+      country: readStringField(accountRecord, "country_id") ?? readStringField(accountRecord, "site_id"),
+      email: readStringField(accountRecord, "email"),
+      id: readStringField(accountRecord, "id"),
+      name: displayName || null
+    },
+    environment,
+    methods: [...new Set(methods)].slice(0, 30),
+    status: "online"
+  };
+}
+
+async function fetchMercadoPagoJson(url: string, accessToken: string, fallbackMessage: string) {
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`
+    }
+  });
+  const payload = await response.json().catch(() => null) as Record<string, unknown> | unknown[] | null;
+
+  if (!response.ok) {
+    const errorPayload = payload && !Array.isArray(payload) && typeof payload === "object" ? payload : null;
+    throw createNexTechSalesError(readMercadoPagoError(errorPayload) ?? fallbackMessage, response.status >= 400 && response.status < 500 ? 400 : 502);
+  }
+
+  return payload;
 }
 
 async function getMercadoPagoPayment(provider: MongoNexTechSalesPaymentProvider, paymentId: string) {
@@ -1932,6 +2120,7 @@ function readMercadoPagoError(payload: Record<string, unknown> | null) {
 
 function readStringField(payload: Record<string, unknown> | null, key: string) {
   const value = payload?.[key];
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 

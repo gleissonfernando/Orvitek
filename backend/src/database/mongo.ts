@@ -2762,7 +2762,16 @@ export type MongoNexTechSalesPaymentProvider = {
   gatewayId: string;
   ownerUserId: string;
   storeId: string;
+  accountCountry?: string | null;
+  accountEmail?: string | null;
+  accountName?: string | null;
+  clientId?: string | null;
+  clientSecretEncrypted?: string | null;
+  connectionStatus?: "untested" | "online" | "offline";
   enabled: boolean;
+  environment?: "sandbox" | "production";
+  lastConnectionError?: string | null;
+  lastTestedAt?: Date | null;
   label: string;
   provider: "manual" | "pix" | "mercadopago" | "stripe" | "paypal" | "custom";
   publicKey: string | null;

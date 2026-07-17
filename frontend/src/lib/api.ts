@@ -78,6 +78,7 @@ import type {
   ManualRegistrationDashboard,
   ManualRegistrationSettings,
   ManualRegistrationSubmission,
+  MercadoPagoConnectionTest,
   MissionToolsResponse,
   MissionToolsSettings,
   MissionToolsUserPanel,
@@ -2267,6 +2268,14 @@ export async function saveNexTechPaymentProvider(botId: string, guildId: string,
     payload
   );
   return data.settings;
+}
+
+export async function testNexTechPaymentProvider(botId: string, guildId: string, payload: SaveNexTechPaymentProviderPayload) {
+  const { data } = await api.post<{ result: MercadoPagoConnectionTest }>(
+    `/dev/bots/${encodeURIComponent(botId)}/guilds/${encodeURIComponent(guildId)}/nex-tech-sales/providers/test`,
+    payload
+  );
+  return data.result;
 }
 
 export async function deleteNexTechPaymentProvider(botId: string, guildId: string, providerId: string) {

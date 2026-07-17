@@ -78,6 +78,7 @@ import {
   saveNexTechSale,
   saveNexTechSalesPlan,
   saveNexTechSalesSettings,
+  testNexTechPaymentProvider,
   toProductDto,
   toPlanDto,
   toSaleDto,
@@ -155,7 +156,10 @@ const nexTechSalesSettingsSchema = z.object({
 });
 
 const nexTechPaymentProviderSchema = z.object({
+  clientId: z.string().max(256).nullable().optional().or(z.literal("")),
+  clientSecret: z.string().max(2048).nullable().optional().or(z.literal("")),
   enabled: z.boolean().default(true),
+  environment: z.enum(["sandbox", "production"]).default("production"),
   id: z.string().min(1).max(120).nullable().optional(),
   instructions: z.string().max(1200).nullable().optional().or(z.literal("")),
   label: z.string().min(2).max(80),
@@ -1190,6 +1194,8 @@ devRouter.post("/bots/:botId/guilds/:guildId/nex-tech-sales/providers", async (r
     const input = nexTechPaymentProviderSchema.parse(req.body ?? {});
     const settings = await saveNexTechPaymentProvider(req.params.botId, req.params.guildId, {
       ...input,
+      clientId: input.clientId === "" ? null : input.clientId,
+      clientSecret: input.clientSecret === "" ? null : input.clientSecret,
       instructions: input.instructions === "" ? null : input.instructions,
       publicKey: input.publicKey === "" ? null : input.publicKey,
       secret: input.secret === "" ? null : input.secret,
@@ -1203,6 +1209,41 @@ devRouter.post("/bots/:botId/guilds/:guildId/nex-tech-sales/providers", async (r
 
     return res.json({
       settings: toSettingsDto(settings)
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.post("/bots/:botId/guilds/:guildId/nex-tech-sales/providers/test", async (req, res, next) => {
+  try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+
+    if (!(await canManageDevBot(auth.user, req.params.botId))) {
+      return res.status(403).json({
+        message: "Você não tem acesso a este bot."
+      });
+    }
+
+    const input = nexTechPaymentProviderSchema.parse(req.body ?? {});
+    const result = await testNexTechPaymentProvider(req.params.botId, req.params.guildId, {
+      ...input,
+      clientId: input.clientId === "" ? null : input.clientId,
+      clientSecret: input.clientSecret === "" ? null : input.clientSecret,
+      instructions: input.instructions === "" ? null : input.instructions,
+      publicKey: input.publicKey === "" ? null : input.publicKey,
+      secret: input.secret === "" ? null : input.secret,
+      webhookSecret: input.webhookSecret === "" ? null : input.webhookSecret,
+      webhookUrl: input.webhookUrl === "" ? null : input.webhookUrl
+    }, auth.user.discordId);
+
+    await writeDevBotAudit(auth, req.params.guildId, req.params.botId, "nexTech_sales_provider_test", `Mercado Pago testado: ${input.label}.`, {
+      provider: input.provider,
+      status: result.status
+    });
+
+    return res.json({
+      result
     });
   } catch (error) {
     return next(error);
