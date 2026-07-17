@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, Plus, Save, Send, Trash2 } from "lucide-react";
-import { getManualPaymentsDashboard, publishManualPaymentPanel, saveManualPaymentSettings } from "../../lib/api";
-import type { DashboardGuild, ManualPaymentOrder, ManualPaymentService, ManualPaymentSettings, SaveManualPaymentSettingsPayload } from "../../types";
+import { ArrowDown, ArrowUp, Plus, RefreshCw, Save, Send, Trash2 } from "lucide-react";
+import { getGuildLiveOptions, getManualPaymentsDashboard, publishManualPaymentPanel, saveManualPaymentSettings } from "../../lib/api";
+import type {
+  DashboardGuild,
+  GuildCategoryOption,
+  GuildChannelOption,
+  GuildRoleOption,
+  ManualPaymentOrder,
+  ManualPaymentService,
+  ManualPaymentSettings,
+  SaveManualPaymentSettingsPayload
+} from "../../types";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Switch } from "../ui/switch";
@@ -42,19 +51,32 @@ export function ManualPaymentsPanel({ botId, canManage, guild }: Props) {
   const [settings, setSettings] = useState<ManualPaymentSettings | null>(null);
   const [draft, setDraft] = useState<SaveManualPaymentSettingsPayload>(defaultDraft);
   const [orders, setOrders] = useState<ManualPaymentOrder[]>([]);
+  const [channels, setChannels] = useState<GuildChannelOption[]>([]);
+  const [categories, setCategories] = useState<GuildCategoryOption[]>([]);
+  const [roles, setRoles] = useState<GuildRoleOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const services = useMemo(() => [...(draft.services ?? [])].sort((a, b) => a.order - b.order), [draft.services]);
+  const todayOrders = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return orders.filter((order) => order.createdAt.slice(0, 10) === today);
+  }, [orders]);
 
   useEffect(() => {
     if (!botId || !guild) return;
     setLoading(true);
-    getManualPaymentsDashboard(botId, guild.id)
-      .then((data) => {
+    Promise.all([
+      getManualPaymentsDashboard(botId, guild.id),
+      getGuildLiveOptions(guild.id, botId)
+    ])
+      .then(([data, options]) => {
         setSettings(data.settings);
         setDraft(toPayload(data.settings));
         setOrders(data.orders);
+        setChannels(options.channels ?? []);
+        setCategories(options.categories ?? []);
+        setRoles(options.roles ?? []);
       })
       .catch((error) => setMessage(readError(error, "Não foi possível carregar o pagamento manual.")))
       .finally(() => setLoading(false));
@@ -66,6 +88,22 @@ export function ManualPaymentsPanel({ botId, canManage, guild }: Props) {
 
   function patchService(serviceId: string, patchValue: Partial<ManualPaymentService>) {
     patch({ services: (draft.services ?? []).map((service) => service.id === serviceId ? { ...service, ...patchValue } : service) });
+  }
+
+  async function refreshOptions() {
+    if (!botId || !guild) return;
+    setLoading(true);
+    try {
+      const options = await getGuildLiveOptions(guild.id, botId, true);
+      setChannels(options.channels ?? []);
+      setCategories(options.categories ?? []);
+      setRoles(options.roles ?? []);
+      setMessage("Canais, categorias e cargos atualizados.");
+    } catch (error) {
+      setMessage(readError(error, "Não foi possível atualizar canais, categorias e cargos."));
+    } finally {
+      setLoading(false);
+    }
   }
 
   function moveService(serviceId: string, direction: -1 | 1) {
@@ -121,36 +159,44 @@ export function ManualPaymentsPanel({ botId, canManage, guild }: Props) {
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card>
           <CardHeader>
-            <CardTitle>Pagamento Manual</CardTitle>
-            <CardDescription>{loading ? "Carregando..." : "Pix manual, comprovantes, canais temporarios e aprovação humana. Não confirma automaticamente."}</CardDescription>
+            <CardTitle>Sistema de Vendas Manuais</CardTitle>
+            <CardDescription>{loading ? "Carregando..." : "Modo dinâmico: painel Components V2, ticket temporário, aprovação humana e projeto/atendimento após aprovação."}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="grid gap-3 md:grid-cols-2">
               <Toggle checked={Boolean(draft.enabled)} disabled={!canManage} label="Módulo ativo" onChange={(checked) => patch({ enabled: checked })} />
-              <Field disabled={!canManage} label="Canal do painel de vendas" onChange={(value) => patch({ salePanelChannelId: value || null })} value={draft.salePanelChannelId ?? ""} />
-              <Field disabled={!canManage} label="Categoria de pagamento" onChange={(value) => patch({ paymentCategoryId: value || null })} value={draft.paymentCategoryId ?? ""} />
-              <Field disabled={!canManage} label="Categoria de atendimento" onChange={(value) => patch({ attendanceCategoryId: value || null })} value={draft.attendanceCategoryId ?? ""} />
-              <Field disabled={!canManage} label="Canal de logs" onChange={(value) => patch({ logChannelId: value || null })} value={draft.logChannelId ?? ""} />
-              <Field disabled={!canManage} label="Canal de suporte" onChange={(value) => patch({ supportPanelChannelId: value || null })} value={draft.supportPanelChannelId ?? ""} />
-              <Field disabled={!canManage} label="Cargos que aprovam" onChange={(value) => patch({ approveRoleIds: splitIds(value) })} value={(draft.approveRoleIds ?? []).join(", ")} />
-              <Field disabled={!canManage} label="Cargos que finalizam" onChange={(value) => patch({ finalizeRoleIds: splitIds(value) })} value={(draft.finalizeRoleIds ?? []).join(", ")} />
+              <ChannelSelect channels={channels} disabled={!canManage} label="Canal do painel de vendas" onChange={(value) => patch({ salePanelChannelId: value })} value={draft.salePanelChannelId ?? null} />
+              <CategorySelect categories={categories} disabled={!canManage} label="Categoria dos tickets de compra" onChange={(value) => patch({ paymentCategoryId: value })} value={draft.paymentCategoryId ?? null} />
+              <CategorySelect categories={categories} disabled={!canManage} label="Categoria dos projetos/atendimentos" onChange={(value) => patch({ attendanceCategoryId: value })} value={draft.attendanceCategoryId ?? null} />
+              <ChannelSelect channels={channels} disabled={!canManage} label="Canal de logs" onChange={(value) => patch({ logChannelId: value })} value={draft.logChannelId ?? null} />
+              <ChannelSelect channels={channels} disabled={!canManage} label="Canal de suporte" onChange={(value) => patch({ supportPanelChannelId: value })} value={draft.supportPanelChannelId ?? null} />
+              <RoleMultiSelect disabled={!canManage} label="Cargos da equipe" onChange={(values) => patch({ logViewRoleIds: values })} roles={roles} values={draft.logViewRoleIds ?? []} />
+              <RoleMultiSelect disabled={!canManage} label="Cargos aprovadores" onChange={(values) => patch({ approveRoleIds: values })} roles={roles} values={draft.approveRoleIds ?? []} />
+              <RoleMultiSelect disabled={!canManage} label="Cargos que recusam" onChange={(values) => patch({ rejectRoleIds: values })} roles={roles} values={draft.rejectRoleIds ?? []} />
+              <RoleMultiSelect disabled={!canManage} label="Cargos finalizadores" onChange={(values) => patch({ finalizeRoleIds: values })} roles={roles} values={draft.finalizeRoleIds ?? []} />
               <Field disabled={!canManage} label="Tempo limite em minutos" onChange={(value) => patch({ maxPaymentMinutes: Number(value) || 1 })} type="number" value={String(draft.maxPaymentMinutes ?? 60)} />
               <Field disabled={!canManage} label="Banner do painel" onChange={(value) => patch({ bannerUrl: value || null })} value={draft.bannerUrl ?? ""} />
+              <Field disabled={!canManage} label="Cor dos embeds" onChange={(value) => patch({ color: value })} type="color" value={draft.color ?? "#22c55e"} />
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
               <Field disabled={!canManage} label="Chave Pix" onChange={(value) => patch({ pixKey: value || null })} value={draft.pixKey ?? ""} />
-              <Select disabled={!canManage} label="Tipo da chave" onChange={(value) => patch({ pixKeyType: value as ManualPaymentSettings["pixKeyType"] })} options={["cpf", "cnpj", "email", "phone", "random"]} value={draft.pixKeyType ?? "random"} />
+              <ValueSelect disabled={!canManage} label="Tipo da chave" onChange={(value) => patch({ pixKeyType: value as ManualPaymentSettings["pixKeyType"] })} options={["cpf", "cnpj", "email", "phone", "random"]} value={draft.pixKeyType ?? "random"} />
               <Field disabled={!canManage} label="Nome do recebedor" onChange={(value) => patch({ receiverName: value || null })} value={draft.receiverName ?? ""} />
               <Field disabled={!canManage} label="Banco" onChange={(value) => patch({ receiverBank: value || null })} value={draft.receiverBank ?? ""} />
               <Field disabled={!canManage} label="URL do QR Code" onChange={(value) => patch({ pixQrCodeUrl: value || null })} value={draft.pixQrCodeUrl ?? ""} />
             </div>
 
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field disabled={!canManage} label="Título do painel" onChange={(value) => patch({ salePanelTitle: value })} value={draft.salePanelTitle ?? ""} />
+              <Field disabled={!canManage} label="Descrição do painel" onChange={(value) => patch({ salePanelDescription: value })} value={draft.salePanelDescription ?? ""} />
+            </div>
             <Textarea disabled={!canManage} label="Instrucoes de pagamento" onChange={(value) => patch({ paymentInstructions: value })} value={draft.paymentInstructions ?? ""} />
 
             <div className="flex flex-wrap gap-3">
               <Button disabled={!canManage || saving} onClick={() => void save()} type="button"><Save className="mr-2 h-4 w-4" />Salvar</Button>
               <Button disabled={!canManage || saving} onClick={() => void publish()} type="button" variant="secondary"><Send className="mr-2 h-4 w-4" />Publicar painel</Button>
+              <Button disabled={loading || saving} onClick={() => void refreshOptions()} type="button" variant="outline"><RefreshCw className="mr-2 h-4 w-4" />Atualizar opções</Button>
             </div>
             {message ? <p className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-xs text-zinc-300">{message}</p> : null}
           </CardContent>
@@ -163,9 +209,13 @@ export function ManualPaymentsPanel({ botId, canManage, guild }: Props) {
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-zinc-400">
             <Summary label="Servicos ativos" value={String(services.filter((service) => service.active).length)} />
+            <Summary label="Pedidos hoje" value={String(todayOrders.length)} />
             <Summary label="Pedidos recentes" value={String(orders.length)} />
+            <Summary label="Pendentes" value={String(orders.filter((order) => order.status === "PENDING_PAYMENT").length)} />
             <Summary label="Aguardando equipe" value={String(orders.filter((order) => order.status === "WAITING_STAFF_APPROVAL").length)} />
             <Summary label="Em atendimento" value={String(orders.filter((order) => order.status === "IN_PROGRESS" || order.status === "WAITING_CUSTOMER" || order.status === "DELIVERED").length)} />
+            <Summary label="Concluídos" value={String(orders.filter((order) => order.status === "FINISHED").length)} />
+            <Summary label="Total vendido" value={money(orders.filter((order) => ["APPROVED", "IN_PROGRESS", "WAITING_CUSTOMER", "DELIVERED", "FINISHED"].includes(order.status)).reduce((total, order) => total + order.amount, 0))} />
           </CardContent>
         </Card>
       </div>
@@ -188,7 +238,7 @@ export function ManualPaymentsPanel({ botId, canManage, guild }: Props) {
               <div className="grid gap-3 lg:grid-cols-[1fr_140px_160px_auto]">
                 <Field disabled={!canManage} label="Nome" onChange={(value) => patchService(service.id, { name: value })} value={service.name} />
                 <Field disabled={!canManage} label="Valor" onChange={(value) => patchService(service.id, { amount: Number(value) || 0 })} type="number" value={String(service.amount)} />
-                <Select disabled={!canManage} label="Tipo" onChange={(value) => patchService(service.id, { serviceType: value as ManualPaymentService["serviceType"] })} options={["product", "service", "subscription", "custom"]} value={service.serviceType} />
+                <ValueSelect disabled={!canManage} label="Tipo" onChange={(value) => patchService(service.id, { serviceType: value as ManualPaymentService["serviceType"] })} options={["product", "service", "subscription", "custom"]} value={service.serviceType} />
                 <div className="flex items-end gap-2">
                   <IconButton disabled={!canManage} icon={ArrowUp} onClick={() => moveService(service.id, -1)} />
                   <IconButton disabled={!canManage} icon={ArrowDown} onClick={() => moveService(service.id, 1)} />
@@ -238,8 +288,61 @@ function Textarea({ disabled, label, onChange, value }: { disabled?: boolean; la
   return <label className="block text-xs font-medium text-zinc-500">{label}<textarea className="mt-1 min-h-24 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-[#FFD500]/50" disabled={disabled} onChange={(event) => onChange(event.target.value)} value={value} /></label>;
 }
 
-function Select({ disabled, label, onChange, options, value }: { disabled?: boolean; label: string; onChange: (value: string) => void; options: string[]; value: string }) {
+function ValueSelect({ disabled, label, onChange, options, value }: { disabled?: boolean; label: string; onChange: (value: string) => void; options: string[]; value: string }) {
   return <label className="block text-xs font-medium text-zinc-500">{label}<select className="mt-1 h-10 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none focus:border-[#FFD500]/50" disabled={disabled} onChange={(event) => onChange(event.target.value)} value={value}>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>;
+}
+
+function ChannelSelect({ channels, disabled, label, onChange, value }: { channels: GuildChannelOption[]; disabled?: boolean; label: string; onChange: (value: string | null) => void; value: string | null }) {
+  return (
+    <label className="block text-xs font-medium text-zinc-500">
+      {label}
+      <select className="mt-1 h-10 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none focus:border-[#FFD500]/50" disabled={disabled} onChange={(event) => onChange(event.target.value || null)} value={value ?? ""}>
+        <option value="">Selecionar canal</option>
+        {channels.map((channel) => <option key={channel.id} value={channel.id}># {channel.name}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function CategorySelect({ categories, disabled, label, onChange, value }: { categories: GuildCategoryOption[]; disabled?: boolean; label: string; onChange: (value: string | null) => void; value: string | null }) {
+  return (
+    <label className="block text-xs font-medium text-zinc-500">
+      {label}
+      <select className="mt-1 h-10 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-white outline-none focus:border-[#FFD500]/50" disabled={disabled} onChange={(event) => onChange(event.target.value || null)} value={value ?? ""}>
+        <option value="">Selecionar categoria</option>
+        {categories.map((category) => <option key={category.id} value={category.id}>📁 {category.name}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function RoleMultiSelect({ disabled, label, onChange, roles, values }: { disabled?: boolean; label: string; onChange: (values: string[]) => void; roles: GuildRoleOption[]; values: string[] }) {
+  const selected = new Set(values);
+
+  return (
+    <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
+      <p className="text-xs font-medium text-zinc-500">{label}</p>
+      <div className="mt-2 grid max-h-40 gap-2 overflow-y-auto sm:grid-cols-2">
+        {roles.map((role) => (
+          <label className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-800 bg-black/25 px-2 py-1.5 text-xs text-zinc-300" key={role.id}>
+            <input
+              checked={selected.has(role.id)}
+              disabled={disabled}
+              onChange={() => {
+                const next = selected.has(role.id)
+                  ? values.filter((id) => id !== role.id)
+                  : [...values, role.id];
+                onChange(next);
+              }}
+              type="checkbox"
+            />
+            <span className="truncate">@{role.name}</span>
+          </label>
+        ))}
+        {!roles.length ? <p className="text-xs text-zinc-600">Nenhum cargo carregado.</p> : null}
+      </div>
+    </div>
+  );
 }
 
 function Toggle({ checked, disabled, label, onChange }: { checked: boolean; disabled?: boolean; label: string; onChange: (checked: boolean) => void }) {
@@ -257,10 +360,6 @@ function Summary({ label, value }: { label: string; value: string }) {
 function toPayload(settings: ManualPaymentSettings): SaveManualPaymentSettingsPayload {
   const { botId: _botId, guildId: _guildId, id: _id, salePanelMessageId: _messageId, updatedAt: _updatedAt, updatedBy: _updatedBy, ...payload } = settings;
   return payload;
-}
-
-function splitIds(value: string) {
-  return value.split(",").map((item) => item.trim()).filter(Boolean);
 }
 
 function money(value: number) {
