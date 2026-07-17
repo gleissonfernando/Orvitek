@@ -6,6 +6,7 @@ import {
   normalizeDashboardAccessLevel,
   type DashboardAccessLevel
 } from "./dashboardPermissionService";
+import { resolveMemberPanelAssetUrl } from "./memberPanelAssetStorageService";
 import { getPanelImageSettings, type PanelImageSettingsDto } from "./panelImageSettingsService";
 
 export type GuildSettingsDto = {
@@ -442,13 +443,13 @@ export async function getGuildSettings(guildId: string, botId?: string | null) {
     const settings = await guildSettings.findOne(settingsQuery(guildId, normalizedBotId));
 
     if (settings) {
-      return withPanelImageSettings(toDto(settings));
+      return withPanelImageSettings(await withResolvedMemberPanelAssets(toDto(settings)));
     }
   } catch (error) {
     console.warn("[mongo] usando settings em memória:", error instanceof Error ? error.message : error);
   }
 
-  return withPanelImageSettings(memorySettings.get(settingsKey(guildId, normalizedBotId)) ?? defaultSettings(guildId, normalizedBotId));
+  return withPanelImageSettings(await withResolvedMemberPanelAssets(memorySettings.get(settingsKey(guildId, normalizedBotId)) ?? defaultSettings(guildId, normalizedBotId)));
 }
 
 export async function getPersistedDashboardAccess(
@@ -943,6 +944,49 @@ async function withPanelImageSettings(settings: GuildSettingsDto): Promise<Guild
       welcomePanelImage: null
     };
   }
+}
+
+async function withResolvedMemberPanelAssets(settings: GuildSettingsDto): Promise<GuildSettingsDto> {
+  const [welcomeImageUrl, leaveImageUrl] = await Promise.all([
+    resolveMemberPanelAssetUrl({
+      botId: settings.botId,
+      guildId: settings.guildId,
+      mode: "welcome",
+      url: settings.welcomeImageUrl
+    }),
+    resolveMemberPanelAssetUrl({
+      botId: settings.botId,
+      guildId: settings.guildId,
+      mode: "leave",
+      url: settings.leaveImageUrl
+    })
+  ]);
+
+  const next = {
+    ...settings,
+    leaveImageUrl,
+    welcomeImageUrl
+  };
+
+  if (welcomeImageUrl !== settings.welcomeImageUrl || leaveImageUrl !== settings.leaveImageUrl) {
+    await persistResolvedMemberPanelAssets(next).catch((error) => {
+      console.warn("[settings] nao foi possivel persistir assets restaurados:", error instanceof Error ? error.message : error);
+    });
+  }
+
+  return next;
+}
+
+async function persistResolvedMemberPanelAssets(settings: GuildSettingsDto) {
+  const { guildSettings } = await getMongoCollections();
+  await guildSettings.updateOne(settingsQuery(settings.guildId, settings.botId), {
+    $set: {
+      leaveImageUrl: settings.leaveImageUrl,
+      welcomeImageUrl: settings.welcomeImageUrl
+    }
+  });
+
+  memorySettings.set(settingsKey(settings.guildId, settings.botId), settings);
 }
 
 function normalizeVerificationRoles(settings: GuildSettingsDto): GuildSettingsDto {

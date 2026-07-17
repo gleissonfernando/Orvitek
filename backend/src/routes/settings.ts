@@ -559,8 +559,13 @@ settingsRouter.put("/:guildId/welcome-image", requireAuth, welcomeImageUpload, a
       });
     }
 
+    const current = await getGuildSettings(guildId, botId);
     const mimeType = req.header("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
-    const welcomeImageUrl = await saveWelcomeImage(guildId, req.body, mimeType);
+    const welcomeImageUrl = await saveWelcomeImage(guildId, req.body, mimeType, {
+      actorId: res.locals.dashboardAuth.user.discordId,
+      botId,
+      previousUrl: current.welcomeImageUrl
+    });
     const settings = await updateGuildSettings(guildId, {
       welcomeImageUrl
     }, botId);
@@ -609,8 +614,13 @@ settingsRouter.put("/:guildId/leave-image", requireAuth, welcomeImageUpload, asy
       });
     }
 
+    const current = await getGuildSettings(guildId, botId);
     const mimeType = req.header("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
-    const leaveImageUrl = await saveLeaveImage(guildId, req.body, mimeType);
+    const leaveImageUrl = await saveLeaveImage(guildId, req.body, mimeType, {
+      actorId: res.locals.dashboardAuth.user.discordId,
+      botId,
+      previousUrl: current.leaveImageUrl
+    });
     const settings = await updateGuildSettings(guildId, {
       leaveImageUrl
     }, botId);

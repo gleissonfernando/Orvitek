@@ -1,7 +1,5 @@
-import { randomUUID } from "node:crypto";
-import { promises as fs } from "node:fs";
-import path from "node:path";
 import { env } from "../config/env";
+import { saveMemberPanelAsset } from "./memberPanelAssetStorageService";
 import {
   DEFAULT_LEAVE_CHANNEL_LABEL,
   DEFAULT_LEAVE_FOOTER_TEXT,
@@ -19,7 +17,6 @@ import {
 } from "./settingsService";
 
 const DISCORD_API_URL = "https://discord.com/api/v10";
-const WELCOME_UPLOAD_DIR = path.resolve(__dirname, "../../uploads/welcome");
 type MemberPanelMode = "welcome" | "leave";
 type DiscordMessagePayload = {
   allowed_mentions: {
@@ -27,13 +24,6 @@ type DiscordMessagePayload = {
   };
   components: Array<Record<string, unknown>>;
   flags: number;
-};
-
-const MIME_EXTENSIONS: Record<string, string> = {
-  "image/gif": "gif",
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp"
 };
 
 export function welcomePanelDescription(settings: GuildSettingsDto, userMention: string, channelId: string | null) {
@@ -136,30 +126,12 @@ export function createLeavePanelEmbed(settings: GuildSettingsDto, userMention: s
   });
 }
 
-export async function saveWelcomeImage(guildId: string, buffer: Buffer, mimeType: string) {
-  return saveMemberPanelImage("welcome", guildId, buffer, mimeType);
+export async function saveWelcomeImage(guildId: string, buffer: Buffer, mimeType: string, options: { actorId?: string | null; botId?: string | null; guildName?: string | null; previousUrl?: string | null } = {}) {
+  return saveMemberPanelAsset({ ...options, buffer, guildId, mimeType, mode: "welcome" });
 }
 
-export async function saveLeaveImage(guildId: string, buffer: Buffer, mimeType: string) {
-  return saveMemberPanelImage("leave", guildId, buffer, mimeType);
-}
-
-async function saveMemberPanelImage(mode: MemberPanelMode, guildId: string, buffer: Buffer, mimeType: string) {
-  const extension = MIME_EXTENSIONS[mimeType];
-
-  if (!extension) {
-    throw new Error("Formato inválido. Envie GIF, PNG, JPG ou WEBP.");
-  }
-
-  await fs.mkdir(WELCOME_UPLOAD_DIR, { recursive: true });
-
-  const safeGuildId = guildId.replace(/[^a-zA-Z0-9_-]/g, "");
-  const fileName = `${safeGuildId}-${mode}-${Date.now()}-${randomUUID()}.${extension}`;
-  const filePath = path.join(WELCOME_UPLOAD_DIR, fileName);
-
-  await fs.writeFile(filePath, buffer);
-
-  return `/uploads/welcome/${fileName}`;
+export async function saveLeaveImage(guildId: string, buffer: Buffer, mimeType: string, options: { actorId?: string | null; botId?: string | null; guildName?: string | null; previousUrl?: string | null } = {}) {
+  return saveMemberPanelAsset({ ...options, buffer, guildId, mimeType, mode: "leave" });
 }
 
 export async function sendWelcomePanelToDiscord(settings: GuildSettingsDto, userMention: string, botToken?: string | null) {
