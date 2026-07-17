@@ -176,6 +176,7 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "police-daf-roster", label: "Polícia - Escalacao DAF" },
   { id: "police-courses", label: "Polícia - Cursos Políciais" },
   { id: "police-patrol-reports", label: "Polícia - Relatórios de Patrulhamento" },
+  { id: "message-control", label: "Sistema de Controle de Mensagem Individual" },
   { id: "police-dm", label: "Polícia - DM Policial" },
   { id: "police-subpoenas", label: "Polícia - Intimacao" },
   { id: "police-open-duty", label: "Polícia - Notificar / Ponto Aberto" },
@@ -263,6 +264,7 @@ const POLICE_RELEASE_MODULE_IDS = [
   "police-daf-roster",
   "police-courses",
   "police-patrol-reports",
+  "message-control",
   "police-dm",
   "police-subpoenas",
   "police-open-duty"

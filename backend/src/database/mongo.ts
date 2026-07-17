@@ -1720,6 +1720,8 @@ export type MongoAutoActivityClockSettings = {
   cityManagerRoleIds: string[];
   allowedUserIds: string[];
   blockedUserIds: string[];
+  confirmMinutes?: number;
+  weeklyGoalMinutes?: number;
   minMinutes: number;
   maxHours: number | null;
   autoUpdatePanel: boolean;
@@ -1754,6 +1756,9 @@ export type MongoAutoActivityClockSession = {
   startedAt: Date;
   endedAt: Date | null;
   durationMs: number | null;
+  createdBy?: string | null;
+  closedBy?: string | null;
+  closeReason?: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -2391,6 +2396,32 @@ export type MongoVisibleMessageUser = {
   createdAt: Date;
   updatedBy: string | null;
   updatedAt: Date;
+};
+
+export type MongoMessageControlUser = {
+  _id: string;
+  autorizado: boolean;
+  avatarUrl: string | null;
+  botId: string;
+  createdAt: Date;
+  createdBy: string | null;
+  discordId: string;
+  guildId: string;
+  status: "equipe" | "pessoal";
+  updatedAt: Date;
+  updatedBy: string | null;
+  username: string | null;
+};
+
+export type MongoMessageControlSettings = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  managerRoleIds: string[];
+  managerUserIds: string[];
+  createdAt: Date;
+  updatedAt: Date;
+  updatedBy: string | null;
 };
 
 export type MongoDmBarConfig = {
@@ -4243,6 +4274,8 @@ export async function getMongoCollections() {
     policeHiddenChannelSettings: db.collection<MongoPoliceHiddenChannelSettings>("police_hidden_channel_settings"),
     policeHiddenChannelLogs: db.collection<MongoPoliceHiddenChannelLog>("police_hidden_channel_logs"),
     visibleMessageUsers: db.collection<MongoVisibleMessageUser>("visible_message_users"),
+    messageControlUsers: db.collection<MongoMessageControlUser>("message_control_users"),
+    messageControlSettings: db.collection<MongoMessageControlSettings>("message_control_settings"),
     dmBarConfigs: db.collection<MongoDmBarConfig>("dm_bar_configs"),
     dmBarLogs: db.collection<MongoDmBarLog>("dm_bar_logs"),
     fivemFacSettings: db.collection<MongoFivemFacSettings>("fivem_fac_settings"),
@@ -4988,6 +5021,9 @@ async function ensureFivemModuleIndexes(db: Db) {
     db.collection<MongoPoliceHiddenChannelLog>("police_hidden_channel_logs").createIndex({ botId: 1, originalMessageId: 1 }, { unique: true }),
     db.collection<MongoVisibleMessageUser>("visible_message_users").createIndex({ botId: 1, guildId: 1, userId: 1 }, { unique: true }),
     db.collection<MongoVisibleMessageUser>("visible_message_users").createIndex({ botId: 1, guildId: 1, enabled: 1, updatedAt: -1 }),
+    db.collection<MongoMessageControlUser>("message_control_users").createIndex({ botId: 1, guildId: 1, discordId: 1 }, { unique: true }),
+    db.collection<MongoMessageControlUser>("message_control_users").createIndex({ botId: 1, guildId: 1, autorizado: 1, updatedAt: -1 }),
+    db.collection<MongoMessageControlSettings>("message_control_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
     db.collection<MongoDmBarConfig>("dm_bar_configs").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
     db.collection<MongoDmBarLog>("dm_bar_logs").createIndex({ botId: 1, guildId: 1, sentAt: -1 }),
     db.collection<MongoDmBarLog>("dm_bar_logs").createIndex({ botId: 1, senderId: 1, sentAt: -1 })

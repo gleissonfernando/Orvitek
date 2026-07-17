@@ -99,6 +99,7 @@ export const DEV_MODULES = [
   { id: "police-patrol-reports", label: "Polícia - Relatórios de Patrulhamento" },
   { id: "police-hidden-channel", label: "Polícia - Canal Oculto" },
   { id: "visible-message", label: "Polícia - Mensagem Visível" },
+  { id: "message-control", label: "Sistema de Controle de Mensagem Individual" },
   { id: "police-dm", label: "Polícia - DM Policial" },
   { id: "rh-admin", label: "Polícia - RH Administrativo" },
   { id: "police-subpoenas", label: "Polícia - Intimacao" },

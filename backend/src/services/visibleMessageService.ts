@@ -79,10 +79,9 @@ export async function addVisibleMessageUser(
 
 export async function removeVisibleMessageUser(botId: string, guildId: string, userId: string, actorId: string | null) {
   const { visibleMessageUsers } = await getMongoCollections();
-  const now = new Date();
   const row = await visibleMessageUsers.findOneAndUpdate(
     { botId, guildId, userId },
-    { $set: { enabled: false, updatedAt: now, updatedBy: actorId } },
+    { $set: { enabled: false, updatedAt: new Date(), updatedBy: actorId } },
     { returnDocument: "after" }
   );
 

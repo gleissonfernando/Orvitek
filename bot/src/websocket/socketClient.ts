@@ -143,7 +143,16 @@ export type VisibleMessageUsersEvent = {
   botId?: string | null;
   guildId: string;
 };
+export type MessageControlUsersEvent = {
+  botId?: string | null;
+  guildId: string;
+};
 export type DmBarSettingsEvent = {
+  botId?: string | null;
+  guildId: string;
+};
+
+export type AutoActivityClockPanelRefreshEvent = {
   botId?: string | null;
   guildId: string;
 };
@@ -295,7 +304,9 @@ export class BotSocketClient {
   private fivemFacAbsenceUpdateHandler: ((payload: FivemFacAbsenceUpdateEvent) => void) | null = null;
   private policeHiddenChannelSettingsHandler: ((payload: PoliceHiddenChannelSettingsEvent) => void) | null = null;
   private visibleMessageUsersHandler: ((payload: VisibleMessageUsersEvent) => void) | null = null;
+  private messageControlUsersHandler: ((payload: MessageControlUsersEvent) => void) | null = null;
   private dmBarSettingsHandler: ((payload: DmBarSettingsEvent) => void) | null = null;
+  private autoActivityClockPanelRefreshHandler: ((payload: AutoActivityClockPanelRefreshEvent) => void) | null = null;
   private missionToolsSettingsHandler: ((payload: MissionToolsSettingsEvent) => void) | null = null;
   private missionToolsPanelPublishHandler: ((payload: MissionToolsPanelPublishEvent) => void) | null = null;
   private missionToolsUserUpdateHandler: ((payload: MissionToolsUserUpdateEvent) => void) | null = null;
@@ -421,8 +432,15 @@ export class BotSocketClient {
     if (this.visibleMessageUsersHandler) {
       this.socket.on("visible-message:users_updated", this.visibleMessageUsersHandler);
     }
+    if (this.messageControlUsersHandler) {
+      this.socket.on("message-control:users_updated", this.messageControlUsersHandler);
+    }
     if (this.dmBarSettingsHandler) {
       this.socket.on("dm-bar:settings_updated", this.dmBarSettingsHandler);
+    }
+
+    if (this.autoActivityClockPanelRefreshHandler) {
+      this.socket.on("auto-activity-clock:panel_refresh", this.autoActivityClockPanelRefreshHandler);
     }
 
     if (this.missionToolsSettingsHandler) {
@@ -678,10 +696,22 @@ export class BotSocketClient {
     this.socket?.on("visible-message:users_updated", handler);
   }
 
+  onMessageControlUsersUpdated(handler: (payload: MessageControlUsersEvent) => void) {
+    this.messageControlUsersHandler = handler;
+    this.socket?.off("message-control:users_updated");
+    this.socket?.on("message-control:users_updated", handler);
+  }
+
   onDmBarSettingsUpdated(handler: (payload: DmBarSettingsEvent) => void) {
     this.dmBarSettingsHandler = handler;
     this.socket?.off("dm-bar:settings_updated");
     this.socket?.on("dm-bar:settings_updated", handler);
+  }
+
+  onAutoActivityClockPanelRefresh(handler: (payload: AutoActivityClockPanelRefreshEvent) => void) {
+    this.autoActivityClockPanelRefreshHandler = handler;
+    this.socket?.off("auto-activity-clock:panel_refresh");
+    this.socket?.on("auto-activity-clock:panel_refresh", handler);
   }
 
   onMissionToolsSettingsUpdated(handler: (payload: MissionToolsSettingsEvent) => void) {

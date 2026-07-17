@@ -31,6 +31,7 @@ import type { BotContext, GuildSettings, ReportSystemButtonKey, ReportSystemLogK
 import { resetSelectMenuMessage, showModalAndResetSelect } from "../utils/selectMenuReset";
 import { replaceSystemEmojis, systemComponentEmoji, systemEmojiText, systemStatusEmoji } from "./systemEmojiService";
 import type { TicketRecord } from "./apiClient";
+import { releaseDeletionLogReservation, reserveDeletedMessageLog } from "./deletedMessageLogService";
 import { getFreshGuildSettings } from "./guildSettingsCache";
 import { buildV2Container, renderComponentsV2Panel, resolvePanelImageUrl } from "./panelVisualRenderer";
 import { buildTranscriptLuaCommand, resolveTranscriptDownloadUrl, resolveTranscriptTemporaryPassword, resolveTranscriptUrl } from "./transcriptUrlService";
@@ -237,7 +238,9 @@ export async function handleReportSystemMessage(message: Message, context: BotCo
     files.join("\n")
   ].filter(Boolean).join("\n").slice(0, 1900);
 
-  await message.delete().catch(() => null);
+  if (!await deleteOriginalForRelay(message, "report-system:relay")) {
+    return true;
+  }
   const relayed = await (message.channel as TextChannel).send({
     allowedMentions: { parse: [] },
     content
@@ -252,6 +255,22 @@ export async function handleReportSystemMessage(message: Message, context: BotCo
   ].filter(Boolean).join("\n"), message.author.id);
 
   return true;
+}
+
+async function deleteOriginalForRelay(message: Message, scope: string) {
+  const reservation = await reserveDeletedMessageLog(message).catch((error) => {
+    console.warn(`[${scope}] falha ao reservar log de exclusão:`, error instanceof Error ? error.message : error);
+    return null;
+  });
+
+  try {
+    await message.delete();
+    return true;
+  } catch (error) {
+    releaseDeletionLogReservation(reservation);
+    console.warn(`[${scope}] não foi possível apagar a mensagem original; retransmissão cancelada:`, error instanceof Error ? error.message : error);
+    return false;
+  }
 }
 
 async function handlePublicReportSelect(interaction: StringSelectMenuInteraction, context: BotContext) {

@@ -33,7 +33,9 @@ import { handleFivemHierarchyConfigInteraction } from "../services/fivemHierarch
 import { handleFivemPd7Interaction } from "../services/fivemPd7Service";
 import { handleLivesInteraction } from "../services/liveService";
 import { handlePoliceTimeClockInteraction } from "../services/policeTimeClockBotService";
+import { handleMessageControlInteraction } from "../services/messageControlService";
 import { handleVisibleMessageInteraction } from "../services/visibleMessageService";
+import { handleAutoActivityClockInteraction } from "../services/autoActivityClockBotService";
 
 export async function handleInteractionCreate(interaction: Interaction, context: BotContext) {
   try {
@@ -77,6 +79,12 @@ async function dispatchInteractionCreate(interaction: Interaction, context: BotC
     return;
   }
   if (await handlePoliceTimeClockInteraction(interaction, context)) {
+    return;
+  }
+  if (await handleAutoActivityClockInteraction(interaction, context)) {
+    return;
+  }
+  if (await handleMessageControlInteraction(interaction, context)) {
     return;
   }
   if (await handleVisibleMessageInteraction(interaction, context)) {

@@ -100,6 +100,12 @@ export async function createDeletedMessageSnapshot(message: Message | PartialMes
   return merged;
 }
 
+export async function reserveDeletedMessageLog(message: Message | PartialMessage) {
+  const snapshot = await createDeletedMessageSnapshot(message);
+  reserveDeletionLog(snapshot);
+  return snapshot;
+}
+
 export async function deleteMessageWithAudit(
   context: BotContext,
   message: Message,
@@ -339,7 +345,8 @@ function inferDeletionType(snapshot: DeletedMessageSnapshot, executorId: string 
   return "MODERATOR";
 }
 
-function reserveDeletionLog(snapshot: DeletedMessageSnapshot) {
+function reserveDeletionLog(snapshot: DeletedMessageSnapshot | null | undefined) {
+  if (!snapshot) return;
   cleanupExpired();
   deletionLogStates.set(deletionKey(snapshot), {
     expiresAt: Date.now() + LOG_IDEMPOTENCY_TTL_MS,
@@ -347,7 +354,8 @@ function reserveDeletionLog(snapshot: DeletedMessageSnapshot) {
   });
 }
 
-function releaseDeletionLogReservation(snapshot: DeletedMessageSnapshot) {
+export function releaseDeletionLogReservation(snapshot: DeletedMessageSnapshot | null | undefined) {
+  if (!snapshot) return;
   const key = deletionKey(snapshot);
   if (deletionLogStates.get(key)?.status === "reserved") {
     deletionLogStates.delete(key);

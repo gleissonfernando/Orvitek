@@ -86,8 +86,8 @@ export function VisibleMessagePanel({ botId, canManage, guild }: { botId?: strin
         userId: member.id,
         username: member.displayName || member.globalName || member.username
       });
-      setData((current) => current ? { users: [user, ...current.users.filter((item) => item.userId !== user.userId)] } : current);
-      setMessage("Usuário cadastrado para Mensagem Visível.");
+      setData((current) => current ? { ...current, users: [user, ...current.users.filter((item) => item.userId !== user.userId)] } : current);
+      setMessage("Usuário cadastrado na Mensagem Visível.");
     } catch (error) {
       setMessage(readMessage(error));
     } finally {
@@ -100,7 +100,7 @@ export function VisibleMessagePanel({ botId, canManage, guild }: { botId?: strin
     setMessage(null);
     try {
       await removeVisibleMessageUser(guild!.id, botId!, userId);
-      setData((current) => current ? { users: current.users.filter((item) => item.userId !== userId) } : current);
+      setData((current) => current ? { ...current, users: current.users.filter((item) => item.userId !== userId) } : current);
       setMessage("Usuário removido.");
     } catch (error) {
       setMessage(readMessage(error));
@@ -115,7 +115,7 @@ export function VisibleMessagePanel({ botId, canManage, guild }: { botId?: strin
     setMessage(null);
     try {
       await clearVisibleMessageUsers(guild!.id, botId!);
-      setData({ users: [] });
+      setData((current) => current ? { ...current, users: [] } : current);
       setMessage("Lista limpa.");
     } catch (error) {
       setMessage(readMessage(error));
@@ -129,22 +129,22 @@ export function VisibleMessagePanel({ botId, canManage, guild }: { botId?: strin
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-emerald-300" />Mensagem Visível</CardTitle>
-          <CardDescription>Usuários cadastrados terão mensagens normais reenviadas com nome e avatar próprios via webhook.</CardDescription>
+          <CardDescription>Cadastre usuários que serão retransmitidos com nome e avatar por webhook neste módulo.</CardDescription>
         </CardHeader>
       </Card>
 
       {message ? <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-white">{message}</div> : null}
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Metric label="Usuários ativos" value={data.users.length} />
-        <Metric label="Resultado para cadastrados" value="Usuário" />
-        <Metric label="Demais usuários" value="Equipe" />
+        <Metric label="Usuários cadastrados" value={data.users.length} />
+        <Metric label="Módulo" value="Webhook" />
+        <Metric label="Configuração" value="Dashboard" />
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Adicionar usuário</CardTitle>
-          <CardDescription>Pesquise por nome ou ID do Discord e cadastre quem poderá enviar mensagem visível.</CardDescription>
+          <CardDescription>Pesquise por nome ou ID do Discord e cadastre usuários da Mensagem Visível.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-col gap-2 sm:flex-row">

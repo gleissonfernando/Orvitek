@@ -188,6 +188,7 @@ function emitPanelRefresh(guildId: string, botId: string, panelId: string) {
   }
 
   const events: Record<string, string> = {
+    "auto-activity-clock": "auto-activity-clock:panel_refresh",
     "fivem-orders": "fivem:orders:panel_publish",
     "fivem-finance": "fivem:finance:panel_publish",
     "fivem-general": "fivem:fac:panel_publish",
@@ -207,7 +208,7 @@ function emitPanelRefresh(guildId: string, botId: string, panelId: string) {
 }
 
 function refreshPanelId(panelId: string) {
-  return panelId.replace(/-banner-[23]$/i, "");
+  return panelId.replace(/-banner-\d+$/i, "");
 }
 
 function hierarchyPanelIdFromImagePanelId(panelId: string) {

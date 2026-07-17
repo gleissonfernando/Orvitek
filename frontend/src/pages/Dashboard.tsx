@@ -146,6 +146,7 @@ import {
   getTickets,
   getXMonitor,
   patchGuildSettings,
+  listPanelImageSettings,
   publishReportSystemPanel,
   publishFivemGoalPanel,
   publishManualRegistrationPanel,
@@ -154,6 +155,7 @@ import {
   refreshFivemHierarchyOfficialMessage,
   refreshApplicationEmojis,
   removeAllApplicationEmojis,
+  removePanelImage,
   resendEmojiFromLibrary,
   saveAdvancedModuleConfig,
   saveAutoActivityClockCity,
@@ -170,6 +172,7 @@ import {
   updateSelectedDashboardGuild,
   updateApplicationEmojiSettings,
   updateBotGuildConfig,
+  uploadPanelImage,
   createServerBackup,
   deleteServerBackup,
   previewServerBackupRestore,
@@ -224,6 +227,7 @@ import type {
   ManualRegistrationSetRole,
   ManualRegistrationSubmission,
   MaintenanceState,
+  PanelImageSettings as PanelImageSettingsType,
   PoliceTimeClockDashboard,
   SelfBotProtectionSettings,
   ServerBackupDashboard,
@@ -731,6 +735,8 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   "visible-message": "visible-message",
   "police-dm": "police-dm",
   "police-open-duty": "police-open-duty",
+  "police-time-clock": "police-time-clock",
+  "auto-activity-clock": "auto-activity-clock",
   "police-subpoenas": "police-subpoenas",
   "rh-admin": "rh-admin",
   "police-iab": "police-iab",
@@ -4933,25 +4939,68 @@ function PoliceTimeClockPanel({ botId, canManage, guild }: { botId?: string | nu
 function AutoActivityClockPanel({ botId, canManage, guild }: { botId?: string | null; canManage: boolean; guild: DashboardGuild | null }) {
   const [dashboard, setDashboard] = useState<AutoActivityClockDashboard | null>(null);
   const [channels, setChannels] = useState<GuildChannelOption[]>([]);
+  const [roles, setRoles] = useState<GuildRoleOption[]>([]);
+  const [imageBlocks, setImageBlocks] = useState<Array<{ index: number; settings: PanelImageSettingsType | null }>>([]);
   const [cityName, setCityName] = useState("");
   const [cityAliases, setCityAliases] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const roleOptions = useMemo(() => roles.map((role) => ({ color: role.color, disabled: role.managed, id: role.id, name: role.name })), [roles]);
 
   const reload = useCallback(async () => {
     if (!guild || !botId) return;
-    const [data, options] = await Promise.all([getAutoActivityClockDashboard(guild.id, botId), getGuildLiveOptions(guild.id, botId)]);
-    setDashboard(data); setChannels(options.channels);
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [data, options, images] = await Promise.all([
+        getAutoActivityClockDashboard(guild.id, botId),
+        getGuildLiveOptions(guild.id, botId).catch(() => ({ channels: [], roles: [] })),
+        loadAutoActivityImageBlocks(guild.id, botId).catch(() => [] as Array<{ index: number; settings: PanelImageSettingsType | null }>)
+      ]);
+      setDashboard(data);
+      setChannels(options.channels);
+      setRoles(options.roles);
+      setImageBlocks(images);
+    } catch (error) {
+      const nextMessage = readResponseMessage(error) ?? "Não foi possível carregar o Ponto Automático.";
+      setLoadError(nextMessage);
+      setMessage(nextMessage);
+    } finally {
+      setLoading(false);
+    }
   }, [botId, guild]);
 
-  useEffect(() => { void reload().catch((error) => setMessage(readResponseMessage(error) ?? "Não foi possível carregar o Ponto Automático.")); }, [reload]);
+  useEffect(() => { void reload(); }, [reload]);
+
+  useEffect(() => {
+    if (!guild || !botId) return;
+    const socket = createDashboardSocket();
+    const refresh = (event?: { botId?: string | null; guildId?: string | null }) => {
+      if (event?.botId && event.botId !== botId) return;
+      if (event?.guildId && event.guildId !== guild.id) return;
+      void reload();
+    };
+    socket.on("auto-activity-clock:settings_updated", refresh);
+    socket.on("auto-activity-clock:cities_updated", refresh);
+    socket.on("auto-activity-clock:session_opened", refresh);
+    socket.on("auto-activity-clock:session_closed", refresh);
+    return () => {
+      socket.off("auto-activity-clock:settings_updated", refresh);
+      socket.off("auto-activity-clock:cities_updated", refresh);
+      socket.off("auto-activity-clock:session_opened", refresh);
+      socket.off("auto-activity-clock:session_closed", refresh);
+      socket.disconnect();
+    };
+  }, [botId, guild, reload]);
 
   async function patch(payload: Partial<AutoActivityClockDashboard["settings"]>) {
     if (!guild || !botId || !dashboard) return;
     setSaving(true); setMessage(null);
     try {
       const settings = await saveAutoActivityClockSettings(guild.id, botId, payload);
-      setDashboard({ ...dashboard, settings });
+      setDashboard((current) => current ? { ...current, settings } : current);
       setMessage("Configuração salva.");
     } catch (error) { setMessage(readResponseMessage(error) ?? "Não foi possível salvar."); }
     finally { setSaving(false); }
@@ -4969,10 +5018,76 @@ function AutoActivityClockPanel({ botId, canManage, guild }: { botId?: string | 
 
   async function removeCity(cityId: string) {
     if (!guild || !botId) return;
-    await deleteAutoActivityClockCity(guild.id, botId, cityId); await reload();
+    setSaving(true);
+    setMessage(null);
+    try {
+      await deleteAutoActivityClockCity(guild.id, botId, cityId);
+      await reload();
+      setMessage("Cidade removida.");
+    } catch (error) {
+      setMessage(readResponseMessage(error) ?? "Não foi possível remover a cidade.");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  if (!dashboard) return <Card><CardContent className="flex min-h-32 items-center justify-center p-6 text-sm text-zinc-400"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Carregando Ponto Automático...</CardContent></Card>;
+  async function uploadImageBlock(index: number, file: File | null) {
+    if (!guild || !botId || !file) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      await uploadPanelImage(guild.id, autoActivityImagePanelId(index), file, botId);
+      setImageBlocks(await loadAutoActivityImageBlocks(guild.id, botId));
+      setMessage("Imagem enviada.");
+    } catch (error) {
+      setMessage(readResponseMessage(error) ?? "Não foi possível enviar a imagem.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeImageBlock(index: number) {
+    if (!guild || !botId) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      await removePanelImage(guild.id, autoActivityImagePanelId(index), botId);
+      setImageBlocks(await loadAutoActivityImageBlocks(guild.id, botId));
+      setMessage("Imagem removida.");
+    } catch (error) {
+      setMessage(readResponseMessage(error) ?? "Não foi possível remover a imagem.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function addImageBlock() {
+    setImageBlocks((current) => {
+      const nextIndex = current.reduce((max, item) => Math.max(max, item.index), 0) + 1;
+      return [...current, { index: nextIndex, settings: null }];
+    });
+  }
+
+  if (!guild || !botId) {
+    return <Card><CardContent className="p-6 text-sm text-zinc-400">Selecione um servidor e um bot para configurar o Ponto Automático.</CardContent></Card>;
+  }
+
+  if (loading && !dashboard) return <Card><CardContent className="flex min-h-32 items-center justify-center p-6 text-sm text-zinc-400"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Carregando Ponto Automático...</CardContent></Card>;
+
+  if (!dashboard) {
+    return (
+      <Card>
+        <CardContent className="flex min-h-32 flex-col items-center justify-center gap-3 p-6 text-center text-sm text-zinc-300">
+          <p>{loadError ?? "Não foi possível carregar o Ponto Automático."}</p>
+          <Button disabled={loading} onClick={() => void reload()} variant="outline">
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            Tentar novamente
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const disabled = !canManage || saving;
 
   return (
@@ -4990,6 +5105,35 @@ function AutoActivityClockPanel({ botId, canManage, guild }: { botId?: string | 
             <FivemChannelSelect channels={channels} disabled={disabled} label="Canal do painel" onChange={(value) => void patch({ panelChannelId: value || null })} placeholder="Selecionar canal" value={dashboard.settings.panelChannelId ?? ""} />
             <FivemChannelSelect channels={channels} disabled={disabled} label="Canal de logs" onChange={(value) => void patch({ logChannelId: value || null })} placeholder="Sem logs" value={dashboard.settings.logChannelId ?? ""} />
           </div>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <MetricCard icon={CheckCircle2} label="Status" value={dashboard.settings.enabled ? "Ativado" : "Desativado"} />
+            <MetricCard icon={Building2} label="Cidades" value={String(dashboard.cities.length)} />
+            <MetricCard icon={Users} label="Em ponto" value={String(dashboard.active.length)} />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <label className="grid gap-2 text-xs font-medium text-zinc-400">
+              Confirmação automática (minutos)
+              <input className="h-10 rounded-md border border-zinc-800 bg-black px-3 text-sm text-white" disabled={disabled} min={0} onBlur={(event) => void patch({ confirmMinutes: Math.max(0, Number(event.target.value) || 0) })} type="number" defaultValue={dashboard.settings.confirmMinutes} />
+            </label>
+            <label className="grid gap-2 text-xs font-medium text-zinc-400">
+              Meta semanal (minutos)
+              <input className="h-10 rounded-md border border-zinc-800 bg-black px-3 text-sm text-white" disabled={disabled} min={0} onBlur={(event) => void patch({ weeklyGoalMinutes: Math.max(0, Number(event.target.value) || 0) })} type="number" defaultValue={dashboard.settings.weeklyGoalMinutes} />
+            </label>
+            <label className="grid gap-2 text-xs font-medium text-zinc-400">
+              Tempo mínimo contabilizado (minutos)
+              <input className="h-10 rounded-md border border-zinc-800 bg-black px-3 text-sm text-white" disabled={disabled} min={0} onBlur={(event) => void patch({ minMinutes: Math.max(0, Number(event.target.value) || 0) })} type="number" defaultValue={dashboard.settings.minMinutes} />
+            </label>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <label className="grid gap-2 text-xs font-medium text-zinc-400">
+              Fechamento máximo (horas)
+              <input className="h-10 rounded-md border border-zinc-800 bg-black px-3 text-sm text-white" disabled={disabled} min={0} onBlur={(event) => void patch({ maxHours: event.target.value.trim() ? Math.max(0, Number(event.target.value) || 0) : null })} type="number" defaultValue={dashboard.settings.maxHours ?? ""} />
+            </label>
+            <label className="flex min-h-16 items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950 px-4 text-sm text-zinc-200">
+              Atualizar painel automaticamente
+              <Switch checked={dashboard.settings.autoUpdatePanel} disabled={disabled} onCheckedChange={(checked) => void patch({ autoUpdatePanel: checked })} />
+            </label>
+          </div>
           <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto]">
             <input className="h-10 rounded-md border border-zinc-800 bg-black px-3 text-sm text-white" disabled={disabled} onChange={(event) => setCityName(event.target.value)} placeholder="Nome da cidade" value={cityName} />
             <input className="h-10 rounded-md border border-zinc-800 bg-black px-3 text-sm text-white" disabled={disabled} onChange={(event) => setCityAliases(event.target.value)} placeholder="Aliases separados por vírgula" value={cityAliases} />
@@ -5000,9 +5144,150 @@ function AutoActivityClockPanel({ botId, canManage, guild }: { botId?: string | 
           </div>
         </CardContent>
       </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Imagens do Painel</CardTitle>
+          <CardDescription>Envie arquivos para criar blocos visuais no painel Component V2. Não é necessário informar URL.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {imageBlocks.map((block) => (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3" key={block.index}>
+                <p className="text-sm font-semibold text-white">Imagem {block.index}</p>
+                {block.settings?.imageEnabled && block.settings.imageUrl ? <img className="mt-3 h-28 w-full rounded-md object-cover" src={block.settings.imageUrl} /> : <div className="mt-3 flex h-28 items-center justify-center rounded-md bg-black text-zinc-600"><ImageIcon className="h-6 w-6" /></div>}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <input accept="image/png,image/jpeg,image/jpg,image/webp,image/gif" className="max-w-full text-xs text-zinc-400" disabled={disabled} onChange={(event) => void uploadImageBlock(block.index, event.target.files?.[0] ?? null)} type="file" />
+                  <Button disabled={disabled || !block.settings?.imageUrl} onClick={() => void removeImageBlock(block.index)} size="sm" variant="outline"><Trash2 className="h-4 w-4" /></Button>
+                </div>
+              </div>
+            ))}
+            <button className="flex min-h-44 items-center justify-center rounded-lg border border-dashed border-zinc-700 bg-zinc-950 text-sm font-semibold text-zinc-300 transition hover:border-[#FFD500]/50 hover:text-white disabled:opacity-60" disabled={disabled} onClick={addImageBlock} type="button">
+              <Plus className="mr-2 h-4 w-4" />Adicionar imagem
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Permissões</CardTitle>
+          <CardDescription>Controle quem pode visualizar, usar ações manuais e administrar o Ponto Automático pelo Discord.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 lg:grid-cols-2">
+          <FivemResourceMultiSelect disabled={disabled} label="Cargos administradores" onChange={(values) => void patch({ adminRoleIds: values })} options={roleOptions} prefix="@" values={dashboard.settings.adminRoleIds} />
+          <FivemResourceMultiSelect disabled={disabled} label="Cargos que gerenciam cidades" onChange={(values) => void patch({ cityManagerRoleIds: values })} options={roleOptions} prefix="@" values={dashboard.settings.cityManagerRoleIds} />
+          <FivemResourceMultiSelect disabled={disabled} label="Cargos que visualizam o painel" onChange={(values) => void patch({ viewRoleIds: values })} options={roleOptions} prefix="@" values={dashboard.settings.viewRoleIds} />
+          <FivemResourceMultiSelect disabled={disabled} label="Cargos que atualizam o painel" onChange={(values) => void patch({ updatePanelRoleIds: values })} options={roleOptions} prefix="@" values={dashboard.settings.updatePanelRoleIds} />
+          <FivemResourceMultiSelect disabled={disabled} label="Cargos para entrada manual" onChange={(values) => void patch({ manualEntryRoleIds: values })} options={roleOptions} prefix="@" values={dashboard.settings.manualEntryRoleIds} />
+          <FivemResourceMultiSelect disabled={disabled} label="Cargos para saída manual" onChange={(values) => void patch({ manualExitRoleIds: values })} options={roleOptions} prefix="@" values={dashboard.settings.manualExitRoleIds} />
+          <FivemResourceMultiSelect disabled={disabled} label="Cargos para fechamento forçado" onChange={(values) => void patch({ closeRoleIds: values })} options={roleOptions} prefix="@" values={dashboard.settings.closeRoleIds} />
+          <FivemResourceMultiSelect disabled={disabled} label="Cargos para histórico/exportação" onChange={(values) => void patch({ historyRoleIds: values, exportRoleIds: values })} options={roleOptions} prefix="@" values={[...new Set([...dashboard.settings.historyRoleIds, ...dashboard.settings.exportRoleIds])]} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Usuários</CardTitle>
+          <CardDescription>Deixe vazio para aceitar todos. Quando houver usuários liberados, apenas eles entram automaticamente.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 lg:grid-cols-2">
+          <IdListTextarea disabled={disabled} label="Usuários liberados" onSave={(values) => void patch({ allowedUserIds: values })} values={dashboard.settings.allowedUserIds} />
+          <IdListTextarea disabled={disabled} label="Usuários bloqueados" onSave={(values) => void patch({ blockedUserIds: values })} values={dashboard.settings.blockedUserIds} />
+        </CardContent>
+      </Card>
       <ClockOverviewCard active={dashboard.active.map((item) => ({ id: item.id, label: item.username, meta: item.cityName }))} history={dashboard.history.map((item) => ({ id: item.id, label: item.username, meta: `${item.cityName} • ${formatMs(item.durationMs ?? 0)}` }))} summary={dashboard.summary} />
+      <AutoActivityReportsCard dashboard={dashboard} />
     </div>
   );
+}
+
+function autoActivityImagePanelId(index: number) {
+  return index <= 1 ? "auto-activity-clock" : `auto-activity-clock-banner-${index}`;
+}
+
+async function loadAutoActivityImageBlocks(guildId: string, botId: string) {
+  const settings = await listPanelImageSettings(guildId, botId).catch(() => [] as PanelImageSettingsType[]);
+  const saved = settings
+    .map((item) => ({ index: autoActivityImageIndex(item.panelId), settings: item }))
+    .filter((item): item is { index: number; settings: PanelImageSettingsType } => item.index !== null)
+    .sort((a, b) => a.index - b.index);
+  const indexes = new Set(saved.map((item) => item.index));
+  const placeholders = [1, 2, 3].filter((index) => !indexes.has(index)).map((index) => ({ index, settings: null }));
+
+  return [...saved, ...placeholders].sort((a, b) => a.index - b.index);
+}
+
+function autoActivityImageIndex(panelId: string) {
+  if (panelId === "auto-activity-clock") return 1;
+  const match = /^auto-activity-clock-banner-(\d+)$/i.exec(panelId);
+  return match ? Number(match[1]) : null;
+}
+
+function AutoActivityReportsCard({ dashboard }: { dashboard: AutoActivityClockDashboard }) {
+  const weekly = dashboard.reports.weekly.slice(0, 5);
+  const monthly = dashboard.reports.monthly.slice(0, 5);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Relatórios e Meta</CardTitle>
+        <CardDescription>Ranking administrativo recente. A meta aparece apenas para consulta.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4 lg:grid-cols-2">
+        <ReportRanking title="Semanal" rows={weekly} />
+        <ReportRanking title="Mensal" rows={monthly} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReportRanking({ rows, title }: { rows: AutoActivityClockDashboard["reports"]["weekly"]; title: string }) {
+  return (
+    <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
+      <p className="mb-3 text-sm font-semibold text-white">{title}</p>
+      <div className="space-y-2">
+        {rows.length ? rows.map((item, index) => (
+          <div className="rounded-md bg-black/40 p-3 text-sm" key={item.userId}>
+            <div className="flex items-center justify-between gap-3">
+              <span className="truncate font-semibold text-zinc-200">{index + 1}. {item.username}</span>
+              <span className="shrink-0 text-zinc-400">{formatMs(item.totalDurationMs)}</span>
+            </div>
+            <p className="mt-1 text-xs text-zinc-500">Entradas: {item.entries} · Meta: {formatMs(item.weeklyGoalMs)} · {metaStatusLabel(item.metaStatus)} · Dias sem logar: {item.daysWithoutLogin ?? "-"}</p>
+          </div>
+        )) : <p className="text-sm text-zinc-500">Nenhum registro fechado.</p>}
+      </div>
+    </div>
+  );
+}
+
+function metaStatusLabel(value: "above" | "below" | "met") {
+  if (value === "above") return "Acima da meta";
+  if (value === "met") return "Meta atingida";
+  return "Abaixo da meta";
+}
+
+function IdListTextarea({ disabled, label, onSave, values }: { disabled: boolean; label: string; onSave: (values: string[]) => void; values: string[] }) {
+  const [draft, setDraft] = useState(values.join(", "));
+
+  useEffect(() => {
+    setDraft(values.join(", "));
+  }, [values]);
+
+  return (
+    <label className="grid gap-2 text-xs font-medium text-zinc-400">
+      {label}
+      <textarea
+        className="min-h-24 rounded-md border border-zinc-800 bg-black px-3 py-2 text-sm text-white outline-none transition focus:border-emerald-500/60 disabled:opacity-60"
+        disabled={disabled}
+        onBlur={() => onSave(parseIdList(draft))}
+        onChange={(event) => setDraft(event.target.value)}
+        placeholder="IDs separados por vírgula, espaço ou linha"
+        value={draft}
+      />
+    </label>
+  );
+}
+
+function parseIdList(value: string) {
+  return [...new Set(value.split(/[\s,;]+/).map((item) => item.trim()).filter(Boolean))];
 }
 
 function SimpleCheck({ checked, disabled, label, onChange }: { checked: boolean; disabled: boolean; label: string; onChange: (checked: boolean) => void }) {
@@ -9928,6 +10213,14 @@ function policePanelImageSlotsForView(view: ViewId) {
 }
 
 function dashboardViewFromPath(path: string): ViewId {
+  if (path === "/dashboard/ponto-automatico" || /^\/[a-z0-9]+(?:-[a-z0-9]+)*\/dashboard\/ponto-automatico(?:\/|$)/i.test(path)) {
+    return "auto-activity-clock";
+  }
+
+  if (path === "/dashboard/relogio-de-ponto" || /^\/[a-z0-9]+(?:-[a-z0-9]+)*\/dashboard\/relogio-de-ponto(?:\/|$)/i.test(path)) {
+    return "police-time-clock";
+  }
+
   if (path === "/dashboard/hierarquia" || /^\/[a-z0-9]+(?:-[a-z0-9]+)*\/dashboard\/hierarquia(?:\/|$)/i.test(path)) {
     return "fivem-hierarchy";
   }
@@ -9937,6 +10230,8 @@ function dashboardViewFromPath(path: string): ViewId {
 
 function dashboardPathForView(slug: string, view: ViewId) {
   const base = `/${encodeURIComponent(slug)}/dashboard`;
+  if (view === "auto-activity-clock") return `${base}/ponto-automatico`;
+  if (view === "police-time-clock") return `${base}/relogio-de-ponto`;
   if (view === "fivem-hierarchy") return `${base}/hierarquia`;
   return base;
 }

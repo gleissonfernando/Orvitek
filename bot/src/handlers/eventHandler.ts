@@ -1,4 +1,4 @@
-import { AuditLogEvent, Events, type Client, type GuildMember, type PartialGuildMember } from "discord.js";
+import { AuditLogEvent, Events, type Client, type GuildMember, type PartialGuildMember, type Presence } from "discord.js";
 import { handleGuildMemberAdd } from "../events/guildMemberAdd";
 import { handleGuildMemberRemove } from "../events/guildMemberRemove";
 import { handleGuildMemberUpdate } from "../events/guildMemberUpdate";
@@ -36,6 +36,8 @@ const eventQueue = new BoundedTaskQueue(env.BOT_EVENT_CONCURRENCY, env.BOT_EVENT
     queue: eventQueue.snapshot()
   }));
 });
+const PRESENCE_COALESCE_MS = 250;
+const pendingPresenceEvents = new Map<string, { oldPresence: Presence | null; newPresence: Presence; timer: NodeJS.Timeout }>();
 
 export function registerEvents(client: Client, context: BotContext) {
   const managedRuntimeBot = Boolean(env.DASHBOARD_BOT_ID.trim());
@@ -282,7 +284,7 @@ export function registerEvents(client: Client, context: BotContext) {
   if (managedRuntimeBot || isBotModuleEnabled("live") || isBotModuleEnabled("auto-activity-clock")) {
     client.on(Events.PresenceUpdate, (oldPresence, newPresence) => {
       if (isMaintenanceModeActive()) return;
-      runEvent("presenceUpdate", () => handlePresenceEvent(oldPresence, newPresence, context));
+      schedulePresenceEvent(oldPresence, newPresence, context);
     });
   }
 
@@ -362,6 +364,27 @@ function runEvent(name: string, handler: () => Promise<unknown>) {
     console.warn(`[event:${name}] descartado para proteger o processo contra sobrecarga.`);
   }
   return accepted;
+}
+
+function schedulePresenceEvent(oldPresence: Presence | null, newPresence: Presence, context: BotContext) {
+  const guildId = newPresence.guild?.id ?? oldPresence?.guild?.id ?? "unknown";
+  const key = `${guildId}:${newPresence.userId}`;
+  const current = pendingPresenceEvents.get(key);
+  if (current) clearTimeout(current.timer);
+
+  const timer = setTimeout(() => {
+    const event = pendingPresenceEvents.get(key);
+    if (!event) return;
+    pendingPresenceEvents.delete(key);
+    runEvent("presenceUpdate", () => handlePresenceEvent(event.oldPresence, event.newPresence, context));
+  }, PRESENCE_COALESCE_MS);
+
+  timer.unref();
+  pendingPresenceEvents.set(key, {
+    oldPresence: current?.oldPresence ?? oldPresence,
+    newPresence,
+    timer
+  });
 }
 
 function shouldHandleMessageCreateEvents() {

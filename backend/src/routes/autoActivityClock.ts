@@ -7,6 +7,8 @@ import {
   closeAutoActivityClockSession,
   deleteAutoActivityClockCity,
   getAutoActivityClockDashboard,
+  getAutoActivityClockPanelState,
+  getAutoActivityClockRuntime,
   getAutoActivityClockSettings,
   matchAutoActivityCity,
   openAutoActivityClockSession,
@@ -26,6 +28,7 @@ const settingsSchema = z.object({
   blockedUserIds: z.array(snowflake).max(500).optional(),
   cityManagerRoleIds: z.array(snowflake).max(50).optional(),
   closeRoleIds: z.array(snowflake).max(50).optional(),
+  confirmMinutes: z.number().min(0).max(1440).optional(),
   enabled: z.boolean().optional(),
   exportRoleIds: z.array(snowflake).max(50).optional(),
   historyRoleIds: z.array(snowflake).max(50).optional(),
@@ -37,7 +40,8 @@ const settingsSchema = z.object({
   panelChannelId: nullableSnowflake,
   panelMessageId: nullableSnowflake,
   updatePanelRoleIds: z.array(snowflake).max(50).optional(),
-  viewRoleIds: z.array(snowflake).max(50).optional()
+  viewRoleIds: z.array(snowflake).max(50).optional(),
+  weeklyGoalMinutes: z.number().min(0).max(10080).optional()
 });
 const citySchema = z.object({
   aliases: z.array(z.string().min(1).max(80)).max(30).optional(),
@@ -46,13 +50,21 @@ const citySchema = z.object({
   name: z.string().min(1).max(80)
 });
 const openSchema = z.object({
-  cityId: z.string().min(1),
-  cityName: z.string().min(1),
-  statusDiscord: z.string().max(200),
+  cityId: z.string().min(1).nullable().optional(),
+  cityName: z.string().min(1).nullable().optional(),
+  createdBy: snowflake.nullable().optional(),
+  origin: z.enum(["manual", "automatic"]).optional(),
+  statusDiscord: z.string().max(200).nullable().optional(),
   userId: snowflake,
   username: z.string().min(1).max(120)
 });
-const closeSchema = z.object({ statusDiscord: z.string().max(200).nullable().optional(), userId: snowflake });
+const closeSchema = z.object({
+  closedBy: snowflake.nullable().optional(),
+  forced: z.boolean().optional(),
+  reason: z.string().max(500).nullable().optional(),
+  statusDiscord: z.string().max(200).nullable().optional(),
+  userId: snowflake
+});
 const matchSchema = z.object({ activityName: z.string().max(200) });
 
 autoActivityClockRouter.get("/:guildId", requireAuth, async (req, res, next) => {
@@ -100,11 +112,45 @@ autoActivityClockRouter.get("/bot/:guildId/config", requireBot, async (req, res,
   } catch (error) { next(error); }
 });
 
+autoActivityClockRouter.get("/bot/:guildId/runtime", requireBot, async (req, res, next) => {
+  try {
+    const botId = await botIdFor(req);
+    await licensed(botId);
+    res.json(await getAutoActivityClockRuntime(botId, snowflake.parse(req.params.guildId)));
+  } catch (error) { next(error); }
+});
+
 autoActivityClockRouter.get("/bot/:guildId/dashboard", requireBot, async (req, res, next) => {
   try {
     const botId = await botIdFor(req);
     await licensed(botId);
     res.json(await getAutoActivityClockDashboard(botId, snowflake.parse(req.params.guildId)));
+  } catch (error) { next(error); }
+});
+
+autoActivityClockRouter.get("/bot/:guildId/panel", requireBot, async (req, res, next) => {
+  try {
+    const botId = await botIdFor(req);
+    await licensed(botId);
+    res.json(await getAutoActivityClockPanelState(botId, snowflake.parse(req.params.guildId)));
+  } catch (error) { next(error); }
+});
+
+autoActivityClockRouter.patch("/bot/:guildId/config", requireBot, async (req, res, next) => {
+  try {
+    const botId = await botIdFor(req);
+    await licensed(botId);
+    const guildId = snowflake.parse(req.params.guildId);
+    res.json({ settings: await saveAutoActivityClockSettings(botId, guildId, settingsSchema.parse(req.body), req.header("x-actor-id") ?? null) });
+  } catch (error) { next(error); }
+});
+
+autoActivityClockRouter.post("/bot/:guildId/cities", requireBot, async (req, res, next) => {
+  try {
+    const botId = await botIdFor(req);
+    await licensed(botId);
+    const guildId = snowflake.parse(req.params.guildId);
+    res.status(201).json({ city: await saveAutoActivityClockCity(botId, guildId, citySchema.parse(req.body), req.header("x-actor-id") ?? null) });
   } catch (error) { next(error); }
 });
 

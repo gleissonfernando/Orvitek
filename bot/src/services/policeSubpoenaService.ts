@@ -27,6 +27,7 @@ import {
 } from "discord.js";
 import { env, isBotModuleEnabled } from "../config/env";
 import type { BotCommand, BotContext, GuildSettings, ReportSystemSettings } from "../types";
+import { releaseDeletionLogReservation, reserveDeletedMessageLog } from "./deletedMessageLogService";
 import { getFreshGuildSettings } from "./guildSettingsCache";
 import { renderComponentsV2Panel } from "./panelVisualRenderer";
 import { systemComponentEmoji, systemEmojiText } from "./systemEmojiService";
@@ -274,11 +275,13 @@ export async function handlePoliceSubpoenaMessage(message: Message, context: Bot
   try {
     const payload = anonymousIssuerPayload(message, subpoenaStaffDisplayName(settings.reportSystem, state));
     if (!payload.content && !payload.files?.length && !payload.stickers?.length) {
-      await message.delete().catch(() => null);
+      await deleteOriginalForRelay(message, "police-subpoena:empty");
       return true;
     }
 
-    await message.delete().catch(() => null);
+    if (!await deleteOriginalForRelay(message, "police-subpoena:relay")) {
+      return true;
+    }
     const relayed = await channel.send(payload).catch(() => null);
 
     await sendCompetenceLog(message.guild, settings, state, message.author.id, [
@@ -294,6 +297,22 @@ export async function handlePoliceSubpoenaMessage(message: Message, context: Bot
   }
 
   return true;
+}
+
+async function deleteOriginalForRelay(message: Message, scope: string) {
+  const reservation = await reserveDeletedMessageLog(message).catch((error) => {
+    console.warn(`[${scope}] falha ao reservar log de exclusão:`, error instanceof Error ? error.message : error);
+    return null;
+  });
+
+  try {
+    await message.delete();
+    return true;
+  } catch (error) {
+    releaseDeletionLogReservation(reservation);
+    console.warn(`[${scope}] não foi possível apagar a mensagem original; retransmissão cancelada:`, error instanceof Error ? error.message : error);
+    return false;
+  }
 }
 
 async function handleCaseButton(interaction: ButtonInteraction, context: BotContext, settings: GuildSettings, action: string, channelId: string) {

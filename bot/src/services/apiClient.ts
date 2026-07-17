@@ -1,4 +1,6 @@
 import axios, { type AxiosInstance } from "axios";
+import http from "node:http";
+import https from "node:https";
 import { env } from "../config/env";
 import type { GuildSettings } from "../types";
 
@@ -704,6 +706,8 @@ export type AutoActivityClockSettings = {
   cityManagerRoleIds: string[];
   allowedUserIds: string[];
   blockedUserIds: string[];
+  confirmMinutes: number;
+  weeklyGoalMinutes: number;
   minMinutes: number;
   maxHours: number | null;
   autoUpdatePanel: boolean;
@@ -712,8 +716,11 @@ export type AutoActivityClockSettings = {
   updatedBy: string | null;
 };
 export type AutoActivityClockCity = { id: string; botId: string; guildId: string; name: string; aliases: string[]; enabled: boolean; createdAt: string; updatedAt: string; updatedBy: string | null };
-export type AutoActivityClockSession = { id: string; botId: string; guildId: string; userId: string; username: string; cityId: string; cityName: string; statusDiscord: string; status: "open" | "closed" | "forced"; origin: "automatic" | "manual" | "forced"; startedAt: string; endedAt: string | null; durationMs: number | null; createdAt: string; updatedAt: string };
-export type AutoActivityClockDashboard = { active: AutoActivityClockSession[]; cities: AutoActivityClockCity[]; history: AutoActivityClockSession[]; settings: AutoActivityClockSettings; summary: { activeCount: number; averageDurationMs: number; totalDurationMs: number; totalEntries: number } };
+export type AutoActivityClockSession = { id: string; botId: string; guildId: string; userId: string; username: string; cityId: string; cityName: string; statusDiscord: string; status: "open" | "closed" | "forced"; origin: "automatic" | "manual" | "forced"; startedAt: string; endedAt: string | null; durationMs: number | null; createdBy?: string | null; closedBy?: string | null; closeReason?: string | null; createdAt: string; updatedAt: string };
+export type AutoActivityClockReportItem = { daysWithoutLogin: number | null; entries: number; lastAccessAt: string | null; metaStatus: "above" | "below" | "met"; totalDurationMs: number; userId: string; username: string; weeklyGoalMs: number };
+export type AutoActivityClockDashboard = { active: AutoActivityClockSession[]; cities: AutoActivityClockCity[]; history: AutoActivityClockSession[]; reports: { monthly: AutoActivityClockReportItem[]; weekly: AutoActivityClockReportItem[] }; settings: AutoActivityClockSettings; summary: { activeCount: number; averageDurationMs: number; totalDurationMs: number; totalEntries: number } };
+export type AutoActivityClockRuntime = { cities: AutoActivityClockCity[]; settings: AutoActivityClockSettings };
+export type AutoActivityClockPanelState = Pick<AutoActivityClockDashboard, "active" | "cities" | "settings" | "summary">;
 
 export type BotCommandAuthorization = {
   allowed: boolean;
@@ -774,6 +781,9 @@ export type PolicePatrolReport = { id: string; botId: string; guildId: string; o
 export type PolicePatrolMessage = { id: string; discordMessageId: string; authorId: string; content: string; attachments: Array<{ id: string; name: string; url: string; contentType: string | null; size: number }>; embeds: unknown[]; stickers: Array<{ id: string; name: string; format: number }>; emojis: string[]; createdAt: string };
 export type PoliceHiddenChannelSettings = { id: string; botId: string; guildId: string; enabled: boolean; channelId: string | null; allowedRoleId: string | null; logChannelId: string | null; createdBy: string | null; createdAt: string; updatedBy: string | null; updatedAt: string };
 export type VisibleMessageUser = { id: string; botId: string; guildId: string; userId: string; username: string | null; avatarUrl: string | null; enabled: boolean; createdBy: string | null; createdAt: string; updatedBy: string | null; updatedAt: string };
+export type MessageControlStatus = "equipe" | "pessoal";
+export type MessageControlUser = { id: string; autorizado: boolean; avatarUrl: string | null; botId: string; createdAt: string; createdBy: string | null; discordId: string; guildId: string; status: MessageControlStatus; updatedAt: string; updatedBy: string | null; username: string | null };
+export type MessageControlSettings = { botId: string; guildId: string; managerRoleIds: string[]; managerUserIds: string[]; updatedAt: string; updatedBy: string | null };
 export type DmBarConfig = { id: string; botId: string; guildId: string; enabled: boolean; allowedRoleIds: string[]; allowedUserIds: string[]; allowAdmins: boolean; logChannelId: string | null; logsEnabled: boolean; titleTemplate: string; descriptionTemplate: string; footerText: string; mainImageUrl: string | null; footerIconUrl: string | null; imagePosition: "top" | "middle" | "bottom" | "gallery" | "thumbnail" | "none"; accentColor: string; emoji: string; cooldownSeconds: number; allowMentions: boolean; showSender: boolean; showDate: boolean; showServer: boolean; showTargetId: boolean; footerEnabled: boolean; signature: string; createdAt: string; updatedAt: string; updatedBy: string | null };
 
 export type ManualRegistrationField = {
@@ -2098,6 +2108,8 @@ export class ApiClient {
         "x-bot-token": env.BOT_API_TOKEN,
         ...(env.DASHBOARD_BOT_ID ? { "x-dashboard-bot-id": env.DASHBOARD_BOT_ID } : {})
       },
+      httpAgent: new http.Agent({ keepAlive: true, maxSockets: 100 }),
+      httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 100 }),
       timeout: 8000
     });
 
@@ -2180,9 +2192,29 @@ export class ApiClient {
     return data;
   }
 
+  async getAutoActivityClockPanelState(guildId: string) {
+    const { data } = await this.http.get<AutoActivityClockPanelState>(`/auto-activity-clock/bot/${guildId}/panel`);
+    return data;
+  }
+
   async getAutoActivityClockSettings(guildId: string) {
     const { data } = await this.http.get<{ settings: AutoActivityClockSettings }>(`/auto-activity-clock/bot/${guildId}/config`);
     return data.settings;
+  }
+
+  async getAutoActivityClockRuntime(guildId: string) {
+    const { data } = await this.http.get<AutoActivityClockRuntime>(`/auto-activity-clock/bot/${guildId}/runtime`);
+    return data;
+  }
+
+  async saveAutoActivityClockSettings(guildId: string, input: Partial<AutoActivityClockSettings>, actorId?: string | null) {
+    const { data } = await this.http.patch<{ settings: AutoActivityClockSettings }>(`/auto-activity-clock/bot/${guildId}/config`, input, { headers: actorId ? { "x-actor-id": actorId } : undefined });
+    return data.settings;
+  }
+
+  async saveAutoActivityClockCity(guildId: string, input: { aliases?: string[]; cityId?: string | null; enabled?: boolean; name: string }, actorId?: string | null) {
+    const { data } = await this.http.post<{ city: AutoActivityClockCity }>(`/auto-activity-clock/bot/${guildId}/cities`, input, { headers: actorId ? { "x-actor-id": actorId } : undefined });
+    return data.city;
   }
 
   async matchAutoActivityClockCity(guildId: string, activityName: string) {
@@ -2190,12 +2222,12 @@ export class ApiClient {
     return data.city;
   }
 
-  async openAutoActivityClockSession(guildId: string, payload: { cityId: string; cityName: string; statusDiscord: string; userId: string; username: string }) {
+  async openAutoActivityClockSession(guildId: string, payload: { cityId?: string | null; cityName?: string | null; createdBy?: string | null; origin?: "automatic" | "manual"; statusDiscord?: string | null; userId: string; username: string }) {
     const { data } = await this.http.post<{ session: AutoActivityClockSession }>(`/auto-activity-clock/bot/${guildId}/open`, payload);
     return data.session;
   }
 
-  async closeAutoActivityClockSession(guildId: string, payload: { statusDiscord?: string | null; userId: string }) {
+  async closeAutoActivityClockSession(guildId: string, payload: { closedBy?: string | null; forced?: boolean; reason?: string | null; statusDiscord?: string | null; userId: string }) {
     const { data } = await this.http.post<{ session: AutoActivityClockSession }>(`/auto-activity-clock/bot/${guildId}/close`, payload);
     return data.session;
   }
@@ -3579,6 +3611,14 @@ export class ApiClient {
   async addVisibleMessageUser(guildId: string, input: { avatarUrl?: string | null; userId: string; username?: string | null }, actorId?: string | null) { const { data } = await this.http.post<{ user: VisibleMessageUser }>(`/visible-message/bot/${guildId}/users`, input, { headers: actorId ? { "x-actor-id": actorId } : undefined }); return data.user; }
   async removeVisibleMessageUser(guildId: string, userId: string, actorId?: string | null) { const { data } = await this.http.delete<{ user: VisibleMessageUser | null }>(`/visible-message/bot/${guildId}/users/${userId}`, { headers: actorId ? { "x-actor-id": actorId } : undefined }); return data.user; }
   async clearVisibleMessageUsers(guildId: string, actorId?: string | null) { const { data } = await this.http.delete<{ users: VisibleMessageUser[] }>(`/visible-message/bot/${guildId}/users`, { headers: actorId ? { "x-actor-id": actorId } : undefined }); return data.users; }
+  async listMessageControlUsers(guildId: string) { const { data } = await this.http.get<{ users: MessageControlUser[] }>(`/message-control/bot/${guildId}/users`); return data.users; }
+  async getMessageControlSettings(guildId: string) { const { data } = await this.http.get<{ settings: MessageControlSettings }>(`/message-control/bot/${guildId}/settings`); return data.settings; }
+  async saveMessageControlSettings(guildId: string, input: Partial<Pick<MessageControlSettings, "managerRoleIds" | "managerUserIds">>, actorId?: string | null) { const { data } = await this.http.patch<{ settings: MessageControlSettings }>(`/message-control/bot/${guildId}/settings`, input, { headers: actorId ? { "x-actor-id": actorId } : undefined }); return data.settings; }
+  async getMessageControlUser(guildId: string, discordId: string) { const { data } = await this.http.get<{ user: MessageControlUser | null }>(`/message-control/bot/${guildId}/users/${discordId}`); return data.user; }
+  async setMessageControlUserStatus(guildId: string, discordId: string, status: MessageControlStatus, actorId?: string | null) { const { data } = await this.http.patch<{ user: MessageControlUser }>(`/message-control/bot/${guildId}/users/${discordId}/status`, { status }, { headers: actorId ? { "x-actor-id": actorId } : undefined }); return data.user; }
+  async addMessageControlUser(guildId: string, input: { avatarUrl?: string | null; discordId: string; username?: string | null }, actorId?: string | null) { const { data } = await this.http.post<{ user: MessageControlUser }>(`/message-control/bot/${guildId}/users`, input, { headers: actorId ? { "x-actor-id": actorId } : undefined }); return data.user; }
+  async removeMessageControlUser(guildId: string, discordId: string, actorId?: string | null) { const { data } = await this.http.delete<{ user: MessageControlUser | null }>(`/message-control/bot/${guildId}/users/${discordId}`, { headers: actorId ? { "x-actor-id": actorId } : undefined }); return data.user; }
+  async clearMessageControlUsers(guildId: string, actorId?: string | null) { const { data } = await this.http.delete<{ users: MessageControlUser[] }>(`/message-control/bot/${guildId}/users`, { headers: actorId ? { "x-actor-id": actorId } : undefined }); return data.users; }
   async getDmBarConfig(guildId: string) { const { data } = await this.http.get<{ config: DmBarConfig }>(`/dm-bar/bot/${guildId}/config`); return data.config; }
   async createDmBarLog(guildId: string, input: { errorReason?: string | null; message: string; senderId: string; status: "sent" | "failed" | "denied" | "cancelled" | "test"; targetId?: string | null; title: string }) { await this.http.post(`/dm-bar/bot/${guildId}/logs`, input); }
 

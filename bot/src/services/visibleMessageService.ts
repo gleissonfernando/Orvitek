@@ -15,6 +15,7 @@ import {
 } from "discord.js";
 import { isBotModuleEnabled } from "../config/env";
 import type { BotCommand, BotContext } from "../types";
+import { releaseDeletionLogReservation, reserveDeletedMessageLog } from "./deletedMessageLogService";
 import type { VisibleMessageUser } from "./apiClient";
 
 const MODULE_ID = "visible-message";
@@ -135,7 +136,16 @@ export async function handleVisibleMessageMessage(message: Message, context: Bot
 
   try {
     const webhook = await getOrCreateVisibleWebhook(channel);
-    await message.delete();
+    const reservation = await reserveDeletedMessageLog(message).catch((error) => {
+      console.warn("[visible-message] falha ao reservar log de exclusão:", error instanceof Error ? error.message : error);
+      return null;
+    });
+    try {
+      await message.delete();
+    } catch (error) {
+      releaseDeletionLogReservation(reservation);
+      throw error;
+    }
     await webhook.send({
       allowedMentions: { parse: [] },
       avatarURL: identity.avatarURL,
@@ -206,9 +216,7 @@ function panelPayload(users: VisibleMessageUser[], mode?: "add" | "remove") {
     );
   }
 
-  if (mode === "remove") {
-    components[0].components.push(removeSelect(users));
-  }
+  if (mode === "remove") components[0].components.push(removeSelect(users));
 
   return {
     components,

@@ -18,6 +18,7 @@ import { startFivemActionService } from "../services/fivemActionService";
 import { startFivemPd7Service } from "../services/fivemPd7Service";
 import { startPolicePatrolReportService } from "../services/policePatrolReportService";
 import { clearPoliceHiddenChannelSettingsCache } from "../services/policeHiddenChannelService";
+import { clearMessageControlCache } from "../services/messageControlService";
 import { clearVisibleMessageCache } from "../services/visibleMessageService";
 import { clearDmBarConfigCache } from "../services/dmBarService";
 import { startGiveawayService } from "../services/giveawayService";
@@ -50,6 +51,7 @@ import { startSocialNotificationMonitor } from "../services/socialNotificationMo
 import { validateSystemEmojisOnStartup } from "../services/systemEmojiService";
 import { startTemporaryVoiceService } from "../services/temporaryVoiceService";
 import { startAutomatedLogService } from "../services/automatedLogService";
+import { startAutoActivityClockService } from "../services/autoActivityClockBotService";
 import { startTagVerificationService, stopTagVerificationService } from "../services/tagVerificationService";
 import { startXMonitor } from "../services/xMonitor";
 import type { BotCommand, BotContext } from "../types";
@@ -87,6 +89,7 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     const wasFivemHierarchyEnabled = isBotModuleEnabled("fivem-hierarchy");
     const wasTagVerificationEnabled = isBotModuleEnabled("tag-verification");
     const wasLiveEnabled = isBotModuleEnabled("live");
+    const wasAutoActivityClockEnabled = isBotModuleEnabled("auto-activity-clock");
     setRuntimeEnabledModules(payload.enabledModules);
     lastRuntimeModuleSignature = runtimeModuleSignature(true, runtimeBotId, payload.enabledModules);
     clearRuntimeModuleAuthorization();
@@ -118,6 +121,7 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     if (!wasTagVerificationEnabled && isBotModuleEnabled("tag-verification")) void startTagVerificationService(client, context);
     if (wasTagVerificationEnabled && !isBotModuleEnabled("tag-verification")) stopTagVerificationService();
     if (!wasLiveEnabled && isBotModuleEnabled("live")) startLiveDetectionService(client, context);
+    if (!wasAutoActivityClockEnabled && isBotModuleEnabled("auto-activity-clock")) startAutoActivityClockService(client, context);
   });
   context.socket.onSelfBotEnsureSetup(async (payload, acknowledge) => {
     if (payload.botId && runtimeBotId && payload.botId !== runtimeBotId) {
@@ -162,6 +166,11 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   context.socket.onVisibleMessageUsersUpdated((payload) => {
     if (!runtimeBotId || !payload.botId || payload.botId === runtimeBotId) {
       clearVisibleMessageCache(payload.guildId);
+    }
+  });
+  context.socket.onMessageControlUsersUpdated((payload) => {
+    if (!runtimeBotId || !payload.botId || payload.botId === runtimeBotId) {
+      clearMessageControlCache(payload.guildId);
     }
   });
   context.socket.onDmBarSettingsUpdated((payload) => {
@@ -235,6 +244,9 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   if (isBotModuleEnabled("voice-recorder")) {
     const { startVoiceRecorderService } = await import("../services/voiceRecorderService.js");
     await startVoiceRecorderService(context);
+  }
+  if (isBotModuleEnabled("auto-activity-clock")) {
+    startAutoActivityClockService(client, context);
   }
   if (isBotModuleEnabled("temporary-voice")) {
     startTemporaryVoiceService(client, context);

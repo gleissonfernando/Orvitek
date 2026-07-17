@@ -1,5 +1,6 @@
 type QueuedTask = {
   name: string;
+  priority: boolean;
   run: () => Promise<unknown>;
 };
 
@@ -17,7 +18,36 @@ export class BoundedTaskQueue {
   ) {}
 
   enqueue(name: string, run: () => Promise<unknown>, priority = false) {
-    if (!this.accepting || this.pending.length >= this.maxPending) {
+    if (!this.accepting) {
+      return false;
+    }
+
+    if (this.pending.length >= this.maxPending) {
+      if (priority) {
+        const dropIndex = this.findDropCandidateIndex();
+        if (dropIndex >= 0) {
+          this.pending.splice(dropIndex, 1);
+        } else {
+          return false;
+        }
+      } else {
+        if (Date.now() - this.lastOverloadLogAt > 10_000) {
+          this.lastOverloadLogAt = Date.now();
+          console.error(JSON.stringify({
+            active: this.active,
+            at: new Date().toISOString(),
+            level: "critical",
+            maxPending: this.maxPending,
+            module: "gateway-events",
+            pending: this.pending.length,
+            type: "queue_overload"
+          }));
+        }
+        return false;
+      }
+    }
+
+    if (this.pending.length >= this.maxPending) {
       if (Date.now() - this.lastOverloadLogAt > 10_000) {
         this.lastOverloadLogAt = Date.now();
         console.error(JSON.stringify({
@@ -33,8 +63,8 @@ export class BoundedTaskQueue {
       return false;
     }
 
-    if (priority) this.pending.unshift({ name, run });
-    else this.pending.push({ name, run });
+    if (priority) this.pending.unshift({ name, priority, run });
+    else this.pending.push({ name, priority, run });
     this.drain();
     return true;
   }
@@ -69,5 +99,12 @@ export class BoundedTaskQueue {
           }
         });
     }
+  }
+
+  private findDropCandidateIndex() {
+    for (let index = this.pending.length - 1; index >= 0; index -= 1) {
+      if (!this.pending[index]?.priority) return index;
+    }
+    return -1;
   }
 }

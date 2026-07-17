@@ -28,9 +28,9 @@ import { policeSubpoenaCommand } from "../services/policeSubpoenaService";
 import { courseCommand, cursosHistoricoCommand, instrutoresCommand, publicarCursoCommand, removerCursoHistoricoCommand } from "../services/courseSystemService";
 import { rhAdminCommand } from "../services/rhAdminService";
 import { removerCommand } from "./remover";
-import { visibleMessageActivateCommand, visibleMessageDeactivateCommand } from "../services/visibleMessageService";
+import { messageControlActivateAliasCommand, messageControlCommand, messageControlDeactivateAliasCommand } from "../services/messageControlService";
 import { livesCommand } from "../services/liveService";
-import { pontosAutomaticosCommand } from "../services/autoActivityClockBotService";
+import { consultaPontosCommand, fecharPontoCommand, pontosAutomaticosCommand, pontosCommand } from "../services/autoActivityClockBotService";
 import { barraCommand, relogioDePontoCommand } from "../services/policeTimeClockBotService";
 import type { BotCommand } from "../types";
 
@@ -70,8 +70,9 @@ export function createCommandCollection() {
     publicarCursoCommand,
     rhAdminCommand,
     removerCommand,
-    visibleMessageActivateCommand,
-    visibleMessageDeactivateCommand,
+    messageControlCommand,
+    messageControlActivateAliasCommand,
+    messageControlDeactivateAliasCommand,
     livesCommand,
     sistemaCommand,
     iabCommand,
@@ -79,6 +80,9 @@ export function createCommandCollection() {
     serverGeneratorCommand,
     barraCommand,
     relogioDePontoCommand,
+    pontosCommand,
+    fecharPontoCommand,
+    consultaPontosCommand,
     pontosAutomaticosCommand
   ].forEach((command) => {
     if (commands.has(command.data.name)) {

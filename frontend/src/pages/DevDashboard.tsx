@@ -1534,6 +1534,7 @@ function fiveMModuleIcon(moduleId: string): LucideIcon {
     "police-patrol-reports": ShieldCheck,
     "police-hidden-channel": EyeOff,
     "visible-message": MessageCircle,
+    "message-control": MessageCircle,
     "police-dm": Bell,
     "rh-admin": ShieldCheck,
     "police-subpoenas": ScrollText,
