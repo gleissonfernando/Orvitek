@@ -186,7 +186,6 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "police-open-duty", label: "Polícia - Notificar / Ponto Aberto" },
   { id: "police-time-clock", label: "Polícia - Relógio de Ponto" },
   { id: "auto-activity-clock", label: "FAÇA - Ponto Automático" },
-  { id: "fivem-fac", label: "FiveM - FAC Ausência" },
   { id: "avisos", label: "Mensagens e Personalização" }
 ];
 
@@ -510,7 +509,7 @@ const botMenuItems: BotMenuItem[] = [
         label: "Facções",
         description: "Facções e ausências",
         icon: Users,
-        moduleIds: ["fivem-factions", "fivem-absences", "fivem-fac"]
+        moduleIds: ["fivem-factions", "fivem-absences"]
       },
       {
         id: "fivem-ammo",
