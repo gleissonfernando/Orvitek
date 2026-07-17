@@ -159,6 +159,8 @@ async function reconcileCachedPresences(client: Client<true>, context: BotContex
     for (const presence of guild.presences.cache.values()) {
       await handleAutoActivityPresenceUpdate(context, null, presence);
     }
+
+    await updateConfiguredPanel(guild, context, { force: true });
   }
 }
 
@@ -566,9 +568,10 @@ async function showLegacyReport(interaction: ChatInputCommandInteraction, contex
   });
 }
 
-async function updateConfiguredPanel(guild: Guild, context: BotContext) {
+async function updateConfiguredPanel(guild: Guild, context: BotContext, options: { force?: boolean } = {}) {
   const dashboard = await getPanelState(guild.id, context, true).catch(() => null);
-  if (!dashboard?.settings.panelChannelId || !dashboard.settings.panelMessageId || !dashboard.settings.autoUpdatePanel) return;
+  if (!dashboard?.settings.panelChannelId || !dashboard.settings.panelMessageId) return;
+  if (!options.force && !dashboard.settings.autoUpdatePanel) return;
   const channel = guild.channels.cache.get(dashboard.settings.panelChannelId) ?? await guild.channels.fetch(dashboard.settings.panelChannelId).catch(() => null);
   if (!channel?.isTextBased() || channel.isDMBased()) return;
   const message = await channel.messages.fetch(dashboard.settings.panelMessageId).catch(() => null);
