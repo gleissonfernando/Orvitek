@@ -5116,8 +5116,8 @@ function AutoActivityClockPanel({ botId, canManage, guild }: { botId?: string | 
           </div>
           <div className="grid gap-4 lg:grid-cols-3">
             <label className="grid gap-2 text-xs font-medium text-zinc-400">
-              Confirmação automática (minutos)
-              <input className="h-10 rounded-md border border-zinc-800 bg-black px-3 text-sm text-white" disabled={disabled} min={0} onBlur={(event) => void patch({ confirmMinutes: Math.max(0, Number(event.target.value) || 0) })} type="number" defaultValue={dashboard.settings.confirmMinutes} />
+              Confirmação de saída (10 a 20 segundos)
+              <input className="h-10 rounded-md border border-zinc-800 bg-black px-3 text-sm text-white" disabled={disabled} max={20} min={10} onBlur={(event) => void patch({ confirmMinutes: Math.max(10, Math.min(20, Number(event.target.value) || 15)) })} type="number" defaultValue={Math.max(10, Math.min(20, dashboard.settings.confirmMinutes || 15))} />
             </label>
             <label className="grid gap-2 text-xs font-medium text-zinc-400">
               Meta semanal (minutos)

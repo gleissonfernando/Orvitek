@@ -34,14 +34,37 @@ const DASHBOARD_CACHE_TTL_MS = 2_000;
 const PANEL_IMAGES_CACHE_TTL_MS = 60_000;
 const PANEL_UPDATE_DEBOUNCE_MS = 1_500;
 const PRESENCE_RECONCILE_INTERVAL_MS = 60_000;
+const DEFAULT_EXIT_CONFIRMATION_SECONDS = 15;
+const MIN_EXIT_CONFIRMATION_SECONDS = 10;
+const MAX_EXIT_CONFIRMATION_SECONDS = 20;
+const PRESENCE_TEXT_LIMIT = 200;
+const ACTIVITY_TEXT_FIELDS_LIMIT = 80;
+const FIVEM_MARKERS = ["fivem", "five m", "citizenfx", "citizen fx", "cfx re", "cfx", "fxserver"];
 const activeCache = new Map<string, string>();
 const pendingDetections = new Map<string, { activityName: string; cityId: string; cityName: string; expiresAt: number; timer: NodeJS.Timeout }>();
+const pendingClosures = new Map<string, { expiresAt: number; reason: string; statusDiscord: string | null; timer: NodeJS.Timeout }>();
 const runtimeCache = new Map<string, { expiresAt: number; promise?: Promise<AutoActivityClockRuntime>; value?: AutoActivityClockRuntime }>();
 const dashboardCache = new Map<string, { expiresAt: number; promise?: Promise<AutoActivityClockDashboard>; value?: AutoActivityClockDashboard }>();
 const panelStateCache = new Map<string, { expiresAt: number; promise?: Promise<AutoActivityClockPanelState>; value?: AutoActivityClockPanelState }>();
 const panelImagesCache = new Map<string, { expiresAt: number; urls: string[] }>();
 const panelUpdateTimers = new Map<string, NodeJS.Timeout>();
 let presenceReconcileStarted = false;
+
+type ActivityCityMatch = {
+  city: AutoActivityClockCity;
+  keyword: string;
+};
+
+type ActivityAnalysis = {
+  activityIndex: number;
+  activityName: string;
+  cityMatch: ActivityCityMatch | null;
+  isFiveM: boolean;
+  rawText: string;
+  normalizedText: string;
+  startedAtMs: number | null;
+  textFields: string[];
+};
 
 export const pontosCommand: BotCommand = {
   data: new SlashCommandBuilder()
@@ -156,42 +179,36 @@ export async function handleAutoActivityPresenceUpdate(context: BotContext, oldP
   if (!guild) return;
   const userId = newPresence.userId;
   const key = `${guild.id}:${userId}`;
-  const activity = bestActivity(newPresence);
-  const activityName = activity?.name ?? null;
-
-  if (!activityName) {
-    clearPending(key);
-    if (activeCache.has(key)) {
-      activeCache.delete(key);
-      await context.api.closeAutoActivityClockSession(guild.id, { reason: "Saiu da cidade detectada.", statusDiscord: null, userId }).catch(() => undefined);
-      invalidateDashboardCache(guild.id);
-      scheduleConfiguredPanelUpdate(guild, context);
-    }
-    return;
-  }
 
   const runtime = await getRuntime(guild.id, context).catch(() => null);
   if (!runtime?.settings.enabled) {
     clearPending(key);
+    clearPendingClosure(key);
     return;
   }
 
-  const city = matchRuntimeCity(runtime, activityName);
+  const detection = detectFiveMCityActivity(newPresence, runtime);
 
-  if (!city) {
+  if (!detection?.cityMatch) {
     clearPending(key);
     if (activeCache.has(key)) {
-      activeCache.delete(key);
-      await context.api.closeAutoActivityClockSession(guild.id, { reason: "Saiu da cidade detectada.", statusDiscord: activityName, userId }).catch(() => undefined);
-      scheduleConfiguredPanelUpdate(guild, context);
+      scheduleAutomaticClose(guild, context, newPresence, runtime, "FiveM/cidade configurada não detectada após atualização da presença.");
     }
     return;
   }
 
-  if (activeCache.get(key) === city.id || pendingDetections.get(key)?.cityId === city.id) return;
+  clearPendingClosure(key);
+  const city = detection.cityMatch.city;
+  const activityName = presenceStatusText(detection);
 
-  const confirmMs = Math.max(0, runtime.settings.confirmMinutes ?? 3) * 60_000;
-  const activityElapsedMs = activity?.startedAtMs ? Math.max(0, Date.now() - activity.startedAtMs) : 0;
+  if (activeCache.get(key) === city.id) {
+    clearPending(key);
+    return;
+  }
+  if (pendingDetections.get(key)?.cityId === city.id) return;
+
+  const confirmMs = 0;
+  const activityElapsedMs = detection.startedAtMs ? Math.max(0, Date.now() - detection.startedAtMs) : 0;
   const delayMs = Math.max(0, confirmMs - activityElapsedMs);
   clearPending(key);
 
@@ -209,20 +226,53 @@ export async function handleAutoActivityPresenceUpdate(context: BotContext, oldP
       username: member?.displayName ?? newPresence.user?.tag ?? userId
     }).then(async () => {
       activeCache.set(key, city.id);
-      await sendLog(guild, context, `Entrada automática\nUsuário: <@${userId}>\nCidade: **${city.name}**`);
+      await sendLog(guild, context, `Entrada automática\nUsuário: <@${userId}>\nCidade: **${city.name}**\nAtividade analisada: **${detection.activityName || "Rich Presence"}**\nCampos analisados: **${detection.textFields.length}**\nPalavra detectada: **${detection.cityMatch?.keyword ?? city.name}**`);
       invalidateDashboardCache(guild.id);
       scheduleConfiguredPanelUpdate(guild, context);
     }).catch(() => undefined);
   };
 
-  if (delayMs === 0) {
-    await open();
-    return;
-  }
-
   const timer = setTimeout(open, delayMs);
   timer.unref();
   pendingDetections.set(key, { activityName, cityId: city.id, cityName: city.name, expiresAt: Date.now() + delayMs, timer });
+
+  if (delayMs === 0) {
+    clearTimeout(timer);
+    await open();
+  }
+}
+
+function scheduleAutomaticClose(guild: Guild, context: BotContext, presence: Presence, runtime: AutoActivityClockRuntime, reason: string) {
+  const userId = presence.userId;
+  const key = `${guild.id}:${userId}`;
+  if (pendingClosures.has(key)) return;
+
+  const statusDiscord = summarizePresence(presence);
+  const confirmationMs = exitConfirmationMs(runtime);
+  const timer = setTimeout(async () => {
+    pendingClosures.delete(key);
+
+    if (!activeCache.has(key)) {
+      return;
+    }
+
+    const latestRuntime = await getRuntime(guild.id, context).catch(() => runtime);
+    const latestPresence = guild.presences.cache.get(userId);
+
+    if (latestPresence && detectFiveMCityActivity(latestPresence, latestRuntime)) {
+      return;
+    }
+
+    activeCache.delete(key);
+    await context.api.closeAutoActivityClockSession(guild.id, { reason, statusDiscord, userId }).then(async () => {
+      await sendLog(guild, context, `Saída automática\nUsuário: <@${userId}>\nMotivo: ${reason}\nConfirmação: ${Math.round(confirmationMs / 1000)}s sem FiveM/cidade configurada`);
+      invalidateDashboardCache(guild.id);
+      scheduleConfiguredPanelUpdate(guild, context);
+    }).catch(() => undefined);
+  }, confirmationMs);
+
+  timer.unref();
+  pendingClosures.set(key, { expiresAt: Date.now() + confirmationMs, reason, statusDiscord, timer });
 }
 
 export async function handleAutoActivityClockInteraction(interaction: Interaction, context: BotContext) {
@@ -694,11 +744,6 @@ async function getPanelState(guildId: string, context: BotContext, fresh = false
   return promise;
 }
 
-function matchRuntimeCity(runtime: AutoActivityClockRuntime, activityName: string): AutoActivityClockCity | null {
-  const source = normalize(activityName);
-  return runtime.cities.find((city) => [city.name, ...city.aliases].some((item) => source.includes(normalize(item)))) ?? null;
-}
-
 function scheduleConfiguredPanelUpdate(guild: Guild, context: BotContext) {
   const current = panelUpdateTimers.get(guild.id);
   if (current) clearTimeout(current);
@@ -786,24 +831,121 @@ function canReadReports(member: GuildMember, settings: AutoActivityClockSettings
   return member.permissions.has(PermissionFlagsBits.Administrator) || hasAny(member, [...settings.adminRoleIds, ...settings.historyRoleIds, ...settings.exportRoleIds, ...settings.viewRoleIds]);
 }
 function hasAny(member: GuildMember, roleIds: string[]) { return roleIds.some((id) => member.roles.cache.has(id)); }
-function bestActivity(presence: Presence) {
-  const candidates = presence.activities
-    .flatMap((activity) => [activity.name, activity.state, activity.details])
-    .map((value) => value?.trim())
-    .filter((value): value is string => Boolean(value));
+function detectFiveMCityActivity(presence: Presence, runtime: AutoActivityClockRuntime) {
+  const analyses = presence.activities.map((activity, index): ActivityAnalysis => {
+    const textFields = collectPresenceActivityText(activity);
+    const rawText = textFields.join(" ");
+    const normalizedText = normalize(rawText);
+    const cityMatch = matchRuntimeCityFromText(runtime, normalizedText);
+    const analysis: ActivityAnalysis = {
+      activityIndex: index,
+      activityName: String(activity.name ?? "").trim(),
+      cityMatch,
+      isFiveM: false,
+      rawText,
+      normalizedText,
+      startedAtMs: activityStartedAtMs(activity),
+      textFields
+    };
+    analysis.isFiveM = isFiveMActivity(activity, analysis);
+    return analysis;
+  });
 
-  if (!candidates.length) {
-    return null;
+  return analyses.find((analysis) => analysis.isFiveM && analysis.cityMatch) ?? null;
+}
+
+function collectPresenceActivityText(activity: Presence["activities"][number]) {
+  const activityLike = activity as unknown as Record<string, unknown>;
+  const fields: string[] = [];
+
+  collectActivityText([
+    activity.name,
+    activity.state,
+    activity.details,
+    activity.url,
+    activity.applicationId,
+    activity.timestamps,
+    activity.assets,
+    activity.buttons,
+    activity.emoji,
+    activityLike.application,
+    activityLike.applicationName,
+    activityLike.metadata,
+    activityLike.party,
+    activityLike.secrets,
+    activityLike.syncId
+  ], fields, new WeakSet<object>());
+  collectActivityText(activity, fields, new WeakSet<object>());
+
+  return uniqueText(fields).slice(0, ACTIVITY_TEXT_FIELDS_LIMIT);
+}
+
+function collectActivityText(value: unknown, output: string[], seen: WeakSet<object>, depth = 0) {
+  if (output.length >= ACTIVITY_TEXT_FIELDS_LIMIT || value === null || value === undefined || depth > 5) return;
+
+  if (typeof value === "string" || typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") {
+    const text = String(value).trim();
+    if (text) output.push(text);
+    return;
   }
 
-  const startedAtValues = presence.activities
-    .map(activityStartedAtMs)
-    .filter((value): value is number => value !== null);
+  if (value instanceof Date) {
+    output.push(value.toISOString());
+    return;
+  }
 
-  return {
-    name: [...new Set(candidates)].join(" "),
-    startedAtMs: startedAtValues.length ? Math.min(...startedAtValues) : null
-  };
+  if (typeof value !== "object") return;
+  if (seen.has(value)) return;
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    for (const item of value) collectActivityText(item, output, seen, depth + 1);
+    return;
+  }
+
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    if (key === "client" || key === "guild" || key === "user") continue;
+    collectActivityText(item, output, seen, depth + 1);
+  }
+}
+
+function matchRuntimeCityFromText(runtime: AutoActivityClockRuntime, normalizedText: string): ActivityCityMatch | null {
+  const compactText = compact(normalizedText);
+
+  for (const city of runtime.cities) {
+    for (const keyword of [city.name, ...city.aliases]) {
+      const normalizedKeyword = normalize(keyword);
+      if (!normalizedKeyword) continue;
+      if (normalizedText.includes(normalizedKeyword) || compactText.includes(compact(normalizedKeyword))) {
+        return { city, keyword };
+      }
+    }
+  }
+
+  return null;
+}
+
+function isFiveMActivity(activity: Presence["activities"][number], analysis: ActivityAnalysis) {
+  const compactText = compact(analysis.normalizedText);
+  const hasFiveMMarker = FIVEM_MARKERS.some((marker) => {
+    const normalizedMarker = normalize(marker);
+    return analysis.normalizedText.includes(normalizedMarker) || compactText.includes(compact(normalizedMarker));
+  });
+
+  if (hasFiveMMarker) return true;
+
+  const activityLike = activity as unknown as Record<string, unknown>;
+  const hasRichPresenceSignals = Boolean(
+    activity.applicationId ||
+    activity.assets ||
+    activity.buttons?.length ||
+    activityLike.application ||
+    activityLike.metadata ||
+    activityLike.party ||
+    activityLike.secrets
+  );
+
+  return Boolean(analysis.cityMatch && hasRichPresenceSignals);
 }
 function activityStartedAtMs(activity: Presence["activities"][number]) {
   const start = activity.timestamps?.start;
@@ -815,13 +957,47 @@ function activityStartedAtMs(activity: Presence["activities"][number]) {
   const value = start instanceof Date ? start.getTime() : Number(start);
   return Number.isFinite(value) ? value : null;
 }
+function presenceStatusText(analysis: ActivityAnalysis) {
+  return trimPresenceText(analysis.rawText || analysis.activityName || "FiveM");
+}
+function summarizePresence(presence: Presence) {
+  const text = presence.activities.map((activity) => collectPresenceActivityText(activity).join(" ")).filter(Boolean).join(" | ");
+  return text ? trimPresenceText(text) : null;
+}
+function exitConfirmationMs(runtime: AutoActivityClockRuntime) {
+  const seconds = Number.isFinite(runtime.settings.confirmMinutes)
+    ? runtime.settings.confirmMinutes
+    : DEFAULT_EXIT_CONFIRMATION_SECONDS;
+  return Math.max(MIN_EXIT_CONFIRMATION_SECONDS, Math.min(MAX_EXIT_CONFIRMATION_SECONDS, seconds)) * 1000;
+}
+function trimPresenceText(value: string) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized.length > PRESENCE_TEXT_LIMIT ? `${normalized.slice(0, PRESENCE_TEXT_LIMIT - 3)}...` : normalized;
+}
 function normalize(value: string) {
-  return value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function compact(value: string) {
+  return value.replace(/\s+/g, "");
+}
+function uniqueText(values: string[]) {
+  return [...new Set(values.map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean))];
 }
 function clearPending(key: string) {
   const pending = pendingDetections.get(key);
   if (pending) clearTimeout(pending.timer);
   pendingDetections.delete(key);
+}
+function clearPendingClosure(key: string) {
+  const pending = pendingClosures.get(key);
+  if (pending) clearTimeout(pending.timer);
+  pendingClosures.delete(key);
 }
 function unix(value: string) { return Math.floor(Date.parse(value) / 1000); }
 function formatDuration(ms: number) {
