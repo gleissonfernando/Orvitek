@@ -28,6 +28,7 @@ import type { DafScaleActionResult, DafScaleRole, DafScaleSettings, DafScaleStat
 import { systemComponentEmoji, systemEmojiText, systemStatusEmoji } from "./systemEmojiService";
 
 const PREFIX = "daf_scale";
+const MODULE_ID = "police-daf-roster";
 const COOLDOWN_MS = 3000;
 const cooldowns = new Map<string, number>();
 
@@ -82,6 +83,7 @@ function createDafCommand(name: "daf" | "escala-daf"): BotCommand {
       .setDescription("Sistema de Escala DAF.")
       .addSubcommand((subcommand) => subcommand.setName("config").setDescription("Configura a Escala DAF."))
       .addSubcommand((subcommand) => subcommand.setName("painel").setDescription("Publica ou atualiza o painel da Escala DAF.")),
+    moduleId: MODULE_ID,
     async execute(interaction, context) {
       await executeDafCommand(interaction, context);
     }

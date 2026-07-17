@@ -2253,12 +2253,10 @@ async function isRuntimeModuleEnabled(input: {
   moduleId: string;
   releaseModuleId: string;
 }) {
-  if (input.moduleConfig?.enabled === false) {
-    return false;
-  }
+  const requiresServerRelease = isServerReleaseRequiredModule(input.moduleId) || isServerReleaseRequiredModule(input.releaseModuleId);
 
-  if (isServerReleaseRequiredModule(input.moduleId) || isServerReleaseRequiredModule(input.releaseModuleId)) {
-    return true;
+  if (requiresServerRelease) {
+    return input.moduleConfig?.enabled !== false;
   }
 
   if (input.releaseModuleId === "safe-bot" || SELF_BOT_RUNTIME_MODULES.has(input.moduleId)) {

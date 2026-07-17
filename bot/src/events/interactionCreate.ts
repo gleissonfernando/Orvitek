@@ -36,6 +36,7 @@ import { handlePoliceTimeClockInteraction } from "../services/policeTimeClockBot
 import { handleMessageControlInteraction } from "../services/messageControlService";
 import { handleVisibleMessageInteraction } from "../services/visibleMessageService";
 import { handleAutoActivityClockInteraction } from "../services/autoActivityClockBotService";
+import { getRuntimeModuleAuthorization, runtimeModuleDenialMessage } from "../services/runtimeModuleGuard";
 
 export async function handleInteractionCreate(interaction: Interaction, context: BotContext) {
   try {
@@ -208,6 +209,18 @@ async function dispatchInteractionCreate(interaction: Interaction, context: BotC
     return;
   }
 
+  if (command.moduleId && interaction.guildId) {
+    const authorization = await getRuntimeModuleAuthorization(context, interaction.guildId, command.moduleId);
+
+    if (!authorization.allowed) {
+      await interaction.reply({
+        content: runtimeModuleDenialMessage(authorization, commandLabel(command.moduleId)),
+        ephemeral: true
+      });
+      return;
+    }
+  }
+
   try {
     await command.execute(interaction, context);
   } catch (error) {
@@ -225,4 +238,10 @@ async function dispatchInteractionCreate(interaction: Interaction, context: BotC
 
     await interaction.reply(payload);
   }
+}
+
+function commandLabel(moduleId: string) {
+  if (moduleId === "courses") return "Sistema de cursos";
+  if (moduleId === "police-daf-roster") return "Escala DAF";
+  return "Este sistema";
 }
