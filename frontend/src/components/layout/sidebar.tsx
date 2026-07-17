@@ -95,6 +95,7 @@ export type ViewId =
   | "police-dm"
   | "police-open-duty"
   | "police-time-clock"
+  | "police-daf-roster"
   | "auto-activity-clock"
   | "fivem-orders"
   | "fivem-families"
@@ -182,6 +183,7 @@ const navItems: NavItem[] = [
   { id: "police-dm", label: "Barra DM", icon: UserPlus, moduleId: "police-dm" },
   { id: "police-open-duty", label: "Notificar / Ponto", icon: Bell, moduleId: "police-open-duty" },
   { id: "police-time-clock", label: "Relógio de Ponto", icon: CalendarClock, moduleId: "police-time-clock" },
+  { id: "police-daf-roster", label: "Escala DAF", icon: CalendarClock, moduleId: "police-daf-roster" },
   { id: "auto-activity-clock", label: "Ponto Automático", icon: Activity, moduleId: "auto-activity-clock" },
   { id: "fivem-orders", label: "Encomendas RP", icon: Archive, moduleId: "fivem-orders" },
   { id: "fivem-families", label: "Famílias", icon: Users, moduleIds: ["fivem-orders", "fivem-drugs", "fivem-washing"] },
@@ -214,6 +216,7 @@ function navSectionForItem(item: NavItem): NavSectionId {
     || item.id === "police-dm"
     || item.id === "police-open-duty"
     || item.id === "police-time-clock"
+    || item.id === "police-daf-roster"
     || item.id === "auto-activity-clock"
     || item.id === "courses"
     || item.id === "rh-admin"
@@ -228,6 +231,7 @@ function navSectionForItem(item: NavItem): NavSectionId {
     || item.moduleId === "police-dm"
     || item.moduleId === "police-open-duty"
     || item.moduleId === "police-time-clock"
+    || item.moduleId === "police-daf-roster"
     || item.moduleId === "auto-activity-clock"
     || item.moduleId === "rh-admin"
   ) {

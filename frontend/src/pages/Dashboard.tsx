@@ -597,6 +597,13 @@ const moduleCatalog: ModuleDefinition[] = [
     view: "police-time-clock"
   },
   {
+    id: "police-daf-roster",
+    title: "Escala DAF",
+    description: "Sistema de escala DAF por bot, com painel e cargos operados no Discord.",
+    icon: CalendarClock,
+    view: "police-daf-roster"
+  },
+  {
     id: "auto-activity-clock",
     title: "Ponto Automático",
     description: "Abre e fecha ponto automaticamente por atividade do Discord em cidades RP.",
@@ -737,6 +744,7 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   "police-dm": "police-dm",
   "police-open-duty": "police-open-duty",
   "police-time-clock": "police-time-clock",
+  "police-daf-roster": "police-daf-roster",
   "auto-activity-clock": "auto-activity-clock",
   "police-subpoenas": "police-subpoenas",
   "rh-admin": "rh-admin",
@@ -1333,7 +1341,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
           />
         ) : null}
 
-        {activeView !== "overview" && activeView !== "plans" && activeView !== "delete-channels" && activeView !== "fivem-hierarchy" ? (
+        {activeView !== "overview" && activeView !== "plans" && activeView !== "delete-channels" && activeView !== "fivem-hierarchy" && activeView !== "police-daf-roster" ? (
           <PanelImageSettings
             botId={activeBotId}
             canManage={canManageDashboard}
@@ -1673,6 +1681,9 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             canManage={canManageModule(selectedBot, "police-time-clock", canManageDashboard)}
             guild={selectedGuild}
           />
+        ) : null}
+        {activeView === "police-daf-roster" ? (
+          <DafRosterPanel bot={selectedBot} guild={selectedGuild} />
         ) : null}
         {activeView === "auto-activity-clock" ? (
           <AutoActivityClockPanel
@@ -4520,6 +4531,59 @@ function UserDashboardHeader({
         </CardContent>
       </Card>
     </section>
+  );
+}
+
+function DafRosterPanel({ bot, guild }: { bot: DashboardBot | null; guild: DashboardGuild | null }) {
+  const commandItems = [
+    { command: "/daf config", description: "Configurar cargos, canal e permissões da escala." },
+    { command: "/daf painel", description: "Publicar ou atualizar o painel DAF no Discord." }
+  ];
+
+  return (
+    <Card className="border-[#FFD500]/25 bg-[#0b0b0b]">
+      <CardHeader>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-[#FFEA70]">
+              <CalendarClock className="h-5 w-5" />
+              <CardTitle>Escala DAF</CardTitle>
+            </div>
+            <CardDescription className="mt-2">
+              Sistema liberado para o bot selecionado. A configuração e publicação do painel continuam pelo Discord.
+            </CardDescription>
+          </div>
+          <Badge variant="success">Liberado</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-3">
+          {commandItems.map((item) => (
+            <div key={item.command} className="rounded-lg border border-zinc-800 bg-black/30 p-4">
+              <code className="rounded-md border border-[#FFD500]/25 bg-[#FFD500]/10 px-2 py-1 text-sm font-semibold text-[#FFEA70]">
+                {item.command}
+              </code>
+              <p className="mt-3 text-sm text-zinc-300">{item.description}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-3 rounded-lg border border-zinc-800 bg-black/25 p-4">
+          <div>
+            <p className="text-xs font-semibold uppercase text-zinc-500">Bot</p>
+            <p className="mt-1 truncate text-sm font-semibold text-zinc-100">{bot?.name ?? "Bot selecionado"}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase text-zinc-500">Servidor</p>
+            <p className="mt-1 truncate text-sm font-semibold text-zinc-100">{guild?.name ?? bot?.mainGuildName ?? "Servidor configurado"}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase text-zinc-500">Módulo</p>
+            <p className="mt-1 font-mono text-sm text-zinc-300">police-daf-roster</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
