@@ -530,17 +530,7 @@ async function panelPayload(guild: Guild, context: BotContext, dashboard: AutoAc
   const active = dashboard.active.find((item) => item.userId === context.client.user?.id);
   void active;
   const images = await loadPanelImages(guild.id, context);
-  const activeRows = dashboard.active.slice(0, 20).map((item) => `- <@${item.userId}> | ${item.cityName} | ${formatDuration(Date.now() - Date.parse(item.startedAt))}`);
-  const content = [
-    "# SISTEMA DE PONTO",
-    "",
-    `Status: **${dashboard.settings.enabled ? "Ativado" : "Desativado"}**`,
-    `Usuários em ponto: **${dashboard.active.length}**`,
-    `Cidades cadastradas: **${dashboard.cities.length}**`,
-    `Última sincronização: <t:${unix(dashboard.settings.updatedAt)}:R>`,
-    "",
-    activeRows.length ? activeRows.join("\n") : "Nenhum usuário em serviço."
-  ].join("\n");
+  const content = renderOperationalPanel(dashboard);
   const payload = {
     components: [{
       type: 17,
@@ -550,7 +540,7 @@ async function panelPayload(guild: Guild, context: BotContext, dashboard: AutoAc
         { type: 10, content },
         new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder().setCustomId(`${PREFIX}:enter`).setLabel("Entrar em Serviço").setEmoji("🟢").setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId(`${PREFIX}:exit`).setLabel("Sair de Serviço").setEmoji("🔴").setStyle(ButtonStyle.Danger),
+          new ButtonBuilder().setCustomId(`${PREFIX}:exit`).setLabel("Encerrar Serviço").setEmoji("🔴").setStyle(ButtonStyle.Danger),
           new ButtonBuilder().setCustomId(`${PREFIX}:mine`).setLabel("Consultar Pontos").setEmoji("📊").setStyle(ButtonStyle.Secondary),
           new ButtonBuilder().setCustomId(`${PREFIX}:refresh`).setLabel("Atualizar").setStyle(ButtonStyle.Primary)
         )
@@ -558,6 +548,49 @@ async function panelPayload(guild: Guild, context: BotContext, dashboard: AutoAc
     }]
   };
   return includeFlags ? { ...payload, flags: MessageFlags.IsComponentsV2 as const } : payload;
+}
+
+function renderOperationalPanel(dashboard: AutoActivityClockPanelState) {
+  const activeRows = dashboard.active.slice(0, 16).flatMap((item, index) => {
+    const startedAt = Date.parse(item.startedAt);
+    const elapsed = Number.isFinite(startedAt) ? Date.now() - startedAt : 0;
+    const rows = [
+      `👮 <@${item.userId}>`,
+      `🕒 Entrada: ${formatClockTime(item.startedAt)}`,
+      `⏱ Tempo em Serviço: ${formatDurationLong(elapsed)}`
+    ];
+
+    if (index < Math.min(dashboard.active.length, 16) - 1) {
+      rows.push("────────────────────────────────────");
+    }
+
+    return rows;
+  });
+  const overflow = dashboard.active.length > 16
+    ? [``, `+ ${dashboard.active.length - 16} policial(is) em serviço não exibidos nesta página.`]
+    : [];
+
+  return [
+    "```",
+    "╔════════════════════════════════════╗",
+    "        Sistema de ponto",
+    "   🚔 POLICIAIS EM SERVIÇO",
+    "   Central Operacional • Tempo Real",
+    "════════════════════════════════════",
+    "",
+    `🟢 Em Serviço Agora: ${dashboard.active.length} Policial(is)`,
+    "",
+    "════════════════════════════════════",
+    "```",
+    activeRows.length ? activeRows.join("\n") : "Nenhum policial em serviço no momento.",
+    ...overflow,
+    "```",
+    "════════════════════════════════════",
+    "🟢 Entrar em Serviço",
+    "🔴 Encerrar Serviço",
+    "╚════════════════════════════════════╝",
+    "```"
+  ].join("\n");
 }
 
 function configPayload(dashboard: AutoActivityClockDashboard) {
@@ -578,15 +611,13 @@ function configPayload(dashboard: AutoActivityClockDashboard) {
 }
 
 function autoPanelPayload(dashboard: AutoActivityClockDashboard, extra: string | null) {
-  const active = dashboard.active.slice(0, 20).map((item) => `- <@${item.userId}> - **${item.cityName}** - ${formatDuration(Date.now() - Date.parse(item.startedAt))}`);
-  const cities = dashboard.cities.filter((city) => city.enabled).slice(0, 12).map((city) => `- ${city.name}`);
   return {
     components: [{
       type: 17,
       accent_color: ACCENT,
       components: [{
         type: 10,
-        content: `## Sistema de Ponto Automático\nStatus: **${dashboard.settings.enabled ? "Ativo" : "Desativado"}**\nUsuários ativos: **${dashboard.active.length}**\nCidades cadastradas: **${dashboard.cities.length}**\nTempo médio: **${formatDuration(dashboard.summary.averageDurationMs)}**${extra ? `\n\n${extra}` : ""}\n\n### Ativos\n${active.length ? active.join("\n") : "Nenhum usuário ativo."}\n\n### Cidades\n${cities.length ? cities.join("\n") : "Nenhuma cidade cadastrada."}`
+        content: `${renderOperationalPanel(dashboard)}${extra ? `\n\n${extra}` : ""}`
       }]
     }]
   };
@@ -799,6 +830,25 @@ function formatDuration(ms: number) {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return hours ? `${hours}h ${rest}m` : `${rest}m`;
+}
+function formatDurationLong(ms: number) {
+  const minutes = Math.max(0, Math.floor(ms / 60000));
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return `${String(hours).padStart(2, "0")}h ${String(rest).padStart(2, "0")}min`;
+}
+function formatClockTime(value: string) {
+  const date = new Date(value);
+
+  if (!Number.isFinite(date.getTime())) {
+    return "--:--";
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo"
+  }).format(date);
 }
 function metaStatus(status: "above" | "below" | "met") {
   if (status === "above") return "Acima da meta";
