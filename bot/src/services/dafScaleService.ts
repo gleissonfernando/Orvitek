@@ -37,32 +37,39 @@ export const escalaDafCommand = createDafCommand("escala-daf");
 export async function handleDafScaleInteraction(interaction: Interaction, context: BotContext) {
   if (!("customId" in interaction) || !String(interaction.customId).startsWith(`${PREFIX}:`)) return false;
   if (!interaction.guild || !interaction.isRepliable()) return true;
-  const [, action, value] = String(interaction.customId).split(":");
-  if (interaction.isButton()) {
-    if (action === "config") await showConfig(interaction, context);
-    else if (action === "toggle") await toggleEnabled(interaction, context);
-    else if (action === "limits") await showLimitsModal(interaction);
-    else if (action === "publish") await publishPanel(interaction, context);
-    else if (action === "join") await showJoinMenu(interaction, context);
-    else if (action === "leave") await leaveScale(interaction, context);
-    else if (action === "refresh") await refreshPanel(interaction, context);
-    else await interaction.reply({ content: "Interação inválida.", ephemeral: true });
-    return true;
-  }
-  if (interaction.isChannelSelectMenu()) {
-    await saveChannel(interaction, context, action ?? "");
-    return true;
-  }
-  if (interaction.isRoleSelectMenu()) {
-    await saveRole(interaction, context, action ?? "");
-    return true;
-  }
-  if (interaction.isStringSelectMenu() && action === "role") {
-    await joinScale(interaction, context, value as DafScaleRole);
-    return true;
-  }
-  if (interaction.isModalSubmit() && action === "limits") {
-    await saveLimits(interaction, context);
+
+  try {
+    const [, action] = String(interaction.customId).split(":");
+    if (interaction.isButton()) {
+      if (action === "config") await showConfig(interaction, context);
+      else if (action === "toggle") await toggleEnabled(interaction, context);
+      else if (action === "limits") await showLimitsModal(interaction);
+      else if (action === "publish") await publishPanel(interaction, context);
+      else if (action === "join") await showJoinMenu(interaction, context);
+      else if (action === "leave") await leaveScale(interaction, context);
+      else if (action === "refresh") await refreshPanel(interaction, context);
+      else await interaction.reply({ content: "Interação inválida.", ephemeral: true });
+      return true;
+    }
+    if (interaction.isChannelSelectMenu()) {
+      await saveChannel(interaction, context, action ?? "");
+      return true;
+    }
+    if (interaction.isRoleSelectMenu()) {
+      await saveRole(interaction, context, action ?? "");
+      return true;
+    }
+    if (interaction.isStringSelectMenu() && action === "role") {
+      await joinScale(interaction, context, readSelectedDafRole(interaction));
+      return true;
+    }
+    if (interaction.isModalSubmit() && action === "limits") {
+      await saveLimits(interaction, context);
+      return true;
+    }
+  } catch (error) {
+    console.warn("[daf-scale] falha ao processar interação:", errorMessage(error));
+    await replyDafError(interaction, error);
     return true;
   }
   return true;
@@ -433,4 +440,41 @@ function roleLabel(role: DafScaleRole | null | undefined) {
   if (role === "pilot") return "Piloto";
   if (role === "shooter") return "Atirador";
   return "Nenhuma";
+}
+
+function readSelectedDafRole(interaction: StringSelectMenuInteraction): DafScaleRole {
+  const role = interaction.values[0];
+  if (role === "pilot" || role === "shooter") {
+    return role;
+  }
+
+  throw new Error("Função da Escala DAF inválida.");
+}
+
+async function replyDafError(interaction: Interaction, error: unknown) {
+  if (!interaction.isRepliable()) {
+    return;
+  }
+
+  const content = errorMessage(error) || "Não foi possível concluir esta interação da Escala DAF.";
+  if (interaction.deferred) {
+    await interaction.editReply({ content }).catch(() => undefined);
+    return;
+  }
+
+  if (interaction.replied) {
+    await interaction.followUp({ content, ephemeral: true }).catch(() => undefined);
+    return;
+  }
+
+  await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+}
+
+function errorMessage(error: unknown) {
+  const response = (error as { response?: { data?: { message?: unknown } } })?.response;
+  if (typeof response?.data?.message === "string") {
+    return response.data.message;
+  }
+
+  return error instanceof Error ? error.message : String(error);
 }
