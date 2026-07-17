@@ -38,7 +38,7 @@ const settingsSchema = z.object({
 });
 const panelImageUpload = raw({
   limit: "10mb",
-  type: ["image/gif", "image/jpeg", "image/png", "image/webp"]
+  type: () => true
 });
 
 export const panelImagesRouter = Router();

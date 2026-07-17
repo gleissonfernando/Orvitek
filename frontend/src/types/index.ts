@@ -793,9 +793,14 @@ export type PanelImageSettings = {
   customWidth: number | null;
   guildId: string;
   imageEnabled: boolean;
+  imageExtension: string | null;
   imageInvalidReason?: string | null;
+  imageIsAnimated: boolean;
+  imageMimeType: string | null;
   imagePosition: PanelImagePosition;
   imageSize: PanelImageSize;
+  imageSizeBytes: number | null;
+  imageUploadedAt: string | null;
   imageUrl: string;
   layoutMode: PanelImageLayoutMode;
   panelId: string;

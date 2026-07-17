@@ -6,12 +6,15 @@ import { getMongoCollections, type MongoPersistentImage } from "../database/mong
 import { createLog } from "./logService";
 
 export type StoredImageDto = {
+  animated: boolean;
+  extension: string;
   fileName: string;
   id: string;
   mimeType: string;
   publicUrl: string;
   size: number;
   storageProvider: "mongodb";
+  uploadedAt: string;
 };
 
 export const PERSISTENT_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
@@ -34,23 +37,26 @@ export async function savePersistentImage(input: {
   originalName?: string | null;
   previousUrl?: string | null;
 }) {
-  validatePersistentImage(input.buffer, input.mimeType);
+  const mimeType = detectSupportedImageMimeType(input.buffer, input.mimeType);
 
   const id = randomUUID();
-  const extension = PERSISTENT_IMAGE_MIME_EXTENSIONS[input.mimeType];
+  const extension = PERSISTENT_IMAGE_MIME_EXTENSIONS[mimeType];
+  const animated = mimeType === "image/gif" && isAnimatedGif(input.buffer);
   const fileName = `${sanitizePathPart(input.guildId)}-${sanitizePathPart(input.moduleId)}-${sanitizePathPart(input.imageType)}-${Date.now()}-${id}.${extension}`;
   const publicUrl = publicImageUrl(id);
   const now = new Date();
   const doc: MongoPersistentImage = {
     _id: id,
+    animated,
     botId: input.botId?.trim() || null,
     buffer: input.buffer,
     createdAt: now,
+    extension,
     fileName,
     guildId: input.guildId,
     imageType: input.imageType,
     metadata: input.metadata,
-    mimeType: input.mimeType,
+    mimeType,
     moduleId: input.moduleId,
     originalName: input.originalName ?? null,
     publicUrl,
@@ -107,7 +113,9 @@ export async function savePersistentImage(input: {
       message: `Imagem ${input.imageType} do módulo ${input.moduleId} enviada para armazenamento persistente.`,
       metadata: {
         imageType: input.imageType,
-        mimeType: input.mimeType,
+        animated,
+        extension,
+        mimeType,
         moduleId: input.moduleId,
         newUrl: publicUrl,
         oldUrl: input.previousUrl ?? null,
@@ -127,6 +135,14 @@ export async function savePersistentImage(input: {
 export async function getPersistentImage(imageId: string) {
   const { persistentImages } = await getMongoCollections();
   return persistentImages.findOne({ _id: imageId });
+}
+
+export async function getPersistentImageMetadataByUrl(url: string | null | undefined) {
+  const id = parsePersistentImageId(url ?? "");
+  if (!id) return null;
+  const { persistentImages } = await getMongoCollections();
+  const image = await persistentImages.findOne({ _id: id }, { projection: { animated: 1, extension: 1, fileName: 1, mimeType: 1, size: 1, storageProvider: 1, uploadedAt: 1 } });
+  return image ? toDto(image as MongoPersistentImage) : null;
 }
 
 export async function removePersistentImageByUrl(input: {
@@ -210,6 +226,10 @@ export async function migrateLocalImageToPersistent(input: {
 }
 
 export function validatePersistentImage(buffer: Buffer, mimeType: string) {
+  detectSupportedImageMimeType(buffer, mimeType);
+}
+
+export function detectSupportedImageMimeType(buffer: Buffer, mimeType: string) {
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
     throw Object.assign(new Error("Arquivo de imagem obrigatório."), { statusCode: 400 });
   }
@@ -218,9 +238,19 @@ export function validatePersistentImage(buffer: Buffer, mimeType: string) {
     throw Object.assign(new Error("Imagem muito grande. Envie um arquivo de até 10MB."), { statusCode: 413 });
   }
 
-  if (!PERSISTENT_IMAGE_MIME_EXTENSIONS[mimeType]) {
+  const normalizedMimeType = mimeType.trim().toLowerCase();
+  const detectedMimeType = detectImageMimeType(buffer);
+  const resolvedMimeType = PERSISTENT_IMAGE_MIME_EXTENSIONS[normalizedMimeType] ? normalizedMimeType : detectedMimeType;
+
+  if (!resolvedMimeType || !PERSISTENT_IMAGE_MIME_EXTENSIONS[resolvedMimeType]) {
     throw Object.assign(new Error("Formato inválido. Envie GIF, PNG, JPG ou WEBP."), { statusCode: 400 });
   }
+
+  if (resolvedMimeType === "image/gif" && !isGif(buffer)) {
+    throw Object.assign(new Error("Arquivo GIF inválido."), { statusCode: 400 });
+  }
+
+  return resolvedMimeType;
 }
 
 export function isPersistentImageUrl(value: string | null | undefined) {
@@ -270,17 +300,52 @@ function mimeTypeFromExtension(filePath: string) {
   return null;
 }
 
+function isAnimatedGif(buffer: Buffer) {
+  if (buffer.length < 10 || buffer.toString("ascii", 0, 3) !== "GIF") return false;
+
+  let frames = 0;
+  for (let index = 0; index < buffer.length; index += 1) {
+    if (buffer[index] === 0x2c) {
+      frames += 1;
+      if (frames > 1) return true;
+    }
+  }
+
+  return false;
+}
+
+function detectImageMimeType(buffer: Buffer) {
+  if (isGif(buffer)) return "image/gif";
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return "image/jpeg";
+  if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
+  if (buffer.length >= 12 && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP") return "image/webp";
+  return null;
+}
+
+function isGif(buffer: Buffer) {
+  return buffer.length >= 6 && (buffer.toString("ascii", 0, 6) === "GIF87a" || buffer.toString("ascii", 0, 6) === "GIF89a");
+}
+
 function sanitizePathPart(value: string) {
   return value.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80) || "image";
 }
 
 function toDto(image: MongoPersistentImage): StoredImageDto {
+  const extension = image.extension || PERSISTENT_IMAGE_MIME_EXTENSIONS[image.mimeType] || fileExtension(image.fileName);
   return {
+    animated: Boolean(image.animated ?? image.mimeType === "image/gif"),
+    extension,
     fileName: image.fileName,
     id: image._id,
     mimeType: image.mimeType,
     publicUrl: publicImageUrl(image._id),
     size: image.size,
-    storageProvider: image.storageProvider
+    storageProvider: image.storageProvider ?? "mongodb",
+    uploadedAt: image.uploadedAt.toISOString()
   };
+}
+
+function fileExtension(fileName: string) {
+  const extension = path.extname(fileName).replace(".", "").toLowerCase();
+  return extension || "bin";
 }

@@ -238,7 +238,7 @@ const ownerDevOnlySettingKeys = new Set<keyof SettingsInput>([
 export const settingsRouter = Router();
 const welcomeImageUpload = raw({
   limit: "10mb",
-  type: ["image/gif", "image/jpeg", "image/png", "image/webp"]
+  type: () => true
 });
 
 settingsRouter.get("/:guildId", requireAuthOrBot, async (req, res) => {

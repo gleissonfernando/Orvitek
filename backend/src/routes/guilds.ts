@@ -9,7 +9,7 @@ import { getBotStatus } from "../services/statsService";
 import { removePanelImageSettings, savePanelImageUpload } from "../services/panelImageSettingsService";
 
 export const guildsRouter = Router();
-const imageUpload = raw({ limit: "10mb", type: ["image/gif", "image/jpeg", "image/png", "image/webp"] });
+const imageUpload = raw({ limit: "10mb", type: () => true });
 
 guildsRouter.use(requireAuth);
 

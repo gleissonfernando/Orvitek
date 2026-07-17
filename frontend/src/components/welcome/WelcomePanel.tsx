@@ -588,6 +588,7 @@ export function WelcomePanel({
             <span className="flex items-center gap-2 text-sm font-medium text-zinc-100">
               <ImageIcon className="h-4 w-4 text-zinc-400" />
               Banner
+              {imageUrl ? <ImageTypeBadge imageUrl={imageUrl} /> : null}
             </span>
             <div className="flex flex-col gap-3 lg:flex-row">
               <input
@@ -610,12 +611,13 @@ export function WelcomePanel({
               </Button>
             </div>
             <input
-              accept="image/gif,image/png,image/jpeg,image/webp"
+              accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,.png,.jpg,.jpeg,.webp,.gif"
               className="hidden"
               onChange={(event) => void handleImageFile(event.target.files?.[0])}
               ref={fileInputRef}
               type="file"
             />
+            <p className="text-xs text-zinc-500">PNG • JPG • JPEG • WEBP • GIF</p>
           </div>
 
           {status ? (
@@ -703,6 +705,16 @@ function SimplePanelPreview({
         {footerText ? <footer className="border-t border-zinc-700/60 px-4 py-3 text-xs text-zinc-400">{footerText}</footer> : null}
       </div>
     </aside>
+  );
+}
+
+function ImageTypeBadge({ imageUrl }: { imageUrl: string }) {
+  const extension = imageUrl.match(/\.([a-z0-9]+)(?:[?#].*)?$/i)?.[1]?.toLowerCase() ?? "";
+  const isGif = extension === "gif";
+  return (
+    <span className="rounded-md border border-zinc-800 bg-black px-2 py-1 text-xs text-zinc-300">
+      {isGif ? "🎞️ GIF Animado" : `🖼️ ${extension ? extension.toUpperCase() : "Imagem"}`}
+    </span>
   );
 }
 

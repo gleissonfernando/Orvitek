@@ -18,6 +18,7 @@ import { env } from "../config/env";
 import { createMercadoPagoPreference as createMercadoPagoCheckoutPreference } from "./mercadoPagoService";
 import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoom } from "../realtime/events";
 import { decryptSecret, encryptSecret } from "./secretCryptoService";
+import { detectSupportedImageMimeType } from "./persistentImageStorageService";
 
 export const NEX_TECH_SALES_MODULE_ID = "nex-tech-sales";
 export const NEX_TECH_PRIMARY_CLIENT_ID = "1492325134550302952";
@@ -585,11 +586,8 @@ export async function saveNexTechProductBannerUpload(input: {
   mimeType: string;
   productId: string;
 }) {
-  const extension = PRODUCT_IMAGE_EXTENSIONS[input.mimeType];
-
-  if (!extension) {
-    throw createNexTechSalesError("Formato de imagem não suportado.", 400);
-  }
+  const mimeType = detectSupportedImageMimeType(input.buffer, input.mimeType);
+  const extension = PRODUCT_IMAGE_EXTENSIONS[mimeType];
 
   const { nexTechProducts } = await getMongoCollections();
   const settings = await ensureNexTechSalesSettings(input.botId, input.guildId, input.actorId);

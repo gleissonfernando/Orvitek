@@ -14,6 +14,7 @@ import {
   isLocalUploadUrl,
   isPersistentImageUrl,
   migrateLocalImageToPersistent,
+  getPersistentImageMetadataByUrl,
   normalizePersistentImageUrl,
   removePersistentImageByUrl,
   savePersistentImage
@@ -31,10 +32,15 @@ export type PanelImageSettingsDto = {
   customWidth: number | null;
   guildId: string;
   imageEnabled: boolean;
+  imageExtension: string | null;
   imagePosition: PanelImagePosition;
   imageSize: PanelImageSize;
   imageUrl: string;
+  imageMimeType: string | null;
+  imageSizeBytes: number | null;
   imageInvalidReason?: string | null;
+  imageIsAnimated: boolean;
+  imageUploadedAt: string | null;
   layoutMode: PanelImageLayoutMode;
   panelId: string;
   updatedAt: string | null;
@@ -68,9 +74,14 @@ const DEFAULT_SETTINGS = {
   customWidth: null,
   blocks: [] as MongoPanelBlock[],
   imageEnabled: false,
+  imageExtension: null,
   imagePosition: "none" as PanelImagePosition,
   imageSize: "medium" as PanelImageSize,
   imageUrl: "",
+  imageMimeType: null,
+  imageSizeBytes: null,
+  imageIsAnimated: false,
+  imageUploadedAt: null,
   layoutMode: "embed" as PanelImageLayoutMode,
   useGlobalDefault: true
 };
@@ -354,18 +365,34 @@ async function toDtoWithMigration(settings: MongoPanelImageSettings): Promise<Pa
         { $set: { imageUrl: migrated.publicUrl, updatedAt: now } }
       );
       emitPanelRefresh(settings.guildId, settings.botId, settings.panelId);
-      return toDto({ ...settings, imageUrl: migrated.publicUrl, updatedAt: now });
+      return toDtoWithImageMetadata({ ...settings, imageUrl: migrated.publicUrl, updatedAt: now });
     }
 
+    const dto = await toDtoWithImageMetadata(settings);
     return {
-      ...toDto(settings),
+      ...dto,
       imageEnabled: false,
       imageInvalidReason: "Essa imagem foi enviada antes da correcao de armazenamento persistente e não foi encontrada no servidor. Envie novamente para que ela fique salva permanentemente.",
       imagePosition: "none"
     };
   }
 
-  return toDto(settings);
+  return toDtoWithImageMetadata(settings);
+}
+
+async function toDtoWithImageMetadata(settings: MongoPanelImageSettings): Promise<PanelImageSettingsDto> {
+  const dto = toDto(settings);
+  const metadata = dto.imageUrl ? await getPersistentImageMetadataByUrl(dto.imageUrl).catch(() => null) : null;
+  if (!metadata) return dto;
+
+  return {
+    ...dto,
+    imageExtension: metadata.extension,
+    imageMimeType: metadata.mimeType,
+    imageSizeBytes: metadata.size,
+    imageIsAnimated: metadata.animated,
+    imageUploadedAt: metadata.uploadedAt
+  };
 }
 
 function toDto(settings: MongoPanelImageSettings): PanelImageSettingsDto {
@@ -379,14 +406,33 @@ function toDto(settings: MongoPanelImageSettings): PanelImageSettingsDto {
     customWidth: settings.customWidth ?? null,
     guildId: settings.guildId,
     imageEnabled,
+    imageExtension: extensionFromUrl(legacyImageUrl),
     imagePosition: settings.imagePosition ?? DEFAULT_SETTINGS.imagePosition,
     imageSize: settings.imageSize ?? DEFAULT_SETTINGS.imageSize,
     imageUrl: legacyImageUrl,
+    imageMimeType: mimeTypeFromUrl(legacyImageUrl),
+    imageSizeBytes: null,
+    imageIsAnimated: /\.gif(?:$|[?#])/i.test(legacyImageUrl),
+    imageUploadedAt: null,
     layoutMode: settings.layoutMode ?? DEFAULT_SETTINGS.layoutMode,
     panelId: settings.panelId,
     updatedAt: settings.updatedAt?.toISOString() ?? null,
     useGlobalDefault: settings.useGlobalDefault ?? false
   };
+}
+
+function extensionFromUrl(value: string) {
+  const match = value.match(/\.([a-z0-9]+)(?:[?#].*)?$/i);
+  return match?.[1]?.toLowerCase() ?? null;
+}
+
+function mimeTypeFromUrl(value: string) {
+  const extension = extensionFromUrl(value);
+  if (extension === "gif") return "image/gif";
+  if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
+  if (extension === "png") return "image/png";
+  if (extension === "webp") return "image/webp";
+  return null;
 }
 
 function normalizeBlocks(blocks: MongoPanelBlock[] | undefined | null): MongoPanelBlock[] {

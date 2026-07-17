@@ -220,7 +220,7 @@ const nexTechProductSchema = z.object({
 });
 const nexTechProductBannerUpload = raw({
   limit: "10mb",
-  type: ["image/gif", "image/jpeg", "image/png", "image/webp"]
+  type: () => true
 });
 
 const nexTechSaleSchema = z.object({

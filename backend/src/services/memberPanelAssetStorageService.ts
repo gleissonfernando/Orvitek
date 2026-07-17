@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { createLog } from "./logService";
+import { detectSupportedImageMimeType } from "./persistentImageStorageService";
 
 type MemberPanelAssetMode = "leave" | "welcome";
 
@@ -35,11 +36,12 @@ export async function saveMemberPanelAsset(input: {
   previousUrl?: string | null;
 }) {
   return withAssetLock(input.guildId, input.mode, async () => {
-    validateImage(input.buffer, input.mimeType);
+    const mimeType = detectSupportedImageMimeType(input.buffer, input.mimeType);
 
     const safeGuildId = safeId(input.guildId);
-    const extension = MIME_EXTENSIONS[input.mimeType];
+    const extension = MIME_EXTENSIONS[mimeType];
     const hash = sha256(input.buffer);
+    const animated = mimeType === "image/gif" && isAnimatedGif(input.buffer);
     const fileName = `${input.mode}_${hash.slice(0, 16)}_${Date.now()}_${randomUUID()}.${extension}`;
     const guildDir = path.join(GUILDS_ROOT, safeGuildId);
     const targetPath = path.join(guildDir, fileName);
@@ -73,8 +75,10 @@ export async function saveMemberPanelAsset(input: {
       createdAt: new Date().toISOString(),
       guildId: input.guildId,
       hash,
+      animated,
+      extension,
       mode: input.mode,
-      mimeType: input.mimeType,
+      mimeType,
       size: input.buffer.length
     }, null, 2), "utf8");
 
@@ -99,7 +103,9 @@ export async function saveMemberPanelAsset(input: {
           guildId: input.guildId,
           guildName: input.guildName ?? null,
           hash,
-          mimeType: input.mimeType,
+          animated,
+          extension,
+          mimeType,
           path: targetPath,
           publicUrl,
           size: input.buffer.length
@@ -268,20 +274,6 @@ function resolveWelcomeUploadPath(localUrl: string) {
   return resolved.startsWith(root + path.sep) || resolved === root ? resolved : null;
 }
 
-function validateImage(buffer: Buffer, mimeType: string) {
-  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
-    throw Object.assign(new Error("Arquivo de imagem obrigatorio."), { statusCode: 400 });
-  }
-
-  if (buffer.length > 10 * 1024 * 1024) {
-    throw Object.assign(new Error("Imagem muito grande. Envie um arquivo de ate 10MB."), { statusCode: 413 });
-  }
-
-  if (!MIME_EXTENSIONS[mimeType]) {
-    throw Object.assign(new Error("Formato invalido. Envie GIF, PNG, JPG ou WEBP."), { statusCode: 400 });
-  }
-}
-
 function cacheAsset(guildId: string, mode: MemberPanelAssetMode, asset: StoredMemberPanelAsset) {
   assetCache.set(cacheKey(guildId, mode), {
     expiresAt: Date.now() + CACHE_TTL_MS,
@@ -308,6 +300,20 @@ function withAssetLock<T>(guildId: string, mode: MemberPanelAssetMode, task: () 
 
 function sha256(buffer: Buffer) {
   return createHash("sha256").update(buffer).digest("hex");
+}
+
+function isAnimatedGif(buffer: Buffer) {
+  if (buffer.length < 10 || buffer.toString("ascii", 0, 3) !== "GIF") return false;
+
+  let frames = 0;
+  for (let index = 0; index < buffer.length; index += 1) {
+    if (buffer[index] === 0x2c) {
+      frames += 1;
+      if (frames > 1) return true;
+    }
+  }
+
+  return false;
 }
 
 function hashPath(filePath: string) {

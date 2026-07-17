@@ -4090,9 +4090,11 @@ export type MongoPanelImageSettings = {
 
 export type MongoPersistentImage = {
   _id: string;
+  animated?: boolean;
   botId: string | null;
   buffer: Buffer;
   createdAt: Date;
+  extension?: string;
   fileName: string;
   guildId: string;
   imageType: string;

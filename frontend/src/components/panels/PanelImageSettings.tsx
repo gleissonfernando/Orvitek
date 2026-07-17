@@ -252,7 +252,9 @@ export function PanelImageSettings({ botId, canManage, componentsV2Only = false,
       return;
     }
 
-    if (!["image/gif", "image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    const allowedMime = ["image/gif", "image/jpeg", "image/png", "image/webp"].includes(file.type);
+    const allowedExtension = /\.(gif|jpe?g|png|webp)$/i.test(file.name);
+    if (!allowedMime && !allowedExtension) {
       setStatus(null);
       setError("Envie uma imagem GIF, PNG, JPG ou WEBP.");
       return;
@@ -376,7 +378,7 @@ export function PanelImageSettings({ botId, canManage, componentsV2Only = false,
                     {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                     {uploading ? "Enviando..." : "Enviar arquivo"}
                     <input
-                      accept="image/gif,image/jpeg,image/png,image/webp"
+                      accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,.png,.jpg,.jpeg,.webp,.gif"
                       className="hidden"
                       disabled={disabled}
                       onChange={(event) => {
@@ -395,6 +397,10 @@ export function PanelImageSettings({ botId, canManage, componentsV2Only = false,
                     type="url"
                     value={draft.imageUrl}
                   />
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                  <span>PNG • JPG • JPEG • WEBP • GIF</span>
+                  {draft.imageUrl ? <ImageTypeBadge settings={draft} /> : null}
                 </div>
               </div>
 
@@ -638,6 +644,23 @@ function PreviewImage({
   );
 }
 
+function ImageTypeBadge({ settings }: { settings: PanelImageSettingsDto }) {
+  const extension = (settings.imageExtension || extensionFromUrl(settings.imageUrl) || "").toLowerCase();
+  const isGif = settings.imageIsAnimated || settings.imageMimeType === "image/gif" || extension === "gif";
+  const label = isGif ? (settings.imageIsAnimated ? "GIF Animado" : "GIF") : extension ? extension.toUpperCase() : "Imagem";
+  const icon = isGif ? "🎞️" : "🖼️";
+  const details = [
+    settings.imageMimeType,
+    settings.imageSizeBytes ? formatBytes(settings.imageSizeBytes) : null
+  ].filter(Boolean).join(" · ");
+
+  return (
+    <span className="rounded-md border border-zinc-800 bg-black px-2 py-1 text-zinc-300" title={details || undefined}>
+      {icon} {label}
+    </span>
+  );
+}
+
 function dashboardImageUrl(imageUrl: string) {
   try {
     const url = new URL(imageUrl);
@@ -651,6 +674,17 @@ function dashboardImageUrl(imageUrl: string) {
   return imageUrl;
 }
 
+function extensionFromUrl(value: string) {
+  const match = value.match(/\.([a-z0-9]+)(?:[?#].*)?$/i);
+  return match?.[1] ?? "";
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 function defaultSettings(guildId: string, botId: string, panelId: string): PanelImageSettingsDto {
   return {
     botId,
@@ -658,9 +692,14 @@ function defaultSettings(guildId: string, botId: string, panelId: string): Panel
     customWidth: null,
     guildId,
     imageEnabled: false,
+    imageExtension: null,
+    imageIsAnimated: false,
+    imageMimeType: null,
     blocks: [],
     imagePosition: "none",
     imageSize: "medium",
+    imageSizeBytes: null,
+    imageUploadedAt: null,
     imageUrl: "",
     layoutMode: "embed",
     panelId,
