@@ -280,9 +280,10 @@ async function handlePublicReportSelect(interaction: StringSelectMenuInteraction
   }
 
   const selectedCategoryId = interaction.values[0] ?? "";
+  const selectedOptionHints = selectedReportOptionHints(interaction, selectedCategoryId);
   const settings = await getFreshGuildSettings(context, interaction.guild.id, interaction.client.user?.id);
   const report = settings.reportSystem;
-  const category = resolveEnabledReportCategory(report, selectedCategoryId);
+  const category = resolveEnabledReportCategory(report, selectedCategoryId, selectedOptionHints.texts, selectedOptionHints.index, selectedOptionHints.optionCount);
 
   if (!report.enabled || !category) {
     await safeReply(interaction, "Esta opção de denúncia não está mais disponível.");
@@ -1325,7 +1326,7 @@ async function resolveReportDestinationCategory(
     return report.categories.find((item) => item.enabled && item.id === forwarding.destinationCategoryId) ?? selectedCategory;
   } catch (error) {
     const message = errorMessage(error) ?? "sem regra de encaminhamento";
-    console.warn(`[iab] usando órgão selecionado por falta de encaminhamento específico guild=${interaction.guildId} category=${selectedCategory.id}: ${message}`);
+    console.warn(`[iab] usando orgao selecionado por falta de encaminhamento especifico guild=${interaction.guildId} category=${selectedCategory.id}: ${message}`);
     return selectedCategory;
   }
 }
@@ -1520,19 +1521,49 @@ function reportCategoryById(report: ReportSystemSettings, categoryId: string | n
   return report.categories.find((category) => category.id === categoryId) ?? null;
 }
 
-function resolveEnabledReportCategory(report: ReportSystemSettings, categoryId: string | null | undefined) {
-  const categoryKey = normalizeReportCategoryKey(categoryId);
-  if (!categoryKey) return null;
+function resolveEnabledReportCategory(
+  report: ReportSystemSettings,
+  categoryId: string | null | undefined,
+  fallbackTexts: string[] = [],
+  fallbackIndex: number | null = null,
+  fallbackOptionCount: number | null = null
+) {
+  const lookupKeys = [categoryId, ...fallbackTexts].map(normalizeReportCategoryKey).filter((key): key is string => Boolean(key));
+  if (!lookupKeys.length) return null;
 
   const enabledCategories = report.categories.filter((category) => category.enabled);
   const exact = enabledCategories.find((category) => category.id === categoryId);
   if (exact) return exact;
 
   const normalized = enabledCategories.find((category) =>
-    reportCategoryLookupKeys(category).some((key) => key === categoryKey)
+    reportCategoryLookupKeys(category).some((key) => lookupKeys.includes(key))
   );
   if (normalized) return normalized;
 
+  const legacyCategory = lookupKeys
+    .map((key) => resolveLegacyReportCategoryKey(enabledCategories, key))
+    .find((category): category is ReportSystemSettings["categories"][number] => Boolean(category));
+  if (legacyCategory) return legacyCategory;
+
+  for (const key of lookupKeys) {
+    if (key.length < 4) continue;
+    const fuzzy = enabledCategories.find((category) => reportCategoryLookupKeys(category).some((categoryKey) => categoryKey.includes(key) || key.includes(categoryKey)));
+    if (fuzzy) return fuzzy;
+  }
+
+  if (
+    fallbackIndex !== null
+    && fallbackIndex >= 0
+    && fallbackOptionCount === enabledCategories.length
+    && enabledCategories[fallbackIndex]
+  ) {
+    return enabledCategories[fallbackIndex];
+  }
+
+  return null;
+}
+
+function resolveLegacyReportCategoryKey(enabledCategories: ReportSystemSettings["categories"], categoryKey: string) {
   if (categoryKey === "iab") {
     return enabledCategories.find((category) =>
       reportCategoryLookupKeys(category).some((key) => key.includes("oficial") || key === "iab")
@@ -1551,17 +1582,45 @@ function resolveEnabledReportCategory(report: ReportSystemSettings, categoryId: 
     ) ?? null;
   }
 
-  if (categoryKey.includes("comiss")) {
-    return enabledCategories.find((category) =>
-      reportCategoryLookupKeys(category).some((key) => key.includes("comiss"))
-    ) ?? null;
-  }
+  if (!categoryKey.includes("comiss")) return null;
+  return enabledCategories.find((category) =>
+    reportCategoryLookupKeys(category).some((key) => key.includes("comiss"))
+  ) ?? null;
+}
 
-  return null;
+function selectedReportOptionHints(interaction: StringSelectMenuInteraction, selectedValue: string) {
+  const texts = new Set<string>();
+  let index: number | null = null;
+  let optionCount: number | null = null;
+
+  const read = (node: unknown) => {
+    if (!node || typeof node !== "object") return;
+    const record = node as Record<string, unknown>;
+
+    if (record.custom_id === PANEL_SELECT_ID && Array.isArray(record.options)) {
+      optionCount ??= record.options.length;
+      for (let optionIndex = 0; optionIndex < record.options.length; optionIndex += 1) {
+        const option = record.options[optionIndex];
+        if (!option || typeof option !== "object") continue;
+        const optionRecord = option as Record<string, unknown>;
+        if (optionRecord.value !== selectedValue) continue;
+        index ??= optionIndex;
+        if (typeof optionRecord.label === "string") texts.add(optionRecord.label);
+        if (typeof optionRecord.description === "string") texts.add(optionRecord.description);
+      }
+    }
+
+    const children = Array.isArray(record.components) ? record.components : Array.isArray(record.items) ? record.items : [];
+    for (const child of children) read(child);
+  };
+
+  read((interaction as unknown as { component?: unknown }).component);
+  for (const component of interaction.message.components) read(component.toJSON());
+  return { index, optionCount, texts: [...texts] };
 }
 
 function reportCategoryLookupKeys(category: ReportSystemSettings["categories"][number]) {
-  return [category.id, category.name, category.judgeLabel ?? ""]
+  return [category.id, category.name, category.judgeLabel ?? "", category.description ?? ""]
     .map(normalizeReportCategoryKey)
     .filter((key): key is string => Boolean(key));
 }
