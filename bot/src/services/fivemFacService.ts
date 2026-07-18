@@ -1109,19 +1109,21 @@ async function notifyAbsenceUser(guild: Guild, absence: FivemFacAbsence, message
 }
 
 function buildPanelPayload(settings: FivemFacSettings, guild: Guild | null = null) {
+  const title = settings.messages.panelTitle || `${systemEmojiText("calendario", guild)} Sistema de Ausências FAC`;
+  const description = settings.messages.panelDescription || "Solicite sua ausência de forma organizada. A equipe recebe o pedido em um canal privado, avalia o motivo e o sistema aplica ou remove o cargo automaticamente quando chegar a data correta.";
   const panelComponents: Array<Record<string, unknown>> = [
     {
       type: 10,
-      content: [
-        `# ${settings.messages.panelTitle || `${systemEmojiText("calendario", guild)} Sistema de Ausências FAC`}`,
-        settings.messages.panelDescription || "Solicite sua ausência de forma organizada. A equipe recebe o pedido em um canal privado, avalia o motivo e o sistema aplica ou remove o cargo automaticamente quando chegar a data correta.",
+      content: replaceSystemEmojis([
+        `# ${title}`,
+        description,
         "",
         "### Como funciona",
         `${systemEmojiText("prancheta_caneta", guild)} **Solicitação:** informe nome RP, data de início, data de retorno e motivo.`,
         `${systemEmojiText("prancheta_acertos", guild)} **Análise:** a staff aprova ou reprova pelo painel interno.`,
         `${systemEmojiText("homem", guild)} **Cargo:** aplicado somente após aprovação.`,
         `${systemEmojiText("relogio", guild)} **Retorno:** removido automaticamente ao fim da ausência.`
-      ].join("\n")
+      ].join("\n"), guild)
     }
   ];
   if (settings.panelVisual.enabledSections.image && settings.panelVisual.imageUrl && settings.panelVisual.imagePosition !== "none") {

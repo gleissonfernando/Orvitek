@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { fixedSystemEmojiText } from "../config/systemEmojis";
+import { fixedSystemEmojiText, normalizeFixedSystemEmojiText } from "../config/systemEmojis";
 import {
   ensureGuild,
   getMongoCollections,
@@ -1292,7 +1292,7 @@ function normalizeMessage(value: unknown, fallback: string, maxLength: number) {
   }
 
   const normalized = value.trim();
-  return normalized ? normalized.slice(0, maxLength) : fallback;
+  return normalized ? normalizeFixedSystemEmojiText(normalized).slice(0, maxLength) : fallback;
 }
 
 function normalizeRequiredText(value: unknown, maxLength: number, message: string) {
