@@ -58,8 +58,11 @@ export async function handleManualPaymentMessage(message: Message, context: BotC
   const runtime = await context.api.getManualPaymentRuntime(message.guild.id).catch(() => null);
   const order = runtime?.orders.find((item) => item.paymentChannelId === message.channelId && ["PENDING_PAYMENT", "REJECTED", "WAITING_STAFF_APPROVAL"].includes(item.status));
   if (!runtime || !order || order.userId !== message.author.id) return false;
-  const attachment = message.attachments.find((item) => item.contentType?.startsWith("image/") || /\.(png|jpe?g|webp|gif|pdf)$/i.test(item.url));
-  if (!attachment) return false;
+  const attachment = message.attachments.find(isValidProofAttachment);
+  if (!attachment) {
+    await message.reply("Não consegui reconhecer esse arquivo como comprovante. Envie uma imagem ou PDF como anexo neste canal.").catch(() => null);
+    return true;
+  }
   const updated = await context.api.updateManualPaymentOrder(message.guild.id, order.id, {
     action: "proof_uploaded",
     channelId: message.channelId,
@@ -71,6 +74,24 @@ export async function handleManualPaymentMessage(message: Message, context: BotC
   await refreshPaymentPanel(message.guild, context, runtime.settings, updated);
   await sendStaffApprovalLog(message.guild, context, runtime.settings, updated);
   return true;
+}
+
+function isValidProofAttachment(item: { contentType?: string | null; name?: string | null; url: string }) {
+  const contentType = item.contentType?.toLowerCase() ?? "";
+  if (contentType.startsWith("image/") || contentType === "application/pdf") return true;
+  return hasProofFileExtension(item.name ?? "") || hasProofFileExtension(getUrlPathname(item.url));
+}
+
+function getUrlPathname(value: string) {
+  try {
+    return decodeURIComponent(new URL(value).pathname);
+  } catch {
+    return value.split("?")[0] ?? value;
+  }
+}
+
+function hasProofFileExtension(value: string) {
+  return /\.(png|jpe?g|webp|gif|pdf|heic|heif|bmp)$/i.test(value);
 }
 
 async function publishManualPaymentPanel(guild: Guild, context: BotContext, fallbackChannelId?: string | null) {
