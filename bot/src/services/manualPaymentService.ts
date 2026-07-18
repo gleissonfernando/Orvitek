@@ -118,17 +118,27 @@ function createSalesPanel(settings: ManualPaymentSettings) {
   const actions: ActionRowBuilder<ButtonBuilder>[] = [];
   for (let index = 0; index < services.length; index += 5) {
     actions.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
-      services.slice(index, index + 5).map((service) => new ButtonBuilder().setCustomId(`${PREFIX}:buy:${service.id}`).setLabel(`Comprar ${service.name}`.slice(0, 80)).setStyle(ButtonStyle.Success))
+      services.slice(index, index + 5).map((service) => new ButtonBuilder()
+        .setCustomId(`${PREFIX}:buy:${service.id}`)
+        .setEmoji(serviceEmoji(service))
+        .setLabel(`Comprar ${limitButtonLabel(service.name)}`)
+        .setStyle(ButtonStyle.Success))
     ));
   }
+  const description = settings.salePanelDescription?.trim() || "Escolha um serviço abaixo para iniciar sua compra com pagamento manual.";
   return renderComponentsV2Panel({
     accentColor: parseColor(settings.color),
     actions,
-    description: settings.salePanelDescription,
-    fields: services.map((service) => `**${service.name}** - ${money(service.amount)}\n${service.description ?? "Servico disponível para compra."}`),
+    description: `${description}\n\n**${services.length ? `${services.length} serviço${services.length === 1 ? "" : "s"} disponível${services.length === 1 ? "" : "is"}` : "Nenhum serviço disponível no momento."}**`,
+    fields: [
+      "## 🛍️ Como comprar\n1️⃣ Escolha um serviço no catálogo.\n\n2️⃣ Clique no botão de compra.\n\n3️⃣ Um ticket privado será aberto automaticamente.\n\n4️⃣ Finalize o pagamento e envie o comprovante.",
+      "## 🔒 Compra protegida\n• Atendimento feito em canal privado.\n\n• Pagamento manual via Pix.\n\n• Conferência realizada pela equipe.\n\n• Status atualizado dentro do ticket.",
+      ...(services.length ? services.map(createSalesServiceCard) : ["## 📦 Catálogo\nNenhum serviço ativo foi configurado para este painel."])
+    ],
+    footer: { text: "NexTechK • Loja de Serviços\nCompra protegida • Atendimento Manual" },
     image: settings.bannerUrl ? { imageEnabled: true, imagePosition: "top", imageUrl: settings.bannerUrl } : null,
     moduleId: "manual-payments",
-    title: settings.salePanelTitle
+    title: salePanelTitle(settings.salePanelTitle)
   });
 }
 
@@ -464,6 +474,28 @@ async function hasAnyRole(guild: Guild, userId: string, roleIds: string[]) {
   const member = await guild.members.fetch(userId).catch(() => null);
   if (!member) return false;
   return member.permissions.has(PermissionFlagsBits.Administrator) || member.roles.cache.some((role) => roleIds.includes(role.id));
+}
+
+function createSalesServiceCard(service: ManualPaymentService) {
+  const description = service.description?.trim() || "Serviço disponível para compra.";
+  return `## ${serviceEmoji(service)} ${limitText(service.name, 100)}\n💰 Valor: **${money(service.amount)}**\n🏷️ Categoria: **${serviceCategoryLabel(service)}**\n📌 ${limitText(description, 450)}`;
+}
+
+function salePanelTitle(value: string | null | undefined) {
+  const title = value?.trim() || "Serviços disponíveis";
+  return /^[^\p{L}\p{N}]/u.test(title) ? title : `🛒 ${title}`;
+}
+
+function serviceEmoji(service: ManualPaymentService) {
+  const category = service.serviceType?.trim().toLowerCase();
+  if (category === "product") return "📦";
+  if (category === "subscription") return "🔁";
+  if (category === "custom") return "✨";
+  return "🛒";
+}
+
+function limitButtonLabel(value: string) {
+  return limitText(value, 58);
 }
 
 function paymentStatusVisual(order: ManualPaymentOrder) {
