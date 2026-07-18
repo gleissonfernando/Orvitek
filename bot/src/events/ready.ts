@@ -59,6 +59,7 @@ import type { BotCommand, BotContext } from "../types";
 let lastRuntimeModuleSignature = "";
 let lastRuntimeStatusWarningAt = 0;
 let commandSyncPromise: Promise<void> | null = null;
+const startedRuntimeServices = new Set<string>();
 
 export async function handleReady(client: Client<true>, context: BotContext) {
   console.log(`[bot] conectado como ${client.user.tag}`);
@@ -83,13 +84,7 @@ export async function handleReady(client: Client<true>, context: BotContext) {
     }
 
     const wasSelfBotEnabled = isSelfBotModuleEnabled();
-    const wasMissionToolsEnabled = isBotModuleEnabled("mission-tools");
-    const wasTemporaryVoiceEnabled = isBotModuleEnabled("temporary-voice");
-    const wereLogsEnabled = isBotModuleEnabled("logs");
-    const wasFivemHierarchyEnabled = isBotModuleEnabled("fivem-hierarchy");
     const wasTagVerificationEnabled = isBotModuleEnabled("tag-verification");
-    const wasLiveEnabled = isBotModuleEnabled("live");
-    const wasAutoActivityClockEnabled = isBotModuleEnabled("auto-activity-clock");
     setRuntimeEnabledModules(payload.enabledModules);
     lastRuntimeModuleSignature = runtimeModuleSignature(true, runtimeBotId, payload.enabledModules);
     clearRuntimeModuleAuthorization();
@@ -105,23 +100,8 @@ export async function handleReady(client: Client<true>, context: BotContext) {
       void disableUnreleasedSafeBotChannels(client, context);
     }
 
-    if (!wasMissionToolsEnabled && isBotModuleEnabled("mission-tools")) {
-      startMissionToolsService(client, context);
-    }
-    if (!wasTemporaryVoiceEnabled && isBotModuleEnabled("temporary-voice")) startTemporaryVoiceService(client, context);
-    if (isBotModuleEnabled("manual-payments")) startManualPaymentService(client, context);
-    if (isBotModuleEnabled("price-tables")) startPriceTableService(client, context);
-    if (isBotModuleEnabled("nex-tech-sales")) startNexTechSalesDeliveryService(client, context);
-    if (isBotModuleEnabled("rh-admin")) startRhAdminService(client, context);
-    if (isBotModuleEnabled("courses")) startCourseSystemService(client, context);
-    if (isBotModuleEnabled("tickets")) startTicketPanelService(client, context);
-    if (isReportSystemModuleEnabled()) startReportSystemService(client, context);
-    if (!wasFivemHierarchyEnabled && isBotModuleEnabled("fivem-hierarchy")) startFivemHierarchyService(client, context);
-    if (!wereLogsEnabled && isBotModuleEnabled("logs")) startAutomatedLogService(client, context);
-    if (!wasTagVerificationEnabled && isBotModuleEnabled("tag-verification")) void startTagVerificationService(client, context);
+    void startRuntimeModuleServices(client, context);
     if (wasTagVerificationEnabled && !isBotModuleEnabled("tag-verification")) stopTagVerificationService();
-    if (!wasLiveEnabled && isBotModuleEnabled("live")) startLiveDetectionService(client, context);
-    if (!wasAutoActivityClockEnabled && isBotModuleEnabled("auto-activity-clock")) startAutoActivityClockService(client, context);
   });
   context.socket.onSelfBotEnsureSetup(async (payload, acknowledge) => {
     if (payload.botId && runtimeBotId && payload.botId !== runtimeBotId) {
@@ -181,79 +161,11 @@ export async function handleReady(client: Client<true>, context: BotContext) {
   });
   startDiscordLogDelivery(context);
   startDatabaseMaintenanceService(client, context);
-  if (isBotModuleEnabled("logs")) startAutomatedLogService(client, context);
   startMaintenanceService(context);
 
   await syncVisibleGuildCommands(client, context, "ready");
 
-  if (isBotModuleEnabled("live")) {
-    startLiveDetectionService(client, context);
-    startSocialNotificationMonitor(client, context.api);
-  }
-  if (isBotModuleEnabled("live") || isBotModuleEnabled("kick-integration")) {
-    startKickNotificationMonitor(client, context.api);
-  }
-  if (isBotModuleEnabled("network")) {
-    startSocialNetworkPanelSync(client, context.api, context.socket);
-  }
-  if (isBotModuleEnabled("x-monitor")) {
-    startXMonitor(client, context.api, context.socket);
-  }
-  if (isBotModuleEnabled("clips") || isBotModuleEnabled("kick-clips")) {
-    startClipsMonitor(client, context.api);
-  }
-  if (isBotModuleEnabled("giveaway")) {
-    startGiveawayService(client, context.api, context.socket);
-  }
-  if (isBotModuleEnabled("mission-tools")) {
-    startMissionToolsService(client, context);
-  }
-  if (isBotModuleEnabled("fivem-fac")) {
-    startFivemFacService(client, context);
-  }
-  if (isBotModuleEnabled("fivem-factions")) startFivemPd7Service(client, context);
-  if (isBotModuleEnabled("fivem-goals")) {
-    startFivemGoalService(client, context);
-  }
-  if (isBotModuleEnabled("fivem-finance")) {
-    startFivemFinanceService(client, context);
-  }
-  if (isBotModuleEnabled("fivem-orders") || isBotModuleEnabled("fivem-drugs") || isBotModuleEnabled("fivem-washing")) startFivemOrderService(client, context);
-  if (isBotModuleEnabled("manual-payments")) startManualPaymentService(client, context);
-  if (isBotModuleEnabled("price-tables")) startPriceTableService(client, context);
-  if (isBotModuleEnabled("nex-tech-sales")) startNexTechSalesDeliveryService(client, context);
-  if (isBotModuleEnabled("rh-admin")) startRhAdminService(client, context);
-  if (isBotModuleEnabled("courses")) startCourseSystemService(client, context);
-  if (isBotModuleEnabled("tickets")) startTicketPanelService(client, context);
-  if (isReportSystemModuleEnabled()) startReportSystemService(client, context);
-  if (isBotModuleEnabled("fivem-hierarchy")) {
-    startFivemHierarchyService(client, context);
-  }
-  if (isBotModuleEnabled("fivem-actions") || isBotModuleEnabled("police-actions")) {
-    startFivemActionService(client, context);
-  }
-  if (isBotModuleEnabled("police-patrol-reports")) {
-    startPolicePatrolReportService(client, context);
-  }
-  if (isBotModuleEnabled("manual-registration")) {
-    startManualRegistrationService(client, context);
-  }
-  if (isBotModuleEnabled("image-anti-spam") && !isSelfBotModuleEnabled()) {
-    startImageAntiSpamService(context);
-  }
-  if (isBotModuleEnabled("voice-recorder")) {
-    const { startVoiceRecorderService } = await import("../services/voiceRecorderService.js");
-    await startVoiceRecorderService(context);
-  }
-  if (isBotModuleEnabled("auto-activity-clock")) {
-    startAutoActivityClockService(client, context);
-  }
-  if (isBotModuleEnabled("temporary-voice")) {
-    startTemporaryVoiceService(client, context);
-  }
-  if (isBotModuleEnabled("tag-verification")) {
-    await startTagVerificationService(client, context);
-  }
+  await startRuntimeModuleServices(client, context);
   startSelfBotProtectionService(context);
   if (isSelfBotModuleEnabled()) {
     await ensureSelfBotRoles(client, context);
@@ -334,6 +246,59 @@ function visibleCommands(commands: BotCommand[]) {
   return commands.filter((command) => !command.moduleId || isBotModuleEnabled(command.moduleId));
 }
 
+async function startRuntimeModuleServices(client: Client<true>, context: BotContext) {
+  startRuntimeService("logs", isBotModuleEnabled("logs"), () => startAutomatedLogService(client, context));
+  startRuntimeService("live", isBotModuleEnabled("live"), () => {
+    startLiveDetectionService(client, context);
+    startSocialNotificationMonitor(client, context.api);
+  });
+  startRuntimeService("kick-integration", isBotModuleEnabled("live") || isBotModuleEnabled("kick-integration"), () => startKickNotificationMonitor(client, context.api));
+  startRuntimeService("network", isBotModuleEnabled("network"), () => startSocialNetworkPanelSync(client, context.api, context.socket));
+  startRuntimeService("x-monitor", isBotModuleEnabled("x-monitor"), () => startXMonitor(client, context.api, context.socket));
+  startRuntimeService("clips", isBotModuleEnabled("clips") || isBotModuleEnabled("kick-clips"), () => startClipsMonitor(client, context.api));
+  startRuntimeService("giveaway", isBotModuleEnabled("giveaway"), () => startGiveawayService(client, context.api, context.socket));
+  startRuntimeService("mission-tools", isBotModuleEnabled("mission-tools"), () => startMissionToolsService(client, context));
+  startRuntimeService("fivem-fac", isBotModuleEnabled("fivem-fac"), () => startFivemFacService(client, context));
+  startRuntimeService("fivem-pd7", isBotModuleEnabled("fivem-factions"), () => startFivemPd7Service(client, context));
+  startRuntimeService("fivem-goals", isBotModuleEnabled("fivem-goals"), () => startFivemGoalService(client, context));
+  startRuntimeService("fivem-finance", isBotModuleEnabled("fivem-finance"), () => startFivemFinanceService(client, context));
+  startRuntimeService("fivem-orders", isBotModuleEnabled("fivem-orders") || isBotModuleEnabled("fivem-drugs") || isBotModuleEnabled("fivem-washing"), () => startFivemOrderService(client, context));
+  startRuntimeService("manual-payments", isBotModuleEnabled("manual-payments"), () => startManualPaymentService(client, context));
+  startRuntimeService("price-tables", isBotModuleEnabled("price-tables"), () => startPriceTableService(client, context));
+  startRuntimeService("nex-tech-sales", isBotModuleEnabled("nex-tech-sales"), () => startNexTechSalesDeliveryService(client, context));
+  startRuntimeService("rh-admin", isBotModuleEnabled("rh-admin"), () => startRhAdminService(client, context));
+  startRuntimeService("courses", isBotModuleEnabled("courses"), () => startCourseSystemService(client, context));
+  startRuntimeService("tickets", isBotModuleEnabled("tickets"), () => startTicketPanelService(client, context));
+  startRuntimeService("report-system", isReportSystemModuleEnabled(), () => startReportSystemService(client, context));
+  startRuntimeService("fivem-hierarchy", isBotModuleEnabled("fivem-hierarchy"), () => startFivemHierarchyService(client, context));
+  startRuntimeService("fivem-actions", isBotModuleEnabled("fivem-actions") || isBotModuleEnabled("police-actions"), () => startFivemActionService(client, context));
+  startRuntimeService("police-patrol-reports", isBotModuleEnabled("police-patrol-reports"), () => startPolicePatrolReportService(client, context));
+  startRuntimeService("manual-registration", isBotModuleEnabled("manual-registration"), () => startManualRegistrationService(client, context));
+  startRuntimeService("image-anti-spam", isBotModuleEnabled("image-anti-spam") && !isSelfBotModuleEnabled(), () => startImageAntiSpamService(context));
+  await startRuntimeService("voice-recorder", isBotModuleEnabled("voice-recorder"), async () => {
+    const { startVoiceRecorderService } = await import("../services/voiceRecorderService.js");
+    await startVoiceRecorderService(context);
+  });
+  startRuntimeService("auto-activity-clock", isBotModuleEnabled("auto-activity-clock"), () => startAutoActivityClockService(client, context));
+  startRuntimeService("temporary-voice", isBotModuleEnabled("temporary-voice"), () => startTemporaryVoiceService(client, context));
+  await startRuntimeService("tag-verification", isBotModuleEnabled("tag-verification"), () => startTagVerificationService(client, context));
+}
+
+async function startRuntimeService(key: string, enabled: boolean, starter: () => void | Promise<void>) {
+  if (!enabled || startedRuntimeServices.has(key)) {
+    return;
+  }
+
+  startedRuntimeServices.add(key);
+  try {
+    const result = starter();
+    if (result instanceof Promise) await result;
+  } catch (error) {
+    startedRuntimeServices.delete(key);
+    throw error;
+  }
+}
+
 async function reportRuntimeStatus(context: BotContext, client: Client, online: boolean) {
   try {
     await context.api.reportRuntimeStatus({
@@ -385,7 +350,7 @@ async function reconcileRuntimeModules(client: Client<true>, context: BotContext
   if (nextSignature === lastRuntimeModuleSignature) {
     // Recover SafeBot activation events that happened during a socket reconnect.
     if (isSelfBotModuleEnabled()) await ensureSelfBotRoles(client, context);
-    if (isBotModuleEnabled("fivem-hierarchy")) startFivemHierarchyService(client, context);
+    if (isBotModuleEnabled("fivem-hierarchy")) void startRuntimeModuleServices(client, context);
     return;
   }
 
@@ -401,24 +366,7 @@ async function reconcileRuntimeModules(client: Client<true>, context: BotContext
     await disableUnreleasedSafeBotChannels(client, context);
   }
 
-  if (!wasMissionToolsEnabled && isBotModuleEnabled("mission-tools")) {
-    startMissionToolsService(client, context);
-  }
-  if (!wasTemporaryVoiceEnabled && isBotModuleEnabled("temporary-voice")) {
-    startTemporaryVoiceService(client, context);
-  }
-  if (isBotModuleEnabled("manual-payments")) {
-    startManualPaymentService(client, context);
-  }
-  if (!wasFivemHierarchyEnabled && isBotModuleEnabled("fivem-hierarchy")) {
-    startFivemHierarchyService(client, context);
-  }
-  if (isReportSystemModuleEnabled()) {
-    startReportSystemService(client, context);
-  }
-  if (!wasTagVerificationEnabled && isBotModuleEnabled("tag-verification")) {
-    await startTagVerificationService(client, context);
-  }
+  await startRuntimeModuleServices(client, context);
   if (wasTagVerificationEnabled && !isBotModuleEnabled("tag-verification")) {
     stopTagVerificationService();
   }

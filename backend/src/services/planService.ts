@@ -145,7 +145,7 @@ export type PlanWorkspaceDto = Omit<MongoPlanWorkspace, "_id" | "createdAt" | "u
 
 export type BotCredentialDto = Omit<
   MongoBotCredential,
-  "_id" | "createdAt" | "updatedAt" | "tokenCiphertext" | "encryptedDataKey" | "iv" | "authTag" | "lastValidatedAt"
+  "_id" | "createdAt" | "updatedAt" | "tokenCiphertext" | "tokenFingerprint" | "encryptedDataKey" | "iv" | "authTag" | "lastValidatedAt"
 > & {
   id: string;
   createdAt: string;
@@ -3275,6 +3275,7 @@ function toBotCredentialDto(credential: MongoBotCredential): BotCredentialDto {
     iv,
     lastValidatedAt,
     tokenCiphertext,
+    tokenFingerprint,
     updatedAt,
     ...rest
   } = credential;
@@ -3282,6 +3283,7 @@ function toBotCredentialDto(credential: MongoBotCredential): BotCredentialDto {
   void encryptedDataKey;
   void iv;
   void tokenCiphertext;
+  void tokenFingerprint;
 
   return {
     ...rest,

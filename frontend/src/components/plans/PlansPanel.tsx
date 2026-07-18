@@ -274,7 +274,7 @@ export function PlansPanel() {
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-white">{bot.botName}</p>
                         <p className="mt-1 font-mono text-xs text-zinc-500">client_id: {bot.botClientId}</p>
-                        <p className="mt-1 text-xs text-zinc-500">fingerprint: {bot.tokenFingerprint.slice(0, 12)}...</p>
+                        <p className="mt-1 text-xs text-zinc-500">Token armazenado e criptografado no backend.</p>
                       </div>
                       <div className="flex shrink-0 gap-2">
                         <Badge variant={bot.status === "validated" ? "success" : "muted"}>{bot.status === "validated" ? "Validado" : "Armazenado"}</Badge>

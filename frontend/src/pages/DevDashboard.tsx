@@ -33,7 +33,6 @@ import {
   Play,
   RefreshCw,
   Square,
-  Terminal,
   Wifi
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -60,7 +59,6 @@ import {
   saveDevAccessEntry,
   setMaintenanceMode,
   runDiscloudBotAction,
-  runDiscloudConsoleCommand,
   updateDevBotModules,
   updateDevFivemModule
 } from "../lib/api";
@@ -364,8 +362,6 @@ function DiscloudMonitoringPanel() {
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [logs, setLogs] = useState<DiscloudLogsResponse | null>(null);
   const [logsQuery, setLogsQuery] = useState("");
-  const [consoleCommand, setConsoleCommand] = useState("");
-  const [consoleOutput, setConsoleOutput] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const selectedBot = data?.bots.find((bot) => bot.botId === selectedBotId) ?? data?.bots[0] ?? null;
@@ -444,24 +440,6 @@ function DiscloudMonitoringPanel() {
     }
   }
 
-  async function handleConsoleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedBot || !consoleCommand.trim()) return;
-
-    setBusyAction(`console:${selectedBot.botId}`);
-    setMessage(null);
-
-    try {
-      const result = await runDiscloudConsoleCommand(selectedBot.botId, consoleCommand.trim());
-      setConsoleOutput([result.stdout, result.stderr].filter(Boolean).join("\n") || "Comando executado sem saída.");
-      setConsoleCommand("");
-    } catch (error) {
-      setMessage(readRequestMessage(error) ?? "Não foi possível executar o comando.");
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
   const filteredLogs = (logs?.full || logs?.small || "")
     .split(/\r?\n/)
     .filter((line) => !logsQuery.trim() || line.toLowerCase().includes(logsQuery.trim().toLowerCase()))
@@ -529,20 +507,6 @@ function DiscloudMonitoringPanel() {
               <Button disabled={!filteredLogs} onClick={() => void navigator.clipboard?.writeText(filteredLogs)} size="sm" variant="outline"><Copy className="h-4 w-4" />Copiar</Button>
               <Button disabled={!logs} onClick={() => setLogs(null)} size="sm" variant="outline">Limpar tela</Button>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-zinc-800/80 bg-zinc-950/80">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Terminal className="h-5 w-5" />Console</CardTitle>
-            <CardDescription>{selectedBot ? selectedBot.appName : "Selecione uma aplicacao"}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <form className="flex gap-2" onSubmit={(event) => void handleConsoleSubmit(event)}>
-              <input className="h-10 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-black px-3 text-sm text-white outline-none" onChange={(event) => setConsoleCommand(event.target.value)} placeholder="Comando" value={consoleCommand} />
-              <Button disabled={!selectedBot || busyAction?.startsWith("console:")} type="submit">Enviar</Button>
-            </form>
-            <pre className="max-h-[260px] min-h-[180px] overflow-auto rounded-lg border border-zinc-900 bg-black p-4 font-mono text-xs leading-5 text-zinc-100">{consoleOutput || "Sem saída."}</pre>
           </CardContent>
         </Card>
       </section>
@@ -617,7 +581,6 @@ function DiscloudBotCard({
           <Button disabled={Boolean(busyAction)} onClick={() => onAction(bot, "restart")} size="sm" variant="outline"><RefreshCw className="h-4 w-4" />Reiniciar</Button>
           <Button disabled={Boolean(busyAction)} onClick={() => onAction(bot, "redeploy")} size="sm" variant="outline">Redeploy</Button>
           <Button disabled={Boolean(busyAction)} onClick={() => { onSelect(bot.botId); onLogs(bot.botId); }} size="sm" variant="outline"><ScrollText className="h-4 w-4" />Logs</Button>
-          <Button onClick={() => onSelect(bot.botId)} size="sm" variant="outline"><Terminal className="h-4 w-4" />Console</Button>
         </div>
       </CardContent>
     </Card>

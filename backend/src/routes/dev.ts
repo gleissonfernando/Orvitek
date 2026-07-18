@@ -62,8 +62,7 @@ import {
 import {
   getDiscloudLogsForBot,
   getDiscloudMonitoring,
-  runDiscloudBotAction,
-  runDiscloudConsoleCommand
+  runDiscloudBotAction
 } from "../services/discloudMonitoringService";
 import {
   deleteNexTechPaymentProvider,
@@ -251,9 +250,6 @@ const discloudActionSchema = z.object({
   action: z.enum(["start", "stop", "restart", "redeploy"])
 });
 
-const discloudConsoleSchema = z.object({
-  command: z.string().min(1).max(300)
-});
 const systemEmojiPatchSchema = z.object({
   animated: z.boolean().optional(),
   emojiId: z.string().regex(/^\d{5,32}$/).nullable().optional().or(z.literal("")),
@@ -305,17 +301,6 @@ devRouter.post("/discloud/bots/:botId/actions", async (req, res, next) => {
   try {
     const input = discloudActionSchema.parse(req.body ?? {});
     return res.json(await runDiscloudBotAction(req.params.botId, input.action));
-  } catch (error) {
-    return next(error);
-  }
-});
-
-devRouter.post("/discloud/bots/:botId/console", async (req, res, next) => {
-  try {
-    const input = discloudConsoleSchema.parse(req.body ?? {});
-    return res.json({
-      result: await runDiscloudConsoleCommand(req.params.botId, input.command)
-    });
   } catch (error) {
     return next(error);
   }

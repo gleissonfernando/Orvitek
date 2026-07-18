@@ -211,14 +211,12 @@ emojiClonerRouter.post("/fake-token/validate", requireAuth, async (req, res, nex
       botId: input.botId,
       sourceGuildId: input.sourceGuildId,
       targetGuildId: input.targetGuildId,
-      tokenMasked: maskFakeToken(input.token, prefix),
       userId: res.locals.dashboardAuth.user.discordId
     }).catch(() => undefined);
 
     return res.json({
       accepted: true,
-      message: "Token do usuário aceito. Modo de teste ativado para clonagem de emojis.",
-      tokenMasked: maskFakeToken(input.token, prefix)
+      message: "Token do usuário aceito. Modo de teste ativado para clonagem de emojis."
     });
   } catch (error) {
     return next(error);
@@ -911,7 +909,6 @@ function normalizeDiscordBotToken(value: string, userId: string, guildId: string
     });
   }
 
-  console.log(`[emoji-cloner][auth] credential received type=bot-candidate length=${token.length} fingerprint=${tokenFingerprint(token)}`);
   return token;
 }
 
@@ -946,10 +943,6 @@ function unsupportedCredentialReason(token: string) {
   if (/^[a-f0-9]{32}$/i.test(token)) return "Credencial não suportada por este sistema. Client secret não é token de bot.";
   if (/^[0-9]{15,32}$/.test(token)) return "Credencial não suportada por este sistema. ID de aplicação não é token de bot.";
   return null;
-}
-
-function tokenFingerprint(token: string) {
-  return Buffer.from(token.slice(0, 8)).toString("base64url").slice(0, 10);
 }
 
 function safeJson(value: string) {
@@ -1033,15 +1026,10 @@ function looksLikeDiscordUserToken(value: string) {
   return /mfa\.[\w-]{20,}/i.test(value) || /^[\w-]{20,}\.[\w-]{6,}\.[\w-]{20,}$/.test(value);
 }
 
-function maskFakeToken(token: string, prefix: string) {
-  return token.startsWith(prefix) ? `${prefix}****` : "****";
-}
-
 async function recordEmojiCloneTestLog(input: {
   botId: string;
   sourceGuildId: string;
   targetGuildId: string;
-  tokenMasked: string;
   userId: string;
 }) {
   const { createLog } = await import("../services/logService.js");
@@ -1056,8 +1044,7 @@ async function recordEmojiCloneTestLog(input: {
       action: "Iniciou teste de clonagem de emojis",
       createdAt: new Date().toISOString(),
       sourceGuildId: input.sourceGuildId,
-      targetGuildId: input.targetGuildId,
-      token: input.tokenMasked
+      targetGuildId: input.targetGuildId
     }
   });
 }

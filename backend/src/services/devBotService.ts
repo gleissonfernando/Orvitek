@@ -293,7 +293,6 @@ export type DevBotDto = {
   dashboardUrl: string;
   clientId: string;
   databaseName: string | null;
-  tokenMasked: string;
   secretConfigured: boolean;
   avatarUrl: string | null;
   ownerId: string;
@@ -2638,7 +2637,6 @@ function toDevBotDto(bot: MongoDevBot, guildIds: string[] = [bot.mainGuildId], a
     dashboardUrl: buildDashboardUrl(slug),
     clientId: bot.clientId,
     databaseName: bot.databaseName ?? null,
-    tokenMasked: bot.tokenEncrypted ? maskedToken(bot) : "",
     secretConfigured: Boolean(bot.secretEncrypted),
     avatarUrl: bot.avatarUrl ?? null,
     ownerId: bot.ownerId,
@@ -2920,46 +2918,10 @@ function tokenLast4(token: string) {
   return token.trim().slice(-4) || null;
 }
 
-function maskedToken(bot: Pick<MongoDevBot, "tokenEncrypted" | "tokenPrefix" | "tokenLast4">) {
-  const parts = tokenMaskParts(bot);
-
-  if (parts.prefix && parts.tail) {
-    return `${parts.prefix}${"*".repeat(11)}${parts.tail}`;
-  }
-
-  return "******** protegido";
-}
-
 function normalizeProfileAvatarUrl(value: string | null | undefined) {
   const normalized = value?.trim();
 
   return normalized || null;
-}
-
-function tokenMaskParts(bot: Pick<MongoDevBot, "tokenEncrypted" | "tokenPrefix" | "tokenLast4">) {
-  const prefix = bot.tokenPrefix?.trim() || null;
-  const tail = bot.tokenLast4?.trim().slice(-3) || null;
-
-  if (prefix && tail) {
-    return {
-      prefix,
-      tail
-    };
-  }
-
-  try {
-    const token = decryptSecret(bot.tokenEncrypted);
-
-    return {
-      prefix: prefix ?? tokenPrefix(token),
-      tail: tail ?? tokenLast4(token)?.slice(-3) ?? null
-    };
-  } catch {
-    return {
-      prefix,
-      tail
-    };
-  }
 }
 
 function snowflakeDate(id: string) {

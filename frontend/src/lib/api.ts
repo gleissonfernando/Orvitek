@@ -31,7 +31,6 @@ import type {
   DevAccessEntry,
   DevAccessRole,
   DevBot,
-  DiscloudConsoleResult,
   DiscloudLogsResponse,
   DiscloudMonitoringResponse,
   DevModuleDefinition,
@@ -690,7 +689,6 @@ export async function validateFakeEmojiCloneToken(payload: {
   const { data } = await api.post<{
     accepted: boolean;
     message: string;
-    tokenMasked: string;
   }>("/emoji-cloner/fake-token/validate", payload);
   return data;
 }
@@ -2059,15 +2057,6 @@ export async function runDiscloudBotAction(botId: string, action: "start" | "sto
     timeout: 30000
   });
   return data;
-}
-
-export async function runDiscloudConsoleCommand(botId: string, command: string) {
-  const { data } = await api.post<{ result: DiscloudConsoleResult }>(`/dev/discloud/bots/${encodeURIComponent(botId)}/console`, {
-    command
-  }, {
-    timeout: 30000
-  });
-  return data.result;
 }
 
 export async function getDevPlansDashboard() {

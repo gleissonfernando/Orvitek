@@ -1609,7 +1609,7 @@ function ConnectedBotPanel({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-bold text-white">Token do bot</p>
-              <p className="mt-1 font-mono text-xs text-zinc-400">Atual: {bot.tokenMasked || "protegido"}</p>
+              <p className="mt-1 text-xs text-zinc-400">Atual: protegido no backend</p>
             </div>
             <Button onClick={() => setEditingToken((current) => !current)} size="sm" variant="outline">
               <LockKeyhole className="h-4 w-4" />
@@ -3912,7 +3912,7 @@ function NexTechSalesWorkspace({
                         <p className="truncate text-sm font-bold text-white">{provider.label}</p>
                         <p className="truncate text-xs font-medium text-zinc-400">
                           {provider.provider} · {provider.environment === "sandbox" ? "Sandbox" : "Produção"} · gateway {provider.gatewayId}
-                          {provider.secretMasked ? ` · token ${provider.secretMasked}` : ""}
+                          {provider.secretConfigured ? " · credencial protegida" : ""}
                         </p>
                         <p className="truncate text-xs font-medium text-zinc-500">
                           {[provider.accountName, provider.accountEmail, provider.accountCountry, provider.lastTestedAt ? `testado ${formatDate(provider.lastTestedAt)}` : null].filter(Boolean).join(" · ") || "Conexão ainda não testada"}
@@ -5028,7 +5028,7 @@ function BotOverview({ bot, modules }: { bot: DevBot; modules: DevModuleDefiniti
       <OverviewMetric label="Status" value={statusLabel(bot.status)} />
       <OverviewMetric label="Módulos ativos" value={`${activeModules.length}/${modules.length}`} />
       <OverviewMetric label="Servidor" value={bot.mainGuildName || bot.mainGuildId} />
-      <OverviewMetric label="Token protegido" value={bot.tokenMasked || "Protegido"} />
+      <OverviewMetric label="Token protegido" value={bot.secretConfigured ? "Configurado no backend" : "Não configurado"} />
       <div className="rounded-lg border border-[#FFD500]/25 bg-[#FFD500]/[0.08] p-4 sm:col-span-3">
         <div className="flex items-center gap-3">
           <ShieldCheck className="h-5 w-5 shrink-0 text-[#FFEA70]" />

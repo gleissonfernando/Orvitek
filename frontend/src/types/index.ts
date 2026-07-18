@@ -2893,7 +2893,6 @@ export type NexTechSalesPaymentProvider = {
   webhookUrl: string | null;
   instructions: string | null;
   secretConfigured: boolean;
-  secretMasked: string | null;
   webhookSecretConfigured: boolean;
   updatedAt: string;
 };
@@ -3644,7 +3643,6 @@ export type DevBot = {
   dashboardUrl: string;
   clientId: string;
   databaseName: string;
-  tokenMasked: string;
   secretConfigured: boolean;
   avatarUrl: string | null;
   ownerId: string;
@@ -3721,12 +3719,6 @@ export type DiscloudLogsResponse = {
   full: string;
   small: string;
   updatedAt: string;
-};
-
-export type DiscloudConsoleResult = {
-  online: boolean;
-  stderr: string;
-  stdout: string;
 };
 
 export type MaintenanceLog = {
@@ -3845,7 +3837,6 @@ export type BotCredential = {
   slug?: string | null;
   status: BotCredentialStatus;
   tokenConfigured: true;
-  tokenFingerprint: string;
   updatedAt: string;
   workspaceId: string;
 };

@@ -879,6 +879,8 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
     [botGuildConfig, releasedEnabledModulesKey]
   );
   const enabledModulesKey = enabledModules.join("|");
+  const logsModuleEnabled = hasReleasedModule(enabledModules, "logs");
+  const ticketsModuleEnabled = hasReleasedModule(enabledModules, "tickets");
   const scopedDashboardGuilds = useMemo(
     () => selectedBot
       ? dashboardGuilds.filter((guild) => selectedBot.guildIds.includes(guild.id))
@@ -1113,9 +1115,9 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
 
     Promise.allSettled([
       getGuildSettings(selectedGuildId, activeBotId),
-      activeBotId ? getLogs(selectedGuildId, activeBotId) : Promise.resolve([]),
+      activeBotId && logsModuleEnabled ? getLogs(selectedGuildId, activeBotId) : Promise.resolve([]),
       getLives(selectedGuildId, activeBotId),
-      getTickets(selectedGuildId, activeBotId),
+      activeBotId && ticketsModuleEnabled ? getTickets(selectedGuildId, activeBotId) : Promise.resolve([]),
       enabledModules.includes("live") ? getSocialNotifications(selectedGuildId, activeBotId) : Promise.resolve(null),
       liveModulesEnabled(enabledModules) ? getKickNotifications(selectedGuildId, activeBotId) : Promise.resolve(null),
       enabledModules.includes("clips") ? getClipsConfig(selectedGuildId, activeBotId, "twitch") : Promise.resolve(null),
@@ -1152,12 +1154,12 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
     return () => {
       mounted = false;
     };
-  }, [activeBotId, dashboardProfileLoading, dashboardRouteError, enabledModulesKey, maintenanceState?.active, panelBots.length, selectedGuildId]);
+  }, [activeBotId, dashboardProfileLoading, dashboardRouteError, enabledModulesKey, logsModuleEnabled, maintenanceState?.active, panelBots.length, selectedGuildId, ticketsModuleEnabled]);
 
   useEffect(() => {
     const socket = createDashboardSocket();
 
-    if (selectedGuildId && activeBotId) {
+    if (selectedGuildId && activeBotId && logsModuleEnabled) {
       socket.emit("logs:subscribe", {
         botId: activeBotId,
         guildId: selectedGuildId
@@ -1218,7 +1220,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
     socket.on("settings:updated", (nextSettings: GuildSettings) => {
       if (nextSettings.guildId === selectedGuildId && (nextSettings.botId ?? null) === activeBotId) {
         setSettings(nextSettings);
-        if (selectedGuildId && activeBotId) {
+        if (selectedGuildId && activeBotId && logsModuleEnabled) {
           void getLogs(selectedGuildId, activeBotId)
             .then((nextLogs) => setLogs(userVisibleLogs(nextLogs)))
             .catch(() => undefined);
@@ -1231,6 +1233,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
     };
   }, [
     activeBotId,
+    logsModuleEnabled,
     selectedGuildId,
     settings?.siteLogsEnabled,
     settings?.siteLogCategories.join("|")
@@ -1239,7 +1242,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
   async function handleLogsSettingsChange(nextSettings: GuildSettings) {
     setSettings(nextSettings);
 
-    if (!selectedGuildId || !activeBotId) {
+    if (!selectedGuildId || !activeBotId || !logsModuleEnabled) {
       setLogs([]);
       return;
     }

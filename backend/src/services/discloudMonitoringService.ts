@@ -139,36 +139,6 @@ export async function runDiscloudBotAction(botId: string, action: DiscloudAction
   return getDiscloudMonitoring(true);
 }
 
-export async function runDiscloudConsoleCommand(botId: string, command: string) {
-  ensureDiscloudToken();
-  const bot = (await listDevBots()).find((item) => item.id === botId);
-  const appId = resolveAppId(bot, botId);
-
-  if (!appId) {
-    throw createDiscloudError("Aplicacao Discloud não vinculada a este bot.", 404);
-  }
-
-  const result = await discloudApi(`/app/${encodeURIComponent(appId)}/exec`, {
-    body: JSON.stringify({ cmd: command }),
-    headers: {
-      "Content-Type": "application/json"
-    },
-    method: "PUT"
-  });
-  await recordDiscloudEvent({
-    appId,
-    botId,
-    event: "console",
-    message: `Comando enviado ao console da aplicacao ${appId}.`
-  });
-
-  return {
-    online: readBoolean(readPayloadValue(result, "online")),
-    stderr: String(readPayloadValue(result, "stderr") ?? readPayloadValue(result, "error") ?? ""),
-    stdout: String(readPayloadValue(result, "stdout") ?? readPayloadValue(result, "output") ?? readPayloadValue(result, "message") ?? "")
-  };
-}
-
 async function readDiscloudMonitoring(): Promise<DiscloudMonitoringPayload> {
   const now = new Date().toISOString();
 
@@ -613,7 +583,6 @@ function devBotPlaceholder(appId: string, app: unknown): DevBotDto {
     dashboardUrl: "",
     clientId: appId,
     databaseName: "",
-    tokenMasked: "",
     secretConfigured: false,
     avatarUrl: readString(appObject.avatarURL),
     ownerId: "",

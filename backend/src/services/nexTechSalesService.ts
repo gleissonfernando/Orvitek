@@ -34,7 +34,6 @@ export type NexTechSalesSettingsDto = Omit<MongoNexTechSalesSettings, "_id" | "c
 export type NexTechSalesPaymentProviderDto = Omit<MongoNexTechSalesPaymentProvider, "clientSecretEncrypted" | "lastTestedAt" | "secretEncrypted" | "webhookSecretEncrypted" | "updatedAt"> & {
   clientSecretConfigured: boolean;
   secretConfigured: boolean;
-  secretMasked: string | null;
   lastTestedAt: string | null;
   webhookSecretConfigured: boolean;
   updatedAt: string;
@@ -1336,22 +1335,9 @@ function toPaymentProviderDto(provider: MongoNexTechSalesPaymentProvider): NexTe
     webhookUrl: provider.webhookUrl,
     instructions: provider.instructions,
     secretConfigured: Boolean(provider.secretEncrypted),
-    secretMasked: maskEncryptedSecret(provider.secretEncrypted),
     webhookSecretConfigured: Boolean(provider.webhookSecretEncrypted),
     updatedAt: provider.updatedAt.toISOString()
   };
-}
-
-function maskEncryptedSecret(value: string | null | undefined) {
-  if (!value) return null;
-
-  try {
-    const secret = decryptSecret(value);
-    const tail = secret.slice(-4).toUpperCase();
-    return `${"*".repeat(20)}${tail}`;
-  } catch {
-    return "********************";
-  }
 }
 
 function tenantScope(botId: string, guildId: string, ownerUserId: string, storeId: string) {
