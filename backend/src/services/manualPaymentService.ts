@@ -99,6 +99,7 @@ export async function ensureManualPaymentSettings(guildId: string, botId: string
     maxPaymentMinutes: 60,
     paymentCategoryId: null,
     paymentInstructions: "Envie o pagamento via Pix e anexe o comprovante neste canal. A aprovação e feita manualmente pela equipe.",
+    pixCopyPasteCode: null,
     pixKey: null,
     pixKeyType: "random",
     pixQrCodeUrl: null,
@@ -255,6 +256,7 @@ function toSettingsDto(settings: MongoManualPaymentSettings): ManualPaymentSetti
   return {
     ...settings,
     id: settings._id,
+    pixCopyPasteCode: settings.pixCopyPasteCode ?? null,
     updatedAt: settings.updatedAt.toISOString()
   };
 }
@@ -278,6 +280,7 @@ function normalizeSettingsInput(input: SaveManualPaymentSettingsInput) {
     logChannelId: normalizeNullable(input.logChannelId),
     paymentCategoryId: normalizeNullable(input.paymentCategoryId),
     attendanceCategoryId: normalizeNullable(input.attendanceCategoryId),
+    pixCopyPasteCode: normalizeNullable(input.pixCopyPasteCode),
     pixKey: normalizeNullable(input.pixKey),
     pixQrCodeUrl: normalizeNullable(input.pixQrCodeUrl),
     receiverBank: normalizeNullable(input.receiverBank),

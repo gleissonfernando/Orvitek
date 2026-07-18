@@ -2031,6 +2031,7 @@ export type ManualPaymentSettings = {
   maxPaymentMinutes: number;
   paymentCategoryId: string | null;
   paymentInstructions: string;
+  pixCopyPasteCode: string | null;
   pixKey: string | null;
   pixKeyType: "cpf" | "cnpj" | "phone" | "email" | "random";
   pixQrCodeUrl: string | null;

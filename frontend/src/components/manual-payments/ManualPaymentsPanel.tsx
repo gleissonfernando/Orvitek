@@ -182,6 +182,7 @@ export function ManualPaymentsPanel({ botId, canManage, guild }: Props) {
             <div className="grid gap-3 md:grid-cols-2">
               <Field disabled={!canManage} label="Chave Pix" onChange={(value) => patch({ pixKey: value || null })} value={draft.pixKey ?? ""} />
               <ValueSelect disabled={!canManage} label="Tipo da chave" onChange={(value) => patch({ pixKeyType: value as ManualPaymentSettings["pixKeyType"] })} options={["cpf", "cnpj", "email", "phone", "random"]} value={draft.pixKeyType ?? "random"} />
+              <Field disabled={!canManage} label="Código Pix Copia e Cola" onChange={(value) => patch({ pixCopyPasteCode: value || null })} value={draft.pixCopyPasteCode ?? ""} />
               <Field disabled={!canManage} label="Nome do recebedor" onChange={(value) => patch({ receiverName: value || null })} value={draft.receiverName ?? ""} />
               <Field disabled={!canManage} label="Banco" onChange={(value) => patch({ receiverBank: value || null })} value={draft.receiverBank ?? ""} />
               <Field disabled={!canManage} label="URL do QR Code" onChange={(value) => patch({ pixQrCodeUrl: value || null })} value={draft.pixQrCodeUrl ?? ""} />
