@@ -282,7 +282,7 @@ async function handlePublicReportSelect(interaction: StringSelectMenuInteraction
   const selectedCategoryId = interaction.values[0] ?? "";
   const settings = await getFreshGuildSettings(context, interaction.guild.id, interaction.client.user?.id);
   const report = settings.reportSystem;
-  const category = report.categories.find((item) => item.enabled && item.id === selectedCategoryId);
+  const category = resolveEnabledReportCategory(report, selectedCategoryId);
 
   if (!report.enabled || !category) {
     await safeReply(interaction, "Esta opção de denúncia não está mais disponível.");
@@ -295,7 +295,7 @@ async function handlePublicReportSelect(interaction: StringSelectMenuInteraction
   }
 
   if (!report.allowAnonymousReports) {
-    await interaction.reply({ ...anonymousDisabledPayload(selectedCategoryId), flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
+    await interaction.reply({ ...anonymousDisabledPayload(category.id), flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
     void resetSelectMenuMessage(interaction);
     return;
   }
@@ -306,12 +306,12 @@ async function handlePublicReportSelect(interaction: StringSelectMenuInteraction
       actions: [
         new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder()
-            .setCustomId(`${PUBLIC_PREFIX}:id:${selectedCategoryId}:identified`)
+            .setCustomId(`${PUBLIC_PREFIX}:id:${category.id}:identified`)
             .setEmoji(systemComponentEmoji("homem", interaction.guild))
             .setLabel("Denúncia Identificada")
             .setStyle(ButtonStyle.Primary),
           new ButtonBuilder()
-            .setCustomId(`${PUBLIC_PREFIX}:id:${selectedCategoryId}:anonymous`)
+            .setCustomId(`${PUBLIC_PREFIX}:id:${category.id}:anonymous`)
             .setEmoji(systemComponentEmoji("fantasma", interaction.guild))
             .setLabel("Denúncia Anonima")
             .setStyle(ButtonStyle.Secondary)
@@ -365,7 +365,7 @@ async function handlePublicReportButton(interaction: ButtonInteraction, context:
   if (action === "id") {
     if (!categoryId) return safeReply(interaction, "Opção de denúncia inválida.");
     const settings = await getFreshGuildSettings(context, interaction.guildId!, interaction.client.user?.id);
-    const category = settings.reportSystem.categories.find((item) => item.enabled && item.id === categoryId);
+    const category = resolveEnabledReportCategory(settings.reportSystem, categoryId);
     if (!category) return safeReply(interaction, "Opção de denúncia inválida.");
     await interaction.showModal(createPublicReportModal(category.id, mode === "anonymous" ? "anonymous" : "identified", category.name));
     return;
@@ -389,7 +389,7 @@ async function openReportFromPanel(interaction: StringSelectMenuInteraction | Bu
   await interaction.deferReply({ ephemeral: true });
   const settings = await getFreshGuildSettings(context, interaction.guildId!, interaction.client.user?.id);
   const report = settings.reportSystem;
-  const category = report.categories.find((item) => item.enabled && item.id === categoryId);
+  const category = resolveEnabledReportCategory(report, categoryId);
 
   if (!report.enabled || !category) {
     await interaction.editReply("Esta opção de denúncia não está mais disponível.");
@@ -1221,7 +1221,7 @@ async function submitPublicReport(interaction: ModalSubmitInteraction, context: 
   const mode = modeValue === "anonymous" ? "anonymous" : "identified";
   const settings = await getFreshGuildSettings(context, interaction.guildId!, interaction.client.user?.id);
   const report = settings.reportSystem;
-  const category = report.categories.find((item) => item.enabled && item.id === categoryId);
+  const category = resolveEnabledReportCategory(report, categoryId);
 
   if (!report.enabled || !category) {
     await interaction.editReply("Este tipo de denúncia não está mais disponível.");
@@ -1518,6 +1518,62 @@ function reportCategoryCompetence(report: ReportSystemSettings, categoryId: stri
 
 function reportCategoryById(report: ReportSystemSettings, categoryId: string | null | undefined) {
   return report.categories.find((category) => category.id === categoryId) ?? null;
+}
+
+function resolveEnabledReportCategory(report: ReportSystemSettings, categoryId: string | null | undefined) {
+  const categoryKey = normalizeReportCategoryKey(categoryId);
+  if (!categoryKey) return null;
+
+  const enabledCategories = report.categories.filter((category) => category.enabled);
+  const exact = enabledCategories.find((category) => category.id === categoryId);
+  if (exact) return exact;
+
+  const normalized = enabledCategories.find((category) =>
+    reportCategoryLookupKeys(category).some((key) => key === categoryKey)
+  );
+  if (normalized) return normalized;
+
+  if (categoryKey === "iab") {
+    return enabledCategories.find((category) =>
+      reportCategoryLookupKeys(category).some((key) => key.includes("oficial") || key === "iab")
+    ) ?? null;
+  }
+
+  if (categoryKey === "conselho") {
+    return enabledCategories.find((category) =>
+      reportCategoryLookupKeys(category).some((key) => key.includes("conselho") || key.includes("membrosiab"))
+    ) ?? null;
+  }
+
+  if (["altocomando", "hcmd", "highcommand"].includes(categoryKey)) {
+    return enabledCategories.find((category) =>
+      reportCategoryLookupKeys(category).some((key) => key.includes("altocomando") || key.includes("hcmd") || key.includes("highcommand"))
+    ) ?? null;
+  }
+
+  if (categoryKey.includes("comiss")) {
+    return enabledCategories.find((category) =>
+      reportCategoryLookupKeys(category).some((key) => key.includes("comiss"))
+    ) ?? null;
+  }
+
+  return null;
+}
+
+function reportCategoryLookupKeys(category: ReportSystemSettings["categories"][number]) {
+  return [category.id, category.name, category.judgeLabel ?? ""]
+    .map(normalizeReportCategoryKey)
+    .filter((key): key is string => Boolean(key));
+}
+
+function normalizeReportCategoryKey(value: string | null | undefined) {
+  const normalized = value
+    ?.trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "");
+  return normalized || null;
 }
 
 async function resolveReportParentCategoryId(

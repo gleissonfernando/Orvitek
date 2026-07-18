@@ -7624,7 +7624,7 @@ function OrgaoConfigPanel({
         </div>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
-        <TicketField disabled={disabled} label="Nome do órgão" onChange={(value) => onPatch({ id: slugTicketOption(value, index), name: value })} value={category.name} />
+        <TicketField disabled={disabled} label="Nome do órgão" onChange={(value) => onPatch({ name: value })} value={category.name} />
         <TicketField disabled={disabled} label="Quais denuncias vao para este órgão" onChange={(value) => onPatch({ judgeLabel: value })} value={category.judgeLabel ?? ""} />
         <TicketField disabled={disabled} label="Descrição" onChange={(value) => onPatch({ description: value })} value={category.description ?? ""} />
         <TicketField disabled={disabled} label="Emoji" onChange={(value) => onPatch({ emoji: value })} value={category.emoji ?? ""} />
