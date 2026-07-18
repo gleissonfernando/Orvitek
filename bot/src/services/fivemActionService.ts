@@ -532,56 +532,52 @@ async function sendReport(interaction: { guild: any }, context: BotContext, sess
     .slice(0, 2);
   const active = session.participants.filter((item) => !item.leftAt);
   const duration = Math.max(0, Math.round(((session.finishedAt ? Date.parse(session.finishedAt) : Date.now()) - Date.parse(session.startedAt ?? session.createdAt)) / 60000));
-  const members = active.length ? active.filter((item) => item.position === "confirmed").map((item) => `• ${item.username} (<@${item.userId}>)`).join("\n") : "Nenhum participante.";
+  const confirmed = active.filter((item) => item.position === "confirmed");
+  const members = confirmed.length
+    ? confirmed.map((item, index) => `**${index + 1}.** ${compactText(item.username, 42)} • <@${item.userId}>`).join("\n")
+    : "Nenhum participante confirmado.";
   const finishedAt = session.finishedAt ? new Date(session.finishedAt) : new Date();
-  const reportSections = [
-    [
-    `# ${systemEmojiText("bandeira", interaction.guild)} Resultado da Ação`,
-    "━━━━━━━━━━━━━━━━━━━━━━",
-    `## ${systemEmojiText("arma", interaction.guild)} Ação`,
-    session.actionName,
-    "",
-    `## ${systemEmojiText("acessar", interaction.guild)} Modo`,
-    actionModeLabel(session.mode),
-    "",
-    `## ${systemEmojiText("homem", interaction.guild)} Participantes`,
-    String(active.filter((item) => item.position === "confirmed").length),
-    "",
-    `## ${systemEmojiText("prancheta", interaction.guild)} Lista`,
-    members,
-    "",
-    `## ${systemEmojiText("trofeu", interaction.guild)} Resultado`,
-    resultText(session, interaction.guild),
-    ""
-    ].join("\n"),
-    [
-    "",
-    `## ${systemEmojiText("prancheta", interaction.guild)} Resumo`,
-    session.resultSummary || "-",
-    "",
-    `## ${systemEmojiText("folha", interaction.guild)} Observações`,
-    session.resultNote || "-",
-    "",
-    `## ${systemEmojiText("alerta", interaction.guild)} Ocorrência`,
-    session.resultOccurrence || "-",
-    "",
-    `## ${systemEmojiText("calendario", interaction.guild)} Data`,
-    finishedAt.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }),
-    "",
-    `## ${systemEmojiText("relogio", interaction.guild)} Hora`,
-    finishedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }),
-    "",
-    "━━━━━━━━━━━━━━━━━━━━━━",
-    `Tempo total: ${duration} minutos`
-    ].join("\n")
-  ];
+  const finishedDate = finishedAt.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  const finishedTime = finishedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
+  const accentColor = session.status === "victory" ? 0x22c55e : session.status === "draw" ? 0xf59e0b : 0xef4444;
+  const components = [
+    reportBanners[0] ? mediaBlock(reportBanners[0], "Banner do resultado da ação") : null,
+    {
+      type: 10,
+      content: [
+        `# ${systemEmojiText("bandeira", interaction.guild)} Resultado da Ação`,
+        `**${compactText(session.actionName, 80)}**`,
+        "",
+        `> ${resultText(session, interaction.guild)} • ${actionModeLabel(session.mode)} • ${confirmed.length} participante(s)`,
+        "",
+        `**${systemEmojiText("calendario", interaction.guild)} Encerramento:** ${finishedDate} às ${finishedTime}`,
+        `**${systemEmojiText("relogio", interaction.guild)} Duração:** ${duration} minuto(s)`
+      ].join("\n")
+    },
+    {
+      type: 10,
+      content: [
+        `## ${systemEmojiText("homem", interaction.guild)} Participantes`,
+        truncateText(members, 1800)
+      ].join("\n")
+    },
+    {
+      type: 10,
+      content: [
+        `## ${systemEmojiText("prancheta", interaction.guild)} Detalhes do Resultado`,
+        `**Resumo:** ${emptyDash(session.resultSummary)}`,
+        `**Observações:** ${emptyDash(session.resultNote)}`,
+        `**Ocorrência:** ${emptyDash(session.resultOccurrence)}`
+      ].join("\n")
+    },
+    reportBanners[1] ? mediaBlock(reportBanners[1], "Imagem complementar do resultado da ação") : null
+  ].filter(Boolean);
+
   await channel.send({
     components: [{
       type: 17,
-      accent_color: session.status === "victory" ? 0x22c55e : session.status === "draw" ? 0xf59e0b : 0xef4444,
-      components: reportSections.map((content, index) => reportBanners[index]
-        ? sectionWithThumbnail(content, reportBanners[index], "Banner do resultado da ação")
-        : { type: 10, content })
+      accent_color: accentColor,
+      components
     }],
     flags: MessageFlags.IsComponentsV2
   });
@@ -722,12 +718,17 @@ function mediaBlock(url: string, description: string) {
   return { type: 12, items: [{ media: { url }, description }] };
 }
 
-function sectionWithThumbnail(content: string, url: string, description: string) {
-  return {
-    type: 9,
-    components: [{ type: 10, content }],
-    accessory: { type: 11, media: { url }, description }
-  };
+function emptyDash(value: string | null | undefined) {
+  return truncateText(value?.trim() || "-", 800);
+}
+
+function compactText(value: string | null | undefined, maxLength: number) {
+  const normalized = value?.trim() || "-";
+  return normalized.length > maxLength ? `${normalized.slice(0, Math.max(0, maxLength - 3))}...` : normalized;
+}
+
+function truncateText(value: string, maxLength: number) {
+  return value.length > maxLength ? `${value.slice(0, Math.max(0, maxLength - 3))}...` : value;
 }
 
 function isFivemActionRuntimeEnabled(architecture?: FivemActionArchitecture) {

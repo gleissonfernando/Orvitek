@@ -3480,6 +3480,8 @@ export type MongoSelfBotPunishmentState = {
   userId: string;
   moduleId: MongoSelfBotProtectionModuleId;
   currentAction: MongoSelfBotPunishmentAction;
+  currentStepId?: string | null;
+  currentStepIndex?: number | null;
   actionCount: number;
   totalOccurrences: number;
   lastPunishmentActions: MongoSelfBotPunishmentAction[];

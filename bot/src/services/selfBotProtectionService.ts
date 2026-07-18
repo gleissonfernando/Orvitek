@@ -11,7 +11,8 @@ import type { BotContext } from "../types";
 import type {
   SelfBotProtectionModuleId,
   SelfBotProtectionSettings,
-  SelfBotPunishmentAction
+  SelfBotPunishmentAction,
+  SelfBotPunishmentStep
 } from "./apiClient";
 import { clearSafeBotSetupCache, ensureSafeBotSetup, ensureSelfBotRole, isSelfBotModuleEnabled } from "./safeBotService";
 import { clearRuntimeModuleAuthorization, isRuntimeModuleAuthorized, runtimeScopeKey } from "./runtimeModuleGuard";
@@ -608,8 +609,18 @@ async function applyPunishment(input: {
   let addedRoleId: string | null = null;
   const errors: string[] = [];
   const role = await ensureSelfBotRole(input.guild, input.context).catch(() => null);
+  const resolved = await input.context.api.resolveSelfBotPunishment({
+    guildId: input.guild.id,
+    moduleId: input.violation.moduleId,
+    userId: input.member.id
+  }).catch((error) => {
+    console.warn("[self-bot-protection] não foi possível resolver etapa persistida:", errorMessage(error));
+    return null;
+  });
+  const step = resolved?.step ?? firstLocalPunishmentStep(input.settings);
+  const sequence = step ? stepActions(step) : input.settings.punishmentSequence;
 
-  for (const action of input.settings.punishmentSequence) {
+  for (const action of sequence) {
     try {
       const rateLimit = consumeSecurityAction(input.guild.id, input.violation.moduleId, action);
       if (!rateLimit.allowed) {
@@ -629,7 +640,7 @@ async function applyPunishment(input: {
         await sendLog(input);
         actions.push(action);
       } else if (action === "add_role") {
-        const roleId = input.settings.addRoleId ?? role?.id ?? null;
+        const roleId = step?.cargoAdicionarId ?? input.settings.addRoleId ?? role?.id ?? null;
         if (!roleId) {
           throw new Error("Nenhum cargo configurado para adicionar.");
         }
@@ -637,16 +648,17 @@ async function applyPunishment(input: {
         addedRoleId = roleId;
         actions.push(action);
       } else if (action === "remove_role") {
-        if (!input.settings.removeRoleId) {
+        const roleId = step?.cargoRemoverId ?? input.settings.removeRoleId;
+        if (!roleId) {
           throw new Error("Nenhum cargo configurado para remover.");
         }
-        await input.member.roles.remove(input.settings.removeRoleId, `SelfBot Protection: ${input.violation.infractionType}`);
+        await input.member.roles.remove(roleId, `SelfBot Protection: ${input.violation.infractionType}`);
         actions.push(action);
       } else if (action === "timeout") {
         if (!input.member.moderatable) {
           throw new Error("O bot não pode aplicar timeout neste membro.");
         }
-        await input.member.timeout(input.settings.timeoutSeconds * 1_000, input.violation.infractionType);
+        await input.member.timeout(timeoutDurationMs(step, input.settings), input.violation.infractionType);
         actions.push(action);
       } else if (action === "kick") {
         if (!input.member.kickable) {
@@ -660,7 +672,7 @@ async function applyPunishment(input: {
           throw new Error("O bot não pode banir este membro.");
         }
         await input.member.ban({
-          deleteMessageSeconds: 60 * 60,
+          deleteMessageSeconds: step?.banApagarMensagensSegundos ?? 60 * 60,
           reason: input.violation.infractionType
         });
         actions.push(action);
@@ -678,6 +690,79 @@ async function applyPunishment(input: {
     error: errors.length ? errors.join(" | ") : null,
     succeeded: errors.length === 0
   };
+}
+
+function firstLocalPunishmentStep(settings: SelfBotProtectionSettings): SelfBotPunishmentStep | null {
+  const configured = settings.punishmentSteps?.find((step) => step.ativado);
+
+  if (configured) {
+    return configured;
+  }
+
+  const action = settings.punishmentSequence[0];
+  if (!action) {
+    return null;
+  }
+
+  return {
+    id: action,
+    acao: action,
+    ativado: true,
+    limite: 1,
+    proximaAcao: settings.punishmentSequence[1] ?? null,
+    apagarMensagem: action === "delete_message",
+    enviarAviso: action === "warn",
+    registrarLog: true,
+    tempoTimeout: secondsToDuration(settings.timeoutSeconds),
+    cargoAdicionarId: settings.addRoleId,
+    cargoRemoverId: settings.removeRoleId,
+    banApagarMensagensSegundos: 3_600
+  };
+}
+
+function stepActions(step: SelfBotPunishmentStep) {
+  const actions: SelfBotPunishmentAction[] = [];
+
+  if (step.apagarMensagem && step.acao !== "delete_message") {
+    actions.push("delete_message");
+  }
+
+  if (step.enviarAviso && step.acao !== "warn") {
+    actions.push("warn");
+  }
+
+  actions.push(step.acao);
+
+  if (step.registrarLog && step.acao !== "log") {
+    actions.push("log");
+  }
+
+  return [...new Set(actions)];
+}
+
+function timeoutDurationMs(step: SelfBotPunishmentStep | null, settings: SelfBotProtectionSettings) {
+  if (!step) {
+    return settings.timeoutSeconds * 1_000;
+  }
+
+  const duration = step.tempoTimeout;
+  const seconds =
+    duration.dias * 86_400
+    + duration.horas * 3_600
+    + duration.minutos * 60
+    + duration.segundos;
+  return Math.max(1_000, seconds * 1_000);
+}
+
+function secondsToDuration(totalSeconds: number) {
+  let remaining = Math.max(1, Math.trunc(totalSeconds));
+  const dias = Math.floor(remaining / 86_400);
+  remaining -= dias * 86_400;
+  const horas = Math.floor(remaining / 3_600);
+  remaining -= horas * 3_600;
+  const minutos = Math.floor(remaining / 60);
+  const segundos = remaining - minutos * 60;
+  return { dias, horas, minutos, segundos };
 }
 
 function consumeSecurityAction(guildId: string, moduleId: SelfBotProtectionModuleId, action: SelfBotPunishmentAction) {

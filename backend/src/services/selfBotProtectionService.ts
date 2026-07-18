@@ -482,14 +482,15 @@ export async function resolveSelfBotPunishment(
     moduleId: input.moduleId,
     userId: input.userId
   });
-  const currentAction = current?.currentAction ?? fallback.acao;
-  const currentStep = steps.find((step) => step.acao === currentAction) ?? fallback;
+  const currentStepIndex = resolveCurrentStepIndex(steps, current, fallback);
+  const currentStep = steps[currentStepIndex] ?? fallback;
   const actionCount = (current?.actionCount ?? 0) + 1;
   const limit = Math.max(1, currentStep.limite);
   const nextStep = actionCount > limit
-    ? steps.find((step) => step.acao === currentStep.proximaAcao && step.ativado) ?? currentStep
+    ? resolveNextStep(steps, currentStep, currentStepIndex)
     : currentStep;
   const nextActionCount = actionCount > limit ? 1 : actionCount;
+  const nextStepIndex = Math.max(0, steps.findIndex((step) => step.id === nextStep.id));
   const totalOccurrences = (current?.totalOccurrences ?? 0) + 1;
 
   await selfBotPunishmentStates.updateOne(
@@ -506,6 +507,8 @@ export async function resolveSelfBotPunishment(
         userId: input.userId,
         moduleId: input.moduleId,
         currentAction: nextStep.acao,
+        currentStepId: nextStep.id,
+        currentStepIndex: nextStepIndex,
         actionCount: nextActionCount,
         totalOccurrences,
         lastPunishmentActions: [nextStep.acao],
@@ -552,6 +555,62 @@ export async function recordSelfBotProtectionIncident(input: RecordSelfBotProtec
   await persistRoleAssignmentFromIncident(incident);
 
   return toIncidentDto(incident);
+}
+
+function resolveCurrentStepIndex(
+  steps: SelfBotPunishmentStepDto[],
+  current: { currentAction?: SelfBotPunishmentAction; currentStepId?: string | null; currentStepIndex?: number | null } | null,
+  fallback: SelfBotPunishmentStepDto
+) {
+  if (!steps.length) {
+    return 0;
+  }
+
+  if (Number.isInteger(current?.currentStepIndex)) {
+    const byIndex = Number(current?.currentStepIndex);
+    if (byIndex >= 0 && byIndex < steps.length) {
+      if (!current?.currentStepId || steps[byIndex]?.id === current.currentStepId) {
+        return byIndex;
+      }
+    }
+  }
+
+  if (current?.currentStepId) {
+    const byId = steps.findIndex((step) => step.id === current.currentStepId);
+    if (byId >= 0) {
+      return byId;
+    }
+  }
+
+  if (Number.isInteger(current?.currentStepIndex)) {
+    const byIndex = Number(current?.currentStepIndex);
+    if (byIndex >= 0 && byIndex < steps.length) {
+      return byIndex;
+    }
+  }
+
+  if (current?.currentAction) {
+    const byLegacyAction = steps.findIndex((step) => step.acao === current.currentAction);
+    if (byLegacyAction >= 0) {
+      return byLegacyAction;
+    }
+  }
+
+  return Math.max(0, steps.findIndex((step) => step.id === fallback.id));
+}
+
+function resolveNextStep(
+  steps: SelfBotPunishmentStepDto[],
+  currentStep: SelfBotPunishmentStepDto,
+  currentStepIndex: number
+) {
+  if (!currentStep.proximaAcao) {
+    return currentStep;
+  }
+
+  return steps.find((step, index) => index > currentStepIndex && step.acao === currentStep.proximaAcao)
+    ?? steps.find((step) => step.acao === currentStep.proximaAcao)
+    ?? currentStep;
 }
 
 export async function getSelfBotProtectionStats(guildId: string, botId: string): Promise<SelfBotProtectionStatsDto> {
