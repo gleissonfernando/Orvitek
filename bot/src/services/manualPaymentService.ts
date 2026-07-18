@@ -32,10 +32,14 @@ export function startManualPaymentService(client: Client<true>, context: BotCont
 export async function handleManualPaymentInteraction(interaction: Interaction, context: BotContext) {
   if (!("customId" in interaction) || !interaction.customId.startsWith(`${PREFIX}:`)) return false;
   if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:buy:`)) { await startPurchase(interaction, context); return true; }
+  if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:copy_key:`)) { await copyPixData(interaction, context, "key"); return true; }
+  if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:copy_code:`)) { await copyPixData(interaction, context, "code"); return true; }
+  if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:refresh_payment:`)) { await refreshPaymentStatus(interaction, context); return true; }
   if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:pix_key:`)) { await choosePaymentMethod(interaction, context, "PIX_KEY"); return true; }
   if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:pix_qr:`)) { await choosePaymentMethod(interaction, context, "PIX_QR_CODE"); return true; }
-  if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:paid:`)) { await askProof(interaction); return true; }
-  if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:cancel_customer:`)) { await customerCancel(interaction, context); return true; }
+  if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:paid:`)) { await confirmPaymentMade(interaction, context); return true; }
+  if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:cancel_customer:`)) { await showCustomerCancelConfirm(interaction); return true; }
+  if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:cancel_confirm:`)) { await customerCancel(interaction, context); return true; }
   if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:approve:`)) { await approvePayment(interaction, context); return true; }
   if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:reject:`)) { await showReasonModal(interaction, "reject"); return true; }
   if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:new_proof:`)) { await requestNewProof(interaction, context); return true; }
@@ -52,7 +56,7 @@ export async function handleManualPaymentInteraction(interaction: Interaction, c
 export async function handleManualPaymentMessage(message: Message, context: BotContext) {
   if (!message.guild || message.author.bot || !message.attachments.size) return false;
   const runtime = await context.api.getManualPaymentRuntime(message.guild.id).catch(() => null);
-  const order = runtime?.orders.find((item) => item.paymentChannelId === message.channelId && ["PENDING_PAYMENT", "REJECTED"].includes(item.status));
+  const order = runtime?.orders.find((item) => item.paymentChannelId === message.channelId && ["PENDING_PAYMENT", "REJECTED", "WAITING_STAFF_APPROVAL"].includes(item.status));
   if (!runtime || !order || order.userId !== message.author.id) return false;
   const attachment = message.attachments.find((item) => item.contentType?.startsWith("image/") || /\.(png|jpe?g|webp|gif|pdf)$/i.test(item.url));
   if (!attachment) return false;
@@ -142,27 +146,47 @@ async function createPaymentChannel(guild: Guild, settings: ManualPaymentSetting
 }
 
 function createPaymentPanel(settings: ManualPaymentSettings, order: ManualPaymentOrder, service?: ManualPaymentService | null) {
+  const visual = paymentStatusVisual(order);
+  const canAct = ["PENDING_PAYMENT", "REJECTED", "WAITING_STAFF_APPROVAL"].includes(order.status);
+  const pixKey = settings.pixKey?.trim() || null;
+  const pixCopyCode = getPixCopyCode(settings);
   const actions = [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${PREFIX}:pix_key:${order.id}`).setLabel("Pagar com chave Pix").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(`${PREFIX}:pix_qr:${order.id}`).setLabel("Pagar com QR Code").setStyle(ButtonStyle.Primary).setDisabled(!settings.pixQrCodeUrl),
-      new ButtonBuilder().setCustomId(`${PREFIX}:paid:${order.id}`).setLabel("Já fiz o pagamento").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`${PREFIX}:cancel_customer:${order.id}`).setLabel("Cancelar compra").setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId(`${PREFIX}:copy_key:${order.id}`).setEmoji("🔵").setLabel("Copiar Chave Pix").setStyle(ButtonStyle.Primary).setDisabled(!pixKey),
+      new ButtonBuilder().setCustomId(`${PREFIX}:copy_code:${order.id}`).setEmoji("🟣").setLabel("Copiar Código Pix").setStyle(ButtonStyle.Secondary).setDisabled(!pixCopyCode),
+      new ButtonBuilder().setCustomId(`${PREFIX}:paid:${order.id}`).setEmoji("🟢").setLabel("Já fiz o pagamento").setStyle(ButtonStyle.Success).setDisabled(!canAct)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${PREFIX}:refresh_payment:${order.id}`).setEmoji("🟠").setLabel("Atualizar Status").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`${PREFIX}:cancel_customer:${order.id}`).setEmoji("🔴").setLabel("Cancelar Pedido").setStyle(ButtonStyle.Danger).setDisabled(!canAct)
     )
   ];
+  const paymentInstructions = service?.customText?.trim() || settings.paymentInstructions?.trim() || "Faça o pagamento utilizando os dados abaixo e envie o comprovante neste canal.";
+  const qrSection = settings.pixQrCodeUrl
+    ? "## 📱 QR Code disponível\nEscaneie utilizando o aplicativo do seu banco."
+    : null;
+  const proofSection = [
+    order.proofUrl ? `📎 Comprovante: [abrir arquivo](${order.proofUrl})` : "📎 Comprovante: aguardando envio neste canal.",
+    order.approvedAt ? `✅ Aprovado em: ${formatDateTime(order.approvedAt)}` : null,
+    order.approvedBy ? `👤 Responsável: <@${order.approvedBy}>` : null,
+    order.rejectionReason ? `📝 Motivo: ${limitText(order.rejectionReason, 500)}` : null
+  ].filter(Boolean).join("\n");
   return renderComponentsV2Panel({
-    accentColor: parseColor(settings.color),
+    accentColor: visual.color,
     actions,
-    description: `Pedido **#${String(order.orderNumber).padStart(3, "0")}** - ${statusLabel(order.status)}`,
+    description: `Seu pedido foi criado com sucesso!\n\nFinalize o pagamento para que nossa equipe possa iniciar o processamento.\n\n**${visual.label}**\n${visual.description}`,
     fields: [
-      `**Cliente:** <@${order.userId}>\n**Servico:** ${order.serviceName}\n**Valor:** ${money(order.amount)}\n**Status:** ${statusLabel(order.status)}`,
-      `**Instrucoes**\n${service?.customText ?? settings.paymentInstructions}`,
-      `**Pix**\nRecebedor: ${settings.receiverName ?? "Não informado"}\nBanco: ${settings.receiverBank ?? "Não informado"}\nChave: ${settings.pixKey ?? "Não configurada"}`,
-      order.proofUrl ? `**Comprovante:** [abrir arquivo](${order.proofUrl})` : "**Comprovante:** aguardando envio neste canal."
+      `## 📦 Informações do Pedido\n🆔 Pedido: **${formatOrderNumber(order)}**\n👤 Cliente: <@${order.userId}>\n🛒 Produto: **${limitText(order.serviceName, 120)}**\n💰 Valor: **${money(order.amount)}**\n📅 Criado em: ${formatDate(order.createdAt)}\n⏳ Status: **${visual.label}**`,
+      `## 💸 Dados para Pagamento\n🏦 Método: **${paymentMethodLabel(order)}**\n\n👤 Recebedor:\n**${settings.receiverName?.trim() || "Não informado"}**\n\n🏛 Banco:\n**${settings.receiverBank?.trim() || "Não informado"}**\n\n🔑 Chave Pix:\n\`${pixKey ?? "Não configurada"}\``,
+      ...(qrSection ? [qrSection] : []),
+      `## 📋 Instruções\n1️⃣ Faça o pagamento utilizando a chave Pix.\n\n2️⃣ Após realizar o pagamento, clique em **Já fiz o pagamento**.\n\n3️⃣ Envie o comprovante neste canal.\n\n4️⃣ Aguarde a conferência da equipe.\n\n⚠️ A aprovação é manual.\n\n${limitText(paymentInstructions, 900)}`,
+      "## 🔔 Avisos\n• Não altere o valor.\n\n• Não feche este ticket.\n\n• Caso o pagamento não seja identificado, o pedido permanecerá pendente.\n\n• Após aprovado, o sistema atualizará automaticamente o status.",
+      `## 🧾 Registro do Pedido\n${proofSection}`
     ],
-    image: settings.pixQrCodeUrl && order.paymentMethod === "PIX_QR_CODE" ? { imageEnabled: true, imagePosition: "bottom", imageUrl: settings.pixQrCodeUrl } : null,
+    footer: { text: "NexTechK • Sistema de Pagamentos\nPedido protegido • Atendimento Manual" },
+    image: settings.pixQrCodeUrl ? { imageEnabled: true, imagePosition: "bottom", imageUrl: settings.pixQrCodeUrl } : null,
     moduleId: "manual-payments",
-    title: "Pagamento manual"
+    title: "💳 Pagamento Manual"
   });
 }
 
@@ -172,18 +196,73 @@ async function choosePaymentMethod(interaction: ButtonInteraction, context: BotC
   const runtime = await context.api.getManualPaymentRuntime(interaction.guild.id);
   const order = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: paymentMethod === "PIX_KEY" ? "pix_key_selected" : "pix_qr_selected", channelId: interaction.channelId, paymentMethod });
   await refreshPaymentPanel(interaction.guild, context, runtime.settings, order);
-  await interaction.reply({ content: paymentMethod === "PIX_KEY" ? `**Chave Pix:** \`${runtime.settings.pixKey ?? "não configurada"}\`` : runtime.settings.pixQrCodeUrl ? `QR Code: ${runtime.settings.pixQrCodeUrl}` : "QR Code não configurado.", ephemeral: true });
+  await interaction.reply({ content: paymentMethod === "PIX_KEY" ? copyablePixMessage("Chave Pix", runtime.settings.pixKey) : copyablePixMessage("QR Code Pix", runtime.settings.pixQrCodeUrl), ephemeral: true });
 }
 
-async function askProof(interaction: ButtonInteraction) {
-  await interaction.reply({ content: "Envie o comprovante como imagem ou arquivo neste canal. O pedido so vai para aprovação depois do anexo.", ephemeral: true });
+async function copyPixData(interaction: ButtonInteraction, context: BotContext, kind: "key" | "code") {
+  if (!interaction.guild) return;
+  const orderId = interaction.customId.split(":")[2] ?? "";
+  const runtime = await context.api.getManualPaymentRuntime(interaction.guild.id);
+  const order = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, {
+    action: kind === "key" ? "pix_key_copied" : "pix_code_copied",
+    channelId: interaction.channelId,
+    paymentMethod: kind === "key" || !runtime.settings.pixQrCodeUrl ? "PIX_KEY" : "PIX_QR_CODE"
+  });
+  await refreshPaymentPanel(interaction.guild, context, runtime.settings, order);
+  await interaction.reply({
+    content: kind === "key" ? copyablePixMessage("Chave Pix", runtime.settings.pixKey) : copyablePixMessage("Código Pix Copia e Cola", getPixCopyCode(runtime.settings)),
+    ephemeral: true
+  });
+}
+
+async function refreshPaymentStatus(interaction: ButtonInteraction, context: BotContext) {
+  if (!interaction.guild) return;
+  await interaction.deferReply({ ephemeral: true });
+  const orderId = interaction.customId.split(":")[2] ?? "";
+  const runtime = await context.api.getManualPaymentRuntime(interaction.guild.id);
+  const order = runtime.orders.find((item) => item.id === orderId);
+  if (!order) return interaction.editReply("Pedido não encontrado.");
+  await interaction.message.edit(createPaymentPanel(runtime.settings, order, runtime.settings.services.find((item) => item.id === order.serviceId))).catch(() => null);
+  await interaction.editReply(`Status atualizado: ${paymentStatusVisual(order).label}.`);
+}
+
+async function confirmPaymentMade(interaction: ButtonInteraction, context: BotContext) {
+  if (!interaction.guild) return;
+  const orderId = interaction.customId.split(":")[2] ?? "";
+  await interaction.deferReply({ ephemeral: true });
+  const runtime = await context.api.getManualPaymentRuntime(interaction.guild.id);
+  const current = runtime.orders.find((item) => item.id === orderId);
+  if (!current) return interaction.editReply("Pedido não encontrado.");
+  if (!["PENDING_PAYMENT", "REJECTED", "WAITING_STAFF_APPROVAL"].includes(current.status)) return interaction.editReply(`Este pedido está com status ${statusLabel(current.status)}.`);
+  const order = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, {
+    action: "payment_marked_paid",
+    channelId: interaction.channelId,
+    status: "WAITING_STAFF_APPROVAL"
+  });
+  await refreshPaymentPanel(interaction.guild, context, runtime.settings, order);
+  await interaction.editReply("Confirmação recebida. Envie o comprovante como imagem ou PDF neste canal para a equipe validar.");
+}
+
+async function showCustomerCancelConfirm(interaction: ButtonInteraction) {
+  const orderId = interaction.customId.split(":")[2] ?? "";
+  await interaction.reply({
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`${PREFIX}:cancel_confirm:${orderId}`).setEmoji("🔴").setLabel("Confirmar cancelamento").setStyle(ButtonStyle.Danger)
+      )
+    ],
+    content: "Tem certeza que deseja cancelar este pedido? Esta ação fechará o canal de pagamento.",
+    ephemeral: true
+  });
 }
 
 async function customerCancel(interaction: ButtonInteraction, context: BotContext) {
   if (!interaction.guild) return;
   const orderId = interaction.customId.split(":")[2] ?? "";
   await interaction.deferReply({ ephemeral: true });
+  const runtime = await context.api.getManualPaymentRuntime(interaction.guild.id);
   const order = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: "cancelled_by_customer", channelId: interaction.channelId, status: "CANCELLED_BY_CUSTOMER" });
+  await refreshPaymentPanel(interaction.guild, context, runtime.settings, order);
   await interaction.editReply("Compra cancelada.");
   setTimeout(() => void interaction.guild?.channels.cache.get(order.paymentChannelId ?? "")?.delete("Compra cancelada pelo cliente").catch(() => null), 2000).unref();
 }
@@ -225,6 +304,7 @@ async function approvePayment(interaction: ButtonInteraction, context: BotContex
   const current = await context.api.getManualPaymentOrder(interaction.guild.id, orderId);
   if (!current?.proofUrl) return interaction.editReply("Não e possível aprovar sem comprovante.");
   const approved = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: "payment_approved", channelId: interaction.channelId, staffId: interaction.user.id, status: "APPROVED" });
+  await refreshPaymentPanel(interaction.guild, context, runtime.settings, approved);
   const serviceChannel = await createServiceChannel(interaction.guild, runtime.settings, approved, interaction.user.id);
   const updated = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: "service_channel_created", serviceChannelId: serviceChannel.id, staffId: interaction.user.id, status: "IN_PROGRESS" });
   await serviceChannel.send(createServicePanel(runtime.settings, updated));
@@ -317,6 +397,7 @@ async function submitReason(interaction: ModalSubmitInteraction, context: BotCon
     const channel = interaction.guild.channels.cache.get(order.paymentChannelId);
     if (channel?.isSendable()) await channel.send(`Pagamento recusado: **${reason}**\nEnvie um novo comprovante ou cancele a compra.`).catch(() => null);
   }
+  await refreshPaymentPanel(interaction.guild, context, runtime.settings, order);
   await interaction.editReply(kind === "reject" ? "Pagamento recusado." : "Pedido cancelado.");
 }
 
@@ -329,6 +410,7 @@ async function requestNewProof(interaction: ButtonInteraction, context: BotConte
   const order = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: "new_proof_requested", channelId: interaction.channelId, staffId: interaction.user.id, status: "PENDING_PAYMENT" });
   const channel = order.paymentChannelId ? interaction.guild.channels.cache.get(order.paymentChannelId) : null;
   if (channel?.isSendable()) await channel.send(`<@${order.userId}> envie um novo comprovante neste canal.`).catch(() => null);
+  await refreshPaymentPanel(interaction.guild, context, runtime.settings, order);
   await interaction.editReply("Novo comprovante solicitado.");
 }
 
@@ -360,6 +442,78 @@ async function hasAnyRole(guild: Guild, userId: string, roleIds: string[]) {
   const member = await guild.members.fetch(userId).catch(() => null);
   if (!member) return false;
   return member.permissions.has(PermissionFlagsBits.Administrator) || member.roles.cache.some((role) => roleIds.includes(role.id));
+}
+
+function paymentStatusVisual(order: ManualPaymentOrder) {
+  if (["APPROVED", "IN_PROGRESS", "WAITING_CUSTOMER", "DELIVERED", "FINISHED"].includes(order.status)) {
+    return {
+      color: 0x22c55e,
+      description: "Pagamento confirmado!\n\nSeu pedido foi liberado e será iniciado.",
+      label: "🟢 Pagamento aprovado"
+    };
+  }
+  if (order.status === "WAITING_STAFF_APPROVAL") {
+    return {
+      color: 0x3b82f6,
+      description: order.proofUrl
+        ? "Seu comprovante foi enviado.\n\nNossa equipe irá analisar em breve."
+        : "Recebemos sua confirmação.\n\nEnvie o comprovante neste canal para nossa equipe analisar.",
+      label: "🔵 Comprovante enviado"
+    };
+  }
+  if (order.status === "REJECTED") {
+    return {
+      color: 0xef4444,
+      description: "Não foi possível validar o pagamento.\n\nEntre em contato com nossa equipe.",
+      label: "🔴 Pagamento recusado"
+    };
+  }
+  if (["CANCELLED_BY_CUSTOMER", "CANCELLED_BY_STAFF"].includes(order.status)) {
+    return {
+      color: 0xef4444,
+      description: "Este pedido foi cancelado.",
+      label: "🔴 Pedido cancelado"
+    };
+  }
+  return {
+    color: 0xf59e0b,
+    description: "Estamos aguardando seu pagamento.",
+    label: "🟡 Aguardando pagamento"
+  };
+}
+
+function getPixCopyCode(settings: ManualPaymentSettings) {
+  return settings.pixKey?.trim() || null;
+}
+
+function copyablePixMessage(label: string, value: string | null | undefined) {
+  const text = value?.trim();
+  if (!text) return `${label} não configurado. Avise a equipe para revisar os dados de pagamento.`;
+  return `**${label}:**\n\`\`\`\n${text.replace(/```/g, "'''")}\n\`\`\``;
+}
+
+function formatOrderNumber(order: ManualPaymentOrder) {
+  return `#${String(order.orderNumber).padStart(4, "0")}`;
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "Não informado";
+  return new Date(value).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "Não informado";
+  return new Date(value).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" });
+}
+
+function paymentMethodLabel(order: ManualPaymentOrder) {
+  if (order.paymentMethod === "PIX_QR_CODE") return "Pix QR Code";
+  return "Pix";
+}
+
+function limitText(value: string, limit: number) {
+  const text = value.trim();
+  return text.length > limit ? `${text.slice(0, Math.max(0, limit - 3))}...` : text;
 }
 
 function statusLabel(status: ManualPaymentOrderStatus) {
