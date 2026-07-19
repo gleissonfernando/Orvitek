@@ -982,6 +982,8 @@ async function reconcileCourseExamAttemptOutcome(collections: MongoCollections, 
     score,
     to: expectedResult
   });
+  emitRealtime("courses:exam_reviewed", { actorId: attempt.correctedBy ?? null, attemptId: attempt._id, botId, courseId: attempt.courseId, guildId, status: expectedResult });
+  emitRealtime("courses:publication", { botId, guildId, publicationId: attempt.publicationId });
   if (expectedResult === "approved") {
     await recordApprovedCourseHistoryFromAttempt(botId, guildId, attempt._id).catch((error) => {
       console.error("[courses] failed to record reconciled approved course history:", error instanceof Error ? error.message : error);
