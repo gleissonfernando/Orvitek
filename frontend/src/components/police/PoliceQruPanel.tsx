@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, Clock3, Loader2, Save, ShieldCheck, Trophy } from "lucide-react";
-import { getGuildLiveOptions, getPoliceQruDashboard, savePoliceQruSettings } from "../../lib/api";
+import { BarChart3, Clock3, ImageIcon, Loader2, Save, ShieldCheck, Trash2, Trophy, Upload } from "lucide-react";
+import { getGuildLiveOptions, getPoliceQruDashboard, savePoliceQruSettings, uploadPanelImage } from "../../lib/api";
 import type { DashboardGuild, GuildCategoryOption, GuildChannelOption, GuildRoleOption, PoliceQruDashboard, PoliceQruSettings } from "../../types";
 import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Switch } from "../ui/switch";
 import { FivemResourceMultiSelect, FivemResourceSelect } from "../fivem/FivemResourceSelect";
+
+const QRU_BANNER_PANEL_ID = "police-qru";
+const QRU_BANNER_ACCEPT = "image/png,image/jpeg,image/webp,image/gif,.png,.jpg,.jpeg,.webp,.gif";
+const QRU_BANNER_MAX_BYTES = 10 * 1024 * 1024;
 
 export function PoliceQruPanel({ botId, canManage, guild }: { botId?: string | null; canManage: boolean; guild: DashboardGuild | null }) {
   const [data, setData] = useState<PoliceQruDashboard | null>(null);
@@ -14,6 +19,7 @@ export function PoliceQruPanel({ botId, canManage, guild }: { botId?: string | n
   const [roles, setRoles] = useState<GuildRoleOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const settingsRef = useRef<PoliceQruSettings | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -82,6 +88,52 @@ export function PoliceQruPanel({ botId, canManage, guild }: { botId?: string | n
     }, 500);
   }
 
+  async function saveSettingsNow(next: Partial<PoliceQruSettings>, successMessage: string) {
+    const settingsForSave = { ...(settingsRef.current ?? data!.settings), ...next };
+    settingsRef.current = settingsForSave;
+    setData((current) => current ? { ...current, settings: settingsForSave } : current);
+    if (!canManage || !guild || !botId) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    setSaving(true);
+    setMessage(null);
+    try {
+      const settings = await savePoliceQruSettings(guild.id, botId, settingsForSave);
+      settingsRef.current = settings;
+      setData((current) => current ? { ...current, settings } : current);
+      setMessage(successMessage);
+    } catch (error) {
+      setMessage(readMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function uploadBanner(file: File | null) {
+    if (!file || !guild || !botId || disabled) return;
+    if (!isQruBannerFile(file)) {
+      setMessage("Formato inválido. Envie PNG, JPG, JPEG, WEBP ou GIF.");
+      return;
+    }
+    if (file.size > QRU_BANNER_MAX_BYTES) {
+      setMessage("Banner muito grande. Envie uma imagem de até 10MB.");
+      return;
+    }
+    setUploadingBanner(true);
+    setMessage(null);
+    try {
+      const image = await uploadPanelImage(guild.id, QRU_BANNER_PANEL_ID, file, botId);
+      await saveSettingsNow({ panelImageUrl: image.imageUrl }, "Banner do painel QRU enviado.");
+    } catch (error) {
+      setMessage(readMessage(error));
+    } finally {
+      setUploadingBanner(false);
+    }
+  }
+
+  async function removeBanner() {
+    await saveSettingsNow({ panelImageUrl: null }, "Banner do painel QRU removido.");
+  }
+
   return (
     <div className="space-y-5">
       <Card>
@@ -134,7 +186,35 @@ export function PoliceQruPanel({ botId, canManage, guild }: { botId?: string | n
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-2">
           <Field disabled={disabled} label="Cor" type="color" value={data.settings.color} onChange={(color) => patch({ color })} />
-          <Field disabled={disabled} label="Imagem do painel" value={data.settings.panelImageUrl ?? ""} onChange={(panelImageUrl) => patch({ panelImageUrl: panelImageUrl || null })} />
+          <div className="space-y-3 lg:col-span-2">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <label className="grid min-w-64 flex-1 gap-2 text-xs font-medium text-zinc-400">
+                Banner do painel
+                <input className="h-11 w-full rounded-lg border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100 outline-none focus:border-blue-500/60 disabled:opacity-60" disabled={disabled} onChange={(event) => patch({ panelImageUrl: event.target.value || null })} value={data.settings.panelImageUrl ?? ""} />
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#FFD500]/25 bg-transparent px-3 text-sm font-semibold text-zinc-100 transition duration-300 ${disabled || uploadingBanner ? "pointer-events-none opacity-50" : "cursor-pointer hover:-translate-y-0.5 hover:border-[#FFD500]/55 hover:bg-[#FFD500]/10 hover:text-[#FFEA70]"}`}>
+                  {uploadingBanner ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  Enviar banner
+                  <input accept={QRU_BANNER_ACCEPT} className="hidden" disabled={disabled || uploadingBanner} type="file" onChange={(event) => void uploadBanner(event.target.files?.[0] ?? null)} />
+                </label>
+                <Button disabled={disabled || uploadingBanner || !data.settings.panelImageUrl} size="sm" type="button" variant="ghost" onClick={() => void removeBanner()}>
+                  <Trash2 className="h-4 w-4" />
+                  Remover
+                </Button>
+              </div>
+            </div>
+            <div className="overflow-hidden rounded-lg border border-zinc-800 bg-black/30">
+              {data.settings.panelImageUrl ? (
+                <img alt="Banner do painel QRU" className="max-h-64 w-full object-contain" src={data.settings.panelImageUrl} />
+              ) : (
+                <div className="flex min-h-32 items-center justify-center gap-2 text-sm text-zinc-500">
+                  <ImageIcon className="h-5 w-5" />
+                  Nenhum banner configurado
+                </div>
+              )}
+            </div>
+          </div>
           <Field disabled={disabled} label="Título" value={data.settings.panelTitle} onChange={(panelTitle) => patch({ panelTitle })} />
           <Field disabled={disabled} label="Descrição" value={data.settings.panelDescription} onChange={(panelDescription) => patch({ panelDescription })} />
           <div className="lg:col-span-2">
@@ -223,6 +303,10 @@ function Toggle({ disabled, label, onChange, value }: { disabled: boolean; label
 
 function Metric({ label, value }: { label: string; value: string | number }) {
   return <Card><CardContent className="p-4"><p className="flex items-center gap-2 text-xs text-zinc-500"><Clock3 className="h-3.5 w-3.5" />{label}</p><p className="mt-1 text-xl font-bold text-white">{value}</p></CardContent></Card>;
+}
+
+function isQruBannerFile(file: File) {
+  return /^image\/(png|jpe?g|webp|gif)$/i.test(file.type) || /\.(png|jpe?g|webp|gif)$/i.test(file.name);
 }
 
 function readMessage(error: unknown) {
