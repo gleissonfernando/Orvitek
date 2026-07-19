@@ -73,6 +73,8 @@ import type {
   LiveDetectionSettings,
   LiveEvent,
   LogEntry,
+  SystemHealthResponse,
+  SystemMetricsResponse,
   ManualPaymentsDashboard,
   ManualRegistrationDashboard,
   ManualRegistrationSettings,
@@ -2049,6 +2051,20 @@ export async function getDevModules() {
 export async function getDevBots() {
   const { data } = await api.get<{ bots: DevBot[] }>("/dev/bots");
   return data.bots;
+}
+
+export async function getSystemHealth() {
+  const { data } = await api.get<SystemHealthResponse>("/health", {
+    timeout: 5000
+  });
+  return data;
+}
+
+export async function getSystemMetrics() {
+  const { data } = await api.get<SystemMetricsResponse>("/health/metrics", {
+    timeout: 5000
+  });
+  return data;
 }
 
 export async function getDiscloudMonitoring(refresh = false) {

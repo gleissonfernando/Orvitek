@@ -56,6 +56,8 @@ import {
   getDevFivemModules,
   getMaintenanceState,
   getLogs,
+  getSystemHealth,
+  getSystemMetrics,
   sendMaintenanceAlert,
   saveDevAccessEntry,
   setMaintenanceMode,
@@ -65,7 +67,7 @@ import {
 } from "../lib/api";
 import { createDashboardSocket } from "../lib/socket";
 import { dashboardUrl } from "../lib/urls";
-import type { AuthResponse, DashboardBot, DashboardMeResponse, DevAccessEntry, DevAccessRole, DevBot, DevBotStatus, DiscloudBotSnapshot, DiscloudHistoryEvent, DiscloudLogsResponse, DiscloudMonitoringResponse, FivemModuleDefinition, LogEntry, MaintenanceState } from "../types";
+import type { AuthResponse, DashboardBot, DashboardMeResponse, DevAccessEntry, DevAccessRole, DevBot, DevBotStatus, DiscloudBotSnapshot, DiscloudHistoryEvent, DiscloudLogsResponse, DiscloudMonitoringResponse, FivemModuleDefinition, LogEntry, MaintenanceState, SystemHealthResponse, SystemMetricsResponse } from "../types";
 
 type DevDashboardProps = {
   auth: AuthResponse;
@@ -73,7 +75,7 @@ type DevDashboardProps = {
   onLogout: () => void;
 };
 
-type DevView = "bots" | "connected" | "bot-menu" | "cloning" | "sales" | "plans" | "discloud" | "fivem" | "police" | "logs" | "access" | "maintenance";
+type DevView = "bots" | "connected" | "bot-menu" | "cloning" | "sales" | "plans" | "monitoring" | "discloud" | "fivem" | "police" | "logs" | "access" | "maintenance";
 
 type FiveMModuleView = FivemModuleDefinition & {
   icon: LucideIcon;
@@ -234,6 +236,7 @@ export function DevDashboard({ auth, initialView = "bots" }: DevDashboardProps) 
         ) : null}
 
         {activeView === "plans" ? <DevPlansPanel /> : null}
+        {activeView === "monitoring" ? <RealtimeSystemMonitoringPanel /> : null}
         {activeView === "discloud" ? <DiscloudMonitoringPanel /> : null}
         {activeView === "logs" ? <TechnicalLogsPanel botId={selectedBotId} guildId={selectedGuildId} /> : null}
         {activeView === "access" ? <DevAccessPanel /> : null}
@@ -249,6 +252,7 @@ function devPathForView(view: DevView) {
   if (view === "cloning") return "/dev/clonagem";
   if (view === "sales") return "/dev/sistema-de-vendas";
   if (view === "plans") return "/dev/planos";
+  if (view === "monitoring") return "/dev/monitoramento";
   if (view === "discloud") return "/dev/discloud";
   if (view === "fivem") return "/dev/fivem";
   if (view === "police") return "/dev/policia";
@@ -284,7 +288,8 @@ function DevSidebar({
     { icon: Copy, id: "cloning", label: "Clonagem" },
     { icon: CreditCard, id: "sales", label: "Sistema de Vendas" },
     { icon: PackagePlus, id: "plans", label: "Planos" },
-    { icon: Activity, id: "discloud", label: "Monitoramento DisCloud" },
+    { icon: Activity, id: "monitoring", label: "Monitoramento" },
+    { icon: HardDrive, id: "discloud", label: "DisCloud" },
     { icon: Building2, id: "fivem", label: "FiveM" },
     { icon: ShieldCheck, id: "police", label: "Polícia" },
     { icon: ScrollText, id: "logs", label: "Logs" },
@@ -354,6 +359,354 @@ function DevUserCard({ canViewDev, user }: { canViewDev: boolean; user: AuthResp
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function RealtimeSystemMonitoringPanel() {
+  const [health, setHealth] = useState<SystemHealthResponse | null>(null);
+  const [metrics, setMetrics] = useState<SystemMetricsResponse | null>(null);
+  const [bots, setBots] = useState<DevBot[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState<string | null>(null);
+  const [paused, setPaused] = useState(false);
+  const [refreshNow, setRefreshNow] = useState(0);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const socket = createDashboardSocket();
+
+    socket.on("dev:bot_updated", (bot: DevBot) => {
+      setBots((current) => current.map((item) => item.id === bot.id ? bot : item));
+    });
+    socket.on("dev:bot_created", (bot: DevBot) => {
+      setBots((current) => [bot, ...current.filter((item) => item.id !== bot.id)]);
+    });
+    socket.on("dev:bot_deleted", (bot: DevBot) => {
+      setBots((current) => current.filter((item) => item.id !== bot.id));
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    let timer: number | undefined;
+
+    async function loadBots() {
+      try {
+        const nextBots = await getDevBots();
+        if (mounted) setBots(nextBots);
+      } catch {
+        if (mounted) setBots((current) => current);
+      }
+    }
+
+    void loadBots();
+    timer = window.setInterval(() => {
+      if (!paused) void loadBots();
+    }, 5000);
+
+    return () => {
+      mounted = false;
+      if (timer) window.clearInterval(timer);
+    };
+  }, [paused, refreshNow]);
+
+  useEffect(() => {
+    let mounted = true;
+    let inFlight = false;
+    let timer: number | undefined;
+
+    async function load() {
+      if (inFlight) return;
+      inFlight = true;
+
+      try {
+        const [nextHealth, nextMetrics] = await Promise.all([
+          getSystemHealth(),
+          getSystemMetrics()
+        ]);
+
+        if (!mounted) return;
+        setHealth(nextHealth);
+        setMetrics(nextMetrics);
+        setMessage(null);
+      } catch (error) {
+        if (mounted) setMessage(readRequestMessage(error) ?? "Não foi possível carregar o monitoramento em tempo real.");
+      } finally {
+        inFlight = false;
+        if (mounted) setLoading(false);
+      }
+    }
+
+    void load();
+    timer = window.setInterval(() => {
+      if (!paused) void load();
+    }, 1000);
+
+    return () => {
+      mounted = false;
+      if (timer) window.clearInterval(timer);
+    };
+  }, [paused, refreshNow]);
+
+  const bot = health?.bot ?? null;
+  const jobs = health?.jobs ?? metrics?.jobs ?? null;
+  const routes = metrics?.metrics.routes ?? [];
+  const routeErrors = routes.reduce((total, route) => total + route.errors, 0);
+  const heapUsed = metrics ? bytesToMb(metrics.metrics.memory.heapUsed) : null;
+  const heapTotal = metrics ? bytesToMb(metrics.metrics.memory.heapTotal) : null;
+  const rss = metrics ? bytesToMb(metrics.metrics.memory.rss) : null;
+  const statusTone = health?.status === "ok" && metrics?.status === "ok" ? "good" : "warn";
+  const botTone = bot?.online ? "good" : "danger";
+  const dbTone = health?.database.ok ? "good" : "danger";
+  const redisTone = health?.redis.ok || !health?.redis.configured ? "good" : "danger";
+  const readyBots = bots.filter((item) => isDevBotReadyStatus(item.status)).length;
+  const errorBots = bots.filter((item) => isDevBotErrorStatus(item.status)).length;
+  const apiRequests = routes
+    .filter((route) => route.route.startsWith("/api") || route.route.includes("/bot/"))
+    .reduce((total, route) => total + route.requests, 0);
+
+  return (
+    <div className="space-y-6">
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-semibold text-white">Monitoramento em tempo real</h2>
+          <p className="mt-1 text-sm text-zinc-400">Sistema, bot, banco, filas e rotas atualizados a cada 1 segundo.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => setPaused((current) => !current)} variant="outline">
+            {paused ? <Play className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+            {paused ? "Retomar" : "Pausar"}
+          </Button>
+          <Button disabled={loading} onClick={() => setRefreshNow((current) => current + 1)} variant="outline">
+            <RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+            Atualizar
+          </Button>
+        </div>
+      </section>
+
+      {message ? <div className="rounded-lg border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-100">{message}</div> : null}
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <RealtimeStatCard icon={Activity} label="Sistema" tone={statusTone} value={health?.status ?? "-"} detail={metrics ? `Uptime ${formatUptime(metrics.metrics.uptimeSeconds)}` : "Aguardando leitura"} />
+        <RealtimeStatCard icon={Wifi} label="Site/API" tone={statusTone} value={health?.status === "ok" ? "Online" : "Degradado"} detail={`${apiRequests} chamadas monitoradas`} />
+        <RealtimeStatCard icon={Wifi} label="Bot principal" tone={botTone} value={bot?.online ? "Online" : "Offline"} detail={`${bot?.latency ?? "-"}ms de latência`} />
+        <RealtimeStatCard icon={Users} label="Bots cadastrados" tone={errorBots > 0 ? "warn" : "good"} value={`${readyBots}/${bots.length}`} detail={`${errorBots} com erro`} />
+        <RealtimeStatCard icon={HardDrive} label="Banco" tone={dbTone} value={health?.database.status ?? "-"} detail={health?.database.latencyMs !== undefined ? `${health.database.latencyMs}ms` : health?.database.message ?? "Sem latência"} />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <Card className="border-zinc-800/80 bg-zinc-950/80">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" />Bot principal</CardTitle>
+            <CardDescription>
+              Última leitura {secondsSince(health?.timestamp ?? null, now)}s atrás {paused ? "(pausado)" : ""}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3">
+              <Avatar className="h-14 w-14 rounded-xl border border-zinc-700" fallback={bot?.botProfile?.username ?? "Bot"} src={bot?.botProfile?.avatarUrl ?? undefined} />
+              <div className="min-w-0">
+                <p className="truncate text-base font-bold text-white">{bot?.botProfile?.username ?? "Bot não identificado"}</p>
+                <p className="truncate font-mono text-xs text-zinc-500">{bot?.botId ?? bot?.botProfile?.id ?? "sem id"}</p>
+              </div>
+              <RealtimeStatusPill tone={botTone}>{bot?.online ? "Online" : "Offline"}</RealtimeStatusPill>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <RealtimeMiniMetric label="Servidores" value={String(bot?.guilds ?? 0)} />
+              <RealtimeMiniMetric label="Usuários" value={String(bot?.users ?? 0)} />
+              <RealtimeMiniMetric label="Shards" value={String(bot?.shardCount ?? bot?.shardIds?.length ?? 1)} />
+              <RealtimeMiniMetric label="Memória do bot" value={`${mbLabel(bot?.memory?.heapUsedMb ?? null)} / ${mbLabel(bot?.memory?.rssMb ?? null)}`} />
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Servidores recentes</p>
+              {(bot?.botGuilds ?? []).slice(0, 6).map((guild) => (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-900 bg-black/35 px-3 py-2" key={guild.id}>
+                  <span className="truncate text-sm font-semibold text-zinc-100">{guild.name}</span>
+                  <span className="shrink-0 text-xs text-zinc-500">{guild.memberCount ?? 0} membros</span>
+                </div>
+              ))}
+              {bot?.botGuilds.length === 0 ? <p className="rounded-lg border border-dashed border-zinc-800 px-3 py-4 text-center text-sm text-zinc-500">Nenhum servidor carregado.</p> : null}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-zinc-800/80 bg-zinc-950/80">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Cpu className="h-5 w-5" />Backend e infraestrutura</CardTitle>
+            <CardDescription>{metrics ? `Processo iniciado em ${formatDate(metrics.metrics.startedAt)}` : "Aguardando métricas"}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <RealtimeMiniMetric label="Heap" value={`${mbLabel(heapUsed)} / ${mbLabel(heapTotal)}`} />
+              <RealtimeMiniMetric label="RSS" value={mbLabel(rss)} />
+              <RealtimeMiniMetric label="Load 1m" value={metrics?.metrics.cpu.loadAverage[0]?.toFixed(2) ?? "-"} />
+              <RealtimeMiniMetric label="Erros em rotas" value={String(routeErrors)} />
+              <RealtimeMiniMetric label="Redis" value={health?.redis.configured ? health.redis.status : "não configurado"} tone={redisTone} />
+              <RealtimeMiniMetric label="E-mail" value={health?.mail.configured ? health.mail.status : "não configurado"} tone={health?.mail.ok || !health?.mail.configured ? "good" : "danger"} />
+              <RealtimeMiniMetric label="Workers ativos" value={String(jobs?.activeWorkers ?? 0)} />
+              <RealtimeMiniMetric label="Falhas 24h" value={String(jobs?.failedLast24Hours ?? 0)} tone={(jobs?.failedLast24Hours ?? 0) > 0 ? "warn" : "good"} />
+            </div>
+
+            {jobs?.lastError ? (
+              <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-3 text-xs font-semibold text-red-100">
+                Último erro em jobs: {jobs.lastError}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      </section>
+
+      <Card className="border-zinc-800/80 bg-zinc-950/80">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" />Bots cadastrados e uso da API</CardTitle>
+          <CardDescription>Lista todos os bots da sua plataforma, incluindo os que conectam no backend usando a API da NexTech.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-2 sm:grid-cols-4">
+            <RealtimeMiniMetric label="Registrados" value={String(bots.length)} />
+            <RealtimeMiniMetric label="Online/prontos" value={String(readyBots)} />
+            <RealtimeMiniMetric label="Com erro" value={String(errorBots)} tone={errorBots > 0 ? "warn" : "good"} />
+            <RealtimeMiniMetric label="Chamadas API" value={String(apiRequests)} />
+          </div>
+
+          {bots.length ? (
+            <div className="grid gap-3 xl:grid-cols-2">
+              {bots.map((registeredBot) => (
+                <div className="flex items-center gap-3 rounded-lg border border-zinc-900 bg-black/35 p-3" key={registeredBot.id}>
+                  <Avatar className="h-11 w-11 rounded-xl border border-zinc-700" fallback={registeredBot.name} src={registeredBot.avatarUrl} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <p className="truncate text-sm font-bold text-white">{registeredBot.name}</p>
+                      <Badge variant={isDevBotReadyStatus(registeredBot.status) ? "success" : isDevBotErrorStatus(registeredBot.status) ? "danger" : registeredBot.status === "degraded" ? "warning" : "muted"}>
+                        {devBotStatusLabel(registeredBot.status)}
+                      </Badge>
+                    </div>
+                    <p className="truncate text-xs font-medium text-zinc-300">{registeredBot.mainGuildName || registeredBot.mainGuildId}</p>
+                    <p className="truncate font-mono text-[11px] text-zinc-500">clientId={registeredBot.clientId} atualizado {secondsSince(registeredBot.updatedAt, now)}s atrás</p>
+                  </div>
+                  <div className="hidden shrink-0 text-right text-xs font-semibold text-zinc-400 sm:block">
+                    <p>{registeredBot.guildIds.length} servidores</p>
+                    <p>{registeredBot.enabledModules.length} módulos</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex min-h-28 items-center justify-center rounded-lg border border-dashed border-zinc-800 text-sm text-zinc-500">
+              Nenhum bot cadastrado para monitorar.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-zinc-800/80 bg-zinc-950/80">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><ScrollText className="h-5 w-5" />Rotas do backend</CardTitle>
+          <CardDescription>Top 12 rotas por requisições, com erros e tempo médio.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {routes.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[680px] text-left text-sm">
+                <thead className="text-xs uppercase text-zinc-500">
+                  <tr className="border-b border-zinc-900">
+                    <th className="py-2 pr-3">Rota</th>
+                    <th className="py-2 pr-3">Requisições</th>
+                    <th className="py-2 pr-3">Erros</th>
+                    <th className="py-2 pr-3">Tempo médio</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {routes.slice(0, 12).map((route) => (
+                    <tr className="border-b border-zinc-900/70 text-zinc-200" key={route.route}>
+                      <td className="max-w-[360px] truncate py-2 pr-3 font-mono text-xs text-zinc-300">{route.route}</td>
+                      <td className="py-2 pr-3 font-semibold">{route.requests}</td>
+                      <td className={route.errors > 0 ? "py-2 pr-3 font-semibold text-red-200" : "py-2 pr-3 font-semibold text-emerald-200"}>{route.errors}</td>
+                      <td className="py-2 pr-3">{route.avgDurationMs.toFixed(1)}ms</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="flex min-h-28 items-center justify-center rounded-lg border border-dashed border-zinc-800 text-sm text-zinc-500">
+              Nenhuma métrica de rota registrada ainda.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function RealtimeStatCard({
+  detail,
+  icon: Icon,
+  label,
+  tone,
+  value
+}: {
+  detail: string;
+  icon: LucideIcon;
+  label: string;
+  tone: "good" | "warn" | "danger";
+  value: string;
+}) {
+  return (
+    <Card className={`border-zinc-800/80 bg-zinc-950/80 ${tone === "danger" ? "ring-1 ring-red-500/25" : tone === "warn" ? "ring-1 ring-amber-400/20" : ""}`}>
+      <CardContent className="flex items-center gap-3 p-4">
+        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border ${toneClass(tone)}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-xs font-semibold uppercase tracking-wide text-zinc-500">{label}</p>
+          <p className="truncate text-lg font-bold text-white">{value}</p>
+          <p className="truncate text-xs text-zinc-400">{detail}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RealtimeMiniMetric({
+  label,
+  tone = "good",
+  value
+}: {
+  label: string;
+  tone?: "good" | "warn" | "danger";
+  value: string;
+}) {
+  return (
+    <div className="rounded-lg border border-zinc-900 bg-black/35 px-3 py-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{label}</p>
+      <p className={`mt-1 truncate text-sm font-bold ${toneTextClass(tone)}`}>{value}</p>
+    </div>
+  );
+}
+
+function RealtimeStatusPill({
+  children,
+  tone
+}: {
+  children: string;
+  tone: "good" | "warn" | "danger";
+}) {
+  return (
+    <span className={`ml-auto inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-bold ${toneClass(tone)}`}>
+      {children}
+    </span>
   );
 }
 
@@ -1708,6 +2061,41 @@ function percentLabel(value: number | null) {
 
 function mbLabel(value: number | null) {
   return value === null ? "-" : `${Math.round(value)} MB`;
+}
+
+function bytesToMb(value: number | null) {
+  return value === null ? null : value / 1024 / 1024;
+}
+
+function formatUptime(totalSeconds: number) {
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
+function secondsSince(value: string | null, now: number) {
+  if (!value) return "-";
+  const parsed = new Date(value).getTime();
+  if (!Number.isFinite(parsed)) return "-";
+  return String(Math.max(0, Math.floor((now - parsed) / 1000)));
+}
+
+function toneClass(tone: "good" | "warn" | "danger") {
+  if (tone === "danger") return "border-red-400/30 bg-red-500/10 text-red-200";
+  if (tone === "warn") return "border-amber-300/30 bg-amber-400/10 text-amber-100";
+  return "border-emerald-400/25 bg-emerald-500/10 text-emerald-200";
+}
+
+function toneTextClass(tone: "good" | "warn" | "danger") {
+  if (tone === "danger") return "text-red-200";
+  if (tone === "warn") return "text-amber-100";
+  return "text-zinc-100";
 }
 
 function downloadText(filename: string, content: string) {

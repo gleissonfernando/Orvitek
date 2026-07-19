@@ -3738,6 +3738,104 @@ export type DiscloudLogsResponse = {
   updatedAt: string;
 };
 
+export type SystemServiceHealth = {
+  configured?: boolean;
+  ok: boolean;
+  status: string;
+  latencyMs?: number;
+  message?: string;
+  provider?: string | null;
+  enabled?: boolean;
+  mercadoPago?: unknown;
+};
+
+export type SystemBotGuildHealth = {
+  id: string;
+  name: string;
+  iconUrl: string | null;
+  memberCount?: number;
+  channelCount?: number;
+  shardId?: number;
+};
+
+export type SystemBotHealth = {
+  botId?: string | null;
+  botProfile?: {
+    avatarUrl: string | null;
+    id: string;
+    username: string;
+  } | null;
+  online: boolean;
+  latency: number;
+  guilds: number;
+  users: number;
+  botGuilds: SystemBotGuildHealth[];
+  shardIds?: number[];
+  shardCount?: number;
+  instanceId?: string;
+  memory?: {
+    heapUsedMb: number;
+    rssMb: number;
+  };
+  updatedAt: string;
+};
+
+export type SystemJobsHealth = {
+  activeLocal: number;
+  activeWorkers: number;
+  completedSinceStart: number;
+  concurrency: number;
+  failedLast24Hours: number;
+  failedSinceStart: number;
+  instanceId: string;
+  lastClaimAt: string | null;
+  lastError: string | null;
+  lastPollAt: string | null;
+  oldestPendingAgeMs: number;
+  pending: number;
+  running: number;
+  status: string;
+};
+
+export type SystemHealthResponse = {
+  status: string;
+  database: SystemServiceHealth;
+  redis: SystemServiceHealth;
+  jobs: SystemJobsHealth;
+  mail: SystemServiceHealth;
+  payments: SystemServiceHealth;
+  bot: SystemBotHealth;
+  timestamp: string;
+};
+
+export type SystemRouteMetric = {
+  route: string;
+  requests: number;
+  errors: number;
+  avgDurationMs: number;
+};
+
+export type SystemMetricsResponse = {
+  status: string;
+  metrics: {
+    uptimeSeconds: number;
+    startedAt: string;
+    memory: {
+      rss: number;
+      heapUsed: number;
+      heapTotal: number;
+    };
+    cpu: {
+      loadAverage: number[];
+      systemMilliseconds: number;
+      userMilliseconds: number;
+    };
+    routes: SystemRouteMetric[];
+  };
+  jobs: SystemJobsHealth;
+  timestamp: string;
+};
+
 export type MaintenanceLog = {
   id: string;
   action: "enabled" | "disabled" | "manual_alert";
