@@ -15,6 +15,7 @@ import { startFivemFinanceService } from "../services/fivemFinanceService";
 import { startFivemOrderService } from "../services/fivemOrderService";
 import { startFivemHierarchyService } from "../services/fivemHierarchyService";
 import { startFivemActionService } from "../services/fivemActionService";
+import { startFactionChestService } from "../services/factionChestService";
 import { startFivemPd7Service } from "../services/fivemPd7Service";
 import { startPolicePatrolReportService } from "../services/policePatrolReportService";
 import { clearPoliceHiddenChannelSettingsCache } from "../services/policeHiddenChannelService";
@@ -272,6 +273,7 @@ async function startRuntimeModuleServices(client: Client<true>, context: BotCont
   startRuntimeService("report-system", isReportSystemModuleEnabled(), () => startReportSystemService(client, context));
   startRuntimeService("fivem-hierarchy", isBotModuleEnabled("fivem-hierarchy"), () => startFivemHierarchyService(client, context));
   startRuntimeService("fivem-actions", isBotModuleEnabled("fivem-actions") || isBotModuleEnabled("police-actions"), () => startFivemActionService(client, context));
+  startRuntimeService("faction-chest", isBotModuleEnabled("faction-chest"), () => startFactionChestService(client, context));
   startRuntimeService("police-patrol-reports", isBotModuleEnabled("police-patrol-reports"), () => startPolicePatrolReportService(client, context));
   startRuntimeService("manual-registration", isBotModuleEnabled("manual-registration"), () => startManualRegistrationService(client, context));
   startRuntimeService("image-anti-spam", isBotModuleEnabled("image-anti-spam") && !isSelfBotModuleEnabled(), () => startImageAntiSpamService(context));

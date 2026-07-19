@@ -9,6 +9,7 @@ import { gravarCommand } from "./gravar";
 import { fivemOrdersCommand } from "./fivemOrders";
 import { fivemFinanceCommand } from "./fivemFinance";
 import { acaoCommand } from "../services/fivemActionService";
+import { bauCommand } from "../services/factionChestService";
 import { lavagemCommand } from "./lavagem";
 import { hierarchyCommand } from "../services/fivemHierarchyService";
 import { setCommand } from "./manualRegistration";
@@ -49,6 +50,7 @@ export function createCommandCollection() {
     fivemFinanceCommand,
     fivemOrdersCommand,
     acaoCommand,
+    bauCommand,
     lavagemCommand,
     hierarchyCommand,
     setCommand,

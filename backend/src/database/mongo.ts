@@ -2280,6 +2280,64 @@ export type MongoFivemActionSession = {
   updatedAt: Date;
 };
 
+export type MongoFactionChestSettings = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  categoryId: string | null;
+  panelChannelId: string | null;
+  logChannelId: string | null;
+  auditChannelId: string | null;
+  registerRoleIds: string[];
+  auditRoleIds: string[];
+  viewRoleIds: string[];
+  adminRoleIds: string[];
+  systemName: string;
+  panelImageUrl: string | null;
+  color: string;
+  panelMessageId: string | null;
+  lastPanelRequestedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  updatedBy: string | null;
+};
+
+export type MongoFactionChestItem = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  name: string;
+  normalizedName: string;
+  quantity: number;
+  category: string;
+  description: string | null;
+  imageUrl: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoFactionChestLog = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  action: "add" | "remove" | "create" | "update" | "delete" | "publish" | "config" | "view" | "audit" | "export";
+  itemId: string | null;
+  itemName: string;
+  quantity: number;
+  previousQuantity: number | null;
+  nextQuantity: number | null;
+  reason: string | null;
+  actorId: string;
+  actorName: string;
+  channelId: string | null;
+  messageId: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: Date;
+};
+
 export type MongoDafScaleRole = "pilot" | "shooter";
 
 export type MongoDafScaleSettings = {
@@ -4284,6 +4342,9 @@ export async function getMongoCollections() {
     fivemActionSettings: db.collection<MongoFivemActionSettings>("fivem_action_settings"),
     fivemActionDefinitions: db.collection<MongoFivemActionDefinition>("fivem_action_definitions"),
     fivemActionSessions: db.collection<MongoFivemActionSession>("fivem_action_sessions"),
+    factionChestSettings: db.collection<MongoFactionChestSettings>("faction_chest_settings"),
+    factionChestItems: db.collection<MongoFactionChestItem>("faction_chest_items"),
+    factionChestLogs: db.collection<MongoFactionChestLog>("faction_chest_logs"),
     dafScaleSettings: db.collection<MongoDafScaleSettings>("daf_scale_settings"),
     dafScaleEntries: db.collection<MongoDafScaleEntry>("daf_scale_entries"),
     dafScaleAudits: db.collection<MongoDafScaleAudit>("daf_scale_audits"),
@@ -5023,6 +5084,12 @@ async function ensureFivemModuleIndexes(db: Db) {
     db.collection<MongoFivemActionDefinition>("fivem_action_definitions").createIndex({ botId: 1, guildId: 1, architecture: 1, order: 1 }),
     db.collection<MongoFivemActionSession>("fivem_action_sessions").createIndex({ botId: 1, guildId: 1, architecture: 1, createdAt: -1 }),
     db.collection<MongoFivemActionSession>("fivem_action_sessions").createIndex({ botId: 1, guildId: 1, status: 1 }),
+    db.collection<MongoFactionChestSettings>("faction_chest_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    db.collection<MongoFactionChestSettings>("faction_chest_settings").createIndex({ botId: 1, enabled: 1, updatedAt: -1 }),
+    db.collection<MongoFactionChestItem>("faction_chest_items").createIndex({ botId: 1, guildId: 1, normalizedName: 1 }, { unique: true }),
+    db.collection<MongoFactionChestItem>("faction_chest_items").createIndex({ botId: 1, guildId: 1, category: 1, name: 1 }),
+    db.collection<MongoFactionChestLog>("faction_chest_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoFactionChestLog>("faction_chest_logs").createIndex({ botId: 1, guildId: 1, itemId: 1, createdAt: -1 }),
     db.collection<MongoDafScaleSettings>("daf_scale_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
     db.collection<MongoDafScaleEntry>("daf_scale_entries").createIndex({ botId: 1, guildId: 1, userId: 1 }, { unique: true }),
     db.collection<MongoDafScaleEntry>("daf_scale_entries").createIndex({ botId: 1, guildId: 1, role: 1, joinedAt: 1 }),

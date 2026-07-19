@@ -18,6 +18,7 @@ import { handleFivemGoalInteraction } from "../services/fivemGoalService";
 import { handleFivemFinanceInteraction } from "../services/fivemFinanceService";
 import { handleFivemOrderInteraction } from "../services/fivemOrderService";
 import { handleFivemActionInteraction } from "../services/fivemActionService";
+import { handleFactionChestInteraction } from "../services/factionChestService";
 import { handlePolicePatrolInteraction } from "../services/policePatrolReportService";
 import { handlePoliceHiddenChannelInteraction } from "../services/policeHiddenChannelService";
 import { handleDmBarInteraction } from "../services/dmBarService";
@@ -138,6 +139,7 @@ async function dispatchInteractionCreate(interaction: Interaction, context: BotC
   if (await handleFivemOrderInteraction(interaction, context)) return;
 
   if (await handleFivemActionInteraction(interaction, context)) return;
+  if (await handleFactionChestInteraction(interaction, context)) return;
   if (await handlePolicePatrolInteraction(interaction, context)) return;
   if (await handlePoliceHiddenChannelInteraction(interaction, context)) return;
   if (await handleDmBarInteraction(interaction, context)) return;
@@ -244,5 +246,6 @@ function commandLabel(moduleId: string) {
   if (moduleId === "courses") return "Sistema de cursos";
   if (moduleId === "message-control") return "Controle de Mensagem";
   if (moduleId === "police-daf-roster") return "Escala DAF";
+  if (moduleId === "faction-chest") return "Sistema de Baú";
   return "Este sistema";
 }

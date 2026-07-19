@@ -172,6 +172,7 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "fivem-ammo", label: "FiveM - Sistema de Municoes" },
   { id: "fivem-finance", label: "FiveM - Sistema Financeiro" },
   { id: "fivem-goals", label: "FiveM - Sistema de Metas" },
+  { id: "faction-chest", label: "Sistema de Baú" },
   { id: "fivem-hierarchy", label: "Polícia - Hierarquia" },
   { id: "fivem-actions", label: "FiveM - Ações FAC" },
   { id: "police-absences", label: "Polícia - Sistema de Ausências" },
@@ -239,6 +240,7 @@ type BotMenuId =
   | "fivem-drugs"
   | "fivem-finance"
   | "fivem-goals"
+  | "faction-chest"
   | "fivem-hierarchy"
   | "fivem-actions"
   | "police"
@@ -560,6 +562,13 @@ const botMenuItems: BotMenuItem[] = [
         description: "Metas e produção",
         icon: ListChecks,
         moduleIds: ["fivem-goals"]
+      },
+      {
+        id: "faction-chest",
+        label: "Sistema de Baú",
+        description: "Entrada e saída manual do baú da facção",
+        icon: Database,
+        moduleIds: ["faction-chest"]
       },
       {
         id: "fivem-actions",
