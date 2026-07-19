@@ -2049,7 +2049,18 @@ async function completeExamReview(interaction: ButtonInteraction | ModalSubmitIn
       context.api.getCourseSettings(interaction.guildId!)
     ]);
     await editExamCorrectionPanel(interaction, context, course, courseSettings, runtime.settings, bundle.attempt, bundle.questions, bundle.answers);
-    await interaction.editReply("Esta prova já foi corrigida e o painel foi atualizado.");
+    let resultPanelFailed = false;
+    if (!bundle.attempt.resultMessageId) {
+      const resultDelivery = await sendExamResultPanel(interaction, courseSettings, course, bundle.attempt, bundle.questions, bundle.answers);
+      if (resultDelivery.ok && resultDelivery.channelId && resultDelivery.messageId) {
+        await context.api.setCourseExamResultDelivery(interaction.guildId!, bundle.attempt.id, { channelId: resultDelivery.channelId, messageId: resultDelivery.messageId }).catch((error) => logCourseFlowError("exam_result_delivery_persist_failed", error, { attemptId: bundle.attempt.id, channelId: resultDelivery.channelId, messageId: resultDelivery.messageId }));
+      } else {
+        resultPanelFailed = true;
+      }
+    }
+    await interaction.editReply(resultPanelFailed
+      ? "Esta prova já foi corrigida, mas não consegui enviar o painel no canal de resultado configurado."
+      : "Esta prova já foi corrigida e o painel foi atualizado.");
     return null;
   }
   const reviewed = await context.api.reviewCourseExamAttempt(interaction.guildId!, attemptId, { actorId: interaction.user.id, manualScore, status });
@@ -2069,6 +2080,8 @@ async function completeExamReview(interaction: ButtonInteraction | ModalSubmitIn
   const resultDelivery = await sendExamResultPanel(interaction, courseSettings, course, reviewed, bundle.questions, bundle.answers);
   if (resultDelivery.ok && resultDelivery.channelId && resultDelivery.messageId) {
     await context.api.setCourseExamResultDelivery(interaction.guildId!, reviewed.id, { channelId: resultDelivery.channelId, messageId: resultDelivery.messageId }).catch((error) => logCourseFlowError("exam_result_delivery_persist_failed", error, { attemptId: reviewed.id, channelId: resultDelivery.channelId, messageId: resultDelivery.messageId }));
+  } else {
+    await interaction.followUp({ content: "A prova foi corrigida, mas não consegui enviar o painel no canal de resultado configurado. Verifique o canal e as permissões do bot.", flags: MessageFlags.Ephemeral }).catch(() => null);
   }
   await sendFinalExamLog(interaction, courseSettings, course, reviewed, bundle.questions, bundle.answers, interaction.user.id);
   await sendCourseLog(interaction, courseSettings, examResultLogMessage(interaction.guildId!, course, reviewed, interaction.user.id, "Correção por botão")).catch(() => null);
@@ -3386,13 +3399,33 @@ async function sendExamResultPanel(
   questions: CourseExamQuestion[] = [],
   answers: CourseExamAnswer[] = []
 ) {
-  const configuredIds = uniqueIds([courseSettings.resultChannelId]);
+  const configuredIds = uniqueIds([courseSettings.resultChannelId, attempt.resultChannelId]);
   logCourseFlow("exam_result_channel_lookup", { attemptId: attempt.id, courseId: course.id, guildId: interaction.guildId, configuredIds });
   if (!configuredIds.length) {
     const message = `Erro ao localizar canal de resultado da prova\nTentativa: ${attempt.id}\nCurso: ${course.name}\nAluno: <@${attempt.studentId}>\nMotivo: nenhum Canal de Aprovação/Resultado das Provas foi configurado.`;
     console.warn(`[courses] ${message.replace(/\n/g, " | ")}`);
     await sendCourseLog(interaction, courseSettings, message).catch(() => null);
     return { ok: false as const };
+  }
+
+  const payload = withRoleMention(
+    await examResultPanel(interaction, course, attempt, questions, answers, courseSettings.resultMentionRoleId),
+    courseSettings.resultMentionRoleId,
+    [attempt.studentId, attempt.instructorId]
+  );
+  if (attempt.resultMessageId) {
+    const existingChannel = await fetchFirstTextChannel(interaction, uniqueIds([attempt.resultChannelId, courseSettings.resultChannelId]));
+    const existingMessage = await existingChannel?.messages.fetch(attempt.resultMessageId).catch(() => null);
+    if (existingMessage) {
+      const edited = await existingMessage.edit(payload).then(() => true).catch((error) => {
+        logCourseFlowError("exam_result_panel_edit_failed", error, { attemptId: attempt.id, channelId: existingChannel?.id, courseId: course.id, guildId: interaction.guildId, messageId: attempt.resultMessageId });
+        return false;
+      });
+      if (edited) {
+        await sendCourseLog(interaction, courseSettings, `Painel de resultado atualizado\nTentativa: ${attempt.id}\nCanal: <#${existingChannel!.id}>\nCurso: ${course.name}\nAluno: <@${attempt.studentId}>\nStatus: ${examReviewStatusLabel(attempt)}`).catch(() => null);
+        return { ok: true as const, channelId: existingChannel!.id, messageId: existingMessage.id };
+      }
+    }
   }
 
   const channel = await fetchFirstTextChannel(interaction, configuredIds);
@@ -3405,11 +3438,6 @@ async function sendExamResultPanel(
   }
 
   await sendCourseLog(interaction, courseSettings, `Canal de resultado localizado\nTentativa: ${attempt.id}\nCanal: <#${channel.id}>\nCurso: ${course.name}\nAluno: <@${attempt.studentId}>`).catch(() => null);
-  const payload = withRoleMention(
-    await examResultPanel(interaction, course, attempt, questions, answers, courseSettings.resultMentionRoleId),
-    courseSettings.resultMentionRoleId,
-    [attempt.studentId, attempt.instructorId]
-  );
   const sent = await channel.send(payload).catch(async (error) => {
     const reason = error instanceof Error ? error.message : String(error);
     console.error(`[courses] failed to send exam result panel ${attempt.id}:`, reason);
@@ -3436,7 +3464,11 @@ async function examResultPanel(interaction: ButtonInteraction | ModalSubmitInter
   const imageUrl = courseResultAvatar(interaction);
   return renderComponentsV2Panel({
     accentColor: examResultAccent(attempt),
-    description: "Resultado final da avaliação.",
+    actions: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`course_exam_result_details:${attempt.id}`).setEmoji(systemComponentEmoji("prancheta", interaction.guild)).setLabel("Ver detalhes").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`course_exam_result_answers:${attempt.id}`).setEmoji(systemComponentEmoji("folha", interaction.guild)).setLabel("Ver respostas").setStyle(ButtonStyle.Secondary)
+    )],
+    description: status.includes("APROVADO") ? "Aluno aprovado na avaliação." : "Aluno reprovado na avaliação.",
     fields: [
       [
         `**Aluno**\n<@${attempt.studentId}>${member?.displayName ? `\n${member.displayName}` : ""}`,
@@ -3459,7 +3491,7 @@ async function examResultPanel(interaction: ButtonInteraction | ModalSubmitInter
     guild: interaction.guild,
     image: imageUrl ? { imageEnabled: true, imagePosition: "thumbnail", imageUrl } : null,
     moduleId: "courses",
-    title: `${systemEmojiText("prancheta", interaction.guild)} Resultado da Avaliação`
+    title: `${systemEmojiText("prancheta", interaction.guild)} Resultado da Avaliação - ${status}`
   });
 }
 
