@@ -34,6 +34,7 @@ import { livesCommand } from "../services/liveService";
 import { consultaPontosCommand, fecharPontoCommand, pontosAutomaticosCommand, pontosCommand } from "../services/autoActivityClockBotService";
 import { barraCommand, relogioDePontoCommand } from "../services/policeTimeClockBotService";
 import { vehicleAbandonmentPanelCommand } from "../services/vehicleAbandonmentService";
+import { qruCommand, rankCommand, rankingCommandQru } from "../services/policeQruService";
 import type { BotCommand } from "../types";
 
 export function createCommandCollection() {
@@ -87,7 +88,10 @@ export function createCommandCollection() {
     fecharPontoCommand,
     consultaPontosCommand,
     pontosAutomaticosCommand,
-    vehicleAbandonmentPanelCommand
+    vehicleAbandonmentPanelCommand,
+    qruCommand,
+    rankCommand,
+    rankingCommandQru
   ].forEach((command) => {
     if (commands.has(command.data.name)) {
       throw new Error(`Comando duplicado registrado: /${command.data.name}`);

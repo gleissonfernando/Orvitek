@@ -226,7 +226,7 @@ function defaultSettings(botId: string, guildId: string): MongoVehicleAbandonmen
     createdAt: now,
     defaultImageUrl: null,
     deleteOriginalMessage: false,
-    embedTitle: "{emoji} Abandono de Veículo — {user} | {userId}",
+    embedTitle: "{emoji} Abandono de Veículo — {user}",
     emoji: "🚗",
     enabled: false,
     errorMessage: "❌ Não foi possível registrar. Verifique os campos obrigatórios.",
@@ -279,7 +279,7 @@ function sanitizeSettingsInput(input: SaveVehicleAbandonmentSettingsInput) {
   if (next.emoji !== undefined) next.emoji = next.emoji.trim().slice(0, 80) || "🚗";
   if (next.explanatoryPanelEmoji !== undefined) next.explanatoryPanelEmoji = next.explanatoryPanelEmoji.trim().slice(0, 80) || "🚗";
   if (next.systemName !== undefined) next.systemName = next.systemName.trim().slice(0, 120) || "🚗 Abandono de Veículo";
-  if (next.embedTitle !== undefined) next.embedTitle = next.embedTitle.trim().slice(0, 200) || "{emoji} Abandono de Veículo — {user} | {userId}";
+  if (next.embedTitle !== undefined) next.embedTitle = next.embedTitle.trim().slice(0, 200) || "{emoji} Abandono de Veículo — {user}";
   if (next.footerText !== undefined) next.footerText = next.footerText.trim().slice(0, 200) || "Registrado por {user} | {userId} • {date} • {time}";
   if (next.successMessage !== undefined) next.successMessage = next.successMessage.trim().slice(0, 500) || "✅ Registro de abandono de veículo enviado.";
   if (next.errorMessage !== undefined) next.errorMessage = next.errorMessage.trim().slice(0, 500) || "❌ Não foi possível registrar. Verifique os campos obrigatórios.";

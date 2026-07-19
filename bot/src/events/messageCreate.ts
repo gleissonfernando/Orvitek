@@ -19,6 +19,7 @@ import { rememberDeletedMessageSnapshot } from "../services/deletedMessageLogSer
 import { handleMessageControlMessage } from "../services/messageControlService";
 import { handleVisibleMessageMessage } from "../services/visibleMessageService";
 import { handleVehicleAbandonmentMessage } from "../services/vehicleAbandonmentService";
+import { handlePoliceQruMessage } from "../services/policeQruService";
 
 const MUSIC_PREFIX_COMMANDS = new Set(["music", "play", "artist", "pause", "resume", "skip", "stop", "queue", "clearqueue", "nowplaying", "volume", "loop", "shuffle"]);
 
@@ -43,6 +44,10 @@ export async function handleMessageCreate(message: Message, context: BotContext)
   }
 
   if (await handleVehicleAbandonmentMessage(message, context)) {
+    return;
+  }
+
+  if (await handlePoliceQruMessage(message, context)) {
     return;
   }
 

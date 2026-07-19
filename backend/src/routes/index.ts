@@ -40,6 +40,7 @@ import { paymentAdminRouter, paymentsRouter, paymentWebhooksRouter } from "./pay
 import { botRegistrationRouter, checkoutRouter, customerPlansRouter, plansRouter, workspacePlansRouter } from "./plans";
 import { policePatrolReportsRouter } from "./policePatrolReports";
 import { policeHiddenChannelRouter } from "./policeHiddenChannel";
+import { policeQruRouter } from "./policeQru";
 import { policeTimeClockRouter } from "./policeTimeClock";
 import { priceTablesRouter } from "./priceTables";
 import { persistentImagesRouter } from "./persistentImages";
@@ -108,6 +109,7 @@ apiRouter.use("/customer", customerPlansRouter);
 apiRouter.use("/workspaces", workspacePlansRouter);
 apiRouter.use("/police-patrol-reports", policePatrolReportsRouter);
 apiRouter.use("/police-hidden-channel", policeHiddenChannelRouter);
+apiRouter.use("/police-qru", policeQruRouter);
 apiRouter.use("/police-time-clock", policeTimeClockRouter);
 apiRouter.use("/price-tables", priceTablesRouter);
 apiRouter.use("/persistent-images", persistentImagesRouter);

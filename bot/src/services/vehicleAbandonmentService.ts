@@ -325,25 +325,74 @@ async function deliverRecord(
 
 function recordPayload(settings: VehicleAbandonmentSettings, author: RenderAuthor, parsed: CompleteParsedReport, imageUrls: string[], recordId: string | null): MessageCreateOptions {
   const components: any[] = [];
+  const title = renderTemplate(settings.embedTitle, author, settings);
+  const evidenceItems = imageUrls.slice(0, 10).map((url, index) => ({
+    media: { url },
+    description: `Evidência ${index + 1} do veículo abandonado`
+  }));
+
   if (settings.thumbnailUrl) {
     components.push({
       type: 9,
       accessory: { type: 11, media: { url: settings.thumbnailUrl }, description: settings.systemName },
-      components: [{ type: 10, content: `# ${renderTemplate(settings.embedTitle, author, settings)}` }]
+      components: [{
+        type: 10,
+        content: [
+          `# ${clip(title, 180)}`,
+          `-# Registro oficial criado automaticamente por ${author.name}`
+        ].join("\n")
+      }]
     });
   } else {
-    components.push({ type: 10, content: `# ${renderTemplate(settings.embedTitle, author, settings)}` });
+    components.push({
+      type: 10,
+      content: [
+        `# ${clip(title, 180)}`,
+        `-# Registro oficial criado automaticamente por ${author.name}`
+      ].join("\n")
+    });
   }
+
   components.push(
     { type: 14, divider: true, spacing: 1 },
-    { type: 10, content: `## VEÍCULO\n${clip(parsed.model, 300)}\n\n## PLACA\n${clip(parsed.plate, 80)}\n\n## RELATÓRIO\n${clip(parsed.report, 1800)}` },
-    ...imageUrls.map((url, index) => ({ type: 12, items: [{ media: { url }, description: `Imagem ${index + 1} do veículo` }] })),
-    { type: 14, divider: true, spacing: 1 },
-    { type: 10, content: `-# ${renderTemplate(settings.footerText, author, settings)}` }
+    {
+      type: 10,
+      content: [
+        "## Dados do veículo",
+        `### 🚗 Modelo`,
+        `**${escapeMarkdown(clip(parsed.model, 300))}**`,
+        "",
+        "### 🪪 Placa",
+        `\`${escapeInlineCode(clip(parsed.plate.toUpperCase(), 80))}\``,
+        "",
+        "### 📝 Relatório",
+        quoteBlock(clip(parsed.report, 1600))
+      ].join("\n")
+    }
   );
+
+  if (evidenceItems.length) {
+    components.push(
+      { type: 14, divider: true, spacing: 1 },
+      { type: 10, content: `## 📸 Evidência${evidenceItems.length > 1 ? "s" : ""} anexada${evidenceItems.length > 1 ? "s" : ""}` },
+      { type: 12, items: evidenceItems }
+    );
+  }
+
+  components.push(
+    { type: 14, divider: true, spacing: 1 },
+    {
+      type: 10,
+      content: [
+        `-# ${renderTemplate(settings.footerText, author, settings)}`,
+        recordId ? `-# ID do registro: ${recordId}` : null
+      ].filter(Boolean).join("\n")
+    }
+  );
+
   if (settings.allowRecordEditing && recordId) {
     components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${PREFIX}:edit:${recordId}`).setLabel("Editar").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId(`${PREFIX}:edit:${recordId}`).setEmoji("✏️").setLabel("Editar registro").setStyle(ButtonStyle.Secondary)
     ));
   }
 
@@ -578,6 +627,15 @@ function displayName(message: Message) {
 
 function clip(value: string, maxLength: number) {
   return value.length > maxLength ? `${value.slice(0, Math.max(0, maxLength - 1))}…` : value;
+}
+
+function quoteBlock(value: string) {
+  const lines = value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  return lines.length ? lines.map((line) => `> ${escapeMarkdown(line)}`).join("\n") : "> Sem relatório informado.";
+}
+
+function escapeInlineCode(value: string) {
+  return value.replace(/`/g, "'");
 }
 
 function escapeMarkdown(value: string) {

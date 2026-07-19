@@ -2490,6 +2490,64 @@ export type MongoVehicleAbandonmentLog = {
   createdAt: Date;
 };
 
+export type MongoPoliceQruSettings = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  recordChannelId: string | null;
+  logChannelId: string | null;
+  temporaryCategoryId: string | null;
+  allowedRoleIds: string[];
+  supervisorRoleIds: string[];
+  teamRoleId: string | null;
+  deleteChannelSeconds: number;
+  color: string;
+  panelTitle: string;
+  panelDescription: string;
+  panelImageUrl: string | null;
+  panelMessage: string;
+  createdAt: Date;
+  updatedAt: Date;
+  updatedBy: string | null;
+};
+
+export type MongoPoliceQruOfficer = {
+  id: string;
+  name: string;
+  mention: string;
+};
+
+export type MongoPoliceQruRecord = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  boNumber: string;
+  qruType: string;
+  occurrenceDate: string;
+  evidenceUrl: string;
+  authorId: string;
+  authorName: string;
+  officers: MongoPoliceQruOfficer[];
+  temporaryChannelId: string | null;
+  recordChannelId: string | null;
+  recordMessageId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MongoPoliceQruLog = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  recordId: string | null;
+  actorId: string | null;
+  actorName: string | null;
+  action: string;
+  metadata: Record<string, unknown>;
+  createdAt: Date;
+};
+
 export type MongoPoliceHiddenChannelSettings = {
   _id: string;
   botId: string;
@@ -4452,6 +4510,9 @@ export async function getMongoCollections() {
     vehicleAbandonmentSettings: db.collection<MongoVehicleAbandonmentSettings>("vehicle_abandonment_settings"),
     vehicleAbandonmentRecords: db.collection<MongoVehicleAbandonmentRecord>("vehicle_abandonment_records"),
     vehicleAbandonmentLogs: db.collection<MongoVehicleAbandonmentLog>("vehicle_abandonment_logs"),
+    policeQruSettings: db.collection<MongoPoliceQruSettings>("police_qru_settings"),
+    policeQruRecords: db.collection<MongoPoliceQruRecord>("police_qru_records"),
+    policeQruLogs: db.collection<MongoPoliceQruLog>("police_qru_logs"),
     policeHiddenChannelSettings: db.collection<MongoPoliceHiddenChannelSettings>("police_hidden_channel_settings"),
     policeHiddenChannelLogs: db.collection<MongoPoliceHiddenChannelLog>("police_hidden_channel_logs"),
     visibleMessageUsers: db.collection<MongoVisibleMessageUser>("visible_message_users"),
@@ -5207,6 +5268,15 @@ async function ensureFivemModuleIndexes(db: Db) {
     db.collection<MongoVehicleAbandonmentRecord>("vehicle_abandonment_records").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
     db.collection<MongoVehicleAbandonmentRecord>("vehicle_abandonment_records").createIndex({ botId: 1, sourceMessageId: 1 }, { unique: true }),
     db.collection<MongoVehicleAbandonmentLog>("vehicle_abandonment_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoPoliceQruSettings>("police_qru_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    db.collection<MongoPoliceQruRecord>("police_qru_records").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoPoliceQruRecord>("police_qru_records").createIndex({ botId: 1, guildId: 1, boNumber: 1 }),
+    db.collection<MongoPoliceQruRecord>("police_qru_records").createIndex({ botId: 1, guildId: 1, occurrenceDate: 1 }),
+    db.collection<MongoPoliceQruRecord>("police_qru_records").createIndex({ botId: 1, guildId: 1, qruType: 1 }),
+    db.collection<MongoPoliceQruRecord>("police_qru_records").createIndex({ botId: 1, guildId: 1, authorId: 1, createdAt: -1 }),
+    db.collection<MongoPoliceQruRecord>("police_qru_records").createIndex({ botId: 1, guildId: 1, "officers.id": 1, createdAt: -1 }),
+    db.collection<MongoPoliceQruLog>("police_qru_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoPoliceQruLog>("police_qru_logs").createIndex({ botId: 1, guildId: 1, recordId: 1, createdAt: -1 }),
     db.collection<MongoPoliceHiddenChannelSettings>("police_hidden_channel_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
     db.collection<MongoPoliceHiddenChannelSettings>("police_hidden_channel_settings").createIndex({ botId: 1, guildId: 1, channelId: 1 }),
     db.collection<MongoPoliceHiddenChannelLog>("police_hidden_channel_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),

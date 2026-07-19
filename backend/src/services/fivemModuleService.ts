@@ -137,6 +137,13 @@ export const BUILTIN_FIVEM_MODULES: FivemModuleDefinition[] = [
   },
   {
     builtIn: true,
+    description: "Registro de QRUs com oficiais envolvidos, evidências, auditoria e ranking automático.",
+    id: "police-qru",
+    permissions: "Admin Polícia, Supervisor",
+    title: "Registro de QRU"
+  },
+  {
+    builtIn: true,
     description: "Canal anonimo para comunicacoes policiais com auditoria administrativa completa.",
     id: "police-hidden-channel",
     permissions: "Admin Polícia, Investigação",

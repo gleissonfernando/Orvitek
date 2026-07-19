@@ -38,6 +38,7 @@ import { handleMessageControlInteraction } from "../services/messageControlServi
 import { handleVisibleMessageInteraction } from "../services/visibleMessageService";
 import { handleAutoActivityClockInteraction } from "../services/autoActivityClockBotService";
 import { handleVehicleAbandonmentInteraction } from "../services/vehicleAbandonmentService";
+import { handlePoliceQruInteraction } from "../services/policeQruService";
 import { getRuntimeModuleAuthorization, runtimeModuleDenialMessage } from "../services/runtimeModuleGuard";
 
 export async function handleInteractionCreate(interaction: Interaction, context: BotContext) {
@@ -144,6 +145,7 @@ async function dispatchInteractionCreate(interaction: Interaction, context: BotC
   if (await handlePolicePatrolInteraction(interaction, context)) return;
   if (await handlePoliceHiddenChannelInteraction(interaction, context)) return;
   if (await handleVehicleAbandonmentInteraction(interaction, context)) return;
+  if (await handlePoliceQruInteraction(interaction, context)) return;
   if (await handleDmBarInteraction(interaction, context)) return;
   if (await handleDafScaleInteraction(interaction, context)) return;
   if (await handlePoliceSubpoenaInteraction(interaction, context)) return;

@@ -182,6 +182,7 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "police-daf-roster", label: "Polícia - Escalacao DAF" },
   { id: "police-courses", label: "Polícia - Cursos Políciais" },
   { id: "police-patrol-reports", label: "Polícia - Relatórios de Patrulhamento" },
+  { id: "police-qru", label: "Polícia - Registro de QRU" },
   { id: "police-hidden-channel", label: "Polícia - Canal Oculto" },
   { id: "visible-message", label: "Polícia - Mensagem Visível" },
   { id: "message-control", label: "Polícia - Controle de Mensagem Individual" },
@@ -251,6 +252,7 @@ type BotMenuId =
   | "police-daf-roster"
   | "police-courses"
   | "police-patrol-reports"
+  | "police-qru"
   | "police-hidden-channel"
   | "visible-message"
   | "message-control"
@@ -280,6 +282,7 @@ const POLICE_RELEASE_MODULE_IDS = [
   "police-daf-roster",
   "police-courses",
   "police-patrol-reports",
+  "police-qru",
   "visible-message",
   "message-control",
   "police-dm",
@@ -648,6 +651,13 @@ const botMenuItems: BotMenuItem[] = [
         description: "Relatórios profissionais de patrulhamento",
         icon: ScrollText,
         moduleIds: ["police-patrol-reports"]
+      },
+      {
+        id: "police-qru",
+        label: "Registro de QRU",
+        description: "Ocorrências, evidências e ranking de apreensões",
+        icon: ShieldCheck,
+        moduleIds: ["police-qru"]
       },
       {
         id: "police-hidden-channel",
