@@ -23,7 +23,7 @@ const PREFIX = "police_qru";
 const SETTINGS_TTL_MS = 30_000;
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
 
-type QruStep = "officers" | "date" | "bo" | "type" | "evidence" | "confirm";
+type QruStep = "officers" | "date" | "bo" | "type" | "vehicle" | "evidence" | "confirm";
 
 type QruSession = {
   authorId: string;
@@ -38,6 +38,7 @@ type QruSession = {
   qruType: string | null;
   settings: PoliceQruSettings;
   step: QruStep;
+  vehicle: string | null;
 };
 
 const settingsCache = new Map<string, { expiresAt: number; settings: PoliceQruSettings }>();
@@ -175,6 +176,17 @@ export async function handlePoliceQruMessage(message: Message, context: BotConte
 
   if (session.step === "type") {
     session.qruType = clip(message.content, 120);
+    session.step = "vehicle";
+    await sendStepMessage(message.channel, "Informe o veículo usado ou envolvido na QRU.\n\nExemplos: `Moto`, `Sultan RS`, `Viatura`, `Nenhum`.");
+    return true;
+  }
+
+  if (session.step === "vehicle") {
+    session.vehicle = clip(message.content, 120);
+    if (!session.vehicle) {
+      await sendStepMessage(message.channel, "Informe o veículo usado ou envolvido na QRU. Se não houver veículo, responda `Nenhum`.");
+      return true;
+    }
     session.step = "evidence";
     await sendStepMessage(message.channel, "Envie o print do B.O. como anexo ou link direto. São aceitas imagens `jpg`, `jpeg`, `png` e `webp`.");
     return true;
@@ -251,7 +263,8 @@ async function openQruChannel(interaction: ButtonInteraction<"cached">, context:
     officers: [],
     qruType: null,
     settings,
-    step: "officers"
+    step: "officers",
+    vehicle: null
   });
 
   await context.api.createPoliceQruLog({ action: "qru.channel_created", actorId: interaction.user.id, actorName: interaction.user.username, guildId: interaction.guild.id, metadata: { channelId: channel.id } }).catch(() => null);
@@ -282,7 +295,8 @@ async function confirmQru(interaction: ButtonInteraction<"cached">, context: Bot
     officers: session.officers,
     qruType: session.qruType,
     recordChannelId: session.settings.recordChannelId,
-    temporaryChannelId: session.channelId
+    temporaryChannelId: session.channelId,
+    vehicle: session.vehicle
   });
   const sent = await recordChannel.send(recordPayload(record, session.settings) as any);
   await context.api.updatePoliceQruRecordMessage(record.id, { recordChannelId: recordChannel.id, recordMessageId: sent.id }).catch(() => null);
@@ -424,7 +438,7 @@ function qruPanelExplanation() {
   return [
     "## Modo explicativo",
     "**1. Abra o atendimento:** clique em **Registrar QRU** para criar um canal temporário privado.",
-    "**2. Informe os dados:** mencione os oficiais envolvidos, a data, o número do B.O. e o tipo da QRU.",
+    "**2. Informe os dados:** mencione os oficiais envolvidos, a data, o número do B.O., o tipo da QRU e o veículo.",
     "**3. Envie o comprovante:** anexe a foto ou print do B.O. para validar o registro.",
     "**4. Revise e confirme:** o sistema salva a QRU, publica no canal configurado e atualiza o ranking automaticamente."
   ].join("\n");
@@ -452,6 +466,7 @@ function confirmationPayload(session: QruSession): MessageCreateOptions {
           `**📅 Data:** ${escapeMarkdown(session.occurrenceDate ?? "-")}`,
           `**📄 B.O:** \`${escapeInlineCode(session.boNumber ?? "-")}\``,
           `**🚓 QRU:** ${escapeMarkdown(session.qruType ?? "-")}`,
+          `**🚗 Veículo:** ${escapeMarkdown(session.vehicle ?? "-")}`,
           `**👮 Oficiais:** ${session.officers.map((officer) => officer.mention).join(" ") || "-"}`
         ].join("\n") },
         { type: 12, items: [{ media: { url: session.evidenceUrl! }, description: "Print do B.O." }] },
@@ -491,6 +506,9 @@ function recordPayload(record: PoliceQruRecord, settings: PoliceQruSettings): Me
           "### 🚓 QRU",
           escapeMarkdown(record.qruType),
           "",
+          "### 🚗 Veículo",
+          escapeMarkdown(record.vehicle ?? "Não informado"),
+          "",
           "### 👮 Oficiais envolvidos",
           officerMentions
         ].join("\n") },
@@ -528,7 +546,7 @@ function rankingPayload(ranking: Awaited<ReturnType<BotContext["api"]["getPolice
 }
 
 function searchPayload(records: PoliceQruRecord[], settings: PoliceQruSettings): MessageCreateOptions {
-  const rows = records.map((record) => `**${escapeMarkdown(record.boNumber)}** • ${escapeMarkdown(record.qruType)} • ${escapeMarkdown(record.occurrenceDate)} • ${record.officers.length} oficial(is)`).join("\n");
+  const rows = records.map((record) => `**${escapeMarkdown(record.boNumber)}** • ${escapeMarkdown(record.qruType)} • ${escapeMarkdown(record.vehicle ?? "Não informado")} • ${escapeMarkdown(record.occurrenceDate)} • ${record.officers.length} oficial(is)`).join("\n");
   return {
     components: [{ type: 17, accent_color: parseColor(settings.color), components: [{ type: 10, content: `# 🔎 Pesquisa de QRUs\n${rows || "Nenhuma ocorrência encontrada."}` }] }],
     flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral
@@ -553,7 +571,7 @@ async function sendLog(interaction: ButtonInteraction<"cached">, context: BotCon
   if (!settings.logChannelId || !interaction.guild) return;
   const channel = await interaction.guild.channels.fetch(settings.logChannelId).catch(() => null);
   if (!channel?.isTextBased() || channel.isDMBased()) return;
-  await channel.send({ components: [{ type: 17, accent_color: parseColor(settings.color), components: [{ type: 10, content: `# 🚔 QRU registrada\n**B.O:** ${escapeMarkdown(record.boNumber)}\n**QRU:** ${escapeMarkdown(record.qruType)}\n**Autor:** <@${record.authorId}>\n**Oficiais:** ${record.officers.map((officer) => officer.mention).join(" ")}` }] }], flags: MessageFlags.IsComponentsV2 } as any).catch(() => null);
+  await channel.send({ components: [{ type: 17, accent_color: parseColor(settings.color), components: [{ type: 10, content: `# 🚔 QRU registrada\n**B.O:** ${escapeMarkdown(record.boNumber)}\n**QRU:** ${escapeMarkdown(record.qruType)}\n**Veículo:** ${escapeMarkdown(record.vehicle ?? "Não informado")}\n**Autor:** <@${record.authorId}>\n**Oficiais:** ${record.officers.map((officer) => officer.mention).join(" ")}` }] }], flags: MessageFlags.IsComponentsV2 } as any).catch(() => null);
 }
 
 async function getSettings(context: BotContext, guildId: string) {
@@ -573,8 +591,8 @@ function canUseQru(member: GuildMember | null, settings: PoliceQruSettings, supe
   return member.roles.cache.some((role) => roleIds.includes(role.id));
 }
 
-function isComplete(session: QruSession): session is QruSession & { boNumber: string; evidenceUrl: string; occurrenceDate: string; qruType: string } {
-  return Boolean(session.boNumber && session.evidenceUrl && session.occurrenceDate && session.qruType && session.officers.length);
+function isComplete(session: QruSession): session is QruSession & { boNumber: string; evidenceUrl: string; occurrenceDate: string; qruType: string; vehicle: string } {
+  return Boolean(session.boNumber && session.evidenceUrl && session.occurrenceDate && session.qruType && session.vehicle && session.officers.length);
 }
 
 function resolveEvidenceImageUrl(message: Message) {

@@ -188,7 +188,7 @@ export function PoliceQruPanel({ botId, canManage, guild }: { botId?: string | n
             <div className="flex flex-col gap-2 rounded-lg border border-zinc-800 p-3 sm:flex-row sm:items-center sm:justify-between" key={record.id}>
               <div className="min-w-0">
                 <p className="truncate font-semibold text-white">{record.boNumber} · {record.qruType}</p>
-                <p className="text-xs text-zinc-500">{record.occurrenceDate} · {record.officers.length} oficial(is) · por {record.authorName}</p>
+                <p className="text-xs text-zinc-500">{record.occurrenceDate} · veículo: {record.vehicle ?? "Não informado"} · {record.officers.length} oficial(is) · por {record.authorName}</p>
               </div>
               <Badge variant="success">Registrado</Badge>
             </div>

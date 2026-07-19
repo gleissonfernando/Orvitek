@@ -51,7 +51,8 @@ const recordSchema = z.object({
   qruType: z.string().min(1).max(120),
   recordChannelId: snowflake.nullable().optional(),
   recordMessageId: snowflake.nullable().optional(),
-  temporaryChannelId: snowflake.nullable().optional()
+  temporaryChannelId: snowflake.nullable().optional(),
+  vehicle: z.string().trim().min(1).max(120)
 });
 const recordMessageSchema = z.object({
   recordChannelId: snowflake.nullable().optional(),

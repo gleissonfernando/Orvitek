@@ -2526,6 +2526,7 @@ export type MongoPoliceQruRecord = {
   qruType: string;
   occurrenceDate: string;
   evidenceUrl: string;
+  vehicle?: string | null;
   authorId: string;
   authorName: string;
   officers: MongoPoliceQruOfficer[];

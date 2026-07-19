@@ -70,6 +70,7 @@ export type CreatePoliceQruRecordInput = {
   recordChannelId?: string | null;
   recordMessageId?: string | null;
   temporaryChannelId?: string | null;
+  vehicle: string;
 };
 
 export type PoliceQruSearchInput = {
@@ -148,7 +149,8 @@ export async function createPoliceQruRecord(botId: string, input: CreatePoliceQr
     recordChannelId: input.recordChannelId ?? null,
     recordMessageId: input.recordMessageId ?? null,
     temporaryChannelId: input.temporaryChannelId ?? null,
-    updatedAt: now
+    updatedAt: now,
+    vehicle: normalizeText(input.vehicle, 120)
   };
 
   await policeQruRecords.insertOne(row);
@@ -159,7 +161,8 @@ export async function createPoliceQruRecord(botId: string, input: CreatePoliceQr
     metadata: {
       boNumber: row.boNumber,
       officerIds: row.officers.map((officer) => officer.id),
-      qruType: row.qruType
+      qruType: row.qruType,
+      vehicle: row.vehicle
     },
     recordId: row._id
   });
@@ -343,7 +346,7 @@ function settingsDto(row: MongoPoliceQruSettings): PoliceQruSettingsDto {
 
 function recordDto(row: MongoPoliceQruRecord): PoliceQruRecordDto {
   const { _id, createdAt, updatedAt, ...rest } = row;
-  return { ...rest, id: _id, createdAt: createdAt.toISOString(), updatedAt: updatedAt.toISOString() };
+  return { ...rest, id: _id, createdAt: createdAt.toISOString(), updatedAt: updatedAt.toISOString(), vehicle: row.vehicle ?? null };
 }
 
 function sanitizeSettingsInput(input: SavePoliceQruSettingsInput) {
