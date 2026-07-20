@@ -12,6 +12,7 @@ import {
 import { fixedSystemEmojiText, normalizeFixedSystemEmojiText } from "../config/systemEmojis";
 import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoom, emitRealtimeToRoomWithAck } from "../realtime/events";
 import { getDevBotToken } from "./devBotService";
+import { getPanelImageSettings, type PanelImageSettingsDto } from "./panelImageSettingsService";
 
 export const POLICE_PROMOTIONS_MODULE_ID = "police-promotions";
 const DISCORD_API = "https://discord.com/api/v10";
@@ -426,7 +427,8 @@ async function publishPolicePromotionPanelToDiscord(settings: PolicePromotionSet
   if (!botToken) throw new Error("Token do bot não configurado.");
   if (!settings.defaultPanelChannelId) throw new Error("Canal padrão do painel não configurado.");
 
-  const payload = buildPolicePromotionPanelPayload(settings);
+  const panelImage = await getPanelImageSettings(settings.guildId, settings.botId, "police-promotions").catch(() => null);
+  const payload = buildPolicePromotionPanelPayload(settings, panelImage?.imageEnabled ? panelImage : null);
   const { data } = await axios.post<{ id: string }>(
     `${DISCORD_API}/channels/${settings.defaultPanelChannelId}/messages`,
     payload,
@@ -444,42 +446,52 @@ async function publishPolicePromotionPanelToDiscord(settings: PolicePromotionSet
   return data.id;
 }
 
-function buildPolicePromotionPanelPayload(settings: PolicePromotionSettingsDto) {
+function buildPolicePromotionPanelPayload(settings: PolicePromotionSettingsDto, panelImage: PanelImageSettingsDto | null = null) {
   const promotions = settings.promotions.filter((item) => item.active);
   const options = promotions.slice(0, 25).map((promotion) => ({
     description: clipText(promotion.description, 90),
-    emoji: parseDiscordEmoji(normalizePromotionEmoji(promotion.emoji) ?? fixedSystemEmojiText("prancheta")),
+    emoji: parseDiscordEmoji(fixedSystemEmojiText("prancheta")),
     label: clipText(promotion.name, 80),
     value: promotion.id.slice(0, 100)
   }));
+
+  const contentComponents: unknown[] = [];
+  const banner = panelImage?.imageUrl ? resolveDiscordImageUrl(panelImage.imageUrl) : null;
+  if (banner && ["banner", "top"].includes(panelImage?.imagePosition ?? "none")) {
+    contentComponents.push(mediaGallery(banner, "Sistema de Promoções"));
+  }
+  contentComponents.push({
+    type: 10,
+    content: [
+      `# ${fixedSystemEmojiText("prancheta_acertos")} Sistema de Promoções`,
+      "Solicite sua avaliação de promoção pelo seletor abaixo.",
+      "",
+      promotions.map((item) => `• ${fixedSystemEmojiText("prancheta")} **${escapeMarkdown(item.name)}** -> ${escapeMarkdown(item.receivedRankName)}`).join("\n") || "Nenhuma promoção ativa configurada."
+    ].join("\n")
+  });
+  if (banner && !["banner", "top"].includes(panelImage?.imagePosition ?? "none")) {
+    contentComponents.push(mediaGallery(banner, "Sistema de Promoções"));
+  }
+  if (options.length) {
+    contentComponents.push({
+      type: 1,
+      components: [{
+        type: 3,
+        custom_id: PANEL_SELECT_ID,
+        placeholder: "Selecione a promoção desejada",
+        min_values: 1,
+        max_values: 1,
+        options
+      }]
+    });
+  }
 
   return {
     allowed_mentions: { parse: [] },
     components: [{
       type: 17,
       accent_color: parseColor(promotions[0]?.color ?? "#2563eb"),
-      components: [
-        {
-          type: 10,
-          content: [
-            `# ${fixedSystemEmojiText("prancheta_acertos")} Sistema de Promoções`,
-            "Solicite sua avaliação de promoção pelo seletor abaixo.",
-            "",
-            promotions.map((item) => `• ${normalizePromotionEmoji(item.emoji) ?? fixedSystemEmojiText("prancheta")} **${escapeMarkdown(item.name)}** -> ${escapeMarkdown(item.receivedRankName)}`).join("\n") || "Nenhuma promoção ativa configurada."
-          ].join("\n")
-        },
-        ...(options.length ? [{
-          type: 1,
-          components: [{
-            type: 3,
-            custom_id: PANEL_SELECT_ID,
-            placeholder: "Selecione a promoção desejada",
-            min_values: 1,
-            max_values: 1,
-            options
-          }]
-        }] : [])
-      ]
+      components: contentComponents
     }],
     flags: COMPONENTS_V2_FLAG
   };
@@ -595,6 +607,17 @@ function parseDiscordEmoji(value: string) {
   }
 
   return { name: value.trim() || "📋" };
+}
+
+function mediaGallery(imageUrl: string, description: string) {
+  return { type: 12, items: [{ media: { url: imageUrl }, description }] };
+}
+
+function resolveDiscordImageUrl(value: string) {
+  if (/^https?:\/\//i.test(value)) return value;
+  const origin = process.env.APP_BASE_URL || process.env.FRONTEND_URL || process.env.BACKEND_API_URL || "";
+  if (!origin) return value;
+  return `${origin.replace(/\/+$/, "")}/${value.replace(/^\/+/, "")}`;
 }
 
 function discordErrorMessage(error: unknown) {

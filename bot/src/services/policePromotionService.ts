@@ -27,6 +27,7 @@ import type { BotCommand, BotContext } from "../types";
 import { cacheGuildSystemEmojis, fetchApplicationEmojis, refreshSystemEmojis, replaceSystemEmojis, systemComponentEmoji, systemEmojiText } from "./systemEmojiService";
 import type { PolicePromotionAnswer, PolicePromotionDefinition, PolicePromotionQuestion, PolicePromotionRequest, PolicePromotionSettings } from "./apiClient";
 import type { PolicePromotionPanelPublishAck } from "../websocket/socketClient";
+import { resolvePanelImageUrl, type PanelVisualConfig } from "./panelVisualRenderer";
 
 const MODULE_ID = "police-promotions";
 const PREFIX = "police_promotions";
@@ -201,7 +202,8 @@ async function publishPromotionPanel(interaction: ChatInputCommandInteraction<"c
   }
 
   await refreshPromotionSystemEmojis(interaction.guild, context);
-  await target.send(panelPayload(settings, interaction.guild) as any);
+  const panelImage = await loadPromotionPanelImage(interaction.guild.id, context);
+  await target.send(panelPayload(settings, interaction.guild, panelImage) as any);
   await interaction.reply({ content: "Painel de promoções publicado.", ephemeral: true });
 }
 
@@ -216,7 +218,8 @@ async function publishConfiguredPromotionPanel(client: Client, context: BotConte
   if (!channel?.isTextBased() || channel.isDMBased()) throw new Error("Canal padrão do painel inválido.");
   await refreshPromotionSystemEmojis(guild, context);
   if (!("send" in channel)) throw new Error("O canal padrão não permite envio de mensagens pelo bot.");
-  const message = await channel.send(panelPayload(settings, guild) as any);
+  const panelImage = await loadPromotionPanelImage(guild.id, context);
+  const message = await channel.send(panelPayload(settings, guild, panelImage) as any);
   return message.id;
 }
 
@@ -597,26 +600,33 @@ async function requestFromInteraction(interaction: ButtonInteraction<"cached">, 
   });
 }
 
-function panelPayload(settings: PolicePromotionSettings, guild: Guild): MessageCreateOptions {
+function panelPayload(settings: PolicePromotionSettings, guild: Guild, panelImage: PanelVisualConfig | null = null): MessageCreateOptions {
   const promotions = settings.promotions.filter((item) => item.active);
   const select = new StringSelectMenuBuilder()
     .setCustomId(`${PREFIX}:choose`)
     .setPlaceholder("Selecione a promoção desejada")
     .addOptions(promotions.slice(0, 25).map((promotion) => ({
       description: clip(promotion.description, 90),
-      emoji: promotionEmojiComponent(promotion, guild),
+      emoji: systemComponentEmoji("prancheta", guild, guild.client),
       label: clip(promotion.name, 80),
       value: promotion.id
     })));
+  const components: any[] = [];
+  const bannerUrl = panelImage?.imageEnabled && panelImage.imageUrl ? resolvePanelImageUrl(panelImage.imageUrl) : null;
+  if (bannerUrl && ["banner", "top"].includes(panelImage?.imagePosition ?? "none")) {
+    components.push({ type: 12, items: [{ media: { url: bannerUrl }, description: "Sistema de Promoções" }] });
+  }
+  components.push({ type: 10, content: [`# ${icon("prancheta_acertos", guild)} Sistema de Promoções`, "Solicite sua avaliação de promoção pelo seletor abaixo.", "", promotions.map((item) => `• ${icon("prancheta", guild)} **${escapeMarkdown(item.name)}** → ${escapeMarkdown(item.receivedRankName)}`).join("\n") || "Nenhuma promoção ativa configurada."].join("\n") });
+  if (bannerUrl && !["banner", "top"].includes(panelImage?.imagePosition ?? "none")) {
+    components.push({ type: 12, items: [{ media: { url: bannerUrl }, description: "Sistema de Promoções" }] });
+  }
+  if (promotions.length) components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
   return {
     allowedMentions: { parse: [] },
     components: [{
       type: 17,
       accent_color: parseColor(promotions[0]?.color ?? "#2563eb"),
-      components: [
-        { type: 10, content: [`# ${icon("prancheta_acertos", guild)} Sistema de Promoções`, "Solicite sua avaliação de promoção pelo seletor abaixo.", "", promotions.map((item) => `• ${promotionEmojiText(item, guild)} **${escapeMarkdown(item.name)}** → ${escapeMarkdown(item.receivedRankName)}`).join("\n") || "Nenhuma promoção ativa configurada."].join("\n") },
-        ...(promotions.length ? [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)] : [])
-      ]
+      components
     }],
     flags: MessageFlags.IsComponentsV2
   };
@@ -885,6 +895,11 @@ async function refreshPromotionSystemEmojis(guild: Guild, context: BotContext) {
   await fetchApplicationEmojis(guild.client).catch(() => undefined);
   await cacheGuildSystemEmojis(guild, context).catch(() => undefined);
   await refreshSystemEmojis(context).catch(() => undefined);
+}
+
+async function loadPromotionPanelImage(guildId: string, context: BotContext): Promise<PanelVisualConfig | null> {
+  const image = await context.api.getPanelVisualSettings(guildId, "police-promotions").catch(() => null);
+  return image?.imageEnabled && image.imageUrl ? image : null;
 }
 
 function icon(key: SystemEmojiKey, guild?: Guild | null) {

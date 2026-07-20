@@ -17,6 +17,7 @@ import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Switch } from "../ui/switch";
 import { FivemResourceMultiSelect, FivemResourceSelect } from "../fivem/FivemResourceSelect";
+import { PanelImageSettings } from "../panels/PanelImageSettings";
 
 const QUESTION_TYPES: Array<{ id: PolicePromotionQuestionType; name: string }> = [
   { id: "short", name: "Texto curto" },
@@ -204,6 +205,15 @@ export function PolicePromotionsPanel({ botId, canManage, guild }: { botId?: str
           <Toggle disabled={disabled} label="Sistema de promoções ativo" value={data.settings.enabled} onChange={(enabled) => patchSettings({ enabled })} />
         </CardContent>
       </Card>
+
+      <PanelImageSettings
+        botId={botId}
+        canManage={canManage}
+        componentsV2Only
+        guildId={guild.id}
+        panelId="police-promotions"
+        panelLabel="Banner do Painel de Promoções"
+      />
 
       <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
         <Card>
