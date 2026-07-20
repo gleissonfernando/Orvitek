@@ -1,4 +1,4 @@
-import type { Client, Guild, GuildEmoji } from "discord.js";
+import { formatEmoji, type Client, type Guild, type GuildEmoji } from "discord.js";
 import {
   FIXED_SYSTEM_EMOJI_BY_KEY,
   normalizeFixedSystemEmojiText,
@@ -156,12 +156,12 @@ export function systemEmojiText(key: SystemEmojiKey, guild?: Guild | null, clien
   const resolved = client ? findEmoji(client, guild ?? null, emoji) : findGuildEmoji(guild ?? null, emoji);
 
   if (emoji.enabled && resolved) {
-    return `<${resolved.animated ? "a" : ""}:${resolved.name}:${resolved.id}>`;
+    return customEmojiMarkdown(resolved);
   }
 
   if (emoji.enabled && emoji.emojiId && client) {
     const fromClient = client.emojis.cache.get(emoji.emojiId) ?? findApplicationEmoji(client, emoji.emojiId);
-    if (fromClient) return `<${fromClient.animated ? "a" : ""}:${fromClient.name}:${fromClient.id}>`;
+    if (fromClient) return customEmojiMarkdown(fromClient);
   }
 
   return emoji.fallback;
@@ -231,7 +231,7 @@ function cachedEmoji(key: SystemEmojiKey, name: string, fallback: string, emoji:
     fallback,
     found: true,
     key,
-    markdown: `<${emoji.animated ? "a" : ""}:${emoji.name}:${emoji.id}>`,
+    markdown: customEmojiMarkdown(emoji),
     name: emoji.name ?? name
   };
 }
@@ -309,4 +309,8 @@ function findApplicationEmoji(client: Client, emojiId: string) {
 
 function findApplicationEmojiByName(client: Client, name: string) {
   return (((client.application as any)?.emojis?.cache?.find((emoji: { name?: string | null }) => emoji.name === name)) ?? null) as { animated?: boolean; id: string; name: string } | null;
+}
+
+function customEmojiMarkdown(emoji: { animated?: boolean | null; id: string; name?: string | null }) {
+  return formatEmoji({ animated: Boolean(emoji.animated), id: emoji.id, name: emoji.name ?? "emoji" });
 }
