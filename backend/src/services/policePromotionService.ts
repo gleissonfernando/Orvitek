@@ -9,7 +9,7 @@ import {
   type MongoPolicePromotionRequest,
   type MongoPolicePromotionSettings
 } from "../database/mongo";
-import { fixedSystemEmojiText, normalizeFixedSystemEmojiText } from "../config/systemEmojis";
+import { FIXED_SYSTEM_EMOJI_BY_KEY, fixedSystemEmojiText, normalizeFixedSystemEmojiText, type SystemEmojiKey } from "../config/systemEmojis";
 import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoom, emitRealtimeToRoomWithAck } from "../realtime/events";
 import { getDevBotToken } from "./devBotService";
 import { getPanelImageSettings, type PanelImageSettingsDto } from "./panelImageSettingsService";
@@ -450,7 +450,7 @@ function buildPolicePromotionPanelPayload(settings: PolicePromotionSettingsDto, 
   const promotions = settings.promotions.filter((item) => item.active);
   const options = promotions.slice(0, 25).map((promotion) => ({
     description: clipText(promotion.description, 90),
-    emoji: parseDiscordEmoji(fixedSystemEmojiText("prancheta")),
+    emoji: fixedDiscordEmoji("prancheta"),
     label: clipText(promotion.name, 80),
     value: promotion.id.slice(0, 100)
   }));
@@ -607,6 +607,13 @@ function parseDiscordEmoji(value: string) {
   }
 
   return { name: value.trim() || "📋" };
+}
+
+function fixedDiscordEmoji(key: SystemEmojiKey) {
+  const emoji = FIXED_SYSTEM_EMOJI_BY_KEY[key];
+  return emoji
+    ? { animated: emoji.animated, id: emoji.emojiId, name: emoji.name }
+    : parseDiscordEmoji(fixedSystemEmojiText(key));
 }
 
 function mediaGallery(imageUrl: string, description: string) {

@@ -607,7 +607,7 @@ function panelPayload(settings: PolicePromotionSettings, guild: Guild, panelImag
     .setPlaceholder("Selecione a promoção desejada")
     .addOptions(promotions.slice(0, 25).map((promotion) => ({
       description: clip(promotion.description, 90),
-      emoji: systemComponentEmoji("prancheta", guild, guild.client),
+      emoji: fixedComponentEmoji("prancheta"),
       label: clip(promotion.name, 80),
       value: promotion.id
     })));
@@ -904,6 +904,13 @@ async function loadPromotionPanelImage(guildId: string, context: BotContext): Pr
 
 function icon(key: SystemEmojiKey, guild?: Guild | null) {
   return systemEmojiText(key, guild, guild?.client ?? null);
+}
+
+function fixedComponentEmoji(key: SystemEmojiKey) {
+  const emoji = FIXED_SYSTEM_EMOJI_BY_KEY[key];
+  return emoji
+    ? { animated: emoji.animated, id: emoji.emojiId, name: emoji.name }
+    : systemComponentEmoji(key);
 }
 
 function promotionEmojiText(promotion: PolicePromotionDefinition, guild: Guild) {
