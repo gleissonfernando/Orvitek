@@ -512,8 +512,13 @@ export async function finalizeCourseExamAttempt(botId: string | null, guildId: s
   const guardedScore = hasAnyScoredAnswer ? capExamScore(score) : 0;
   const percent = decimalMultiplyByInteger(guardedScore, 10);
   const now = new Date();
+  const settings = await collections.courseExamSettings.findOne({ _id: attempt.examId ?? "", ...scope(botId, guildId) })
+    ?? await collections.courseExamSettings.findOne({ ...scope(botId, guildId), courseId: attempt.courseId });
   const minimumScore = COURSE_EXAM_PASSING_SCORE;
-  const result = decideCourseExamResult(guardedScore);
+  const awaitingManualReview = shouldAwaitManualExamReview(settings);
+  const automaticResult = decideCourseExamResult(guardedScore);
+  const result = awaitingManualReview ? null : automaticResult;
+  const status: MongoCourseExamAttempt["status"] = awaitingManualReview ? "finished" : automaticResult;
   await logCourseAction(botId, guildId, "course.exam_score_calculated", attempt.studentId, attempt.courseId, attempt.publicationId, {
     attemptId,
     detail: scoredAnswers.map((answer) => ({ correct: answer.correct, pointsEarned: answer.pointsEarned, questionId: answer.questionId, selectedAlternativeId: answer.selectedAlternativeId, selectedAlternativeIds: answer.selectedAlternativeIds ?? [] })),
@@ -523,16 +528,16 @@ export async function finalizeCourseExamAttempt(botId: string | null, guildId: s
     objectiveWrong,
     percent,
     score: guardedScore,
-    result
+    result: result ?? "awaiting_review"
   });
   const updatedStatus = await collections.courseExamAttempts.updateOne({ _id: attemptId, ...scope(botId, guildId), status: "in_progress" }, {
     $set: {
       automaticScore: guardedScore,
-      correctedAt: now,
-      correctedBy: attempt.instructorId,
-      finalScore: guardedScore,
+      correctedAt: awaitingManualReview ? null : now,
+      correctedBy: awaitingManualReview ? null : attempt.instructorId,
+      finalScore: awaitingManualReview ? null : guardedScore,
       finishedAt: now,
-      manualScore: 0,
+      manualScore: awaitingManualReview ? null : 0,
       maxScore,
       objectiveCorrect,
       objectiveWrong,
@@ -540,7 +545,7 @@ export async function finalizeCourseExamAttempt(botId: string | null, guildId: s
       rejectionReason: null,
       result,
       score: guardedScore,
-      status: result,
+      status,
       updatedAt: now,
       writtenCount
     }
@@ -554,7 +559,7 @@ export async function finalizeCourseExamAttempt(botId: string | null, guildId: s
   await logCourseAction(botId, guildId, "course.exam_finished", attempt.studentId, attempt.courseId, attempt.publicationId, { attemptId, percent, score: guardedScore });
   await collections.courseEnrollments.updateOne(
     { ...scope(botId, guildId), publicationId: attempt.publicationId, studentId: attempt.studentId },
-    { $set: { examStatus: result === "approved" ? "APPROVED" : "FAILED", attemptId, examChannelId: attempt.channelId, score: guardedScore, correctAnswers: objectiveCorrect, completedAt: now, correctedBy: attempt.instructorId, result, updatedAt: now } }
+    { $set: { examStatus: awaitingManualReview ? "COMPLETED" : result === "approved" ? "APPROVED" : "FAILED", attemptId, examChannelId: attempt.channelId, score: guardedScore, correctAnswers: objectiveCorrect, completedAt: now, correctedBy: awaitingManualReview ? null : attempt.instructorId, result, updatedAt: now } }
   );
   if (result === "approved") {
     await recordApprovedCourseHistoryFromAttempt(botId, guildId, attemptId).catch((error) => {
@@ -926,6 +931,10 @@ function isObjectiveAnswerFullyScored(question: MongoCourseExamQuestion, pointsE
 
 export function decideCourseExamResult(score: number): "approved" | "rejected" {
   return parseDecimalNumber(score, 0) >= COURSE_EXAM_PASSING_SCORE ? "approved" : "rejected";
+}
+
+function shouldAwaitManualExamReview(settings: Pick<MongoCourseExamSettings, "automaticApproval" | "manualApproval"> | null | undefined) {
+  return settings?.manualApproval !== false && settings?.automaticApproval !== true;
 }
 
 function normalizeQuestionScoring<T extends MongoCourseExamQuestion>(question: T): T {

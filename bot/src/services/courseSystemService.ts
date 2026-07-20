@@ -1971,8 +1971,22 @@ async function finishExam(interaction: ButtonInteraction, context: BotContext) {
   logCourseFlow("exam_finalize_saved", { attemptId, courseId: result.attempt.courseId, guildId: interaction.guildId, score: result.attempt.score, percent: result.attempt.percent, answers: result.answers.length });
   const reviewed = result.attempt;
   if (reviewed.result !== "approved" && reviewed.result !== "rejected") {
-    await sendCourseLog(interaction, settings, `Prova finalizada sem resultado persistido\nTentativa: ${attemptId}\nCurso: ${course.name}\nAluno: <@${result.attempt.studentId}>`).catch(() => null);
-    await interaction.followUp({ content: "Prova corrigida, mas o resultado final não foi persistido. Verifique os logs do sistema.", flags: MessageFlags.Ephemeral });
+    const correctionPanelSent = await sendExamCorrectionPanel(interaction, context, course, reviewed, result.questions, result.answers);
+    if (!correctionPanelSent) {
+      await interaction.followUp({ content: "Prova finalizada, mas não consegui enviar o painel de aprovação/recusa. Verifique o canal de avaliação e as permissões do bot.", flags: MessageFlags.Ephemeral });
+      return;
+    }
+    await sendExamDetailedLog(interaction, settings, course, reviewed, result.questions, result.answers).catch(() => null);
+    await sendCourseLog(interaction, settings, `Prova enviada para aprovação\nTentativa: ${attemptId}\nCurso: ${course.name}\nAluno: <@${result.attempt.studentId}>\nNota automática: ${formatScore(reviewed.automaticScore ?? reviewed.score)}/${formatScore(reviewed.maxScore)}`).catch(() => null);
+    const postFinalizeResults = await Promise.allSettled([
+      context.api.getCoursePublication(interaction.guildId!, result.attempt.publicationId)
+        .then((publication) => refreshPublicationMessageByRecord(interaction, context, publication))
+    ]);
+    for (const failed of postFinalizeResults.filter((entry): entry is PromiseRejectedResult => entry.status === "rejected")) {
+      logCourseFlowError("exam_post_finalize_action_failed", failed.reason, { attemptId, courseId: result.attempt.courseId, guildId: interaction.guildId });
+      await sendCourseLog(interaction, settings, `Falha em ação pós-finalização\nTentativa: ${attemptId}\nCurso: ${course.name}\nErro: ${errorDetails(failed.reason)}`).catch(() => null);
+    }
+    await deleteFinishedExamChannel(interaction, context);
     return;
   }
   const resultDelivery = await sendExamResultPanel(interaction, settings, course, reviewed, result.questions, result.answers);
