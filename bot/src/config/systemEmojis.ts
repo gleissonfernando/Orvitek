@@ -270,7 +270,8 @@ export function fixedSystemEmojiText(key: SystemEmojiKey) {
 
 export function normalizeFixedSystemEmojiText(input: string) {
   const emojiTokens: string[] = [];
-  const repaired = input.replace(/<(<a?:[a-zA-Z0-9_]{2,32}:(\d{5,32})>)\2>/g, "$1");
+  const compact = input.replace(/<\s*(a?)\s*:\s*([a-zA-Z0-9_]{2,32})\s*:\s*(\d{5,32})\s*>/g, "<$1:$2:$3>");
+  const repaired = compact.replace(/<(<a?:[a-zA-Z0-9_]{2,32}:(\d{5,32})>)\2>/g, "$1");
   const protectedInput = repaired.replace(/<a?:([a-zA-Z0-9_]{2,32}):(\d{5,32})>/g, (match, _name: string, emojiId: string) => {
     const fixed = FIXED_SYSTEM_EMOJI_BY_ID.get(emojiId);
     const normalized = fixed ? `<${fixed.animated ? "a" : ""}:${fixed.name}:${fixed.emojiId}>` : match;

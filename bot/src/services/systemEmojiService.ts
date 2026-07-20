@@ -1,4 +1,4 @@
-import { formatEmoji, type Client, type Guild, type GuildEmoji } from "discord.js";
+import { type Client, type Guild, type GuildEmoji } from "discord.js";
 import {
   FIXED_SYSTEM_EMOJI_BY_KEY,
   normalizeFixedSystemEmojiText,
@@ -149,7 +149,9 @@ export function getGuildSystemEmojiCache(guildId: string) {
 export function systemEmojiText(key: SystemEmojiKey, guild?: Guild | null, client?: Client | null) {
   const emoji = runtimeEmoji(key);
   const cached = guild ? guildEmojiCaches.get(guild.id)?.emojis.get(key) : null;
-  if (cached?.found) {
+  const fixed = FIXED_SYSTEM_EMOJI_BY_KEY[key];
+
+  if (!fixed && cached?.found) {
     return cached.markdown;
   }
 
@@ -160,8 +162,10 @@ export function systemEmojiText(key: SystemEmojiKey, guild?: Guild | null, clien
   }
 
   if (emoji.enabled && emoji.emojiId && client) {
-    const fromClient = client.emojis.cache.get(emoji.emojiId) ?? findApplicationEmoji(client, emoji.emojiId);
-    if (fromClient) return customEmojiMarkdown(fromClient);
+    const fromClient = client.emojis.cache.get(emoji.emojiId);
+    if (fromClient && isGuildEmojiUsable(fromClient)) return customEmojiMarkdown(fromClient);
+    const fromApplication = findApplicationEmoji(client, emoji.emojiId);
+    if (fromApplication) return customEmojiMarkdown(fromApplication);
   }
 
   return emoji.fallback;
@@ -213,7 +217,7 @@ function replaceFixedSystemEmojiMarkdown(input: string, guild?: Guild | null, cl
 }
 
 function cachedEmoji(key: SystemEmojiKey, name: string, fallback: string, emoji: GuildEmoji | null): CachedGuildEmoji {
-  if (!emoji) {
+  if (!emoji || !isGuildEmojiUsable(emoji)) {
     return {
       animated: false,
       emojiId: null,
@@ -274,27 +278,30 @@ function findEmoji(client: Client, guild: Guild | null, item: RuntimeEmoji) {
 
   if (item.emojiId) {
     const fromClient = client.emojis.cache.get(item.emojiId);
-    if (fromClient) return fromClient;
+    if (fromClient && isGuildEmojiUsable(fromClient)) return fromClient;
     const fromApplication = findApplicationEmoji(client, item.emojiId);
     if (fromApplication) return fromApplication;
     const fromGuild = guild?.emojis.cache.get(item.emojiId);
-    if (fromGuild) return fromGuild;
+    if (fromGuild && isGuildEmojiUsable(fromGuild)) return fromGuild;
   }
 
   const sourceGuild = item.sourceGuildId ? client.guilds.cache.get(item.sourceGuildId) : null;
   return (
-    sourceGuild?.emojis.cache.find((emoji) => emoji.name === item.name) ??
-    guild?.emojis.cache.find((emoji) => emoji.name === item.name) ??
-    client.emojis.cache.find((emoji) => emoji.name === item.name) ??
     findApplicationEmojiByName(client, item.name) ??
+    sourceGuild?.emojis.cache.find((emoji) => emoji.name === item.name && isGuildEmojiUsable(emoji)) ??
+    guild?.emojis.cache.find((emoji) => emoji.name === item.name && isGuildEmojiUsable(emoji)) ??
+    client.emojis.cache.find((emoji) => emoji.name === item.name && isGuildEmojiUsable(emoji)) ??
     null
   );
 }
 
 function findGuildEmoji(guild: Guild | null, item: RuntimeEmoji) {
   if (!item.enabled || !guild) return null;
-  if (item.emojiId) return guild.emojis.cache.get(item.emojiId) ?? null;
-  return guild.emojis.cache.find((emoji) => emoji.name === item.name) ?? null;
+  if (item.emojiId) {
+    const emoji = guild.emojis.cache.get(item.emojiId);
+    return emoji && isGuildEmojiUsable(emoji) ? emoji : null;
+  }
+  return guild.emojis.cache.find((emoji) => emoji.name === item.name && isGuildEmojiUsable(emoji)) ?? null;
 }
 
 export async function fetchApplicationEmojis(client: Client) {
@@ -311,6 +318,14 @@ function findApplicationEmojiByName(client: Client, name: string) {
   return (((client.application as any)?.emojis?.cache?.find((emoji: { name?: string | null }) => emoji.name === name)) ?? null) as { animated?: boolean; id: string; name: string } | null;
 }
 
+function isGuildEmojiUsable(emoji: GuildEmoji) {
+  if (emoji.available === false) return false;
+  if (!emoji.roles.cache.size) return true;
+  const botMember = emoji.guild.members.me;
+  return Boolean(botMember && emoji.roles.cache.some((role) => botMember.roles.cache.has(role.id)));
+}
+
 function customEmojiMarkdown(emoji: { animated?: boolean | null; id: string; name?: string | null }) {
-  return formatEmoji({ animated: Boolean(emoji.animated), id: emoji.id, name: emoji.name ?? "emoji" });
+  const name = (emoji.name ?? "emoji").replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 32) || "emoji";
+  return `<${emoji.animated ? "a" : ""}:${name}:${emoji.id}>`;
 }

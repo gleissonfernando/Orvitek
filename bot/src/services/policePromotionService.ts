@@ -22,6 +22,7 @@ import {
   type ModalSubmitInteraction
 } from "discord.js";
 import { currentRuntimeBotId, env, isBotModuleEnabled } from "../config/env";
+import { FIXED_SYSTEM_EMOJI_BY_KEY, normalizeFixedSystemEmojiText, SYSTEM_EMOJIS, type SystemEmojiKey } from "../config/systemEmojis";
 import type { BotCommand, BotContext } from "../types";
 import { cacheGuildSystemEmojis, fetchApplicationEmojis, refreshSystemEmojis, replaceSystemEmojis, systemComponentEmoji, systemEmojiText } from "./systemEmojiService";
 import type { PolicePromotionAnswer, PolicePromotionDefinition, PolicePromotionQuestion, PolicePromotionRequest, PolicePromotionSettings } from "./apiClient";
@@ -31,7 +32,7 @@ const PREFIX = "police_promotions";
 const SETTINGS_TTL_MS = 30_000;
 const DIVIDER = "━━━━━━━━━━━━━━━━━━━━━━";
 const CUSTOM_EMOJI_PATTERN = /^<a?:[a-zA-Z0-9_]{2,32}:\d{5,32}>$/;
-const SYSTEM_PROMOTION_EMOJI_KEYS = new Set<Parameters<typeof systemEmojiText>[0]>([
+const SYSTEM_PROMOTION_EMOJI_KEYS = new Set<SystemEmojiKey>([
   "visto",
   "trofeu_alt",
   "trofeu",
@@ -59,6 +60,15 @@ const SYSTEM_PROMOTION_EMOJI_KEYS = new Set<Parameters<typeof systemEmojiText>[0
   "nuvem",
   "arma"
 ]);
+const SYSTEM_PROMOTION_EMOJI_KEY_BY_ALIAS = new Map<string, SystemEmojiKey>(
+  SYSTEM_EMOJIS.flatMap((item) => [item.key, item.name, ...(item.aliases ?? [])].map((alias) => [alias, item.key] as const))
+    .filter(([, key]) => SYSTEM_PROMOTION_EMOJI_KEYS.has(key))
+);
+const SYSTEM_PROMOTION_EMOJI_KEY_BY_ID = new Map<string, SystemEmojiKey>(
+  Object.entries(FIXED_SYSTEM_EMOJI_BY_KEY)
+    .filter(([key]) => SYSTEM_PROMOTION_EMOJI_KEYS.has(key as SystemEmojiKey))
+    .map(([key, item]) => [item.emojiId, key as SystemEmojiKey])
+);
 
 type PromotionFormSession = {
   answers: PolicePromotionAnswer[];
@@ -870,12 +880,12 @@ async function refreshPromotionSystemEmojis(guild: Guild, context: BotContext) {
   await refreshSystemEmojis(context).catch(() => undefined);
 }
 
-function icon(key: Parameters<typeof systemEmojiText>[0], guild?: Guild | null) {
+function icon(key: SystemEmojiKey, guild?: Guild | null) {
   return systemEmojiText(key, guild, guild?.client ?? null);
 }
 
 function promotionEmojiText(promotion: PolicePromotionDefinition, guild: Guild) {
-  const raw = promotion.emoji?.trim();
+  const raw = normalizePromotionEmojiMarkup(promotion.emoji);
   const key = systemEmojiKeyFromValue(raw);
   if (key) return icon(key, guild);
   if (!raw) return icon("prancheta", guild);
@@ -886,20 +896,28 @@ function promotionEmojiText(promotion: PolicePromotionDefinition, guild: Guild) 
 }
 
 function promotionEmojiComponent(promotion: PolicePromotionDefinition, guild: Guild) {
-  const raw = promotion.emoji?.trim();
+  const raw = normalizePromotionEmojiMarkup(promotion.emoji);
   const key = systemEmojiKeyFromValue(raw);
   if (key) return systemComponentEmoji(key, guild, guild.client);
   if (!raw) return systemComponentEmoji("prancheta", guild, guild.client);
   return raw;
 }
 
-function systemEmojiKeyFromValue(value: string | null | undefined) {
+function normalizePromotionEmojiMarkup(value: string | null | undefined) {
+  const raw = value?.trim();
+  return raw ? normalizeFixedSystemEmojiText(raw).trim() : null;
+}
+
+function systemEmojiKeyFromValue(value: string | null | undefined): SystemEmojiKey | null {
   const raw = value?.trim();
   if (!raw) return null;
 
-  const customMatch = /^<a?:([a-zA-Z0-9_]{2,32}):\d{5,32}>$/.exec(raw);
-  const token = (customMatch?.[1] ?? raw.replace(/^:/, "").replace(/:$/, "")) as Parameters<typeof systemEmojiText>[0];
-  return SYSTEM_PROMOTION_EMOJI_KEYS.has(token) ? token : null;
+  const customMatch = /^<a?:([a-zA-Z0-9_]{2,32}):(\d{5,32})>$/.exec(raw);
+  const idKey = customMatch ? SYSTEM_PROMOTION_EMOJI_KEY_BY_ID.get(customMatch[2]!) : null;
+  if (idKey) return idKey;
+
+  const token = customMatch?.[1] ?? raw.replace(/^:/, "").replace(/:$/, "");
+  return SYSTEM_PROMOTION_EMOJI_KEY_BY_ALIAS.get(token) ?? null;
 }
 
 function formatDate(value: string) {

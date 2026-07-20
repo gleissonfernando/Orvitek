@@ -481,7 +481,7 @@ function historyEntry(action: string, actorId: string | null | undefined, actorN
 }
 
 function normalizePromotionEmoji(value: unknown) {
-  const raw = normalizeText(String(value ?? ""), 120);
+  const raw = normalizeFixedSystemEmojiText(normalizeText(String(value ?? ""), 120));
   if (!raw) return null;
 
   const custom = /^<(a?):([a-zA-Z0-9_]{2,32}):(\d{5,32})>$/.exec(raw);
