@@ -8,6 +8,7 @@ import {
   type MongoPolicePromotionRequest,
   type MongoPolicePromotionSettings
 } from "../database/mongo";
+import { fixedSystemEmojiText, normalizeFixedSystemEmojiText } from "../config/systemEmojis";
 import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoom } from "../realtime/events";
 
 export const POLICE_PROMOTIONS_MODULE_ID = "police-promotions";
@@ -327,7 +328,7 @@ function defaultPromotion(): MongoPolicePromotionDefinition {
     categoryId: null,
     color: "#2563eb",
     description: "Solicitação de avaliação para promoção de patente.",
-    emoji: "prancheta",
+    emoji: fixedSystemEmojiText("prancheta"),
     evaluatorRoleIds: [],
     grantedRoleId: null,
     historyChannelId: null,
@@ -418,7 +419,7 @@ function sanitizePromotions(promotions: MongoPolicePromotionDefinition[]) {
     categoryId: normalizeSnowflake(promotion.categoryId),
     color: /^#[0-9a-f]{6}$/i.test(promotion.color) ? promotion.color : "#2563eb",
     description: normalizeText(promotion.description, 1200) || "Solicitação de avaliação para promoção de patente.",
-    emoji: normalizeText(promotion.emoji ?? "", 80) || null,
+    emoji: normalizePromotionEmoji(promotion.emoji),
     evaluatorRoleIds: uniqueSnowflakes(promotion.evaluatorRoleIds),
     grantedRoleId: normalizeSnowflake(promotion.grantedRoleId),
     historyChannelId: normalizeSnowflake(promotion.historyChannelId),
@@ -477,6 +478,25 @@ function answerValue(answers: MongoPolicePromotionAnswer[], questionId: string) 
 
 function historyEntry(action: string, actorId: string | null | undefined, actorName: string | null | undefined, metadata: Record<string, unknown>) {
   return { action, actorId: actorId ?? null, actorName: actorName ?? null, at: new Date(), metadata };
+}
+
+function normalizePromotionEmoji(value: unknown) {
+  const raw = normalizeText(String(value ?? ""), 120);
+  if (!raw) return null;
+
+  const custom = /^<(a?):([a-zA-Z0-9_]{2,32}):(\d{5,32})>$/.exec(raw);
+  if (custom) {
+    const animatedPrefix = custom[1] ? "a" : "";
+    return `<${animatedPrefix}:${custom[2]}:${custom[3]}>`;
+  }
+
+  const token = /^:?([a-zA-Z0-9_]{2,64}):?$/.exec(raw)?.[1];
+  if (token) {
+    const normalized = normalizeFixedSystemEmojiText(`:${token}:`);
+    return normalized !== `:${token}:` ? normalized : null;
+  }
+
+  return normalizeFixedSystemEmojiText(raw).slice(0, 120) || null;
 }
 
 function normalizeText(value: string, maxLength: number) {

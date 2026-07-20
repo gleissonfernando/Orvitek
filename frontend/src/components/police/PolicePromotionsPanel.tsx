@@ -332,7 +332,7 @@ function newPromotion(): PolicePromotionDefinition {
     categoryId: null,
     color: "#2563eb",
     description: "Solicitação de avaliação para promoção de patente.",
-    emoji: "prancheta",
+    emoji: "<:pranchetaaa:1525682920789114940>",
     evaluatorRoleIds: [],
     grantedRoleId: null,
     historyChannelId: null,
