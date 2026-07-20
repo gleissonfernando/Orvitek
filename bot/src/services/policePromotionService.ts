@@ -26,6 +26,7 @@ import { FIXED_SYSTEM_EMOJI_BY_KEY, normalizeFixedSystemEmojiText, SYSTEM_EMOJIS
 import type { BotCommand, BotContext } from "../types";
 import { cacheGuildSystemEmojis, fetchApplicationEmojis, refreshSystemEmojis, replaceSystemEmojis, systemComponentEmoji, systemEmojiText } from "./systemEmojiService";
 import type { PolicePromotionAnswer, PolicePromotionDefinition, PolicePromotionQuestion, PolicePromotionRequest, PolicePromotionSettings } from "./apiClient";
+import type { PolicePromotionPanelPublishAck } from "../websocket/socketClient";
 
 const MODULE_ID = "police-promotions";
 const PREFIX = "police_promotions";
@@ -178,12 +179,16 @@ export function clearPolicePromotionSettingsCache(guildId?: string | null) {
 export function startPolicePromotionService(client: Client, context: BotContext) {
   if (serviceStarted) return;
   serviceStarted = true;
-  context.socket.onPolicePromotionPanelPublish((payload) => {
+  context.socket.onPolicePromotionPanelPublish((payload, ack?: PolicePromotionPanelPublishAck) => {
     const runtimeBotId = (currentRuntimeBotId() ?? env.DASHBOARD_BOT_ID) || null;
     if (!isBotModuleEnabled(MODULE_ID) || (payload.botId && runtimeBotId && payload.botId !== runtimeBotId)) return;
-    void publishConfiguredPromotionPanel(client, context, payload.guildId).catch((error) => {
-      console.error(`[police-promotions] falha ao publicar painel em ${payload.guildId}:`, error instanceof Error ? error.message : error);
-    });
+    void publishConfiguredPromotionPanel(client, context, payload.guildId)
+      .then((messageId) => ack?.({ ok: true, messageId }))
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[police-promotions] falha ao publicar painel em ${payload.guildId}:`, message);
+        ack?.({ ok: false, error: message });
+      });
   });
 }
 
@@ -210,7 +215,9 @@ async function publishConfiguredPromotionPanel(client: Client, context: BotConte
   const channel = await guild.channels.fetch(settings.defaultPanelChannelId).catch(() => null);
   if (!channel?.isTextBased() || channel.isDMBased()) throw new Error("Canal padrão do painel inválido.");
   await refreshPromotionSystemEmojis(guild, context);
-  await channel.send(panelPayload(settings, guild) as any);
+  if (!("send" in channel)) throw new Error("O canal padrão não permite envio de mensagens pelo bot.");
+  const message = await channel.send(panelPayload(settings, guild) as any);
+  return message.id;
 }
 
 async function handlePromotionChoose(interaction: StringSelectMenuInteraction<"cached">, context: BotContext) {

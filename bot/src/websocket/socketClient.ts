@@ -156,6 +156,7 @@ export type PolicePromotionPanelPublishEvent = {
   guildId: string;
   settings?: unknown;
 };
+export type PolicePromotionPanelPublishAck = (response: { error?: string; messageId?: string | null; ok: boolean }) => void;
 export type VisibleMessageUsersEvent = {
   botId?: string | null;
   guildId: string;
@@ -323,7 +324,7 @@ export class BotSocketClient {
   private vehicleAbandonmentSettingsHandler: ((payload: VehicleAbandonmentSettingsEvent) => void) | null = null;
   private policeQruSettingsHandler: ((payload: PoliceQruSettingsEvent) => void) | null = null;
   private policePromotionSettingsHandler: ((payload: PolicePromotionSettingsEvent) => void) | null = null;
-  private policePromotionPanelPublishHandler: ((payload: PolicePromotionPanelPublishEvent) => void) | null = null;
+  private policePromotionPanelPublishHandler: ((payload: PolicePromotionPanelPublishEvent, ack?: PolicePromotionPanelPublishAck) => void) | null = null;
   private visibleMessageUsersHandler: ((payload: VisibleMessageUsersEvent) => void) | null = null;
   private messageControlUsersHandler: ((payload: MessageControlUsersEvent) => void) | null = null;
   private dmBarSettingsHandler: ((payload: DmBarSettingsEvent) => void) | null = null;
@@ -741,7 +742,7 @@ export class BotSocketClient {
     this.socket?.on("police-promotions:settings_updated", handler);
   }
 
-  onPolicePromotionPanelPublish(handler: (payload: PolicePromotionPanelPublishEvent) => void) {
+  onPolicePromotionPanelPublish(handler: (payload: PolicePromotionPanelPublishEvent, ack?: PolicePromotionPanelPublishAck) => void) {
     this.policePromotionPanelPublishHandler = handler;
     this.socket?.off("police-promotions:panel_publish");
     this.socket?.on("police-promotions:panel_publish", handler);

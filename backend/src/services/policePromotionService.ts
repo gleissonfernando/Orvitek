@@ -9,7 +9,7 @@ import {
   type MongoPolicePromotionSettings
 } from "../database/mongo";
 import { fixedSystemEmojiText, normalizeFixedSystemEmojiText } from "../config/systemEmojis";
-import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoom } from "../realtime/events";
+import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoom, emitRealtimeToRoomWithAck } from "../realtime/events";
 
 export const POLICE_PROMOTIONS_MODULE_ID = "police-promotions";
 
@@ -110,11 +110,20 @@ export async function requestPolicePromotionPanelPublish(botId: string, guildId:
   if (!settings.enabled) throw Object.assign(new Error("Ative o Sistema de Promoções antes de publicar o painel."), { statusCode: 400 });
   if (!settings.defaultPanelChannelId) throw Object.assign(new Error("Configure o canal padrão do painel antes de publicar."), { statusCode: 400 });
 
-  emitRealtimeToRoom(devBotRealtimeRoom(botId), "police-promotions:panel_publish", { botId, guildId, settings });
+  const responses = await emitRealtimeToRoomWithAck<
+    { botId: string; guildId: string; settings: PolicePromotionSettingsDto },
+    { error?: string; messageId?: string | null; ok: boolean }
+  >(devBotRealtimeRoom(botId), "police-promotions:panel_publish", { botId, guildId, settings }, 20_000);
+  const success = responses.find((response) => response?.ok);
+  if (!success) {
+    const error = responses.find((response) => response?.error)?.error;
+    throw Object.assign(new Error(error ?? "O bot selecionado não respondeu à publicação do painel. Verifique se ele está online, conectado ao servidor e com o módulo ativo."), { statusCode: 409 });
+  }
+
   await createPolicePromotionLog(botId, guildId, {
-    action: "promotion.panel_publish_requested",
+    action: "promotion.panel_published",
     actorId,
-    metadata: { channelId: settings.defaultPanelChannelId }
+    metadata: { channelId: settings.defaultPanelChannelId, messageId: success.messageId ?? null }
   });
   return settings;
 }
