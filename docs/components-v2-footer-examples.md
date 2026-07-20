@@ -10,7 +10,7 @@ renderComponentsV2Panel({
   description: "Abra um atendimento abaixo.",
   footer: {
     image: "https://example.com/logo.png",
-    text: "NexTechK Atendimento"
+    text: "NexTech Atendimento"
   },
   moduleId: "example-ticket",
   title: "Painel de Tickets"
@@ -24,7 +24,7 @@ renderComponentsV2Panel({
   accentColor: 0x2563eb,
   description: "Mensagem sem imagem de rodape.",
   footer: {
-    text: "NexTechK"
+    text: "NexTech"
   },
   moduleId: "example-basic",
   title: "Painel Simples"
@@ -39,7 +39,7 @@ renderComponentsV2Panel({
   description: "A imagem original pode ser grande; o rodape usa Thumbnail.",
   footer: {
     image: "https://example.com/1920x1080-banner.png",
-    text: "NexTechK"
+    text: "NexTech"
   },
   moduleId: "example-large-footer-image",
   title: "Imagem Grande no Rodape"

@@ -182,7 +182,7 @@ export function createMemberPanelPayload(
     components: [buildV2Container({
       accentColor: parseColor(input.color),
       components,
-      footer: { image: imagePosition === "footer" ? imageUrl : null, text: footerText || "NexTechK" }
+      footer: { image: imagePosition === "footer" ? imageUrl : null, text: footerText || "NexTech" }
     })],
     flags: MessageFlags.IsComponentsV2 as const
   };

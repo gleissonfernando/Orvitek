@@ -382,7 +382,7 @@ function panel(settings: OpenDutySettings, input: { actions?: unknown[]; descrip
 function footer(settings: OpenDutySettings, imageUrl: string | null) {
   return {
     image: settings.imagePosition === "footer" ? imageUrl : null,
-    text: settings.footerText ?? "NexTechK"
+    text: settings.footerText ?? "NexTech"
   };
 }
 

@@ -30,7 +30,7 @@ export type ComponentsV2FooterConfig = {
 export const DEFAULT_PANEL_FOOTER = {
   enabled: true,
   image: process.env.DEFAULT_FOOTER_IMAGE || null,
-  text: "NexTechK"
+  text: "NexTech"
 } as const;
 
 export function renderComponentsV2Panel(input: {

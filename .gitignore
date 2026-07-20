@@ -10,7 +10,7 @@ build
 !**/.env.example
 .env.local
 .env.*.local
-.NexTechk-runtime-env.json
+.NexTech-runtime-env.json
 .nex-tech-runtime-env.json
 .NexTech-runtime-env.json
 *-runtime-env.json

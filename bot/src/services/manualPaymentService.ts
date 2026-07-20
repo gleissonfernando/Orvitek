@@ -143,7 +143,7 @@ function createSalesPanel(settings: ManualPaymentSettings) {
       "## 🔒 Compra protegida\n• Atendimento feito em canal privado.\n\n• Pagamento manual via Pix.\n\n• Conferência realizada pela equipe.\n\n• Status atualizado dentro do ticket.",
       ...(services.length ? services.map(createSalesServiceCard) : ["## 📦 Catálogo\nNenhum serviço ativo foi configurado para este painel."])
     ],
-    footer: { text: "NexTechK • Loja de Serviços\nCompra protegida • Atendimento Manual" },
+    footer: { text: "NexTech • Loja de Serviços\nCompra protegida • Atendimento Manual" },
     image: settings.bannerUrl ? { imageEnabled: true, imagePosition: "top", imageUrl: settings.bannerUrl } : null,
     moduleId: "manual-payments",
     title: salePanelTitle(settings.salePanelTitle)
@@ -236,7 +236,7 @@ function createPaymentPanel(settings: ManualPaymentSettings, order: ManualPaymen
       "## 🔔 Avisos\n• Não altere o valor.\n\n• Não feche este ticket.\n\n• Caso o pagamento não seja identificado, o pedido permanecerá pendente.\n\n• Após aprovado, o sistema atualizará automaticamente o status.",
       `## 🧾 Registro do Pedido\n${proofSection}`
     ],
-    footer: { text: "NexTechK • Sistema de Pagamentos\nPedido protegido • Atendimento Manual" },
+    footer: { text: "NexTech • Sistema de Pagamentos\nPedido protegido • Atendimento Manual" },
     image: settings.pixQrCodeUrl ? { imageEnabled: true, imagePosition: "bottom", imageUrl: settings.pixQrCodeUrl } : null,
     moduleId: "manual-payments",
     title: "💳 Pagamento Manual"

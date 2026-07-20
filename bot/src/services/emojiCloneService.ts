@@ -281,7 +281,7 @@ export function emojiClonePanelPayload(ephemeral = false) {
         },
         {
           type: 10,
-          content: `${systemEmojiText("trofeu_alt")} | Todos os copyrights para NexTechK bots.`
+          content: `${systemEmojiText("trofeu_alt")} | Todos os copyrights para NexTech bots.`
         }
       ]
     }

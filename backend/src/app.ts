@@ -104,7 +104,7 @@ if (fs.existsSync(frontendIndexPath)) {
   app.get("*", (_req, res) => {
     res.json({
       message: "Frontend build ausente. Execute npm run build antes de servir o painel.",
-      name: "Painel de NexTechK Bots API",
+      name: "Painel de NexTech Bots API",
       status: "online"
     });
   });

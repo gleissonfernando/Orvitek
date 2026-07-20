@@ -256,12 +256,12 @@ const PREVIOUS_WELCOME_RULES = [
   "Não divulgue lives, links ou canais sem autorizacao.",
   "Converse, faca amizades e aproveite sua estadia."
 ].join("\n");
-const PREVIOUS_WELCOME_FOOTER_TEXT = "NexTechK - Comunidade de lives";
+const PREVIOUS_WELCOME_FOOTER_TEXT = "NexTech - Comunidade de lives";
 export const DEFAULT_WELCOME_MESSAGE = [
   "Seja bem-vindo(a), {user}, \u00e0 nossa comunidade de lives.",
   "Aqui a galera acompanha transmiss\u00f5es, eventos da comunidade, avisos e momentos ao vivo juntos."
 ].join("\n");
-export const DEFAULT_WELCOME_TITLE = "NexTechK";
+export const DEFAULT_WELCOME_TITLE = "NexTech";
 export const DEFAULT_WELCOME_RULES_TITLE = "Algumas dicas:";
 export const DEFAULT_WELCOME_RULES = [
   "Leia as regras antes de participar.",
@@ -271,12 +271,12 @@ export const DEFAULT_WELCOME_RULES = [
   "Converse, fa\u00e7a amizades e aproveite sua estadia."
 ].join("\n");
 export const DEFAULT_WELCOME_CHANNEL_LABEL = "Acesse o canal:";
-export const DEFAULT_WELCOME_FOOTER_TEXT = "NexTechK - Comunidade de Lives";
+export const DEFAULT_WELCOME_FOOTER_TEXT = "NexTech - Comunidade de Lives";
 export const DEFAULT_LEAVE_MESSAGE = [
   "Até mais, {user}. Obrigado por ter feito parte da nossa comunidade de lives.",
   "As portas continuam abertas para quando quiser voltar e acompanhar as transmissoes com a galera."
 ].join("\n");
-export const DEFAULT_LEAVE_TITLE = "NexTechK";
+export const DEFAULT_LEAVE_TITLE = "NexTech";
 export const DEFAULT_LEAVE_RULES_TITLE = "Registro de saída:";
 export const DEFAULT_LEAVE_RULES = [
   "A saída foi registrada automaticamente pelo bot.",
@@ -286,7 +286,7 @@ export const DEFAULT_LEAVE_RULES = [
   "Valeu pela passagem e até a próxima."
 ].join("\n");
 export const DEFAULT_LEAVE_CHANNEL_LABEL = "Canal da comunidade:";
-export const DEFAULT_LEAVE_FOOTER_TEXT = "NexTechK - Comunidade de lives";
+export const DEFAULT_LEAVE_FOOTER_TEXT = "NexTech - Comunidade de lives";
 const LEGACY_WELCOME_MESSAGE = "Bem-vindo(a), {user}!";
 const LEGACY_LEAVE_MESSAGE = "Até mais, {user}.";
 export const MAX_AUTOMATIC_ROLES = 2;
