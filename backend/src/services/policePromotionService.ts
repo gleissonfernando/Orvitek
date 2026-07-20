@@ -327,7 +327,7 @@ function defaultPromotion(): MongoPolicePromotionDefinition {
     categoryId: null,
     color: "#2563eb",
     description: "Solicitação de avaliação para promoção de patente.",
-    emoji: "📋",
+    emoji: "prancheta",
     evaluatorRoleIds: [],
     grantedRoleId: null,
     historyChannelId: null,

@@ -162,6 +162,10 @@ export function systemEmojiText(key: SystemEmojiKey, guild?: Guild | null, clien
     if (fromClient) return `<${fromClient.animated ? "a" : ""}:${fromClient.name}:${fromClient.id}>`;
   }
 
+  if (emoji.enabled && emoji.emojiId) {
+    return `<${emoji.animated ? "a" : ""}:${emoji.name}:${emoji.emojiId}>`;
+  }
+
   return emoji.fallback;
 }
 

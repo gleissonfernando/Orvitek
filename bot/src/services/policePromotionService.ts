@@ -23,13 +23,42 @@ import {
 } from "discord.js";
 import { currentRuntimeBotId, env, isBotModuleEnabled } from "../config/env";
 import type { BotCommand, BotContext } from "../types";
-import { systemComponentEmoji, systemEmojiText } from "./systemEmojiService";
+import { replaceSystemEmojis, systemComponentEmoji, systemEmojiText } from "./systemEmojiService";
 import type { PolicePromotionAnswer, PolicePromotionDefinition, PolicePromotionQuestion, PolicePromotionRequest, PolicePromotionSettings } from "./apiClient";
 
 const MODULE_ID = "police-promotions";
 const PREFIX = "police_promotions";
 const SETTINGS_TTL_MS = 30_000;
 const DIVIDER = "━━━━━━━━━━━━━━━━━━━━━━";
+const CUSTOM_EMOJI_PATTERN = /^<a?:[a-zA-Z0-9_]{2,32}:\d{5,32}>$/;
+const SYSTEM_PROMOTION_EMOJI_KEYS = new Set<Parameters<typeof systemEmojiText>[0]>([
+  "visto",
+  "trofeu_alt",
+  "trofeu",
+  "robo",
+  "relogio",
+  "prancheta",
+  "prancheta_caneta",
+  "porta",
+  "perigo",
+  "link",
+  "liga",
+  "interrogacao",
+  "engrenagem",
+  "homem",
+  "folha",
+  "exclamacao",
+  "discord",
+  "dinheiro",
+  "prancheta_acertos",
+  "calendario",
+  "caixa",
+  "aniversario",
+  "alerta",
+  "acessar",
+  "nuvem",
+  "arma"
+]);
 
 type PromotionFormSession = {
   answers: PolicePromotionAnswer[];
@@ -556,7 +585,7 @@ function panelPayload(settings: PolicePromotionSettings, guild: Guild): MessageC
     .setPlaceholder("Selecione a promoção desejada")
     .addOptions(promotions.slice(0, 25).map((promotion) => ({
       description: clip(promotion.description, 90),
-      emoji: promotion.emoji ?? undefined,
+      emoji: promotionEmojiComponent(promotion, guild),
       label: clip(promotion.name, 80),
       value: promotion.id
     })));
@@ -566,7 +595,7 @@ function panelPayload(settings: PolicePromotionSettings, guild: Guild): MessageC
       type: 17,
       accent_color: parseColor(promotions[0]?.color ?? "#2563eb"),
       components: [
-        { type: 10, content: [`# ${icon("prancheta_acertos", guild)} Sistema de Promoções`, "Solicite sua avaliação de promoção pelo seletor abaixo.", "", promotions.map((item) => `• ${item.emoji ?? icon("prancheta", guild)} **${escapeMarkdown(item.name)}** → ${escapeMarkdown(item.receivedRankName)}`).join("\n") || "Nenhuma promoção ativa configurada."].join("\n") },
+        { type: 10, content: [`# ${icon("prancheta_acertos", guild)} Sistema de Promoções`, "Solicite sua avaliação de promoção pelo seletor abaixo.", "", promotions.map((item) => `• ${promotionEmojiText(item, guild)} **${escapeMarkdown(item.name)}** → ${escapeMarkdown(item.receivedRankName)}`).join("\n") || "Nenhuma promoção ativa configurada."].join("\n") },
         ...(promotions.length ? [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)] : [])
       ]
     }],
@@ -834,7 +863,35 @@ function displayName(member: GuildMember | null, fallback: string) {
 }
 
 function icon(key: Parameters<typeof systemEmojiText>[0], guild?: Guild | null) {
-  return systemEmojiText(key, guild);
+  return systemEmojiText(key, guild, guild?.client ?? null);
+}
+
+function promotionEmojiText(promotion: PolicePromotionDefinition, guild: Guild) {
+  const raw = promotion.emoji?.trim();
+  const key = systemEmojiKeyFromValue(raw);
+  if (key) return icon(key, guild);
+  if (!raw) return icon("prancheta", guild);
+  if (CUSTOM_EMOJI_PATTERN.test(raw)) return raw;
+
+  const replaced = replaceSystemEmojis(raw, guild, guild.client);
+  return replaced !== raw ? replaced : raw;
+}
+
+function promotionEmojiComponent(promotion: PolicePromotionDefinition, guild: Guild) {
+  const raw = promotion.emoji?.trim();
+  const key = systemEmojiKeyFromValue(raw);
+  if (key) return systemComponentEmoji(key, guild, guild.client);
+  if (!raw) return systemComponentEmoji("prancheta", guild, guild.client);
+  return raw;
+}
+
+function systemEmojiKeyFromValue(value: string | null | undefined) {
+  const raw = value?.trim();
+  if (!raw) return null;
+
+  const customMatch = /^<a?:([a-zA-Z0-9_]{2,32}):\d{5,32}>$/.exec(raw);
+  const token = (customMatch?.[1] ?? raw.replace(/^:/, "").replace(/:$/, "")) as Parameters<typeof systemEmojiText>[0];
+  return SYSTEM_PROMOTION_EMOJI_KEYS.has(token) ? token : null;
 }
 
 function formatDate(value: string) {
