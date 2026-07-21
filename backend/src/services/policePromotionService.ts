@@ -228,7 +228,7 @@ export async function assignPolicePromotionEvaluator(botId: string, requestId: s
 export async function finishPolicePromotionEvaluation(botId: string, requestId: string, input: { evaluatorId: string; evaluationNotes: string; evaluationResult: "approved" | "rejected" }) {
   return updateRequest(botId, requestId, {
     evaluationEndedAt: new Date(),
-    evaluationNotes: normalizeText(input.evaluationNotes, 2000),
+    evaluationNotes: normalizeText(input.evaluationNotes, 6000),
     evaluationResult: input.evaluationResult,
     status: "pending_approval"
   }, "request.evaluation_finished", { actorId: input.evaluatorId }, { evaluationResult: input.evaluationResult });

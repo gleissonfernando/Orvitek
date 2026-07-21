@@ -83,9 +83,16 @@ type PromotionFormSession = {
   settings: PolicePromotionSettings;
 };
 
+type EvaluationDraft = {
+  finalResult: "approved" | "rejected";
+  notes: string;
+  requestId: string;
+  scoreLine: string;
+};
+
 const settingsCache = new Map<string, { expiresAt: number; settings: PolicePromotionSettings }>();
 const formSessions = new Map<string, PromotionFormSession>();
-const evaluationDrafts = new Map<string, { notes: string; requestId: string }>();
+const evaluationDrafts = new Map<string, EvaluationDraft>();
 let serviceStarted = false;
 
 export const policePromotionsCommand: BotCommand = {
@@ -416,12 +423,14 @@ async function openEvaluationModal(interaction: ButtonInteraction<"cached">, con
 
   const modal = new ModalBuilder()
     .setCustomId(`${PREFIX}:finish_modal:${request.id}`)
-    .setTitle("Finalizar Avaliação");
-  for (const [id, label] of [["observations", "Observações"], ["verdict", "Parecer"], ["grades", "Notas"], ["comments", "Comentários"]] as const) {
-    modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder().setCustomId(id).setLabel(label).setMaxLength(500).setRequired(true).setStyle(TextInputStyle.Paragraph)
-    ));
-  }
+    .setTitle("Avaliação Plain Clothes Day");
+  modal.addComponents(
+    evaluationInput("patrol", "Patrulha: data, início e fim", "Data: 20/07/2026\nInicio: 10:00\nFim: 12:00", 300),
+    evaluationInput("operational", "Operacional: notas e justificativas", "Decisões: Bom - justificativa\nAbordagens: Excelente - justificativa\nAcompanhamentos: Regular - justificativa", 1000),
+    evaluationInput("conduct", "Conduta: notas e justificativas", "Comportamento: Bom - justificativa\nComunicação: Bom - justificativa\nAdaptação: Excelente - justificativa", 1000),
+    evaluationInput("notes", "Pontos, melhorias e intervenção", "Pontos fortes: ...\nMelhorias: ...\nIntervenção: Não - descrição se houver", 1000),
+    evaluationInput("final", "Resultado final e justificativa", "Apto: Sim\nJustificativa: motivo claro da decisão final", 1000)
+  );
   await interaction.showModal(modal);
   return true;
 }
@@ -434,12 +443,6 @@ async function handleEvaluationModal(interaction: ModalSubmitInteraction<"cached
     return true;
   }
 
-  const notes = [
-    `Observações:\n${interaction.fields.getTextInputValue("observations")}`,
-    `Parecer:\n${interaction.fields.getTextInputValue("verdict")}`,
-    `Notas:\n${interaction.fields.getTextInputValue("grades")}`,
-    `Comentários:\n${interaction.fields.getTextInputValue("comments")}`
-  ].join("\n\n");
   const settings = await getSettings(context, interaction.guild.id);
   const promotion = promotionFor(settings, request);
   if (!promotion) {
@@ -447,8 +450,23 @@ async function handleEvaluationModal(interaction: ModalSubmitInteraction<"cached
     return true;
   }
 
-  evaluationDrafts.set(evaluationDraftKey(request.id, interaction.user.id), { notes, requestId: request.id });
-  await interaction.reply(evaluationResultPayload(request, promotion, interaction.guild) as any);
+  const evaluation = buildPlainClothesEvaluation({
+    conduct: interaction.fields.getTextInputValue("conduct"),
+    final: interaction.fields.getTextInputValue("final"),
+    instructorId: interaction.user.id,
+    instructorName: displayName(interaction.member as GuildMember, interaction.user.username),
+    notes: interaction.fields.getTextInputValue("notes"),
+    operational: interaction.fields.getTextInputValue("operational"),
+    patrol: interaction.fields.getTextInputValue("patrol"),
+    request
+  });
+  if (evaluation.errors.length) {
+    await interaction.reply(validationErrorPayload(evaluation.errors, interaction.guild) as any);
+    return true;
+  }
+
+  evaluationDrafts.set(evaluationDraftKey(request.id, interaction.user.id), evaluation.draft);
+  await interaction.reply(evaluationResultPayload(request, promotion, interaction.guild, evaluation.draft) as any);
   return true;
 }
 
@@ -464,6 +482,10 @@ async function handleEvaluationResult(interaction: ButtonInteraction<"cached">, 
   const draft = evaluationDrafts.get(evaluationDraftKey(request.id, interaction.user.id));
   if (!draft) {
     await interaction.reply({ content: "Rascunho da avaliação expirado. Abra o modal e envie novamente.", ephemeral: true });
+    return true;
+  }
+  if (result !== draft.finalResult) {
+    await interaction.reply({ content: "O resultado selecionado não corresponde ao resultado final informado na avaliação.", ephemeral: true });
     return true;
   }
 
@@ -707,7 +729,7 @@ function approvalPayload(request: PolicePromotionRequest, promotion: PolicePromo
           "",
           `${icon("folha", guild)} Resultado da avaliação\n${escapeMarkdown(request.evaluationResult ?? "Aguardando decisão")}`,
           "",
-          `${icon("prancheta_caneta", guild)} Observações\n${escapeMarkdown(request.evaluationNotes ?? "Nenhuma observação registrada.")}`,
+          `${icon("prancheta_caneta", guild)} Observações\n${escapeMarkdown(clip(request.evaluationNotes ?? "Nenhuma observação registrada.", 1800))}`,
           "",
           `${icon("relogio", guild)} Tempo da avaliação\n${evaluationDuration(request)}`,
           "",
@@ -750,16 +772,17 @@ function confirmationPayload(session: PromotionFormSession, warning: string | nu
   };
 }
 
-function evaluationResultPayload(request: PolicePromotionRequest, promotion: PolicePromotionDefinition, guild: Guild): MessageCreateOptions {
+function evaluationResultPayload(request: PolicePromotionRequest, promotion: PolicePromotionDefinition, guild: Guild, draft: EvaluationDraft): MessageCreateOptions {
+  const approved = draft.finalResult === "approved";
   return {
     components: [{
       type: 17,
       accent_color: parseColor(promotion.color),
       components: [
-        { type: 10, content: [`# ${icon("prancheta_caneta", guild)} Confirmar resultado da avaliação`, `Solicitação: \`${request.id}\``, "", "Escolha o resultado final da avaliação para enviar à fila de aprovação."].join("\n") },
+        { type: 10, content: [`# ${icon("prancheta_caneta", guild)} Revisão da avaliação`, `Solicitação: \`${request.id}\``, "", draft.scoreLine, "", `Resultado final informado: **${approved ? "Apto" : "Não apto"}**`, "", "Envie a avaliação para a fila de aprovação da promoção."].join("\n") },
         new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(`${PREFIX}:eval_result:${request.id}:approved`).setEmoji(systemComponentEmoji("visto", guild)).setLabel("Aprovar Avaliação").setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId(`${PREFIX}:eval_result:${request.id}:rejected`).setEmoji(systemComponentEmoji("exclamacao", guild)).setLabel("Reprovar Avaliação").setStyle(ButtonStyle.Danger)
+          new ButtonBuilder().setCustomId(`${PREFIX}:eval_result:${request.id}:approved`).setEmoji(systemComponentEmoji("visto", guild)).setLabel("Enviar como Apto").setStyle(ButtonStyle.Success).setDisabled(!approved),
+          new ButtonBuilder().setCustomId(`${PREFIX}:eval_result:${request.id}:rejected`).setEmoji(systemComponentEmoji("exclamacao", guild)).setLabel("Enviar como Não apto").setStyle(ButtonStyle.Danger).setDisabled(approved)
         )
       ]
     }],
@@ -857,6 +880,225 @@ function answersText(request: Pick<PolicePromotionRequest, "answers">) {
     const value = Array.isArray(answer.value) ? answer.value.join(", ") : answer.value;
     return `▸ **${escapeMarkdown(answer.label)}**\n${escapeMarkdown(value || "Não informado")}`;
   }).join("\n\n") || "Nenhuma resposta registrada.";
+}
+
+const PCD_RATING_POINTS: Record<string, number> = {
+  excelente: 4,
+  bom: 3,
+  regular: 2,
+  ruim: 1
+};
+
+const PCD_CRITERIA = [
+  { aliases: ["decisoes", "decisao"], section: "operational", title: "Decisões rápidas e eficazes" },
+  { aliases: ["abordagens", "abordagem"], section: "operational", title: "Abordagens seguras e profissionais" },
+  { aliases: ["acompanhamentos", "acompanhamento"], section: "operational", title: "Acompanhamentos adequados" },
+  { aliases: ["comportamento", "profissional"], section: "conduct", title: "Comportamento profissional" },
+  { aliases: ["comunicacao", "comunicar"], section: "conduct", title: "Comunicação com colegas e civis" },
+  { aliases: ["adaptacao", "adaptar"], section: "conduct", title: "Adaptação a imprevistos" }
+] as const;
+
+function evaluationInput(id: string, label: string, placeholder: string, maxLength: number) {
+  return new ActionRowBuilder<TextInputBuilder>().addComponents(
+    new TextInputBuilder()
+      .setCustomId(id)
+      .setLabel(label)
+      .setMaxLength(maxLength)
+      .setPlaceholder(placeholder)
+      .setRequired(true)
+      .setStyle(TextInputStyle.Paragraph)
+  );
+}
+
+function buildPlainClothesEvaluation(input: {
+  conduct: string;
+  final: string;
+  instructorId: string;
+  instructorName: string;
+  notes: string;
+  operational: string;
+  patrol: string;
+  request: PolicePromotionRequest;
+}): { draft: EvaluationDraft; errors: string[] } {
+  const errors: string[] = [];
+  const patrol = parsePatrol(input.patrol);
+  if (patrol.errors.length) errors.push(...patrol.errors);
+
+  const criteria = PCD_CRITERIA.map((criterion) => {
+    const source = criterion.section === "operational" ? input.operational : input.conduct;
+    const parsed = parseCriterion(source, criterion.aliases);
+    if (!parsed) {
+      errors.push(`Nota e justificativa do critério "${criterion.title}".`);
+      return { ...criterion, justification: "", rating: "nao informado", score: 0 };
+    }
+    return { ...criterion, ...parsed, score: PCD_RATING_POINTS[parsed.rating] ?? 0 };
+  });
+
+  const intervention = parseIntervention(input.notes);
+  if (!intervention.value) errors.push("Resposta sobre intervenção do FTO.");
+  if (intervention.value === "sim" && !intervention.description) errors.push("Descrição da intervenção realizada pelo FTO.");
+
+  const finalDecision = parseFinalDecision(input.final);
+  if (!finalDecision.result) errors.push("Resultado final: informe Apto: Sim ou Apto: Não.");
+  if (!finalDecision.justification) errors.push("Justificativa final da decisão.");
+
+  const score = criteria.reduce((total, item) => total + item.score, 0);
+  const maximumScore = PCD_CRITERIA.length * 4;
+  const percentage = maximumScore ? (score / maximumScore) * 100 : 0;
+  const classification = classificationFor(percentage);
+  const scoreLine = `Pontuação: **${score}/${maximumScore}** - Aproveitamento: **${percentage.toFixed(2).replace(".", ",")}%** - Classificação: **${classification}**`;
+  const finalResult = finalDecision.result === "approved" ? "approved" : "rejected";
+  const notes = [
+    "AVALIAÇÃO PLAIN CLOTHES DAY",
+    DIVIDER,
+    `Aluno avaliado: <@${input.request.requesterId}> (${input.request.requesterName})`,
+    `FTO responsável: <@${input.instructorId}> (${input.instructorName})`,
+    `Patente solicitada: ${input.request.targetRank}`,
+    "",
+    "IDENTIFICAÇÃO DA PATRULHA",
+    `Data: ${patrol.date ?? "Não identificada"}`,
+    `Início: ${patrol.startTime ?? "Não identificado"}`,
+    `Fim: ${patrol.endTime ?? "Não identificado"}`,
+    `Duração: ${patrol.durationLabel ?? "Não calculada"}`,
+    "",
+    "AVALIAÇÃO OPERACIONAL",
+    ...criteria.slice(0, 3).map((item) => `${item.title}: ${ratingLabel(item.rating)} (${item.score}/4)\nJustificativa: ${item.justification}`),
+    "",
+    "COMPORTAMENTO E CONDUTA",
+    ...criteria.slice(3).map((item) => `${item.title}: ${ratingLabel(item.rating)} (${item.score}/4)\nJustificativa: ${item.justification}`),
+    "",
+    "OBSERVAÇÕES GERAIS",
+    input.notes.trim(),
+    "",
+    "PONTUAÇÃO",
+    `Pontuação: ${score}/${maximumScore}`,
+    `Aproveitamento: ${percentage.toFixed(2).replace(".", ",")}%`,
+    `Classificação geral: ${classification}`,
+    "",
+    "RESULTADO FINAL",
+    `Resultado: ${finalResult === "approved" ? "Apto" : "Não apto"}`,
+    `Justificativa: ${finalDecision.justification}`
+  ].join("\n");
+
+  return {
+    draft: {
+      finalResult,
+      notes: clip(notes, 6000),
+      requestId: input.request.id,
+      scoreLine
+    },
+    errors
+  };
+}
+
+function validationErrorPayload(errors: string[], guild: Guild): MessageCreateOptions {
+  return {
+    components: [{
+      type: 17,
+      accent_color: 0xef4444,
+      components: [{ type: 10, content: [`# ${icon("exclamacao", guild)} Não foi possível enviar a avaliação`, "Campos pendentes:", ...errors.map((item) => `• ${escapeMarkdown(item)}`)].join("\n") }]
+    }],
+    flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
+  };
+}
+
+function parseCriterion(text: string, aliases: readonly string[]) {
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const line = lines.find((item) => {
+    const normalized = normalizePlainText(item);
+    return aliases.some((alias) => normalized.includes(alias));
+  });
+  if (!line) return null;
+  const normalizedLine = normalizePlainText(line);
+  const rating = Object.keys(PCD_RATING_POINTS).find((item) => normalizedLine.includes(item));
+  if (!rating) return null;
+  const ratingIndex = normalizedLine.indexOf(rating);
+  const justification = line.slice(Math.max(0, ratingIndex + rating.length)).replace(/^[-:|.\s]+/, "").trim();
+  if (justification.length < 8) return null;
+  return { justification: clip(justification, 500), rating };
+}
+
+function parsePatrol(text: string) {
+  const errors: string[] = [];
+  const date = text.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
+  let dateLabel: string | null = null;
+  if (!date || !isValidBrazilianDate(Number(date[1]), Number(date[2]), Number(date[3]))) {
+    errors.push("Data da patrulha válida no formato DD/MM/AAAA.");
+  } else {
+    dateLabel = `${date[1]!.padStart(2, "0")}/${date[2]!.padStart(2, "0")}/${date[3]}`;
+  }
+
+  const times = [...text.matchAll(/\b([01]?\d|2[0-3])[:h]([0-5]\d)\b/gi)].map((match) => `${match[1]!.padStart(2, "0")}:${match[2]}`);
+  if (times.length < 2) errors.push("Horário inicial e final da patrulha.");
+  const startMinutes = times[0] ? minutesFromTime(times[0]) : null;
+  const endMinutes = times[1] ? minutesFromTime(times[1]) : null;
+  const durationMinutes = startMinutes !== null && endMinutes !== null ? endMinutes - startMinutes : null;
+  if (durationMinutes !== null && durationMinutes <= 0) errors.push("Horário final maior que o horário inicial.");
+
+  return {
+    date: dateLabel,
+    durationLabel: durationMinutes && durationMinutes > 0 ? durationLabel(durationMinutes) : null,
+    endTime: times[1] ?? null,
+    errors,
+    startTime: times[0] ?? null
+  };
+}
+
+function parseIntervention(text: string) {
+  const normalized = normalizePlainText(text);
+  if (!normalized.includes("intervencao")) return { description: "", value: null as string | null };
+  if (/\bintervencao\b.*\bnao\b/.test(normalized)) return { description: "", value: "nao" };
+  if (/\bintervencao\b.*\bsim\b/.test(normalized)) {
+    const line = text.split(/\r?\n/).find((item) => normalizePlainText(item).includes("intervencao")) ?? "";
+    const description = line.replace(/.*?\bsim\b\s*[-:|.]?/i, "").trim();
+    return { description: description.length >= 8 ? description : "", value: "sim" };
+  }
+  return { description: "", value: null as string | null };
+}
+
+function parseFinalDecision(text: string) {
+  const normalized = normalizePlainText(text);
+  const result = /\b(apto|resultado|final)\b.*\b(nao|reprovado|inapto)\b/.test(normalized)
+    ? "rejected"
+    : /\b(apto|resultado|final)\b.*\b(sim|aprovado|apto)\b/.test(normalized)
+      ? "approved"
+      : null;
+  const justificationLine = text.split(/\r?\n/).find((line) => normalizePlainText(line).includes("justificativa"));
+  const justification = (justificationLine ? justificationLine.replace(/^.*?justificativa\s*[:|-]?/i, "") : text).trim();
+  return { justification: justification.length >= 10 ? clip(justification, 800) : "", result };
+}
+
+function isValidBrazilianDate(day: number, month: number, year: number) {
+  const date = new Date(year, month - 1, day);
+  const futureLimit = new Date();
+  futureLimit.setDate(futureLimit.getDate() + 30);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day && date <= futureLimit;
+}
+
+function minutesFromTime(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return (hours ?? 0) * 60 + (minutes ?? 0);
+}
+
+function durationLabel(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return [hours ? `${hours} hora(s)` : "", rest ? `${rest} minuto(s)` : ""].filter(Boolean).join(" e ") || "0 minuto(s)";
+}
+
+function classificationFor(percentage: number) {
+  if (percentage >= 90) return "Excelente";
+  if (percentage >= 75) return "Bom";
+  if (percentage >= 60) return "Regular";
+  return "Insuficiente";
+}
+
+function ratingLabel(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function normalizePlainText(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
 function statusLabel(status: PolicePromotionRequest["status"]) {
