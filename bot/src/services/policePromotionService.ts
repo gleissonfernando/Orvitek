@@ -510,7 +510,7 @@ async function handleEvaluationStepModal(interaction: ModalSubmitInteraction<"ca
   applyEvaluationStepValues(draft, step, interaction);
   draft.updatedAt = Date.now();
   evaluationQuestionnaireDrafts.set(key, draft);
-  await interaction.reply(evaluationQuestionnairePayload(request, promotion, interaction.guild, draft, "Etapa salva.") as any);
+  await updateModalMessageOrReply(interaction, evaluationQuestionnairePayload(request, promotion, interaction.guild, draft, "Etapa salva."));
   return true;
 }
 
@@ -860,9 +860,10 @@ function approvalPayload(request: PolicePromotionRequest, promotion: PolicePromo
       accent_color: request.status === "approved" ? 0x22c55e : request.status === "rejected" ? 0xef4444 : parseColor(promotion.color),
       components: [
         { type: 10, content: [
-          `# ${icon("visto", guild)} Fila de Aprovação - ${escapeMarkdown(request.targetRank)}`,
+          `# ${icon("prancheta_acertos", guild)} Plain Clothes Day`,
+          `## Avaliação aguardando decisão`,
           DIVIDER,
-          `${icon("homem", guild)} Solicitante\n<@${request.requesterId}>`,
+          `${icon("homem", guild)} Avaliado\n<@${request.requesterId}>`,
           "",
           `${icon("prancheta", guild)} Patente Atual\n${escapeMarkdown(request.currentRank)}`,
           "",
@@ -870,7 +871,11 @@ function approvalPayload(request: PolicePromotionRequest, promotion: PolicePromo
           "",
           `${icon("homem", guild)} Instrutor\n${request.evaluatorId ? `<@${request.evaluatorId}>` : "Não informado"}`,
           "",
-          `${icon("folha", guild)} Resultado da avaliação\n${escapeMarkdown(request.evaluationResult ?? "Aguardando decisão")}`,
+          `${icon("folha", guild)} Recomendação do avaliador\n${escapeMarkdown(request.evaluationResult === "approved" ? "Apto" : request.evaluationResult === "rejected" ? "Não apto" : "Aguardando decisão")}`,
+          "",
+          `${icon("relogio", guild)} Status administrativo\n${request.status === "approved" ? "APROVADO" : request.status === "rejected" ? "REPROVADO" : "Aguardando análise administrativa"}`,
+          request.approvedById ? `\n${icon("homem", guild)} Analisado por\n<@${request.approvedById}>` : "",
+          request.approvedAt ? `\n${icon("calendario", guild)} Data da decisão\n${formatDate(request.approvedAt)}` : "",
           "",
           `${icon("prancheta_caneta", guild)} Observações\n${escapeMarkdown(clip(request.evaluationNotes ?? "Nenhuma observação registrada.", 1800))}`,
           "",
@@ -996,6 +1001,13 @@ function sessionKey(guildId: string, userId: string) {
 
 function evaluationDraftKey(requestId: string, userId: string) {
   return `${requestId}:${userId}`;
+}
+
+async function updateModalMessageOrReply(interaction: ModalSubmitInteraction<"cached">, payload: MessageCreateOptions) {
+  if (interaction.isFromMessage()) {
+    return interaction.update(payload as any).catch(() => interaction.reply(payload as any));
+  }
+  return interaction.reply(payload as any);
 }
 
 function uniqueMentionUsers(...userIds: Array<string | null | undefined>) {
