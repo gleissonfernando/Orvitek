@@ -50,11 +50,15 @@ export type ZtkDominationGangRankingDto = {
 };
 
 export type ZtkDominationParticipantRankingDto = {
+  avatarUrl: string | null;
+  lastDominatedAt: string | null;
+  lastZone: string | null;
   gangName: string | null;
   normalizedPlayerName: string;
   participations: number;
   playerId: string | null;
   playerName: string;
+  positionChange: "down" | "same" | "up";
 };
 
 export type ZtkDominationRankingsDto = {
@@ -685,26 +689,35 @@ async function buildDominationRankings(
   ]).toArray();
 
   const participants = await collection.aggregate<{
+    avatarUrl: string | null;
     gangName: string | null;
+    lastDominatedAt: Date | null;
+    lastZone: string | null;
     normalizedPlayerName: string;
     participations: number;
     playerId: string | null;
     playerName: string;
+    positionChange: "down" | "same" | "up";
   }>([
     { $match: { botId, clanId, eventType: "domination", guildId, participants: { $type: "array" } } },
     { $unwind: "$participants" },
+    { $sort: { eventTimestamp: -1, _id: -1 } },
     {
       $group: {
         _id: { $ifNull: ["$participants.id", "$participants.normalizedName"] },
-        gangName: { $last: "$clanName" },
-        normalizedPlayerName: { $last: "$participants.normalizedName" },
+        avatarUrl: { $first: null },
+        gangName: { $first: "$clanName" },
+        lastDominatedAt: { $first: "$eventTimestamp" },
+        lastZone: { $first: "$location" },
+        normalizedPlayerName: { $first: "$participants.normalizedName" },
         participations: { $sum: 1 },
-        playerId: { $last: "$participants.id" },
-        playerName: { $last: "$participants.name" }
+        playerId: { $first: "$participants.id" },
+        playerName: { $first: "$participants.name" },
+        positionChange: { $first: "same" }
       }
     },
-    { $project: { _id: 0, gangName: 1, normalizedPlayerName: 1, participations: 1, playerId: 1, playerName: 1 } },
-    { $sort: { participations: -1, playerName: 1 } },
+    { $project: { _id: 0, avatarUrl: 1, gangName: 1, lastDominatedAt: 1, lastZone: 1, normalizedPlayerName: 1, participations: 1, playerId: 1, playerName: 1, positionChange: 1 } },
+    { $sort: { participations: -1, lastDominatedAt: -1, playerName: 1 } },
     { $limit: ZTK_RANKING_LIMIT }
   ]).toArray();
 
@@ -713,7 +726,10 @@ async function buildDominationRankings(
       ...item,
       lastDominatedAt: item.lastDominatedAt?.toISOString?.() ?? null
     })),
-    participants
+    participants: participants.map((item) => ({
+      ...item,
+      lastDominatedAt: item.lastDominatedAt?.toISOString?.() ?? null
+    }))
   };
 }
 

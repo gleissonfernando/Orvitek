@@ -21,10 +21,11 @@ type Props = {
   guild: DashboardGuild | null;
 };
 
-type TabId = "ranking" | "recruitment" | "webhook" | "rewards" | "channels" | "stats" | "settings";
+type TabId = "ranking" | "topDominations" | "recruitment" | "webhook" | "rewards" | "channels" | "stats" | "settings";
 
 const tabs: Array<{ id: TabId; icon: typeof Trophy; label: string }> = [
   { id: "ranking", icon: Trophy, label: "Ranking" },
+  { id: "topDominations", icon: Trophy, label: "Top Dominações" },
   { id: "recruitment", icon: UserPlus, label: "Recrutamento" },
   { id: "webhook", icon: Link2, label: "Webhook" },
   { id: "rewards", icon: Gift, label: "Premiação" },
@@ -198,7 +199,7 @@ export function ZtkWebhookPanel({ botId, canManage, guild }: Props) {
               {dashboard?.clans.map((clan) => <option key={clan.id} value={clan.id}>{clan.clanName}</option>)}
               {!dashboard?.clans.length ? <option value="">Nenhum clã criado</option> : null}
             </select>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
               {tabs.map((tab) => (
                 <button
                   className={`flex h-10 items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold transition ${activeTab === tab.id ? "border-[#FFD500]/45 bg-[#FFD500]/15 text-[#FFEA70]" : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-100"}`}
@@ -234,6 +235,7 @@ export function ZtkWebhookPanel({ botId, canManage, guild }: Props) {
       ) : null}
 
       {selectedClan && activeTab === "ranking" ? <RankingView dashboard={dashboard} selectedClan={selectedClan} stats={stats} /> : null}
+      {selectedClan && activeTab === "topDominations" ? <TopDominationsView dashboard={dashboard} selectedClan={selectedClan} /> : null}
       {selectedClan && activeTab === "recruitment" ? <RecruitmentView dashboard={dashboard} selectedClan={selectedClan} /> : null}
       {selectedClan && activeTab === "webhook" ? (
         <WebhookView
@@ -292,15 +294,6 @@ function RankingView({ dashboard, selectedClan, stats }: { dashboard: ZtkWebhook
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>🎯 Ranking de Participação</CardTitle>
-            <CardDescription>Painel separado para membros que participaram das dominações.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ParticipantRankingList values={dashboard?.dominationRankings.participants ?? []} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
             <CardTitle>⏱ Online — Todos</CardTitle>
             <CardDescription>Painel separado para tempo online do clã.</CardDescription>
           </CardHeader>
@@ -309,6 +302,90 @@ function RankingView({ dashboard, selectedClan, stats }: { dashboard: ZtkWebhook
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function TopDominationsView({ dashboard, selectedClan }: { dashboard: ZtkWebhookDashboard | null; selectedClan: ZtkWebhookClan }) {
+  const [playerQuery, setPlayerQuery] = useState("");
+  const [clanFilter, setClanFilter] = useState("");
+  const [periodFilter, setPeriodFilter] = useState<"today" | "week" | "month" | "total">("total");
+  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const ranking = dashboard?.dominationRankings.participants ?? [];
+  const clanOptions = useMemo(() => [...new Set(ranking.map((item) => item.gangName).filter((value): value is string => Boolean(value)))], [ranking]);
+  const filtered = useMemo(() => ranking.filter((item) => {
+    const playerOk = !playerQuery.trim() || normalizeSearch(item.playerName).includes(normalizeSearch(playerQuery));
+    const clanOk = !clanFilter || item.gangName === clanFilter;
+    return playerOk && clanOk;
+  }).slice(0, ZTK_RANKING_LIMIT), [clanFilter, playerQuery, ranking]);
+  const activePlayer = filtered.find((item) => item.normalizedPlayerName === selectedPlayer || item.playerId === selectedPlayer) ?? filtered[0] ?? null;
+  const playerLogs = (dashboard?.logs ?? []).filter((log) => (
+    log.eventType === "domination"
+    && log.participants?.some((participant) => participant.normalizedName === activePlayer?.normalizedPlayerName || participant.id === activePlayer?.playerId)
+    && periodAllows(log.eventTimestamp, periodFilter)
+  ));
+
+  useEffect(() => {
+    if (!activePlayer) {
+      setSelectedPlayer(null);
+      return;
+    }
+    const key = activePlayer.playerId ?? activePlayer.normalizedPlayerName;
+    setSelectedPlayer((current) => current && filtered.some((item) => (item.playerId ?? item.normalizedPlayerName) === current) ? current : key);
+  }, [activePlayer?.normalizedPlayerName, activePlayer?.playerId, filtered]);
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+      <Card>
+        <CardHeader>
+          <CardTitle>🎯 Top 10 Dominações por Membro</CardTitle>
+          <CardDescription>Conta apenas membros capturados nas logs de dominação do clã {selectedClan.clanName}.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <input className="h-10 rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" onChange={(event) => setPlayerQuery(event.target.value)} placeholder="Pesquisar jogador" value={playerQuery} />
+            <select className="h-10 rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" onChange={(event) => setClanFilter(event.target.value)} value={clanFilter}>
+              <option value="">Todos os clãs registrados</option>
+              {clanOptions.map((clan) => <option key={clan} value={clan}>{clan}</option>)}
+            </select>
+            <select className="h-10 rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" onChange={(event) => setPeriodFilter(event.target.value as typeof periodFilter)} value={periodFilter}>
+              <option value="total">Total</option>
+              <option value="today">Hoje</option>
+              <option value="week">Semana</option>
+              <option value="month">Mês</option>
+            </select>
+          </div>
+          <ParticipantRankingList onSelect={(item) => setSelectedPlayer(item.playerId ?? item.normalizedPlayerName)} selectedKey={activePlayer?.playerId ?? activePlayer?.normalizedPlayerName ?? null} values={filtered} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Histórico Individual</CardTitle>
+          <CardDescription>Últimas dominações do membro selecionado.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {activePlayer ? (
+            <>
+              <Metric label="Jogador" value={activePlayer.playerName} />
+              <Metric label="Clã atual" value={activePlayer.gangName ?? selectedClan.clanName} />
+              <Metric label="Total de dominações" value={String(activePlayer.participations)} />
+              <Metric label="Última dominação" value={activePlayer.lastDominatedAt ? `${activePlayer.lastZone ?? "Local não informado"} • ${formatDateTime(activePlayer.lastDominatedAt)}` : "Sem registro"} />
+              <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3">
+                <p className="mb-3 text-sm font-semibold text-zinc-100">Histórico</p>
+                <div className="discord-scrollbar max-h-[24rem] space-y-3 overflow-y-auto pr-1">
+                  {playerLogs.map((log) => (
+                    <div className="text-sm text-zinc-300" key={log.id}>
+                      <p className="font-semibold text-zinc-100">{log.location ?? "Local não informado"}</p>
+                      <p className="text-zinc-500">{formatDateTime(log.eventTimestamp)}</p>
+                    </div>
+                  ))}
+                  {!playerLogs.length ? <p className="text-sm text-zinc-500">Nenhuma dominação encontrada no período selecionado.</p> : null}
+                </div>
+              </div>
+            </>
+          ) : <p className="text-sm text-zinc-500">Nenhum membro encontrado.</p>}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -652,17 +729,37 @@ function GangRankingList({ values }: { values: ZtkWebhookDashboard["dominationRa
   );
 }
 
-function ParticipantRankingList({ values }: { values: ZtkWebhookDashboard["dominationRankings"]["participants"] }) {
+function ParticipantRankingList({ onSelect, selectedKey, values }: { onSelect?: (item: ZtkWebhookDashboard["dominationRankings"]["participants"][number]) => void; selectedKey?: string | null; values: ZtkWebhookDashboard["dominationRankings"]["participants"] }) {
   const medals = ["🥇", "🥈", "🥉"];
   return (
     <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3">
-      <p className="mb-3 font-semibold text-zinc-100">🎯 Ranking de Participação</p>
-      <div className="discord-scrollbar max-h-[32rem] space-y-2 overflow-y-auto pr-1">
+      <p className="mb-3 font-semibold text-zinc-100">🎯 Top 10 Dominações por Membro</p>
+      <div className="discord-scrollbar max-h-[36rem] space-y-2 overflow-y-auto pr-1">
         {values.slice(0, ZTK_RANKING_LIMIT).map((item, index) => (
-          <div className="flex items-center justify-between gap-3 text-sm" key={item.playerId ?? item.normalizedPlayerName}>
-            <span className="min-w-0 truncate text-zinc-200">{medals[index] ?? `${index + 1}º`} {item.playerName}</span>
-            <span className="shrink-0 text-zinc-500">{item.participations} participações</span>
-          </div>
+          <button
+            className={`grid w-full gap-3 rounded-md border p-3 text-left text-sm transition md:grid-cols-[minmax(0,1fr)_130px_120px] ${selectedKey === (item.playerId ?? item.normalizedPlayerName) ? "border-[#FFD500]/45 bg-[#FFD500]/10" : "border-zinc-800 bg-black/30 hover:border-zinc-700"}`}
+            key={item.playerId ?? item.normalizedPlayerName}
+            onClick={() => onSelect?.(item)}
+            type="button"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-zinc-800 bg-zinc-900 text-xs font-bold text-zinc-300">
+                {item.avatarUrl ? <img alt="" className="h-full w-full rounded-md object-cover" src={item.avatarUrl} /> : item.playerName.slice(0, 2).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-zinc-100">{medals[index] ?? `#${index + 1}`} #{index + 1} {item.playerName}</p>
+                <p className="truncate text-xs text-zinc-500">Clã: {item.gangName ?? "Não informado"} • {trendLabel(item.positionChange)}</p>
+              </div>
+            </div>
+            <div className="text-zinc-300">
+              <p className="font-semibold">{item.participations} dominações</p>
+              <p className="text-xs text-zinc-500">Total acumulado</p>
+            </div>
+            <div className="text-zinc-500">
+              <p className="truncate text-xs">{item.lastZone ?? "Sem local"}</p>
+              <p className="text-xs">{item.lastDominatedAt ? formatDateTime(item.lastDominatedAt) : "Sem data"}</p>
+            </div>
+          </button>
         ))}
         {!values.length ? <p className="text-sm text-zinc-500">Sem registros.</p> : null}
       </div>
@@ -712,6 +809,29 @@ function formatTime(value: string) {
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
+function periodAllows(value: string, period: "today" | "week" | "month" | "total") {
+  if (period === "total") return true;
+  const date = new Date(value);
+  const now = new Date();
+  const start = new Date(now);
+  if (period === "today") {
+    start.setHours(0, 0, 0, 0);
+  } else if (period === "week") {
+    start.setDate(now.getDate() - 6);
+    start.setHours(0, 0, 0, 0);
+  } else {
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+  }
+  return date >= start;
+}
+
+function trendLabel(value: "down" | "same" | "up") {
+  if (value === "up") return "Subiu";
+  if (value === "down") return "Desceu";
+  return "Permaneceu";
 }
 
 function normalizeSearch(value: string) {

@@ -135,11 +135,15 @@ export type ZtkWebhookEventReceivedEvent = {
       zoneCount: number;
     }>;
     participants: Array<{
+      avatarUrl: string | null;
       gangName: string | null;
+      lastDominatedAt: string | null;
+      lastZone: string | null;
       normalizedPlayerName: string;
       participations: number;
       playerId: string | null;
       playerName: string;
+      positionChange: "down" | "same" | "up";
     }>;
   };
   event: ZtkWebhookLogEvent;
