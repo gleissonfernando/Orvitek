@@ -11,6 +11,7 @@ import {
   ingestZtkWebhookEvent,
   ingestZtkDiscordWebhookMessage,
   listZtkWebhookClansForBot,
+  updateZtkRankingMessageState,
   updateZtkClan,
   updateZtkWebhookState,
   ZTK_WEBHOOK_MODULE_ID
@@ -24,6 +25,7 @@ const clanSchema = z.object({
   clanName: z.string().min(1).max(80).optional(),
   dominationChannelId: optionalSnowflake,
   discordWebhookUrl: z.union([z.string().url().max(500), z.literal(""), z.null()]).optional(),
+  onlineChannelId: optionalSnowflake,
   rankingChannelId: optionalSnowflake,
   recruitmentChannelId: optionalSnowflake,
   rewardChannelId: optionalSnowflake,
@@ -49,6 +51,11 @@ const discordWebhookMessageSchema = z.object({
   embeds: z.array(z.unknown()).max(20).optional(),
   messageId: snowflake,
   webhookId: snowflake
+});
+const rankingMessageSchema = z.object({
+  channelId: snowflake.nullable(),
+  kind: z.enum(["ranking", "recruitment", "online"]),
+  messageId: snowflake.nullable()
 });
 
 export const ztkWebhookRouter = Router();
@@ -88,6 +95,19 @@ ztkWebhookRouter.post("/bot/:guildId/discord-message", async (req, res, next) =>
     await assertRuntime(botId, guildId);
     const result = await ingestZtkDiscordWebhookMessage(botId, guildId, discordWebhookMessageSchema.parse(req.body));
     return res.status(result.duplicate ? 202 : 201).json(result);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+ztkWebhookRouter.patch("/bot/:guildId/clans/:clanId/ranking-message", async (req, res, next) => {
+  try {
+    if (!isBotRequest(req)) return res.status(403).json({ message: "Rota exclusiva do bot." });
+    const guildId = snowflake.parse(req.params.guildId);
+    const botId = await resolveRequestBotId(req);
+    await assertRuntime(botId, guildId);
+    await updateZtkRankingMessageState(guildId, botId, id.parse(req.params.clanId), rankingMessageSchema.parse(req.body));
+    return res.json({ ok: true });
   } catch (error) {
     return next(error);
   }

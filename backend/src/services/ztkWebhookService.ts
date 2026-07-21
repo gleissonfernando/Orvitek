@@ -13,6 +13,7 @@ export type SaveZtkClanInput = Partial<{
   clanName: string;
   dominationChannelId: string | null;
   discordWebhookUrl: string | null;
+  onlineChannelId: string | null;
   rankingChannelId: string | null;
   recruitmentChannelId: string | null;
   rewardChannelId: string | null;
@@ -118,9 +119,13 @@ export async function createZtkClan(guildId: string, botId: string | null, input
     dominationChannelId: null,
     guildId,
     lastEventAt: null,
+    onlineChannelId: null,
+    onlineRankingMessageId: null,
     ownerUserId: input.ownerUserId,
     rankingChannelId: null,
+    rankingMessageId: null,
     recruitmentChannelId: null,
+    recruitmentRankingMessageId: null,
     rewardChannelId: null,
     settingsChannelId: null,
     updatedAt: now,
@@ -144,9 +149,19 @@ export async function updateZtkClan(guildId: string, botId: string | null, clanI
   };
   if (input.active !== undefined) patch.active = input.active;
   if (input.clanName !== undefined) patch.clanName = clean(input.clanName, 80) || "Clan FiveM";
-  if (input.rankingChannelId !== undefined) patch.rankingChannelId = normalizeNullable(input.rankingChannelId);
-  if (input.recruitmentChannelId !== undefined) patch.recruitmentChannelId = normalizeNullable(input.recruitmentChannelId);
+  if (input.rankingChannelId !== undefined) {
+    patch.rankingChannelId = normalizeNullable(input.rankingChannelId);
+    if (patch.rankingChannelId !== before.rankingChannelId) patch.rankingMessageId = null;
+  }
+  if (input.recruitmentChannelId !== undefined) {
+    patch.recruitmentChannelId = normalizeNullable(input.recruitmentChannelId);
+    if (patch.recruitmentChannelId !== before.recruitmentChannelId) patch.recruitmentRankingMessageId = null;
+  }
   if (input.dominationChannelId !== undefined) patch.dominationChannelId = normalizeNullable(input.dominationChannelId);
+  if (input.onlineChannelId !== undefined) {
+    patch.onlineChannelId = normalizeNullable(input.onlineChannelId);
+    if (patch.onlineChannelId !== before.onlineChannelId) patch.onlineRankingMessageId = null;
+  }
   if (input.rewardChannelId !== undefined) patch.rewardChannelId = normalizeNullable(input.rewardChannelId);
   if (input.settingsChannelId !== undefined) patch.settingsChannelId = normalizeNullable(input.settingsChannelId);
   if (input.discordWebhookUrl !== undefined) {
@@ -369,6 +384,26 @@ export async function listZtkWebhookClansForBot(guildId: string, botId: string |
   return clans.map(toClanDto);
 }
 
+export async function updateZtkRankingMessageState(
+  guildId: string,
+  botId: string | null,
+  clanId: string,
+  input: { channelId: string | null; kind: "online" | "ranking" | "recruitment"; messageId: string | null }
+) {
+  const resolvedBotId = requireBotId(botId);
+  const messageField = input.kind === "online"
+    ? "onlineRankingMessageId"
+    : input.kind === "recruitment"
+      ? "recruitmentRankingMessageId"
+      : "rankingMessageId";
+  const { ztkWebhookClans } = await getMongoCollections();
+  const patch: Partial<MongoZtkWebhookClan> = {
+    [messageField]: normalizeNullable(input.messageId),
+    updatedAt: new Date()
+  };
+  await ztkWebhookClans.updateOne({ _id: clanId, botId: resolvedBotId, guildId }, { $set: patch });
+}
+
 async function ingestParsedZtkEvent(clan: MongoZtkWebhookClan, rawPayload: unknown, rawBody: string) {
   const { ztkWebhookClans, ztkWebhookLogs, ztkWebhookPlayerStats } = await getMongoCollections();
   const parsed = parseZtkPayload(rawPayload, rawBody, clan.clanName);
@@ -422,7 +457,7 @@ async function ingestParsedZtkEvent(clan: MongoZtkWebhookClan, rawPayload: unkno
 }
 
 async function updatePlayerStats(collection: Awaited<ReturnType<typeof getMongoCollections>>["ztkWebhookPlayerStats"], clan: MongoZtkWebhookClan, log: MongoZtkWebhookLog) {
-  const playerName = clean(log.playerName ?? log.recruiterName, 100);
+  const playerName = clean(log.eventType === "recruitment" ? log.recruiterName ?? log.playerName : log.playerName ?? log.recruiterName, 100);
   if (!playerName) return;
   const now = new Date();
   const key = { botId: clan.botId, guildId: clan.guildId, clanId: clan._id, playerName };
@@ -482,7 +517,7 @@ function parseZtkPayload(rawPayload: unknown, rawBody: string, fallbackClanName:
   const fields = collectLabelMap(rawPayload);
   const eventType: MongoZtkWebhookEventType = hasAny(normalized, ["novo membro", "novo integrante", "recrutamento", "recrutado", "recrutou"])
     ? "recruitment"
-    : hasAny(normalized, ["dominacao concluida", "dominacao finalizada", "dominação concluída", "dominado", "territorio dominado", "território dominado"])
+    : hasAny(normalized, ["dominacao concluida", "dominacao finalizada", "dominacao realizada", "dominação concluída", "dominação realizada", "dominado", "territorio dominado", "território dominado"])
       ? "domination"
       : hasAny(normalized, ["player connected", "player connect", "jogador conectado", "entrou no servidor"])
         ? "player_connected"

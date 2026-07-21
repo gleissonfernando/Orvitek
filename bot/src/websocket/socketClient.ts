@@ -86,8 +86,12 @@ export type ZtkWebhookClanEvent = {
   discordWebhookUrl?: string | null;
   dominationChannelId?: string | null;
   id: string;
+  onlineChannelId?: string | null;
+  onlineRankingMessageId?: string | null;
   rankingChannelId?: string | null;
+  rankingMessageId?: string | null;
   recruitmentChannelId?: string | null;
+  recruitmentRankingMessageId?: string | null;
   rewardChannelId?: string | null;
   settingsChannelId?: string | null;
   webhookEnabled?: boolean;

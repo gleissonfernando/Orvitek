@@ -8,7 +8,7 @@ export function startZtkWebhookService(client: Client<true>, context: BotContext
   context.socket.onZtkWebhookEventReceived((payload) => {
     if (!isCurrentRuntime(payload.botId)) return;
     const guild = client.guilds.cache.get(payload.guildId);
-    if (guild) void deliverZtkEvent(guild, payload);
+    if (guild) void deliverZtkEvent(guild, payload, context);
   });
 
   context.socket.onZtkWebhookRewardUpdated((payload) => {
@@ -87,7 +87,7 @@ async function deleteExistingWebhook(guild: Guild, webhookId: string | null) {
   await webhook?.delete("ZTK Webhook regenerada ou excluída.").catch(() => undefined);
 }
 
-async function deliverZtkEvent(guild: Guild, payload: ZtkWebhookEventReceivedEvent) {
+async function deliverZtkEvent(guild: Guild, payload: ZtkWebhookEventReceivedEvent, context: BotContext) {
   const eventChannelId = channelIdForEvent(payload);
   if (eventChannelId) {
     await sendToChannel(guild, eventChannelId, createEventPanel(payload)).catch((error) => {
@@ -95,9 +95,9 @@ async function deliverZtkEvent(guild: Guild, payload: ZtkWebhookEventReceivedEve
     });
   }
 
-  if (payload.clan.rankingChannelId && ["domination", "player_disconnected", "recruitment"].includes(payload.event.eventType)) {
-    await sendToChannel(guild, payload.clan.rankingChannelId, createRankingPanel(payload)).catch((error) => {
-      console.warn("[ztk-webhook] falha ao enviar ranking:", error instanceof Error ? error.message : error);
+  if (["domination", "player_disconnected", "recruitment"].includes(payload.event.eventType)) {
+    await upsertZtkRankingMessages(guild, payload, context).catch((error) => {
+      console.warn("[ztk-webhook] falha ao atualizar ranking:", error instanceof Error ? error.message : error);
     });
   }
 }
@@ -163,16 +163,88 @@ function createRankingPanel(payload: ZtkWebhookEventReceivedEvent) {
   });
 }
 
+function createSingleRankingPanel(payload: ZtkWebhookEventReceivedEvent, kind: "online" | "recruitment") {
+  const config = kind === "recruitment"
+    ? { field: "recruitments" as const, label: "recrutamentos", title: "👥 RECRUTAMENTO — TODOS", values: payload.rankings.recruitment }
+    : { field: "onlineSeconds" as const, label: "horas", title: "⏱️ ONLINE — TODOS", values: payload.rankings.online };
+  return renderComponentsV2Panel({
+    accentColor: kind === "recruitment" ? 0x3b82f6 : 0xffd500,
+    description: `Ranking atualizado automaticamente para o clã **${payload.clan.clanName}**.`,
+    fields: rankingBlocks(config.title, config.values, config.field, config.label),
+    footer: { text: "NexTech • ZTK Webhook" },
+    moduleId: "ztk-webhook",
+    title: `🏆 RANKING ${payload.clan.clanName.toUpperCase()}`
+  });
+}
+
+async function upsertZtkRankingMessages(guild: Guild, payload: ZtkWebhookEventReceivedEvent, context: BotContext) {
+  const updates: Array<{
+    channelId: string | null | undefined;
+    kind: "online" | "ranking" | "recruitment";
+    messageId: string | null | undefined;
+    panel: ReturnType<typeof renderComponentsV2Panel>;
+  }> = [
+    {
+      channelId: payload.clan.rankingChannelId,
+      kind: "ranking",
+      messageId: payload.clan.rankingMessageId,
+      panel: createRankingPanel(payload)
+    },
+    {
+      channelId: payload.clan.recruitmentChannelId,
+      kind: "recruitment",
+      messageId: payload.clan.recruitmentRankingMessageId,
+      panel: createSingleRankingPanel(payload, "recruitment")
+    },
+    {
+      channelId: payload.clan.onlineChannelId,
+      kind: "online",
+      messageId: payload.clan.onlineRankingMessageId,
+      panel: createSingleRankingPanel(payload, "online")
+    }
+  ];
+
+  for (const update of updates) {
+    if (!update.channelId) continue;
+    const messageId = await upsertChannelMessage(guild, update.channelId, update.messageId ?? null, update.panel);
+    if (messageId && messageId !== update.messageId) {
+      await context.api.updateZtkRankingMessageState(guild.id, payload.clan.id, {
+        channelId: update.channelId,
+        kind: update.kind,
+        messageId
+      }).catch((error) => {
+        console.warn("[ztk-webhook] falha ao salvar mensagem fixa do ranking:", error instanceof Error ? error.message : error);
+      });
+    }
+  }
+}
+
 async function sendToChannel(guild: Guild, channelId: string, payload: ReturnType<typeof renderComponentsV2Panel>) {
   const channel = await guild.channels.fetch(channelId).catch(() => null);
   if (!channel?.isSendable()) return;
   await channel.send(payload);
 }
 
+async function upsertChannelMessage(guild: Guild, channelId: string, messageId: string | null, payload: ReturnType<typeof renderComponentsV2Panel>) {
+  const channel = await guild.channels.fetch(channelId).catch(() => null);
+  if (!channel?.isSendable()) return null;
+
+  if (messageId && "messages" in channel) {
+    const existing = await channel.messages.fetch(messageId).catch(() => null);
+    if (existing) {
+      await existing.edit(payload);
+      return existing.id;
+    }
+  }
+
+  const sent = await channel.send(payload);
+  return sent.id;
+}
+
 function channelIdForEvent(payload: ZtkWebhookEventReceivedEvent) {
   if (payload.event.eventType === "recruitment") return payload.clan.recruitmentChannelId ?? payload.clan.rankingChannelId ?? null;
   if (payload.event.eventType === "domination") return payload.clan.dominationChannelId ?? payload.clan.rankingChannelId ?? null;
-  if (payload.event.eventType === "player_disconnected") return payload.clan.rankingChannelId ?? null;
+  if (payload.event.eventType === "player_disconnected") return payload.clan.onlineChannelId ?? payload.clan.rankingChannelId ?? null;
   return null;
 }
 

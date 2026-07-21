@@ -3336,9 +3336,13 @@ export type ZtkWebhookClan = {
   dominationChannelId: string | null;
   guildId: string;
   lastEventAt: string | null;
+  onlineChannelId?: string | null;
+  onlineRankingMessageId?: string | null;
   ownerUserId: string;
   rankingChannelId: string | null;
+  rankingMessageId?: string | null;
   recruitmentChannelId: string | null;
+  recruitmentRankingMessageId?: string | null;
   rewardChannelId: string | null;
   settingsChannelId: string | null;
   updatedAt: string;
@@ -3413,6 +3417,7 @@ export type SaveZtkWebhookClanPayload = Partial<Pick<
   | "clanName"
   | "dominationChannelId"
   | "discordWebhookUrl"
+  | "onlineChannelId"
   | "rankingChannelId"
   | "recruitmentChannelId"
   | "rewardChannelId"

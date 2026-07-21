@@ -3365,9 +3365,13 @@ export type MongoZtkWebhookClan = {
   discordWebhookUrl?: string | null;
   guildId: string;
   lastEventAt: Date | null;
+  onlineChannelId?: string | null;
+  onlineRankingMessageId?: string | null;
   ownerUserId: string;
   rankingChannelId: string | null;
+  rankingMessageId?: string | null;
   recruitmentChannelId: string | null;
+  recruitmentRankingMessageId?: string | null;
   dominationChannelId: string | null;
   rewardChannelId: string | null;
   settingsChannelId: string | null;

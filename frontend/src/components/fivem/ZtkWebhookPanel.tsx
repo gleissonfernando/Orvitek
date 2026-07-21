@@ -342,6 +342,7 @@ function ChannelsView({ canManage, channels, clan, onSave, savingKey }: { canMan
   const fields: Array<{ key: keyof SaveZtkWebhookClanPayload; label: string }> = [
     { key: "rankingChannelId", label: "Canal Ranking" },
     { key: "recruitmentChannelId", label: "Canal Recrutamento" },
+    { key: "onlineChannelId", label: "Canal Online" },
     { key: "dominationChannelId", label: "Canal Dominação" },
     { key: "rewardChannelId", label: "Canal Premiação" },
     { key: "settingsChannelId", label: "Canal Entrada Webhook FiveM" }

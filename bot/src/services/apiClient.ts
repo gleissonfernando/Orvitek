@@ -22,7 +22,7 @@ export type CreateLogInput = {
 };
 export type Pd7Config = { _id:string; botId:string; guildId:string; factionId:string; factionName:string; enabled:boolean; categoryPD7:string|null; panelChannelPD7:string|null; logChannelPD7:string|null; allowedRolesPD7:string[]; responsibleUsersPD7:string[]; approvedRolePD7:string|null; rejectedRolePD7:string|null; fields:Array<{id:string;label:string;placeholder:string|null;required:boolean;style:"short"|"paragraph";order:number}>; autoDeleteMinutes:number|null; panelMessageId:string|null; publishRequestedAt:string|null };
 export type Pd7Request = { _id:string; botId:string; guildId:string; factionId:string; userId:string; username:string; fields:Array<{id:string;label:string;value:string}>; status:"pending"|"approved"|"rejected"|"closed"; channelId:string|null; panelMessageId:string|null; handledBy:string|null; rejectionReason:string|null; createdAt:string; resolvedAt:string|null };
-export type ZtkWebhookClanRuntime = { active:boolean; clanName:string; discordWebhookChannelId?:string|null; discordWebhookId?:string|null; dominationChannelId?:string|null; id:string; rankingChannelId?:string|null; recruitmentChannelId?:string|null; rewardChannelId?:string|null; settingsChannelId?:string|null; webhookEnabled:boolean };
+export type ZtkWebhookClanRuntime = { active:boolean; clanName:string; discordWebhookChannelId?:string|null; discordWebhookId?:string|null; dominationChannelId?:string|null; id:string; onlineChannelId?:string|null; onlineRankingMessageId?:string|null; rankingChannelId?:string|null; rankingMessageId?:string|null; recruitmentChannelId?:string|null; recruitmentRankingMessageId?:string|null; rewardChannelId?:string|null; settingsChannelId?:string|null; webhookEnabled:boolean };
 
 export type TicketRecord = {
   id: string;
@@ -3804,6 +3804,10 @@ export class ApiClient {
   async recordZtkDiscordWebhookMessage(guildId: string, input: { channelId: string; content?: string | null; embeds?: unknown[]; messageId: string; webhookId: string }) {
     const { data } = await this.http.post<{ duplicate?: boolean; ignored?: boolean; message?: string }>(`/ztk-webhook/bot/${guildId}/discord-message`, input);
     return data;
+  }
+
+  async updateZtkRankingMessageState(guildId: string, clanId: string, input: { channelId: string | null; kind: "online" | "ranking" | "recruitment"; messageId: string | null }) {
+    await this.http.patch(`/ztk-webhook/bot/${guildId}/clans/${encodeURIComponent(clanId)}/ranking-message`, input);
   }
 
   async getPd7Configs() { const {data}=await this.http.get<{configs:Pd7Config[]}>("/fivem-pd7/bot/configs"); return data.configs; }
