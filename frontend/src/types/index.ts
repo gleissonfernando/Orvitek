@@ -3330,6 +3330,9 @@ export type ZtkWebhookClan = {
   botId: string;
   clanName: string;
   createdAt: string;
+  discordWebhookChannelId?: string | null;
+  discordWebhookId?: string | null;
+  discordWebhookUrl?: string | null;
   dominationChannelId: string | null;
   guildId: string;
   lastEventAt: string | null;

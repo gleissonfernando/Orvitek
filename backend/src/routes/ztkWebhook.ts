@@ -9,6 +9,8 @@ import {
   createZtkReward,
   getZtkWebhookDashboard,
   ingestZtkWebhookEvent,
+  ingestZtkDiscordWebhookMessage,
+  listZtkWebhookClansForBot,
   updateZtkClan,
   updateZtkWebhookState,
   ZTK_WEBHOOK_MODULE_ID
@@ -40,6 +42,13 @@ const rewardSchema = z.object({
     value: z.string().min(1).max(40)
   })).max(10).optional()
 });
+const discordWebhookMessageSchema = z.object({
+  channelId: snowflake,
+  content: z.string().max(8000).nullable().optional(),
+  embeds: z.array(z.unknown()).max(20).optional(),
+  messageId: snowflake,
+  webhookId: snowflake
+});
 
 export const ztkWebhookRouter = Router();
 
@@ -57,6 +66,31 @@ ztkWebhookRouter.post("/ingest/:clanId/:token", raw({ limit: "2mb", type: () => 
 });
 
 ztkWebhookRouter.use(requireAuthOrBot);
+
+ztkWebhookRouter.get("/bot/:guildId/clans", async (req, res, next) => {
+  try {
+    if (!isBotRequest(req)) return res.status(403).json({ message: "Rota exclusiva do bot." });
+    const guildId = snowflake.parse(req.params.guildId);
+    const botId = await resolveRequestBotId(req);
+    await assertRuntime(botId, guildId);
+    return res.json({ clans: await listZtkWebhookClansForBot(guildId, botId) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+ztkWebhookRouter.post("/bot/:guildId/discord-message", async (req, res, next) => {
+  try {
+    if (!isBotRequest(req)) return res.status(403).json({ message: "Rota exclusiva do bot." });
+    const guildId = snowflake.parse(req.params.guildId);
+    const botId = await resolveRequestBotId(req);
+    await assertRuntime(botId, guildId);
+    const result = await ingestZtkDiscordWebhookMessage(botId, guildId, discordWebhookMessageSchema.parse(req.body));
+    return res.status(result.duplicate ? 202 : 201).json(result);
+  } catch (error) {
+    return next(error);
+  }
+});
 
 ztkWebhookRouter.get("/:guildId", async (req, res, next) => {
   try {

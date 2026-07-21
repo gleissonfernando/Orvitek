@@ -294,7 +294,7 @@ function WebhookView({ canManage, clan, onCopy, onWebhookAction, savingKey }: { 
     <Card>
       <CardHeader>
         <CardTitle>🔗 Webhook individual</CardTitle>
-        <CardDescription>A URL pertence somente ao clã {clan.clanName}.</CardDescription>
+        <CardDescription>A URL é uma webhook Discord real e pertence somente ao clã {clan.clanName}.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 lg:grid-cols-3">
@@ -304,7 +304,7 @@ function WebhookView({ canManage, clan, onCopy, onWebhookAction, savingKey }: { 
         </div>
         <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3">
           <p className="mb-2 text-xs font-semibold uppercase text-zinc-500">Webhook</p>
-          <p className="break-all text-sm text-zinc-200">{clan.webhookUrl ?? "Clique em Criar webhook para gerar a URL."}</p>
+          <p className="break-all text-sm text-zinc-200">{clan.webhookUrl ?? "Configure um canal e clique em Criar webhook para gerar a URL aceita pelo FiveM."}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button disabled={!canManage || savingKey !== null} onClick={() => void onWebhookAction(clan.webhookUrl ? "regenerate" : "create")}>
@@ -328,7 +328,7 @@ function ChannelsView({ canManage, channels, clan, onSave, savingKey }: { canMan
     { key: "recruitmentChannelId", label: "Canal Recrutamento" },
     { key: "dominationChannelId", label: "Canal Dominação" },
     { key: "rewardChannelId", label: "Canal Premiação" },
-    { key: "settingsChannelId", label: "Canal Configurações" }
+    { key: "settingsChannelId", label: "Canal Entrada Webhook FiveM" }
   ];
   return (
     <Card>

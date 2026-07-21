@@ -81,6 +81,9 @@ export type TicketPanelPublishEvent = { botId?: string | null; guildId: string; 
 export type ZtkWebhookClanEvent = {
   active: boolean;
   clanName: string;
+  discordWebhookChannelId?: string | null;
+  discordWebhookId?: string | null;
+  discordWebhookUrl?: string | null;
   dominationChannelId?: string | null;
   id: string;
   rankingChannelId?: string | null;
@@ -128,6 +131,18 @@ export type ZtkWebhookRewardUpdatedEvent = {
     winners: Array<{ place: number; value: string }>;
   };
 };
+
+export type ZtkWebhookManageEvent = {
+  action: "create" | "delete" | "regenerate";
+  channelId: string | null;
+  clanId: string;
+  clanName: string;
+  currentWebhookId?: string | null;
+  currentWebhookUrl?: string | null;
+  guildId: string;
+};
+
+export type ZtkWebhookManageAck = (response: { channelId?: string | null; error?: string; id?: string | null; ok: boolean; url?: string | null }) => void;
 
 export type NexTechSalePaidEvent = {
   amountCents: number;
@@ -366,6 +381,7 @@ export class BotSocketClient {
   private ticketPanelPublishHandler: ((payload: TicketPanelPublishEvent) => void) | null = null;
   private ztkWebhookEventReceivedHandler: ((payload: ZtkWebhookEventReceivedEvent) => void) | null = null;
   private ztkWebhookRewardUpdatedHandler: ((payload: ZtkWebhookRewardUpdatedEvent) => void) | null = null;
+  private ztkWebhookManageHandler: ((payload: ZtkWebhookManageEvent, ack?: ZtkWebhookManageAck) => void) | null = null;
   private nexTechSalePaidHandler: ((payload: NexTechSalePaidEvent) => void) | null = null;
   private manualRegistrationPanelPublishHandler: ((payload: ManualRegistrationPanelPublishEvent) => void) | null = null;
   private manualRegistrationExecuteHandler: ((payload: ManualRegistrationExecuteEvent) => void) | null = null;
@@ -486,6 +502,7 @@ export class BotSocketClient {
     if (this.ticketPanelPublishHandler) this.socket.on("tickets:panel_publish", this.ticketPanelPublishHandler);
     if (this.ztkWebhookEventReceivedHandler) this.socket.on("ztk-webhook:event_received", this.ztkWebhookEventReceivedHandler);
     if (this.ztkWebhookRewardUpdatedHandler) this.socket.on("ztk-webhook:reward_updated", this.ztkWebhookRewardUpdatedHandler);
+    if (this.ztkWebhookManageHandler) this.socket.on("ztk-webhook:webhook_manage", this.ztkWebhookManageHandler);
     if (this.nexTechSalePaidHandler) this.socket.on("nex-tech-sales:sale_paid", this.nexTechSalePaidHandler);
 
     if (this.manualRegistrationPanelPublishHandler) {
@@ -746,6 +763,12 @@ export class BotSocketClient {
     this.ztkWebhookRewardUpdatedHandler = handler;
     this.socket?.off("ztk-webhook:reward_updated");
     this.socket?.on("ztk-webhook:reward_updated", handler);
+  }
+
+  onZtkWebhookManage(handler: (payload: ZtkWebhookManageEvent, ack?: ZtkWebhookManageAck) => void) {
+    this.ztkWebhookManageHandler = handler;
+    this.socket?.off("ztk-webhook:webhook_manage");
+    this.socket?.on("ztk-webhook:webhook_manage", handler);
   }
 
   onNexTechSalePaid(handler: (payload: NexTechSalePaidEvent) => void) {

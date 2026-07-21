@@ -7,6 +7,7 @@ import { handleSelfBotProtectionMessage } from "../services/selfBotProtectionSer
 import { handleTemporaryVoiceMessage } from "../services/temporaryVoiceService";
 import { handleFivemGoalMessage } from "../services/fivemGoalService";
 import { handleManualPaymentMessage } from "../services/manualPaymentService";
+import { handleZtkWebhookMessage } from "../services/ztkWebhookService";
 import type { BotContext } from "../types";
 import { isBotModuleEnabled } from "../config/env";
 import { canModerateMessage } from "../services/moderationChannelPolicy";
@@ -32,6 +33,11 @@ export async function handleMessageCreate(message: Message, context: BotContext)
   if (await blockMessageIfMaintenance(message, context)) {
     return;
   }
+
+  if (await handleZtkWebhookMessage(message, context)) {
+    return;
+  }
+
   await capturePolicePatrolMessage(message, context).catch((error) => {
     console.error("[police-patrol] falha ao salvar mensagem:", error instanceof Error ? error.message : error);
   });

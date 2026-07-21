@@ -3360,6 +3360,9 @@ export type MongoZtkWebhookClan = {
   botId: string;
   clanName: string;
   createdAt: Date;
+  discordWebhookChannelId?: string | null;
+  discordWebhookId?: string | null;
+  discordWebhookUrl?: string | null;
   guildId: string;
   lastEventAt: Date | null;
   ownerUserId: string;
@@ -4982,6 +4985,7 @@ async function createMongoIndexes(db: Db) {
     db.collection<MongoFivemHierarchyLog>("fivem_hierarchy_logs").createIndex({ botId: 1, guildId: 1, panelId: 1, createdAt: -1 }),
     db.collection<MongoZtkWebhookClan>("ztk_webhook_clans").createIndex({ botId: 1, guildId: 1, ownerUserId: 1, clanName: 1 }, { unique: true }),
     db.collection<MongoZtkWebhookClan>("ztk_webhook_clans").createIndex({ webhookToken: 1 }, { unique: true, partialFilterExpression: { webhookToken: { $type: "string" } } }),
+    db.collection<MongoZtkWebhookClan>("ztk_webhook_clans").createIndex({ botId: 1, guildId: 1, discordWebhookId: 1 }, { unique: true, partialFilterExpression: { discordWebhookId: { $type: "string" } } }),
     db.collection<MongoZtkWebhookLog>("ztk_webhook_logs").createIndex({ botId: 1, guildId: 1, clanId: 1, createdAt: -1 }),
     db.collection<MongoZtkWebhookLog>("ztk_webhook_logs").createIndex({ botId: 1, guildId: 1, clanId: 1, dedupeKey: 1 }, { unique: true }),
     db.collection<MongoZtkWebhookPlayerStat>("ztk_webhook_player_stats").createIndex({ botId: 1, guildId: 1, clanId: 1, playerName: 1 }, { unique: true }),

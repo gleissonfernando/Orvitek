@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { env } from "../config/env";
 import type { MongoZtkWebhookClan, MongoZtkWebhookEventType, MongoZtkWebhookLog, MongoZtkWebhookPlayerStat, MongoZtkWebhookReward } from "../database/mongo";
 import { getMongoCollections } from "../database/mongo";
-import { emitRealtime } from "../realtime/events";
+import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoomWithAck } from "../realtime/events";
 import { createLog } from "./logService";
 
 export const ZTK_WEBHOOK_MODULE_ID = "ztk-webhook";
@@ -42,6 +42,14 @@ export type ZtkClanDto = Omit<MongoZtkWebhookClan, "_id" | "createdAt" | "lastEv
   updatedAt: string;
   webhookCreatedAt: string | null;
   webhookUrl: string | null;
+};
+
+export type ZtkDiscordWebhookManageResponse = {
+  channelId?: string | null;
+  error?: string;
+  id?: string | null;
+  ok: boolean;
+  url?: string | null;
 };
 
 export type ZtkLogDto = Omit<MongoZtkWebhookLog, "_id" | "createdAt" | "eventTimestamp"> & {
@@ -104,6 +112,9 @@ export async function createZtkClan(guildId: string, botId: string | null, input
     botId: resolvedBotId,
     clanName: clean(input.clanName, 80) || "Clan FiveM",
     createdAt: now,
+    discordWebhookChannelId: null,
+    discordWebhookId: null,
+    discordWebhookUrl: null,
     dominationChannelId: null,
     guildId,
     lastEventAt: null,
@@ -153,12 +164,69 @@ export async function updateZtkWebhookState(guildId: string, botId: string | nul
   const now = new Date();
   const patch: Partial<MongoZtkWebhookClan> = { updatedAt: now };
   if (action === "create" || action === "regenerate") {
+    const webhookChannelId = current.settingsChannelId ?? current.rankingChannelId ?? current.recruitmentChannelId ?? current.dominationChannelId ?? null;
+    if (!webhookChannelId) {
+      throw Object.assign(new Error("Configure um canal em Canais antes de criar a webhook Discord do ZTK."), { statusCode: 400 });
+    }
+    const [response] = await emitRealtimeToRoomWithAck<{
+      action: "create" | "regenerate";
+      channelId: string;
+      clanId: string;
+      clanName: string;
+      currentWebhookId?: string | null;
+      currentWebhookUrl?: string | null;
+      guildId: string;
+    }, ZtkDiscordWebhookManageResponse>(
+      devBotRealtimeRoom(resolvedBotId),
+      "ztk-webhook:webhook_manage",
+      {
+        action,
+        channelId: webhookChannelId,
+        clanId,
+        clanName: current.clanName,
+        currentWebhookId: current.discordWebhookId ?? null,
+        currentWebhookUrl: current.discordWebhookUrl ?? null,
+        guildId
+      },
+      30_000
+    );
+    if (!response?.ok || !response.url || !response.id) {
+      throw Object.assign(new Error(response?.error ?? "O bot não conseguiu criar a webhook Discord. Verifique se ele está online e tem permissão Gerenciar Webhooks."), { statusCode: 502 });
+    }
+    patch.discordWebhookChannelId = response.channelId ?? webhookChannelId;
+    patch.discordWebhookId = response.id;
+    patch.discordWebhookUrl = response.url;
     patch.webhookCreatedAt = now;
     patch.webhookEnabled = true;
     patch.webhookToken = newWebhookToken();
   } else if (action === "disable") {
     patch.webhookEnabled = false;
   } else {
+    await emitRealtimeToRoomWithAck<{
+      action: "delete";
+      channelId: string | null;
+      clanId: string;
+      clanName: string;
+      currentWebhookId?: string | null;
+      currentWebhookUrl?: string | null;
+      guildId: string;
+    }, ZtkDiscordWebhookManageResponse>(
+      devBotRealtimeRoom(resolvedBotId),
+      "ztk-webhook:webhook_manage",
+      {
+        action,
+        channelId: current.discordWebhookChannelId ?? current.settingsChannelId ?? current.rankingChannelId ?? null,
+        clanId,
+        clanName: current.clanName,
+        currentWebhookId: current.discordWebhookId ?? null,
+        currentWebhookUrl: current.discordWebhookUrl ?? null,
+        guildId
+      },
+      15_000
+    );
+    patch.discordWebhookChannelId = null;
+    patch.discordWebhookId = null;
+    patch.discordWebhookUrl = null;
     patch.webhookCreatedAt = null;
     patch.webhookEnabled = false;
     patch.webhookToken = null;
@@ -201,6 +269,82 @@ export async function ingestZtkWebhookEvent(clanId: string, token: string, rawPa
     throw Object.assign(new Error("Webhook ZTK inválida, desativada ou não encontrada."), { statusCode: 404 });
   }
 
+  const parsed = parseZtkPayload(rawPayload, rawBody, clan.clanName);
+  const dedupeKey = parsed.externalId || parsed.hash;
+  const now = new Date();
+  const log: MongoZtkWebhookLog = {
+    _id: randomUUID(),
+    botId: clan.botId,
+    clanId: clan._id,
+    clanName: parsed.clanName || clan.clanName,
+    createdAt: now,
+    dedupeKey,
+    eventTimestamp: parsed.timestamp,
+    eventType: parsed.eventType,
+    guildId: clan.guildId,
+    hash: parsed.hash,
+    location: parsed.location,
+    onlineSeconds: parsed.onlineSeconds,
+    playerId: parsed.playerId,
+    playerName: parsed.playerName,
+    rawPayload,
+    rawText: parsed.rawText,
+    recruiterId: parsed.recruiterId,
+    recruiterName: parsed.recruiterName
+  };
+
+  const inserted = await ztkWebhookLogs.updateOne(
+    { botId: clan.botId, guildId: clan.guildId, clanId: clan._id, dedupeKey },
+    { $setOnInsert: log },
+    { upsert: true }
+  );
+  if (!inserted.upsertedId) {
+    return { duplicate: true, message: "Evento já registrado. Ignorado." };
+  }
+
+  await ztkWebhookClans.updateOne({ _id: clan._id }, { $set: { lastEventAt: now, updatedAt: now } });
+  await updatePlayerStats(ztkWebhookPlayerStats, clan, log);
+  const rankings = {
+    domination: await topPlayers(ztkWebhookPlayerStats, clan.botId, clan.guildId, clan._id, "dominations"),
+    online: await topPlayers(ztkWebhookPlayerStats, clan.botId, clan.guildId, clan._id, "onlineSeconds"),
+    recruitment: await topPlayers(ztkWebhookPlayerStats, clan.botId, clan.guildId, clan._id, "recruitments")
+  };
+  emitRealtime("ztk-webhook:event_received", {
+    botId: clan.botId,
+    clan: toClanDto({ ...clan, lastEventAt: now, updatedAt: now }),
+    event: toLogDto(log),
+    guildId: clan.guildId,
+    rankings
+  });
+  return { duplicate: false, event: toLogDto(log), message: "Evento registrado." };
+}
+
+export async function ingestZtkDiscordWebhookMessage(botId: string | null, guildId: string, input: { channelId: string; content?: string | null; embeds?: unknown[]; messageId: string; webhookId: string }) {
+  const resolvedBotId = requireBotId(botId);
+  const { ztkWebhookClans } = await getMongoCollections();
+  const clan = await ztkWebhookClans.findOne({
+    active: true,
+    botId: resolvedBotId,
+    discordWebhookId: input.webhookId,
+    guildId,
+    webhookEnabled: true
+  });
+  if (!clan) return { duplicate: false, ignored: true, message: "Webhook Discord não vinculada ao ZTK." };
+  if (clan.discordWebhookChannelId && clan.discordWebhookChannelId !== input.channelId) {
+    return { duplicate: false, ignored: true, message: "Webhook ZTK recebida fora do canal configurado." };
+  }
+  return ingestParsedZtkEvent(clan, { content: input.content ?? "", embeds: input.embeds ?? [], eventId: input.messageId, messageId: input.messageId }, input.content ?? "");
+}
+
+export async function listZtkWebhookClansForBot(guildId: string, botId: string | null) {
+  const resolvedBotId = requireBotId(botId);
+  const { ztkWebhookClans } = await getMongoCollections();
+  const clans = await ztkWebhookClans.find({ active: true, botId: resolvedBotId, guildId, webhookEnabled: true }).sort({ updatedAt: -1 }).limit(200).toArray();
+  return clans.map(toClanDto);
+}
+
+async function ingestParsedZtkEvent(clan: MongoZtkWebhookClan, rawPayload: unknown, rawBody: string) {
+  const { ztkWebhookClans, ztkWebhookLogs, ztkWebhookPlayerStats } = await getMongoCollections();
   const parsed = parseZtkPayload(rawPayload, rawBody, clan.clanName);
   const dedupeKey = parsed.externalId || parsed.hash;
   const now = new Date();
@@ -387,7 +531,7 @@ function toClanDto(value: MongoZtkWebhookClan): ZtkClanDto {
     lastEventAt: value.lastEventAt?.toISOString() ?? null,
     updatedAt: value.updatedAt.toISOString(),
     webhookCreatedAt: value.webhookCreatedAt?.toISOString() ?? null,
-    webhookUrl: value.webhookToken ? buildWebhookUrl(value._id, value.webhookToken) : null
+    webhookUrl: value.discordWebhookUrl ?? (value.webhookToken ? buildWebhookUrl(value._id, value.webhookToken) : null)
   };
 }
 

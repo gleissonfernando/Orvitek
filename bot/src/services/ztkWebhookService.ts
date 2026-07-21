@@ -1,7 +1,7 @@
-import type { Client, Guild } from "discord.js";
-import { currentRuntimeBotId, env } from "../config/env";
+import type { Client, Guild, Message } from "discord.js";
+import { currentRuntimeBotId, env, isBotModuleEnabled } from "../config/env";
 import type { BotContext } from "../types";
-import type { ZtkWebhookEventReceivedEvent, ZtkWebhookPlayerStatEvent, ZtkWebhookRewardUpdatedEvent } from "../websocket/socketClient";
+import type { ZtkWebhookEventReceivedEvent, ZtkWebhookManageEvent, ZtkWebhookPlayerStatEvent, ZtkWebhookRewardUpdatedEvent } from "../websocket/socketClient";
 import { renderComponentsV2Panel } from "./panelVisualRenderer";
 
 export function startZtkWebhookService(client: Client<true>, context: BotContext) {
@@ -16,6 +16,75 @@ export function startZtkWebhookService(client: Client<true>, context: BotContext
     const guild = client.guilds.cache.get(payload.guildId);
     if (guild) void deliverZtkReward(guild, payload);
   });
+
+  context.socket.onZtkWebhookManage((payload, acknowledge) => {
+    const guild = client.guilds.cache.get(payload.guildId);
+    if (!guild) {
+      acknowledge?.({ error: "Bot não está conectado ao servidor selecionado.", ok: false });
+      return;
+    }
+    void manageDiscordWebhook(guild, payload)
+      .then((response) => acknowledge?.(response))
+      .catch((error) => acknowledge?.({ error: error instanceof Error ? error.message : String(error), ok: false }));
+  });
+}
+
+export async function handleZtkWebhookMessage(message: Message, context: BotContext) {
+  if (!isBotModuleEnabled("ztk-webhook") || !message.guild || !message.webhookId) return false;
+  const content = collectMessageText(message);
+  const result = await context.api.recordZtkDiscordWebhookMessage(message.guild.id, {
+    channelId: message.channelId,
+    content,
+    embeds: message.embeds.map((embed) => embed.toJSON()),
+    messageId: message.id,
+    webhookId: message.webhookId
+  }).catch((error) => {
+    console.warn("[ztk-webhook] falha ao registrar mensagem de webhook Discord:", error instanceof Error ? error.message : error);
+    return null;
+  });
+  return Boolean(result && !result.ignored);
+}
+
+async function manageDiscordWebhook(guild: Guild, payload: ZtkWebhookManageEvent) {
+  if (payload.action === "delete") {
+    await deleteExistingWebhook(guild, payload.currentWebhookId ?? null);
+    return { channelId: null, id: null, ok: true, url: null };
+  }
+
+  if (!payload.channelId) {
+    return { error: "Canal de entrada da webhook não configurado.", ok: false };
+  }
+
+  const channel = await guild.channels.fetch(payload.channelId).catch(() => null);
+  if (!channel || !("createWebhook" in channel) || typeof channel.createWebhook !== "function") {
+    return { error: "O canal configurado não aceita criação de webhook.", ok: false };
+  }
+
+  if (payload.action === "regenerate") {
+    await deleteExistingWebhook(guild, payload.currentWebhookId ?? null);
+  }
+
+  const webhook = await channel.createWebhook({
+    name: `ZTK ${payload.clanName}`.slice(0, 80),
+    reason: `ZTK Webhook FiveM - ${payload.clanName}`
+  });
+
+  if (!webhook.url) {
+    return { error: "Discord não retornou a URL da webhook criada.", ok: false };
+  }
+
+  return {
+    channelId: payload.channelId,
+    id: webhook.id,
+    ok: true,
+    url: webhook.url
+  };
+}
+
+async function deleteExistingWebhook(guild: Guild, webhookId: string | null) {
+  if (!webhookId) return;
+  const webhook = await guild.client.fetchWebhook(webhookId).catch(() => null);
+  await webhook?.delete("ZTK Webhook regenerada ou excluída.").catch(() => undefined);
 }
 
 async function deliverZtkEvent(guild: Guild, payload: ZtkWebhookEventReceivedEvent) {
@@ -154,4 +223,15 @@ function formatDuration(seconds: number) {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   return hours ? `${hours}h ${minutes}min` : `${minutes}min`;
+}
+
+function collectMessageText(message: Message) {
+  const embedText = message.embeds.flatMap((embed) => [
+    embed.title,
+    embed.description,
+    embed.footer?.text,
+    embed.author?.name,
+    ...embed.fields.flatMap((field) => [field.name, field.value])
+  ]).filter(Boolean).join("\n");
+  return [message.content, embedText].filter(Boolean).join("\n").slice(0, 8000);
 }
