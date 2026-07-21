@@ -9,7 +9,7 @@ dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 const productionPublicUrl = "https://nextech.discloud.app";
 const defaultDashboardGuildIds = "";
 const defaultDashboardDevUserIds = "";
-const requiredDiscordScopes = "identify email connections guilds guilds.join";
+const requiredDiscordScopes = "identify email connections guilds guilds.join guilds.members.read";
 const isProduction = process.env.NODE_ENV === "production";
 
 function cleanEnvValue(value: unknown) {
@@ -385,7 +385,10 @@ process.env.TRANSCRIPT_PORT = String(env.TRANSCRIPT_PORT);
 process.env.DISCORD_REDIRECT_URI = env.DISCORD_REDIRECT_URI;
 process.env.DISCORD_OAUTH_REDIRECT_URI = env.DISCORD_OAUTH_REDIRECT_URI;
 process.env.DISCORD_CALLBACK_URL = env.DISCORD_CALLBACK_URL;
+process.env.DISCORD_SCOPES = env.DISCORD_SCOPES;
 process.env.BOT_API_TOKEN = env.BOT_API_TOKEN;
+process.env.DASHBOARD_DEV_USER_IDS = env.DASHBOARD_DEV_USER_IDS;
+process.env.DEV_DISCORD_IDS = env.DEV_DISCORD_IDS;
 
 if (env.NODE_ENV === "production") {
   const missing = [
