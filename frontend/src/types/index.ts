@@ -3355,6 +3355,7 @@ export type ZtkWebhookClan = {
 export type ZtkWebhookLog = {
   id: string;
   botId: string;
+  channelId?: string | null;
   clanId: string;
   clanName: string;
   createdAt: string;
@@ -3364,13 +3365,22 @@ export type ZtkWebhookLog = {
   guildId: string;
   hash: string;
   location: string | null;
+  messageId?: string | null;
+  normalizedGangName?: string | null;
+  normalizedZoneName?: string | null;
   onlineSeconds: number;
+  participantCount?: number | null;
+  participants?: Array<{ id: string | null; name: string; normalizedName: string }>;
   playerId: string | null;
   playerName: string | null;
+  processingStatus?: "processed" | "unknown";
   rawPayload: unknown;
   rawText: string;
   recruiterId: string | null;
   recruiterName: string | null;
+  rivalGangs?: Array<{ name: string; normalizedName: string; players: number }>;
+  totalPlayersInZone?: number | null;
+  webhookId?: string | null;
 };
 
 export type ZtkPlayerStat = {
@@ -3405,6 +3415,24 @@ export type ZtkReward = {
 
 export type ZtkWebhookDashboard = {
   clans: ZtkWebhookClan[];
+  dominationRankings: {
+    gangs: Array<{
+      dominations: number;
+      gangName: string;
+      lastDominatedAt: string | null;
+      lastZone: string | null;
+      normalizedGangName: string;
+      participantTotal: number;
+      zoneCount: number;
+    }>;
+    participants: Array<{
+      gangName: string | null;
+      normalizedPlayerName: string;
+      participations: number;
+      playerId: string | null;
+      playerName: string;
+    }>;
+  };
   logs: ZtkWebhookLog[];
   rankings: Record<ZtkRankingType, ZtkPlayerStat[]>;
   rewards: ZtkReward[];

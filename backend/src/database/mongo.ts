@@ -3384,6 +3384,7 @@ export type MongoZtkWebhookClan = {
 export type MongoZtkWebhookLog = {
   _id: string;
   botId: string;
+  channelId?: string | null;
   clanId: string;
   clanName: string;
   createdAt: Date;
@@ -3394,12 +3395,29 @@ export type MongoZtkWebhookLog = {
   hash: string;
   playerId: string | null;
   playerName: string | null;
+  messageId?: string | null;
+  normalizedGangName?: string | null;
+  normalizedZoneName?: string | null;
+  participantCount?: number | null;
+  participants?: Array<{
+    id: string | null;
+    name: string;
+    normalizedName: string;
+  }>;
+  processingStatus?: "processed" | "unknown";
   rawPayload: unknown;
   rawText: string;
   recruiterName: string | null;
   recruiterId: string | null;
+  rivalGangs?: Array<{
+    name: string;
+    normalizedName: string;
+    players: number;
+  }>;
   location: string | null;
   onlineSeconds: number;
+  totalPlayersInZone?: number | null;
+  webhookId?: string | null;
 };
 
 export type MongoZtkWebhookPlayerStat = {
@@ -4992,6 +5010,9 @@ async function createMongoIndexes(db: Db) {
     db.collection<MongoZtkWebhookClan>("ztk_webhook_clans").createIndex({ botId: 1, guildId: 1, discordWebhookId: 1 }, { unique: true, partialFilterExpression: { discordWebhookId: { $type: "string" } } }),
     db.collection<MongoZtkWebhookLog>("ztk_webhook_logs").createIndex({ botId: 1, guildId: 1, clanId: 1, createdAt: -1 }),
     db.collection<MongoZtkWebhookLog>("ztk_webhook_logs").createIndex({ botId: 1, guildId: 1, clanId: 1, dedupeKey: 1 }, { unique: true }),
+    db.collection<MongoZtkWebhookLog>("ztk_webhook_logs").createIndex({ botId: 1, guildId: 1, clanId: 1, eventType: 1, eventTimestamp: -1 }),
+    db.collection<MongoZtkWebhookLog>("ztk_webhook_logs").createIndex({ botId: 1, guildId: 1, clanId: 1, messageId: 1, webhookId: 1, channelId: 1 }, { partialFilterExpression: { messageId: { $type: "string" } } }),
+    db.collection<MongoZtkWebhookLog>("ztk_webhook_logs").createIndex({ botId: 1, guildId: 1, clanId: 1, normalizedGangName: 1, eventTimestamp: -1 }),
     db.collection<MongoZtkWebhookPlayerStat>("ztk_webhook_player_stats").createIndex({ botId: 1, guildId: 1, clanId: 1, playerName: 1 }, { unique: true }),
     db.collection<MongoZtkWebhookPlayerStat>("ztk_webhook_player_stats").createIndex({ botId: 1, guildId: 1, clanId: 1, dominations: -1 }),
     db.collection<MongoZtkWebhookPlayerStat>("ztk_webhook_player_stats").createIndex({ botId: 1, guildId: 1, clanId: 1, recruitments: -1 }),

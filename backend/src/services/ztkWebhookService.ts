@@ -30,10 +30,34 @@ export type SaveZtkRewardInput = {
 
 export type ZtkWebhookDashboard = {
   clans: ZtkClanDto[];
+  dominationRankings: ZtkDominationRankingsDto;
   logs: ZtkLogDto[];
   rankings: Record<ZtkRankingType, ZtkPlayerStatDto[]>;
   rewards: ZtkRewardDto[];
   selectedClan: ZtkClanDto | null;
+};
+
+export type ZtkDominationGangRankingDto = {
+  dominations: number;
+  gangName: string;
+  lastDominatedAt: string | null;
+  lastZone: string | null;
+  normalizedGangName: string;
+  participantTotal: number;
+  zoneCount: number;
+};
+
+export type ZtkDominationParticipantRankingDto = {
+  gangName: string | null;
+  normalizedPlayerName: string;
+  participations: number;
+  playerId: string | null;
+  playerName: string;
+};
+
+export type ZtkDominationRankingsDto = {
+  gangs: ZtkDominationGangRankingDto[];
+  participants: ZtkDominationParticipantRankingDto[];
 };
 
 export type ZtkClanDto = Omit<MongoZtkWebhookClan, "_id" | "createdAt" | "lastEventAt" | "updatedAt" | "webhookCreatedAt"> & {
@@ -94,9 +118,13 @@ export async function getZtkWebhookDashboard(guildId: string, botId: string | nu
         recruitment: await topPlayers(ztkWebhookPlayerStats, resolvedBotId, guildId, selectedClanId, "recruitments")
       }
     : { domination: [], online: [], recruitment: [] };
+  const dominationRankings = selectedClanId
+    ? await buildDominationRankings(ztkWebhookLogs, resolvedBotId, guildId, selectedClanId)
+    : { gangs: [], participants: [] };
 
   return {
     clans: clans.map(toClanDto),
+    dominationRankings,
     logs: logs.map(toLogDto),
     rankings,
     rewards: rewards.map(toRewardDto),
@@ -316,6 +344,7 @@ export async function ingestZtkWebhookEvent(clanId: string, token: string, rawPa
   const log: MongoZtkWebhookLog = {
     _id: randomUUID(),
     botId: clan.botId,
+    channelId: parsed.channelId,
     clanId: clan._id,
     clanName: parsed.clanName || clan.clanName,
     createdAt: now,
@@ -325,13 +354,22 @@ export async function ingestZtkWebhookEvent(clanId: string, token: string, rawPa
     guildId: clan.guildId,
     hash: parsed.hash,
     location: parsed.location,
+    messageId: parsed.messageId,
+    normalizedGangName: parsed.normalizedGangName,
+    normalizedZoneName: parsed.normalizedZoneName,
     onlineSeconds: parsed.onlineSeconds,
+    participantCount: parsed.participantCount,
+    participants: parsed.participants,
     playerId: parsed.playerId,
     playerName: parsed.playerName,
+    processingStatus: parsed.eventType === "unknown" ? "unknown" : "processed",
     rawPayload,
     rawText: parsed.rawText,
     recruiterId: parsed.recruiterId,
-    recruiterName: parsed.recruiterName
+    recruiterName: parsed.recruiterName,
+    rivalGangs: parsed.rivalGangs,
+    totalPlayersInZone: parsed.totalPlayersInZone,
+    webhookId: parsed.webhookId
   };
 
   const inserted = await ztkWebhookLogs.updateOne(
@@ -350,9 +388,11 @@ export async function ingestZtkWebhookEvent(clanId: string, token: string, rawPa
     online: await topPlayers(ztkWebhookPlayerStats, clan.botId, clan.guildId, clan._id, "onlineSeconds"),
     recruitment: await topPlayers(ztkWebhookPlayerStats, clan.botId, clan.guildId, clan._id, "recruitments")
   };
+  const dominationRankings = await buildDominationRankings(ztkWebhookLogs, clan.botId, clan.guildId, clan._id);
   emitRealtime("ztk-webhook:event_received", {
     botId: clan.botId,
     clan: toClanDto({ ...clan, lastEventAt: now, updatedAt: now }),
+    dominationRankings,
     event: toLogDto(log),
     guildId: clan.guildId,
     rankings
@@ -374,7 +414,14 @@ export async function ingestZtkDiscordWebhookMessage(botId: string | null, guild
   if (clan.discordWebhookChannelId && clan.discordWebhookChannelId !== input.channelId) {
     return { duplicate: false, ignored: true, message: "Webhook ZTK recebida fora do canal configurado." };
   }
-  return ingestParsedZtkEvent(clan, { content: input.content ?? "", embeds: input.embeds ?? [], eventId: input.messageId, messageId: input.messageId }, input.content ?? "");
+  return ingestParsedZtkEvent(clan, {
+    channelId: input.channelId,
+    content: input.content ?? "",
+    embeds: input.embeds ?? [],
+    eventId: input.messageId,
+    messageId: input.messageId,
+    webhookId: input.webhookId
+  }, input.content ?? "");
 }
 
 export async function listZtkWebhookClansForBot(guildId: string, botId: string | null) {
@@ -412,6 +459,7 @@ async function ingestParsedZtkEvent(clan: MongoZtkWebhookClan, rawPayload: unkno
   const log: MongoZtkWebhookLog = {
     _id: randomUUID(),
     botId: clan.botId,
+    channelId: parsed.channelId,
     clanId: clan._id,
     clanName: parsed.clanName || clan.clanName,
     createdAt: now,
@@ -421,13 +469,22 @@ async function ingestParsedZtkEvent(clan: MongoZtkWebhookClan, rawPayload: unkno
     guildId: clan.guildId,
     hash: parsed.hash,
     location: parsed.location,
+    messageId: parsed.messageId,
+    normalizedGangName: parsed.normalizedGangName,
+    normalizedZoneName: parsed.normalizedZoneName,
     onlineSeconds: parsed.onlineSeconds,
+    participantCount: parsed.participantCount,
+    participants: parsed.participants,
     playerId: parsed.playerId,
     playerName: parsed.playerName,
+    processingStatus: parsed.eventType === "unknown" ? "unknown" : "processed",
     rawPayload,
     rawText: parsed.rawText,
     recruiterId: parsed.recruiterId,
-    recruiterName: parsed.recruiterName
+    recruiterName: parsed.recruiterName,
+    rivalGangs: parsed.rivalGangs,
+    totalPlayersInZone: parsed.totalPlayersInZone,
+    webhookId: parsed.webhookId
   };
 
   const inserted = await ztkWebhookLogs.updateOne(
@@ -446,9 +503,11 @@ async function ingestParsedZtkEvent(clan: MongoZtkWebhookClan, rawPayload: unkno
     online: await topPlayers(ztkWebhookPlayerStats, clan.botId, clan.guildId, clan._id, "onlineSeconds"),
     recruitment: await topPlayers(ztkWebhookPlayerStats, clan.botId, clan.guildId, clan._id, "recruitments")
   };
+  const dominationRankings = await buildDominationRankings(ztkWebhookLogs, clan.botId, clan.guildId, clan._id);
   emitRealtime("ztk-webhook:event_received", {
     botId: clan.botId,
     clan: toClanDto({ ...clan, lastEventAt: now, updatedAt: now }),
+    dominationRankings,
     event: toLogDto(log),
     guildId: clan.guildId,
     rankings
@@ -457,6 +516,35 @@ async function ingestParsedZtkEvent(clan: MongoZtkWebhookClan, rawPayload: unkno
 }
 
 async function updatePlayerStats(collection: Awaited<ReturnType<typeof getMongoCollections>>["ztkWebhookPlayerStats"], clan: MongoZtkWebhookClan, log: MongoZtkWebhookLog) {
+  if (log.eventType === "domination" && log.participants?.length) {
+    const now = new Date();
+    await collection.bulkWrite(log.participants.map((participant) => ({
+      updateOne: {
+        filter: { botId: clan.botId, guildId: clan.guildId, clanId: clan._id, playerName: participant.name },
+        update: {
+          $inc: { dominations: 1 },
+          $set: {
+            clanName: log.clanName || clan.clanName,
+            lastSeenAt: log.eventTimestamp,
+            playerId: participant.id,
+            updatedAt: now
+          },
+          $setOnInsert: {
+            _id: randomUUID(),
+            botId: clan.botId,
+            clanId: clan._id,
+            guildId: clan.guildId,
+            onlineSeconds: 0,
+            playerName: participant.name,
+            recruitments: 0
+          }
+        },
+        upsert: true
+      }
+    })), { ordered: false });
+    return;
+  }
+
   const playerName = clean(log.eventType === "recruitment" ? log.recruiterName ?? log.playerName : log.playerName ?? log.recruiterName, 100);
   if (!playerName) return;
   const now = new Date();
@@ -511,10 +599,100 @@ async function topPlayers(
   return (await collection.find({ botId, guildId, clanId }).sort({ [field]: -1, updatedAt: -1 }).toArray()).map(toPlayerStatDto);
 }
 
+async function buildDominationRankings(
+  collection: Awaited<ReturnType<typeof getMongoCollections>>["ztkWebhookLogs"],
+  botId: string,
+  guildId: string,
+  clanId: string
+): Promise<ZtkDominationRankingsDto> {
+  const gangs = await collection.aggregate<{
+    dominations: number;
+    gangName: string;
+    lastDominatedAt: Date | null;
+    lastZone: string | null;
+    normalizedGangName: string;
+    participantTotal: number;
+    zoneCount: number;
+  }>([
+    { $match: { botId, clanId, eventType: "domination", guildId } },
+    {
+      $set: {
+        rankingGangName: { $ifNull: ["$normalizedGangName", "$clanName"] },
+        rankingZoneName: { $ifNull: ["$normalizedZoneName", "$location"] }
+      }
+    },
+    { $sort: { eventTimestamp: 1, _id: 1 } },
+    {
+      $group: {
+        _id: "$rankingGangName",
+        dominations: { $sum: 1 },
+        gangName: { $last: "$clanName" },
+        lastDominatedAt: { $last: "$eventTimestamp" },
+        lastZone: { $last: "$location" },
+        participantTotal: { $sum: { $ifNull: ["$participantCount", 0] } },
+        zones: { $addToSet: "$rankingZoneName" }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        dominations: 1,
+        gangName: { $ifNull: ["$gangName", "$_id"] },
+        lastDominatedAt: 1,
+        lastZone: 1,
+        normalizedGangName: "$_id",
+        participantTotal: 1,
+        zoneCount: { $size: "$zones" }
+      }
+    },
+    { $sort: { dominations: -1, zoneCount: -1, participantTotal: -1, lastDominatedAt: -1, gangName: 1 } },
+    { $limit: 10 }
+  ]).toArray();
+
+  const participants = await collection.aggregate<{
+    gangName: string | null;
+    normalizedPlayerName: string;
+    participations: number;
+    playerId: string | null;
+    playerName: string;
+  }>([
+    { $match: { botId, clanId, eventType: "domination", guildId, participants: { $type: "array" } } },
+    { $unwind: "$participants" },
+    {
+      $group: {
+        _id: { $ifNull: ["$participants.id", "$participants.normalizedName"] },
+        gangName: { $last: "$clanName" },
+        normalizedPlayerName: { $last: "$participants.normalizedName" },
+        participations: { $sum: 1 },
+        playerId: { $last: "$participants.id" },
+        playerName: { $last: "$participants.name" }
+      }
+    },
+    { $project: { _id: 0, gangName: 1, normalizedPlayerName: 1, participations: 1, playerId: 1, playerName: 1 } },
+    { $sort: { participations: -1, playerName: 1 } },
+    { $limit: 10 }
+  ]).toArray();
+
+  return {
+    gangs: gangs.map((item) => ({
+      ...item,
+      lastDominatedAt: item.lastDominatedAt?.toISOString?.() ?? null
+    })),
+    participants
+  };
+}
+
 function parseZtkPayload(rawPayload: unknown, rawBody: string, fallbackClanName: string) {
   const rawText = collectText(rawPayload) || rawBody || "";
   const normalized = normalize(rawText);
   const fields = collectLabelMap(rawPayload);
+  const gangSection = readSection(rawText, ["gang", "clã", "clan", "família", "familia"]);
+  const zoneSection = readSection(rawText, ["zona dominada", "território dominado", "territorio dominado", "local dominado", "local"]);
+  const participantCountSection = readSection(rawText, ["participantes da gang", "participantes"]);
+  const totalPlayersSection = readSection(rawText, ["total de jogadores na zona", "jogadores na zona", "total na zona"]);
+  const rivalGangSection = readSection(rawText, ["outras gangs presentes", "gangs presentes", "outras facções presentes", "outras faccoes presentes"]);
+  const participantSection = readSection(rawText, ["membros participantes", "participantes da dominação", "participantes da dominacao"]);
+  const timestampSection = readSection(rawText, ["data e horário", "data e horario", "horário", "horario", "data"]);
   const eventType: MongoZtkWebhookEventType = hasAny(normalized, ["novo membro", "novo integrante", "recrutamento", "recrutado", "recrutou"])
     ? "recruitment"
     : hasAny(normalized, ["dominacao concluida", "dominacao finalizada", "dominacao realizada", "dominação concluída", "dominação realizada", "dominado", "territorio dominado", "território dominado"])
@@ -526,6 +704,7 @@ function parseZtkPayload(rawPayload: unknown, rawBody: string, fallbackClanName:
           : "unknown";
   const timestampValue = readStringDeep(rawPayload, ["timestamp", "time", "date", "createdAt"])
     ?? readField(fields, ["data", "horario", "horário", "hora", "timestamp"])
+    ?? timestampSection[0]
     ?? regex(rawText, /(?:data|hor[aá]rio|timestamp)[:\s]+([0-9/:\-\sTZ.]+)/i);
   const playerName = readStringDeep(rawPayload, ["player", "playerName", "jogador", "responsavel", "responsável", "member", "nome", "author", "autor", "dominator"])
     ?? readField(fields, ["jogador", "player", "responsavel", "responsável", "membro", "novo membro", "nome", "autor", "dominator"])
@@ -540,28 +719,48 @@ function parseZtkPayload(rawPayload: unknown, rawBody: string, fallbackClanName:
     ?? readField(fields, ["id recrutador", "recruiter id", "id de quem recrutou"]);
   const clanName = readStringDeep(rawPayload, ["clan", "clã", "gang", "faction", "facção", "organizacao", "organização", "org"])
     ?? readField(fields, ["clan", "clã", "gang", "facção", "faccao", "organizacao", "organização", "org"])
+    ?? gangSection[0]
     ?? regex(rawText, /(?:cl[aã]|gang|fac[cç][aã]o)[:\s*]+([^\n|]+)/i)
     ?? fallbackClanName;
   const location = readStringDeep(rawPayload, ["location", "local", "territory", "territorio", "território", "area", "zona"])
     ?? readField(fields, ["local", "territorio", "território", "dominado", "zona", "area", "área"])
+    ?? zoneSection[0]
     ?? regex(rawText, /(?:local|territ[oó]rio|dominado)[:\s*]+([^\n|]+)/i);
   const onlineSeconds = Number(readStringDeep(rawPayload, ["onlineSeconds", "durationSeconds", "seconds"]) ?? readField(fields, ["online seconds", "segundos online"]) ?? "") || parseDurationSeconds(readField(fields, ["tempo online", "duração", "duracao", "duration", "tempo"]) ?? rawText);
   const externalId = readStringDeep(rawPayload, ["eventId", "event_id", "messageId", "logId"])
     ?? readField(fields, ["event id", "id do evento", "log id", "message id"]);
+  const messageId = readStringDeep(rawPayload, ["messageId"]);
+  const webhookId = readStringDeep(rawPayload, ["webhookId"]);
+  const channelId = readStringDeep(rawPayload, ["channelId"]);
+  const participantCount = parseFirstNumber(readField(fields, ["participantes da gang", "participantes"]) ?? participantCountSection[0] ?? "");
+  const totalPlayersInZone = parseFirstNumber(readField(fields, ["total de jogadores na zona", "total na zona"]) ?? totalPlayersSection[0] ?? "");
+  const rivalGangs = parseRivalGangs(rivalGangSection.length ? rivalGangSection : splitFieldLines(readField(fields, ["outras gangs presentes", "gangs presentes"]) ?? ""));
+  const participants = parseParticipants(participantSection.length ? participantSection : splitFieldLines(readField(fields, ["membros participantes", "participantes"]) ?? ""));
+  const cleanedClanName = clean(stripBullet(clanName), 100);
+  const cleanedLocation = clean(stripBullet(location ?? ""), 120);
   const hash = createHash("sha256").update(`${eventType}|${rawText}|${JSON.stringify(rawPayload ?? {})}`).digest("hex");
 
   return {
-    clanName: clean(clanName, 100),
+    channelId: clean(channelId, 80) || null,
+    clanName: cleanedClanName,
     eventType,
     externalId: externalId ? clean(externalId, 160) : null,
     hash,
-    location: clean(location, 120) || null,
+    location: cleanedLocation || null,
+    messageId: clean(messageId, 80) || null,
+    normalizedGangName: normalizeEntity(cleanedClanName),
+    normalizedZoneName: cleanedLocation ? normalizeEntity(cleanedLocation) : null,
     onlineSeconds,
+    participantCount,
+    participants,
     playerId: clean(playerId, 80) || null,
     playerName: clean(playerName, 100) || null,
     rawText: rawText.slice(0, 6000),
     recruiterId: clean(recruiterId, 80) || null,
     recruiterName: clean(recruiterName, 100) || null,
+    rivalGangs,
+    totalPlayersInZone,
+    webhookId: clean(webhookId, 80) || null,
     timestamp: parseDate(timestampValue) ?? new Date()
   };
 }
@@ -591,6 +790,74 @@ function parseDurationSeconds(value: string) {
   const minuteMatch = /(\d+(?:[.,]\d+)?)\s*(?:m|min|minuto|minutos)/i.exec(value);
   const secondMatch = /(\d+(?:[.,]\d+)?)\s*(?:s|seg|segundo|segundos)/i.exec(value);
   return Math.round((num(hourMatch?.[1]) * 3600) + (num(minuteMatch?.[1]) * 60) + num(secondMatch?.[1]));
+}
+
+function parseFirstNumber(value: string) {
+  const match = /(\d+)/.exec(value);
+  return match ? Number(match[1]) : null;
+}
+
+function parseRivalGangs(lines: string[]) {
+  return lines
+    .map((line) => {
+      const cleaned = stripBullet(line);
+      if (!cleaned || /^nenhum/i.test(cleaned)) return null;
+      const match = /^(.+?)(?:[:\-–—]\s*|\s+)(\d+)\s*(?:jogador|jogadores|players)?/i.exec(cleaned);
+      const name = clean(match?.[1] ?? cleaned.replace(/\d+\s*(?:jogador|jogadores|players)?/i, ""), 100);
+      const players = match ? Number(match[2]) : parseFirstNumber(cleaned) ?? 0;
+      return name ? { name, normalizedName: normalizeEntity(name), players } : null;
+    })
+    .filter((item): item is { name: string; normalizedName: string; players: number } => Boolean(item));
+}
+
+function parseParticipants(lines: string[]) {
+  return lines
+    .map((line) => {
+      const cleaned = stripBullet(line);
+      if (!cleaned) return null;
+      const idMatch = /(?:id|passaporte|passport)[:#\s-]*([0-9A-Za-z_-]+)/i.exec(cleaned) ?? /\(([0-9A-Za-z_-]{2,})\)/.exec(cleaned);
+      const name = clean(cleaned
+        .replace(/(?:id|passaporte|passport)[:#\s-]*[0-9A-Za-z_-]+/ig, "")
+        .replace(/\([0-9A-Za-z_-]{2,}\)/g, ""), 100);
+      return name ? { id: idMatch?.[1] ?? null, name, normalizedName: normalizeEntity(name) } : null;
+    })
+    .filter((item): item is { id: string | null; name: string; normalizedName: string } => Boolean(item));
+}
+
+function splitFieldLines(value: string) {
+  return value.split(/\n|•/g).map(stripBullet).filter(Boolean);
+}
+
+function readSection(rawText: string, labels: string[]) {
+  const normalizedLabels = new Set(labels.map(normalizeKey));
+  const lines = rawText.split(/\r?\n/g);
+  const values: string[] = [];
+  let collecting = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      if (collecting && values.length) break;
+      continue;
+    }
+
+    const [rawLabel, ...sameLineValue] = trimmed.split(":");
+    const lineLabel = normalizeKey(rawLabel ?? "");
+    const isLabel = trimmed.includes(":") && normalizedLabels.has(lineLabel);
+    const nextLabel = collecting && trimmed.includes(":") && !trimmed.startsWith("•") && !trimmed.startsWith("-");
+
+    if (isLabel) {
+      collecting = true;
+      const inline = stripBullet(sameLineValue.join(":"));
+      if (inline) values.push(inline);
+      continue;
+    }
+
+    if (nextLabel) break;
+    if (collecting) values.push(stripBullet(trimmed));
+  }
+
+  return values.filter(Boolean);
 }
 
 function toClanDto(value: MongoZtkWebhookClan): ZtkClanDto {
@@ -667,6 +934,14 @@ function normalizeNullable(value: string | null | undefined) {
 
 function normalize(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+function normalizeEntity(value: string) {
+  return normalize(stripBullet(value)).replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function stripBullet(value: string) {
+  return clean(value, 300).replace(/^[•\-–—*]+\s*/, "").trim();
 }
 
 function regex(value: string, pattern: RegExp) {

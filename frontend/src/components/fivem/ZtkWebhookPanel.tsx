@@ -268,8 +268,10 @@ function RankingView({ dashboard, selectedClan, stats }: { dashboard: ZtkWebhook
           <CardTitle>🏆 Ranking {selectedClan.clanName}</CardTitle>
           <CardDescription>Ordenado automaticamente pelas logs recebidas do FiveM.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 lg:grid-cols-3">
-          <RankingList title="🔥 Dominações — Todos" valueLabel="dominações" values={dashboard?.rankings.domination ?? []} valueOf={(item) => item.dominations} />
+        <CardContent className="grid gap-4 lg:grid-cols-2">
+          <GangRankingList values={dashboard?.dominationRankings.gangs ?? []} />
+          <ParticipantRankingList values={dashboard?.dominationRankings.participants ?? []} />
+          <RankingList title="🔥 Participações — Todos" valueLabel="participações" values={dashboard?.rankings.domination ?? []} valueOf={(item) => item.dominations} />
           <RankingList title="👥 Recrutamento — Todos" valueLabel="recrutamentos" values={dashboard?.rankings.recruitment ?? []} valueOf={(item) => item.recruitments} />
           <RankingList title="⏱ Online — Todos" valueLabel="horas" values={dashboard?.rankings.online ?? []} valueOf={(item) => Math.floor(item.onlineSeconds / 3600)} />
         </CardContent>
@@ -455,6 +457,12 @@ function StatsView({ dashboard, stats }: { dashboard: ZtkWebhookDashboard | null
             <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3" key={log.id}>
               <p className="font-semibold text-zinc-100">{eventLabel(log.eventType)}</p>
               <p className="text-sm text-zinc-500">{log.playerName ?? log.recruiterName ?? "Jogador não identificado"} • {formatDateTime(log.eventTimestamp)}</p>
+              {log.eventType === "domination" ? (
+                <p className="mt-2 text-xs leading-5 text-zinc-400">
+                  Gang: {log.clanName} • Zona: {log.location ?? "Não informada"} • Participantes: {log.participantCount ?? log.participants?.length ?? 0}
+                  {log.rivalGangs?.length ? ` • Rivais: ${log.rivalGangs.map((gang) => `${gang.name} (${gang.players})`).join(", ")}` : ""}
+                </p>
+              ) : null}
             </div>
           ))}
           {!dashboard?.logs.length ? <p className="text-sm text-zinc-500">Nenhuma log recebida.</p> : null}
@@ -505,6 +513,45 @@ function RankingList({ title, valueLabel, values, valueOf }: { title: string; va
           <div className="flex items-center justify-between gap-3 text-sm" key={item.id}>
             <span className="min-w-0 truncate text-zinc-200">{medals[index] ?? `${index + 1}º`} {item.playerName}</span>
             <span className="shrink-0 text-zinc-500">{valueOf(item)} {valueLabel}</span>
+          </div>
+        ))}
+        {!values.length ? <p className="text-sm text-zinc-500">Sem registros.</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function GangRankingList({ values }: { values: ZtkWebhookDashboard["dominationRankings"]["gangs"] }) {
+  const medals = ["🥇", "🥈", "🥉"];
+  return (
+    <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3">
+      <p className="mb-3 font-semibold text-zinc-100">🏆 Top 10 Dominações</p>
+      <div className="discord-scrollbar max-h-[32rem] space-y-2 overflow-y-auto pr-1">
+        {values.map((item, index) => (
+          <div className="text-sm" key={item.normalizedGangName}>
+            <div className="flex items-center justify-between gap-3">
+              <span className="min-w-0 truncate text-zinc-200">{medals[index] ?? `${index + 1}º`} {item.gangName}</span>
+              <span className="shrink-0 text-zinc-500">{item.dominations} dominações</span>
+            </div>
+            <p className="text-xs text-zinc-500">{item.lastZone ?? "Sem zona"}{item.lastDominatedAt ? ` • ${formatDateTime(item.lastDominatedAt)}` : ""}</p>
+          </div>
+        ))}
+        {!values.length ? <p className="text-sm text-zinc-500">Sem registros.</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function ParticipantRankingList({ values }: { values: ZtkWebhookDashboard["dominationRankings"]["participants"] }) {
+  const medals = ["🥇", "🥈", "🥉"];
+  return (
+    <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3">
+      <p className="mb-3 font-semibold text-zinc-100">🎯 Ranking de Participação</p>
+      <div className="discord-scrollbar max-h-[32rem] space-y-2 overflow-y-auto pr-1">
+        {values.map((item, index) => (
+          <div className="flex items-center justify-between gap-3 text-sm" key={item.playerId ?? item.normalizedPlayerName}>
+            <span className="min-w-0 truncate text-zinc-200">{medals[index] ?? `${index + 1}º`} {item.playerName}</span>
+            <span className="shrink-0 text-zinc-500">{item.participations} participações</span>
           </div>
         ))}
         {!values.length ? <p className="text-sm text-zinc-500">Sem registros.</p> : null}

@@ -98,14 +98,19 @@ export type ZtkWebhookClanEvent = {
 };
 
 export type ZtkWebhookLogEvent = {
+  clanName?: string | null;
   eventTimestamp: string;
   eventType: "domination" | "player_connected" | "player_disconnected" | "recruitment" | "unknown";
   id: string;
   location?: string | null;
   onlineSeconds?: number | null;
+  participantCount?: number | null;
+  participants?: Array<{ id: string | null; name: string; normalizedName: string }>;
   playerId?: string | null;
   playerName?: string | null;
   recruiterName?: string | null;
+  rivalGangs?: Array<{ name: string; normalizedName: string; players: number }>;
+  totalPlayersInZone?: number | null;
 };
 
 export type ZtkWebhookPlayerStatEvent = {
@@ -118,6 +123,24 @@ export type ZtkWebhookPlayerStatEvent = {
 export type ZtkWebhookEventReceivedEvent = {
   botId?: string | null;
   clan: ZtkWebhookClanEvent;
+  dominationRankings?: {
+    gangs: Array<{
+      dominations: number;
+      gangName: string;
+      lastDominatedAt: string | null;
+      lastZone: string | null;
+      normalizedGangName: string;
+      participantTotal: number;
+      zoneCount: number;
+    }>;
+    participants: Array<{
+      gangName: string | null;
+      normalizedPlayerName: string;
+      participations: number;
+      playerId: string | null;
+      playerName: string;
+    }>;
+  };
   event: ZtkWebhookLogEvent;
   guildId: string;
   rankings: Record<"domination" | "online" | "recruitment", ZtkWebhookPlayerStatEvent[]>;
