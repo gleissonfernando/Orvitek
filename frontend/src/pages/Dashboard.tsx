@@ -1005,12 +1005,11 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
       .catch((error) => {
         if (!mounted) return;
 
-        if (readResponseStatus(error) === 401) {
-          window.location.replace("/login");
-          return;
-        }
-
-        setDashboardRouteError(readResponseMessage(error) ?? "Você não possui acesso a esta dashboard. Verifique se o plano está em dia ou entre em contato com o suporte.");
+        setDashboardRouteError(readResponseMessage(error) ?? (
+          readResponseStatus(error) === 401
+            ? "Sua sessão não chegou ao backend. Saia e entre novamente pelo Discord."
+            : "Você não possui acesso a esta dashboard. Verifique se o plano está em dia ou entre em contato com o suporte."
+        ));
       })
       .finally(() => {
         if (mounted) {

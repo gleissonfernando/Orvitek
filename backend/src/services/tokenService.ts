@@ -89,6 +89,11 @@ export function resolveAuthFromRequest(req: Request, res: Response) {
     }
   }
 
+  if (req.session.user) {
+    const verified = req.session.verified === true;
+    return issueAuthCookies(res, req.session.user, verified);
+  }
+
   return null;
 }
 

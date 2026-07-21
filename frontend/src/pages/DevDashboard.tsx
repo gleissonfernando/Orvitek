@@ -84,12 +84,13 @@ type FiveMModuleView = FivemModuleDefinition & {
 
 const MAINTENANCE_GIF_URL = "/maintenance/nft-coding.gif";
 
-export function DevDashboard({ auth, initialView = "bots" }: DevDashboardProps) {
+export function DevDashboard({ auth, initialView = "bots", onLogout }: DevDashboardProps) {
   const [profile, setProfile] = useState<DashboardMeResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [selectedGuildId, setSelectedGuildId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<DevView>(initialView);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -98,14 +99,15 @@ export function DevDashboard({ auth, initialView = "bots" }: DevDashboardProps) 
       .then((nextProfile) => {
         if (!mounted) return;
 
+        setLoadError(null);
         setProfile(nextProfile);
         const firstBot = nextProfile.bots[0] ?? null;
         setSelectedBotId((current) => current ?? firstBot?.id ?? null);
         setSelectedGuildId((current) => current ?? nextProfile.selectedGuildId ?? firstBot?.guildIds[0] ?? nextProfile.guilds[0]?.id ?? null);
       })
-      .catch(() => {
+      .catch((error) => {
         if (mounted) {
-          window.location.replace("/dashboard");
+          setLoadError(readDevDashboardError(error));
         }
       })
       .finally(() => {
@@ -148,6 +150,31 @@ export function DevDashboard({ auth, initialView = "bots" }: DevDashboardProps) 
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#050505]">
         <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
+      </main>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#050505] px-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-red-300" />
+              Não foi possível abrir o DEV
+            </CardTitle>
+            <CardDescription>{loadError}</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            <Button className="w-full" onClick={() => window.location.reload()}>
+              <RefreshCw className="h-4 w-4" />
+              Tentar novamente
+            </Button>
+            <Button className="w-full" onClick={onLogout} variant="outline">
+              Sair e entrar de novo
+            </Button>
+          </CardContent>
+        </Card>
       </main>
     );
   }
@@ -245,6 +272,27 @@ export function DevDashboard({ auth, initialView = "bots" }: DevDashboardProps) 
       </div>
     </main>
   );
+}
+
+function readDevDashboardError(error: unknown) {
+  if (typeof error === "object" && error !== null && "response" in error) {
+    const response = (error as { response?: { status?: unknown; data?: { message?: unknown } } }).response;
+    const message = typeof response?.data?.message === "string" ? response.data.message : null;
+
+    if (response?.status === 401) {
+      return "Sua sessão não chegou ao backend. Clique em Sair e entrar de novo para renovar os cookies.";
+    }
+
+    if (response?.status === 403) {
+      return message ?? "Sua conta autenticada não possui acesso DEV.";
+    }
+
+    if (message) {
+      return message;
+    }
+  }
+
+  return "A consulta do perfil DEV falhou. Tente novamente em alguns segundos.";
 }
 
 function devPathForView(view: DevView) {
