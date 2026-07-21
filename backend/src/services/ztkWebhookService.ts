@@ -172,6 +172,7 @@ export async function createZtkClan(guildId: string, botId: string | null, input
     onlineChannelId: null,
     onlineRankingMessageId: null,
     ownerUserId: input.ownerUserId,
+    participationRankingMessageId: null,
     rankingChannelId: null,
     rankingMessageId: null,
     recruitmentChannelId: null,
@@ -201,7 +202,12 @@ export async function updateZtkClan(guildId: string, botId: string | null, clanI
   if (input.clanName !== undefined) patch.clanName = clean(input.clanName, 80) || "Clan FiveM";
   if (input.rankingChannelId !== undefined) {
     patch.rankingChannelId = normalizeNullable(input.rankingChannelId);
-    if (patch.rankingChannelId !== before.rankingChannelId) patch.rankingMessageId = null;
+    if (patch.rankingChannelId !== before.rankingChannelId) {
+      if (!before.onlineChannelId) patch.onlineRankingMessageId = null;
+      patch.participationRankingMessageId = null;
+      patch.rankingMessageId = null;
+      if (!before.recruitmentChannelId) patch.recruitmentRankingMessageId = null;
+    }
   }
   if (input.recruitmentChannelId !== undefined) {
     patch.recruitmentChannelId = normalizeNullable(input.recruitmentChannelId);
@@ -459,14 +465,16 @@ export async function updateZtkRankingMessageState(
   guildId: string,
   botId: string | null,
   clanId: string,
-  input: { channelId: string | null; kind: "online" | "ranking" | "recruitment"; messageId: string | null }
+  input: { channelId: string | null; kind: "online" | "participation" | "ranking" | "recruitment"; messageId: string | null }
 ) {
   const resolvedBotId = requireBotId(botId);
   const messageField = input.kind === "online"
     ? "onlineRankingMessageId"
     : input.kind === "recruitment"
       ? "recruitmentRankingMessageId"
-      : "rankingMessageId";
+      : input.kind === "participation"
+        ? "participationRankingMessageId"
+        : "rankingMessageId";
   const { ztkWebhookClans } = await getMongoCollections();
   const patch: Partial<MongoZtkWebhookClan> = {
     [messageField]: normalizeNullable(input.messageId),

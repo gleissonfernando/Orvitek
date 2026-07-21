@@ -152,31 +152,36 @@ function createEventPanel(payload: ZtkWebhookEventReceivedEvent) {
 
 function createRankingPanel(payload: ZtkWebhookEventReceivedEvent) {
   const gangRanking = payload.dominationRankings?.gangs ?? [];
-  const participantRanking = payload.dominationRankings?.participants ?? [];
   return renderComponentsV2Panel({
     accentColor: 0xffd500,
-    description: `Ranking atualizado automaticamente para o clã **${payload.clan.clanName}**.`,
-    fields: [
-      ...gangRankingBlocks("🔥 TOP 10 DOMINAÇÕES", gangRanking),
-      ...participantRankingBlocks("🎯 RANKING DE PARTICIPAÇÃO", participantRanking),
-      ...rankingBlocks("👥 RECRUTAMENTO — TODOS", payload.rankings.recruitment, "recruitments", "recrutamentos"),
-      ...rankingBlocks("⏱️ ONLINE — TODOS", payload.rankings.online, "onlineSeconds", "horas")
-    ],
+    description: `Ranking de dominações atualizado automaticamente para o clã **${payload.clan.clanName}**.`,
+    fields: gangRankingBlocks("🔥 TOP 10 DOMINAÇÕES", gangRanking),
     footer: { text: "NexTech • ZTK Webhook" },
     moduleId: "ztk-webhook",
     title: `🏆 RANKING ${payload.clan.clanName.toUpperCase()}`
   });
 }
 
-function createSingleRankingPanel(payload: ZtkWebhookEventReceivedEvent, kind: "online" | "recruitment") {
-  if (kind === "recruitment") return createRecruitmentRankingPanel(payload);
+function createParticipationRankingPanel(payload: ZtkWebhookEventReceivedEvent) {
+  const participantRanking = payload.dominationRankings?.participants ?? [];
   return renderComponentsV2Panel({
     accentColor: 0xffd500,
-    description: `Ranking atualizado automaticamente para o clã **${payload.clan.clanName}**.`,
+    description: `Participações em dominações atualizadas automaticamente para o clã **${payload.clan.clanName}**.`,
+    fields: participantRankingBlocks("🎯 RANKING DE PARTICIPAÇÃO", participantRanking),
+    footer: { text: "NexTech • ZTK Webhook" },
+    moduleId: "ztk-webhook",
+    title: `🎯 Participação ${payload.clan.clanName}`
+  });
+}
+
+function createOnlineRankingPanel(payload: ZtkWebhookEventReceivedEvent) {
+  return renderComponentsV2Panel({
+    accentColor: 0xffd500,
+    description: `Tempo online atualizado automaticamente para o clã **${payload.clan.clanName}**.`,
     fields: rankingBlocks("⏱️ ONLINE — TODOS", payload.rankings.online, "onlineSeconds", "horas"),
     footer: { text: "NexTech • ZTK Webhook" },
     moduleId: "ztk-webhook",
-    title: `🏆 RANKING ${payload.clan.clanName.toUpperCase()}`
+    title: `⏱️ Online ${payload.clan.clanName}`
   });
 }
 
@@ -195,7 +200,7 @@ function createRecruitmentRankingPanel(payload: ZtkWebhookEventReceivedEvent) {
 async function upsertZtkRankingMessages(guild: Guild, payload: ZtkWebhookEventReceivedEvent, context: BotContext) {
   const updates: Array<{
     channelId: string | null | undefined;
-    kind: "online" | "ranking" | "recruitment";
+    kind: "online" | "participation" | "ranking" | "recruitment";
     messageId: string | null | undefined;
     panel: ReturnType<typeof renderComponentsV2Panel>;
   }> = [
@@ -206,16 +211,22 @@ async function upsertZtkRankingMessages(guild: Guild, payload: ZtkWebhookEventRe
       panel: createRankingPanel(payload)
     },
     {
-      channelId: payload.clan.recruitmentChannelId,
-      kind: "recruitment",
-      messageId: payload.clan.recruitmentRankingMessageId,
-      panel: createSingleRankingPanel(payload, "recruitment")
+      channelId: payload.clan.rankingChannelId,
+      kind: "participation",
+      messageId: payload.clan.participationRankingMessageId,
+      panel: createParticipationRankingPanel(payload)
     },
     {
-      channelId: payload.clan.onlineChannelId,
+      channelId: payload.clan.recruitmentChannelId ?? payload.clan.rankingChannelId,
+      kind: "recruitment",
+      messageId: payload.clan.recruitmentRankingMessageId,
+      panel: createRecruitmentRankingPanel(payload)
+    },
+    {
+      channelId: payload.clan.onlineChannelId ?? payload.clan.rankingChannelId,
       kind: "online",
       messageId: payload.clan.onlineRankingMessageId,
-      panel: createSingleRankingPanel(payload, "online")
+      panel: createOnlineRankingPanel(payload)
     }
   ];
 

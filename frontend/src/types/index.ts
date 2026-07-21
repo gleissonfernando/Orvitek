@@ -3339,6 +3339,7 @@ export type ZtkWebhookClan = {
   onlineChannelId?: string | null;
   onlineRankingMessageId?: string | null;
   ownerUserId: string;
+  participationRankingMessageId?: string | null;
   rankingChannelId: string | null;
   rankingMessageId?: string | null;
   recruitmentChannelId: string | null;

@@ -88,6 +88,7 @@ export type ZtkWebhookClanEvent = {
   id: string;
   onlineChannelId?: string | null;
   onlineRankingMessageId?: string | null;
+  participationRankingMessageId?: string | null;
   rankingChannelId?: string | null;
   rankingMessageId?: string | null;
   recruitmentChannelId?: string | null;

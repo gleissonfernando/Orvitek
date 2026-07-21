@@ -264,32 +264,50 @@ export function ZtkWebhookPanel({ botId, canManage, guild }: Props) {
 
 function RankingView({ dashboard, selectedClan, stats }: { dashboard: ZtkWebhookDashboard | null; selectedClan: ZtkWebhookClan; stats: ReturnType<typeof buildStats> }) {
   return (
-    <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-      <Card>
-        <CardHeader>
-          <CardTitle>🏆 Ranking {selectedClan.clanName}</CardTitle>
-          <CardDescription>Ordenado automaticamente pelas logs recebidas do FiveM.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 lg:grid-cols-2">
-          <GangRankingList values={dashboard?.dominationRankings.gangs ?? []} />
-          <ParticipantRankingList values={dashboard?.dominationRankings.participants ?? []} />
-          <RankingList title="🔥 Participações — Todos" valueLabel="participações" values={dashboard?.rankings.domination ?? []} valueOf={(item) => item.dominations} />
-          <RankingList title="👥 Recrutamento — Todos" valueLabel="recrutamentos" values={dashboard?.rankings.recruitment ?? []} valueOf={(item) => item.recruitments} />
-          <RankingList title="⏱ Online — Todos" valueLabel="horas" values={dashboard?.rankings.online ?? []} valueOf={(item) => Math.floor(item.onlineSeconds / 3600)} />
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Ranking Atual</CardTitle>
-          <CardDescription>Resumo geral do clã selecionado.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          <Metric label="Clã" value={selectedClan.clanName} />
-          <Metric label="Dominações" value={String(stats.dominations)} />
-          <Metric label="Recrutamentos" value={String(stats.recruitments)} />
-          <Metric label="Online" value={`${Math.floor(stats.onlineSeconds / 3600)} horas`} />
-        </CardContent>
-      </Card>
+    <div className="space-y-4">
+      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle>🏆 Ranking {selectedClan.clanName}</CardTitle>
+            <CardDescription>Top 10 de dominações atualizado pelas logs recebidas do FiveM.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <GangRankingList values={dashboard?.dominationRankings.gangs ?? []} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Resumo Atual</CardTitle>
+            <CardDescription>Totais do clã selecionado.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            <Metric label="Clã" value={selectedClan.clanName} />
+            <Metric label="Dominações" value={String(stats.dominations)} />
+            <Metric label="Recrutamentos" value={String(stats.recruitments)} />
+            <Metric label="Online" value={`${Math.floor(stats.onlineSeconds / 3600)} horas`} />
+          </CardContent>
+        </Card>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>🎯 Ranking de Participação</CardTitle>
+            <CardDescription>Painel separado para membros que participaram das dominações.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ParticipantRankingList values={dashboard?.dominationRankings.participants ?? []} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>⏱ Online — Todos</CardTitle>
+            <CardDescription>Painel separado para tempo online do clã.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RankingList title="⏱ Online — Todos" valueLabel="horas" values={dashboard?.rankings.online ?? []} valueOf={(item) => Math.floor(item.onlineSeconds / 3600)} />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

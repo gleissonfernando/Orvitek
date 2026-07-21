@@ -54,7 +54,7 @@ const discordWebhookMessageSchema = z.object({
 });
 const rankingMessageSchema = z.object({
   channelId: snowflake.nullable(),
-  kind: z.enum(["ranking", "recruitment", "online"]),
+  kind: z.enum(["ranking", "participation", "recruitment", "online"]),
   messageId: snowflake.nullable()
 });
 
