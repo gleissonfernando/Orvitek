@@ -12,7 +12,7 @@ import { PaymentReturnPage } from "./pages/PaymentReturn";
 import { PixPaymentPage } from "./pages/PixPayment";
 import { PublicPlansPage } from "./pages/Plans";
 import { useAuth } from "./hooks/useAuth";
-import { dashboardSlugFromPath, dashboardUrl, isDashboardRoutePath } from "./lib/urls";
+import { appUrl, dashboardSlugFromPath, dashboardUrl, isDashboardRoutePath } from "./lib/urls";
 
 export function App() {
   const {
@@ -138,7 +138,7 @@ export function App() {
         auth={auth}
         error={error ?? routeError}
         onLoginDiscord={loginDiscord}
-        onVerify={() => auth?.access.verified ? window.location.assign(dashboardUrl(auth.user.dashboardBotSlug)) : verify()}
+        onVerify={() => auth?.access.verified ? window.location.assign(auth.redirectTo ? appUrl(auth.redirectTo) : dashboardUrl(auth.user.dashboardBotSlug)) : verify()}
         verifying={verifying}
       />
     );

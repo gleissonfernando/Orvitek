@@ -223,6 +223,10 @@ function accessValidationOptions(req: Request) {
   };
 }
 
+function isDevDashboardRequest(req: Request) {
+  return req.header("x-dev-dashboard") === "true";
+}
+
 async function ensureBotGuildsLoaded() {
   if (getBotStatus().botGuilds.length === 0) {
     await refreshBotGuildsFromDiscord();
@@ -545,8 +549,13 @@ authRouter.get("/discord/callback", async (req, res, next) => {
           dashboardBotSlug: defaultDashboardBotSlug
         };
 
-    if (verifiedState.type === "dashboard" && defaultDashboardBotSlug) {
-      redirectTo = `/${defaultDashboardBotSlug}/dashboard`;
+    if (verifiedState.type === "dev") {
+      redirectTo = "/dev";
+    } else if (verifiedState.type === "dashboard") {
+      redirectTo = await withAuthTimeout(
+        "dashboard_redirect_resolve",
+        resolvePostAuthRedirectTo(validatedUser, defaultDashboardBotSlug, { preferDevWhenNoBotSlug: true })
+      );
     }
 
     req.session.user = validatedUser;
@@ -582,6 +591,7 @@ authRouter.get("/me", async (req, res, next) => {
     const auth = resolveAuthFromRequest(req, res);
 
     if (!auth) {
+      console.info("[auth] /me sem sessão válida.");
       return res.status(401).json({
         message: "Sessão não autenticada."
       });
@@ -611,9 +621,19 @@ authRouter.get("/me", async (req, res, next) => {
     }
     await saveSession(req);
 
+    const redirectTo = await withAuthTimeout(
+      "dashboard_me_redirect_resolve",
+      resolvePostAuthRedirectTo(currentAuth.user, currentAuth.user.dashboardBotSlug, {
+        preferDevWhenNoBotSlug: !currentAuth.user.dashboardBotSlug
+      })
+    );
+
+    console.info(`[auth] /me sessão válida: discordId=${currentAuth.user.discordId} verified=${currentAuth.verified} redirect=${redirectTo}.`);
+
     return res.json({
       ...createAuthResponse(currentAuth),
       validation: validation ?? undefined,
+      redirectTo,
       verificationToken: currentAuth.verified ? issueVerificationToken(currentAuth.user) : undefined
     });
   } catch (error) {
@@ -681,9 +701,10 @@ authRouter.post("/verify", requireAuthenticated, async (req, res, next) => {
     }
 
     const validatedUserBase = applyDashboardAccessValidation(refreshedUser, validation);
+    const requestedBotSlug = readAccessBotSlug(req) ?? validatedUserBase.dashboardBotSlug;
     const defaultDashboardBotSlug = await withAuthTimeout(
       "dashboard_default_bot_lookup",
-      resolveDashboardBotSlugForRedirect(validatedUserBase, validatedUserBase.dashboardBotSlug)
+      resolveDashboardBotSlugForRedirect(validatedUserBase, requestedBotSlug)
     );
     const validatedUser = defaultDashboardBotSlug === validatedUserBase.dashboardBotSlug
       ? validatedUserBase
@@ -691,6 +712,12 @@ authRouter.post("/verify", requireAuthenticated, async (req, res, next) => {
           ...validatedUserBase,
           dashboardBotSlug: defaultDashboardBotSlug
         };
+    const redirectTo = await withAuthTimeout(
+      "dashboard_verify_redirect_resolve",
+      resolvePostAuthRedirectTo(validatedUser, defaultDashboardBotSlug, {
+        preferDevWhenNoBotSlug: isDevDashboardRequest(req) || !requestedBotSlug
+      })
+    );
     const verifiedAuth = issueAuthCookies(
       res,
       validatedUser,
@@ -705,7 +732,7 @@ authRouter.post("/verify", requireAuthenticated, async (req, res, next) => {
     return res.json({
       ...createAuthResponse(verifiedAuth),
       validation,
-      redirectTo: validatedUser.dashboardBotSlug ? `/${validatedUser.dashboardBotSlug}/dashboard` : undefined,
+      redirectTo,
       verificationToken: issueVerificationToken(verifiedAuth.user)
     });
   } catch (error) {
@@ -746,6 +773,19 @@ async function resolveDashboardBotSlugForRedirect(user: AuthSessionUser, current
   return bots[0]?.slug ?? null;
 }
 
+async function resolvePostAuthRedirectTo(
+  user: AuthSessionUser,
+  botSlug: string | null | undefined,
+  options: { preferDevWhenNoBotSlug?: boolean } = {}
+) {
+  if (!botSlug && options.preferDevWhenNoBotSlug && await canAccessDevDashboard(user.discordId)) {
+    return "/dev";
+  }
+
+  const resolvedBotSlug = await resolveDashboardBotSlugForRedirect(user, botSlug);
+  return resolvedBotSlug ? `/${resolvedBotSlug}/dashboard` : "/dashboard";
+}
+
 authRouter.post("/logout", async (req, res, next) => {
   try {
     const discordId = req.session.user?.discordId;
@@ -754,7 +794,13 @@ authRouter.post("/logout", async (req, res, next) => {
       await clearStoredDiscordTokens(discordId);
     }
     await destroySession(req);
-    res.clearCookie("discord_dashboard.sid");
+    res.clearCookie("discord_dashboard.sid", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.NODE_ENV === "production",
+      path: "/"
+    });
+    console.info(`[auth] logout concluído: discordId=${discordId ?? "unknown"}.`);
 
     return res.status(204).send();
   } catch (error) {

@@ -14,7 +14,8 @@ export const sessionMiddleware = session({
   store: redis ? new RedisSessionStore(redis) : undefined,
   cookie: {
     httpOnly: true,
-    sameSite: "strict",
+    maxAge: env.SESSION_TTL_SECONDS * 1000,
+    sameSite: "lax",
     secure: env.NODE_ENV === "production"
   }
 });

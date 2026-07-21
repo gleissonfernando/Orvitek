@@ -206,9 +206,9 @@ function normalizeAvatarUrl(user: AuthSessionUser) {
   return getDiscordAvatarUrl(user.discordId, user.avatar);
 }
 
-function setAuthCookie(res: Response, name: string, value: string, _maxAgeSeconds: number) {
+function setAuthCookie(res: Response, name: string, value: string, maxAgeSeconds: number) {
   res.cookie(name, value, {
-    ...cookieOptions()
+    ...cookieOptions(maxAgeSeconds)
   });
 }
 
@@ -229,13 +229,20 @@ function signVerificationToken(user: AuthSessionUser) {
   );
 }
 
-function cookieOptions() {
-  return {
+function cookieOptions(maxAgeSeconds?: number) {
+  const options = {
     httpOnly: true,
-    sameSite: "strict" as const,
+    sameSite: "lax" as const,
     secure: env.NODE_ENV === "production",
     path: "/"
   };
+
+  return typeof maxAgeSeconds === "number"
+    ? {
+        ...options,
+        maxAge: maxAgeSeconds * 1000
+      }
+    : options;
 }
 
 function readCookie(req: Request, name: string) {
