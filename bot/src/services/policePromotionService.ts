@@ -231,6 +231,8 @@ async function publishConfiguredPromotionPanel(client: Client, context: BotConte
 }
 
 async function handlePromotionChoose(interaction: StringSelectMenuInteraction<"cached">, context: BotContext) {
+  await resetPromotionSelectDisplay(interaction);
+
   if (!interaction.values.length) {
     formSessions.delete(sessionKey(interaction.guild.id, interaction.user.id));
     await interaction.reply({ content: "Seleção removida.", ephemeral: true });
@@ -257,6 +259,12 @@ async function handlePromotionChoose(interaction: StringSelectMenuInteraction<"c
   formSessions.set(sessionKey(interaction.guild.id, interaction.user.id), session);
   await promptCurrentQuestion(interaction, context);
   return true;
+}
+
+async function resetPromotionSelectDisplay(interaction: StringSelectMenuInteraction<"cached">) {
+  const components = interaction.message.components.map((component) => component.toJSON());
+  if (!components.length) return;
+  await interaction.message.edit({ components } as any).catch(() => null);
 }
 
 async function promptCurrentQuestion(interaction: ButtonInteraction<"cached"> | StringSelectMenuInteraction<"cached">, _context: BotContext) {
