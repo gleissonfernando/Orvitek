@@ -143,6 +143,20 @@ export type ZtkWebhookEventReceivedEvent = {
   };
   event: ZtkWebhookLogEvent;
   guildId: string;
+  recruitmentRankings?: {
+    recruiters: Array<{
+      lastRecruitmentAt: string | null;
+      normalizedRecruiterName: string;
+      recentRecruits: Array<{
+        recruitedName: string;
+        recruitedPlayerId: string | null;
+        recruitedAt: string;
+      }>;
+      recruiterId: string | null;
+      recruiterName: string;
+      totalRecruitments: number;
+    }>;
+  };
   rankings: Record<"domination" | "online" | "recruitment", ZtkWebhookPlayerStatEvent[]>;
 };
 

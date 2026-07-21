@@ -169,16 +169,26 @@ function createRankingPanel(payload: ZtkWebhookEventReceivedEvent) {
 }
 
 function createSingleRankingPanel(payload: ZtkWebhookEventReceivedEvent, kind: "online" | "recruitment") {
-  const config = kind === "recruitment"
-    ? { field: "recruitments" as const, label: "recrutamentos", title: "👥 RECRUTAMENTO — TODOS", values: payload.rankings.recruitment }
-    : { field: "onlineSeconds" as const, label: "horas", title: "⏱️ ONLINE — TODOS", values: payload.rankings.online };
+  if (kind === "recruitment") return createRecruitmentRankingPanel(payload);
   return renderComponentsV2Panel({
-    accentColor: kind === "recruitment" ? 0x3b82f6 : 0xffd500,
+    accentColor: 0xffd500,
     description: `Ranking atualizado automaticamente para o clã **${payload.clan.clanName}**.`,
-    fields: rankingBlocks(config.title, config.values, config.field, config.label),
+    fields: rankingBlocks("⏱️ ONLINE — TODOS", payload.rankings.online, "onlineSeconds", "horas"),
     footer: { text: "NexTech • ZTK Webhook" },
     moduleId: "ztk-webhook",
     title: `🏆 RANKING ${payload.clan.clanName.toUpperCase()}`
+  });
+}
+
+function createRecruitmentRankingPanel(payload: ZtkWebhookEventReceivedEvent) {
+  const recruiters = payload.recruitmentRankings?.recruiters ?? [];
+  return renderComponentsV2Panel({
+    accentColor: 0x3b82f6,
+    description: `Histórico de recrutamento atualizado automaticamente para o clã **${payload.clan.clanName}**.`,
+    fields: recruitmentRankingBlocks(`👥 RECRUTAMENTO — ${payload.clan.clanName.toUpperCase()}`, recruiters),
+    footer: { text: "NexTech • ZTK Webhook" },
+    moduleId: "ztk-webhook",
+    title: "👥 Sistema de Recrutamento"
   });
 }
 
@@ -264,6 +274,27 @@ function gangRankingBlocks(title: string, values: NonNullable<ZtkWebhookEventRec
 function participantRankingBlocks(title: string, values: NonNullable<ZtkWebhookEventReceivedEvent["dominationRankings"]>["participants"]) {
   if (!values.length) return [`## ${title}\nSem registros.`];
   return [`## ${title}\n${values.map((item, index) => `${medal(index + 1)} **${item.playerName}**\n${item.participations} participações${item.gangName ? `\nGang atual: ${item.gangName}` : ""}`).join("\n\n")}`];
+}
+
+function recruitmentRankingBlocks(title: string, values: NonNullable<ZtkWebhookEventReceivedEvent["recruitmentRankings"]>["recruiters"]) {
+  if (!values.length) return [`## ${title}\nSem registros.`];
+  const blocks: string[] = [];
+  let current = `## ${title}\n`;
+  values.slice(0, 10).forEach((item, index) => {
+    const recruits = item.recentRecruits.length
+      ? item.recentRecruits.map((recruit) => `👤 ${recruit.recruitedName}\n📅 ${formatDate(recruit.recruitedAt)}`).join("\n")
+      : "Nenhum histórico recente.";
+    const line = `${medal(index + 1)} **${item.recruiterName}**\n${item.totalRecruitments} recrutamentos\n\nÚltimos recrutamentos:\n${recruits}`;
+    const separator = current.endsWith("\n") ? "" : "\n\n";
+    if (`${current}${separator}${line}`.length > 3500) {
+      blocks.push(current);
+      current = `## ${title} (continuação)\n${line}`;
+      return;
+    }
+    current = `${current}${separator}${line}`;
+  });
+  if (current.trim()) blocks.push(current);
+  return blocks;
 }
 
 function rankingBlocks(title: string, values: ZtkWebhookPlayerStatEvent[], field: "dominations" | "onlineSeconds" | "recruitments", label: string) {

@@ -32,6 +32,7 @@ export type ZtkWebhookDashboard = {
   clans: ZtkClanDto[];
   dominationRankings: ZtkDominationRankingsDto;
   logs: ZtkLogDto[];
+  recruitmentRankings: ZtkRecruitmentRankingsDto;
   rankings: Record<ZtkRankingType, ZtkPlayerStatDto[]>;
   rewards: ZtkRewardDto[];
   selectedClan: ZtkClanDto | null;
@@ -58,6 +59,23 @@ export type ZtkDominationParticipantRankingDto = {
 export type ZtkDominationRankingsDto = {
   gangs: ZtkDominationGangRankingDto[];
   participants: ZtkDominationParticipantRankingDto[];
+};
+
+export type ZtkRecruitmentRankingDto = {
+  lastRecruitmentAt: string | null;
+  normalizedRecruiterName: string;
+  recentRecruits: Array<{
+    recruitedName: string;
+    recruitedPlayerId: string | null;
+    recruitedAt: string;
+  }>;
+  recruiterId: string | null;
+  recruiterName: string;
+  totalRecruitments: number;
+};
+
+export type ZtkRecruitmentRankingsDto = {
+  recruiters: ZtkRecruitmentRankingDto[];
 };
 
 export type ZtkClanDto = Omit<MongoZtkWebhookClan, "_id" | "createdAt" | "lastEventAt" | "updatedAt" | "webhookCreatedAt"> & {
@@ -121,11 +139,15 @@ export async function getZtkWebhookDashboard(guildId: string, botId: string | nu
   const dominationRankings = selectedClanId
     ? await buildDominationRankings(ztkWebhookLogs, resolvedBotId, guildId, selectedClanId)
     : { gangs: [], participants: [] };
+  const recruitmentRankings = selectedClanId
+    ? await buildRecruitmentRankings(ztkWebhookLogs, resolvedBotId, guildId, selectedClanId)
+    : { recruiters: [] };
 
   return {
     clans: clans.map(toClanDto),
     dominationRankings,
     logs: logs.map(toLogDto),
+    recruitmentRankings,
     rankings,
     rewards: rewards.map(toRewardDto),
     selectedClan: selectedClan ? toClanDto(selectedClan) : null
@@ -389,12 +411,14 @@ export async function ingestZtkWebhookEvent(clanId: string, token: string, rawPa
     recruitment: await topPlayers(ztkWebhookPlayerStats, clan.botId, clan.guildId, clan._id, "recruitments")
   };
   const dominationRankings = await buildDominationRankings(ztkWebhookLogs, clan.botId, clan.guildId, clan._id);
+  const recruitmentRankings = await buildRecruitmentRankings(ztkWebhookLogs, clan.botId, clan.guildId, clan._id);
   emitRealtime("ztk-webhook:event_received", {
     botId: clan.botId,
     clan: toClanDto({ ...clan, lastEventAt: now, updatedAt: now }),
     dominationRankings,
     event: toLogDto(log),
     guildId: clan.guildId,
+    recruitmentRankings,
     rankings
   });
   return { duplicate: false, event: toLogDto(log), message: "Evento registrado." };
@@ -504,12 +528,14 @@ async function ingestParsedZtkEvent(clan: MongoZtkWebhookClan, rawPayload: unkno
     recruitment: await topPlayers(ztkWebhookPlayerStats, clan.botId, clan.guildId, clan._id, "recruitments")
   };
   const dominationRankings = await buildDominationRankings(ztkWebhookLogs, clan.botId, clan.guildId, clan._id);
+  const recruitmentRankings = await buildRecruitmentRankings(ztkWebhookLogs, clan.botId, clan.guildId, clan._id);
   emitRealtime("ztk-webhook:event_received", {
     botId: clan.botId,
     clan: toClanDto({ ...clan, lastEventAt: now, updatedAt: now }),
     dominationRankings,
     event: toLogDto(log),
     guildId: clan.guildId,
+    recruitmentRankings,
     rankings
   });
   return { duplicate: false, event: toLogDto(log), message: "Evento registrado." };
@@ -682,6 +708,70 @@ async function buildDominationRankings(
   };
 }
 
+async function buildRecruitmentRankings(
+  collection: Awaited<ReturnType<typeof getMongoCollections>>["ztkWebhookLogs"],
+  botId: string,
+  guildId: string,
+  clanId: string
+): Promise<ZtkRecruitmentRankingsDto> {
+  const recruiters = await collection.aggregate<{
+    lastRecruitmentAt: Date | null;
+    normalizedRecruiterName: string;
+    recentRecruits: Array<{
+      recruitedName: string;
+      recruitedPlayerId: string | null;
+      recruitedAt: Date;
+    }>;
+    recruiterId: string | null;
+    recruiterName: string;
+    totalRecruitments: number;
+  }>([
+    { $match: { botId, clanId, eventType: "recruitment", guildId, recruiterName: { $type: "string", $ne: "" } } },
+    { $sort: { eventTimestamp: -1, _id: -1 } },
+    {
+      $group: {
+        _id: { $ifNull: ["$recruiterId", { $toLower: "$recruiterName" }] },
+        lastRecruitmentAt: { $first: "$eventTimestamp" },
+        recentRecruits: {
+          $push: {
+            recruitedAt: "$eventTimestamp",
+            recruitedName: { $ifNull: ["$playerName", "Não identificado"] },
+            recruitedPlayerId: "$playerId"
+          }
+        },
+        recruiterId: { $first: "$recruiterId" },
+        recruiterName: { $first: "$recruiterName" },
+        totalRecruitments: { $sum: 1 }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        lastRecruitmentAt: 1,
+        normalizedRecruiterName: "$_id",
+        recentRecruits: { $slice: ["$recentRecruits", 5] },
+        recruiterId: 1,
+        recruiterName: 1,
+        totalRecruitments: 1
+      }
+    },
+    { $sort: { totalRecruitments: -1, lastRecruitmentAt: -1, recruiterName: 1 } },
+    { $limit: 50 }
+  ]).toArray();
+
+  return {
+    recruiters: recruiters.map((item) => ({
+      ...item,
+      lastRecruitmentAt: item.lastRecruitmentAt?.toISOString?.() ?? null,
+      normalizedRecruiterName: normalizeEntity(item.normalizedRecruiterName),
+      recentRecruits: item.recentRecruits.map((recruit) => ({
+        ...recruit,
+        recruitedAt: recruit.recruitedAt.toISOString()
+      }))
+    }))
+  };
+}
+
 function parseZtkPayload(rawPayload: unknown, rawBody: string, fallbackClanName: string) {
   const rawText = collectText(rawPayload) || rawBody || "";
   const normalized = normalize(rawText);
@@ -689,9 +779,13 @@ function parseZtkPayload(rawPayload: unknown, rawBody: string, fallbackClanName:
   const gangSection = readSection(rawText, ["gang", "clã", "clan", "família", "familia"]);
   const zoneSection = readSection(rawText, ["zona dominada", "território dominado", "territorio dominado", "local dominado", "local"]);
   const participantCountSection = readSection(rawText, ["participantes da gang", "participantes"]);
+  const recruitedSection = readSection(rawText, ["novo membro", "membro recrutado", "recrutado"]);
+  const recruiterSection = readSection(rawText, ["recrutador", "quem recrutou", "recrutou"]);
   const totalPlayersSection = readSection(rawText, ["total de jogadores na zona", "jogadores na zona", "total na zona"]);
   const rivalGangSection = readSection(rawText, ["outras gangs presentes", "gangs presentes", "outras facções presentes", "outras faccoes presentes"]);
   const participantSection = readSection(rawText, ["membros participantes", "participantes da dominação", "participantes da dominacao"]);
+  const dateOnlyValue = readField(fields, ["data"]) ?? readSection(rawText, ["data"])[0] ?? null;
+  const timeOnlyValue = readField(fields, ["horario", "horário", "hora"]) ?? readSection(rawText, ["horário", "horario", "hora"])[0] ?? null;
   const timestampSection = readSection(rawText, ["data e horário", "data e horario", "horário", "horario", "data"]);
   const eventType: MongoZtkWebhookEventType = hasAny(normalized, ["novo membro", "novo integrante", "recrutamento", "recrutado", "recrutou"])
     ? "recruitment"
@@ -704,16 +798,19 @@ function parseZtkPayload(rawPayload: unknown, rawBody: string, fallbackClanName:
           : "unknown";
   const timestampValue = readStringDeep(rawPayload, ["timestamp", "time", "date", "createdAt"])
     ?? readField(fields, ["data", "horario", "horário", "hora", "timestamp"])
+    ?? (dateOnlyValue && timeOnlyValue ? `${dateOnlyValue} ${timeOnlyValue}` : null)
     ?? timestampSection[0]
     ?? regex(rawText, /(?:data|hor[aá]rio|timestamp)[:\s]+([0-9/:\-\sTZ.]+)/i);
   const playerName = readStringDeep(rawPayload, ["player", "playerName", "jogador", "responsavel", "responsável", "member", "nome", "author", "autor", "dominator"])
     ?? readField(fields, ["jogador", "player", "responsavel", "responsável", "membro", "novo membro", "nome", "autor", "dominator"])
+    ?? recruitedSection[0]
     ?? regex(rawText, /(?:jogador|respons[aá]vel|novo membro|membro|player|nome)[:\s*]+([^\n|]+)/i);
   const playerId = readStringDeep(rawPayload, ["playerId", "id", "source", "userId", "passport", "passaporte"])
     ?? readField(fields, ["id", "player id", "id do jogador", "source", "passaporte", "passport"])
     ?? regex(rawText, /\b(?:id|source|passaporte|passport)[:\s#]+([0-9A-Za-z_-]+)/i);
   const recruiterName = readStringDeep(rawPayload, ["recruiter", "recrutador", "quemRecrutou", "recrutou", "recruitedBy"])
     ?? readField(fields, ["quem recrutou", "recrutador", "recrutou", "recruited by", "responsavel recrutamento"])
+    ?? recruiterSection[0]
     ?? regex(rawText, /(?:quem recrutou|recrutador|recrutou)[:\s*]+([^\n|]+)/i);
   const recruiterId = readStringDeep(rawPayload, ["recruiterId", "recrutadorId"])
     ?? readField(fields, ["id recrutador", "recruiter id", "id de quem recrutou"]);

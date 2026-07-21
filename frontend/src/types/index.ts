@@ -3434,6 +3434,20 @@ export type ZtkWebhookDashboard = {
     }>;
   };
   logs: ZtkWebhookLog[];
+  recruitmentRankings: {
+    recruiters: Array<{
+      lastRecruitmentAt: string | null;
+      normalizedRecruiterName: string;
+      recentRecruits: Array<{
+        recruitedName: string;
+        recruitedPlayerId: string | null;
+        recruitedAt: string;
+      }>;
+      recruiterId: string | null;
+      recruiterName: string;
+      totalRecruitments: number;
+    }>;
+  };
   rankings: Record<ZtkRankingType, ZtkPlayerStat[]>;
   rewards: ZtkReward[];
   selectedClan: ZtkWebhookClan | null;

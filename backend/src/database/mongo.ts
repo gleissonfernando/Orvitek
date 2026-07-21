@@ -5013,6 +5013,7 @@ async function createMongoIndexes(db: Db) {
     db.collection<MongoZtkWebhookLog>("ztk_webhook_logs").createIndex({ botId: 1, guildId: 1, clanId: 1, eventType: 1, eventTimestamp: -1 }),
     db.collection<MongoZtkWebhookLog>("ztk_webhook_logs").createIndex({ botId: 1, guildId: 1, clanId: 1, messageId: 1, webhookId: 1, channelId: 1 }, { partialFilterExpression: { messageId: { $type: "string" } } }),
     db.collection<MongoZtkWebhookLog>("ztk_webhook_logs").createIndex({ botId: 1, guildId: 1, clanId: 1, normalizedGangName: 1, eventTimestamp: -1 }),
+    db.collection<MongoZtkWebhookLog>("ztk_webhook_logs").createIndex({ botId: 1, guildId: 1, clanId: 1, eventType: 1, recruiterName: 1, eventTimestamp: -1 }),
     db.collection<MongoZtkWebhookPlayerStat>("ztk_webhook_player_stats").createIndex({ botId: 1, guildId: 1, clanId: 1, playerName: 1 }, { unique: true }),
     db.collection<MongoZtkWebhookPlayerStat>("ztk_webhook_player_stats").createIndex({ botId: 1, guildId: 1, clanId: 1, dominations: -1 }),
     db.collection<MongoZtkWebhookPlayerStat>("ztk_webhook_player_stats").createIndex({ botId: 1, guildId: 1, clanId: 1, recruitments: -1 }),

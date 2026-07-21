@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, Clipboard, Gift, Link2, Loader2, Megaphone, RefreshCw, Save, Settings, Trophy, Trash2 } from "lucide-react";
+import { BarChart3, Clipboard, Gift, Link2, Loader2, Megaphone, RefreshCw, Save, Settings, Trophy, Trash2, UserPlus } from "lucide-react";
 import {
   createZtkReward,
   createZtkWebhookClan,
@@ -21,10 +21,11 @@ type Props = {
   guild: DashboardGuild | null;
 };
 
-type TabId = "ranking" | "webhook" | "rewards" | "channels" | "stats" | "settings";
+type TabId = "ranking" | "recruitment" | "webhook" | "rewards" | "channels" | "stats" | "settings";
 
 const tabs: Array<{ id: TabId; icon: typeof Trophy; label: string }> = [
   { id: "ranking", icon: Trophy, label: "Ranking" },
+  { id: "recruitment", icon: UserPlus, label: "Recrutamento" },
   { id: "webhook", icon: Link2, label: "Webhook" },
   { id: "rewards", icon: Gift, label: "Premiação" },
   { id: "channels", icon: Megaphone, label: "Canais" },
@@ -196,7 +197,7 @@ export function ZtkWebhookPanel({ botId, canManage, guild }: Props) {
               {dashboard?.clans.map((clan) => <option key={clan.id} value={clan.id}>{clan.clanName}</option>)}
               {!dashboard?.clans.length ? <option value="">Nenhum clã criado</option> : null}
             </select>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
               {tabs.map((tab) => (
                 <button
                   className={`flex h-10 items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold transition ${activeTab === tab.id ? "border-[#FFD500]/45 bg-[#FFD500]/15 text-[#FFEA70]" : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-100"}`}
@@ -232,6 +233,7 @@ export function ZtkWebhookPanel({ botId, canManage, guild }: Props) {
       ) : null}
 
       {selectedClan && activeTab === "ranking" ? <RankingView dashboard={dashboard} selectedClan={selectedClan} stats={stats} /> : null}
+      {selectedClan && activeTab === "recruitment" ? <RecruitmentView dashboard={dashboard} selectedClan={selectedClan} /> : null}
       {selectedClan && activeTab === "webhook" ? (
         <WebhookView
           canManage={canManage}
@@ -286,6 +288,95 @@ function RankingView({ dashboard, selectedClan, stats }: { dashboard: ZtkWebhook
           <Metric label="Dominações" value={String(stats.dominations)} />
           <Metric label="Recrutamentos" value={String(stats.recruitments)} />
           <Metric label="Online" value={`${Math.floor(stats.onlineSeconds / 3600)} horas`} />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function RecruitmentView({ dashboard, selectedClan }: { dashboard: ZtkWebhookDashboard | null; selectedClan: ZtkWebhookClan }) {
+  const [recruiterQuery, setRecruiterQuery] = useState("");
+  const [recruitedQuery, setRecruitedQuery] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
+  const [selectedRecruiter, setSelectedRecruiter] = useState<string | null>(null);
+  const recruiters = dashboard?.recruitmentRankings.recruiters ?? [];
+  const filtered = recruiters.filter((item) => {
+    const recruiterOk = !recruiterQuery.trim() || normalizeSearch(item.recruiterName).includes(normalizeSearch(recruiterQuery));
+    const recruitedOk = !recruitedQuery.trim() || item.recentRecruits.some((recruit) => normalizeSearch(recruit.recruitedName).includes(normalizeSearch(recruitedQuery)));
+    const dateOk = !dateFilter || item.recentRecruits.some((recruit) => recruit.recruitedAt.slice(0, 10) === dateFilter);
+    return recruiterOk && recruitedOk && dateOk;
+  });
+  const activeRecruiter = filtered.find((item) => item.normalizedRecruiterName === selectedRecruiter) ?? filtered[0] ?? null;
+  const medals = ["🥇", "🥈", "🥉"];
+
+  useEffect(() => {
+    if (!activeRecruiter) {
+      setSelectedRecruiter(null);
+      return;
+    }
+    setSelectedRecruiter((current) => current && filtered.some((item) => item.normalizedRecruiterName === current) ? current : activeRecruiter.normalizedRecruiterName);
+  }, [activeRecruiter?.normalizedRecruiterName, filtered]);
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+      <Card>
+        <CardHeader>
+          <CardTitle>👥 Sistema de Recrutamento</CardTitle>
+          <CardDescription>Ranking e histórico do clã {selectedClan.clanName}, atualizado por webhook em tempo real.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <input className="h-10 rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" onChange={(event) => setRecruiterQuery(event.target.value)} placeholder="Buscar recrutador" value={recruiterQuery} />
+            <input className="h-10 rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" onChange={(event) => setRecruitedQuery(event.target.value)} placeholder="Buscar recrutado" value={recruitedQuery} />
+            <input className="h-10 rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100" onChange={(event) => setDateFilter(event.target.value)} type="date" value={dateFilter} />
+          </div>
+          <div className="discord-scrollbar max-h-[40rem] space-y-3 overflow-y-auto pr-1">
+            {filtered.map((item, index) => (
+              <button
+                className={`w-full rounded-md border p-3 text-left transition ${activeRecruiter?.normalizedRecruiterName === item.normalizedRecruiterName ? "border-[#FFD500]/45 bg-[#FFD500]/10" : "border-zinc-800 bg-zinc-950 hover:border-zinc-700"}`}
+                key={item.recruiterId ?? item.normalizedRecruiterName}
+                onClick={() => setSelectedRecruiter(item.normalizedRecruiterName)}
+                type="button"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="min-w-0 truncate font-semibold text-zinc-100">{medals[index] ?? `${index + 1}º`} {item.recruiterName}</p>
+                  <span className="shrink-0 text-sm text-zinc-500">{item.totalRecruitments} recrutamentos</span>
+                </div>
+                <div className="mt-3 space-y-1">
+                  {item.recentRecruits.slice(0, 3).map((recruit) => (
+                    <p className="text-xs text-zinc-400" key={`${item.normalizedRecruiterName}-${recruit.recruitedName}-${recruit.recruitedAt}`}>• {recruit.recruitedName} • {formatDate(recruit.recruitedAt)}</p>
+                  ))}
+                </div>
+              </button>
+            ))}
+            {!filtered.length ? <p className="rounded-md border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-500">Nenhum recrutamento encontrado.</p> : null}
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Perfil do Recrutador</CardTitle>
+          <CardDescription>Histórico individual dos últimos recrutados registrados.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {activeRecruiter ? (
+            <>
+              <Metric label="Nome" value={activeRecruiter.recruiterName} />
+              <Metric label="Total recrutados" value={`${activeRecruiter.totalRecruitments} pessoas`} />
+              <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3">
+                <p className="mb-3 text-sm font-semibold text-zinc-100">Histórico</p>
+                <div className="space-y-3">
+                  {activeRecruiter.recentRecruits.map((recruit, index) => (
+                    <div className="text-sm text-zinc-300" key={`${recruit.recruitedName}-${recruit.recruitedAt}`}>
+                      <p className="font-semibold text-zinc-100">{index + 1}. {recruit.recruitedName}</p>
+                      <p className="text-zinc-500">Data: {formatDate(recruit.recruitedAt)}</p>
+                      <p className="text-zinc-500">Horário: {formatTime(recruit.recruitedAt)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : <p className="text-sm text-zinc-500">Selecione um recrutador.</p>}
         </CardContent>
       </Card>
     </div>
@@ -596,8 +687,16 @@ function formatDate(value: string) {
   return new Date(value).toLocaleDateString("pt-BR");
 }
 
+function formatTime(value: string) {
+  return new Date(value).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
+function normalizeSearch(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
 
 function errorMessage(error: unknown, fallback: string) {
