@@ -940,8 +940,11 @@ function readSection(rawText: string, labels: string[]) {
 
     const [rawLabel, ...sameLineValue] = trimmed.split(":");
     const lineLabel = normalizeKey(rawLabel ?? "");
-    const isLabel = trimmed.includes(":") && normalizedLabels.has(lineLabel);
-    const nextLabel = collecting && trimmed.includes(":") && !trimmed.startsWith("•") && !trimmed.startsWith("-");
+    const labelOnly = normalizeKey(stripBullet(trimmed).replace(/:$/, ""));
+    const isLabel = trimmed.includes(":")
+      ? normalizedLabels.has(lineLabel)
+      : normalizedLabels.has(labelOnly);
+    const nextLabel = collecting && isKnownZtkSectionLabel(trimmed) && !isLabel;
 
     if (isLabel) {
       collecting = true;
@@ -956,6 +959,48 @@ function readSection(rawText: string, labels: string[]) {
 
   return values.filter(Boolean);
 }
+
+function isKnownZtkSectionLabel(value: string) {
+  const normalized = normalizeKey(stripBullet(value).replace(/:$/, ""));
+  return ZTK_SECTION_LABELS.has(normalized);
+}
+
+const ZTK_SECTION_LABELS = new Set([
+  "clan",
+  "clã",
+  "data",
+  "data e horario",
+  "data e horário",
+  "familia",
+  "família",
+  "gang",
+  "gangs presentes",
+  "hora",
+  "horario",
+  "horário",
+  "jogadores na zona",
+  "local",
+  "local dominado",
+  "membro recrutado",
+  "membros participantes",
+  "novo membro",
+  "outras faccoes presentes",
+  "outras facções presentes",
+  "outras gangs presentes",
+  "participantes",
+  "participantes da dominacao",
+  "participantes da dominação",
+  "participantes da gang",
+  "quem recrutou",
+  "recrutado",
+  "recrutador",
+  "recrutou",
+  "territorio dominado",
+  "território dominado",
+  "total de jogadores na zona",
+  "total na zona",
+  "zona dominada"
+].map(normalizeKey));
 
 function toClanDto(value: MongoZtkWebhookClan): ZtkClanDto {
   return {
