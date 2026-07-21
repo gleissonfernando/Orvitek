@@ -226,6 +226,9 @@ export async function assignPolicePromotionEvaluator(botId: string, requestId: s
 }
 
 export async function finishPolicePromotionEvaluation(botId: string, requestId: string, input: { evaluatorId: string; evaluationNotes: string; evaluationResult: "approved" | "rejected" }) {
+  const current = await getPolicePromotionRequest(botId, requestId);
+  if (current.status !== "in_evaluation") throw Object.assign(new Error("Esta avaliação já foi enviada ou encerrada."), { statusCode: 409 });
+  if (current.evaluatorId !== input.evaluatorId) throw Object.assign(new Error("Esta avaliação pertence a outro avaliador."), { statusCode: 403 });
   return updateRequest(botId, requestId, {
     evaluationEndedAt: new Date(),
     evaluationNotes: normalizeText(input.evaluationNotes, 6000),

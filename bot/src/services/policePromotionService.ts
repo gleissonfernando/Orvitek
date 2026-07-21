@@ -98,6 +98,7 @@ type EvaluationQuestionnaireDraft = {
   guildId: string;
   notes?: string;
   operational?: string;
+  pending?: { answer: string; step: EvaluationStep };
   patrol?: string;
   requestId: string;
   updatedAt: number;
@@ -164,10 +165,15 @@ export async function handlePolicePromotionInteraction(interaction: Interaction,
   if (action === "send" && interaction.isButton()) return submitPromotionRequest(interaction, context);
   if (action === "assign" && interaction.isButton()) return assignEvaluation(interaction, context);
   if (action === "finish" && interaction.isButton()) return openEvaluationModal(interaction, context);
-  if (action === "eval_step" && interaction.isButton()) return openEvaluationStepModal(interaction);
+  if (action === "eval_step" && interaction.isButton()) return openEvaluationStepModal(interaction, context);
   if (action === "eval_step_modal" && interaction.isModalSubmit()) return handleEvaluationStepModal(interaction, context);
+  if (action === "eval_step_confirm" && interaction.isButton()) return confirmEvaluationStep(interaction, context);
+  if (action === "eval_step_edit" && interaction.isButton()) return editPendingEvaluationStep(interaction);
+  if (action === "eval_panel" && interaction.isButton()) return showEvaluationPanel(interaction, context);
   if (action === "eval_review" && interaction.isButton()) return handleEvaluationReview(interaction, context);
+  if (action === "eval_submit" && interaction.isButton()) return submitEvaluationReview(interaction, context);
   if (action === "eval_cancel" && interaction.isButton()) return cancelEvaluationQuestionnaire(interaction);
+  if (action === "eval_cancel_confirm" && interaction.isButton()) return confirmCancelEvaluationQuestionnaire(interaction, context);
   if (action === "finish_modal" && interaction.isModalSubmit()) return handleEvaluationModal(interaction, context);
   if (action === "eval_result" && interaction.isButton()) return handleEvaluationResult(interaction, context);
   if (action === "approve" && interaction.isButton()) return openDecisionModal(interaction, "approved", context);
@@ -468,22 +474,27 @@ async function openEvaluationModal(interaction: ButtonInteraction<"cached">, con
   }
 
   const key = evaluationDraftKey(request.id, interaction.user.id);
-  const draft = evaluationQuestionnaireDrafts.get(key) ?? createEvaluationQuestionnaireDraft(request, interaction);
+  const draft = evaluationQuestionnaireDrafts.get(key) ?? evaluationDraftFromRequest(request, interaction.user.id, interaction.guild.id);
   evaluationQuestionnaireDrafts.set(key, draft);
   await interaction.reply(evaluationQuestionnairePayload(request, promotion, interaction.guild, draft) as any);
   return true;
 }
 
-async function openEvaluationStepModal(interaction: ButtonInteraction<"cached">) {
+async function openEvaluationStepModal(interaction: ButtonInteraction<"cached">, context: BotContext) {
   const [, , requestId, step] = interaction.customId.split(":");
   if (!requestId || !isEvaluationStep(step)) return true;
+  const request = await context.api.getPolicePromotionRequest(requestId);
+  if (request.evaluatorId !== interaction.user.id) {
+    await interaction.reply({ content: "Esta avaliação pertence a outro avaliador.", ephemeral: true });
+    return true;
+  }
   const key = evaluationDraftKey(requestId, interaction.user.id);
-  const draft = evaluationQuestionnaireDrafts.get(key) ?? {
-    guildId: interaction.guild.id,
-    requestId,
-    updatedAt: Date.now(),
-    userId: interaction.user.id
-  };
+  const draft = evaluationQuestionnaireDrafts.get(key) ?? evaluationDraftFromRequest(request, interaction.user.id, interaction.guild.id);
+  const nextStep = nextAvailableEvaluationStep(draft);
+  if (step !== nextStep) {
+    await interaction.reply({ content: "Esta etapa ainda não está disponível. Conclua a etapa anterior para continuar.", ephemeral: true });
+    return true;
+  }
   evaluationQuestionnaireDrafts.set(key, draft);
   await interaction.showModal(evaluationStepModal(requestId, step, draft));
   return true;
@@ -506,11 +517,89 @@ async function handleEvaluationStepModal(interaction: ModalSubmitInteraction<"ca
   }
 
   const key = evaluationDraftKey(request.id, interaction.user.id);
-  const draft = evaluationQuestionnaireDrafts.get(key) ?? createEvaluationQuestionnaireDraft(request, interaction);
-  applyEvaluationStepValues(draft, step, interaction);
+  const draft = evaluationQuestionnaireDrafts.get(key) ?? evaluationDraftFromRequest(request, interaction.user.id, interaction.guild.id);
+  draft.pending = { answer: evaluationStepAnswer(step, interaction), step };
   draft.updatedAt = Date.now();
   evaluationQuestionnaireDrafts.set(key, draft);
-  await updateModalMessageOrReply(interaction, evaluationQuestionnairePayload(request, promotion, interaction.guild, draft, "Etapa salva."));
+  await updateModalMessageOrReply(interaction, evaluationStepConfirmationPayload(request, promotion, interaction.guild, draft, step));
+  return true;
+}
+
+async function confirmEvaluationStep(interaction: ButtonInteraction<"cached">, context: BotContext) {
+  const requestId = interaction.customId.split(":")[2];
+  if (!requestId) return true;
+  const request = await context.api.getPolicePromotionRequest(requestId);
+  if (request.evaluatorId !== interaction.user.id) {
+    await interaction.reply({ content: "Esta avaliação pertence a outro avaliador.", ephemeral: true });
+    return true;
+  }
+  if (request.status !== "in_evaluation") {
+    await interaction.reply({ content: "Esta avaliação não está em preenchimento.", ephemeral: true });
+    return true;
+  }
+
+  const settings = await getSettings(context, interaction.guild.id);
+  const promotion = promotionFor(settings, request);
+  if (!promotion) {
+    await interaction.reply({ content: "Configuração da promoção não encontrada.", ephemeral: true });
+    return true;
+  }
+
+  const key = evaluationDraftKey(request.id, interaction.user.id);
+  const draft = evaluationQuestionnaireDrafts.get(key) ?? evaluationDraftFromRequest(request, interaction.user.id, interaction.guild.id);
+  const pending = draft.pending;
+  if (!pending || pending.step !== nextAvailableEvaluationStep(draft)) {
+    await interaction.reply({ content: "Não foi possível confirmar esta etapa. Reabra a etapa disponível e tente novamente.", ephemeral: true });
+    return true;
+  }
+
+  setEvaluationStepAnswer(draft, pending.step, pending.answer);
+  draft.pending = undefined;
+  draft.updatedAt = Date.now();
+  evaluationQuestionnaireDrafts.set(key, draft);
+  await context.api.addPolicePromotionHistory(request.id, {
+    action: "request.evaluation_step_saved",
+    actorId: interaction.user.id,
+    actorName: displayName(interaction.member as GuildMember, interaction.user.username),
+    metadata: {
+      answer: pending.answer,
+      completedSteps: completedEvaluationSteps(draft),
+      step: pending.step,
+      stepName: evaluationStepTitle(pending.step)
+    }
+  }).catch(() => null);
+  await interaction.update(evaluationQuestionnairePayload(request, promotion, interaction.guild, draft, "Etapa concluída e salva com sucesso. A próxima etapa foi liberada.") as any);
+  return true;
+}
+
+async function editPendingEvaluationStep(interaction: ButtonInteraction<"cached">) {
+  const requestId = interaction.customId.split(":")[2];
+  if (!requestId) return true;
+  const draft = evaluationQuestionnaireDrafts.get(evaluationDraftKey(requestId, interaction.user.id));
+  if (!draft?.pending) {
+    await interaction.reply({ content: "Não existe resposta pendente para editar.", ephemeral: true });
+    return true;
+  }
+  await interaction.showModal(evaluationStepModal(requestId, draft.pending.step, draft));
+  return true;
+}
+
+async function showEvaluationPanel(interaction: ButtonInteraction<"cached">, context: BotContext) {
+  const requestId = interaction.customId.split(":")[2];
+  if (!requestId) return true;
+  const request = await context.api.getPolicePromotionRequest(requestId);
+  if (request.evaluatorId !== interaction.user.id) {
+    await interaction.reply({ content: "Esta avaliação pertence a outro avaliador.", ephemeral: true });
+    return true;
+  }
+  const settings = await getSettings(context, interaction.guild.id);
+  const promotion = promotionFor(settings, request);
+  if (!promotion) return true;
+  const key = evaluationDraftKey(request.id, interaction.user.id);
+  const draft = evaluationQuestionnaireDrafts.get(key) ?? evaluationDraftFromRequest(request, interaction.user.id, interaction.guild.id);
+  draft.pending = undefined;
+  evaluationQuestionnaireDrafts.set(key, draft);
+  await interaction.update(evaluationQuestionnairePayload(request, promotion, interaction.guild, draft) as any);
   return true;
 }
 
@@ -555,15 +644,96 @@ async function handleEvaluationReview(interaction: ButtonInteraction<"cached">, 
   }
 
   evaluationDrafts.set(evaluationDraftKey(request.id, interaction.user.id), evaluation.draft);
-  await interaction.update(evaluationResultPayload(request, promotion, interaction.guild, evaluation.draft) as any);
+  await interaction.update(evaluationReviewPayload(request, promotion, interaction.guild, draft!, evaluation.draft) as any);
+  return true;
+}
+
+async function submitEvaluationReview(interaction: ButtonInteraction<"cached">, context: BotContext) {
+  const requestId = interaction.customId.split(":")[2];
+  if (!requestId) return true;
+  const request = await context.api.getPolicePromotionRequest(requestId);
+  if (request.evaluatorId !== interaction.user.id) {
+    await interaction.reply({ content: "Esta avaliação pertence a outro avaliador.", ephemeral: true });
+    return true;
+  }
+  if (request.status !== "in_evaluation") {
+    await interaction.reply({ content: "Esta avaliação já foi enviada ou encerrada.", ephemeral: true });
+    return true;
+  }
+
+  const settings = await getSettings(context, interaction.guild.id);
+  const promotion = promotionFor(settings, request);
+  if (!promotion) {
+    await interaction.reply({ content: "Configuração da promoção não encontrada.", ephemeral: true });
+    return true;
+  }
+
+  const draft = evaluationQuestionnaireDrafts.get(evaluationDraftKey(request.id, interaction.user.id)) ?? evaluationDraftFromRequest(request, interaction.user.id, interaction.guild.id);
+  const missingSteps = missingEvaluationQuestionnaireSteps(draft);
+  if (missingSteps.length) {
+    await interaction.reply({ content: "Não foi possível enviar esta avaliação porque ainda existem etapas pendentes.", ephemeral: true });
+    return true;
+  }
+
+  const evaluation = buildPlainClothesEvaluation({
+    conduct: draft.conduct ?? "",
+    final: draft.final ?? "",
+    instructorId: interaction.user.id,
+    instructorName: displayName(interaction.member as GuildMember, interaction.user.username),
+    notes: draft.notes ?? "",
+    operational: draft.operational ?? "",
+    patrol: draft.patrol ?? "",
+    request
+  });
+  if (evaluation.errors.length) {
+    await interaction.reply(validationErrorPayload(evaluation.errors, interaction.guild) as any);
+    return true;
+  }
+
+  await interaction.deferUpdate();
+  const updated = await context.api.finishPolicePromotionEvaluation(request.id, { evaluatorId: interaction.user.id, evaluationNotes: evaluation.draft.notes, evaluationResult: evaluation.draft.finalResult });
+  evaluationDrafts.delete(evaluationDraftKey(request.id, interaction.user.id));
+  evaluationQuestionnaireDrafts.delete(evaluationDraftKey(request.id, interaction.user.id));
+  await sendApprovalPanel(interaction.guild, context, settings, promotion, updated);
+  await interaction.editReply(evaluationSubmittedPayload(updated, promotion, interaction.guild) as any);
+  if (interaction.channel?.isTextBased() && !interaction.channel.isDMBased() && "messages" in interaction.channel && updated.channelMessageId) {
+    const message = await interaction.channel.messages.fetch(updated.channelMessageId).catch(() => null);
+    await message?.edit(ticketPayload(updated, promotion, interaction.guild) as any).catch(() => null);
+  }
   return true;
 }
 
 async function cancelEvaluationQuestionnaire(interaction: ButtonInteraction<"cached">) {
   const requestId = interaction.customId.split(":")[2];
+  if (!requestId) return true;
+  await interaction.update({
+    components: [{
+      type: 17,
+      accent_color: 0xef4444,
+      components: [
+        { type: 10, content: `# ${icon("exclamacao", interaction.guild)} Cancelar avaliação\nTem certeza de que deseja cancelar esta avaliação? Os dados ainda não enviados serão encerrados.` },
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(`${PREFIX}:eval_cancel_confirm:${requestId}`).setEmoji(systemComponentEmoji("exclamacao", interaction.guild)).setLabel("Confirmar cancelamento").setStyle(ButtonStyle.Danger),
+          new ButtonBuilder().setCustomId(`${PREFIX}:eval_panel:${requestId}`).setEmoji(systemComponentEmoji("porta", interaction.guild)).setLabel("Voltar").setStyle(ButtonStyle.Secondary)
+        )
+      ]
+    }],
+    flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
+  } as any);
+  return true;
+}
+
+async function confirmCancelEvaluationQuestionnaire(interaction: ButtonInteraction<"cached">, context: BotContext) {
+  const requestId = interaction.customId.split(":")[2];
   if (requestId) {
     evaluationQuestionnaireDrafts.delete(evaluationDraftKey(requestId, interaction.user.id));
     evaluationDrafts.delete(evaluationDraftKey(requestId, interaction.user.id));
+    await context.api.addPolicePromotionHistory(requestId, {
+      action: "request.evaluation_cancelled",
+      actorId: interaction.user.id,
+      actorName: displayName(interaction.member as GuildMember, interaction.user.username),
+      metadata: { channelId: interaction.channelId }
+    }).catch(() => null);
   }
   await interaction.update({
     components: [{
@@ -1057,16 +1227,13 @@ const PCD_CRITERIA = [
   { aliases: ["adaptacao", "adaptar"], section: "conduct", title: "Adaptação a imprevistos" }
 ] as const;
 
+const EVALUATION_STEPS: EvaluationStep[] = ["patrol", "operational", "conduct", "notes", "final"];
+
 function evaluationQuestionnairePayload(request: PolicePromotionRequest, promotion: PolicePromotionDefinition, guild: Guild, draft: EvaluationQuestionnaireDraft, message: string | null = null): MessageCreateOptions {
-  const progress = [
-    ["patrol", "Identificação da patrulha", draft.patrol],
-    ["operational", "Avaliação operacional", draft.operational],
-    ["conduct", "Comportamento e conduta", draft.conduct],
-    ["notes", "Observações gerais", draft.notes],
-    ["final", "Avaliação final", draft.final]
-  ] as const;
+  const progress = EVALUATION_STEPS.map((step) => [step, evaluationStepTitle(step), evaluationStepAnswerFor(draft, step)] as const);
   const missingSteps = missingEvaluationQuestionnaireSteps(draft);
   const canReview = missingSteps.length === 0;
+  const completedCount = completedEvaluationSteps(draft).length;
   return {
     components: [{
       type: 17,
@@ -1081,19 +1248,21 @@ function evaluationQuestionnairePayload(request: PolicePromotionRequest, promoti
           `${icon("homem", guild)} Instrutor\n<@${draft.userId}>`,
           "",
           `${icon("trofeu", guild)} Promoção\n${escapeMarkdown(request.currentRank)} → ${escapeMarkdown(request.targetRank)}`,
+          "",
+          `${icon("folha", guild)} Progresso\n${completedCount} de ${EVALUATION_STEPS.length} etapas concluídas`,
           message ? `\n${icon(canReview ? "visto" : "alerta", guild)} ${escapeMarkdown(message)}` : "",
-          !canReview ? `\n${icon("relogio", guild)} Falta preencher: ${escapeMarkdown(missingSteps.join(", "))}.` : ""
+          !canReview ? `\n${icon("relogio", guild)} Falta preencher: ${escapeMarkdown(missingSteps.join(", "))}.` : `\n${icon("visto", guild)} Todas as etapas foram concluídas. A avaliação já pode ser revisada e enviada.`
         ].join("\n") },
         { type: 14, divider: true, spacing: 1 },
-        { type: 10, content: progress.map(([, label, value]) => `${value ? icon("visto", guild) : icon("relogio", guild)} ${label}`).join("\n") },
+        { type: 10, content: progress.map(([step, label, value]) => `${evaluationStepStatusIcon(draft, step, guild)} ${label}${value ? "" : ""}`).join("\n") },
         new ActionRowBuilder<ButtonBuilder>().addComponents(
-          evaluationStepButton(request.id, "patrol", "1 Patrulha", guild, Boolean(draft.patrol)),
-          evaluationStepButton(request.id, "operational", "2 Operacional", guild, Boolean(draft.operational)),
-          evaluationStepButton(request.id, "conduct", "3 Conduta", guild, Boolean(draft.conduct))
+          evaluationStepButton(request.id, draft, "patrol", "1 Patrulha", guild),
+          evaluationStepButton(request.id, draft, "operational", "2 Operacional", guild),
+          evaluationStepButton(request.id, draft, "conduct", "3 Conduta", guild)
         ),
         new ActionRowBuilder<ButtonBuilder>().addComponents(
-          evaluationStepButton(request.id, "notes", "4 Observações", guild, Boolean(draft.notes)),
-          evaluationStepButton(request.id, "final", "5 Final", guild, Boolean(draft.final)),
+          evaluationStepButton(request.id, draft, "notes", "4 Observações", guild),
+          evaluationStepButton(request.id, draft, "final", "5 Final", guild),
           new ButtonBuilder().setCustomId(`${PREFIX}:eval_review:${request.id}`).setEmoji(systemComponentEmoji("visto", guild)).setLabel("Revisar / Enviar").setStyle(ButtonStyle.Success).setDisabled(!canReview),
           new ButtonBuilder().setCustomId(`${PREFIX}:eval_cancel:${request.id}`).setEmoji(systemComponentEmoji("exclamacao", guild)).setLabel("Cancelar").setStyle(ButtonStyle.Danger)
         )
@@ -1103,12 +1272,91 @@ function evaluationQuestionnairePayload(request: PolicePromotionRequest, promoti
   };
 }
 
-function evaluationStepButton(requestId: string, step: EvaluationStep, label: string, guild: Guild, completed: boolean) {
+function evaluationStepConfirmationPayload(request: PolicePromotionRequest, promotion: PolicePromotionDefinition, guild: Guild, draft: EvaluationQuestionnaireDraft, step: EvaluationStep): MessageCreateOptions {
+  const answer = draft.pending?.step === step ? draft.pending.answer : "";
+  return {
+    components: [{
+      type: 17,
+      accent_color: parseColor(promotion.color),
+      components: [
+        { type: 10, content: [
+          `# ${icon("prancheta_caneta", guild)} Confirmar informações`,
+          `## ${escapeMarkdown(evaluationStepTitle(step))}`,
+          "",
+          "Confira os dados informados abaixo antes de salvar definitivamente.",
+          "",
+          escapeMarkdown(answer || "Nenhuma informação registrada.")
+        ].join("\n") },
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(`${PREFIX}:eval_step_confirm:${request.id}`).setEmoji(systemComponentEmoji("visto", guild)).setLabel("Confirmar envio").setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId(`${PREFIX}:eval_step_edit:${request.id}`).setEmoji(systemComponentEmoji("prancheta", guild)).setLabel("Editar resposta").setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId(`${PREFIX}:eval_panel:${request.id}`).setEmoji(systemComponentEmoji("porta", guild)).setLabel("Cancelar").setStyle(ButtonStyle.Danger)
+        )
+      ]
+    }],
+    flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
+  };
+}
+
+function evaluationReviewPayload(request: PolicePromotionRequest, promotion: PolicePromotionDefinition, guild: Guild, draft: EvaluationQuestionnaireDraft, evaluation: EvaluationDraft): MessageCreateOptions {
+  return {
+    components: [{
+      type: 17,
+      accent_color: parseColor(promotion.color),
+      components: [
+        { type: 10, content: [
+          `# ${icon("prancheta_caneta", guild)} Revisão da Avaliação`,
+          "",
+          `${icon("homem", guild)} Avaliado\n<@${request.requesterId}>`,
+          "",
+          `${icon("homem", guild)} Instrutor\n<@${draft.userId}>`,
+          "",
+          evaluation.scoreLine
+        ].join("\n") },
+        { type: 14, divider: true, spacing: 1 },
+        { type: 10, content: EVALUATION_STEPS.map((step, index) => `## ${index + 1}. ${escapeMarkdown(evaluationStepTitle(step))}\n${escapeMarkdown(evaluationStepAnswerFor(draft, step) || "Não informado")}`).join("\n\n") },
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(`${PREFIX}:eval_submit:${request.id}`).setEmoji(systemComponentEmoji("visto", guild)).setLabel("Confirmar e enviar").setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId(`${PREFIX}:eval_panel:${request.id}`).setEmoji(systemComponentEmoji("porta", guild)).setLabel("Voltar").setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId(`${PREFIX}:eval_cancel:${request.id}`).setEmoji(systemComponentEmoji("exclamacao", guild)).setLabel("Cancelar avaliação").setStyle(ButtonStyle.Danger)
+        )
+      ]
+    }],
+    flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
+  };
+}
+
+function evaluationSubmittedPayload(request: PolicePromotionRequest, promotion: PolicePromotionDefinition, guild: Guild): MessageCreateOptions {
+  const now = new Date();
+  return {
+    components: [{
+      type: 17,
+      accent_color: parseColor(promotion.color),
+      components: [{ type: 10, content: [
+        `# ${icon("visto", guild)} Avaliação enviada`,
+        "",
+        "A avaliação foi enviada com sucesso para análise.",
+        "",
+        `${icon("relogio", guild)} Status\nAguardando aprovação`,
+        "",
+        `${icon("homem", guild)} Enviado por\n${request.evaluatorId ? `<@${request.evaluatorId}>` : "Instrutor"}`,
+        "",
+        `${icon("calendario", guild)} Data e horário\n${formatDate(now.toISOString())}`
+      ].join("\n") }]
+    }],
+    flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
+  };
+}
+
+function evaluationStepButton(requestId: string, draft: EvaluationQuestionnaireDraft, step: EvaluationStep, label: string, guild: Guild) {
+  const completed = Boolean(evaluationStepAnswerFor(draft, step));
+  const available = nextAvailableEvaluationStep(draft) === step;
   return new ButtonBuilder()
     .setCustomId(`${PREFIX}:eval_step:${requestId}:${step}`)
-    .setEmoji(systemComponentEmoji(completed ? "visto" : "prancheta", guild))
+    .setEmoji(systemComponentEmoji(completed ? "visto" : available ? "prancheta" : "porta", guild))
     .setLabel(label)
-    .setStyle(completed ? ButtonStyle.Success : ButtonStyle.Secondary);
+    .setStyle(completed ? ButtonStyle.Success : ButtonStyle.Secondary)
+    .setDisabled(completed || !available);
 }
 
 function evaluationStepModal(requestId: string, step: EvaluationStep, draft: EvaluationQuestionnaireDraft) {
@@ -1116,40 +1364,45 @@ function evaluationStepModal(requestId: string, step: EvaluationStep, draft: Eva
     .setCustomId(`${PREFIX}:eval_step_modal:${requestId}:${step}`)
     .setTitle(evaluationStepTitle(step));
   if (step === "patrol") {
+    const current = modalValueForStep(draft, step);
     modal.addComponents(
-      evaluationShortInput("patrol_date", "Data da patrulha", "DD/MM/AAAA", valueFromLine(draft.patrol, "Data")),
-      evaluationShortInput("patrol_start", "Horário inicial", "10:00", valueFromLine(draft.patrol, "Inicio")),
-      evaluationShortInput("patrol_end", "Horário final", "12:00", valueFromLine(draft.patrol, "Fim"))
+      evaluationShortInput("patrol_date", "Data da patrulha", "DD/MM/AAAA", valueFromLine(current, "Data")),
+      evaluationShortInput("patrol_start", "Horário inicial", "10:00", valueFromLine(current, "Inicio")),
+      evaluationShortInput("patrol_end", "Horário final", "12:00", valueFromLine(current, "Fim"))
     );
     return modal;
   }
   if (step === "operational") {
+    const current = modalValueForStep(draft, step);
     modal.addComponents(
-      evaluationInput("decisions", "Decisões rápidas", "Bom - justificativa detalhada", 500, valueFromLine(draft.operational, "Decisões")),
-      evaluationInput("approaches", "Abordagens seguras", "Excelente - justificativa detalhada", 500, valueFromLine(draft.operational, "Abordagens")),
-      evaluationInput("pursuits", "Acompanhamentos adequados", "Regular - justificativa detalhada", 500, valueFromLine(draft.operational, "Acompanhamentos"))
+      evaluationInput("decisions", "Decisões rápidas", "Bom - justificativa detalhada", 500, valueFromLine(current, "Decisões")),
+      evaluationInput("approaches", "Abordagens seguras", "Excelente - justificativa detalhada", 500, valueFromLine(current, "Abordagens")),
+      evaluationInput("pursuits", "Acompanhamentos adequados", "Regular - justificativa detalhada", 500, valueFromLine(current, "Acompanhamentos"))
     );
     return modal;
   }
   if (step === "conduct") {
+    const current = modalValueForStep(draft, step);
     modal.addComponents(
-      evaluationInput("professional", "Comportamento profissional", "Bom - justificativa detalhada", 500, valueFromLine(draft.conduct, "Comportamento")),
-      evaluationInput("communication", "Comunicação", "Bom - justificativa detalhada", 500, valueFromLine(draft.conduct, "Comunicação")),
-      evaluationInput("adaptation", "Adaptação a imprevistos", "Excelente - justificativa detalhada", 500, valueFromLine(draft.conduct, "Adaptação"))
+      evaluationInput("professional", "Comportamento profissional", "Bom - justificativa detalhada", 500, valueFromLine(current, "Comportamento")),
+      evaluationInput("communication", "Comunicação", "Bom - justificativa detalhada", 500, valueFromLine(current, "Comunicação")),
+      evaluationInput("adaptation", "Adaptação a imprevistos", "Excelente - justificativa detalhada", 500, valueFromLine(current, "Adaptação"))
     );
     return modal;
   }
   if (step === "notes") {
+    const current = modalValueForStep(draft, step);
     modal.addComponents(
-      evaluationInput("strengths", "Pontos fortes", "Descreva os principais pontos positivos.", 800, valueFromLine(draft.notes, "Pontos fortes")),
-      evaluationInput("improvements", "Áreas de melhoria", "Descreva o que precisa evoluir.", 800, valueFromLine(draft.notes, "Melhorias")),
-      evaluationInput("intervention", "Intervenção do FTO", "Não ou Sim - descreva a intervenção", 800, valueFromLine(draft.notes, "Intervenção"))
+      evaluationInput("strengths", "Pontos fortes", "Descreva os principais pontos positivos.", 800, valueFromLine(current, "Pontos fortes")),
+      evaluationInput("improvements", "Áreas de melhoria", "Descreva o que precisa evoluir.", 800, valueFromLine(current, "Melhorias")),
+      evaluationInput("intervention", "Intervenção do FTO", "Não ou Sim - descreva a intervenção", 800, valueFromLine(current, "Intervenção"))
     );
     return modal;
   }
+  const current = modalValueForStep(draft, step);
   modal.addComponents(
-    evaluationShortInput("apt", "Cadet apto?", "Sim ou Não", valueFromLine(draft.final, "Apto")),
-    evaluationInput("final_justification", "Justificativa final", "Explique a decisão final.", 1000, valueFromLine(draft.final, "Justificativa"))
+    evaluationShortInput("apt", "Cadet apto?", "Sim ou Não", valueFromLine(current, "Apto")),
+    evaluationInput("final_justification", "Justificativa final", "Explique a decisão final.", 1000, valueFromLine(current, "Justificativa"))
   );
   return modal;
 }
@@ -1187,40 +1440,52 @@ function createEvaluationQuestionnaireDraft(request: PolicePromotionRequest, int
   };
 }
 
-function applyEvaluationStepValues(draft: EvaluationQuestionnaireDraft, step: EvaluationStep, interaction: ModalSubmitInteraction<"cached">) {
+function evaluationDraftFromRequest(request: PolicePromotionRequest, userId: string, guildId: string): EvaluationQuestionnaireDraft {
+  const draft: EvaluationQuestionnaireDraft = {
+    guildId,
+    requestId: request.id,
+    updatedAt: Date.now(),
+    userId
+  };
+  for (const entry of request.history ?? []) {
+    if (entry.action !== "request.evaluation_step_saved") continue;
+    const step = typeof entry.metadata?.step === "string" && isEvaluationStep(entry.metadata.step) ? entry.metadata.step : null;
+    const answer = typeof entry.metadata?.answer === "string" ? entry.metadata.answer : "";
+    if (step && answer) setEvaluationStepAnswer(draft, step, answer);
+  }
+  return draft;
+}
+
+function evaluationStepAnswer(step: EvaluationStep, interaction: ModalSubmitInteraction<"cached">) {
   if (step === "patrol") {
-    draft.patrol = [
+    return [
       `Data: ${interaction.fields.getTextInputValue("patrol_date")}`,
       `Inicio: ${interaction.fields.getTextInputValue("patrol_start")}`,
       `Fim: ${interaction.fields.getTextInputValue("patrol_end")}`
     ].join("\n");
-    return;
   }
   if (step === "operational") {
-    draft.operational = [
+    return [
       `Decisões: ${oneLineEvaluationValue(interaction.fields.getTextInputValue("decisions"))}`,
       `Abordagens: ${oneLineEvaluationValue(interaction.fields.getTextInputValue("approaches"))}`,
       `Acompanhamentos: ${oneLineEvaluationValue(interaction.fields.getTextInputValue("pursuits"))}`
     ].join("\n");
-    return;
   }
   if (step === "conduct") {
-    draft.conduct = [
+    return [
       `Comportamento: ${oneLineEvaluationValue(interaction.fields.getTextInputValue("professional"))}`,
       `Comunicação: ${oneLineEvaluationValue(interaction.fields.getTextInputValue("communication"))}`,
       `Adaptação: ${oneLineEvaluationValue(interaction.fields.getTextInputValue("adaptation"))}`
     ].join("\n");
-    return;
   }
   if (step === "notes") {
-    draft.notes = [
+    return [
       `Pontos fortes: ${oneLineEvaluationValue(interaction.fields.getTextInputValue("strengths"))}`,
       `Melhorias: ${oneLineEvaluationValue(interaction.fields.getTextInputValue("improvements"))}`,
       `Intervenção: ${oneLineEvaluationValue(interaction.fields.getTextInputValue("intervention"))}`
     ].join("\n");
-    return;
   }
-  draft.final = [
+  return [
     `Apto: ${oneLineEvaluationValue(interaction.fields.getTextInputValue("apt"))}`,
     `Justificativa: ${oneLineEvaluationValue(interaction.fields.getTextInputValue("final_justification"))}`
   ].join("\n");
@@ -1241,15 +1506,45 @@ function isEvaluationStep(value: string | undefined): value is EvaluationStep {
   return value === "patrol" || value === "operational" || value === "conduct" || value === "notes" || value === "final";
 }
 
+function evaluationStepAnswerFor(draft: EvaluationQuestionnaireDraft, step: EvaluationStep) {
+  if (step === "patrol") return draft.patrol ?? "";
+  if (step === "operational") return draft.operational ?? "";
+  if (step === "conduct") return draft.conduct ?? "";
+  if (step === "notes") return draft.notes ?? "";
+  return draft.final ?? "";
+}
+
+function modalValueForStep(draft: EvaluationQuestionnaireDraft, step: EvaluationStep) {
+  return draft.pending?.step === step ? draft.pending.answer : evaluationStepAnswerFor(draft, step);
+}
+
+function setEvaluationStepAnswer(draft: EvaluationQuestionnaireDraft, step: EvaluationStep, answer: string) {
+  if (step === "patrol") draft.patrol = answer;
+  else if (step === "operational") draft.operational = answer;
+  else if (step === "conduct") draft.conduct = answer;
+  else if (step === "notes") draft.notes = answer;
+  else draft.final = answer;
+}
+
+function completedEvaluationSteps(draft: EvaluationQuestionnaireDraft) {
+  return EVALUATION_STEPS.filter((step) => Boolean(evaluationStepAnswerFor(draft, step)));
+}
+
+function nextAvailableEvaluationStep(draft: EvaluationQuestionnaireDraft) {
+  return EVALUATION_STEPS.find((step) => !evaluationStepAnswerFor(draft, step)) ?? null;
+}
+
+function evaluationStepStatusIcon(draft: EvaluationQuestionnaireDraft, step: EvaluationStep, guild: Guild) {
+  if (evaluationStepAnswerFor(draft, step)) return icon("visto", guild);
+  if (nextAvailableEvaluationStep(draft) === step) return icon("relogio", guild);
+  return icon("porta", guild);
+}
+
 function missingEvaluationQuestionnaireSteps(draft: EvaluationQuestionnaireDraft | null | undefined) {
   if (!draft) return ["Patrulha", "Operacional", "Conduta", "Observações", "Final"];
-  return [
-    [draft.patrol, "Patrulha"],
-    [draft.operational, "Operacional"],
-    [draft.conduct, "Conduta"],
-    [draft.notes, "Observações"],
-    [draft.final, "Final"]
-  ].filter(([value]) => !value).map(([, label]) => label);
+  return EVALUATION_STEPS
+    .filter((step) => !evaluationStepAnswerFor(draft, step))
+    .map((step) => evaluationStepTitle(step));
 }
 
 function oneLineEvaluationValue(value: string) {
