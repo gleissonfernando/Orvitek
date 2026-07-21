@@ -35,7 +35,6 @@ export function App() {
   const rouletteToken = rouletteTokenFromPath(path);
   const productRoute = nexTechProductRouteFromPath(path);
   const routeError = readAuthError();
-  const authCallbackLanding = isAuthCallbackLanding();
   const dashboardPath = isDashboardRoutePath(path);
   const devPanelPath = path === "/dev" || path.startsWith("/dev/");
   const protectedPanelPath = dashboardPath || devPanelPath;
@@ -75,18 +74,6 @@ export function App() {
 
     loginDiscord();
   }, [accessDeniedError, auth, protectedPanelPath, botRegistrationPath, docsPath, error, loading, loginDiscord, paymentReturnStatus, pixPaymentOrderId, plansPath, productRoute, routeError, rouletteToken]);
-
-  useEffect(() => {
-    if (rouletteToken || productRoute || docsPath || plansPath || paymentReturnStatus || pixPaymentOrderId || botRegistrationPath) {
-      return;
-    }
-
-    if (!authCallbackLanding || !auth || auth.access.verified || verifying) {
-      return;
-    }
-
-    verify();
-  }, [auth, authCallbackLanding, botRegistrationPath, docsPath, paymentReturnStatus, pixPaymentOrderId, plansPath, productRoute, rouletteToken, verify, verifying]);
 
   if (docsPath) {
     return <DocsPage />;
@@ -188,10 +175,6 @@ function readAuthError() {
   }
 
   return "Não foi possível conectar com o Discord. Verifique se o aplicativo está configurado corretamente.";
-}
-
-function isAuthCallbackLanding() {
-  return new URLSearchParams(window.location.search).get("auth") === "callback";
 }
 
 function rouletteTokenFromPath(path: string) {

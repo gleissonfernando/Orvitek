@@ -160,7 +160,8 @@ export function Login({
 }: LoginProps) {
   const [publicServers, setPublicServers] = useState<PublicServer[]>([]);
   const currentYear = new Date().getFullYear();
-  const startLabel = verifying ? "Entrando..." : "Entrar na Dashboard";
+  const verificationPending = Boolean(auth && !auth.access.verified);
+  const startLabel = verifying ? "Verificando..." : verificationPending ? "Verificar acesso" : "Entrar na Dashboard";
 
   useEffect(() => {
     let active = true;
@@ -218,7 +219,9 @@ export function Login({
 
         <Reveal delay={0.3} className="max-w-5xl">
           <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-[#B3B3B3] sm:text-lg">
-            Entre pela Dashboard com OAuth2 do Discord, configure seus bots e controle módulos, permissões, canais e logs em tempo real.
+            {verificationPending
+              ? "Confirme a segunda etapa de autenticação para liberar a dashboard deste usuário."
+              : "Entre pela Dashboard com OAuth2 do Discord, configure seus bots e controle módulos, permissões, canais e logs em tempo real."}
           </p>
         </Reveal>
 

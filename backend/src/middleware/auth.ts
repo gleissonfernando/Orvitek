@@ -117,15 +117,15 @@ async function ensureVerifiedRoleAccess(req: Request, res: Response, auth: Dashb
   const lastValidation = typeof req.session.accessValidatedAt === "number" ? req.session.accessValidatedAt : 0;
 
   if (isDashboardDevUserId(auth.user.discordId)) {
-    const freshAuth = auth.verified && auth.user.authorized === true && auth.user.accessLevel === "admin"
+    const freshAuth = auth.user.authorized === true && auth.user.accessLevel === "admin"
       ? auth
       : issueAuthCookies(res, {
           ...auth.user,
           accessLevel: "admin",
           authorized: true
-        }, true);
+        }, auth.verified);
     req.session.user = freshAuth.user;
-    req.session.verified = true;
+    req.session.verified = freshAuth.verified;
     req.session.accessValidatedAt = Date.now();
     return freshAuth;
   }
@@ -154,7 +154,7 @@ async function ensureVerifiedRoleAccess(req: Request, res: Response, auth: Dashb
   }
 
   const validatedUser = applyDashboardAccessValidation(auth.user, validation);
-  const freshAuth = issueAuthCookies(res, validatedUser, true);
+  const freshAuth = issueAuthCookies(res, validatedUser, auth.verified);
   req.session.user = freshAuth.user;
   req.session.verified = freshAuth.verified;
   req.session.accessValidatedAt = Date.now();

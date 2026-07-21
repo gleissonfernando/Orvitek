@@ -559,15 +559,15 @@ authRouter.get("/discord/callback", async (req, res, next) => {
     }
 
     req.session.user = validatedUser;
-    req.session.verified = true;
+    req.session.verified = false;
     req.session.oauthState = undefined;
     req.session.discordAccessToken = tokens.access_token;
     req.session.discordRefreshToken = undefined;
     req.session.accessValidatedAt = Date.now();
 
-    issueAuthCookies(res, req.session.user, true);
+    issueAuthCookies(res, req.session.user, false);
     await saveSession(req);
-    console.info(`[auth] oauth: sessão validada criada para ${discordUser.id}; redirect=${redirectTo}.`);
+    console.info(`[auth] oauth: sessão autenticada criada para ${discordUser.id}; aguardando verificação de acesso; redirect=${redirectTo}.`);
     return res.redirect(authCallbackLandingUrl(redirectTo));
   } catch (error) {
     console.error("[auth] oauth: falha no callback:", error instanceof Error ? error.message : error);
@@ -605,7 +605,7 @@ authRouter.get("/me", async (req, res, next) => {
       validation = await withAuthTimeout("dashboard_access_check", evaluateDashboardAccess(currentAuth.user, accessValidationOptions(req)));
 
       if (validation.allowed) {
-        currentAuth = issueAuthCookies(res, applyDashboardAccessValidation(currentAuth.user, validation), true);
+        currentAuth = issueAuthCookies(res, applyDashboardAccessValidation(currentAuth.user, validation), false);
       } else {
         currentAuth = issueAuthCookies(res, createDeniedAccessUser(currentAuth.user), false);
       }
