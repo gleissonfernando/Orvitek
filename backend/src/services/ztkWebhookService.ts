@@ -12,6 +12,7 @@ export type SaveZtkClanInput = Partial<{
   active: boolean;
   clanName: string;
   dominationChannelId: string | null;
+  discordWebhookUrl: string | null;
   rankingChannelId: string | null;
   recruitmentChannelId: string | null;
   rewardChannelId: string | null;
@@ -135,6 +136,9 @@ export async function createZtkClan(guildId: string, botId: string | null, input
 
 export async function updateZtkClan(guildId: string, botId: string | null, clanId: string, input: SaveZtkClanInput, actorId: string | null) {
   const resolvedBotId = requireBotId(botId);
+  const { ztkWebhookClans } = await getMongoCollections();
+  const before = await ztkWebhookClans.findOne({ _id: clanId, botId: resolvedBotId, guildId });
+  if (!before) return null;
   const patch: Partial<MongoZtkWebhookClan> = {
     updatedAt: new Date()
   };
@@ -145,10 +149,33 @@ export async function updateZtkClan(guildId: string, botId: string | null, clanI
   if (input.dominationChannelId !== undefined) patch.dominationChannelId = normalizeNullable(input.dominationChannelId);
   if (input.rewardChannelId !== undefined) patch.rewardChannelId = normalizeNullable(input.rewardChannelId);
   if (input.settingsChannelId !== undefined) patch.settingsChannelId = normalizeNullable(input.settingsChannelId);
+  if (input.discordWebhookUrl !== undefined) {
+    const webhookUrl = normalizeNullable(input.discordWebhookUrl);
+    if (!webhookUrl) {
+      patch.discordWebhookChannelId = null;
+      patch.discordWebhookId = null;
+      patch.discordWebhookUrl = null;
+      patch.webhookCreatedAt = null;
+      patch.webhookEnabled = false;
+      patch.webhookToken = null;
+    } else {
+      const webhookId = discordWebhookIdFromUrl(webhookUrl);
+      if (!webhookId) {
+        throw Object.assign(new Error("Informe uma URL de webhook Discord válida."), { statusCode: 400 });
+      }
+      const existing = await ztkWebhookClans.findOne({ botId: resolvedBotId, guildId, discordWebhookId: webhookId });
+      if (existing && existing._id !== before._id) {
+        throw Object.assign(new Error("Essa webhook Discord já está cadastrada em outro clã ZTK."), { statusCode: 409 });
+      }
+      patch.discordWebhookChannelId = patch.settingsChannelId ?? before?.settingsChannelId ?? null;
+      patch.discordWebhookId = webhookId;
+      patch.discordWebhookUrl = webhookUrl;
+      patch.webhookCreatedAt = new Date();
+      patch.webhookEnabled = true;
+      patch.webhookToken = null;
+    }
+  }
 
-  const { ztkWebhookClans } = await getMongoCollections();
-  const before = await ztkWebhookClans.findOne({ _id: clanId, botId: resolvedBotId, guildId });
-  if (!before) return null;
   await ztkWebhookClans.updateOne({ _id: before._id }, { $set: patch });
   const clan = (await ztkWebhookClans.findOne({ _id: before._id })) ?? before;
   await audit(clan, actorId, "clan_updated", `Configuração ZTK atualizada: ${clan.clanName}.`);
@@ -452,31 +479,40 @@ async function topPlayers(
 function parseZtkPayload(rawPayload: unknown, rawBody: string, fallbackClanName: string) {
   const rawText = collectText(rawPayload) || rawBody || "";
   const normalized = normalize(rawText);
-  const eventType: MongoZtkWebhookEventType = normalized.includes("novo membro")
+  const fields = collectLabelMap(rawPayload);
+  const eventType: MongoZtkWebhookEventType = hasAny(normalized, ["novo membro", "novo integrante", "recrutamento", "recrutado", "recrutou"])
     ? "recruitment"
-    : normalized.includes("dominacao concluida") || normalized.includes("dominação concluída")
+    : hasAny(normalized, ["dominacao concluida", "dominacao finalizada", "dominação concluída", "dominado", "territorio dominado", "território dominado"])
       ? "domination"
-      : normalized.includes("player connected")
+      : hasAny(normalized, ["player connected", "player connect", "jogador conectado", "entrou no servidor"])
         ? "player_connected"
-        : normalized.includes("player disconnected")
+        : hasAny(normalized, ["player disconnected", "player disconnect", "jogador desconectado", "saiu do servidor"])
           ? "player_disconnected"
           : "unknown";
-  const object = isRecord(rawPayload) ? rawPayload : {};
-  const timestampValue = readString(object, ["timestamp", "time", "date", "createdAt"]) ?? regex(rawText, /(?:data|hor[aá]rio|timestamp)[:\s]+([0-9/:\-\sTZ.]+)/i);
-  const playerName = readString(object, ["player", "playerName", "jogador", "responsavel", "responsável", "member", "nome"])
+  const timestampValue = readStringDeep(rawPayload, ["timestamp", "time", "date", "createdAt"])
+    ?? readField(fields, ["data", "horario", "horário", "hora", "timestamp"])
+    ?? regex(rawText, /(?:data|hor[aá]rio|timestamp)[:\s]+([0-9/:\-\sTZ.]+)/i);
+  const playerName = readStringDeep(rawPayload, ["player", "playerName", "jogador", "responsavel", "responsável", "member", "nome", "author", "autor", "dominator"])
+    ?? readField(fields, ["jogador", "player", "responsavel", "responsável", "membro", "novo membro", "nome", "autor", "dominator"])
     ?? regex(rawText, /(?:jogador|respons[aá]vel|novo membro|membro|player|nome)[:\s*]+([^\n|]+)/i);
-  const playerId = readString(object, ["playerId", "id", "source", "userId"])
-    ?? regex(rawText, /\b(?:id|source)[:\s#]+([0-9A-Za-z_-]+)/i);
-  const recruiterName = readString(object, ["recruiter", "recrutador", "quemRecrutou", "recrutou"])
+  const playerId = readStringDeep(rawPayload, ["playerId", "id", "source", "userId", "passport", "passaporte"])
+    ?? readField(fields, ["id", "player id", "id do jogador", "source", "passaporte", "passport"])
+    ?? regex(rawText, /\b(?:id|source|passaporte|passport)[:\s#]+([0-9A-Za-z_-]+)/i);
+  const recruiterName = readStringDeep(rawPayload, ["recruiter", "recrutador", "quemRecrutou", "recrutou", "recruitedBy"])
+    ?? readField(fields, ["quem recrutou", "recrutador", "recrutou", "recruited by", "responsavel recrutamento"])
     ?? regex(rawText, /(?:quem recrutou|recrutador|recrutou)[:\s*]+([^\n|]+)/i);
-  const recruiterId = readString(object, ["recruiterId", "recrutadorId"]);
-  const clanName = readString(object, ["clan", "clã", "gang", "faction", "facção"])
+  const recruiterId = readStringDeep(rawPayload, ["recruiterId", "recrutadorId"])
+    ?? readField(fields, ["id recrutador", "recruiter id", "id de quem recrutou"]);
+  const clanName = readStringDeep(rawPayload, ["clan", "clã", "gang", "faction", "facção", "organizacao", "organização", "org"])
+    ?? readField(fields, ["clan", "clã", "gang", "facção", "faccao", "organizacao", "organização", "org"])
     ?? regex(rawText, /(?:cl[aã]|gang|fac[cç][aã]o)[:\s*]+([^\n|]+)/i)
     ?? fallbackClanName;
-  const location = readString(object, ["location", "local", "territory", "territorio", "território"])
+  const location = readStringDeep(rawPayload, ["location", "local", "territory", "territorio", "território", "area", "zona"])
+    ?? readField(fields, ["local", "territorio", "território", "dominado", "zona", "area", "área"])
     ?? regex(rawText, /(?:local|territ[oó]rio|dominado)[:\s*]+([^\n|]+)/i);
-  const onlineSeconds = Number(readString(object, ["onlineSeconds", "durationSeconds", "seconds"]) ?? "") || parseDurationSeconds(rawText);
-  const externalId = readString(object, ["eventId", "event_id", "id", "messageId", "logId"]);
+  const onlineSeconds = Number(readStringDeep(rawPayload, ["onlineSeconds", "durationSeconds", "seconds"]) ?? readField(fields, ["online seconds", "segundos online"]) ?? "") || parseDurationSeconds(readField(fields, ["tempo online", "duração", "duracao", "duration", "tempo"]) ?? rawText);
+  const externalId = readStringDeep(rawPayload, ["eventId", "event_id", "messageId", "logId"])
+    ?? readField(fields, ["event id", "id do evento", "log id", "message id"]);
   const hash = createHash("sha256").update(`${eventType}|${rawText}|${JSON.stringify(rawPayload ?? {})}`).digest("hex");
 
   return {
@@ -602,8 +638,21 @@ function regex(value: string, pattern: RegExp) {
   return clean(pattern.exec(value)?.[1], 200) || null;
 }
 
+function hasAny(value: string, needles: string[]) {
+  return needles.some((needle) => value.includes(normalize(needle)));
+}
+
+function discordWebhookIdFromUrl(value: string) {
+  return /^https:\/\/(?:canary\.|ptb\.)?discord(?:app)?\.com\/api\/webhooks\/(\d{5,32})\/[-_.a-zA-Z0-9]+/i.exec(value.trim())?.[1] ?? null;
+}
+
 function parseDate(value: string | null | undefined) {
   if (!value) return null;
+  const br = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/.exec(value.trim());
+  if (br) {
+    const parsed = new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1]), Number(br[4] ?? 0), Number(br[5] ?? 0), Number(br[6] ?? 0));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
@@ -616,10 +665,64 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
-function readString(object: Record<string, unknown>, keys: string[]) {
+function readStringDeep(value: unknown, keys: string[]) {
+  const normalizedKeys = new Set(keys.map(normalizeKey));
+  let found: string | null = null;
+  const visit = (item: unknown) => {
+    if (found) return;
+    if (Array.isArray(item)) {
+      item.forEach(visit);
+      return;
+    }
+    if (!isRecord(item)) return;
+    for (const [key, fieldValue] of Object.entries(item)) {
+      if (normalizedKeys.has(normalizeKey(key)) && (typeof fieldValue === "string" || typeof fieldValue === "number")) {
+        found = clean(fieldValue, 200);
+        return;
+      }
+      visit(fieldValue);
+      if (found) return;
+    }
+  };
+  visit(value);
+  return found;
+}
+
+function collectLabelMap(value: unknown) {
+  const labels = new Map<string, string[]>();
+  const add = (key: unknown, fieldValue: unknown) => {
+    const normalizedKey = normalizeKey(String(key ?? ""));
+    const normalizedValue = clean(fieldValue, 300);
+    if (!normalizedKey || !normalizedValue) return;
+    labels.set(normalizedKey, [...(labels.get(normalizedKey) ?? []), normalizedValue]);
+  };
+  const visit = (item: unknown) => {
+    if (Array.isArray(item)) {
+      item.forEach(visit);
+      return;
+    }
+    if (!isRecord(item)) return;
+    if ("name" in item && "value" in item) add(item.name, item.value);
+    for (const [key, fieldValue] of Object.entries(item)) {
+      if (typeof fieldValue === "string" || typeof fieldValue === "number") {
+        add(key, fieldValue);
+      } else {
+        visit(fieldValue);
+      }
+    }
+  };
+  visit(value);
+  return labels;
+}
+
+function readField(fields: Map<string, string[]>, keys: string[]) {
   for (const key of keys) {
-    const value = object[key];
-    if (typeof value === "string" || typeof value === "number") return clean(value, 200);
+    const value = fields.get(normalizeKey(key))?.[0];
+    if (value) return clean(value, 200);
   }
   return null;
+}
+
+function normalizeKey(value: string) {
+  return normalize(value).replace(/[^a-z0-9]+/g, " ").trim();
 }

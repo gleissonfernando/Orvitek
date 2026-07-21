@@ -23,6 +23,7 @@ const clanSchema = z.object({
   active: z.boolean().optional(),
   clanName: z.string().min(1).max(80).optional(),
   dominationChannelId: optionalSnowflake,
+  discordWebhookUrl: z.union([z.string().url().max(500), z.literal(""), z.null()]).optional(),
   rankingChannelId: optionalSnowflake,
   recruitmentChannelId: optionalSnowflake,
   rewardChannelId: optionalSnowflake,

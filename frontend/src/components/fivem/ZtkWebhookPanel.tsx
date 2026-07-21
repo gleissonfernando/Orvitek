@@ -240,6 +240,7 @@ export function ZtkWebhookPanel({ botId, canManage, guild }: Props) {
             if (selectedClan.webhookUrl) void navigator.clipboard.writeText(selectedClan.webhookUrl);
             setMessage("Webhook copiada.");
           }}
+          onRegisterManual={(url) => saveClanPatch({ discordWebhookUrl: url }, "manual-webhook")}
           onWebhookAction={changeWebhook}
           savingKey={savingKey}
         />
@@ -289,7 +290,9 @@ function RankingView({ dashboard, selectedClan, stats }: { dashboard: ZtkWebhook
   );
 }
 
-function WebhookView({ canManage, clan, onCopy, onWebhookAction, savingKey }: { canManage: boolean; clan: ZtkWebhookClan; onCopy: () => void; onWebhookAction: (action: "create" | "delete" | "disable" | "regenerate") => Promise<void>; savingKey: string | null }) {
+function WebhookView({ canManage, clan, onCopy, onRegisterManual, onWebhookAction, savingKey }: { canManage: boolean; clan: ZtkWebhookClan; onCopy: () => void; onRegisterManual: (url: string) => Promise<void>; onWebhookAction: (action: "create" | "delete" | "disable" | "regenerate") => Promise<void>; savingKey: string | null }) {
+  const [manualUrl, setManualUrl] = useState(clan.webhookUrl ?? "");
+  useEffect(() => setManualUrl(clan.webhookUrl ?? ""), [clan.id, clan.webhookUrl]);
   return (
     <Card>
       <CardHeader>
@@ -314,6 +317,19 @@ function WebhookView({ canManage, clan, onCopy, onWebhookAction, savingKey }: { 
           <Button disabled={!isDiscordWebhookUrl(clan.webhookUrl)} onClick={onCopy} variant="secondary"><Clipboard className="h-4 w-4" />Copiar URL</Button>
           <Button disabled={!canManage || savingKey !== null || !isDiscordWebhookUrl(clan.webhookUrl)} onClick={() => void onWebhookAction("disable")} variant="secondary">Desativar</Button>
           <Button disabled={!canManage || savingKey !== null || !isDiscordWebhookUrl(clan.webhookUrl)} onClick={() => void onWebhookAction("delete")} variant="destructive"><Trash2 className="h-4 w-4" />Excluir</Button>
+        </div>
+        <div className="grid gap-2 rounded-md border border-zinc-800 bg-zinc-950 p-3 md:grid-cols-[1fr_auto]">
+          <input
+            className="h-10 rounded-md border border-zinc-800 bg-[#09090b] px-3 text-sm text-zinc-100"
+            disabled={!canManage || savingKey !== null}
+            onChange={(event) => setManualUrl(event.target.value)}
+            placeholder="https://discord.com/api/webhooks/..."
+            value={manualUrl}
+          />
+          <Button disabled={!canManage || savingKey !== null || !manualUrl.trim()} onClick={() => void onRegisterManual(manualUrl.trim())} variant="secondary">
+            {savingKey === "manual-webhook" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Cadastrar webhook
+          </Button>
         </div>
       </CardContent>
     </Card>
@@ -548,5 +564,5 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 function isDiscordWebhookUrl(value: string | null | undefined) {
-  return /^https:\/\/(?:canary\.|ptb\.)?discord(?:app)?\.com\/api\/webhooks\/\d{5,32}\/[-_a-zA-Z0-9]+/i.test(value ?? "");
+  return /^https:\/\/(?:canary\.|ptb\.)?discord(?:app)?\.com\/api\/webhooks\/\d{5,32}\/[-_.a-zA-Z0-9]+/i.test(value ?? "");
 }

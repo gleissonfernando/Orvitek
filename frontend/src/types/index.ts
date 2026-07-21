@@ -3412,6 +3412,7 @@ export type SaveZtkWebhookClanPayload = Partial<Pick<
   | "active"
   | "clanName"
   | "dominationChannelId"
+  | "discordWebhookUrl"
   | "rankingChannelId"
   | "recruitmentChannelId"
   | "rewardChannelId"
