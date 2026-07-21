@@ -719,6 +719,10 @@ export async function canUseDevBotModule(
 ) {
   const access = await getDevBotGuildAccess(user, botId, guildId);
 
+  if (botId && access.allowed && await canAccessDevDashboard(user.discordId)) {
+    return true;
+  }
+
   if (!botId || !access.allowed || !canManageModuleAtLevel(access.accessLevel, moduleId)) {
     return false;
   }
@@ -755,6 +759,10 @@ export async function canReadDevBotModule(
   moduleId: string
 ) {
   const access = await getDevBotGuildAccess(user, botId, guildId);
+
+  if (botId && access.allowed && await canAccessDevDashboard(user.discordId)) {
+    return true;
+  }
 
   if (!botId || !access.allowed || !canReadModuleAtLevel(access.accessLevel, moduleId)) {
     return false;

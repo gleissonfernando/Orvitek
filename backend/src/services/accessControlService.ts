@@ -65,7 +65,38 @@ export async function evaluateDashboardAccess(
   const authorizedUser = await canAccessDevDashboard(user.discordId);
 
   if (authorizedUser) {
-    const validation = createValidationResult(baseChecks, true, [], "admin");
+    const accessScan = await withTimeout(
+      scanAccessibleDevBots(user, {
+        botSlug: options.botSlug,
+        discordAccessToken: options.discordAccessToken,
+        discordRefreshToken: options.discordRefreshToken,
+        onDiscordTokensRefreshed: options.onDiscordTokensRefreshed
+      }),
+      { accessibleBots: [], diagnostics: [] },
+      BOT_ACCESS_TIMEOUT_MS
+    );
+    const checksByGuildId = new Map(baseChecks.map((check) => [check.guildId, check]));
+
+    for (const bot of accessScan.accessibleBots) {
+      for (const guildId of bot.guildIds) {
+        const current = checksByGuildId.get(guildId);
+        checksByGuildId.set(guildId, {
+          guildId,
+          guildName: current?.guildName ?? (guildId === bot.mainGuildId ? bot.mainGuildName : `Servidor ${guildId}`),
+          administrator: true,
+          owner: current?.owner ?? false,
+          administratorRole: true,
+          configuredPanelRole: true,
+          accessLevel: "admin",
+          matchedRoleIds: [],
+          matchedUserIds: [user.discordId],
+          requiredRoleIds: [],
+          requiredUserIds: [user.discordId]
+        });
+      }
+    }
+
+    const validation = createValidationResult([...checksByGuildId.values()], true, [], "admin");
     await persistAccessSnapshot(user.discordId, validation, accessScanRoleSnapshot([]));
     return validation;
   }
@@ -204,28 +235,32 @@ export function guildCheckGrantsDashboardAccess(check: GuildAccessCheck) {
 }
 
 export function applyDashboardAccessValidation(user: AuthSessionUser, validation: AccessValidationResult): AuthSessionUser {
-  const manageableGuildIds = new Set(
-    validation.checks
-      .filter((check) => validation.authorizedUser || guildCheckGrantsDashboardAccess(check))
-      .map((check) => check.guildId)
-  );
+  const manageableChecks = validation.checks.filter((check) => validation.authorizedUser || guildCheckGrantsDashboardAccess(check));
+  const manageableGuildIds = new Set(manageableChecks.map((check) => check.guildId));
   const selectedGuildId = user.selectedGuildId && manageableGuildIds.has(user.selectedGuildId)
     ? user.selectedGuildId
     : manageableGuildIds.values().next().value ?? null;
+  const userGuildsById = new Map(user.guilds.map((guild) => [guild.id, guild]));
 
   return {
     ...user,
     accessLevel: validation.accessLevel,
     authorized: validation.authorizedUser,
     selectedGuildId,
-    guilds: user.guilds
-      .filter((guild) => manageableGuildIds.has(guild.id))
-      .map((guild) => ({
-        ...guild,
-        isAdmin: validation.authorizedUser || canManageDashboardAccessLevel(
-          validation.checks.find((check) => check.guildId === guild.id)?.accessLevel ?? "viewer"
-        )
-      }))
+    guilds: manageableChecks.map((check) => {
+      const guild = userGuildsById.get(check.guildId);
+
+      return {
+        id: check.guildId,
+        name: guild?.name ?? check.guildName,
+        iconUrl: guild?.iconUrl ?? null,
+        owner: guild?.owner ?? false,
+        isAdmin: validation.authorizedUser || guild?.isAdmin === true || canManageDashboardAccessLevel(check.accessLevel ?? "viewer"),
+        botEnabled: true,
+        memberCount: guild?.memberCount ?? 0,
+        channelCount: guild?.channelCount ?? 0
+      };
+    })
   };
 }
 

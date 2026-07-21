@@ -164,7 +164,12 @@ export function filterGuildsForBot(guilds: DashboardGuild[]) {
 
 export function mergeAuthorizedBotGuilds(guilds: DashboardGuild[]) {
   const filteredGuilds = filterGuildsForBot(guilds);
-  const guildsById = new Map(filteredGuilds.map((guild) => [guild.id, guild]));
+  const persistedBotGuilds = guilds.filter((guild) => guild.botEnabled);
+  const guildsById = new Map([...persistedBotGuilds, ...filteredGuilds].map((guild) => [guild.id, {
+    ...guild,
+    isAdmin: true,
+    botEnabled: true
+  }]));
 
   for (const guildId of getConfiguredDashboardGuildIds()) {
     const fallbackGuild = guildsById.get(guildId) ?? guilds.find((guild) => guild.id === guildId);
