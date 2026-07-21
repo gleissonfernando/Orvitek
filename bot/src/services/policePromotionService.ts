@@ -415,16 +415,22 @@ async function createPromotionTicket(guild: Guild, context: BotContext, settings
 }
 
 async function assignEvaluation(interaction: ButtonInteraction<"cached">, context: BotContext) {
-  const request = await requestFromInteraction(interaction, context);
-  const settings = await getSettings(context, interaction.guild.id);
-  const promotion = promotionFor(settings, request);
-  if (!promotion || !hasAnyRole(interaction.member as GuildMember, promotion.evaluatorRoleIds)) {
-    await interaction.reply({ content: "Você não possui permissão para assumir esta avaliação.", ephemeral: true });
-    return true;
-  }
+  await interaction.deferUpdate();
+  try {
+    const request = await requestFromInteraction(interaction, context);
+    const settings = await getSettings(context, interaction.guild.id);
+    const promotion = promotionFor(settings, request);
+    if (!promotion || !hasAnyRole(interaction.member as GuildMember, promotion.evaluatorRoleIds)) {
+      await interaction.followUp({ content: "Você não possui permissão para assumir esta avaliação.", ephemeral: true });
+      return true;
+    }
 
-  const updated = await context.api.assignPolicePromotionEvaluator(request.id, { evaluatorId: interaction.user.id, evaluatorName: displayName(interaction.member as GuildMember, interaction.user.username) });
-  await interaction.update(ticketPayload(updated, promotion, interaction.guild) as any);
+    const updated = await context.api.assignPolicePromotionEvaluator(request.id, { evaluatorId: interaction.user.id, evaluatorName: displayName(interaction.member as GuildMember, interaction.user.username) });
+    await interaction.editReply(ticketPayload(updated, promotion, interaction.guild) as any);
+  } catch (error) {
+    console.error("[police-promotions] failed to assign evaluation", error);
+    await interaction.followUp({ content: "Não foi possível assumir esta avaliação agora. Verifique se o ticket ainda existe e tente novamente.", ephemeral: true }).catch(() => null);
+  }
   return true;
 }
 
