@@ -2614,7 +2614,7 @@ async function createMercadoPagoPlanCheckoutPreference(
       pending: settings.pendingRedirectUrl ?? buildAppUrl("/pagamento/pendente"),
       success: settings.approvedRedirectUrl ?? settings.successRedirectUrl ?? buildAppUrl("/pagamento/sucesso")
     },
-    binaryMode: mercadoPagoConfig.binaryMode,
+    binaryMode: false,
     dateOfExpiration: order.expiresAt ?? null,
     environment: mercadoPagoConfig.environment,
     excludedPaymentTypes: paymentMethod === "pix" ? ["credit_card", "debit_card", "ticket", "atm"] : undefined,
@@ -2633,7 +2633,7 @@ async function createMercadoPagoPlanCheckoutPreference(
       payment_order_id: order._id,
       plan_id: plan._id,
       plan_slug: plan.slug,
-      source: paymentMethod === "pix" ? "plans_pix_preference" : "plans_checkout"
+      source: paymentMethod === "pix" ? "plans_pix_preference" : "plans_checkout_pix_card"
     },
     notificationUrl: mercadoPagoConfig.webhookUrl || buildAppUrl("/api/payments/mercadopago/webhook"),
     payerEmail: mercadoPagoPayerEmail(buyer),
@@ -2709,7 +2709,7 @@ async function createMercadoPagoPlanPayment(
   return {
     checkoutUrl: preference.checkoutUrl,
     mercadoPagoPaymentId: null,
-    notes: "Preference Mercado Pago criada. Redirecione o comprador para o checkout.",
+    notes: "Preference Mercado Pago criada com Pix e cartão. Redirecione o comprador para o checkout.",
     paymentMethod: null,
     paymentType: null,
     pixCode: null,

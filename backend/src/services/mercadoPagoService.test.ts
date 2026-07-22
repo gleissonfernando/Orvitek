@@ -90,6 +90,33 @@ test("monta payload de pagamento Pix Mercado Pago", () => {
   assert.equal(body.additional_info?.items?.[0]?.id, "plan-pro");
 });
 
+test("monta preference Mercado Pago com Pix e cartão no mesmo checkout", () => {
+  const body = buildMercadoPagoPreferenceBody({
+    accessToken: "token",
+    backUrls: {
+      failure: "https://example.com/falha",
+      pending: "https://example.com/pendente",
+      success: "https://example.com/sucesso"
+    },
+    binaryMode: false,
+    externalReference: "order-123",
+    items: [{
+      currencyId: "BRL",
+      id: "plan-pro",
+      title: "Plano Pro",
+      unitPriceInCents: 12990
+    }],
+    maxInstallments: 12,
+    notificationUrl: "https://example.com/api/payments/mercadopago/webhook",
+    payerEmail: "cliente@example.com"
+  });
+
+  assert.equal(body.binary_mode, false);
+  assert.equal(body.payment_methods?.excluded_payment_types, undefined);
+  assert.equal(body.payment_methods?.installments, 12);
+  assert.equal(body.external_reference, "order-123");
+});
+
 test("monta preference Pix Mercado Pago com tipos restritos", () => {
   const body = buildMercadoPagoPreferenceBody({
     accessToken: "token",

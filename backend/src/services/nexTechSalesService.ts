@@ -1460,6 +1460,7 @@ async function createMercadoPagoProductPreference(
       pending: pendingUrl,
       success: context.successUrl
     },
+    binaryMode: false,
     environment,
     externalReference: context.saleId,
     items: [

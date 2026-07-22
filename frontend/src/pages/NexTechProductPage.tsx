@@ -292,6 +292,7 @@ function PlanCard({
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
         {plan.buttonText}
       </Button>
+      <p className="mt-2 text-center text-xs font-medium text-zinc-500">Pix e cartão pelo Mercado Pago</p>
     </div>
   );
 }
