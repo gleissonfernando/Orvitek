@@ -105,25 +105,6 @@
     animation: nex-tech-gradient 7s linear infinite;
   }
 
-  .nex-tech-primary-button,
-  .nex-tech-secondary-button {
-    align-items: center;
-    border-radius: 0.75rem;
-    display: inline-flex;
-    font-size: 0.875rem;
-    font-weight: 600;
-    gap: 0.5rem;
-    justify-content: center;
-    min-height: 2.75rem;
-    padding-inline: 1.25rem;
-    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
-  }
-
-  .nex-tech-primary-button { background: linear-gradient(135deg, #ffd500, #ffea70); color: #050505; box-shadow: 0 12px 35px rgba(255,213,0,.22); }
-  .nex-tech-primary-button:hover { box-shadow: 0 16px 45px rgba(255,213,0,.34); transform: translateY(-2px); }
-  .nex-tech-secondary-button { border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.035); color: #e2e8f0; }
-  .nex-tech-secondary-button:hover { border-color: rgba(255,213,0,.35); background: rgba(255,213,0,.08); transform: translateY(-2px); }
-  .nex-tech-primary-button:focus-visible, .nex-tech-secondary-button:focus-visible { outline: 2px solid #ffea70; outline-offset: 3px; }
   .glass-panel {
     background: rgba(20, 20, 20, 0.9);
     backdrop-filter: blur(14px);

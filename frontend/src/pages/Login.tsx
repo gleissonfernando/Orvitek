@@ -209,59 +209,52 @@ export function Login({
 
       <Header entering={verifying} onStart={handleStart} onNavigate={scrollTo} />
 
-      <section id="inicio" className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col items-center justify-center px-4 pb-16 pt-32 text-center sm:px-6 lg:px-8">
-        <Reveal delay={0.1} className="inline-flex items-center rounded-full border border-[#FFD500]/25 bg-[#FFD500]/10 px-4 py-2 text-sm font-medium text-[#FFEA70] shadow-[0_0_24px_rgba(255,213,0,0.16)]">
-          A plataforma #1 de automação para Discord
-        </Reveal>
+      <section id="inicio" className="relative mx-auto grid min-h-screen w-full max-w-7xl items-center gap-10 px-4 pb-16 pt-32 text-center sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(25rem,0.95fr)] lg:px-8 lg:text-left">
+        <div className="flex min-w-0 flex-col items-center lg:items-start">
+          <Reveal delay={0.1} className="inline-flex items-center rounded-full border border-[#FFD500]/25 bg-[#FFD500]/10 px-4 py-2 text-sm font-medium text-[#FFEA70] shadow-[0_0_24px_rgba(255,213,0,0.16)]">
+            A plataforma #1 de automação para Discord
+          </Reveal>
 
-        <Reveal delay={0.2} className="mt-8 max-w-5xl">
-          <h1 className="text-5xl font-black leading-tight text-white sm:text-6xl lg:text-7xl">
-            Automatize seu servidor{" "}
-            <span className="inline-block text-[#FFD500] drop-shadow-[0_0_28px_rgba(255,213,0,0.45)]">
-              do seu jeito
-            </span>
-          </h1>
-        </Reveal>
+          <Reveal delay={0.2} className="mt-8 max-w-5xl">
+            <h1 className="text-5xl font-black leading-tight text-white sm:text-6xl lg:text-7xl">
+              Automatize seu servidor{" "}
+              <span className="inline-block text-[#FFD500] drop-shadow-[0_0_28px_rgba(255,213,0,0.45)]">
+                do seu jeito
+              </span>
+            </h1>
+          </Reveal>
 
-        <Reveal delay={0.3} className="max-w-5xl">
-          <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-[#B3B3B3] sm:text-lg">
-            {verificationPending
-              ? "Confirme a segunda etapa de autenticação para liberar a dashboard deste usuário."
-              : "Entre pela Dashboard com OAuth2 do Discord, configure seus bots e controle módulos, permissões, canais e logs em tempo real."}
-          </p>
-        </Reveal>
+          <Reveal delay={0.3} className="max-w-5xl">
+            <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-[#B3B3B3] sm:text-lg lg:mx-0">
+              {verificationPending
+                ? "Confirme a segunda etapa de autenticação para liberar a dashboard deste usuário."
+                : "Entre pela Dashboard com OAuth2 do Discord, configure seus bots e controle módulos, permissões, canais e logs em tempo real."}
+            </p>
+          </Reveal>
 
-        <Reveal delay={0.4} className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <Button className="h-12 min-w-44" disabled={verifying} onClick={handleStart}>
-            {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
-            {startLabel}
-          </Button>
-          <Button className="h-12 min-w-44" onClick={() => scrollTo("solucoes")} variant="outline">
-            Ver Soluções
-          </Button>
-          <Button className="h-12 min-w-44" onClick={() => scrollTo("planos")} variant="outline">
-            Ver Planos
-          </Button>
-          <Button asChild className="h-12 min-w-44" variant="outline">
-            <a href="/status">
-              <Activity className="h-4 w-4" />
-              Ver Status
-            </a>
-          </Button>
-        </Reveal>
-        {error ? (
-          <Reveal delay={0.45} className="mt-5 w-full max-w-2xl rounded-lg border border-red-500/35 bg-red-500/10 px-4 py-4 text-sm font-medium text-red-100">
-            <p>{error}</p>
-            <Button asChild className="mt-3 h-10 w-full sm:w-auto" variant="outline">
-              <a href={SUPPORT_URL} rel="noreferrer" target="_blank">
-                <Headphones className="h-4 w-4" />
-                Falar com suporte
-              </a>
+          <Reveal delay={0.4} className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start">
+            <Button className="h-12 min-w-44" disabled={verifying} onClick={handleStart}>
+              {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+              {startLabel}
+            </Button>
+            <Button className="h-12 min-w-44" onClick={() => scrollTo("solucoes")} variant="outline">
+              Ver Soluções
             </Button>
           </Reveal>
-        ) : null}
+          {error ? (
+            <Reveal delay={0.45} className="mt-5 w-full max-w-2xl rounded-lg border border-red-500/35 bg-red-500/10 px-4 py-4 text-sm font-medium text-red-100">
+              <p>{error}</p>
+              <Button asChild className="mt-3 h-10 w-full sm:w-auto" variant="outline">
+                <a href={SUPPORT_URL} rel="noreferrer" target="_blank">
+                  <Headphones className="h-4 w-4" />
+                  Falar com suporte
+                </a>
+              </Button>
+            </Reveal>
+          ) : null}
+        </div>
 
-        <Reveal delay={0.5} className="mt-12 w-full max-w-3xl">
+        <Reveal delay={0.5} className="w-full max-w-3xl justify-self-center lg:max-w-none">
           <TerminalMockup />
         </Reveal>
       </section>
@@ -270,7 +263,7 @@ export function Login({
 
       <PublicStatusPreview />
 
-      <section id="solucoes" className="mx-auto w-full max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
+      <section id="solucoes" className="home-section mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <SectionHeading
           badge="Uma plataforma, várias soluções"
           subtitle="Escolha o nível de automação que combina com o seu time, do painel visual à API."
@@ -290,28 +283,33 @@ export function Login({
         </Reveal>
       </section>
 
-      <section id="docs" className="mx-auto w-full max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
+      <section id="docs" className="home-section mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <SectionHeading
           subtitle="Ferramentas para criar, operar e escalar bots com menos trabalho manual."
           title="Recursos Poderosos"
         />
 
         <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {resources.map((resource, index) => (
+          {resources.map((resource, index) => {
+            const featured = resource.title === "Controle Total";
+            return (
             <Reveal
-              className="rounded-lg border border-[#FFD500]/20 bg-[#141414]/90 p-5 transition duration-300 hover:-translate-y-1 hover:border-[#FFD500]/50 hover:shadow-[0_0_32px_rgba(255,213,0,0.13)]"
+              className={`rounded-lg border bg-[#141414]/90 p-5 transition duration-300 hover:-translate-y-1 hover:border-[#FFD500]/50 hover:shadow-[0_0_32px_rgba(255,213,0,0.13)] ${featured ? "border-[#FFD500]/40 sm:col-span-2 lg:col-span-2" : "border-[#FFD500]/20"}`}
               delay={index * 0.035}
               key={resource.title}
             >
-              <resource.icon className="h-6 w-6 text-[#FFD500]" />
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#FFD500]/35 bg-[#FFD500]/10 text-[#FFD500] shadow-[0_0_22px_rgba(255,213,0,0.10)]">
+                <resource.icon className="h-6 w-6" />
+              </span>
               <h3 className="mt-5 text-base font-bold text-white">{resource.title}</h3>
               <p className="mt-3 text-sm leading-6 text-[#B3B3B3]">{resource.description}</p>
             </Reveal>
-          ))}
+            );
+          })}
         </div>
       </section>
 
-      <section id="como-funciona" className="mx-auto w-full max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
+      <section id="como-funciona" className="home-section mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <SectionHeading
           subtitle="Em 3 passos simples você já está com tudo funcionando."
           title="Como Funciona"
@@ -336,7 +334,7 @@ export function Login({
         </div>
       </section>
 
-      <section id="suporte" className="px-4 py-24 sm:px-6 lg:px-8">
+      <section id="suporte" className="home-section px-4 sm:px-6 lg:px-8">
         <Reveal className="mx-auto max-w-5xl rounded-lg border border-[#FFD500]/25 bg-[#141414]/95 px-6 py-12 text-center shadow-glow sm:px-10">
           <h2 className="text-4xl font-black text-white sm:text-5xl">Pronto para automatizar seus bots?</h2>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-8 text-[#B3B3B3]">
@@ -450,10 +448,14 @@ function Header({ entering, onNavigate, onStart }: { entering: boolean; onNaviga
 }
 
 function SectionHeading({ badge, subtitle, title }: { badge?: string; subtitle: string; title: string }) {
+  const titleClassName = title === "Como Funciona"
+    ? "como-funciona-title text-4xl text-white sm:text-5xl"
+    : "text-4xl font-black text-white sm:text-5xl";
+
   return (
     <Reveal className="mx-auto max-w-3xl text-center">
       {badge ? <p className="mx-auto mb-4 inline-flex rounded-full border border-[#FFD500]/25 bg-[#FFD500]/10 px-4 py-2 text-sm font-medium text-[#FFEA70]">{badge}</p> : null}
-      <h2 className="text-4xl font-black text-white sm:text-5xl">{title}</h2>
+      <h2 className={titleClassName}>{title}</h2>
       <p className="mx-auto mt-4 max-w-2xl text-base leading-8 text-[#B3B3B3]">{subtitle}</p>
     </Reveal>
   );
@@ -722,7 +724,7 @@ function PublicStatusPreview() {
       : "border-emerald-500/35 bg-emerald-500/10 text-emerald-200";
 
   return (
-    <section id="status" className="mx-auto w-full max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
+    <section id="status" className="home-section mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
       <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
         <Reveal>
           <p className="inline-flex items-center gap-2 rounded-full border border-[#FFD500]/25 bg-[#FFD500]/10 px-4 py-2 text-sm font-medium text-[#FFEA70]">
@@ -805,7 +807,7 @@ function PublicServerMarquee({ servers }: { servers: PublicServer[] }) {
   const items = Array.from({ length: Math.max(1, Math.ceil(8 / servers.length)) }, () => servers).flat();
 
   return (
-    <section aria-label="Bots cadastrados" className="relative overflow-hidden border-y border-[#FFD500]/15 bg-black/35 py-8">
+    <section aria-label="Bots cadastrados" className="relative overflow-hidden border-y border-[#FFD500]/15 bg-black/35 py-12">
       <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-20 bg-gradient-to-r from-[#0A0A0A] to-transparent sm:w-36" />
       <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-20 bg-gradient-to-l from-[#0A0A0A] to-transparent sm:w-36" />
       <p className="mb-6 text-center text-[11px] font-bold uppercase tracking-[.22em] text-[#FFD500]">

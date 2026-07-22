@@ -6,6 +6,7 @@ import {
   Server, ShieldCheck, Sparkles, Webhook, Workflow, Zap
 } from "lucide-react";
 import { ComoFunciona } from "./ComoFunciona";
+import { Button } from "../ui/button";
 
 type Icon = ComponentType<{ className?: string }>;
 
@@ -62,8 +63,12 @@ export function DashboardHome(props: DashboardHomeProps) {
               Centralize bots, serviços e automações em uma plataforma rápida, organizada e preparada para acompanhar seu crescimento.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <a className="nex-tech-primary-button" href="#solucoes">Explorar soluções <ArrowRight className="h-4 w-4" /></a>
-              <a className="nex-tech-secondary-button" href="#recursos">Conhecer recursos</a>
+              <Button asChild className="h-11">
+                <a href="#solucoes">Explorar soluções <ArrowRight className="h-4 w-4" /></a>
+              </Button>
+              <Button asChild className="h-11" variant="secondary">
+                <a href="#recursos">Conhecer recursos</a>
+              </Button>
             </div>
             <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-xs text-slate-400">
               {["Acesso centralizado", "Visibilidade em tempo real", "Configuração por módulos"].map((item) => (
@@ -136,7 +141,7 @@ export function DashboardHome(props: DashboardHomeProps) {
 
       <Reveal className="relative overflow-hidden rounded-[1.75rem] border border-[#FFD500]/20 bg-[#090909] p-8 text-center sm:p-12">
         <div className="absolute inset-0 nex-tech-grid opacity-30" />
-        <div className="relative"><p className="text-xs font-semibold uppercase tracking-[.25em] text-[#FFEA70]">Continue sua jornada</p><h2 className="mx-auto mt-4 max-w-2xl text-3xl font-bold tracking-tight text-white sm:text-4xl">Leve sua operação para o próximo nível</h2><p className="mx-auto mt-4 max-w-xl text-slate-400">Explore os módulos disponíveis e configure a Nex Tech para o seu fluxo de trabalho.</p><a className="nex-tech-primary-button mt-7 inline-flex" href="#solucoes">Ver possibilidades <ArrowRight className="h-4 w-4" /></a></div>
+        <div className="relative"><p className="text-xs font-semibold uppercase tracking-[.25em] text-[#FFEA70]">Continue sua jornada</p><h2 className="mx-auto mt-4 max-w-2xl text-3xl font-bold tracking-tight text-white sm:text-4xl">Leve sua operação para o próximo nível</h2><p className="mx-auto mt-4 max-w-xl text-slate-400">Explore os módulos disponíveis e configure a Nex Tech para o seu fluxo de trabalho.</p><Button asChild className="mt-7 h-11"><a href="#solucoes">Ver possibilidades <ArrowRight className="h-4 w-4" /></a></Button></div>
       </Reveal>
       <footer className="flex flex-col gap-3 px-2 pb-2 pt-8 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between"><p>© {new Date().getFullYear()} Nex Tech. Operação centralizada.</p><span className="flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${props.botOnline ? "bg-[#FFD500]" : "bg-slate-600"}`} />{props.botOnline ? "Bot conectado" : "Status indisponível"}</span></footer>
     </div>
