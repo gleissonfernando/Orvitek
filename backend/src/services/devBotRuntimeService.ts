@@ -7,7 +7,7 @@ import type { Readable } from "node:stream";
 import { env } from "../config/env";
 import { getMongoCollections } from "../database/mongo";
 import { devBotRealtimeRoom, emitRealtimeToRoom } from "../realtime/events";
-import { sendDevBotUnexpectedExitLog } from "./devBotDiscordLogService";
+import { resolveDevBotUnexpectedExitLog, sendDevBotUnexpectedExitLog } from "./devBotDiscordLogService";
 import {
     getDevBotRuntimeConfig,
     listDevBotRuntimeConfigs,
@@ -402,6 +402,12 @@ async function startRuntime(bot: DevBotRuntimeConfig) {
       void updateDevBotRuntimeStatus(bot.id, "syncing_config", "Bot conectado ao Discord; sincronizando comandos e configurações.");
     } else if (/comandos sincronizados/i.test(message)) {
       void updateDevBotRuntimeStatus(bot.id, "ready", "Bot pronto; comandos sincronizados no Discord.");
+      void resolveDevBotUnexpectedExitLog({
+        botId: bot.id,
+        botName: bot.name,
+        clientId: bot.clientId,
+        message: "O bot voltou a ficar pronto; comandos sincronizados no Discord. Este canal temporario sera removido automaticamente."
+      });
     } else if (/MongoDB bloqueou|over your space quota|writes are blocked/i.test(message)) {
       void updateDevBotRuntimeStatus(bot.id, "degraded", "Bot online, mas o banco está bloqueando escritas por limite de armazenamento.");
     }
