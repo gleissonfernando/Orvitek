@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, Image, Loader2, Plus, Save, Trash2, Type, Upload } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, FileVideo, Image, Loader2, Play, Plus, RefreshCw, Save, Trash2, Type, Upload } from "lucide-react";
 import { getPanelImageSettings, listPanelImageSettings, removePanelImage, savePanelImageSettings, uploadPanelImage } from "../../lib/api";
 import type {
   PanelImageLayoutMode,
@@ -49,6 +49,7 @@ const PANEL_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 const PANEL_VIDEO_MAX_BYTES = 15 * 1024 * 1024;
 const PANEL_VIDEO_MAX_DURATION_SECONDS = 15;
 const VIDEO_METADATA_TIMEOUT_MS = 8000;
+const VIDEO_LOAD_TIMEOUT_MS = 12000;
 
 const positionOptions: Array<{ label: string; value: PanelImagePosition }> = [
   { label: "Sem imagem", value: "none" },
@@ -93,6 +94,8 @@ export function PanelImageSettings({ botId, canManage, componentsV2Only = false,
   const [uploadProgress, setUploadProgress] = useState(0);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [diagnostics, setDiagnostics] = useState<Array<{ label: string; status: "ok" | "warn" | "error"; value: string }> | null>(null);
+  const [diagnosing, setDiagnosing] = useState(false);
   const fixedPanel = fixedPanels?.length === 1 ? fixedPanels[0] : null;
   const selectedPanel = panelChoices.find((panel) => panel.id === selectedPanelId) ?? panelChoices[0]!;
   const disabled = !canManage || !guildId || !botId || loading || saving || uploading;
@@ -310,6 +313,23 @@ export function PanelImageSettings({ botId, canManage, componentsV2Only = false,
       setError(readErrorMessage(requestError, "NÃ£o foi possÃ­vel remover a imagem."));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function diagnoseVideo() {
+    if (!draft.imageUrl || !isVideoMedia(draft.imageUrl, draft.imageMimeType)) return;
+    setDiagnosing(true);
+    setDiagnostics(null);
+    setStatus("Diagnosticando vídeo...");
+    setError(null);
+
+    try {
+      setDiagnostics(await runVideoDiagnostics(draft));
+      setStatus("Diagnóstico concluído.");
+    } catch (requestError) {
+      setError(readErrorMessage(requestError, "Não foi possível diagnosticar o vídeo."));
+    } finally {
+      setDiagnosing(false);
     }
   }
 
@@ -592,6 +612,12 @@ export function PanelImageSettings({ botId, canManage, componentsV2Only = false,
             Remover imagem
           </Button>
           <Button disabled={disabled} onClick={() => { setDraft(defaultSettings(guildId ?? "", botId ?? "", selectedPanelId)); setStatus("Padrão restaurado. Clique em salvar para confirmar."); }} type="button" variant="ghost">Restaurar padrão</Button>
+          {draft.imageUrl && isVideoMedia(draft.imageUrl, draft.imageMimeType) ? (
+            <Button disabled={diagnosing} onClick={() => void diagnoseVideo()} type="button" variant="outline">
+              {diagnosing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileVideo className="h-4 w-4" />}
+              Diagnosticar Vídeo
+            </Button>
+          ) : null}
           {loading ? (
             <span className="flex items-center gap-2 text-xs text-zinc-500">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -602,6 +628,7 @@ export function PanelImageSettings({ botId, canManage, componentsV2Only = false,
 
         {status ? <p className="text-xs text-emerald-400">{status}</p> : null}
         {error ? <p className="text-xs text-red-400">{error}</p> : null}
+        {diagnostics ? <VideoDiagnosticsReport items={diagnostics} /> : null}
       </CardContent>
     </Card>
   );
@@ -684,23 +711,7 @@ function PreviewImage({
   style: { height: string; maxWidth: string; width: string };
 }) {
   if (isVideoMedia(imageUrl, settings.imageMimeType)) {
-    return (
-      <video
-        className="mt-4 rounded-md border border-zinc-800 object-cover"
-        autoPlay={settings.mediaAutoplay}
-        controls={settings.mediaControls}
-        loop={settings.mediaLoop}
-        muted={settings.mediaMuted}
-        onLoadedMetadata={(event) => {
-          event.currentTarget.volume = Math.min(1, Math.max(0, settings.mediaVolume ?? 0));
-        }}
-        playsInline
-        poster={settings.mediaPosterUrl ? dashboardImageUrl(settings.mediaPosterUrl) : settings.mediaThumbnailUrl ? dashboardImageUrl(settings.mediaThumbnailUrl) : undefined}
-        preload={settings.mediaPreload}
-        src={dashboardImageUrl(imageUrl)}
-        style={{ ...style, objectFit: settings.mediaFit }}
-      />
-    );
+    return <SmartVideoPreview alt={alt} className="mt-4" imageUrl={imageUrl} settings={settings} style={style} />;
   }
 
   return (
@@ -717,9 +728,147 @@ function InlineMediaPreview({ className, imageUrl, settings }: { className: stri
   const classes = `${className} shrink-0 rounded-md border border-zinc-800`;
   const style = { objectFit: settings.mediaFit };
   if (isVideoMedia(imageUrl, settings.imageMimeType)) {
-    return <video autoPlay={settings.mediaAutoplay} className={classes} controls={settings.mediaControls} loop={settings.mediaLoop} muted={settings.mediaMuted} onLoadedMetadata={(event) => { event.currentTarget.volume = Math.min(1, Math.max(0, settings.mediaVolume ?? 0)); }} playsInline poster={settings.mediaPosterUrl ?? settings.mediaThumbnailUrl ?? undefined} preload={settings.mediaPreload} src={dashboardImageUrl(imageUrl)} style={style} />;
+    return <SmartVideoPreview className={className} compact imageUrl={imageUrl} settings={settings} style={style} />;
   }
   return <img alt="" className={classes} src={dashboardImageUrl(imageUrl)} style={style} />;
+}
+
+function SmartVideoPreview({
+  alt = "",
+  className,
+  compact = false,
+  imageUrl,
+  settings,
+  style
+}: {
+  alt?: string;
+  className: string;
+  compact?: boolean;
+  imageUrl: string;
+  settings: PanelImageSettingsDto;
+  style: CSSProperties;
+}) {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [retry, setRetry] = useState(0);
+  const [needsPlay, setNeedsPlay] = useState(false);
+  const posterUrl = settings.mediaPosterUrl || settings.mediaThumbnailUrl || "";
+  const src = withRetryCacheKey(dashboardImageUrl(imageUrl), retry);
+  const poster = posterUrl ? dashboardImageUrl(posterUrl) : undefined;
+  const showOverlay = loadState !== "ready";
+
+  useEffect(() => {
+    const node = wrapperRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) setVisible(true);
+    }, { rootMargin: "160px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    setLoadState(visible ? "loading" : "idle");
+    setNeedsPlay(false);
+  }, [imageUrl, retry, visible]);
+
+  useEffect(() => {
+    if (!visible || loadState !== "loading") return;
+    const timer = window.setTimeout(() => {
+      console.warn("[media-engine-preview]", JSON.stringify({ imageUrl, retry, stage: "load:timeout" }));
+      if (retry < 2) {
+        setRetry((current) => current + 1);
+      } else {
+        setLoadState("error");
+      }
+    }, VIDEO_LOAD_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [imageUrl, loadState, retry, visible]);
+
+  function handleReady(event: React.SyntheticEvent<HTMLVideoElement>) {
+    const video = event.currentTarget;
+    video.volume = Math.min(1, Math.max(0, settings.mediaVolume ?? 0));
+    setLoadState("ready");
+    console.info("[media-engine-preview]", JSON.stringify({ duration: video.duration, imageUrl, stage: "render:ready" }));
+
+    if (settings.mediaAutoplay) {
+      void video.play().then(() => {
+        setNeedsPlay(false);
+        console.info("[media-engine-preview]", JSON.stringify({ imageUrl, stage: "play:started" }));
+      }).catch(() => {
+        setNeedsPlay(true);
+        console.info("[media-engine-preview]", JSON.stringify({ imageUrl, stage: "play:blocked" }));
+      });
+    }
+  }
+
+  function handleError() {
+    console.warn("[media-engine-preview]", JSON.stringify({ imageUrl, retry, stage: "render:error" }));
+    if (retry < 2) {
+      setRetry((current) => current + 1);
+      return;
+    }
+    setLoadState("error");
+  }
+
+  async function play() {
+    const video = videoRef.current;
+    if (!video) return;
+    await video.play().then(() => setNeedsPlay(false)).catch(() => setNeedsPlay(true));
+  }
+
+  return (
+    <div
+      aria-label={alt}
+      className={`${className} relative overflow-hidden rounded-md border border-zinc-800 bg-zinc-950`}
+      ref={wrapperRef}
+      style={style}
+    >
+      {visible ? (
+        <video
+          autoPlay={settings.mediaAutoplay}
+          className="h-full w-full bg-transparent"
+          controls={settings.mediaControls}
+          key={`${imageUrl}-${retry}`}
+          loop={settings.mediaLoop}
+          muted={settings.mediaMuted}
+          onCanPlay={handleReady}
+          onError={handleError}
+          onLoadedData={handleReady}
+          playsInline
+          poster={poster}
+          preload={settings.mediaPreload === "none" ? "auto" : settings.mediaPreload}
+          ref={videoRef}
+          src={src}
+          style={{ height: "100%", objectFit: settings.mediaFit, width: "100%" }}
+        />
+      ) : null}
+      {poster && showOverlay ? <img alt="" className="absolute inset-0 h-full w-full object-cover" src={poster} /> : null}
+      {showOverlay ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/55">
+          <div className="flex items-center gap-2 rounded-md border border-zinc-700 bg-black/70 px-3 py-2 text-xs font-medium text-zinc-100">
+            {loadState === "error" ? <AlertTriangle className="h-4 w-4 text-red-300" /> : <Loader2 className="h-4 w-4 animate-spin text-[#FFD500]" />}
+            {loadState === "error" ? "Falha ao renderizar" : compact ? "Carregando" : "Preparando vídeo"}
+          </div>
+        </div>
+      ) : null}
+      {needsPlay ? (
+        <button className="absolute inset-0 flex items-center justify-center bg-black/30" onClick={() => void play()} type="button">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#FFD500] text-black shadow-lg">
+            <Play className="h-5 w-5 fill-current" />
+          </span>
+        </button>
+      ) : null}
+      {loadState === "error" ? (
+        <button className="absolute bottom-2 right-2 flex items-center gap-1 rounded-md border border-zinc-700 bg-black/80 px-2 py-1 text-xs text-white" onClick={() => { setRetry((current) => current + 1); setLoadState("loading"); }} type="button">
+          <RefreshCw className="h-3.5 w-3.5" />
+          Recarregar
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 function ImageTypeBadge({ settings }: { settings: PanelImageSettingsDto }) {
@@ -740,9 +889,103 @@ function ImageTypeBadge({ settings }: { settings: PanelImageSettingsDto }) {
   );
 }
 
+function VideoDiagnosticsReport({ items }: { items: Array<{ label: string; status: "ok" | "warn" | "error"; value: string }> }) {
+  return (
+    <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
+      <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-zinc-100">
+        <FileVideo className="h-4 w-4" />
+        Diagnóstico do vídeo
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {items.map((item) => {
+          const Icon = item.status === "ok" ? CheckCircle2 : item.status === "warn" ? AlertTriangle : AlertTriangle;
+          const color = item.status === "ok" ? "text-emerald-300" : item.status === "warn" ? "text-amber-300" : "text-red-300";
+          return (
+            <div className="rounded-md border border-zinc-800 bg-black p-2 text-xs" key={item.label}>
+              <span className={`mb-1 flex items-center gap-1 font-semibold ${color}`}><Icon className="h-3.5 w-3.5" />{item.label}</span>
+              <span className="break-words text-zinc-300">{item.value}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function isVideoMedia(imageUrl: string, mimeType?: string | null) {
   if (mimeType?.startsWith("video/")) return true;
   return /\.(3gp|3g2|asf|avi|f4v|flv|m4v|mkv|mov|mp4|mpeg|mpg|mts|mxf|ogv|rmvb|ts|vob|webm|wmv)(?:$|[?#])/i.test(imageUrl);
+}
+
+async function runVideoDiagnostics(settings: PanelImageSettingsDto) {
+  const url = dashboardImageUrl(settings.imageUrl);
+  const metadata = settings.mediaDiagnostics;
+  const browserMetadata = await readRemoteVideoMetadata(url).catch((error) => ({ error: error instanceof Error ? error.message : String(error) }));
+  const head = await fetch(url, { cache: "reload", method: "HEAD" }).then((response) => ({
+    contentLength: response.headers.get("content-length"),
+    contentType: response.headers.get("content-type"),
+    ok: response.ok,
+    range: response.headers.get("accept-ranges"),
+    status: response.status
+  })).catch((error) => ({ error: error instanceof Error ? error.message : String(error) }));
+  const canPlay = document.createElement("video").canPlayType(settings.imageMimeType || metadata?.outputMimeType || "video/mp4") || "indisponível";
+  const items: Array<{ label: string; status: "ok" | "warn" | "error"; value: string }> = [];
+
+  items.push({ label: "URL", status: "ok", value: url });
+  items.push("ok" in head
+    ? { label: "Acessibilidade", status: head.ok ? "ok" : "error", value: `HTTP ${head.status}` }
+    : { label: "Acessibilidade", status: "error", value: head.error });
+  items.push("ok" in head
+    ? { label: "Streaming progressivo", status: head.range === "bytes" ? "ok" : "warn", value: head.range === "bytes" ? "Accept-Ranges ativo" : "Servidor não informou Accept-Ranges" }
+    : { label: "Streaming progressivo", status: "error", value: "Não foi possível verificar" });
+  items.push("ok" in head
+    ? { label: "MIME servido", status: head.contentType?.startsWith("video/") ? "ok" : "warn", value: head.contentType || "Não informado" }
+    : { label: "MIME servido", status: "error", value: "Não foi possível verificar" });
+  items.push("ok" in head
+    ? { label: "Tamanho servido", status: head.contentLength ? "ok" : "warn", value: head.contentLength ? formatBytes(Number(head.contentLength)) : "Não informado" }
+    : { label: "Tamanho servido", status: "error", value: "Não foi possível verificar" });
+  items.push({ label: "Formato", status: settings.imageMimeType?.startsWith("video/") ? "ok" : "warn", value: settings.imageMimeType || metadata?.outputMimeType || "Não identificado" });
+  items.push({ label: "Processamento", status: settings.imageProcessingStatus === "failed" ? "warn" : "ok", value: settings.imageProcessingStatus === "converted" ? "Convertido para MP4 H.264/AAC" : settings.imageProcessingStatus === "stored" ? "Armazenado em formato compatível" : settings.imageProcessingError || "Sem histórico de processamento" });
+  items.push({ label: "Codec de vídeo", status: metadata?.videoCodec ? "ok" : "warn", value: metadata?.videoCodec || "Não informado pelo arquivo antigo" });
+  items.push({ label: "Codec de áudio", status: metadata?.audioCodec ? "ok" : "warn", value: metadata?.audioCodec || "Sem áudio ou não informado" });
+  items.push({ label: "Compatibilidade", status: metadata?.browserCompatible === false ? "warn" : "ok", value: metadata ? (metadata.browserCompatible ? "Compatível após processamento" : "Arquivo antigo salvo antes da conversão") : canPlay });
+  items.push({ label: "Resolução", status: metadata?.width && metadata.height ? "ok" : "warn", value: metadata?.width && metadata.height ? `${metadata.width}x${metadata.height}` : "Não informada" });
+  items.push({ label: "FPS", status: metadata?.fps ? "ok" : "warn", value: metadata?.fps ? String(metadata.fps) : "Não informado" });
+  items.push({ label: "Bitrate", status: metadata?.bitrate ? "ok" : "warn", value: metadata?.bitrate ? `${metadata.bitrate} kb/s` : "Não informado" });
+  items.push({ label: "Duração", status: "duration" in browserMetadata || metadata?.durationSeconds ? "ok" : "warn", value: "duration" in browserMetadata ? `${formatSeconds(browserMetadata.duration)}s` : metadata?.durationSeconds ? `${formatSeconds(metadata.durationSeconds)}s` : browserMetadata.error });
+  items.push({ label: "Poster", status: settings.mediaPosterUrl || settings.mediaThumbnailUrl ? "ok" : "warn", value: settings.mediaPosterUrl || settings.mediaThumbnailUrl || "Sem miniatura gerada" });
+  items.push({ label: "Cache", status: "ok", value: "Cache HTTP imutável + recarregamento automático em falha" });
+  items.push({ label: "Renderização", status: "duration" in browserMetadata ? "ok" : "error", value: "duration" in browserMetadata ? "Navegador carregou os metadados" : browserMetadata.error });
+
+  return items;
+}
+
+function readRemoteVideoMetadata(url: string) {
+  return new Promise<{ duration: number; height: number; width: number }>((resolve, reject) => {
+    const video = document.createElement("video");
+    const timer = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("Tempo limite ao carregar metadados remotos."));
+    }, VIDEO_METADATA_TIMEOUT_MS);
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      video.removeAttribute("src");
+      video.load();
+    };
+    video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+    video.onloadedmetadata = () => {
+      const result = { duration: video.duration, height: video.videoHeight, width: video.videoWidth };
+      cleanup();
+      resolve(result);
+    };
+    video.onerror = () => {
+      cleanup();
+      reject(new Error("O navegador não conseguiu decodificar este vídeo."));
+    };
+    video.src = url;
+  });
 }
 
 async function validatePanelMediaBeforeUpload(file: File, onStatus: (message: string) => void) {
@@ -845,6 +1088,12 @@ function dashboardImageUrl(imageUrl: string) {
   return imageUrl;
 }
 
+function withRetryCacheKey(url: string, retry: number) {
+  if (retry <= 0) return url;
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}retry=${retry}`;
+}
+
 function extensionFromUrl(value: string) {
   const match = value.match(/\.([a-z0-9]+)(?:[?#].*)?$/i);
   return match?.[1] ?? "";
@@ -880,6 +1129,8 @@ function defaultSettings(guildId: string, botId: string, panelId: string): Panel
     imageExtension: null,
     imageIsAnimated: false,
     imageMimeType: null,
+    imageProcessingError: null,
+    imageProcessingStatus: null,
     blocks: [],
     imagePosition: "none",
     imageSize: "medium",
@@ -892,6 +1143,7 @@ function defaultSettings(guildId: string, botId: string, panelId: string): Panel
     mediaFit: "cover",
     mediaLoop: true,
     mediaMuted: true,
+    mediaDiagnostics: null,
     mediaPosterUrl: null,
     mediaPreload: "metadata",
     mediaThumbnailUrl: null,

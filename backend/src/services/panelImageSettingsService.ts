@@ -19,6 +19,7 @@ import {
   removePersistentImageByUrl,
   savePersistentImage
 } from "./persistentImageStorageService";
+import type { PanelMediaDiagnostics } from "./panelMediaProcessor";
 import { createLog } from "./logService";
 
 export type PanelImagePosition = MongoGlobalPanelImagePosition;
@@ -37,6 +38,8 @@ export type PanelImageSettingsDto = {
   imageSize: PanelImageSize;
   imageUrl: string;
   imageMimeType: string | null;
+  imageProcessingError: string | null;
+  imageProcessingStatus: "stored" | "converted" | "failed" | null;
   imageSizeBytes: number | null;
   imageInvalidReason?: string | null;
   imageIsAnimated: boolean;
@@ -47,6 +50,7 @@ export type PanelImageSettingsDto = {
   mediaFit: "cover" | "contain";
   mediaLoop: boolean;
   mediaMuted: boolean;
+  mediaDiagnostics: PanelMediaDiagnostics | null;
   mediaPosterUrl: string | null;
   mediaPreload: "none" | "metadata" | "auto";
   mediaThumbnailUrl: string | null;
@@ -88,6 +92,8 @@ const DEFAULT_SETTINGS = {
   imageSize: "medium" as PanelImageSize,
   imageUrl: "",
   imageMimeType: null,
+  imageProcessingError: null,
+  imageProcessingStatus: null as "stored" | "converted" | "failed" | null,
   imageSizeBytes: null,
   imageIsAnimated: false,
   imageUploadedAt: null,
@@ -97,6 +103,7 @@ const DEFAULT_SETTINGS = {
   mediaFit: "cover" as const,
   mediaLoop: true,
   mediaMuted: true,
+  mediaDiagnostics: null as PanelMediaDiagnostics | null,
   mediaPosterUrl: null,
   mediaPreload: "metadata" as const,
   mediaThumbnailUrl: null,
@@ -343,6 +350,7 @@ function normalizeSettings(settings: PanelImageSettingsDto): PanelImageSettingsD
     mediaFit: settings.mediaFit === "contain" ? "contain" : "cover",
     mediaLoop: settings.mediaLoop !== false,
     mediaMuted: settings.mediaMuted !== false,
+    mediaDiagnostics: settings.mediaDiagnostics ?? null,
     mediaPosterUrl: mediaPosterUrl || null,
     mediaPreload: settings.mediaPreload === "none" || settings.mediaPreload === "auto" ? settings.mediaPreload : "metadata",
     mediaThumbnailUrl: mediaThumbnailUrl || null,
@@ -431,9 +439,12 @@ async function toDtoWithImageMetadata(settings: MongoPanelImageSettings): Promis
     ...dto,
     imageExtension: metadata.extension,
     imageMimeType: metadata.mimeType,
+    imageProcessingError: metadata.processingError,
+    imageProcessingStatus: metadata.processingStatus,
     imageSizeBytes: metadata.size,
     imageIsAnimated: metadata.animated,
     imageUploadedAt: metadata.uploadedAt,
+    mediaDiagnostics: metadata.mediaDiagnostics,
     mediaThumbnailUrl: metadata.posterUrl ?? dto.mediaThumbnailUrl,
     mediaPosterUrl: dto.mediaPosterUrl ?? metadata.posterUrl
   };
@@ -455,6 +466,8 @@ function toDto(settings: MongoPanelImageSettings): PanelImageSettingsDto {
     imageSize: settings.imageSize ?? DEFAULT_SETTINGS.imageSize,
     imageUrl: legacyImageUrl,
     imageMimeType: mimeTypeFromUrl(legacyImageUrl),
+    imageProcessingError: null,
+    imageProcessingStatus: null,
     imageSizeBytes: null,
     imageIsAnimated: /\.gif(?:$|[?#])/i.test(legacyImageUrl),
     imageUploadedAt: null,
@@ -464,6 +477,7 @@ function toDto(settings: MongoPanelImageSettings): PanelImageSettingsDto {
     mediaFit: settings.mediaFit ?? DEFAULT_SETTINGS.mediaFit,
     mediaLoop: settings.mediaLoop ?? DEFAULT_SETTINGS.mediaLoop,
     mediaMuted: settings.mediaMuted ?? DEFAULT_SETTINGS.mediaMuted,
+    mediaDiagnostics: DEFAULT_SETTINGS.mediaDiagnostics,
     mediaPosterUrl: settings.mediaPosterUrl ?? DEFAULT_SETTINGS.mediaPosterUrl,
     mediaPreload: settings.mediaPreload ?? DEFAULT_SETTINGS.mediaPreload,
     mediaThumbnailUrl: settings.mediaThumbnailUrl ?? DEFAULT_SETTINGS.mediaThumbnailUrl,

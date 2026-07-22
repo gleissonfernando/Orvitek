@@ -6,7 +6,7 @@ import { GridFSBucket, ObjectId } from "mongodb";
 import { env } from "../config/env";
 import { getMongoCollections, getMongoDb, type MongoPersistentImage } from "../database/mongo";
 import { createLog } from "./logService";
-import { PANEL_MEDIA_MIME_EXTENSIONS, PANEL_VIDEO_MAX_DURATION_SECONDS, processPanelMedia } from "./panelMediaProcessor";
+import { PANEL_MEDIA_MIME_EXTENSIONS, PANEL_VIDEO_MAX_DURATION_SECONDS, processMediaEngineUpload, type PanelMediaDiagnostics } from "./mediaEngineService";
 
 export type StoredImageDto = {
   animated: boolean;
@@ -17,6 +17,7 @@ export type StoredImageDto = {
   posterUrl: string | null;
   processingError: string | null;
   processingStatus: "stored" | "converted" | "failed";
+  mediaDiagnostics: PanelMediaDiagnostics | null;
   publicUrl: string;
   size: number;
   storageProvider: "mongodb" | "gridfs";
@@ -55,7 +56,7 @@ export async function savePersistentImage(input: {
     stage: "storage:start",
     videoMaxDurationSeconds: videoCandidate ? PANEL_VIDEO_MAX_DURATION_SECONDS : null
   }));
-  const processed = await processPanelMedia({ buffer: input.buffer, mimeType: input.mimeType, originalName: input.originalName });
+  const processed = await processMediaEngineUpload({ buffer: input.buffer, mimeType: input.mimeType, originalName: input.originalName });
 
   const id = randomUUID();
   const { animated, extension, mimeType } = processed;
@@ -88,6 +89,7 @@ export async function savePersistentImage(input: {
     metadata: {
       ...(input.metadata ?? {}),
       durationSeconds: processed.durationSeconds,
+      mediaDiagnostics: processed.diagnostics,
       inputHash: processed.inputHash
     },
     mimeType,
@@ -185,7 +187,7 @@ export async function getPersistentImageMetadataByUrl(url: string | null | undef
   const id = parsePersistentImageId(url ?? "");
   if (!id) return null;
   const { persistentImages } = await getMongoCollections();
-  const image = await persistentImages.findOne({ _id: id }, { projection: { animated: 1, extension: 1, fileName: 1, mimeType: 1, posterBuffer: 1, posterFileId: 1, processingError: 1, processingStatus: 1, size: 1, storageProvider: 1, uploadedAt: 1 } });
+  const image = await persistentImages.findOne({ _id: id }, { projection: { animated: 1, extension: 1, fileName: 1, metadata: 1, mimeType: 1, originalMimeType: 1, posterBuffer: 1, posterFileId: 1, processingError: 1, processingStatus: 1, size: 1, storageProvider: 1, uploadedAt: 1 } });
   return image ? toDto(image as MongoPersistentImage) : null;
 }
 
@@ -446,10 +448,36 @@ function toDto(image: MongoPersistentImage): StoredImageDto {
     posterUrl: image.posterBuffer?.length || image.posterFileId ? publicPosterUrl(image._id) : null,
     processingError: image.processingError ?? null,
     processingStatus: image.processingStatus ?? "stored",
+    mediaDiagnostics: readMediaDiagnostics(image),
     publicUrl: publicImageUrl(image._id),
     size: image.size,
     storageProvider: image.storageProvider ?? "mongodb",
     uploadedAt: image.uploadedAt.toISOString()
+  };
+}
+
+function readMediaDiagnostics(image: MongoPersistentImage): PanelMediaDiagnostics | null {
+  const metadata = image.metadata ?? {};
+  const diagnostics = metadata.mediaDiagnostics;
+  if (diagnostics && typeof diagnostics === "object") {
+    return diagnostics as PanelMediaDiagnostics;
+  }
+
+  const durationSeconds = typeof metadata.durationSeconds === "number" ? metadata.durationSeconds : null;
+  if (!image.mimeType.startsWith("video/") && durationSeconds === null) return null;
+
+  return {
+    audioCodec: null,
+    bitrate: null,
+    browserCompatible: image.processingStatus !== "failed",
+    durationSeconds,
+    fps: null,
+    height: null,
+    originalMimeType: image.originalMimeType ?? image.mimeType,
+    outputMimeType: image.mimeType,
+    processingEngine: "Media Engine",
+    videoCodec: null,
+    width: null
   };
 }
 

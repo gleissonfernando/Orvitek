@@ -803,6 +803,8 @@ export type PanelImageSettings = {
   imageInvalidReason?: string | null;
   imageIsAnimated: boolean;
   imageMimeType: string | null;
+  imageProcessingError: string | null;
+  imageProcessingStatus: "stored" | "converted" | "failed" | null;
   imagePosition: PanelImagePosition;
   imageSize: PanelImageSize;
   imageSizeBytes: number | null;
@@ -814,6 +816,19 @@ export type PanelImageSettings = {
   mediaFit: "cover" | "contain";
   mediaLoop: boolean;
   mediaMuted: boolean;
+  mediaDiagnostics: {
+    audioCodec: string | null;
+    bitrate: number | null;
+    browserCompatible: boolean;
+    durationSeconds: number | null;
+    fps: number | null;
+    height: number | null;
+    originalMimeType: string;
+    outputMimeType: string;
+    processingEngine: "Media Engine";
+    videoCodec: string | null;
+    width: number | null;
+  } | null;
   mediaPosterUrl: string | null;
   mediaPreload: "none" | "metadata" | "auto";
   mediaThumbnailUrl: string | null;

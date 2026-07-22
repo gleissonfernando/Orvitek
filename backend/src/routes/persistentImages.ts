@@ -58,8 +58,12 @@ async function sendPersistentMedia(
     }
 
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.setHeader("Content-Disposition", `inline; filename="${encodeHeaderFileName(image.fileName)}"`);
     res.setHeader("Content-Type", image.mimeType);
     res.setHeader("Accept-Ranges", "bytes");
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    res.setHeader("ETag", `"${image._id}-${size}"`);
+    res.setHeader("Last-Modified", image.uploadedAt.toUTCString());
     res.setHeader("X-Content-Type-Options", "nosniff");
 
     const range = parseRangeHeader(req.headers.range, size);
@@ -87,6 +91,10 @@ async function sendPersistentMedia(
   } catch (error) {
     return next(error);
   }
+}
+
+function encodeHeaderFileName(value: string) {
+  return value.replace(/["\r\n\\]/g, "_").slice(0, 180) || "media";
 }
 
 function parseRangeHeader(value: string | undefined, size: number) {

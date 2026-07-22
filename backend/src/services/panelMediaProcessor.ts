@@ -11,6 +11,7 @@ export type ProcessedPanelMedia = {
   durationSeconds: number | null;
   extension: string;
   inputHash: string;
+  diagnostics: PanelMediaDiagnostics;
   mimeType: string;
   originalMimeType: string;
   originalSize: number;
@@ -18,6 +19,20 @@ export type ProcessedPanelMedia = {
   posterMimeType: string | null;
   processingError: string | null;
   processingStatus: "stored" | "converted" | "failed";
+};
+
+export type PanelMediaDiagnostics = {
+  audioCodec: string | null;
+  bitrate: number | null;
+  browserCompatible: boolean;
+  durationSeconds: number | null;
+  fps: number | null;
+  height: number | null;
+  originalMimeType: string;
+  outputMimeType: string;
+  processingEngine: "Media Engine";
+  videoCodec: string | null;
+  width: number | null;
 };
 
 const nodeRequire = createRequire(__filename);
@@ -80,6 +95,13 @@ export async function processPanelMedia(input: { buffer: Buffer; mimeType: strin
       durationSeconds: null,
       extension,
       inputHash,
+      diagnostics: mediaDiagnostics({
+        browserCompatible: true,
+        durationSeconds: null,
+        originalMimeType,
+        outputMimeType: originalMimeType,
+        raw: ""
+      }),
       mimeType: originalMimeType,
       originalMimeType,
       originalSize: input.buffer.length,
@@ -98,7 +120,17 @@ export async function processPanelMedia(input: { buffer: Buffer; mimeType: strin
   logPanelMedia("probe:start", { extension, originalMimeType });
   const probe = await probeMedia(input.buffer, extension, ffmpegPath);
   const durationSeconds = parseDurationSeconds(probe.raw);
-  logPanelMedia("probe:complete", { durationSeconds, elapsedMs: Date.now() - startedAt });
+  const probeDetails = parseProbeDetails(probe.raw);
+  logPanelMedia("probe:complete", {
+    audioCodec: probeDetails.audioCodec,
+    bitrate: probeDetails.bitrate,
+    durationSeconds,
+    elapsedMs: Date.now() - startedAt,
+    fps: probeDetails.fps,
+    height: probeDetails.height,
+    videoCodec: probeDetails.videoCodec,
+    width: probeDetails.width
+  });
   if (!Number.isFinite(durationSeconds) || durationSeconds === null) {
     throw Object.assign(new Error("Não foi possível validar a duração deste vídeo. Envie outro arquivo ou converta para MP4/WebM."), { statusCode: 422 });
   }
@@ -107,7 +139,7 @@ export async function processPanelMedia(input: { buffer: Buffer; mimeType: strin
   }
 
   const compatible = isBrowserCompatibleVideo(originalMimeType, probe.raw);
-  const posterBuffer = await generatePoster(input.buffer, extension, ffmpegPath).catch((error) => {
+  const posterBuffer = await generatePoster(input.buffer, extension, ffmpegPath, durationSeconds).catch((error) => {
     logPanelMedia("poster:failed", { error: readError(error) });
     return null;
   });
@@ -120,6 +152,13 @@ export async function processPanelMedia(input: { buffer: Buffer; mimeType: strin
       durationSeconds,
       extension,
       inputHash,
+      diagnostics: mediaDiagnostics({
+        browserCompatible: compatible,
+        durationSeconds,
+        originalMimeType,
+        outputMimeType: originalMimeType,
+        raw: probe.raw
+      }),
       mimeType: originalMimeType,
       originalMimeType,
       originalSize: input.buffer.length,
@@ -140,6 +179,13 @@ export async function processPanelMedia(input: { buffer: Buffer; mimeType: strin
       durationSeconds,
       extension: "mp4",
       inputHash,
+      diagnostics: mediaDiagnostics({
+        browserCompatible: true,
+        durationSeconds,
+        originalMimeType,
+        outputMimeType: "video/mp4",
+        raw: probe.raw
+      }),
       mimeType: "video/mp4",
       originalMimeType,
       originalSize: input.buffer.length,
@@ -157,6 +203,13 @@ export async function processPanelMedia(input: { buffer: Buffer; mimeType: strin
         durationSeconds,
         extension,
         inputHash,
+        diagnostics: mediaDiagnostics({
+          browserCompatible: false,
+          durationSeconds,
+          originalMimeType,
+          outputMimeType: originalMimeType,
+          raw: probe.raw
+        }),
         mimeType: originalMimeType,
         originalMimeType,
         originalSize: input.buffer.length,
@@ -176,9 +229,10 @@ function isBrowserCompatibleVideo(mimeType: string, probeOutput: string) {
   if (mimeType === "video/ogg") return /Video:\s*(theora|vp8|vp9)/i.test(probeOutput);
   if (mimeType !== "video/mp4") return false;
   const hasSafeVideo = /Video:\s*(h264|avc1)/i.test(probeOutput);
+  const hasSafePixelFormat = /Video:.*\byuv420p\b/i.test(probeOutput);
   const hasAudio = /Audio:/i.test(probeOutput);
   const hasSafeAudio = /Audio:\s*(aac|mp3|mp4a)/i.test(probeOutput);
-  return hasSafeVideo && (!hasAudio || hasSafeAudio);
+  return hasSafeVideo && hasSafePixelFormat && (!hasAudio || hasSafeAudio);
 }
 
 async function probeMedia(buffer: Buffer, extension: string, ffmpegPath: string) {
@@ -212,8 +266,14 @@ async function convertToBrowserMp4(buffer: Buffer, extension: string, ffmpegPath
       "veryfast",
       "-crf",
       "23",
+      "-profile:v",
+      "main",
+      "-level",
+      "4.1",
       "-pix_fmt",
       "yuv420p",
+      "-tag:v",
+      "avc1",
       "-c:a",
       "aac",
       "-b:a",
@@ -228,11 +288,12 @@ async function convertToBrowserMp4(buffer: Buffer, extension: string, ffmpegPath
   }
 }
 
-async function generatePoster(buffer: Buffer, extension: string, ffmpegPath: string) {
+async function generatePoster(buffer: Buffer, extension: string, ffmpegPath: string, durationSeconds: number) {
   const temp = await writeTempFile(buffer, extension);
   const output = path.join(temp.dir, "poster.jpg");
+  const seekSeconds = Math.min(Math.max(durationSeconds * 0.12, 0.25), Math.max(durationSeconds - 0.1, 0));
   try {
-    await run(ffmpegPath, ["-hide_banner", "-y", "-i", temp.input, "-vf", "thumbnail,scale=640:-1", "-frames:v", "1", "-q:v", "3", output], POSTER_TIMEOUT_MS);
+    await run(ffmpegPath, ["-hide_banner", "-y", "-ss", String(seekSeconds), "-i", temp.input, "-vf", "thumbnail,scale='min(640,iw)':-2", "-frames:v", "1", "-q:v", "3", output], POSTER_TIMEOUT_MS);
     return fs.readFile(output);
   } finally {
     await fs.rm(temp.dir, { force: true, recursive: true }).catch(() => null);
@@ -286,7 +347,45 @@ function formatSeconds(value: number) {
 }
 
 function logPanelMedia(stage: string, metadata: Record<string, unknown>) {
-  console.info("[panel-media]", JSON.stringify({ stage, ...metadata }));
+  console.info("[media-engine]", JSON.stringify({ engine: "Media Engine", stage, ...metadata }));
+}
+
+function mediaDiagnostics(input: {
+  browserCompatible: boolean;
+  durationSeconds: number | null;
+  originalMimeType: string;
+  outputMimeType: string;
+  raw: string;
+}): PanelMediaDiagnostics {
+  const parsed = parseProbeDetails(input.raw);
+
+  return {
+    ...parsed,
+    browserCompatible: input.browserCompatible,
+    durationSeconds: input.durationSeconds,
+    originalMimeType: input.originalMimeType,
+    outputMimeType: input.outputMimeType,
+    processingEngine: "Media Engine"
+  };
+}
+
+function parseProbeDetails(probeOutput: string) {
+  const videoLine = probeOutput.split(/\r?\n/).find((line) => /Video:/i.test(line)) ?? "";
+  const audioLine = probeOutput.split(/\r?\n/).find((line) => /Audio:/i.test(line)) ?? "";
+  const bitrateMatch = /bitrate:\s*(\d+)\s*kb\/s/i.exec(probeOutput);
+  const videoCodec = /Video:\s*([^,\s]+)/i.exec(videoLine)?.[1]?.toLowerCase() ?? null;
+  const audioCodec = /Audio:\s*([^,\s]+)/i.exec(audioLine)?.[1]?.toLowerCase() ?? null;
+  const resolutionMatch = /,\s*(\d{2,5})x(\d{2,5})(?:\s|,|\[)/i.exec(videoLine);
+  const fpsMatch = /,\s*([\d.]+)\s*fps\b/i.exec(videoLine);
+
+  return {
+    audioCodec,
+    bitrate: bitrateMatch ? Number(bitrateMatch[1]) : null,
+    fps: fpsMatch ? Number(fpsMatch[1]) : null,
+    height: resolutionMatch ? Number(resolutionMatch[2]) : null,
+    videoCodec,
+    width: resolutionMatch ? Number(resolutionMatch[1]) : null
+  };
 }
 
 function resolveInputMimeType(buffer: Buffer, mimeType: string, originalName?: string | null) {
