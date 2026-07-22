@@ -295,6 +295,7 @@ type ModuleDefinition = {
 };
 
 type EntryLeaveMode = "welcome" | "leave";
+const ENTRY_LEAVE_MODES: EntryLeaveMode[] = ["welcome", "leave"];
 
 const CONFIGURED_GUILD_ID = "";
 const CONFIGURED_GUILD_NAME = "Servidor configurado";
@@ -1645,7 +1646,7 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
         ) : null}
         {activeView === "entry-leave" ? (
           <EntryLeaveManager
-            availableModes={(["welcome", "leave"] as const).filter((mode) => enabledModules.includes(mode))}
+            availableModes={ENTRY_LEAVE_MODES}
             botId={activeBotId}
             canManageModule={(moduleId) => canManageModule(selectedBot, moduleId, canManageDashboard)}
             guild={selectedGuild}
