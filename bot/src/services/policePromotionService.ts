@@ -282,9 +282,15 @@ export function clearPolicePromotionSettingsCache(guildId?: string | null) {
 export function startPolicePromotionService(client: Client, context: BotContext) {
   if (serviceStarted) return;
   serviceStarted = true;
+  context.socket.onPolicePromotionSettingsUpdated((payload) => {
+    const runtimeBotId = (currentRuntimeBotId() ?? env.DASHBOARD_BOT_ID) || null;
+    if (payload.botId && runtimeBotId && payload.botId !== runtimeBotId) return;
+    clearPolicePromotionSettingsCache(payload.guildId);
+  });
   context.socket.onPolicePromotionPanelPublish((payload, ack?: PolicePromotionPanelPublishAck) => {
     const runtimeBotId = (currentRuntimeBotId() ?? env.DASHBOARD_BOT_ID) || null;
     if (!isBotModuleEnabled(MODULE_ID) || (payload.botId && runtimeBotId && payload.botId !== runtimeBotId)) return;
+    clearPolicePromotionSettingsCache(payload.guildId);
     void publishConfiguredPromotionPanel(client, context, payload.guildId)
       .then((messageId) => ack?.({ ok: true, messageId }))
       .catch((error) => {
@@ -1017,8 +1023,7 @@ async function openDecisionModal(interaction: ButtonInteraction<"cached">, resul
   }
   const settings = await getSettings(context, interaction.guild.id);
   const promotion = promotionFor(settings, request);
-  const roleIds = result === "approved" ? promotion?.approvalRoleIds ?? [] : promotion?.rejectedRoleIds ?? [];
-  if (!promotion || !hasAnyRole(interaction.member as GuildMember, roleIds)) {
+  if (!promotion || !canDecidePromotion(interaction.member as GuildMember, promotion, result)) {
     await interaction.reply({ content: "Você não possui permissão para decidir esta promoção.", ephemeral: true });
     return true;
   }
@@ -1048,6 +1053,10 @@ async function handleDecisionModal(interaction: ModalSubmitInteraction<"cached">
     await interaction.reply({ content: "Configuração da promoção não encontrada.", ephemeral: true });
     return true;
   }
+  if (!canDecidePromotion(interaction.member as GuildMember, promotion, result)) {
+    await interaction.reply({ content: "Você não possui permissão para decidir esta promoção.", ephemeral: true });
+    return true;
+  }
 
   const updated = await context.api.decidePolicePromotionRequest(request.id, {
     actorId: interaction.user.id,
@@ -1071,7 +1080,7 @@ async function requestNewEvaluation(interaction: ButtonInteraction<"cached">, co
     await interaction.reply({ content: "Nova avaliação não está habilitada para esta promoção.", ephemeral: true });
     return true;
   }
-  if (!hasAnyRole(interaction.member as GuildMember, [...promotion.approvalRoleIds, ...promotion.rejectedRoleIds])) {
+  if (!canDecidePromotion(interaction.member as GuildMember, promotion)) {
     await interaction.reply({ content: "Você não possui permissão para solicitar nova avaliação.", ephemeral: true });
     return true;
   }
@@ -1467,6 +1476,24 @@ function hasAnyRole(member: GuildMember | null, roleIds: string[]) {
   if (member.permissions.has(PermissionFlagsBits.Administrator) || member.permissions.has(PermissionFlagsBits.ManageGuild)) return true;
   if (!roleIds.length) return false;
   return member.roles.cache.some((role) => roleIds.includes(role.id));
+}
+
+function canDecidePromotion(member: GuildMember | null, promotion: PolicePromotionDefinition, result?: "approved" | "rejected") {
+  return hasAnyRole(member, promotionDecisionRoleIds(promotion, result));
+}
+
+function promotionDecisionRoleIds(promotion: PolicePromotionDefinition, result?: "approved" | "rejected") {
+  const approvalRoleIds = promotion.approvalRoleIds ?? [];
+  const rejectedRoleIds = promotion.rejectedRoleIds ?? [];
+  const evaluatorRoleIds = promotion.evaluatorRoleIds ?? [];
+  const specificRoleIds = result === "approved" ? approvalRoleIds : result === "rejected" ? rejectedRoleIds : [];
+  if (specificRoleIds.length) return uniqueStrings(specificRoleIds);
+  const configuredDecisionRoleIds = uniqueStrings([...approvalRoleIds, ...rejectedRoleIds]);
+  return configuredDecisionRoleIds.length ? configuredDecisionRoleIds : uniqueStrings(evaluatorRoleIds);
+}
+
+function uniqueStrings(values: string[]) {
+  return [...new Set(values.filter(Boolean))];
 }
 
 function answersText(request: Pick<PolicePromotionRequest, "answers">) {

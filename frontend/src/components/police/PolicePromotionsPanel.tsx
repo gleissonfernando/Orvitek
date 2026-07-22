@@ -39,6 +39,7 @@ export function PolicePromotionsPanel({ botId, canManage, guild }: { botId?: str
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const settingsRef = useRef<PolicePromotionSettings | null>(null);
 
@@ -57,6 +58,7 @@ export function PolicePromotionsPanel({ botId, canManage, guild }: { botId?: str
       ]);
       setData(dashboard);
       settingsRef.current = dashboard.settings;
+      setDirty(false);
       setSelectedId((current) => current ?? dashboard.settings.promotions[0]?.id ?? null);
       setChannels(options.channels ?? []);
       setCategories(options.categories ?? []);
@@ -73,7 +75,7 @@ export function PolicePromotionsPanel({ botId, canManage, guild }: { botId?: str
   }, [load]);
 
   const selected = useMemo(() => data?.settings.promotions.find((item) => item.id === selectedId) ?? data?.settings.promotions[0] ?? null, [data?.settings.promotions, selectedId]);
-  const disabled = !canManage || saving;
+  const disabled = !canManage || saving || publishing;
   const roleOptions = useMemo(() => roles.map((role) => ({ color: role.color, disabled: role.managed, id: role.id, name: role.name })), [roles]);
   const channelOptions = useMemo(() => channels.map((channel) => ({ id: channel.id, name: channel.name })), [channels]);
   const categoryOptions = useMemo(() => categories.map((category) => ({ id: category.id, name: category.name })), [categories]);
@@ -85,6 +87,7 @@ export function PolicePromotionsPanel({ botId, canManage, guild }: { botId?: str
     const settings = { ...(settingsRef.current ?? data!.settings), ...next };
     settingsRef.current = settings;
     setData((current) => current ? { ...current, settings } : current);
+    setDirty(true);
   }
 
   function patchPromotion(id: string, next: Partial<PolicePromotionDefinition>) {
@@ -106,6 +109,7 @@ export function PolicePromotionsPanel({ botId, canManage, guild }: { botId?: str
       const settings = await savePolicePromotionSettings(guild.id, botId, settingsRef.current);
       settingsRef.current = settings;
       setData((current) => current ? { ...current, settings } : current);
+      setDirty(false);
       setMessage("Configurações de promoções salvas.");
     } catch (error) {
       setMessage(readMessage(error));
@@ -126,6 +130,7 @@ export function PolicePromotionsPanel({ botId, canManage, guild }: { botId?: str
       const published = await publishPolicePromotionPanel(guild.id, botId);
       settingsRef.current = published;
       setData((current) => current ? { ...current, settings: published } : current);
+      setDirty(false);
       setMessage("Publicação do painel enviada para o bot.");
     } catch (error) {
       setMessage(readMessage(error));
@@ -161,6 +166,15 @@ export function PolicePromotionsPanel({ botId, canManage, guild }: { botId?: str
     patchPromotion(promotion.id, { questions: promotion.questions.filter((question) => question.id !== questionId).map((question, order) => ({ ...question, order })) });
   }
 
+  function useEvaluatorRolesForDecision(promotion: PolicePromotionDefinition) {
+    const roleIds = uniqueStrings(promotion.evaluatorRoleIds);
+    patchPromotion(promotion.id, { approvalRoleIds: roleIds, rejectedRoleIds: roleIds });
+  }
+
+  function useApprovalRolesForRejection(promotion: PolicePromotionDefinition) {
+    patchPromotion(promotion.id, { rejectedRoleIds: uniqueStrings(promotion.approvalRoleIds) });
+  }
+
   return (
     <div className="space-y-5">
       <Card>
@@ -172,11 +186,12 @@ export function PolicePromotionsPanel({ botId, canManage, guild }: { botId?: str
             </div>
             <div className="flex items-center gap-3">
               <Badge variant={data.settings.enabled ? "success" : "muted"}>{data.settings.enabled ? "Ativo" : "Desativado"}</Badge>
+              {dirty ? <Badge variant="warning">Alterações pendentes</Badge> : null}
               <Button disabled={disabled || publishing || !data.settings.enabled || !data.settings.defaultPanelChannelId} onClick={() => void publishPanel()} size="sm" variant="secondary">
                 {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 Publicar painel
               </Button>
-              <Button disabled={disabled} onClick={() => void save()} size="sm"><Save className="h-4 w-4" />Salvar</Button>
+              <Button disabled={disabled} onClick={() => void save()} size="sm"><Save className="h-4 w-4" />Salvar configurações</Button>
             </div>
           </div>
         </CardHeader>
@@ -269,8 +284,15 @@ export function PolicePromotionsPanel({ botId, canManage, guild }: { botId?: str
                 <FivemResourceSelect disabled={disabled} label="Cargo concedido na aprovação" options={roleOptions} prefix="@" value={selected.grantedRoleId} onChange={(grantedRoleId) => patchPromotion(selected.id, { grantedRoleId })} />
                 <FivemResourceSelect disabled={disabled} label="Cargo removido na aprovação" options={roleOptions} prefix="@" value={selected.removedRoleId} onChange={(removedRoleId) => patchPromotion(selected.id, { removedRoleId })} />
                 <div className="lg:col-span-2"><FivemResourceMultiSelect disabled={disabled} label="Cargos dos instrutores avaliadores" options={roleOptions} prefix="@" values={selected.evaluatorRoleIds} onChange={(evaluatorRoleIds) => patchPromotion(selected.id, { evaluatorRoleIds })} /></div>
+                <div className="lg:col-span-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-100">
+                  Para decidir uma promoção, configure cargos em aprovação e reprovação. Se esses campos ficarem vazios, o bot usa os cargos dos instrutores avaliadores como fallback.
+                </div>
                 <div className="lg:col-span-2"><FivemResourceMultiSelect disabled={disabled} label="Cargos que aprovam promoções" options={roleOptions} prefix="@" values={selected.approvalRoleIds} onChange={(approvalRoleIds) => patchPromotion(selected.id, { approvalRoleIds })} /></div>
                 <div className="lg:col-span-2"><FivemResourceMultiSelect disabled={disabled} label="Cargos que reprovam promoções" options={roleOptions} prefix="@" values={selected.rejectedRoleIds} onChange={(rejectedRoleIds) => patchPromotion(selected.id, { rejectedRoleIds })} /></div>
+                <div className="lg:col-span-2 flex flex-wrap gap-2">
+                  <Button disabled={disabled || !selected.evaluatorRoleIds.length} onClick={() => useEvaluatorRolesForDecision(selected)} size="sm" variant="secondary">Usar avaliadores para decidir</Button>
+                  <Button disabled={disabled || !selected.approvalRoleIds.length} onClick={() => useApprovalRolesForRejection(selected)} size="sm" variant="ghost">Copiar aprovadores para reprovação</Button>
+                </div>
                 <Toggle disabled={disabled} label="Promoção ativa no painel" value={selected.active} onChange={(active) => patchPromotion(selected.id, { active })} />
                 <Toggle disabled={disabled} label="Permitir solicitar nova avaliação" value={selected.requestNewEvaluationEnabled} onChange={(requestNewEvaluationEnabled) => patchPromotion(selected.id, { requestNewEvaluationEnabled })} />
                 <div className="lg:col-span-2"><TextArea disabled={disabled} label="Descrição completa" value={selected.description} onChange={(description) => patchPromotion(selected.id, { description })} /></div>
@@ -380,6 +402,10 @@ function statusLabel(status: string) {
     ticket_open: "Ticket aberto"
   };
   return labels[status] ?? status;
+}
+
+function uniqueStrings(values: string[]) {
+  return [...new Set(values.filter(Boolean))];
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
