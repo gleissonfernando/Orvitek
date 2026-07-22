@@ -45,19 +45,19 @@ type WelcomePanelProps = {
 };
 
 const DEFAULT_WELCOME_TITLE = "Bem-vindo à NextTech";
-const DEFAULT_WELCOME_SUBTITLE = "Sua jornada na comunidade começa agora.";
+const DEFAULT_WELCOME_SUBTITLE = "A comunidade está pronta para receber você.";
 const DEFAULT_WELCOME_MESSAGE = [
-  "{user}, agora você faz parte da comunidade NextTech.",
-  "Explore os canais, participe das conversas e acompanhe tudo o que acontece por aqui com tranquilidade."
+  "{user}, seja bem-vindo(a) à comunidade NextTech.",
+  "Explore os canais, participe das conversas e fique à vontade para acompanhar os avisos, novidades e espaços de interação."
 ].join("\n");
 const DEFAULT_WELCOME_RULES_TITLE = "Regras e verificação";
 const DEFAULT_WELCOME_RULES = [
-  "Leia as regras para entender a organização da comunidade.",
-  "Conclua a verificação quando ela estiver disponível.",
+  "Leia as regras para entender como a comunidade funciona.",
+  "Conclua a verificação caso ela esteja disponível.",
   "Use cada canal para o assunto correto e mantenha uma convivência respeitosa."
 ].join("\n");
 const DEFAULT_WELCOME_CHANNEL_LABEL = "Comece por";
-const DEFAULT_WELCOME_FOOTER_TEXT = "NextTech - Comunidade premium";
+const DEFAULT_WELCOME_FOOTER_TEXT = "NextTech - Comunidade";
 const DEFAULT_LEAVE_TITLE = "Até breve";
 const DEFAULT_LEAVE_SUBTITLE = "Obrigado por ter caminhado com a NextTech.";
 const DEFAULT_LEAVE_MESSAGE = [
@@ -73,8 +73,8 @@ const DEFAULT_LEAVE_RULES = [
 const DEFAULT_LEAVE_CHANNEL_LABEL = "Comunidade";
 const DEFAULT_LEAVE_FOOTER_TEXT = "NextTech - As portas seguem abertas";
 const DEFAULT_WELCOME_SECTIONS: MemberPanelSection[] = [
-  { description: "{user}, sua entrada foi recebida com atenção. A partir de agora você faz parte de uma comunidade organizada para conectar pessoas, novidades e experiências.", emoji: ":aniversario:", enabled: true, id: "boas-vindas", order: 1, title: "Chegada confirmada" },
-  { description: "Conheça os canais, acompanhe os avisos e participe nos espaços que combinam com o que você procura dentro da NextTech.", emoji: ":discord:", enabled: true, id: "comunidade", order: 2, title: "Explore a comunidade" },
+  { description: "{user}, sua entrada foi registrada com sucesso. A partir de agora você faz parte de uma comunidade organizada, acolhedora e preparada para receber você.", emoji: ":aniversario:", enabled: true, id: "boas-vindas", order: 1, title: "Chegada confirmada" },
+  { description: "Conheça os canais, acompanhe os avisos e participe dos espaços que combinam com o que você procura dentro da NextTech.", emoji: ":discord:", enabled: true, id: "comunidade", order: 2, title: "Explore a comunidade" },
   { description: "Antes de interagir, leia as regras e conclua a verificação quando ela estiver disponível. Isso mantém o servidor seguro, claro e bem organizado.", emoji: ":folha:", enabled: true, id: "regras", order: 3, title: "Regras e verificação" },
   { description: "Se precisar de orientação, a equipe está disponível para ajudar com dúvidas, acesso aos canais e primeiros passos na comunidade.", emoji: ":interrogacao:", enabled: true, id: "suporte", order: 4, title: "Equipe disponível" }
 ];

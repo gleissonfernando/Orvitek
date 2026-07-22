@@ -79,7 +79,7 @@ function memberPanelDescription({
   rulesTitle: string | null;
   userMention: string;
 }) {
-  const channelMention = channelId ? `<#${channelId}>` : "<#coloque_o_id_do_canal_de_lives_aqui>";
+  const channelMention = channelId ? `<#${channelId}>` : "<#coloque_o_id_do_canal_da_comunidade_aqui>";
   const ruleLines = formatRuleLines(rules, defaultRules);
 
   return [
@@ -105,6 +105,8 @@ export function createWelcomePanelEmbeds(settings: GuildSettingsDto, userMention
     panelImage: settings.welcomePanelImage,
     rules: settings.welcomeRules,
     rulesTitle: settings.welcomeRulesTitle,
+    sections: settings.welcomeSections,
+    subtitle: settings.welcomeSubtitle,
     title: settings.welcomeTitle
   });
 }
@@ -122,6 +124,8 @@ export function createLeavePanelEmbed(settings: GuildSettingsDto, userMention: s
     panelImage: settings.leavePanelImage,
     rules: settings.leaveRules,
     rulesTitle: settings.leaveRulesTitle,
+    sections: settings.leaveSections,
+    subtitle: settings.leaveSubtitle,
     title: settings.leaveTitle
   });
 }
@@ -222,6 +226,8 @@ function createMemberPanelPayload(
     panelImage: GuildSettingsDto["welcomePanelImage"];
     rules: string | null;
     rulesTitle: string | null;
+    sections: GuildSettingsDto["welcomeSections"];
+    subtitle: string | null;
     title: string | null;
   }
 ): DiscordMessagePayload | null {
@@ -237,11 +243,13 @@ function createMemberPanelPayload(
   const imageUrl = toPublicUrl(panelImage?.imageUrl || input.imageUrl);
   const imagePosition = imageUrl ? panelImage?.imagePosition ?? "top" : "none";
   const title = renderTemplate(input.title, variables);
+  const subtitle = renderTemplate(input.subtitle, variables);
   const description = renderTemplate(input.description, variables);
   const rulesTitle = renderTemplate(input.rulesTitle, variables);
   const rules = formatRuleLines(renderTemplate(input.rules, variables));
   const channelLabel = renderTemplate(input.channelLabel, variables);
   const footerText = renderTemplate(input.footerText, variables);
+  const customSections = normalizePanelSections(input.sections, variables);
   const components: Array<Record<string, unknown>> = [];
 
   if (imageUrl && ["top", "banner"].includes(imagePosition)) {
@@ -249,12 +257,15 @@ function createMemberPanelPayload(
   }
 
   const contentBlocks = [
-    title ? `## ${title}` : "",
-    description,
-    rulesTitle || rules.length
-      ? [rulesTitle ? `**${rulesTitle}**` : "", ...rules.map((rule, index) => `**${index + 1}.** ${rule}`)].filter(Boolean).join("\n")
+    title ? [`# ${title}`, subtitle ? `**${subtitle}**` : "", description].filter(Boolean).join("\n") : description,
+    ...customSections.flatMap((section, index) => [
+      [`### ${[section.emoji, section.title].filter(Boolean).join(" ")}`, section.description].filter(Boolean).join("\n"),
+      index < customSections.length - 1 ? "__separator__" : ""
+    ]).filter(Boolean),
+    !customSections.length && (rulesTitle || rules.length)
+      ? [rulesTitle ? `### ${rulesTitle}` : "", ...rules.map((rule, index) => `**${index + 1}.** ${rule}`)].filter(Boolean).join("\n")
       : "",
-    channelLabel || input.channelId ? [channelLabel, variables.channel].filter(Boolean).join(" ") : "",
+    channelLabel || input.channelId ? `### ${[channelLabel, variables.channel].filter(Boolean).join(" ")}` : "",
     footerText ? `-# ${footerText}` : ""
   ].filter(Boolean);
 
@@ -275,7 +286,7 @@ function createMemberPanelPayload(
 
   for (const content of contentBlocks) {
     if (content) {
-      components.push(textDisplayComponent(content));
+      components.push(content === "__separator__" ? separatorComponent() : textDisplayComponent(content));
     }
   }
 
@@ -311,6 +322,14 @@ function textDisplayComponent(content: string) {
   };
 }
 
+function separatorComponent() {
+  return {
+    divider: true,
+    spacing: 2,
+    type: 14
+  };
+}
+
 function mediaGalleryComponent(imageUrl: string, mode: MemberPanelMode) {
   return {
     type: 12,
@@ -332,6 +351,19 @@ function renderTemplate(value: string | null | undefined, variables: Record<"bot
     .replace(/\{memberCount\}/gi, variables.memberCount)
     .replace(/\{botName\}/gi, variables.botName)
     .replace(/\{channel\}/gi, variables.channel);
+}
+
+function normalizePanelSections(sections: GuildSettingsDto["welcomeSections"], variables: Record<"botName" | "channel" | "memberCount" | "server" | "user" | "username", string>) {
+  return (sections ?? [])
+    .filter((section) => section.enabled !== false && section.title?.trim() && section.description?.trim())
+    .sort((left, right) => left.order - right.order)
+    .slice(0, 6)
+    .map((section) => ({
+      description: renderTemplate(section.description, variables),
+      emoji: section.emoji?.trim() ?? "",
+      title: renderTemplate(section.title, variables)
+    }))
+    .filter((section) => section.title || section.description);
 }
 
 function parseColor(value: string) {

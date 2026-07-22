@@ -274,19 +274,19 @@ const PREVIOUS_WELCOME_RULES = [
 ].join("\n");
 const PREVIOUS_WELCOME_FOOTER_TEXT = "NexTech - Comunidade de lives";
 export const DEFAULT_WELCOME_TITLE = "Bem-vindo à NextTech";
-export const DEFAULT_WELCOME_SUBTITLE = "Sua jornada na comunidade começa agora.";
+export const DEFAULT_WELCOME_SUBTITLE = "A comunidade está pronta para receber você.";
 export const DEFAULT_WELCOME_MESSAGE = [
-  "{user}, agora você faz parte da comunidade NextTech.",
-  "Explore os canais, participe das conversas e acompanhe tudo o que acontece por aqui com tranquilidade."
+  "{user}, seja bem-vindo(a) à comunidade NextTech.",
+  "Explore os canais, participe das conversas e fique à vontade para acompanhar os avisos, novidades e espaços de interação."
 ].join("\n");
 export const DEFAULT_WELCOME_RULES_TITLE = "Regras e verificação";
 export const DEFAULT_WELCOME_RULES = [
-  "Leia as regras para entender a organização da comunidade.",
-  "Conclua a verificação quando ela estiver disponível.",
+  "Leia as regras para entender como a comunidade funciona.",
+  "Conclua a verificação caso ela esteja disponível.",
   "Use cada canal para o assunto correto e mantenha uma convivência respeitosa."
 ].join("\n");
 export const DEFAULT_WELCOME_CHANNEL_LABEL = "Comece por";
-export const DEFAULT_WELCOME_FOOTER_TEXT = "NextTech - Comunidade premium";
+export const DEFAULT_WELCOME_FOOTER_TEXT = "NextTech - Comunidade";
 export const DEFAULT_LEAVE_MESSAGE = [
   "{user}, obrigado por ter feito parte da NextTech.",
   "Sua participação foi respeitada e as portas continuarão abertas caso decida retornar."
@@ -303,7 +303,7 @@ export const DEFAULT_LEAVE_CHANNEL_LABEL = "Comunidade";
 export const DEFAULT_LEAVE_FOOTER_TEXT = "NextTech - As portas seguem abertas";
 const DEFAULT_WELCOME_SECTIONS: MemberPanelSectionDto[] = [
   {
-    description: "{user}, sua entrada foi recebida com atenção. A partir de agora você faz parte de uma comunidade organizada para conectar pessoas, novidades e experiências.",
+    description: "{user}, sua entrada foi registrada com sucesso. A partir de agora você faz parte de uma comunidade organizada, acolhedora e preparada para receber você.",
     emoji: fixedSystemEmojiText("aniversario"),
     enabled: true,
     id: "boas-vindas",
@@ -311,7 +311,7 @@ const DEFAULT_WELCOME_SECTIONS: MemberPanelSectionDto[] = [
     title: "Chegada confirmada"
   },
   {
-    description: "Conheça os canais, acompanhe os avisos e participe nos espaços que combinam com o que você procura dentro da NextTech.",
+    description: "Conheça os canais, acompanhe os avisos e participe dos espaços que combinam com o que você procura dentro da NextTech.",
     emoji: fixedSystemEmojiText("discord"),
     enabled: true,
     id: "comunidade",
@@ -691,14 +691,14 @@ export async function updateGuildSettings(
     ticketPanelChannelId: normalizeSnowflake("ticketPanelChannelId" in input ? input.ticketPanelChannelId : current.ticketPanelChannelId),
     ticketPanelMessageId: normalizeSnowflake("ticketPanelMessageId" in input ? input.ticketPanelMessageId : current.ticketPanelMessageId),
     autoRoleIds,
-    welcomeTitle: normalizePanelText("welcomeTitle" in input ? input.welcomeTitle : current.welcomeTitle) || DEFAULT_WELCOME_TITLE,
+    welcomeTitle: normalizeWelcomeTitle("welcomeTitle" in input ? input.welcomeTitle : current.welcomeTitle) || DEFAULT_WELCOME_TITLE,
     welcomeSubtitle: normalizePanelText("welcomeSubtitle" in input ? input.welcomeSubtitle : current.welcomeSubtitle) || DEFAULT_WELCOME_SUBTITLE,
-    welcomeMessage: normalizePanelMessage("welcomeMessage" in input ? input.welcomeMessage : current.welcomeMessage) || DEFAULT_WELCOME_MESSAGE,
-    welcomeRulesTitle: normalizePanelText("welcomeRulesTitle" in input ? input.welcomeRulesTitle : current.welcomeRulesTitle) || DEFAULT_WELCOME_RULES_TITLE,
-    welcomeRules: normalizePanelText("welcomeRules" in input ? input.welcomeRules : current.welcomeRules) || DEFAULT_WELCOME_RULES,
+    welcomeMessage: normalizeWelcomeMessage("welcomeMessage" in input ? input.welcomeMessage : current.welcomeMessage) || DEFAULT_WELCOME_MESSAGE,
+    welcomeRulesTitle: normalizeWelcomeRulesTitle("welcomeRulesTitle" in input ? input.welcomeRulesTitle : current.welcomeRulesTitle) || DEFAULT_WELCOME_RULES_TITLE,
+    welcomeRules: normalizeWelcomeRules("welcomeRules" in input ? input.welcomeRules : current.welcomeRules) || DEFAULT_WELCOME_RULES,
     welcomeSections: normalizeMemberPanelSections("welcomeSections" in input ? input.welcomeSections : current.welcomeSections, DEFAULT_WELCOME_SECTIONS),
-    welcomeChannelLabel: normalizePanelText("welcomeChannelLabel" in input ? input.welcomeChannelLabel : current.welcomeChannelLabel) || DEFAULT_WELCOME_CHANNEL_LABEL,
-    welcomeFooterText: normalizePanelText("welcomeFooterText" in input ? input.welcomeFooterText : current.welcomeFooterText) || DEFAULT_WELCOME_FOOTER_TEXT,
+    welcomeChannelLabel: normalizeWelcomeChannelLabel("welcomeChannelLabel" in input ? input.welcomeChannelLabel : current.welcomeChannelLabel) || DEFAULT_WELCOME_CHANNEL_LABEL,
+    welcomeFooterText: normalizeWelcomeFooterText("welcomeFooterText" in input ? input.welcomeFooterText : current.welcomeFooterText) || DEFAULT_WELCOME_FOOTER_TEXT,
     welcomeColor: normalizeMemberPanelColor("welcomeColor" in input ? input.welcomeColor : current.welcomeColor),
     leaveTitle: normalizePanelText("leaveTitle" in input ? input.leaveTitle : current.leaveTitle) || DEFAULT_LEAVE_TITLE,
     leaveSubtitle: normalizePanelText("leaveSubtitle" in input ? input.leaveSubtitle : current.leaveSubtitle) || DEFAULT_LEAVE_SUBTITLE,
@@ -923,14 +923,14 @@ function toDto(settings: MongoGuildSettings): GuildSettingsDto {
     welcomeDisplayChannelId: settings.welcomeDisplayChannelId ?? null,
     welcomeImageUrl: normalizeWelcomeImageUrl(settings.welcomeImageUrl),
     welcomePanelImage: null,
-    welcomeTitle: normalizePanelText(settings.welcomeTitle) || defaults.welcomeTitle,
+    welcomeTitle: normalizeWelcomeTitle(settings.welcomeTitle) || defaults.welcomeTitle,
     welcomeSubtitle: normalizePanelText(settings.welcomeSubtitle) || defaults.welcomeSubtitle,
-    welcomeMessage: normalizePanelMessage(settings.welcomeMessage) || defaults.welcomeMessage,
-    welcomeRulesTitle: normalizePanelText(settings.welcomeRulesTitle) || defaults.welcomeRulesTitle,
-    welcomeRules: normalizePanelText(settings.welcomeRules) || defaults.welcomeRules,
+    welcomeMessage: normalizeWelcomeMessage(settings.welcomeMessage) || defaults.welcomeMessage,
+    welcomeRulesTitle: normalizeWelcomeRulesTitle(settings.welcomeRulesTitle) || defaults.welcomeRulesTitle,
+    welcomeRules: normalizeWelcomeRules(settings.welcomeRules) || defaults.welcomeRules,
     welcomeSections: normalizeMemberPanelSections(settings.welcomeSections, defaults.welcomeSections),
-    welcomeChannelLabel: normalizePanelText(settings.welcomeChannelLabel) || defaults.welcomeChannelLabel,
-    welcomeFooterText: normalizePanelText(settings.welcomeFooterText) || defaults.welcomeFooterText,
+    welcomeChannelLabel: normalizeWelcomeChannelLabel(settings.welcomeChannelLabel) || defaults.welcomeChannelLabel,
+    welcomeFooterText: normalizeWelcomeFooterText(settings.welcomeFooterText) || defaults.welcomeFooterText,
     welcomeColor: normalizeMemberPanelColor(settings.welcomeColor),
     leaveEnabled: settings.leaveEnabled ?? defaults.leaveEnabled,
     leaveChannelId: settings.leaveChannelId ?? defaults.leaveChannelId,
@@ -1338,6 +1338,42 @@ function normalizePanelMessage(value: string | null | undefined) {
 
 function normalizePanelText(value: string | null | undefined) {
   return value?.trim() ?? "";
+}
+
+function normalizeWelcomeTitle(value: string | null | undefined) {
+  const normalized = normalizePanelText(value);
+  return normalized === "NexTech" ? DEFAULT_WELCOME_TITLE : normalized;
+}
+
+function normalizeWelcomeMessage(value: string | null | undefined) {
+  const normalized = normalizePanelMessage(value);
+  return normalized === PREVIOUS_WELCOME_MESSAGE || /comunidade\s+de\s+lives/i.test(normalized)
+    ? DEFAULT_WELCOME_MESSAGE
+    : normalized;
+}
+
+function normalizeWelcomeRules(value: string | null | undefined) {
+  const normalized = normalizePanelText(value);
+  return normalized === PREVIOUS_WELCOME_RULES || /lives?|transmiss[oõ]es|streamers?|espectadores/i.test(normalized)
+    ? DEFAULT_WELCOME_RULES
+    : normalized;
+}
+
+function normalizeWelcomeRulesTitle(value: string | null | undefined) {
+  const normalized = normalizePanelText(value);
+  return /^algumas\s+dicas:?$/i.test(normalized) ? DEFAULT_WELCOME_RULES_TITLE : normalized;
+}
+
+function normalizeWelcomeChannelLabel(value: string | null | undefined) {
+  const normalized = normalizePanelText(value);
+  return /^acesse\s+o\s+canal:?$/i.test(normalized) ? DEFAULT_WELCOME_CHANNEL_LABEL : normalized;
+}
+
+function normalizeWelcomeFooterText(value: string | null | undefined) {
+  const normalized = normalizePanelText(value);
+  return normalized === PREVIOUS_WELCOME_FOOTER_TEXT || /comunidade\s+de\s+lives/i.test(normalized)
+    ? DEFAULT_WELCOME_FOOTER_TEXT
+    : normalized;
 }
 
 function normalizePanelColor(value: string | null | undefined) {
