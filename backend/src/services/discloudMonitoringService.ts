@@ -68,7 +68,12 @@ type DiscloudMonitoringPayload = {
 };
 
 const CACHE_TTL_MS = 5_000;
+const AUTO_RECOVERY_INITIAL_DELAY_MS = 30_000;
 let monitoringCache: CacheEntry | null = null;
+let autoRecoveryTimer: NodeJS.Timeout | null = null;
+let autoRecoveryRunning = false;
+const offlineCheckCountByAppId = new Map<string, number>();
+const recoveryCooldownUntilByAppId = new Map<string, number>();
 const DISCLOUD_API_BASE_URL = "https://api.discloud.app/v2";
 
 export async function getDiscloudMonitoring(force = false): Promise<DiscloudMonitoringPayload> {
@@ -139,6 +144,42 @@ export async function runDiscloudBotAction(botId: string, action: DiscloudAction
   return getDiscloudMonitoring(true);
 }
 
+export function startDiscloudAutoRecoveryService() {
+  if (autoRecoveryTimer) {
+    return;
+  }
+
+  if (!env.DISCLOUD_AUTO_RECOVERY_ENABLED) {
+    console.log("[discloud] recuperação automática desativada por DISCLOUD_AUTO_RECOVERY_ENABLED=false.");
+    return;
+  }
+
+  if (!env.DISCLOUD_TOKEN.trim()) {
+    console.log("[discloud] recuperação automática não iniciada: DISCLOUD_TOKEN ausente.");
+    return;
+  }
+
+  const trackedAppIds = autoRecoveryAppIds();
+
+  if (trackedAppIds.size === 0) {
+    console.log("[discloud] recuperação automática não iniciada: configure DISCLOUD_APP_IDS ou DISCLOUD_AUTO_RECOVERY_APP_IDS.");
+    return;
+  }
+
+  console.log(`[discloud] recuperação automática ativa para ${trackedAppIds.size} app(s).`);
+
+  const tick = () => {
+    void runDiscloudAutoRecoveryOnce().catch((error) => {
+      console.warn("[discloud] recuperação automática falhou:", error instanceof Error ? error.message : error);
+    });
+  };
+
+  const initialTimer = setTimeout(tick, AUTO_RECOVERY_INITIAL_DELAY_MS);
+  initialTimer.unref();
+  autoRecoveryTimer = setInterval(tick, env.DISCLOUD_AUTO_RECOVERY_INTERVAL_MS);
+  autoRecoveryTimer.unref();
+}
+
 async function readDiscloudMonitoring(): Promise<DiscloudMonitoringPayload> {
   const now = new Date().toISOString();
 
@@ -184,6 +225,97 @@ async function readDiscloudMonitoring(): Promise<DiscloudMonitoringPayload> {
     history: await readDiscloudHistory(),
     updatedAt: now
   };
+}
+
+async function runDiscloudAutoRecoveryOnce() {
+  if (autoRecoveryRunning) {
+    return;
+  }
+
+  autoRecoveryRunning = true;
+
+  try {
+    const trackedAppIds = autoRecoveryAppIds();
+
+    if (trackedAppIds.size === 0) {
+      return;
+    }
+
+    const payload = await readDiscloudMonitoring();
+    const recoverableSnapshots = payload.bots.filter((snapshot) => trackedAppIds.has(snapshot.appId));
+    const visibleAppIds = new Set(recoverableSnapshots.map((snapshot) => snapshot.appId));
+
+    for (const appId of trackedAppIds) {
+      if (!visibleAppIds.has(appId)) {
+        offlineCheckCountByAppId.delete(appId);
+      }
+    }
+
+    for (const snapshot of recoverableSnapshots) {
+      if (snapshot.status !== "offline") {
+        offlineCheckCountByAppId.delete(snapshot.appId);
+        continue;
+      }
+
+      const consecutiveChecks = (offlineCheckCountByAppId.get(snapshot.appId) ?? 0) + 1;
+      offlineCheckCountByAppId.set(snapshot.appId, consecutiveChecks);
+
+      if (consecutiveChecks < env.DISCLOUD_AUTO_RECOVERY_MIN_OFFLINE_CHECKS) {
+        await recordDiscloudEvent({
+          appId: snapshot.appId,
+          botId: snapshot.botId,
+          event: "auto_recovery_detected_offline",
+          message: `${snapshot.appName} offline (${consecutiveChecks}/${env.DISCLOUD_AUTO_RECOVERY_MIN_OFFLINE_CHECKS}). Aguardando confirmação antes de religar.`
+        });
+        continue;
+      }
+
+      const now = Date.now();
+      const cooldownUntil = recoveryCooldownUntilByAppId.get(snapshot.appId) ?? 0;
+
+      if (cooldownUntil > now) {
+        continue;
+      }
+
+      recoveryCooldownUntilByAppId.set(snapshot.appId, now + env.DISCLOUD_AUTO_RECOVERY_COOLDOWN_MS);
+
+      try {
+        await startDiscloudApp(snapshot.appId);
+        offlineCheckCountByAppId.set(snapshot.appId, 0);
+        await recordDiscloudEvent({
+          appId: snapshot.appId,
+          botId: snapshot.botId,
+          event: "auto_recovery_start",
+          message: `${snapshot.appName} estava offline e recebeu start automático.`
+        });
+        console.warn(`[discloud] ${snapshot.appName} (${snapshot.appId}) estava offline; start automático enviado.`);
+      } catch (error) {
+        await recordDiscloudEvent({
+          appId: snapshot.appId,
+          botId: snapshot.botId,
+          event: "auto_recovery_failed",
+          message: `Falha ao religar ${snapshot.appName}: ${error instanceof Error ? error.message : String(error)}`
+        });
+        throw error;
+      } finally {
+        monitoringCache = null;
+      }
+    }
+  } finally {
+    autoRecoveryRunning = false;
+  }
+}
+
+async function startDiscloudApp(appId: string) {
+  await discloudApi(`/app/${encodeURIComponent(appId)}/start`, {
+    method: "PUT"
+  });
+}
+
+function autoRecoveryAppIds() {
+  const configured = env.DISCLOUD_AUTO_RECOVERY_APP_IDS.trim() || env.DISCLOUD_APP_IDS;
+
+  return new Set(configured.split(",").map((item) => item.trim()).filter(Boolean));
 }
 
 async function fetchAllApps() {

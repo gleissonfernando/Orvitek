@@ -10,6 +10,7 @@ import { processQueuedGiveawayEnd, processQueuedGiveawayStart, startGiveawaySche
 import { processQueuedServerBackupCapture, processQueuedServerBackupRestore, startServerBackupScheduler } from "./services/serverBackupService";
 import { startVoiceRecorderRetentionScheduler } from "./services/voiceRecorderService";
 import { registerBackgroundJobHandler, startBackgroundJobWorker, stopBackgroundJobWorker } from "./services/backgroundJobService";
+import { startDiscloudAutoRecoveryService } from "./services/discloudMonitoringService";
 import { getTranscriptStartupStatus } from "./services/transcriptService";
 import { runTranscriptUrlStartupMigration } from "./services/transcriptUrlMigrationService";
 
@@ -41,6 +42,7 @@ httpServer.listen(env.PORT, env.HOST, () => {
     startGiveawayScheduler();
     startServerBackupScheduler();
     startVoiceRecorderRetentionScheduler();
+    startDiscloudAutoRecoveryService();
   }
   void markDevBotsOfflineAfterBackendRestart()
     .then((count) => {
