@@ -30,15 +30,26 @@ import {
   isGuildTextOrCategoryChannel
 } from "../services/discordOptionsService";
 
+const memberPanelSectionSchema = z.object({
+  description: z.string().min(1).max(900),
+  emoji: z.string().max(80).nullable().optional().default(null),
+  enabled: z.boolean().optional().default(true),
+  id: z.string().min(1).max(80),
+  order: z.coerce.number().int().min(1).max(1000).optional().default(1),
+  title: z.string().min(1).max(120)
+});
+
 const settingsSchema = z.object({
   welcomeEnabled: z.boolean().optional(),
   welcomeChannelId: z.string().nullable().optional(),
   welcomeDisplayChannelId: z.string().nullable().optional(),
   welcomeImageUrl: z.string().max(2048).nullable().optional(),
   welcomeTitle: z.string().max(120).nullable().optional(),
+  welcomeSubtitle: z.string().max(180).nullable().optional(),
   welcomeMessage: z.string().max(1000).nullable().optional(),
   welcomeRulesTitle: z.string().max(120).nullable().optional(),
   welcomeRules: z.string().max(1500).nullable().optional(),
+  welcomeSections: z.array(memberPanelSectionSchema).max(8).optional(),
   welcomeChannelLabel: z.string().max(120).nullable().optional(),
   welcomeFooterText: z.string().max(180).nullable().optional(),
   welcomeColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
@@ -47,9 +58,11 @@ const settingsSchema = z.object({
   leaveDisplayChannelId: z.string().nullable().optional(),
   leaveImageUrl: z.string().max(2048).nullable().optional(),
   leaveTitle: z.string().max(120).nullable().optional(),
+  leaveSubtitle: z.string().max(180).nullable().optional(),
   leaveMessage: z.string().max(1000).nullable().optional(),
   leaveRulesTitle: z.string().max(120).nullable().optional(),
   leaveRules: z.string().max(1500).nullable().optional(),
+  leaveSections: z.array(memberPanelSectionSchema).max(8).optional(),
   leaveChannelLabel: z.string().max(120).nullable().optional(),
   leaveFooterText: z.string().max(180).nullable().optional(),
   leaveColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
@@ -1036,9 +1049,11 @@ async function canPatchSettings(
     welcomeDisplayChannelId: ["welcome"],
     welcomeImageUrl: ["welcome"],
     welcomeTitle: ["welcome"],
+    welcomeSubtitle: ["welcome"],
     welcomeMessage: ["welcome"],
     welcomeRulesTitle: ["welcome"],
     welcomeRules: ["welcome"],
+    welcomeSections: ["welcome"],
     welcomeChannelLabel: ["welcome"],
     welcomeFooterText: ["welcome"],
     welcomeColor: ["welcome"],
@@ -1047,9 +1062,11 @@ async function canPatchSettings(
     leaveDisplayChannelId: ["leave"],
     leaveImageUrl: ["leave"],
     leaveTitle: ["leave"],
+    leaveSubtitle: ["leave"],
     leaveMessage: ["leave"],
     leaveRulesTitle: ["leave"],
     leaveRules: ["leave"],
+    leaveSections: ["leave"],
     leaveChannelLabel: ["leave"],
     leaveFooterText: ["leave"],
     leaveColor: ["leave"],

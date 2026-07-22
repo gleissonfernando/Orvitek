@@ -20,9 +20,11 @@ export type GuildSettingsDto = {
   welcomeImageUrl: string | null;
   welcomePanelImage: PanelImageSettingsDto | null;
   welcomeTitle: string | null;
+  welcomeSubtitle: string | null;
   welcomeMessage: string | null;
   welcomeRulesTitle: string | null;
   welcomeRules: string | null;
+  welcomeSections: MemberPanelSectionDto[];
   welcomeChannelLabel: string | null;
   welcomeFooterText: string | null;
   welcomeColor: string;
@@ -31,9 +33,11 @@ export type GuildSettingsDto = {
   leaveDisplayChannelId: string | null;
   leaveImageUrl: string | null;
   leaveTitle: string | null;
+  leaveSubtitle: string | null;
   leaveMessage: string | null;
   leaveRulesTitle: string | null;
   leaveRules: string | null;
+  leaveSections: MemberPanelSectionDto[];
   leaveChannelLabel: string | null;
   leaveFooterText: string | null;
   leaveColor: string;
@@ -228,6 +232,15 @@ export const LOG_CATEGORIES = [
 ] as const;
 export type LogCategory = (typeof LOG_CATEGORIES)[number];
 
+export type MemberPanelSectionDto = {
+  description: string;
+  emoji: string | null;
+  enabled: boolean;
+  id: string;
+  order: number;
+  title: string;
+};
+
 export type PersistedDashboardAccess = {
   botId: string;
   guildId: string;
@@ -247,6 +260,7 @@ export type SafeBotMessageStateDto = {
 
 const memorySettings = new Map<string, GuildSettingsDto>();
 const DEFAULT_PANEL_COLOR = "#ef4444";
+const DEFAULT_MEMBER_PANEL_COLOR = "#f5c542";
 const PREVIOUS_WELCOME_MESSAGE = [
   "Seja bem-vindo(a), {user}, a nossa comunidade de lives.",
   "Aqui a galera acompanha transmissoes, eventos da comunidade, avisos e momentos ao vivo juntos."
@@ -259,36 +273,102 @@ const PREVIOUS_WELCOME_RULES = [
   "Converse, faca amizades e aproveite sua estadia."
 ].join("\n");
 const PREVIOUS_WELCOME_FOOTER_TEXT = "NexTech - Comunidade de lives";
+export const DEFAULT_WELCOME_TITLE = "Bem-vindo à NextTech";
+export const DEFAULT_WELCOME_SUBTITLE = "Sua jornada na comunidade começa agora.";
 export const DEFAULT_WELCOME_MESSAGE = [
-  "Seja bem-vindo(a), {user}, \u00e0 nossa comunidade de lives.",
-  "Aqui a galera acompanha transmiss\u00f5es, eventos da comunidade, avisos e momentos ao vivo juntos."
+  "{user}, agora você faz parte da comunidade NextTech.",
+  "Explore os canais, participe das conversas e acompanhe tudo o que acontece por aqui com tranquilidade."
 ].join("\n");
-export const DEFAULT_WELCOME_TITLE = "NexTech";
-export const DEFAULT_WELCOME_RULES_TITLE = "Algumas dicas:";
+export const DEFAULT_WELCOME_RULES_TITLE = "Regras e verificação";
 export const DEFAULT_WELCOME_RULES = [
-  "Leia as regras antes de participar.",
-  "Aguarde os avisos oficiais de lives e eventos.",
-  "Respeite streamers, espectadores e moderadores.",
-  "N\u00e3o divulgue links ou canais sem autoriza\u00e7\u00e3o.",
-  "Converse, fa\u00e7a amizades e aproveite sua estadia."
+  "Leia as regras para entender a organização da comunidade.",
+  "Conclua a verificação quando ela estiver disponível.",
+  "Use cada canal para o assunto correto e mantenha uma convivência respeitosa."
 ].join("\n");
-export const DEFAULT_WELCOME_CHANNEL_LABEL = "Acesse o canal:";
-export const DEFAULT_WELCOME_FOOTER_TEXT = "NexTech - Comunidade de Lives";
+export const DEFAULT_WELCOME_CHANNEL_LABEL = "Comece por";
+export const DEFAULT_WELCOME_FOOTER_TEXT = "NextTech - Comunidade premium";
 export const DEFAULT_LEAVE_MESSAGE = [
-  "Até mais, {user}. Obrigado por ter feito parte da nossa comunidade de lives.",
-  "As portas continuam abertas para quando quiser voltar e acompanhar as transmissoes com a galera."
+  "{user}, obrigado por ter feito parte da NextTech.",
+  "Sua participação foi respeitada e as portas continuarão abertas caso decida retornar."
 ].join("\n");
-export const DEFAULT_LEAVE_TITLE = "NexTech";
-export const DEFAULT_LEAVE_RULES_TITLE = "Registro de saída:";
+export const DEFAULT_LEAVE_TITLE = "Até breve";
+export const DEFAULT_LEAVE_SUBTITLE = "Obrigado por ter caminhado com a NextTech.";
+export const DEFAULT_LEAVE_RULES_TITLE = "Despedida";
 export const DEFAULT_LEAVE_RULES = [
-  "A saída foi registrada automaticamente pelo bot.",
-  "Os canais oficiais continuam disponíveis para a comunidade.",
-  "Respeite as regras se decidir retornar ao servidor.",
-  "A equipe segue por aqui para organizar eventos e avisos.",
-  "Valeu pela passagem e até a próxima."
+  "Agradecemos pelo tempo dedicado à comunidade.",
+  "Desejamos sucesso na sua jornada.",
+  "Quando quiser voltar, a NextTech estará de portas abertas."
 ].join("\n");
-export const DEFAULT_LEAVE_CHANNEL_LABEL = "Canal da comunidade:";
-export const DEFAULT_LEAVE_FOOTER_TEXT = "NexTech - Comunidade de lives";
+export const DEFAULT_LEAVE_CHANNEL_LABEL = "Comunidade";
+export const DEFAULT_LEAVE_FOOTER_TEXT = "NextTech - As portas seguem abertas";
+const DEFAULT_WELCOME_SECTIONS: MemberPanelSectionDto[] = [
+  {
+    description: "{user}, sua entrada foi recebida com atenção. A partir de agora você faz parte de uma comunidade organizada para conectar pessoas, novidades e experiências.",
+    emoji: fixedSystemEmojiText("aniversario"),
+    enabled: true,
+    id: "boas-vindas",
+    order: 1,
+    title: "Chegada confirmada"
+  },
+  {
+    description: "Conheça os canais, acompanhe os avisos e participe nos espaços que combinam com o que você procura dentro da NextTech.",
+    emoji: fixedSystemEmojiText("discord"),
+    enabled: true,
+    id: "comunidade",
+    order: 2,
+    title: "Explore a comunidade"
+  },
+  {
+    description: "Antes de interagir, leia as regras e conclua a verificação quando ela estiver disponível. Isso mantém o servidor seguro, claro e bem organizado.",
+    emoji: fixedSystemEmojiText("folha"),
+    enabled: true,
+    id: "regras",
+    order: 3,
+    title: "Regras e verificação"
+  },
+  {
+    description: "Se precisar de orientação, a equipe está disponível para ajudar com dúvidas, acesso aos canais e primeiros passos na comunidade.",
+    emoji: fixedSystemEmojiText("interrogacao"),
+    enabled: true,
+    id: "suporte",
+    order: 4,
+    title: "Equipe disponível"
+  }
+];
+const DEFAULT_LEAVE_SECTIONS: MemberPanelSectionDto[] = [
+  {
+    description: "{user}, obrigado por ter dedicado parte do seu tempo à NextTech. Sua presença fez parte da história da comunidade.",
+    emoji: fixedSystemEmojiText("prancheta_acertos"),
+    enabled: true,
+    id: "agradecimento",
+    order: 1,
+    title: "Obrigado pela participação"
+  },
+  {
+    description: "Respeitamos sua decisão e desejamos que a sua próxima etapa seja produtiva, leve e cheia de boas oportunidades.",
+    emoji: fixedSystemEmojiText("trofeu_alt"),
+    enabled: true,
+    id: "jornada",
+    order: 2,
+    title: "Sucesso na jornada"
+  },
+  {
+    description: "Caso queira retornar no futuro, a NextTech continuará de portas abertas para receber você novamente.",
+    emoji: fixedSystemEmojiText("porta"),
+    enabled: true,
+    id: "retorno",
+    order: 3,
+    title: "Portas abertas"
+  },
+  {
+    description: "Fica o nosso agradecimento final e uma despedida sincera, elegante e respeitosa em nome de toda a comunidade.",
+    emoji: fixedSystemEmojiText("visto"),
+    enabled: true,
+    id: "despedida",
+    order: 4,
+    title: "Até breve"
+  }
+];
 const LEGACY_WELCOME_MESSAGE = "Bem-vindo(a), {user}!";
 const LEGACY_LEAVE_MESSAGE = "Até mais, {user}.";
 export const MAX_AUTOMATIC_ROLES = 2;
@@ -366,24 +446,28 @@ export function defaultSettings(guildId: string, botId: string | null = null): G
     welcomeDisplayChannelId: null,
     welcomeImageUrl: null,
     welcomePanelImage: null,
-    welcomeTitle: "",
-    welcomeMessage: "",
-    welcomeRulesTitle: "",
-    welcomeRules: "",
-    welcomeChannelLabel: "",
-    welcomeFooterText: "",
-    welcomeColor: DEFAULT_PANEL_COLOR,
+    welcomeTitle: DEFAULT_WELCOME_TITLE,
+    welcomeSubtitle: DEFAULT_WELCOME_SUBTITLE,
+    welcomeMessage: DEFAULT_WELCOME_MESSAGE,
+    welcomeRulesTitle: DEFAULT_WELCOME_RULES_TITLE,
+    welcomeRules: DEFAULT_WELCOME_RULES,
+    welcomeSections: DEFAULT_WELCOME_SECTIONS.map((section) => ({ ...section })),
+    welcomeChannelLabel: DEFAULT_WELCOME_CHANNEL_LABEL,
+    welcomeFooterText: DEFAULT_WELCOME_FOOTER_TEXT,
+    welcomeColor: DEFAULT_MEMBER_PANEL_COLOR,
     leaveEnabled: true,
     leaveChannelId: null,
     leaveDisplayChannelId: null,
     leaveImageUrl: null,
-    leaveTitle: "",
-    leaveMessage: "",
-    leaveRulesTitle: "",
-    leaveRules: "",
-    leaveChannelLabel: "",
-    leaveFooterText: "",
-    leaveColor: DEFAULT_PANEL_COLOR,
+    leaveTitle: DEFAULT_LEAVE_TITLE,
+    leaveSubtitle: DEFAULT_LEAVE_SUBTITLE,
+    leaveMessage: DEFAULT_LEAVE_MESSAGE,
+    leaveRulesTitle: DEFAULT_LEAVE_RULES_TITLE,
+    leaveRules: DEFAULT_LEAVE_RULES,
+    leaveSections: DEFAULT_LEAVE_SECTIONS.map((section) => ({ ...section })),
+    leaveChannelLabel: DEFAULT_LEAVE_CHANNEL_LABEL,
+    leaveFooterText: DEFAULT_LEAVE_FOOTER_TEXT,
+    leaveColor: DEFAULT_MEMBER_PANEL_COLOR,
     autoRoleEnabled: false,
     autoRoleIds: [],
     twitchRoleId: null,
@@ -607,20 +691,24 @@ export async function updateGuildSettings(
     ticketPanelChannelId: normalizeSnowflake("ticketPanelChannelId" in input ? input.ticketPanelChannelId : current.ticketPanelChannelId),
     ticketPanelMessageId: normalizeSnowflake("ticketPanelMessageId" in input ? input.ticketPanelMessageId : current.ticketPanelMessageId),
     autoRoleIds,
-    welcomeTitle: normalizePanelText("welcomeTitle" in input ? input.welcomeTitle : current.welcomeTitle),
-    welcomeMessage: normalizePanelMessage("welcomeMessage" in input ? input.welcomeMessage : current.welcomeMessage),
-    welcomeRulesTitle: normalizePanelText("welcomeRulesTitle" in input ? input.welcomeRulesTitle : current.welcomeRulesTitle),
-    welcomeRules: normalizePanelText("welcomeRules" in input ? input.welcomeRules : current.welcomeRules),
-    welcomeChannelLabel: normalizePanelText("welcomeChannelLabel" in input ? input.welcomeChannelLabel : current.welcomeChannelLabel),
-    welcomeFooterText: normalizePanelText("welcomeFooterText" in input ? input.welcomeFooterText : current.welcomeFooterText),
-    welcomeColor: normalizePanelColor("welcomeColor" in input ? input.welcomeColor : current.welcomeColor),
-    leaveTitle: normalizePanelText("leaveTitle" in input ? input.leaveTitle : current.leaveTitle),
-    leaveMessage: normalizePanelMessage("leaveMessage" in input ? input.leaveMessage : current.leaveMessage),
-    leaveRulesTitle: normalizePanelText("leaveRulesTitle" in input ? input.leaveRulesTitle : current.leaveRulesTitle),
-    leaveRules: normalizePanelText("leaveRules" in input ? input.leaveRules : current.leaveRules),
-    leaveChannelLabel: normalizePanelText("leaveChannelLabel" in input ? input.leaveChannelLabel : current.leaveChannelLabel),
-    leaveFooterText: normalizePanelText("leaveFooterText" in input ? input.leaveFooterText : current.leaveFooterText),
-    leaveColor: normalizePanelColor("leaveColor" in input ? input.leaveColor : current.leaveColor),
+    welcomeTitle: normalizePanelText("welcomeTitle" in input ? input.welcomeTitle : current.welcomeTitle) || DEFAULT_WELCOME_TITLE,
+    welcomeSubtitle: normalizePanelText("welcomeSubtitle" in input ? input.welcomeSubtitle : current.welcomeSubtitle) || DEFAULT_WELCOME_SUBTITLE,
+    welcomeMessage: normalizePanelMessage("welcomeMessage" in input ? input.welcomeMessage : current.welcomeMessage) || DEFAULT_WELCOME_MESSAGE,
+    welcomeRulesTitle: normalizePanelText("welcomeRulesTitle" in input ? input.welcomeRulesTitle : current.welcomeRulesTitle) || DEFAULT_WELCOME_RULES_TITLE,
+    welcomeRules: normalizePanelText("welcomeRules" in input ? input.welcomeRules : current.welcomeRules) || DEFAULT_WELCOME_RULES,
+    welcomeSections: normalizeMemberPanelSections("welcomeSections" in input ? input.welcomeSections : current.welcomeSections, DEFAULT_WELCOME_SECTIONS),
+    welcomeChannelLabel: normalizePanelText("welcomeChannelLabel" in input ? input.welcomeChannelLabel : current.welcomeChannelLabel) || DEFAULT_WELCOME_CHANNEL_LABEL,
+    welcomeFooterText: normalizePanelText("welcomeFooterText" in input ? input.welcomeFooterText : current.welcomeFooterText) || DEFAULT_WELCOME_FOOTER_TEXT,
+    welcomeColor: normalizeMemberPanelColor("welcomeColor" in input ? input.welcomeColor : current.welcomeColor),
+    leaveTitle: normalizePanelText("leaveTitle" in input ? input.leaveTitle : current.leaveTitle) || DEFAULT_LEAVE_TITLE,
+    leaveSubtitle: normalizePanelText("leaveSubtitle" in input ? input.leaveSubtitle : current.leaveSubtitle) || DEFAULT_LEAVE_SUBTITLE,
+    leaveMessage: normalizePanelMessage("leaveMessage" in input ? input.leaveMessage : current.leaveMessage) || DEFAULT_LEAVE_MESSAGE,
+    leaveRulesTitle: normalizePanelText("leaveRulesTitle" in input ? input.leaveRulesTitle : current.leaveRulesTitle) || DEFAULT_LEAVE_RULES_TITLE,
+    leaveRules: normalizePanelText("leaveRules" in input ? input.leaveRules : current.leaveRules) || DEFAULT_LEAVE_RULES,
+    leaveSections: normalizeMemberPanelSections("leaveSections" in input ? input.leaveSections : current.leaveSections, DEFAULT_LEAVE_SECTIONS),
+    leaveChannelLabel: normalizePanelText("leaveChannelLabel" in input ? input.leaveChannelLabel : current.leaveChannelLabel) || DEFAULT_LEAVE_CHANNEL_LABEL,
+    leaveFooterText: normalizePanelText("leaveFooterText" in input ? input.leaveFooterText : current.leaveFooterText) || DEFAULT_LEAVE_FOOTER_TEXT,
+    leaveColor: normalizeMemberPanelColor("leaveColor" in input ? input.leaveColor : current.leaveColor),
     reportSystem: normalizeReportSystemSettings("reportSystem" in input ? input.reportSystem : current.reportSystem, current.reportSystem),
     verificationRoleIds,
     dashboardRolePermissions,
@@ -647,9 +735,11 @@ export async function updateGuildSettings(
           welcomeDisplayChannelId: next.welcomeDisplayChannelId,
           welcomeImageUrl: next.welcomeImageUrl,
           welcomeTitle: next.welcomeTitle,
+          welcomeSubtitle: next.welcomeSubtitle,
           welcomeMessage: next.welcomeMessage,
           welcomeRulesTitle: next.welcomeRulesTitle,
           welcomeRules: next.welcomeRules,
+          welcomeSections: next.welcomeSections,
           welcomeChannelLabel: next.welcomeChannelLabel,
           welcomeFooterText: next.welcomeFooterText,
           welcomeColor: next.welcomeColor,
@@ -658,9 +748,11 @@ export async function updateGuildSettings(
           leaveDisplayChannelId: next.leaveDisplayChannelId,
           leaveImageUrl: next.leaveImageUrl,
           leaveTitle: next.leaveTitle,
+          leaveSubtitle: next.leaveSubtitle,
           leaveMessage: next.leaveMessage,
           leaveRulesTitle: next.leaveRulesTitle,
           leaveRules: next.leaveRules,
+          leaveSections: next.leaveSections,
           leaveChannelLabel: next.leaveChannelLabel,
           leaveFooterText: next.leaveFooterText,
           leaveColor: next.leaveColor,
@@ -831,24 +923,28 @@ function toDto(settings: MongoGuildSettings): GuildSettingsDto {
     welcomeDisplayChannelId: settings.welcomeDisplayChannelId ?? null,
     welcomeImageUrl: normalizeWelcomeImageUrl(settings.welcomeImageUrl),
     welcomePanelImage: null,
-    welcomeTitle: normalizePanelText(settings.welcomeTitle),
-    welcomeMessage: normalizePanelMessage(settings.welcomeMessage),
-    welcomeRulesTitle: normalizePanelText(settings.welcomeRulesTitle),
-    welcomeRules: normalizePanelText(settings.welcomeRules),
-    welcomeChannelLabel: normalizePanelText(settings.welcomeChannelLabel),
-    welcomeFooterText: normalizePanelText(settings.welcomeFooterText),
-    welcomeColor: normalizePanelColor(settings.welcomeColor),
+    welcomeTitle: normalizePanelText(settings.welcomeTitle) || defaults.welcomeTitle,
+    welcomeSubtitle: normalizePanelText(settings.welcomeSubtitle) || defaults.welcomeSubtitle,
+    welcomeMessage: normalizePanelMessage(settings.welcomeMessage) || defaults.welcomeMessage,
+    welcomeRulesTitle: normalizePanelText(settings.welcomeRulesTitle) || defaults.welcomeRulesTitle,
+    welcomeRules: normalizePanelText(settings.welcomeRules) || defaults.welcomeRules,
+    welcomeSections: normalizeMemberPanelSections(settings.welcomeSections, defaults.welcomeSections),
+    welcomeChannelLabel: normalizePanelText(settings.welcomeChannelLabel) || defaults.welcomeChannelLabel,
+    welcomeFooterText: normalizePanelText(settings.welcomeFooterText) || defaults.welcomeFooterText,
+    welcomeColor: normalizeMemberPanelColor(settings.welcomeColor),
     leaveEnabled: settings.leaveEnabled ?? defaults.leaveEnabled,
     leaveChannelId: settings.leaveChannelId ?? defaults.leaveChannelId,
     leaveDisplayChannelId: settings.leaveDisplayChannelId ?? defaults.leaveDisplayChannelId,
     leaveImageUrl: normalizeWelcomeImageUrl(settings.leaveImageUrl ?? defaults.leaveImageUrl),
-    leaveTitle: normalizePanelText(settings.leaveTitle),
-    leaveMessage: normalizePanelMessage(settings.leaveMessage),
-    leaveRulesTitle: normalizePanelText(settings.leaveRulesTitle),
-    leaveRules: normalizePanelText(settings.leaveRules),
-    leaveChannelLabel: normalizePanelText(settings.leaveChannelLabel),
-    leaveFooterText: normalizePanelText(settings.leaveFooterText),
-    leaveColor: normalizePanelColor(settings.leaveColor),
+    leaveTitle: normalizePanelText(settings.leaveTitle) || defaults.leaveTitle,
+    leaveSubtitle: normalizePanelText(settings.leaveSubtitle) || defaults.leaveSubtitle,
+    leaveMessage: normalizePanelMessage(settings.leaveMessage) || defaults.leaveMessage,
+    leaveRulesTitle: normalizePanelText(settings.leaveRulesTitle) || defaults.leaveRulesTitle,
+    leaveRules: normalizePanelText(settings.leaveRules) || defaults.leaveRules,
+    leaveSections: normalizeMemberPanelSections(settings.leaveSections, defaults.leaveSections),
+    leaveChannelLabel: normalizePanelText(settings.leaveChannelLabel) || defaults.leaveChannelLabel,
+    leaveFooterText: normalizePanelText(settings.leaveFooterText) || defaults.leaveFooterText,
+    leaveColor: normalizeMemberPanelColor(settings.leaveColor),
     autoRoleEnabled: settings.autoRoleEnabled,
     autoRoleIds: normalizeRoleIds(settings.autoRoleIds ?? []).slice(0, MAX_AUTOMATIC_ROLES),
     twitchRoleId: settings.twitchRoleId,
@@ -1249,9 +1345,51 @@ function normalizePanelColor(value: string | null | undefined) {
   return normalized && /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : DEFAULT_PANEL_COLOR;
 }
 
+function normalizeMemberPanelColor(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized && /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : DEFAULT_MEMBER_PANEL_COLOR;
+}
+
 function normalizeTicketPanelColor(value: string | null | undefined) {
   const normalized = value?.trim();
   return normalized && /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : "#FFD500";
+}
+
+function normalizeMemberPanelSections(value: unknown, fallback: MemberPanelSectionDto[]): MemberPanelSectionDto[] {
+  const source = Array.isArray(value) && value.length ? value : fallback;
+  const seen = new Set<string>();
+  const sections = source
+    .map((item, index): MemberPanelSectionDto | null => {
+      if (!item || typeof item !== "object") return null;
+      const record = item as Record<string, unknown>;
+      const title = normalizeNullableText(record.title, 120);
+      const description = normalizeNullableText(record.description, 900);
+      const fallbackId = title ? slug(title) : `secao-${index + 1}`;
+      const id = normalizeNullableText(record.id, 80) ?? fallbackId;
+
+      if (!title || !description || seen.has(id)) {
+        return null;
+      }
+
+      seen.add(id);
+      return {
+        description,
+        emoji: normalizeNullableSystemEmojiText(record.emoji),
+        enabled: record.enabled !== false,
+        id,
+        order: clampInteger(Number(record.order ?? index + 1), 1, 1000, index + 1),
+        title
+      };
+    })
+    .filter((item): item is MemberPanelSectionDto => Boolean(item))
+    .slice(0, 8)
+    .sort((left, right) => left.order - right.order)
+    .map((section, index) => ({
+      ...section,
+      order: index + 1
+    }));
+
+  return sections.length ? sections : fallback.map((section) => ({ ...section }));
 }
 
 function normalizeTicketPanelOptions(value: unknown): TicketPanelOptionDto[] {

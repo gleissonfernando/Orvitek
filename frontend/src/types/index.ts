@@ -133,9 +133,11 @@ export type GuildSettings = {
   welcomeImageUrl: string | null;
   welcomePanelImage: PanelImageSettings | null;
   welcomeTitle: string | null;
+  welcomeSubtitle: string | null;
   welcomeMessage: string | null;
   welcomeRulesTitle: string | null;
   welcomeRules: string | null;
+  welcomeSections: MemberPanelSection[];
   welcomeChannelLabel: string | null;
   welcomeFooterText: string | null;
   welcomeColor: string;
@@ -144,9 +146,11 @@ export type GuildSettings = {
   leaveDisplayChannelId: string | null;
   leaveImageUrl: string | null;
   leaveTitle: string | null;
+  leaveSubtitle: string | null;
   leaveMessage: string | null;
   leaveRulesTitle: string | null;
   leaveRules: string | null;
+  leaveSections: MemberPanelSection[];
   leaveChannelLabel: string | null;
   leaveFooterText: string | null;
   leaveColor: string;
@@ -202,6 +206,15 @@ export type GuildSettings = {
   verificationRoleIds: string[];
   dashboardRolePermissions: Record<string, DashboardAccessLevel>;
   dashboardUserPermissions: Record<string, DashboardAccessLevel>;
+};
+
+export type MemberPanelSection = {
+  description: string;
+  emoji: string | null;
+  enabled: boolean;
+  id: string;
+  order: number;
+  title: string;
 };
 
 export type GlobalLogConfig = {

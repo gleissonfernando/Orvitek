@@ -1,26 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   CheckCircle2,
   Hash,
   ImageIcon,
   Link2,
   Loader2,
   MessageSquareText,
+  Plus,
   RotateCcw,
   Save,
   Send,
+  Smile,
+  Trash2,
   Upload
 } from "lucide-react";
 import {
   API_URL,
   getGuildLiveOptions,
+  getSystemEmojiDashboard,
   patchGuildSettings,
   testLeavePanel,
   testWelcomePanel,
   uploadLeaveImage,
   uploadWelcomeImage
 } from "../../lib/api";
-import type { DashboardGuild, GuildChannelOption, GuildSettings } from "../../types";
+import type { DashboardGuild, GuildChannelOption, GuildSettings, MemberPanelSection, SystemEmojiConfig } from "../../types";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Switch } from "../ui/switch";
@@ -38,36 +44,46 @@ type WelcomePanelProps = {
   viewerName: string;
 };
 
-const DEFAULT_WELCOME_TITLE = "NexTech";
+const DEFAULT_WELCOME_TITLE = "Bem-vindo à NextTech";
+const DEFAULT_WELCOME_SUBTITLE = "Sua jornada na comunidade começa agora.";
 const DEFAULT_WELCOME_MESSAGE = [
-  "Seja bem-vindo(a), {user}, \u00e0 nossa comunidade de lives.",
-  "Aqui a galera acompanha transmiss\u00f5es, eventos da comunidade, avisos e momentos ao vivo juntos."
+  "{user}, agora você faz parte da comunidade NextTech.",
+  "Explore os canais, participe das conversas e acompanhe tudo o que acontece por aqui com tranquilidade."
 ].join("\n");
-const DEFAULT_WELCOME_RULES_TITLE = "Algumas dicas:";
+const DEFAULT_WELCOME_RULES_TITLE = "Regras e verificação";
 const DEFAULT_WELCOME_RULES = [
-  "Leia as regras antes de participar.",
-  "Aguarde os avisos oficiais de lives e eventos.",
-  "Respeite streamers, espectadores e moderadores.",
-  "N\u00e3o divulgue links ou canais sem autoriza\u00e7\u00e3o.",
-  "Converse, fa\u00e7a amizades e aproveite sua estadia."
+  "Leia as regras para entender a organização da comunidade.",
+  "Conclua a verificação quando ela estiver disponível.",
+  "Use cada canal para o assunto correto e mantenha uma convivência respeitosa."
 ].join("\n");
-const DEFAULT_WELCOME_CHANNEL_LABEL = "Acesse o canal:";
-const DEFAULT_WELCOME_FOOTER_TEXT = "NexTech - Comunidade de Lives";
-const DEFAULT_LEAVE_TITLE = "NexTech";
+const DEFAULT_WELCOME_CHANNEL_LABEL = "Comece por";
+const DEFAULT_WELCOME_FOOTER_TEXT = "NextTech - Comunidade premium";
+const DEFAULT_LEAVE_TITLE = "Até breve";
+const DEFAULT_LEAVE_SUBTITLE = "Obrigado por ter caminhado com a NextTech.";
 const DEFAULT_LEAVE_MESSAGE = [
-  "Até mais, {user}. Obrigado por ter feito parte da nossa comunidade de lives.",
-  "As portas continuam abertas para quando quiser voltar e acompanhar as transmissoes com a galera."
+  "{user}, obrigado por ter feito parte da NextTech.",
+  "Sua participação foi respeitada e as portas continuarão abertas caso decida retornar."
 ].join("\n");
-const DEFAULT_LEAVE_RULES_TITLE = "Registro de saída:";
+const DEFAULT_LEAVE_RULES_TITLE = "Despedida";
 const DEFAULT_LEAVE_RULES = [
-  "A saída foi registrada automaticamente pelo bot.",
-  "Os canais oficiais continuam disponíveis para a comunidade.",
-  "Respeite as regras se decidir retornar ao servidor.",
-  "A equipe segue por aqui para organizar eventos e avisos.",
-  "Valeu pela passagem e até a próxima."
+  "Agradecemos pelo tempo dedicado à comunidade.",
+  "Desejamos sucesso na sua jornada.",
+  "Quando quiser voltar, a NextTech estará de portas abertas."
 ].join("\n");
-const DEFAULT_LEAVE_CHANNEL_LABEL = "Canal da comunidade:";
-const DEFAULT_LEAVE_FOOTER_TEXT = "NexTech - Comunidade de lives";
+const DEFAULT_LEAVE_CHANNEL_LABEL = "Comunidade";
+const DEFAULT_LEAVE_FOOTER_TEXT = "NextTech - As portas seguem abertas";
+const DEFAULT_WELCOME_SECTIONS: MemberPanelSection[] = [
+  { description: "{user}, sua entrada foi recebida com atenção. A partir de agora você faz parte de uma comunidade organizada para conectar pessoas, novidades e experiências.", emoji: ":aniversario:", enabled: true, id: "boas-vindas", order: 1, title: "Chegada confirmada" },
+  { description: "Conheça os canais, acompanhe os avisos e participe nos espaços que combinam com o que você procura dentro da NextTech.", emoji: ":discord:", enabled: true, id: "comunidade", order: 2, title: "Explore a comunidade" },
+  { description: "Antes de interagir, leia as regras e conclua a verificação quando ela estiver disponível. Isso mantém o servidor seguro, claro e bem organizado.", emoji: ":folha:", enabled: true, id: "regras", order: 3, title: "Regras e verificação" },
+  { description: "Se precisar de orientação, a equipe está disponível para ajudar com dúvidas, acesso aos canais e primeiros passos na comunidade.", emoji: ":interrogacao:", enabled: true, id: "suporte", order: 4, title: "Equipe disponível" }
+];
+const DEFAULT_LEAVE_SECTIONS: MemberPanelSection[] = [
+  { description: "{user}, obrigado por ter dedicado parte do seu tempo à NextTech. Sua presença fez parte da história da comunidade.", emoji: ":prancheta_acertos:", enabled: true, id: "agradecimento", order: 1, title: "Obrigado pela participação" },
+  { description: "Respeitamos sua decisão e desejamos que a sua próxima etapa seja produtiva, leve e cheia de boas oportunidades.", emoji: ":trofeu_alt:", enabled: true, id: "jornada", order: 2, title: "Sucesso na jornada" },
+  { description: "Caso queira retornar no futuro, a NextTech continuará de portas abertas para receber você novamente.", emoji: ":porta:", enabled: true, id: "retorno", order: 3, title: "Portas abertas" },
+  { description: "Fica o nosso agradecimento final e uma despedida sincera, elegante e respeitosa em nome de toda a comunidade.", emoji: ":visto:", enabled: true, id: "despedida", order: 4, title: "Até breve" }
+];
 
 const panelConfig = {
   welcome: {
@@ -83,12 +99,16 @@ const panelConfig = {
     messageKey: "welcomeMessage",
     rulesKey: "welcomeRules",
     rulesTitleKey: "welcomeRulesTitle",
+    sectionsKey: "welcomeSections",
     embedTitleKey: "welcomeTitle",
+    subtitleKey: "welcomeSubtitle",
     defaultChannelLabel: DEFAULT_WELCOME_CHANNEL_LABEL,
     defaultFooterText: DEFAULT_WELCOME_FOOTER_TEXT,
     defaultMessage: DEFAULT_WELCOME_MESSAGE,
     defaultRules: DEFAULT_WELCOME_RULES,
     defaultRulesTitle: DEFAULT_WELCOME_RULES_TITLE,
+    defaultSections: DEFAULT_WELCOME_SECTIONS,
+    defaultSubtitle: DEFAULT_WELCOME_SUBTITLE,
     defaultTitle: DEFAULT_WELCOME_TITLE,
     missingGuildText: "Selecione um servidor para configurar entrada.",
     missingSettingsText: "Não foi possível carregar as configurações de entrada.",
@@ -112,12 +132,16 @@ const panelConfig = {
     messageKey: "leaveMessage",
     rulesKey: "leaveRules",
     rulesTitleKey: "leaveRulesTitle",
+    sectionsKey: "leaveSections",
     embedTitleKey: "leaveTitle",
+    subtitleKey: "leaveSubtitle",
     defaultChannelLabel: DEFAULT_LEAVE_CHANNEL_LABEL,
     defaultFooterText: DEFAULT_LEAVE_FOOTER_TEXT,
     defaultMessage: DEFAULT_LEAVE_MESSAGE,
     defaultRules: DEFAULT_LEAVE_RULES,
     defaultRulesTitle: DEFAULT_LEAVE_RULES_TITLE,
+    defaultSections: DEFAULT_LEAVE_SECTIONS,
+    defaultSubtitle: DEFAULT_LEAVE_SUBTITLE,
     defaultTitle: DEFAULT_LEAVE_TITLE,
     missingGuildText: "Selecione um servidor para configurar saída.",
     missingSettingsText: "Não foi possível carregar as configurações de saída.",
@@ -143,12 +167,16 @@ const panelConfig = {
     messageKey: "welcomeMessage" | "leaveMessage";
     rulesKey: "welcomeRules" | "leaveRules";
     rulesTitleKey: "welcomeRulesTitle" | "leaveRulesTitle";
+    sectionsKey: "welcomeSections" | "leaveSections";
     embedTitleKey: "welcomeTitle" | "leaveTitle";
+    subtitleKey: "welcomeSubtitle" | "leaveSubtitle";
     defaultChannelLabel: string;
     defaultFooterText: string;
     defaultMessage: string;
     defaultRules: string;
     defaultRulesTitle: string;
+    defaultSections: MemberPanelSection[];
+    defaultSubtitle: string;
     defaultTitle: string;
     missingGuildText: string;
     missingSettingsText: string;
@@ -175,13 +203,16 @@ export function WelcomePanel({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [channels, setChannels] = useState<GuildChannelOption[]>([]);
   const [channelLabelInput, setChannelLabelInput] = useState("");
-  const [colorInput, setColorInput] = useState("#ef4444");
+  const [colorInput, setColorInput] = useState("#f5c542");
   const [footerInput, setFooterInput] = useState("");
   const [imageInput, setImageInput] = useState("");
   const [messageInput, setMessageInput] = useState("");
   const [rulesInput, setRulesInput] = useState("");
   const [rulesTitleInput, setRulesTitleInput] = useState("");
+  const [sectionsInput, setSectionsInput] = useState<MemberPanelSection[]>([]);
+  const [subtitleInput, setSubtitleInput] = useState("");
   const [titleInput, setTitleInput] = useState("");
+  const [emojiOptions, setEmojiOptions] = useState<SystemEmojiConfig[]>([]);
   const [loadingChannels, setLoadingChannels] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -203,6 +234,7 @@ export function WelcomePanel({
   useEffect(() => {
     if (!guild || !canManage) {
       setChannels([]);
+      setEmojiOptions([]);
       return;
     }
 
@@ -211,6 +243,10 @@ export function WelcomePanel({
       .then((options) => setChannels(options.channels))
       .catch(() => setChannels([]))
       .finally(() => setLoadingChannels(false));
+
+    getSystemEmojiDashboard(botId, guild.id)
+      .then((dashboard) => setEmojiOptions(dashboard.emojis.filter((emoji) => emoji.enabled !== false)))
+      .catch(() => setEmojiOptions([]));
   }, [botId, canManage, guild]);
 
   useEffect(() => {
@@ -220,13 +256,15 @@ export function WelcomePanel({
 
   useEffect(() => {
     setTitleInput(settings?.[config.embedTitleKey]?.trim() ?? "");
+    setSubtitleInput(settings?.[config.subtitleKey]?.trim() ?? "");
     setMessageInput(settings?.[config.messageKey]?.trim() ?? "");
     setRulesTitleInput(settings?.[config.rulesTitleKey]?.trim() ?? "");
     setRulesInput(settings?.[config.rulesKey]?.trim() ?? "");
+    setSectionsInput(normalizeSectionsForEditor(settings?.[config.sectionsKey], config.defaultSections));
     setChannelLabelInput(settings?.[config.channelLabelKey]?.trim() ?? "");
     setFooterInput(settings?.[config.footerTextKey]?.trim() ?? "");
-    setColorInput(settings?.[config.colorKey]?.trim() || "#ef4444");
-  }, [config.channelLabelKey, config.colorKey, config.embedTitleKey, config.footerTextKey, config.messageKey, config.rulesKey, config.rulesTitleKey, settings]);
+    setColorInput(settings?.[config.colorKey]?.trim() || "#f5c542");
+  }, [config.channelLabelKey, config.colorKey, config.defaultSections, config.embedTitleKey, config.footerTextKey, config.messageKey, config.rulesKey, config.rulesTitleKey, config.sectionsKey, config.subtitleKey, settings]);
 
   async function savePatch(payload: Partial<GuildSettings>, key: string, successText = "Alteração salva.") {
     if (!guild || !settings || !canManage) {
@@ -282,9 +320,11 @@ export function WelcomePanel({
     await savePatch(
       {
         [config.embedTitleKey]: titleInput.trim(),
+        [config.subtitleKey]: subtitleInput.trim(),
         [config.messageKey]: messageInput.trim(),
         [config.rulesTitleKey]: rulesTitleInput.trim(),
         [config.rulesKey]: rulesInput.trim(),
+        [config.sectionsKey]: prepareSectionsForSave(sectionsInput, config.defaultSections),
         [config.channelLabelKey]: channelLabelInput.trim(),
         [config.footerTextKey]: footerInput.trim(),
         [config.colorKey]: colorInput
@@ -296,12 +336,58 @@ export function WelcomePanel({
 
   function handleMessageReset() {
     setTitleInput(config.defaultTitle);
+    setSubtitleInput(config.defaultSubtitle);
     setMessageInput(config.defaultMessage);
     setRulesTitleInput(config.defaultRulesTitle);
     setRulesInput(config.defaultRules);
+    setSectionsInput(config.defaultSections.map((section) => ({ ...section })));
     setChannelLabelInput(config.defaultChannelLabel);
     setFooterInput(config.defaultFooterText);
-    setColorInput("#ef4444");
+    setColorInput("#f5c542");
+  }
+
+  function updateSection(index: number, patch: Partial<MemberPanelSection>) {
+    setSectionsInput((current) => current.map((section, sectionIndex) => sectionIndex === index ? { ...section, ...patch } : section));
+  }
+
+  function moveSection(index: number, direction: -1 | 1) {
+    setSectionsInput((current) => {
+      const next = [...current];
+      const targetIndex = index + direction;
+
+      if (targetIndex < 0 || targetIndex >= next.length) {
+        return current;
+      }
+
+      const currentSection = next[index];
+      const targetSection = next[targetIndex];
+
+      if (!currentSection || !targetSection) {
+        return current;
+      }
+
+      next[index] = targetSection;
+      next[targetIndex] = currentSection;
+      return next.map((section, sectionIndex) => ({ ...section, order: sectionIndex + 1 }));
+    });
+  }
+
+  function addSection() {
+    setSectionsInput((current) => [
+      ...current,
+      {
+        description: "Descreva este bloco de forma objetiva e acolhedora.",
+        emoji: ":prancheta:",
+        enabled: true,
+        id: `secao-${Date.now()}`,
+        order: current.length + 1,
+        title: "Nova seção"
+      }
+    ].slice(0, 8));
+  }
+
+  function removeSection(index: number) {
+    setSectionsInput((current) => current.filter((_, sectionIndex) => sectionIndex !== index).map((section, sectionIndex) => ({ ...section, order: sectionIndex + 1 })));
   }
 
   async function handleImageFile(file: File | undefined) {
@@ -508,6 +594,21 @@ export function WelcomePanel({
           <label className="block space-y-2">
             <span className="flex items-center gap-2 text-sm font-medium text-zinc-100">
               <MessageSquareText className="h-4 w-4 text-zinc-400" />
+              Subtitulo
+            </span>
+            <input
+              className="h-11 w-full rounded-lg border border-zinc-800 bg-black px-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-zinc-600 disabled:opacity-50"
+              disabled={!canManage || saving === "message"}
+              maxLength={180}
+              onChange={(event) => setSubtitleInput(event.target.value)}
+              placeholder={config.defaultSubtitle}
+              value={subtitleInput}
+            />
+          </label>
+
+          <label className="block space-y-2">
+            <span className="flex items-center gap-2 text-sm font-medium text-zinc-100">
+              <MessageSquareText className="h-4 w-4 text-zinc-400" />
               Descrição
             </span>
             <textarea
@@ -519,6 +620,93 @@ export function WelcomePanel({
               value={messageInput}
             />
           </label>
+
+          <div className="space-y-3 rounded-lg border border-zinc-900 bg-zinc-950/40 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span className="flex items-center gap-2 text-sm font-medium text-zinc-100">
+                <Smile className="h-4 w-4 text-zinc-400" />
+                Seções do painel
+              </span>
+              <Button disabled={!canManage || saving === "message" || sectionsInput.length >= 8} onClick={addSection} type="button" variant="outline">
+                <Plus className="h-4 w-4" />
+                Adicionar
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {sectionsInput.map((section, index) => (
+                <div className="rounded-lg border border-zinc-800 bg-black p-3" key={section.id}>
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Switch
+                        checked={section.enabled}
+                        disabled={!canManage || saving === "message"}
+                        onCheckedChange={(checked) => updateSection(index, { enabled: checked })}
+                      />
+                      <span className="truncate text-sm font-medium text-zinc-100">Bloco {index + 1}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button aria-label="Mover para cima" disabled={!canManage || index === 0 || saving === "message"} onClick={() => moveSection(index, -1)} size="icon" type="button" variant="ghost">
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button aria-label="Mover para baixo" disabled={!canManage || index === sectionsInput.length - 1 || saving === "message"} onClick={() => moveSection(index, 1)} size="icon" type="button" variant="ghost">
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                      <Button aria-label="Remover seção" disabled={!canManage || sectionsInput.length <= 1 || saving === "message"} onClick={() => removeSection(index)} size="icon" type="button" variant="ghost">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-[minmax(0,180px)_minmax(0,1fr)]">
+                    <label className="block space-y-2">
+                      <span className="text-xs font-medium uppercase text-zinc-500">Emoji personalizado</span>
+                      <select
+                        className="h-10 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-zinc-600 disabled:opacity-50"
+                        disabled={!canManage || saving === "message"}
+                        onChange={(event) => updateSection(index, { emoji: event.target.value || null })}
+                        value={section.emoji ?? ""}
+                      >
+                        <option value="">Sem emoji</option>
+                        {section.emoji && !emojiOptions.some((emoji) => emojiValue(emoji) === section.emoji) ? (
+                          <option value={section.emoji}>{emojiPreviewLabel(section.emoji)}</option>
+                        ) : null}
+                        {emojiOptions.map((emoji) => {
+                          const value = emojiValue(emoji);
+                          return (
+                            <option key={emoji.key} value={value}>
+                              {emoji.label}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
+                    <label className="block space-y-2">
+                      <span className="text-xs font-medium uppercase text-zinc-500">Titulo</span>
+                      <input
+                        className="h-10 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-zinc-600 disabled:opacity-50"
+                        disabled={!canManage || saving === "message"}
+                        maxLength={120}
+                        onChange={(event) => updateSection(index, { title: event.target.value })}
+                        value={section.title}
+                      />
+                    </label>
+                  </div>
+
+                  <label className="mt-3 block space-y-2">
+                    <span className="text-xs font-medium uppercase text-zinc-500">Descrição</span>
+                    <textarea
+                      className="min-h-24 w-full resize-y rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-3 text-sm leading-6 text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-zinc-600 disabled:opacity-50"
+                      disabled={!canManage || saving === "message"}
+                      maxLength={900}
+                      onChange={(event) => updateSection(index, { description: event.target.value })}
+                      value={section.description}
+                    />
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block space-y-2">
@@ -638,6 +826,8 @@ export function WelcomePanel({
           message={messageInput.trim()}
           rules={rulesInput.trim()}
           rulesTitle={rulesTitleInput.trim()}
+          sections={sectionsInput}
+          subtitle={subtitleInput.trim()}
           title={titleInput.trim()}
           viewerName={viewerName}
         />
@@ -655,6 +845,8 @@ function SimplePanelPreview({
   message,
   rules,
   rulesTitle,
+  sections,
+  subtitle,
   title,
   viewerName
 }: {
@@ -666,10 +858,13 @@ function SimplePanelPreview({
   message: string;
   rules: string;
   rulesTitle: string;
+  sections: MemberPanelSection[];
+  subtitle: string;
   title: string;
   viewerName: string;
 }) {
   const ruleItems = formatRuleItems(rules);
+  const enabledSections = sections.filter((section) => section.enabled !== false && section.title.trim() && section.description.trim());
 
   return (
     <aside className="space-y-2 rounded-lg border border-zinc-800 bg-[#313338] p-3">
@@ -677,9 +872,22 @@ function SimplePanelPreview({
         {imageUrl ? <img alt="" className="mx-auto aspect-[16/9] w-full border-b border-zinc-700/60 object-cover" src={imageUrl} /> : null}
         <div className="space-y-5 p-4">
           {title ? <p className="break-words text-lg font-semibold leading-7 text-white">{title}</p> : null}
+          {subtitle ? <p className="break-words text-sm font-semibold leading-6 text-zinc-100">{subtitle}</p> : null}
           {message ? <PanelMessage className="whitespace-pre-line break-words text-sm leading-6 text-zinc-100" message={message} viewerName={viewerName} /> : null}
 
-          {rulesTitle || ruleItems.length ? (
+          {enabledSections.length ? (
+            <div className="space-y-4">
+              {enabledSections.map((section, index) => (
+                <div className="space-y-2 border-t border-zinc-700/60 pt-4" key={section.id}>
+                  <p className="break-words text-sm font-semibold text-white">
+                    {emojiPreviewLabel(section.emoji)}{section.title}
+                  </p>
+                  <PanelMessage className="whitespace-pre-line break-words text-sm leading-6 text-zinc-200" message={section.description} viewerName={viewerName} />
+                  {index === enabledSections.length - 1 ? null : <div className="h-px bg-zinc-700/40" />}
+                </div>
+              ))}
+            </div>
+          ) : rulesTitle || ruleItems.length ? (
             <div className="space-y-2">
               {rulesTitle ? <p className="text-sm font-semibold text-white">{rulesTitle}</p> : null}
               <ol className="space-y-1 text-sm leading-6 text-zinc-200">
@@ -695,7 +903,6 @@ function SimplePanelPreview({
 
           {channelLabel ? (
             <div className="flex items-center gap-2 rounded border border-zinc-700/70 bg-[#232428] px-3 py-2 text-sm text-zinc-200">
-              <span aria-hidden="true">{"\u{1F517}"}</span>
               <span className="min-w-0 truncate">
                 {channelLabel} <span className="font-medium text-zinc-100">#{channelName}</span>
               </span>
@@ -713,9 +920,54 @@ function ImageTypeBadge({ imageUrl }: { imageUrl: string }) {
   const isGif = extension === "gif";
   return (
     <span className="rounded-md border border-zinc-800 bg-black px-2 py-1 text-xs text-zinc-300">
-      {isGif ? "🎞️ GIF Animado" : `🖼️ ${extension ? extension.toUpperCase() : "Imagem"}`}
+      {isGif ? "GIF animado" : (extension ? extension.toUpperCase() : "Imagem")}
     </span>
   );
+}
+
+function normalizeSectionsForEditor(value: MemberPanelSection[] | null | undefined, fallback: MemberPanelSection[]) {
+  const source = Array.isArray(value) && value.length ? value : fallback;
+  return source
+    .map((section, index) => ({
+      description: section.description ?? "",
+      emoji: section.emoji ?? null,
+      enabled: section.enabled !== false,
+      id: section.id || `secao-${index + 1}`,
+      order: section.order || index + 1,
+      title: section.title ?? ""
+    }))
+    .sort((left, right) => left.order - right.order)
+    .map((section, index) => ({ ...section, order: index + 1 }));
+}
+
+function prepareSectionsForSave(value: MemberPanelSection[], fallback: MemberPanelSection[]) {
+  const sections = value
+    .map((section, index) => ({
+      ...section,
+      description: section.description.trim(),
+      id: section.id || `secao-${index + 1}`,
+      order: index + 1,
+      title: section.title.trim()
+    }))
+    .filter((section) => section.title && section.description)
+    .slice(0, 8);
+
+  return sections.length ? sections : fallback.map((section, index) => ({ ...section, order: index + 1 }));
+}
+
+function emojiValue(emoji: SystemEmojiConfig) {
+  if (/^<a?:[a-zA-Z0-9_]{2,32}:\d{5,32}>$/.test(emoji.preview)) {
+    return emoji.preview;
+  }
+
+  return emoji.name || `:${emoji.key}:`;
+}
+
+function emojiPreviewLabel(value: string | null) {
+  if (!value) return "";
+  const custom = value.match(/^<a?:([a-zA-Z0-9_]{2,32}):\d{5,32}>$/);
+  const alias = value.match(/^:([a-zA-Z0-9_]{2,64}):$/);
+  return `${custom?.[1] ?? alias?.[1] ?? value} `;
 }
 
 function PanelMessage({ className, message, viewerName }: { className?: string; message: string; viewerName: string }) {

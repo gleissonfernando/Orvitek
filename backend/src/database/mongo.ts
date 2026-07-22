@@ -53,9 +53,18 @@ export type MongoGuildSettings = {
   welcomeDisplayChannelId?: string | null;
   welcomeImageUrl?: string | null;
   welcomeTitle?: string | null;
+  welcomeSubtitle?: string | null;
   welcomeMessage: string | null;
   welcomeRulesTitle?: string | null;
   welcomeRules?: string | null;
+  welcomeSections?: Array<{
+    description: string;
+    emoji?: string | null;
+    enabled?: boolean;
+    id: string;
+    order?: number;
+    title: string;
+  }>;
   welcomeChannelLabel?: string | null;
   welcomeFooterText?: string | null;
   welcomeColor?: string | null;
@@ -64,9 +73,18 @@ export type MongoGuildSettings = {
   leaveDisplayChannelId?: string | null;
   leaveImageUrl?: string | null;
   leaveTitle?: string | null;
+  leaveSubtitle?: string | null;
   leaveMessage?: string | null;
   leaveRulesTitle?: string | null;
   leaveRules?: string | null;
+  leaveSections?: Array<{
+    description: string;
+    emoji?: string | null;
+    enabled?: boolean;
+    id: string;
+    order?: number;
+    title: string;
+  }>;
   leaveChannelLabel?: string | null;
   leaveFooterText?: string | null;
   leaveColor?: string | null;

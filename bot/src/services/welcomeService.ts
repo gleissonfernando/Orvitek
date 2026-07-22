@@ -1,6 +1,7 @@
 import { MessageFlags, type GuildMember, type PartialGuildMember } from "discord.js";
 import { env } from "../config/env";
-import type { BotContext, PanelImageSettings } from "../types";
+import type { BotContext, MemberPanelSection, PanelImageSettings } from "../types";
+import { ensureGuildEmojiCache, resolveComponentEmoji } from "../utils/componentEmoji";
 import { getCachedGuildSettings } from "./guildSettingsCache";
 import { buildV2Container, renderPanelBlocks, resolvePanelImageUrl } from "./panelVisualRenderer";
 
@@ -17,6 +18,8 @@ type MemberPanelInput = {
   panelImage: PanelImageSettings | null;
   rules: string | null;
   rulesTitle: string | null;
+  sections: MemberPanelSection[] | null;
+  subtitle: string | null;
   title: string | null;
 };
 
@@ -44,7 +47,7 @@ export async function sendWelcomeMessage(context: BotContext, member: GuildMembe
 
   const displayChannelId = settings.welcomeDisplayChannelId ?? settings.welcomeChannelId;
   const variables = panelVariables(member, displayChannelId);
-  const payload = createMemberPanelPayload(variables, {
+  const payload = await createMemberPanelPayload(member, variables, {
     channelId: displayChannelId,
     channelLabel: settings.welcomeChannelLabel,
     color: settings.welcomeColor,
@@ -55,6 +58,8 @@ export async function sendWelcomeMessage(context: BotContext, member: GuildMembe
     panelImage: settings.welcomePanelImage,
     rules: settings.welcomeRules,
     rulesTitle: settings.welcomeRulesTitle,
+    sections: settings.welcomeSections,
+    subtitle: settings.welcomeSubtitle,
     title: settings.welcomeTitle
   });
 
@@ -80,7 +85,7 @@ export async function sendLeaveMessage(context: BotContext, member: GuildMember 
 
   const displayChannelId = settings.leaveDisplayChannelId ?? settings.leaveChannelId;
   const variables = panelVariables(member, displayChannelId);
-  const payload = createMemberPanelPayload(variables, {
+  const payload = await createMemberPanelPayload(member, variables, {
     channelId: displayChannelId,
     channelLabel: settings.leaveChannelLabel,
     color: settings.leaveColor,
@@ -91,6 +96,8 @@ export async function sendLeaveMessage(context: BotContext, member: GuildMember 
     panelImage: settings.leavePanelImage,
     rules: settings.leaveRules,
     rulesTitle: settings.leaveRulesTitle,
+    sections: settings.leaveSections,
+    subtitle: settings.leaveSubtitle,
     title: settings.leaveTitle
   });
 
@@ -101,32 +108,49 @@ export async function sendLeaveMessage(context: BotContext, member: GuildMember 
   await channel.send(payload);
 }
 
-export function createMemberPanelPayload(
+export async function createMemberPanelPayload(
+  member: GuildMember | PartialGuildMember,
   variables: VariableContext,
   input: MemberPanelInput
 ) {
+  await ensureGuildEmojiCache(member.guild);
+
   const panelImage = input.panelImage?.imageEnabled ? input.panelImage : null;
   const imageUrl = panelImage ? resolvePanelImageUrl(panelImage.imageUrl, panelImage) : resolveImageUrl(input.imageUrl);
   const imageIsVideo = isVideoPanelMedia(panelImage, imageUrl);
   const posterUrl = imageIsVideo ? resolvePanelImageUrl(panelImage?.mediaPosterUrl ?? panelImage?.mediaThumbnailUrl ?? null) : null;
   const imagePosition = imageUrl ? panelImage?.imagePosition ?? "top" : "none";
   const title = renderTemplate(input.title, variables);
+  const subtitle = renderTemplate(input.subtitle, variables);
   const description = renderTemplate(input.description, variables);
   const rulesTitle = renderTemplate(input.rulesTitle, variables);
   const rules = formatRuleLines(renderTemplate(input.rules, variables));
   const channelLabel = renderTemplate(input.channelLabel, variables);
   const footerText = renderTemplate(input.footerText, variables);
   const contentBlocks: string[] = [];
+  const customSections = normalizePanelSections(member, input.sections, variables);
 
   if (title) {
-    contentBlocks.push(`## ${title}`);
+    contentBlocks.push([
+      `# ${title}`,
+      subtitle ? `**${subtitle}**` : null,
+      description || null
+    ].filter(Boolean).join("\n"));
+  } else if (subtitle || description) {
+    contentBlocks.push([subtitle ? `**${subtitle}**` : null, description || null].filter(Boolean).join("\n"));
   }
 
-  if (description) {
-    contentBlocks.push(description);
+  if (customSections.length) {
+    contentBlocks.push(...customSections.flatMap((section, index) => {
+      const heading = [section.emoji, section.title].filter(Boolean).join(" ");
+      return [
+        sectionBlock(heading, section.description),
+        index < customSections.length - 1 ? "__separator__" : null
+      ].filter((item): item is string => Boolean(item));
+    }));
   }
 
-  if (rulesTitle || rules.length) {
+  if (!customSections.length && (rulesTitle || rules.length)) {
     contentBlocks.push([
       rulesTitle ? `**${rulesTitle}**` : null,
       ...rules.map((rule, index) => `**${index + 1}.** ${rule}`)
@@ -169,7 +193,9 @@ export function createMemberPanelPayload(
     });
   }
 
-  components.push(...contentBlocks.map(textDisplayComponent));
+  for (const block of contentBlocks) {
+    components.push(block === "__separator__" ? separatorComponent() : textDisplayComponent(block));
+  }
 
   if (!blockComponents.length && imageUrl && ["thumbnail", "side"].includes(imagePosition) && !accessoryImageUrl) {
     components.push(mediaGalleryComponent(imageUrl, input.mode));
@@ -201,6 +227,18 @@ function textDisplayComponent(content: string) {
     type: 10,
     content
   };
+}
+
+function separatorComponent() {
+  return {
+    divider: true,
+    spacing: 2,
+    type: 14
+  };
+}
+
+function sectionBlock(heading: string, description: string) {
+  return [`### ${heading}`, description].filter(Boolean).join("\n");
 }
 
 function mediaGalleryComponent(imageUrl: string, mode: MemberPanelMode) {
@@ -243,6 +281,23 @@ function renderTemplate(value: string | null | undefined, variables: VariableCon
     .replace(/\{memberCount\}/gi, variables.memberCount)
     .replace(/\{botName\}/gi, variables.botName)
     .replace(/\{channel\}/gi, variables.channel);
+}
+
+function normalizePanelSections(
+  member: GuildMember | PartialGuildMember,
+  sections: MemberPanelSection[] | null | undefined,
+  variables: VariableContext
+) {
+  return (sections ?? [])
+    .filter((section) => section?.enabled !== false && Boolean(section.title?.trim()) && Boolean(section.description?.trim()))
+    .sort((left, right) => (left.order ?? 0) - (right.order ?? 0))
+    .slice(0, 8)
+    .map((section) => ({
+      description: renderTemplate(section.description, variables),
+      emoji: section.emoji ? resolveComponentEmoji(member.guild, section.emoji, "") : "",
+      title: renderTemplate(section.title, variables)
+    }))
+    .filter((section) => section.title || section.description);
 }
 
 function resolveImageUrl(value: string | null) {
