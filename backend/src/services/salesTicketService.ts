@@ -10,6 +10,7 @@ import type {
 import { getMongoCollections } from "../database/mongo";
 import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoom } from "../realtime/events";
 import { env } from "../config/env";
+import { decryptSecret, encryptSecret } from "./secretCryptoService";
 
 export const SALES_TICKET_MODULE_ID = "nex-tech-sales";
 
@@ -82,6 +83,14 @@ export type CloseSalesTicketTranscriptInput = {
   channelId?: string | null;
   closeReason?: string | null;
   messages: Array<Record<string, unknown>>;
+};
+
+export type SalesTicketRuntimeLogInput = {
+  actorId?: string | null;
+  actorName?: string | null;
+  data?: Record<string, unknown>;
+  event: string;
+  message: string;
 };
 
 const DEFAULT_INITIAL_MESSAGE = "Olá {usuario}\n\nSeu atendimento foi iniciado.\nAguarde um membro da equipe.";
@@ -324,6 +333,7 @@ export async function closeSalesTicketWithTranscript(botId: string, guildId: str
     _id: passwordId,
     botId,
     createdAt: now,
+    encryptedPassword: encryptSecret(plainPassword),
     guildId,
     passwordHash,
     salt,
@@ -354,11 +364,44 @@ export async function closeSalesTicketWithTranscript(botId: string, guildId: str
   const updated = await collections.salesTickets.findOne({ _id: ticketId, botId, guildId });
   if (updated) emitSalesTicketRealtime(botId, guildId, "sales-tickets:ticket_updated", { botId, guildId, ticket: toTicketDto(updated) });
   return {
-    password: plainPassword,
     ticket: updated ? toTicketDto(updated) : toTicketDto(ticket),
     transcriptId,
     transcriptUrl: `${env.APP_PUBLIC_URL}/api/nex-tech-sales/tickets/transcripts/${encodeURIComponent(transcriptId)}`
   };
+}
+
+export async function revealSalesTicketTranscriptPassword(botId: string, guildId: string, transcriptId: string, userId: string) {
+  const collections = await getMongoCollections();
+  const [transcript, passwordRecord] = await Promise.all([
+    collections.salesTicketTranscripts.findOne({ _id: transcriptId, botId, guildId }),
+    collections.salesTicketPasswords.findOne({ transcriptId, botId, guildId })
+  ]);
+
+  if (!transcript || !passwordRecord || transcript.userId !== userId) {
+    return null;
+  }
+
+  if (!passwordRecord.encryptedPassword) {
+    await writeSalesTicketLog(botId, guildId, transcript.ticketId, "password_reveal_failed", userId, null, "Senha do transcript indisponível para revelação segura.", { transcriptId });
+    return null;
+  }
+
+  const password = decryptSecret(passwordRecord.encryptedPassword);
+  await writeSalesTicketLog(botId, guildId, transcript.ticketId, "password_revealed", userId, null, "Senha do transcript revelada somente ao dono do ticket.", { transcriptId });
+  return { password, ticketId: transcript.ticketId, transcriptId };
+}
+
+export async function recordSalesTicketRuntimeLog(botId: string, guildId: string, ticketId: string | null, input: SalesTicketRuntimeLogInput) {
+  await writeSalesTicketLog(
+    botId,
+    guildId,
+    ticketId,
+    limitText(input.event, 80),
+    input.actorId ?? null,
+    input.actorName ?? null,
+    limitText(input.message, 500),
+    input.data ?? {}
+  );
 }
 
 export async function readSalesTicketTranscript(transcriptId: string) {

@@ -169,9 +169,15 @@ function renderSalesTranscriptHtml(result: NonNullable<Awaited<ReturnType<typeof
     const createdAt = readString(object.createdAt) ?? "";
     const content = readString(object.content) ?? "";
     const attachments = Array.isArray(object.attachments) ? object.attachments : [];
+    const embeds = Array.isArray(object.embeds) ? object.embeds : [];
+    const components = Array.isArray(object.components) ? object.components : [];
+    const editedAt = readString(object.editedAt);
     return `<article class="msg">
       <header><strong>${escapeHtml(authorName)}</strong><span>${escapeHtml(formatTranscriptDate(createdAt))}</span></header>
+      ${editedAt ? `<div class="edited">Editada em ${escapeHtml(formatTranscriptDate(editedAt))}</div>` : ""}
       <p>${escapeHtml(content || "(sem texto)").replace(/\n/g, "<br>")}</p>
+      ${embeds.length ? `<div class="meta-block">Embeds registrados: ${embeds.length}</div>` : ""}
+      ${components.length ? `<div class="meta-block">Componentes registrados: ${components.length}</div>` : ""}
       ${attachments.length ? `<ul>${attachments.map((item) => {
         const attachment = item && typeof item === "object" ? item as Record<string, unknown> : {};
         const url = readString(attachment.url) ?? "";
@@ -193,7 +199,7 @@ function renderSalesTranscriptHtml(result: NonNullable<Awaited<ReturnType<typeof
     .hero{border:1px solid rgba(255,213,0,.25);border-radius:14px;background:linear-gradient(135deg,rgba(24,24,27,.96),rgba(8,8,12,.98));padding:24px;box-shadow:0 0 44px rgba(255,213,0,.08)}
     h1{margin:0;font-size:26px}.meta{margin-top:10px;color:#a1a1aa;line-height:1.7}.list{margin-top:18px;display:grid;gap:12px}
     .msg{border:1px solid #27272a;border-radius:12px;background:#09090b;padding:14px}.msg header{display:flex;justify-content:space-between;gap:12px;color:#d4d4d8}.msg header span{color:#71717a;font-size:12px}
-    .msg p{color:#e4e4e7;line-height:1.55}.msg a{color:#fde047}ul{margin-bottom:0}
+    .msg p{color:#e4e4e7;line-height:1.55}.msg a{color:#fde047}.edited,.meta-block{margin-top:8px;color:#a1a1aa;font-size:12px}ul{margin-bottom:0}
   </style>
 </head>
 <body>

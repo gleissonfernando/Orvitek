@@ -3302,6 +3302,7 @@ export type MongoSalesTicketTranscript = {
 export type MongoSalesTicketPassword = {
   _id: string;
   botId: string;
+  encryptedPassword?: string | null;
   guildId: string;
   ticketId: string;
   transcriptId: string;

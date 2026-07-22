@@ -23,6 +23,8 @@ import {
   closeSalesTicketWithTranscript,
   createSalesTicket,
   getSalesTicketRuntime,
+  recordSalesTicketRuntimeLog,
+  revealSalesTicketTranscriptPassword,
   toTicketDto as toSalesTicketDto,
   updateSalesTicketChannel,
   updateSalesTicketPanelState
@@ -113,6 +115,16 @@ const salesTicketCloseSchema = z.object({
   channelId: z.string().regex(/^\d{5,32}$/).nullable().optional(),
   closeReason: z.string().max(1000).nullable().optional(),
   messages: z.array(z.record(z.unknown())).max(1000).default([])
+});
+const salesTicketLogSchema = z.object({
+  actorId: z.string().regex(/^\d{5,32}$/).nullable().optional(),
+  actorName: z.string().max(100).nullable().optional(),
+  data: z.record(z.unknown()).optional(),
+  event: z.string().min(1).max(80),
+  message: z.string().min(1).max(500)
+});
+const salesTicketPasswordRevealSchema = z.object({
+  userId: z.string().regex(/^\d{5,32}$/)
 });
 
 botDevApiRouter.use(requireBot);
@@ -281,6 +293,34 @@ botDevApiRouter.post("/guilds/:guildId/nex-tech-sales/tickets/:ticketId/close", 
     const input = salesTicketCloseSchema.parse(req.body ?? {});
     const result = await closeSalesTicketWithTranscript(resolvedBotId, guildId, req.params.ticketId, input);
     if (!result) return res.status(404).json({ message: "Ticket de vendas não encontrado ou já fechado." });
+    return res.json(result);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+botDevApiRouter.post("/guilds/:guildId/nex-tech-sales/tickets/:ticketId/logs", async (req, res, next) => {
+  try {
+    const botId = await resolveRequestBotId(req);
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const resolvedBotId = await assertSalesTicketRuntime(botId, guildId);
+    const input = salesTicketLogSchema.parse(req.body ?? {});
+
+    await recordSalesTicketRuntimeLog(resolvedBotId, guildId, req.params.ticketId === "none" ? null : req.params.ticketId, input);
+    return res.status(201).json({ ok: true });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+botDevApiRouter.post("/guilds/:guildId/nex-tech-sales/tickets/transcripts/:transcriptId/reveal-password", async (req, res, next) => {
+  try {
+    const botId = await resolveRequestBotId(req);
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const resolvedBotId = await assertSalesTicketRuntime(botId, guildId);
+    const input = salesTicketPasswordRevealSchema.parse(req.body ?? {});
+    const result = await revealSalesTicketTranscriptPassword(resolvedBotId, guildId, req.params.transcriptId, input.userId);
+    if (!result) return res.status(404).json({ message: "Senha indisponível para este usuário." });
     return res.json(result);
   } catch (error) {
     return next(error);

@@ -3,7 +3,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
-  EmbedBuilder,
+  MessageFlags,
   ModalBuilder,
   PermissionFlagsBits,
   StringSelectMenuBuilder,
@@ -21,6 +21,7 @@ import {
 } from "discord.js";
 import type { BotContext } from "../types";
 import type { SalesTicket, SalesTicketSettings, SalesTicketType } from "./apiClient";
+import { renderComponentsV2Panel } from "./panelVisualRenderer";
 
 const PREFIX = "sales_ticket";
 
@@ -34,7 +35,7 @@ export function startSalesTicketService(client: Client<true>, context: BotContex
 export async function handleSalesTicketInteraction(interaction: Interaction, context: BotContext) {
   if (!("customId" in interaction) || !interaction.customId.startsWith(`${PREFIX}:`)) return false;
   if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:show_password:`)) {
-    await showTranscriptPassword(interaction);
+    await showTranscriptPassword(interaction, context);
     return true;
   }
   if (interaction.isButton() && interaction.customId.startsWith(`${PREFIX}:close_confirm:`)) {
@@ -62,7 +63,7 @@ export async function handleSalesTicketInteraction(interaction: Interaction, con
     return true;
   }
   if (interaction.isModalSubmit() && interaction.customId.startsWith(`${PREFIX}:member_access:`)) {
-    await submitMemberAccessModal(interaction);
+    await submitMemberAccessModal(interaction, context);
     return true;
   }
   return false;
@@ -90,13 +91,6 @@ async function publishSalesTicketPanel(guild: Guild, context: BotContext) {
 
 function createPublicPanel(settings: SalesTicketSettings, types: SalesTicketType[]) {
   const activeTypes = types.filter((type) => type.active).sort((a, b) => a.order - b.order).slice(0, 25);
-  const embed = new EmbedBuilder()
-    .setColor(parseColor(settings.panelColor))
-    .setTitle(settings.panelTitle || "Sistema de Tickets de Vendas")
-    .setDescription(settings.panelDescription || "Selecione abaixo o tipo de atendimento de vendas que deseja abrir.")
-    .setFooter({ text: "NexTech • Sistema de Vendas • Tickets exclusivos" });
-  if (settings.panelImageUrl) embed.setImage(settings.panelImageUrl);
-
   const select = new StringSelectMenuBuilder()
     .setCustomId(`${PREFIX}:open`)
     .setPlaceholder(settings.panelPlaceholder || "Selecione o atendimento desejado")
@@ -110,10 +104,15 @@ function createPublicPanel(settings: SalesTicketSettings, types: SalesTicketType
       return option;
     }) : [new StringSelectMenuOptionBuilder().setLabel("Nenhum ticket configurado").setValue("disabled")]);
 
-  return {
-    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)],
-    embeds: [embed]
-  };
+  return renderComponentsV2Panel({
+    accentColor: parseColor(settings.panelColor),
+    actions: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)],
+    description: settings.panelDescription || "Selecione abaixo o tipo de atendimento de vendas que deseja abrir.",
+    footer: "NexTech • Sistema de Vendas • Tickets exclusivos",
+    image: settings.panelImageUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: settings.panelImageUrl } : null,
+    moduleId: "sales-tickets",
+    title: settings.panelTitle || "Sistema de Tickets de Vendas"
+  });
 }
 
 async function openSalesTicket(interaction: StringSelectMenuInteraction, context: BotContext) {
@@ -160,17 +159,6 @@ function buildTicketOverwrites(guild: Guild, type: SalesTicketType, userId: stri
 
 function createTicketMessage(settings: SalesTicketSettings, type: SalesTicketType, ticket: SalesTicket, userId: string) {
   const content = renderTemplate(type.initialMessage, userId, ticket.userName ?? userId, type.name);
-  const embed = new EmbedBuilder()
-    .setColor(parseColor(settings.panelColor))
-    .setTitle(`${type.emoji ?? "🎫"} ${type.name}`)
-    .setDescription(content)
-    .addFields(
-      { inline: true, name: "Usuário", value: `<@${userId}>` },
-      { inline: true, name: "Tipo", value: type.name },
-      { inline: true, name: "ID", value: ticket.id }
-    )
-    .setFooter({ text: "NexTech • Ticket exclusivo de vendas" })
-    .setTimestamp(new Date());
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(`${PREFIX}:claim:${ticket.id}`).setEmoji("🙋").setLabel("Assumir Atendimento").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`${PREFIX}:add_member:${ticket.id}`).setEmoji("➕").setLabel("Adicionar Membro").setStyle(ButtonStyle.Secondary),
@@ -178,11 +166,24 @@ function createTicketMessage(settings: SalesTicketSettings, type: SalesTicketTyp
     new ButtonBuilder().setCustomId(`${PREFIX}:close:${ticket.id}`).setEmoji("🔒").setLabel("Fechar Ticket").setStyle(ButtonStyle.Danger)
   );
   const supportMentions = type.supportRoleIds.map((id) => `<@&${id}>`).join(" ");
+  const payload = renderComponentsV2Panel({
+    accentColor: parseColor(settings.panelColor),
+    actions: [row],
+    description: content,
+    fields: [
+      `**Usuário:** <@${userId}>`,
+      `**Tipo:** ${type.name}`,
+      `**ID:** \`${ticket.id}\``
+    ],
+    footer: "NexTech • Ticket exclusivo de vendas",
+    moduleId: "sales-tickets",
+    title: `${type.emoji ?? "🎫"} ${type.name}`
+  });
+
   return {
+    ...payload,
     allowedMentions: { parse: [], roles: type.supportRoleIds, users: [userId] },
-    components: [row],
-    content: [`<@${userId}>`, supportMentions].filter(Boolean).join(" "),
-    embeds: [embed]
+    content: [`<@${userId}>`, supportMentions].filter(Boolean).join(" ")
   };
 }
 
@@ -196,7 +197,10 @@ async function claimSalesTicket(interaction: ButtonInteraction, context: BotCont
   });
   await interaction.editReply(`Atendimento assumido por ${interaction.user}.`);
   if (interaction.channel?.isSendable()) {
-    await interaction.channel.send(`🙋 Atendimento assumido por ${interaction.user}. Ticket: ${ticket.id}`).catch(() => null);
+    await interaction.channel.send({
+      components: [{ type: 17, accent_color: 0xFFD500, components: [{ type: 10, content: `# Atendimento assumido\n${interaction.user} assumiu este ticket de vendas.\nTicket: \`${ticket.id}\`` }] }],
+      flags: MessageFlags.IsComponentsV2
+    }).catch(() => null);
   }
 }
 
@@ -206,7 +210,11 @@ async function confirmCloseSalesTicket(interaction: ButtonInteraction) {
     new ButtonBuilder().setCustomId(`${PREFIX}:close_confirm:${ticketId}`).setLabel("Confirmar fechamento").setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId(`${PREFIX}:noop:${ticketId}`).setLabel("Cancelar").setStyle(ButtonStyle.Secondary).setDisabled(true)
   );
-  await interaction.reply({ components: [row], content: "Confirme para fechar este ticket de vendas, gerar transcript e enviar DM ao usuário.", ephemeral: true });
+  await interaction.reply({
+    components: [row],
+    content: "Confirme para fechar este ticket de vendas, gerar transcript e enviar DM ao usuário.",
+    flags: MessageFlags.Ephemeral
+  });
 }
 
 async function showMemberAccessModal(interaction: ButtonInteraction, action: "add" | "remove") {
@@ -226,7 +234,7 @@ async function showMemberAccessModal(interaction: ButtonInteraction, action: "ad
   await interaction.showModal(modal);
 }
 
-async function submitMemberAccessModal(interaction: ModalSubmitInteraction) {
+async function submitMemberAccessModal(interaction: ModalSubmitInteraction, context: BotContext) {
   if (!interaction.guild || !interaction.channel || interaction.channel.type !== ChannelType.GuildText) return;
   const [, , action] = interaction.customId.split(":");
   const userId = interaction.fields.getTextInputValue("user_id").replace(/\D/g, "");
@@ -244,6 +252,7 @@ async function submitMemberAccessModal(interaction: ModalSubmitInteraction) {
     }, { reason: "Membro adicionado ao ticket de vendas." });
     await interaction.reply({ content: `<@${userId}> foi adicionado ao ticket de vendas.`, ephemeral: true });
     await channel.send(`➕ <@${userId}> foi adicionado ao ticket por ${interaction.user}.`).catch(() => null);
+    await recordTicketRuntimeLog(context, interaction, ticketIdFromCustomId(interaction.customId), "member_added", `Membro ${userId} adicionado ao ticket de vendas.`, { targetUserId: userId });
     return;
   }
   await channel.permissionOverwrites.edit(userId, {
@@ -252,6 +261,7 @@ async function submitMemberAccessModal(interaction: ModalSubmitInteraction) {
   }, { reason: "Membro removido do ticket de vendas." });
   await interaction.reply({ content: `<@${userId}> foi removido do ticket de vendas.`, ephemeral: true });
   await channel.send(`➖ <@${userId}> foi removido do ticket por ${interaction.user}.`).catch(() => null);
+  await recordTicketRuntimeLog(context, interaction, ticketIdFromCustomId(interaction.customId), "member_removed", `Membro ${userId} removido do ticket de vendas.`, { targetUserId: userId });
 }
 
 async function closeSalesTicket(interaction: ButtonInteraction, context: BotContext) {
@@ -270,19 +280,32 @@ async function closeSalesTicket(interaction: ButtonInteraction, context: BotCont
     messages
   });
   await freezeTicketChannel(interaction.channel as TextChannel, ticket.userId);
-  await sendTranscriptDm(interaction, result.transcriptUrl, result.password);
+  await sendTranscriptDm(interaction, context, result.ticket.id, result.transcriptId, result.transcriptUrl);
   await interaction.editReply("Ticket fechado. Transcript gerado e DM enviada quando possível.");
   setTimeout(() => void (interaction.channel as TextChannel).delete("Ticket de vendas fechado.").catch(() => null), runtime.settings.closeDeleteDelaySeconds * 1000).unref();
 }
 
 async function collectTranscriptMessages(channel: TextChannel) {
-  const fetched = await channel.messages.fetch({ limit: 100 }).catch(() => null);
-  return [...(fetched?.values() ?? [])].reverse().map((message: Message) => ({
+  const messages: Message[] = [];
+  let before: string | undefined;
+
+  while (messages.length < 1000) {
+    const fetched = await channel.messages.fetch({ before, limit: Math.min(100, 1000 - messages.length) }).catch(() => null);
+    if (!fetched?.size) break;
+    const batch = [...fetched.values()];
+    messages.push(...batch);
+    before = batch[batch.length - 1]?.id;
+    if (!before || batch.length < 100) break;
+  }
+
+  return messages.reverse().map((message: Message) => ({
     attachments: message.attachments.map((attachment) => ({ contentType: attachment.contentType, name: attachment.name, url: attachment.url })),
     authorId: message.author.id,
     authorName: message.author.username,
+    components: message.components.map((component) => component.toJSON()),
     content: message.content,
     createdAt: message.createdAt.toISOString(),
+    editedAt: message.editedAt?.toISOString() ?? null,
     embeds: message.embeds.map((embed) => embed.toJSON()),
     id: message.id
   }));
@@ -295,38 +318,65 @@ async function freezeTicketChannel(channel: TextChannel, userId: string) {
   }, { reason: "Ticket de vendas fechado." }).catch(() => null);
 }
 
-async function sendTranscriptDm(interaction: ButtonInteraction, transcriptUrl: string, password: string) {
-  const passwordToken = Buffer.from(password, "utf8").toString("base64url");
-  const embed = new EmbedBuilder()
-    .setColor(0xFFD500)
-    .setTitle("Seu atendimento foi finalizado")
-    .setDescription(`Seu transcript está disponível.\n\nLink:\n${transcriptUrl}\n\nSenha:\n••••••••••••`)
-    .setFooter({ text: "NexTech • Transcript exclusivo de vendas" });
+async function sendTranscriptDm(interaction: ButtonInteraction, context: BotContext, ticketId: string, transcriptId: string, transcriptUrl: string) {
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`${PREFIX}:show_password:${passwordToken}`)
+      .setCustomId(`${PREFIX}:show_password:${interaction.guild!.id}:${transcriptId}`)
       .setLabel("Mostrar senha")
       .setStyle(ButtonStyle.Secondary)
   );
-  await interaction.user.send({ components: [row], embeds: [embed] }).catch(() => null);
+  const payload = renderComponentsV2Panel({
+    accentColor: 0xFFD500,
+    actions: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setLabel("Abrir Transcript").setStyle(ButtonStyle.Link).setURL(transcriptUrl)
+      ),
+      row
+    ],
+    description: `Seu transcript está disponível.\n\n**Link:** ${transcriptUrl}\n\n**Senha:** ••••••••••••`,
+    footer: "NexTech • Transcript exclusivo de vendas",
+    moduleId: "sales-tickets",
+    title: "Seu atendimento foi finalizado"
+  });
+
+  const sent = await interaction.user.send(payload).then(() => true).catch(() => false);
+  await context.api.recordSalesTicketLog(interaction.guildId!, ticketId, {
+    actorId: interaction.user.id,
+    actorName: interaction.user.username,
+    data: { transcriptId },
+    event: sent ? "dm_sent" : "dm_failed",
+    message: sent ? "DM com transcript enviada ao usuário." : "Falha ao enviar DM com transcript ao usuário."
+  }).catch(() => null);
 }
 
-async function showTranscriptPassword(interaction: ButtonInteraction) {
-  const token = interaction.customId.split(":")[2] ?? "";
-  const password = readPasswordToken(token);
-  if (!password) {
+async function showTranscriptPassword(interaction: ButtonInteraction, context: BotContext) {
+  const [, , , guildId, transcriptId] = interaction.customId.split(":");
+  if (!guildId || !transcriptId) {
     await interaction.reply({ content: "Senha indisponível para este transcript.", ephemeral: true });
     return;
   }
-  await interaction.reply({ content: `Senha do transcript: ||${password}||`, ephemeral: true });
+
+  try {
+    const result = await context.api.revealSalesTicketTranscriptPassword(guildId, transcriptId, interaction.user.id);
+    await interaction.reply({ content: `Senha do transcript: ||${result.password}||`, flags: MessageFlags.Ephemeral });
+  } catch {
+    await interaction.reply({ content: "Senha indisponível para este usuário.", flags: MessageFlags.Ephemeral });
+  }
 }
 
-function readPasswordToken(token: string) {
-  try {
-    return Buffer.from(token, "base64url").toString("utf8").trim() || null;
-  } catch {
-    return null;
-  }
+async function recordTicketRuntimeLog(context: BotContext, interaction: ModalSubmitInteraction, ticketId: string, event: string, message: string, data: Record<string, unknown>) {
+  if (!interaction.guildId) return;
+  await context.api.recordSalesTicketLog(interaction.guildId, ticketId, {
+    actorId: interaction.user.id,
+    actorName: interaction.user.username,
+    data,
+    event,
+    message
+  }).catch(() => null);
+}
+
+function ticketIdFromCustomId(customId: string) {
+  return customId.split(":")[3] ?? "none";
 }
 
 function channelName(pattern: string, username: string, typeName: string, ticketId: string) {

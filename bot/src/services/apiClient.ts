@@ -3036,7 +3036,20 @@ export class ApiClient {
   }
 
   async closeSalesTicket(guildId: string, ticketId: string, input: { actorId: string; actorName?: string | null; channelId?: string | null; closeReason?: string | null; messages: Array<Record<string, unknown>> }) {
-    const { data } = await this.http.post<{ password: string; ticket: SalesTicket; transcriptId: string; transcriptUrl: string }>(`/bot/guilds/${guildId}/nex-tech-sales/tickets/${ticketId}/close`, input);
+    const { data } = await this.http.post<{ ticket: SalesTicket; transcriptId: string; transcriptUrl: string }>(`/bot/guilds/${guildId}/nex-tech-sales/tickets/${ticketId}/close`, input);
+    return data;
+  }
+
+  async recordSalesTicketLog(guildId: string, ticketId: string | null, input: { actorId?: string | null; actorName?: string | null; data?: Record<string, unknown>; event: string; message: string }) {
+    const { data } = await this.http.post(`/bot/guilds/${guildId}/nex-tech-sales/tickets/${encodeURIComponent(ticketId ?? "none")}/logs`, input);
+    return data;
+  }
+
+  async revealSalesTicketTranscriptPassword(guildId: string, transcriptId: string, userId: string) {
+    const { data } = await this.http.post<{ password: string; ticketId: string; transcriptId: string }>(
+      `/bot/guilds/${guildId}/nex-tech-sales/tickets/transcripts/${encodeURIComponent(transcriptId)}/reveal-password`,
+      { userId }
+    );
     return data;
   }
 
