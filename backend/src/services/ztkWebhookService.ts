@@ -909,6 +909,21 @@ function startOfDay(value: Date) {
   return date;
 }
 
+function startOfWeekMondaySaoPaulo(value: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "America/Sao_Paulo",
+    year: "numeric"
+  }).formatToParts(value);
+  const part = (type: string) => Number(parts.find((item) => item.type === type)?.value ?? 0);
+  const localDate = new Date(Date.UTC(part("year"), part("month") - 1, part("day")));
+  const daysSinceMonday = (localDate.getUTCDay() + 6) % 7;
+  localDate.setUTCDate(localDate.getUTCDate() - daysSinceMonday);
+  localDate.setUTCHours(3, 0, 0, 0);
+  return localDate;
+}
+
 async function buildDominationRankings(
   collection: Awaited<ReturnType<typeof getMongoCollections>>["ztkWebhookLogs"],
   botId: string,
@@ -917,7 +932,7 @@ async function buildDominationRankings(
 ): Promise<ZtkDominationRankingsDto> {
   const now = new Date();
   const todayStart = startOfDay(now);
-  const weekStart = startOfDay(new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000));
+  const weekStart = startOfWeekMondaySaoPaulo(now);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const seriesStart = startOfDay(new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000));
   const gangs = await collection.aggregate<{
@@ -1009,7 +1024,8 @@ async function buildDominationRankings(
       }
     },
     { $project: { _id: 0, avatarUrl: 1, firstDominatedAt: 1, gangName: 1, lastDominatedAt: 1, lastZone: 1, monthlyDominations: 1, normalizedPlayerName: 1, participations: 1, playerId: 1, playerName: 1, positionChange: 1, todayDominations: 1, weeklyDominations: 1 } },
-    { $sort: { participations: -1, lastDominatedAt: -1, playerName: 1 } },
+    { $match: { weeklyDominations: { $gt: 0 } } },
+    { $sort: { weeklyDominations: -1, lastDominatedAt: -1, playerName: 1 } },
     { $limit: ZTK_RANKING_LIMIT }
   ]).toArray();
 
@@ -1081,7 +1097,7 @@ async function buildRecruitmentRankings(
 ): Promise<ZtkRecruitmentRankingsDto> {
   const now = new Date();
   const todayStart = startOfDay(now);
-  const weekStart = startOfDay(new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000));
+  const weekStart = startOfWeekMondaySaoPaulo(now);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const seriesStart = startOfDay(new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000));
   const recruiters = await collection.aggregate<{
@@ -1143,7 +1159,8 @@ async function buildRecruitmentRankings(
         weeklyRecruitments: 1
       }
     },
-    { $sort: { totalRecruitments: -1, lastRecruitmentAt: -1, recruiterName: 1 } }
+    { $match: { weeklyRecruitments: { $gt: 0 } } },
+    { $sort: { weeklyRecruitments: -1, lastRecruitmentAt: -1, recruiterName: 1 } }
   ]).toArray();
 
   const [statsDoc] = await collection.aggregate<{

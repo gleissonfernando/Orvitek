@@ -310,7 +310,7 @@ function RankingView({ dashboard, selectedClan, stats }: { dashboard: ZtkWebhook
 function TopDominationsView({ dashboard, selectedClan }: { dashboard: ZtkWebhookDashboard | null; selectedClan: ZtkWebhookClan }) {
   const [playerQuery, setPlayerQuery] = useState("");
   const [clanFilter, setClanFilter] = useState("");
-  const [periodFilter, setPeriodFilter] = useState<"today" | "week" | "month" | "total">("total");
+  const [periodFilter, setPeriodFilter] = useState<"today" | "week" | "month" | "total">("week");
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const ranking = dashboard?.dominationRankings.participants ?? [];
   const dominationStats = dashboard?.dominationRankings.stats;
@@ -412,7 +412,7 @@ function RecruitmentView({ dashboard, selectedClan }: { dashboard: ZtkWebhookDas
   const [recruitedQuery, setRecruitedQuery] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [selectedRecruiter, setSelectedRecruiter] = useState<string | null>(null);
-  const [periodFilter, setPeriodFilter] = useState<"today" | "week" | "month" | "total">("total");
+  const [periodFilter, setPeriodFilter] = useState<"today" | "week" | "month" | "total">("week");
 
   const recruiters = dashboard?.recruitmentRankings.recruiters ?? [];
   const recruitmentLogs = (dashboard?.logs ?? []).filter((log) => log.eventType === "recruitment" && log.recruiterName && log.playerName);
@@ -1149,7 +1149,7 @@ function periodAllows(value: string, period: "today" | "week" | "month" | "total
   if (period === "today") {
     start.setHours(0, 0, 0, 0);
   } else if (period === "week") {
-    start.setDate(now.getDate() - 6);
+    start.setDate(now.getDate() - ((now.getDay() + 6) % 7));
     start.setHours(0, 0, 0, 0);
   } else {
     start.setDate(1);

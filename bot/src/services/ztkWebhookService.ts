@@ -281,7 +281,7 @@ function createRankingPanel(payload: ZtkWebhookEventReceivedEvent) {
   const participantRanking = payload.dominationRankings?.participants ?? [];
   return renderComponentsV2Panel({
     accentColor: 0xffd500,
-    description: `Top 10 membros com mais dominações atualizado automaticamente para o clã **${payload.clan.clanName}**.`,
+    description: `Top 10 semanal de membros com mais dominações para o clã **${payload.clan.clanName}**. Reseta toda segunda-feira.`,
     fields: participantRankingBlocks("🔥 TOP 10 DOMINAÇÕES", participantRanking),
     footer: { text: "NexTech • ZTK Webhook" },
     moduleId: "ztk-webhook",
@@ -293,7 +293,7 @@ function createParticipationRankingPanel(payload: ZtkWebhookEventReceivedEvent) 
   const participantRanking = payload.dominationRankings?.participants ?? [];
   return renderComponentsV2Panel({
     accentColor: 0xffd500,
-    description: `Top 10 membros com mais dominações registradas para o clã **${payload.clan.clanName}**.`,
+    description: `Top 10 semanal de membros com mais dominações registradas para o clã **${payload.clan.clanName}**. Reseta toda segunda-feira.`,
     fields: participantRankingBlocks("🎯 TOP 10 DOMINAÇÕES POR MEMBRO", participantRanking),
     footer: { text: "NexTech • ZTK Webhook" },
     moduleId: "ztk-webhook",
@@ -316,7 +316,7 @@ function createRecruitmentRankingPanel(payload: ZtkWebhookEventReceivedEvent) {
   const recruiters = payload.recruitmentRankings?.recruiters ?? [];
   return renderComponentsV2Panel({
     accentColor: 0x3b82f6,
-    description: "",
+    description: "Ranking semanal. Reseta toda segunda-feira.",
     fields: recruitmentRankingBlocks(recruiters),
     footer: { text: "NexTech • ZTK Webhook" },
     moduleId: "ztk-webhook",
@@ -463,7 +463,7 @@ function participantRankingBlocks(title: string, values: NonNullable<ZtkWebhookE
     const last = item.lastDominatedAt
       ? `\nÚltima dominação: ${item.lastZone ?? "Local não informado"}\nHorário: ${formatDateTime(item.lastDominatedAt)}`
       : "";
-    return `${medal(index + 1)} **#${index + 1} ${item.playerName}**\n${item.participations} dominações${item.gangName ? `\nClã: ${item.gangName}` : ""}${last}`;
+    return `${medal(index + 1)} **#${index + 1} ${item.playerName}**\n${item.weeklyDominations} dominações${item.gangName ? `\nClã: ${item.gangName}` : ""}${last}`;
   }).join("\n\n")}`];
 }
 
@@ -472,7 +472,7 @@ function recruitmentRankingBlocks(values: NonNullable<ZtkWebhookEventReceivedEve
   return [
     values.slice(0, ZTK_RANKING_LIMIT).map((item, index) => {
       const recruiterId = item.recruiterId ? ` (ID: ${item.recruiterId})` : "";
-      return `#${index + 1} — ${item.recruiterName} — ${item.totalRecruitments} recrutamentos${recruiterId}`;
+      return `#${index + 1} — ${item.recruiterName} — ${item.weeklyRecruitments} recrutamentos${recruiterId}`;
     }).join("\n")
   ];
 }
