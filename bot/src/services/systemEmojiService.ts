@@ -90,8 +90,17 @@ export async function validateSystemEmojisOnStartup(client: Client<true>, contex
     console.warn("[system-emojis] não foi possível carregar configuração; usando fallbacks:", error instanceof Error ? error.message : error);
   }
 
-  const caches = await Promise.all([...client.guilds.cache.values()].map((guild) => cacheGuildSystemEmojis(guild, context)));
-  await refreshSystemEmojis(context);
+  const cacheResults = await Promise.allSettled([...client.guilds.cache.values()].map((guild) => cacheGuildSystemEmojis(guild, context)));
+  const caches = cacheResults.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+  for (const result of cacheResults) {
+    if (result.status === "rejected") {
+      console.warn("[system-emojis] não foi possível validar emojis de um servidor:", result.reason instanceof Error ? result.reason.message : result.reason);
+    }
+  }
+
+  await refreshSystemEmojis(context).catch((error) => {
+    console.warn("[system-emojis] não foi possível atualizar configuração após validação; mantendo fallbacks/cache local:", error instanceof Error ? error.message : error);
+  });
   const found = caches.reduce((total, cache) => total + [...cache.emojis.values()].filter((item) => item.found).length, 0);
   const total = caches.length * SYSTEM_EMOJIS.length;
   console.log(`[system-emojis] cache por servidor concluído: ${found}/${total} encontrado(s) em ${caches.length} servidor(es).`);

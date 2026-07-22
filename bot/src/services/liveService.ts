@@ -50,7 +50,9 @@ export const livesCommand: BotCommand = {
 
 export function startLiveDetectionService(client: Client, context: BotContext) {
   if (serviceStarted) {
-    void syncCurrentPresences(client, context);
+    void syncCurrentPresences(client, context).catch((error) => {
+      console.warn("[live] falha ao sincronizar presenças atuais:", error instanceof Error ? error.message : error);
+    });
     return;
   }
 
@@ -59,10 +61,16 @@ export function startLiveDetectionService(client: Client, context: BotContext) {
     if (!settingsMatchesRuntime(settings.botId ?? null)) return;
     settingsCache.set(settings.guildId, normalizeSettings(settings));
     const guild = client.guilds.cache.get(settings.guildId);
-    if (guild) void syncGuildPresences(guild, context);
+    if (guild) {
+      void syncGuildPresences(guild, context).catch((error) => {
+        console.warn(`[live] falha ao sincronizar presenças do servidor ${guild.id}:`, error instanceof Error ? error.message : error);
+      });
+    }
   });
 
-  void syncCurrentPresences(client, context);
+  void syncCurrentPresences(client, context).catch((error) => {
+    console.warn("[live] falha ao sincronizar presenças atuais:", error instanceof Error ? error.message : error);
+  });
 }
 
 export function clearLiveDetectionCache(guildId?: string) {
@@ -348,15 +356,26 @@ function validateRoleOperation(guild: Guild, member: GuildMember | null, role: R
 }
 
 async function syncCurrentPresences(client: Client, context: BotContext) {
-  await Promise.all(client.guilds.cache.map((guild) => syncGuildPresences(guild, context)));
+  const results = await Promise.allSettled(client.guilds.cache.map((guild) => syncGuildPresences(guild, context)));
+  for (const result of results) {
+    if (result.status === "rejected") {
+      console.warn("[live] falha ao sincronizar presenças de um servidor:", result.reason instanceof Error ? result.reason.message : result.reason);
+    }
+  }
 }
 
 async function syncGuildPresences(guild: Guild, context: BotContext) {
-  const settings = await getSettings(guild.id, context);
+  const settings = await getSettings(guild.id, context).catch((error) => {
+    console.warn(`[live] não foi possível carregar configurações do servidor ${guild.id}:`, error instanceof Error ? error.message : error);
+    return null;
+  });
+  if (!settings) return;
   if (!settings.enabled || !settings.liveRoleId) return;
 
   for (const presence of guild.presences.cache.values()) {
-    await handlePresenceUpdate(context, null, presence);
+    await handlePresenceUpdate(context, null, presence).catch((error) => {
+      console.warn(`[live] falha ao processar presença ${presence.userId} no servidor ${guild.id}:`, error instanceof Error ? error.message : error);
+    });
   }
 }
 
