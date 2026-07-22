@@ -884,6 +884,7 @@ export function DevPanel({
   const [poweringBotId, setPoweringBotId] = useState<string | null>(null);
   const [updatingTokenBotId, setUpdatingTokenBotId] = useState<string | null>(null);
   const [deletingBotId, setDeletingBotId] = useState<string | null>(null);
+  const [confirmingDeleteBot, setConfirmingDeleteBot] = useState<DevBot | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const selectedBotId = controlledSelectedBotId ?? internalSelectedBotId;
@@ -1202,10 +1203,7 @@ export function DevPanel({
   }
 
   async function handleDelete(bot: DevBot) {
-    if (!window.confirm(`Desconectar ${bot.name}?`)) {
-      return;
-    }
-
+    setConfirmingDeleteBot(null);
     setDeletingBotId(bot.id);
     setMessage(null);
 
@@ -1239,6 +1237,15 @@ export function DevPanel({
     });
   }
 
+  const deleteConfirmationDialog = confirmingDeleteBot ? (
+    <BotDisconnectConfirmDialog
+      bot={confirmingDeleteBot}
+      busy={deletingBotId === confirmingDeleteBot.id}
+      onCancel={() => setConfirmingDeleteBot(null)}
+      onConfirm={() => void handleDelete(confirmingDeleteBot)}
+    />
+  ) : null;
+
   if (loading) {
     return (
       <Card>
@@ -1262,30 +1269,33 @@ export function DevPanel({
 
   if (activeDashboardSection === "bot-menu") {
     return (
-      <div className="min-w-0 space-y-7">
-        <BotGlobalSelect bots={bots} selectedBotId={selectedBotId} onSelectBot={handleSelectBotId} />
-        {message ? (
-          <div className="rounded-lg border border-[#FFEA70]/20 bg-[#FFD500]/[0.07] px-3 py-2 text-sm font-medium text-[#FFEA70] shadow-[0_0_18px_rgba(255,213,0,0.08)]">
-            {message}
-          </div>
-        ) : null}
-        {selectedBot ? (
-          <BotModuleWorkspace
-            activeMenuId={activeBotMenuId}
-            bot={selectedBot}
-            guilds={guilds}
-            modules={modules}
-            onSelectMenu={setActiveBotMenuId}
-            onToggle={(moduleId, checked) => void handleToggleModule(selectedBot, moduleId, checked)}
-          />
-        ) : (
-          <Card className="border-[#FFD500]/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(255,213,0,0.08)]">
-            <CardContent className="flex min-h-40 items-center justify-center p-6 text-center text-sm font-medium text-zinc-300">
-              Selecione um bot para abrir o Menu do Bot.
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      <>
+        <div className="min-w-0 space-y-7">
+          <BotGlobalSelect bots={bots} selectedBotId={selectedBotId} onSelectBot={handleSelectBotId} />
+          {message ? (
+            <div className="rounded-lg border border-[#FFEA70]/20 bg-[#FFD500]/[0.07] px-3 py-2 text-sm font-medium text-[#FFEA70] shadow-[0_0_18px_rgba(255,213,0,0.08)]">
+              {message}
+            </div>
+          ) : null}
+          {selectedBot ? (
+            <BotModuleWorkspace
+              activeMenuId={activeBotMenuId}
+              bot={selectedBot}
+              guilds={guilds}
+              modules={modules}
+              onSelectMenu={setActiveBotMenuId}
+              onToggle={(moduleId, checked) => void handleToggleModule(selectedBot, moduleId, checked)}
+            />
+          ) : (
+            <Card className="border-[#FFD500]/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(255,213,0,0.08)]">
+              <CardContent className="flex min-h-40 items-center justify-center p-6 text-center text-sm font-medium text-zinc-300">
+                Selecione um bot para abrir o Menu do Bot.
+              </CardContent>
+            </Card>
+          )}
+        </div>
+        {deleteConfirmationDialog}
+      </>
     );
   }
 
@@ -1442,7 +1452,7 @@ export function DevPanel({
             bot={selectedBot}
             deleting={deletingBotId === selectedBot.id}
             guildName={selectedBot.mainGuildName || guildNameById.get(selectedBot.mainGuildId) || "Servidor Discord"}
-            onDelete={() => void handleDelete(selectedBot)}
+            onDelete={() => setConfirmingDeleteBot(selectedBot)}
             onOpenDashboard={() => openSelectedBotView("overview")}
             onOpenLogs={() => openSelectedBotView("logs")}
             onOpenSettings={openModuleSettings}
@@ -1522,7 +1532,7 @@ export function DevPanel({
                           </Button>
                           <Button
                             disabled={deletingBotId === bot.id}
-                            onClick={() => void handleDelete(bot)}
+                            onClick={() => setConfirmingDeleteBot(bot)}
                             size="icon"
                             title="Desconectar bot"
                             variant="destructive"
@@ -1558,6 +1568,68 @@ export function DevPanel({
           )}
         </div>
       ) : null}
+      {deleteConfirmationDialog}
+    </div>
+  );
+}
+
+function BotDisconnectConfirmDialog({
+  bot,
+  busy,
+  onCancel,
+  onConfirm
+}: {
+  bot: DevBot;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !busy) {
+        onCancel();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [busy, onCancel]);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="disconnect-bot-title">
+      <div className="w-full max-w-md overflow-hidden rounded-xl border border-[#FFD500]/25 bg-[linear-gradient(135deg,rgba(24,24,27,0.98),rgba(7,7,10,0.98))] shadow-[0_28px_90px_rgba(0,0,0,0.7),0_0_42px_rgba(255,213,0,0.16)]">
+        <div className="border-b border-[#FFD500]/15 p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-red-500/25 bg-red-500/10 text-red-200">
+              <Unplug className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-white" id="disconnect-bot-title">Desconectar bot?</h2>
+              <p className="mt-1 text-sm font-medium leading-6 text-zinc-400">
+                Confirme para remover <span className="font-semibold text-[#FFEA70]">{bot.name}</span> do painel NexTech.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="space-y-3 p-5">
+          <div className="rounded-lg border border-zinc-800 bg-black/30 p-3">
+            <p className="truncate text-sm font-semibold text-white">{bot.name}</p>
+            <p className="mt-1 truncate text-xs font-mono text-zinc-500">{bot.clientId}</p>
+          </div>
+          <p className="text-xs font-medium leading-5 text-zinc-500">
+            Essa ação desconecta o bot cadastrado desta dashboard. Nenhum alerta do navegador será usado.
+          </p>
+        </div>
+        <div className="flex flex-col-reverse gap-2 border-t border-zinc-800/80 p-5 sm:flex-row sm:justify-end">
+          <Button disabled={busy} onClick={onCancel} type="button" variant="outline">
+            Cancelar
+          </Button>
+          <Button disabled={busy} onClick={onConfirm} type="button" variant="destructive">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            Desconectar
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
