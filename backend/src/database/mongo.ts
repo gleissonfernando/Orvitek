@@ -3094,6 +3094,47 @@ export type MongoApplicationEmojiSettings = {
   updatedAt: Date;
 };
 
+export type MongoNexTechInviteStatus = "active" | "paused" | "expired" | "cancelled";
+
+export type MongoNexTechInviteUsage = {
+  guildId: string;
+  guildName: string;
+  ipAddress: string | null;
+  usedAt: Date;
+  usedById: string | null;
+  usedByName: string | null;
+};
+
+export type MongoNexTechInvite = {
+  _id: string;
+  clientName: string;
+  code: string;
+  createdAt: Date;
+  createdBy: string | null;
+  expiresAt: Date | null;
+  maxUses: number | null;
+  name: string;
+  notes: string | null;
+  status: MongoNexTechInviteStatus;
+  updatedAt: Date;
+  updatedBy: string | null;
+  usages: MongoNexTechInviteUsage[];
+  usedCount: number;
+};
+
+export type MongoNexTechInviteLog = {
+  _id: string;
+  action: string;
+  actorId: string | null;
+  actorName: string | null;
+  createdAt: Date;
+  data: Record<string, unknown>;
+  guildId: string | null;
+  guildName: string | null;
+  inviteCode: string | null;
+  inviteId: string | null;
+};
+
 export type MongoNexTechSalesPaymentProvider = {
   id: string;
   gatewayId: string;
@@ -4806,6 +4847,8 @@ export async function getMongoCollections() {
     applicationEmojiItems: db.collection<MongoApplicationEmojiItem>("application_emojis"),
     applicationEmojiJobs: db.collection<MongoApplicationEmojiJob>("application_emoji_jobs"),
     applicationEmojiSettings: db.collection<MongoApplicationEmojiSettings>("application_emoji_settings"),
+    nexTechInvites: db.collection<MongoNexTechInvite>("nextech_invites"),
+    nexTechInviteLogs: db.collection<MongoNexTechInviteLog>("nextech_invite_logs"),
     nexTechSalesSettings: db.collection<MongoNexTechSalesSettings>("nexTech_sales_settings"),
     nexTechSalesPlans: db.collection<MongoNexTechSalesPlan>("nexTech_sales_plans"),
     nexTechProducts: db.collection<MongoNexTechProduct>("nexTech_products"),
@@ -5093,6 +5136,7 @@ async function createMongoIndexes(db: Db) {
     ensureImageAntiSpamIndexes(db),
     ensureVoiceRecorderIndexes(db),
     ensureEmojiCloneIndexes(db),
+    ensureNexTechInviteIndexes(db),
     ensureNexTechSalesIndexes(db),
     ensurePriceTableIndexes(db),
     ensureManualPaymentIndexes(db),
@@ -5702,6 +5746,17 @@ async function ensureMissionToolsIndexes(db: Db) {
     users.createIndex({ botId: 1, guildId: 1, userId: 1 }, { unique: true }),
     tokens.createIndex({ botId: 1, guildId: 1, userId: 1 }, { unique: true }),
     tokens.createIndex({ botId: 1, guildId: 1, tokenHash: 1 })
+  ]);
+}
+
+async function ensureNexTechInviteIndexes(db: Db) {
+  await Promise.all([
+    db.collection<MongoNexTechInvite>("nextech_invites").createIndex({ code: 1 }, { unique: true }),
+    db.collection<MongoNexTechInvite>("nextech_invites").createIndex({ status: 1, updatedAt: -1 }),
+    db.collection<MongoNexTechInvite>("nextech_invites").createIndex({ clientName: 1, createdAt: -1 }),
+    db.collection<MongoNexTechInviteLog>("nextech_invite_logs").createIndex({ createdAt: -1 }),
+    db.collection<MongoNexTechInviteLog>("nextech_invite_logs").createIndex({ inviteId: 1, createdAt: -1 }),
+    db.collection<MongoNexTechInviteLog>("nextech_invite_logs").createIndex({ inviteCode: 1, createdAt: -1 })
   ]);
 }
 

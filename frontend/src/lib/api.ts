@@ -94,6 +94,8 @@ import type {
   NexTechSale,
   NexTechSaleStatus,
   NexTechProduct,
+  NexTechInviteDashboard,
+  NexTechInvite,
   NexTechSalesDashboard,
   NexTechSalesPlan,
   NexTechSalesSettings,
@@ -126,6 +128,7 @@ import type {
   SaveMissionToolsSettingsPayload,
   SaveNexTechPaymentProviderPayload,
   SaveNexTechProductPayload,
+  SaveNexTechInvitePayload,
   SaveNexTechSalePayload,
   SaveNexTechSalesPlanPayload,
   SaveNexTechSalesSettingsPayload,
@@ -2283,6 +2286,31 @@ export async function releaseDashboardBotGuildModule(botId: string, guildId: str
 export async function updateBotGuildConfig(botId: string, guildId: string, payload: Pick<BotGuildConfig, "guildName" | "modules">) {
   const { data } = await api.patch<{ config: BotGuildConfig }>(`/dev/bots/${botId}/guilds/${guildId}/config`, payload);
   return data.config;
+}
+
+export async function getNexTechInviteDashboard() {
+  const { data } = await api.get<NexTechInviteDashboard>("/dev/nextech/invites");
+  return data;
+}
+
+export async function generateNexTechInviteCode() {
+  const { data } = await api.post<{ code: string }>("/dev/nextech/invites/generate-code");
+  return data.code;
+}
+
+export async function createNexTechInvite(payload: SaveNexTechInvitePayload) {
+  const { data } = await api.post<{ invite: NexTechInvite }>("/dev/nextech/invites", payload);
+  return data.invite;
+}
+
+export async function updateNexTechInvite(inviteId: string, payload: Partial<SaveNexTechInvitePayload>) {
+  const { data } = await api.patch<{ invite: NexTechInvite }>(`/dev/nextech/invites/${encodeURIComponent(inviteId)}`, payload);
+  return data.invite;
+}
+
+export async function deleteNexTechInvite(inviteId: string) {
+  const { data } = await api.delete<{ invite: NexTechInvite }>(`/dev/nextech/invites/${encodeURIComponent(inviteId)}`);
+  return data.invite;
 }
 
 export async function getNexTechSalesDashboard(botId: string, guildId: string) {

@@ -9,6 +9,7 @@ import {
   Car,
   Code2,
   Copy,
+  KeyRound,
   LayoutDashboard,
   Loader2,
   MessageCircle,
@@ -22,6 +23,7 @@ import {
   Shield,
   ShieldAlert,
   ShieldCheck,
+  Sparkles,
   Trash2,
   Users,
   Wrench,
@@ -46,15 +48,19 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Switch } from "../components/ui/switch";
 import {
+  createNexTechInvite,
   createDevFivemModule,
+  deleteNexTechInvite,
   deleteDevFivemModule,
   deleteDevAccessEntry,
+  generateNexTechInviteCode,
   getDashboardMe,
   getDevAccessEntries,
   getDevBots,
   getDiscloudBotLogs,
   getDiscloudMonitoring,
   getDevFivemModules,
+  getNexTechInviteDashboard,
   getMaintenanceState,
   getLogs,
   getSystemHealth,
@@ -64,11 +70,12 @@ import {
   setMaintenanceMode,
   runDiscloudBotAction,
   updateDevBotModules,
-  updateDevFivemModule
+  updateDevFivemModule,
+  updateNexTechInvite
 } from "../lib/api";
 import { createDashboardSocket } from "../lib/socket";
 import { dashboardUrl } from "../lib/urls";
-import type { AuthResponse, DashboardBot, DashboardMeResponse, DevAccessEntry, DevAccessRole, DevBot, DevBotStatus, DiscloudBotSnapshot, DiscloudHistoryEvent, DiscloudLogsResponse, DiscloudMonitoringResponse, FivemModuleDefinition, LogEntry, MaintenanceState, SystemHealthResponse, SystemMetricsResponse } from "../types";
+import type { AuthResponse, DashboardBot, DashboardMeResponse, DevAccessEntry, DevAccessRole, DevBot, DevBotStatus, DiscloudBotSnapshot, DiscloudHistoryEvent, DiscloudLogsResponse, DiscloudMonitoringResponse, FivemModuleDefinition, LogEntry, MaintenanceState, NexTechInvite, NexTechInviteDashboard, NexTechInviteStatus, SaveNexTechInvitePayload, SystemHealthResponse, SystemMetricsResponse } from "../types";
 
 type DevDashboardProps = {
   auth: AuthResponse;
@@ -76,7 +83,7 @@ type DevDashboardProps = {
   onLogout: () => void;
 };
 
-type DevView = "bots" | "connected" | "bot-menu" | "cloning" | "sales" | "plans" | "monitoring" | "discloud" | "fivem" | "police" | "logs" | "access" | "maintenance";
+type DevView = "bots" | "connected" | "bot-menu" | "cloning" | "nextech" | "nextech-invites" | "sales" | "plans" | "monitoring" | "discloud" | "fivem" | "police" | "logs" | "access" | "maintenance";
 
 type FiveMModuleView = FivemModuleDefinition & {
   icon: LucideIcon;
@@ -84,21 +91,42 @@ type FiveMModuleView = FivemModuleDefinition & {
 
 const MAINTENANCE_GIF_URL = "/maintenance/nft-coding.gif";
 
-const DEV_NAV_ITEMS: Array<{ icon: LucideIcon; id: DevView; label: string }> = [
-  { icon: LayoutDashboard, id: "bots", label: "Dashboard" },
-  { icon: Boxes, id: "connected", label: "Bots conectados" },
-  { icon: Settings, id: "bot-menu", label: "Menu do Bot" },
-  { icon: Copy, id: "cloning", label: "Clonagem" },
-  { icon: CreditCard, id: "sales", label: "Sistema de Vendas" },
-  { icon: PackagePlus, id: "plans", label: "Planos" },
-  { icon: Activity, id: "monitoring", label: "Monitoramento" },
-  { icon: HardDrive, id: "discloud", label: "DisCloud" },
-  { icon: Building2, id: "fivem", label: "FiveM" },
-  { icon: ShieldCheck, id: "police", label: "Polícia" },
-  { icon: ScrollText, id: "logs", label: "Logs" },
-  { icon: UserCog, id: "access", label: "Acessos DEV" },
-  { icon: Wrench, id: "maintenance", label: "Manutenção" }
+type DevNavItem = { icon: LucideIcon; id: DevView; label: string };
+
+const DEV_NAV_GROUPS: Array<{ items: DevNavItem[]; label: string }> = [
+  {
+    label: "Principal",
+    items: [
+      { icon: LayoutDashboard, id: "bots", label: "Dashboard" },
+      { icon: Boxes, id: "connected", label: "Bots conectados" },
+      { icon: Settings, id: "bot-menu", label: "Menu do Bot" },
+      { icon: Copy, id: "cloning", label: "Clonagem" }
+    ]
+  },
+  {
+    label: "NexTech",
+    items: [
+      { icon: Sparkles, id: "nextech", label: "Menu NexTech" },
+      { icon: CreditCard, id: "sales", label: "Sistema de Vendas" },
+      { icon: KeyRound, id: "nextech-invites", label: "Sistema de Convites" },
+      { icon: PackagePlus, id: "plans", label: "Planos" }
+    ]
+  },
+  {
+    label: "Operação",
+    items: [
+      { icon: Activity, id: "monitoring", label: "Monitoramento" },
+      { icon: HardDrive, id: "discloud", label: "DisCloud" },
+      { icon: Building2, id: "fivem", label: "FiveM" },
+      { icon: ShieldCheck, id: "police", label: "Polícia" },
+      { icon: ScrollText, id: "logs", label: "Logs" },
+      { icon: UserCog, id: "access", label: "Acessos DEV" },
+      { icon: Wrench, id: "maintenance", label: "Manutenção" }
+    ]
+  }
 ];
+
+const DEV_NAV_ITEMS = DEV_NAV_GROUPS.flatMap((group) => group.items);
 
 export function DevDashboard({ auth, initialView = "bots", onLogout }: DevDashboardProps) {
   const [profile, setProfile] = useState<DashboardMeResponse | null>(null);
@@ -255,6 +283,14 @@ export function DevDashboard({ auth, initialView = "bots", onLogout }: DevDashbo
           />
         ) : null}
 
+        {activeView === "nextech" ? (
+          <DevNexTechHub onChangeView={handleChangeView} />
+        ) : null}
+
+        {activeView === "nextech-invites" ? (
+          <DevNexTechInvitesPanel />
+        ) : null}
+
         {activeView === "sales" ? (
           <DevSalesManager
             bots={profile.bots}
@@ -320,6 +356,8 @@ function devPathForView(view: DevView) {
   if (view === "connected") return "/dev/bots-conectados";
   if (view === "bot-menu") return "/dev/menu-do-bot";
   if (view === "cloning") return "/dev/clonagem";
+  if (view === "nextech") return "/dev/nextech";
+  if (view === "nextech-invites") return "/dev/nextech/convites";
   if (view === "sales") return "/dev/sistema-de-vendas";
   if (view === "plans") return "/dev/planos";
   if (view === "monitoring") return "/dev/monitoramento";
@@ -363,22 +401,25 @@ function DevSidebar({
         </div>
       </div>
       <nav className="discord-scrollbar flex-1 space-y-1 overflow-y-auto pb-2">
-        {DEV_NAV_ITEMS.map((item) => (
-          <div key={item.id}>
-            <button
-              className={[
-                "group flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-semibold transition duration-300",
-                activeView === item.id
-                  ? "bg-[#FFD500]/20 text-white ring-1 ring-[#FFEA70]/35 shadow-[0_0_24px_rgba(255,213,0,0.16)]"
-                  : "text-zinc-300 hover:bg-[#FFD500]/10 hover:text-white hover:shadow-[0_0_22px_rgba(255,213,0,0.12)]"
-              ].join(" ")}
-              onClick={() => onChangeView(item.id)}
-              type="button"
-            >
-              <item.icon className="h-4 w-4 text-[#FFEA70] transition group-hover:text-white" />
-              {item.label}
-            </button>
-
+        {DEV_NAV_GROUPS.map((group) => (
+          <div className="space-y-1" key={group.label}>
+            <p className="px-3 pt-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#FFEA70]/70">{group.label}</p>
+            {group.items.map((item) => (
+              <button
+                className={[
+                  "group flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-semibold transition duration-300",
+                  activeView === item.id
+                    ? "bg-[#FFD500]/20 text-white ring-1 ring-[#FFEA70]/35 shadow-[0_0_24px_rgba(255,213,0,0.16)]"
+                    : "text-zinc-300 hover:bg-[#FFD500]/10 hover:text-white hover:shadow-[0_0_22px_rgba(255,213,0,0.12)]"
+                ].join(" ")}
+                key={item.id}
+                onClick={() => onChangeView(item.id)}
+                type="button"
+              >
+                <item.icon className="h-4 w-4 text-[#FFEA70] transition group-hover:text-white" />
+                {item.label}
+              </button>
+            ))}
           </div>
         ))}
       </nav>
@@ -417,8 +458,12 @@ function DevMobileHeader({
         onChange={(event) => onChangeView(event.target.value as DevView)}
         value={activeView}
       >
-        {DEV_NAV_ITEMS.map((item) => (
-          <option key={item.id} value={item.id}>{item.label}</option>
+        {DEV_NAV_GROUPS.map((group) => (
+          <optgroup key={group.label} label={group.label}>
+            {group.items.map((item) => (
+              <option key={item.id} value={item.id}>{item.label}</option>
+            ))}
+          </optgroup>
         ))}
       </select>
     </header>
@@ -453,6 +498,412 @@ function DevUserCard({ canViewDev, user }: { canViewDev: boolean; user: AuthResp
       </CardContent>
     </Card>
   );
+}
+
+function DevNexTechHub({ onChangeView }: { onChangeView: (view: DevView) => void }) {
+  const items = [
+    {
+      description: "Produtos, planos, cobranças, gateways e pedidos da loja NexTech.",
+      icon: CreditCard,
+      label: "Sistema de Vendas",
+      stats: "Produtos e pagamentos",
+      view: "sales" as DevView
+    },
+    {
+      description: "Convites oficiais para controlar quais clientes e servidores podem usar a NexTech.",
+      icon: KeyRound,
+      label: "Sistema de Convites",
+      stats: "Autorização por código",
+      view: "nextech-invites" as DevView
+    },
+    {
+      description: "Criação e liberação dos planos comerciais usados pela plataforma.",
+      icon: PackagePlus,
+      label: "Planos NexTech",
+      stats: "Assinaturas e limites",
+      view: "plans" as DevView
+    }
+  ];
+
+  return (
+    <div className="min-w-0 space-y-6">
+      <section className="rounded-2xl border border-[#FFD500]/20 bg-[radial-gradient(circle_at_top_left,rgba(255,213,0,0.18),transparent_36%),linear-gradient(135deg,rgba(24,24,27,0.92),rgba(8,8,10,0.98))] p-5 shadow-[0_0_50px_rgba(255,213,0,0.10)]">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.22em] text-[#FFEA70]">
+              <Sparkles className="h-4 w-4" />
+              NexTech
+            </div>
+            <h2 className="mt-2 text-2xl font-black text-white">Menu próprio da NexTech</h2>
+            <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-zinc-300">
+              Área DEV separada para criar e administrar sistemas internos da NexTech sem misturar com os módulos dos bots dos clientes.
+            </p>
+          </div>
+          <Badge className="border-[#FFEA70]/40 bg-[#FFD500]/15 text-[#FFEA70]" variant="muted">Somente DEV</Badge>
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-3">
+        {items.map((item) => (
+          <Card className="border-[#FFD500]/18 bg-zinc-950/80 shadow-[0_0_30px_rgba(255,213,0,0.06)]" key={item.label}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#FFD500]/25 bg-[#FFD500]/10 text-[#FFEA70]">
+                  <item.icon className="h-5 w-5" />
+                </span>
+                {item.label}
+              </CardTitle>
+              <CardDescription>{item.description}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg border border-zinc-800 bg-black/35 px-3 py-2 text-sm font-semibold text-zinc-200">{item.stats}</div>
+              <Button className="w-full" onClick={() => onChangeView(item.view)} type="button">
+                <Sparkles className="h-4 w-4" />
+                Abrir
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
+    </div>
+  );
+}
+
+const emptyInviteForm = {
+  clientName: "",
+  code: "",
+  expiresAt: "",
+  maxUses: "",
+  name: "",
+  notes: "",
+  status: "active" as NexTechInviteStatus
+};
+
+function DevNexTechInvitesPanel() {
+  const [dashboard, setDashboard] = useState<NexTechInviteDashboard | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState(emptyInviteForm);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    getNexTechInviteDashboard()
+      .then((data) => {
+        if (mounted) setDashboard(data);
+      })
+      .catch((error) => {
+        if (mounted) setMessage(readRequestMessage(error) ?? "Não foi possível carregar os convites NexTech.");
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+
+    const socket = createDashboardSocket();
+    socket.on("nextech-invites:updated", (data: NexTechInviteDashboard) => {
+      setDashboard(data);
+    });
+
+    return () => {
+      mounted = false;
+      socket.disconnect();
+    };
+  }, []);
+
+  async function reload() {
+    setLoading(true);
+    try {
+      setDashboard(await getNexTechInviteDashboard());
+      setMessage(null);
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Não foi possível atualizar os convites.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleGenerateCode() {
+    try {
+      const code = await generateNexTechInviteCode();
+      setForm((current) => ({ ...current, code }));
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Não foi possível gerar o código.");
+    }
+  }
+
+  function editInvite(invite: NexTechInvite) {
+    setEditingId(invite.id);
+    setForm({
+      clientName: invite.clientName,
+      code: invite.code,
+      expiresAt: toDatetimeLocal(invite.expiresAt),
+      maxUses: invite.maxUses === null ? "" : String(invite.maxUses),
+      name: invite.name,
+      notes: invite.notes ?? "",
+      status: invite.status
+    });
+    window.scrollTo({ behavior: "smooth", top: 0 });
+  }
+
+  function resetForm() {
+    setEditingId(null);
+    setForm(emptyInviteForm);
+  }
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    const payload: SaveNexTechInvitePayload = {
+      clientName: form.clientName,
+      code: form.code || null,
+      expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null,
+      maxUses: form.maxUses ? Number(form.maxUses) : null,
+      name: form.name,
+      notes: form.notes || null,
+      status: form.status
+    };
+
+    setSaving(true);
+    setMessage(null);
+    try {
+      if (editingId) {
+        await updateNexTechInvite(editingId, payload);
+        setMessage("Convite atualizado.");
+      } else {
+        await createNexTechInvite(payload);
+        setMessage("Convite criado.");
+      }
+      resetForm();
+      await reload();
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Não foi possível salvar o convite.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleStatus(invite: NexTechInvite, status: NexTechInviteStatus) {
+    setMessage(null);
+    try {
+      await updateNexTechInvite(invite.id, { status });
+      await reload();
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Não foi possível alterar o status.");
+    }
+  }
+
+  async function handleDelete(invite: NexTechInvite) {
+    if (!window.confirm(`Excluir o convite ${invite.code}?`)) return;
+    setMessage(null);
+    try {
+      await deleteNexTechInvite(invite.id);
+      await reload();
+      setMessage("Convite excluído.");
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Não foi possível excluir o convite.");
+    }
+  }
+
+  const invites = dashboard?.invites ?? [];
+  const logs = dashboard?.logs ?? [];
+  const stats = dashboard?.stats ?? { active: 0, cancelled: 0, expired: 0, paused: 0, remainingUses: 0, totalUses: 0 };
+
+  return (
+    <div className="min-w-0 space-y-6">
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.22em] text-[#FFEA70]">
+            <KeyRound className="h-4 w-4" />
+            NexTech
+          </div>
+          <h2 className="mt-2 text-2xl font-black text-white">Sistema de Convites</h2>
+          <p className="mt-1 text-sm font-medium text-zinc-400">Cadastro proprietário de convites autorizados pela NexTech, com código único, limite, expiração e logs.</p>
+        </div>
+        <Button disabled={loading} onClick={() => void reload()} type="button" variant="outline">
+          <RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+          Atualizar
+        </Button>
+      </section>
+
+      {message ? <div className="rounded-lg border border-[#FFEA70]/25 bg-[#FFD500]/10 px-4 py-3 text-sm font-semibold text-white">{message}</div> : null}
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <NexTechInviteStat label="Ativos" value={stats.active} tone="good" />
+        <NexTechInviteStat label="Pausados" value={stats.paused} tone="warn" />
+        <NexTechInviteStat label="Expirados" value={stats.expired} tone="danger" />
+        <NexTechInviteStat label="Cancelados" value={stats.cancelled} tone="danger" />
+        <NexTechInviteStat label="Utilizações" value={stats.totalUses} tone="good" />
+        <NexTechInviteStat label="Restantes" value={stats.remainingUses} tone="warn" />
+      </section>
+
+      <Card className="border-[#FFD500]/18 bg-zinc-950/80">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Plus className="h-5 w-5 text-[#FFEA70]" />{editingId ? "Editar convite" : "Criar convite NexTech"}</CardTitle>
+          <CardDescription>Somente códigos cadastrados aqui devem ser considerados autorizados pela NexTech.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="grid gap-3 lg:grid-cols-2" onSubmit={handleSubmit}>
+            <DevTextInput label="Nome do convite" required value={form.name} onChange={(name) => setForm((current) => ({ ...current, name }))} />
+            <DevTextInput label="Cliente responsável" required value={form.clientName} onChange={(clientName) => setForm((current) => ({ ...current, clientName }))} />
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-wide text-zinc-500">Código</label>
+              <div className="flex gap-2">
+                <input className="h-10 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-black/40 px-3 font-mono text-sm font-semibold text-white outline-none focus:border-[#FFEA70]/60" value={form.code} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))} placeholder="NEXTECH-4582-A1" />
+                <Button onClick={() => void handleGenerateCode()} type="button" variant="outline">Gerar</Button>
+              </div>
+            </div>
+            <DevTextInput label="Limite de usos" min={1} type="number" value={form.maxUses} onChange={(maxUses) => setForm((current) => ({ ...current, maxUses }))} />
+            <DevTextInput label="Expiração" type="datetime-local" value={form.expiresAt} onChange={(expiresAt) => setForm((current) => ({ ...current, expiresAt }))} />
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-wide text-zinc-500">Status</label>
+              <select className="h-10 w-full rounded-lg border border-zinc-800 bg-black/40 px-3 text-sm font-semibold text-white outline-none focus:border-[#FFEA70]/60" value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as NexTechInviteStatus }))}>
+                <option value="active">Ativo</option>
+                <option value="paused">Pausado</option>
+                <option value="expired">Expirado</option>
+                <option value="cancelled">Cancelado</option>
+              </select>
+            </div>
+            <div className="space-y-1 lg:col-span-2">
+              <label className="text-xs font-bold uppercase tracking-wide text-zinc-500">Observações</label>
+              <textarea className="min-h-24 w-full rounded-lg border border-zinc-800 bg-black/40 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-[#FFEA70]/60" value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Detalhes internos do cliente, liberação ou restrição." />
+            </div>
+            <div className="flex flex-wrap gap-2 lg:col-span-2">
+              <Button disabled={saving} type="submit">
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                {editingId ? "Salvar alterações" : "Criar convite"}
+              </Button>
+              {editingId ? <Button onClick={resetForm} type="button" variant="outline">Cancelar edição</Button> : null}
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card className="border-zinc-800/80 bg-zinc-950/80">
+        <CardHeader>
+          <CardTitle>Convites cadastrados</CardTitle>
+          <CardDescription>Códigos únicos, cliente, limite de uso e status operacional.</CardDescription>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <table className="w-full min-w-[900px] text-left text-sm">
+            <thead className="text-xs uppercase tracking-wide text-zinc-500">
+              <tr>
+                <th className="px-3 py-2">Código</th>
+                <th className="px-3 py-2">Cliente</th>
+                <th className="px-3 py-2">Nome</th>
+                <th className="px-3 py-2">Usos</th>
+                <th className="px-3 py-2">Expiração</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invites.map((invite) => (
+                <tr className="border-t border-zinc-900" key={invite.id}>
+                  <td className="px-3 py-3 font-mono text-xs font-bold text-[#FFEA70]">{invite.code}</td>
+                  <td className="px-3 py-3 font-semibold text-white">{invite.clientName}</td>
+                  <td className="px-3 py-3 text-zinc-300">{invite.name}</td>
+                  <td className="px-3 py-3 text-zinc-300">{invite.usedCount}/{invite.maxUses ?? "∞"}</td>
+                  <td className="px-3 py-3 text-zinc-400">{invite.expiresAt ? formatDate(invite.expiresAt) : "Sem expiração"}</td>
+                  <td className="px-3 py-3"><NexTechInviteStatusBadge status={invite.status} /></td>
+                  <td className="px-3 py-3">
+                    <div className="flex justify-end gap-2">
+                      <Button onClick={() => editInvite(invite)} size="sm" type="button" variant="outline"><Pencil className="h-4 w-4" />Editar</Button>
+                      <Button onClick={() => void handleStatus(invite, invite.status === "active" ? "paused" : "active")} size="sm" type="button" variant="outline">{invite.status === "active" ? "Pausar" : "Ativar"}</Button>
+                      <Button onClick={() => void handleDelete(invite)} size="sm" type="button" variant="destructive"><Trash2 className="h-4 w-4" />Excluir</Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!invites.length ? <p className="py-8 text-center text-sm font-medium text-zinc-500">Nenhum convite cadastrado ainda.</p> : null}
+        </CardContent>
+      </Card>
+
+      <Card className="border-zinc-800/80 bg-zinc-950/80">
+        <CardHeader>
+          <CardTitle>Logs do sistema de convites</CardTitle>
+          <CardDescription>Auditoria das ações realizadas por desenvolvedores.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {logs.slice(0, 12).map((log) => (
+            <div className="grid gap-2 rounded-lg border border-zinc-900 bg-black/35 p-3 text-sm md:grid-cols-[170px_1fr_180px]" key={log.id}>
+              <span className="font-mono text-xs text-zinc-500">{formatDate(log.createdAt)}</span>
+              <span className="font-semibold text-zinc-100">{inviteLogLabel(log.action)} {log.inviteCode ? <span className="text-[#FFEA70]">{log.inviteCode}</span> : null}</span>
+              <span className="text-zinc-400">{log.actorName ?? log.actorId ?? "Sistema"}</span>
+            </div>
+          ))}
+          {!logs.length ? <p className="py-6 text-center text-sm text-zinc-500">Nenhum log registrado.</p> : null}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function DevTextInput({
+  label,
+  min,
+  onChange,
+  required,
+  type = "text",
+  value
+}: {
+  label: string;
+  min?: number;
+  onChange: (value: string) => void;
+  required?: boolean;
+  type?: string;
+  value: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-bold uppercase tracking-wide text-zinc-500">{label}</label>
+      <input className="h-10 w-full rounded-lg border border-zinc-800 bg-black/40 px-3 text-sm font-semibold text-white outline-none focus:border-[#FFEA70]/60" min={min} required={required} type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+    </div>
+  );
+}
+
+function NexTechInviteStat({ label, tone, value }: { label: string; tone: "good" | "warn" | "danger"; value: number }) {
+  return (
+    <div className={`rounded-xl border px-4 py-3 ${toneClass(tone)}`}>
+      <p className="text-xs font-bold uppercase tracking-wide opacity-80">{label}</p>
+      <p className="mt-1 text-2xl font-black">{value}</p>
+    </div>
+  );
+}
+
+function NexTechInviteStatusBadge({ status }: { status: NexTechInviteStatus }) {
+  const labels: Record<NexTechInviteStatus, string> = {
+    active: "Ativo",
+    cancelled: "Cancelado",
+    expired: "Expirado",
+    paused: "Pausado"
+  };
+  const tone: Record<NexTechInviteStatus, "success" | "warning" | "danger" | "muted"> = {
+    active: "success",
+    cancelled: "danger",
+    expired: "danger",
+    paused: "warning"
+  };
+  return <Badge variant={tone[status]}>{labels[status]}</Badge>;
+}
+
+function inviteLogLabel(action: string) {
+  const labels: Record<string, string> = {
+    "invite.created": "Convite criado",
+    "invite.deleted": "Convite excluído",
+    "invite.updated": "Convite atualizado"
+  };
+  return labels[action] ?? action;
+}
+
+function toDatetimeLocal(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }
 
 function RealtimeSystemMonitoringPanel() {

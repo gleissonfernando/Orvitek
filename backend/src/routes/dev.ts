@@ -84,6 +84,13 @@ import {
   toSettingsDto,
   updateNexTechSaleStatus
 } from "../services/nexTechSalesService";
+import {
+  createNexTechInvite,
+  deleteNexTechInvite,
+  generateNexTechInviteCode,
+  getNexTechInviteDashboard,
+  updateNexTechInvite
+} from "../services/nexTechInviteService";
 import { devPlansRouter } from "./plans";
 import type { DashboardAuth } from "../services/tokenService";
 
@@ -259,6 +266,16 @@ const systemEmojiPatchSchema = z.object({
   sourceGuildId: z.string().regex(/^\d{5,32}$/).nullable().optional().or(z.literal(""))
 });
 
+const nexTechInviteSchema = z.object({
+  clientName: z.string().min(2).max(120),
+  code: z.string().min(4).max(80).nullable().optional().or(z.literal("")),
+  expiresAt: z.string().datetime().nullable().optional().or(z.literal("")),
+  maxUses: z.number().int().min(1).max(100000).nullable().optional(),
+  name: z.string().min(2).max(120),
+  notes: z.string().max(800).nullable().optional().or(z.literal("")),
+  status: z.enum(["active", "paused", "expired", "cancelled"]).optional()
+});
+
 export const devRouter = Router();
 
 devRouter.use(requireDevAccess);
@@ -277,6 +294,63 @@ devRouter.get("/modules", (_req, res) => {
   return res.json({
     modules: DEV_MODULES
   });
+});
+
+devRouter.get("/nextech/invites", async (_req, res, next) => {
+  try {
+    return res.json(await getNexTechInviteDashboard());
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.post("/nextech/invites/generate-code", async (_req, res, next) => {
+  try {
+    return res.json({ code: await generateNexTechInviteCode() });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.post("/nextech/invites", async (req, res, next) => {
+  try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+    const input = nexTechInviteSchema.parse(req.body ?? {});
+    const invite = await createNexTechInvite(input, {
+      id: auth.user.discordId,
+      name: auth.user.globalName || auth.user.username
+    });
+    return res.status(201).json({ invite });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.patch("/nextech/invites/:inviteId", async (req, res, next) => {
+  try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+    const input = nexTechInviteSchema.partial().parse(req.body ?? {});
+    const invite = await updateNexTechInvite(req.params.inviteId, input, {
+      id: auth.user.discordId,
+      name: auth.user.globalName || auth.user.username
+    });
+    return res.json({ invite });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+devRouter.delete("/nextech/invites/:inviteId", async (req, res, next) => {
+  try {
+    const auth = res.locals.dashboardAuth as DashboardAuth;
+    const invite = await deleteNexTechInvite(req.params.inviteId, {
+      id: auth.user.discordId,
+      name: auth.user.globalName || auth.user.username
+    });
+    return res.json({ invite });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 devRouter.get("/discloud/monitoring", async (req, res, next) => {

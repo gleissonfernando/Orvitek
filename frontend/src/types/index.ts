@@ -4067,6 +4067,69 @@ export type DevAccessEntry = {
   createdAt: string;
 };
 
+export type NexTechInviteStatus = "active" | "paused" | "expired" | "cancelled";
+
+export type NexTechInvite = {
+  clientName: string;
+  code: string;
+  createdAt: string;
+  createdBy: string | null;
+  expiresAt: string | null;
+  id: string;
+  maxUses: number | null;
+  name: string;
+  notes: string | null;
+  remainingUses: number | null;
+  status: NexTechInviteStatus;
+  updatedAt: string;
+  updatedBy: string | null;
+  usages: Array<{
+    guildId: string;
+    guildName: string;
+    ipAddress: string | null;
+    usedAt: string;
+    usedById: string | null;
+    usedByName: string | null;
+  }>;
+  usedCount: number;
+};
+
+export type NexTechInviteLog = {
+  action: string;
+  actorId: string | null;
+  actorName: string | null;
+  createdAt: string;
+  data: Record<string, unknown>;
+  guildId: string | null;
+  guildName: string | null;
+  id: string;
+  inviteCode: string | null;
+  inviteId: string | null;
+};
+
+export type NexTechInviteDashboard = {
+  invites: NexTechInvite[];
+  logs: NexTechInviteLog[];
+  stats: {
+    active: number;
+    cancelled: number;
+    expired: number;
+    paused: number;
+    remainingUses: number;
+    totalUses: number;
+  };
+};
+
+export type SaveNexTechInvitePayload = {
+  clientName: string;
+  code?: string | null;
+  expiresAt?: string | null;
+  maxUses?: number | null;
+  name: string;
+  notes?: string | null;
+  status?: NexTechInviteStatus;
+};
+
 export type CreateDevBotPayload = {
   token: string;
   mainGuildId: string;
