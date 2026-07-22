@@ -305,6 +305,9 @@ function resolvePanelEmoji(memberGuild: GuildMember["guild"], value: string) {
   const normalized = value.trim();
   if (!normalized) return "";
 
+  const fromGuild = resolveComponentEmoji(memberGuild, normalized, "");
+  if (fromGuild) return fromGuild;
+
   const fixed = normalizeFixedSystemEmojiText(/^:/.test(normalized) || /^<a?:/i.test(normalized) ? normalized : `:${normalized}:`);
   return resolveComponentEmoji(memberGuild, fixed, "");
 }
