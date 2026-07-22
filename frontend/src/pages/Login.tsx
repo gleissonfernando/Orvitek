@@ -47,6 +47,27 @@ type PublicServer = {
   status?: string;
 };
 
+type PublicStatusService = {
+  currentStatus?: string;
+  id: string;
+  responseTimeMs: number | null;
+  uptimePercentage?: number;
+};
+
+type PublicStatusSnapshot = {
+  categories?: Array<{
+    services?: PublicStatusService[];
+  }>;
+  generatedAt?: string;
+};
+
+type LandingMetrics = {
+  botsCreated: number | null;
+  responseTimeMs: number | null;
+  updatedAt: string | null;
+  uptimePercent: number | null;
+};
+
 const reveal = {
   hidden: { opacity: 0, y: 28 },
   visible: { opacity: 1, y: 0 }
@@ -93,12 +114,6 @@ const terminalSequences: [TerminalSequence, ...TerminalSequence[]] = [
   }
 ];
 
-const terminalMetrics = [
-  { label: "Gateway", value: "42ms", tone: "text-[#3DDC84]" },
-  { label: "Uptime", value: "99.9%", tone: "text-[#FFEA70]" },
-  { label: "Shard", value: "01", tone: "text-white" }
-];
-
 const terminalRuntimeRows = [
   { label: "Dashboard", value: "operacional", width: "w-[94%]" },
   { label: "Bot Discord", value: "online", width: "w-[82%]" },
@@ -109,6 +124,7 @@ const TYPEWRITER_DELAY_MS = 28;
 const RESPONSE_REVEAL_DELAY_MS = 190;
 const RESPONSE_START_DELAY_MS = 220;
 const TERMINAL_HOLD_MS = 3400;
+const LANDING_SERVERS_REFRESH_MS = 15_000;
 
 const solutionCards = [
   {
@@ -140,13 +156,6 @@ const solutionCards = [
   }
 ];
 
-const stats = [
-  { label: "Bots Criados", prefix: "+", suffix: "K", value: 600 },
-  { label: "Uptime", suffix: "%", value: 99 },
-  { label: "Tempo de Resposta", prefix: "<", suffix: "ms", value: 500 },
-  { label: "Suporte", suffix: "/7", value: 24 }
-];
-
 const resources = [
   { description: "Criação, validação e ativação em poucos cliques.", icon: Rocket, title: "Crie em Milissegundos" },
   { description: "Ajustes finos para módulos, permissões e mensagens.", icon: Settings2, title: "Muitas Configurações" },
@@ -172,19 +181,97 @@ export function Login({
   verifying
 }: LoginProps) {
   const [publicServers, setPublicServers] = useState<PublicServer[]>([]);
+  const [landingMetrics, setLandingMetrics] = useState<LandingMetrics>({
+    botsCreated: null,
+    responseTimeMs: null,
+    updatedAt: null,
+    uptimePercent: null
+  });
   const currentYear = new Date().getFullYear();
   const verificationPending = Boolean(auth && !auth.access.verified);
   const startLabel = verifying ? "Verificando..." : verificationPending ? "Verificar acesso" : "Entrar na Dashboard";
+  const stats = buildLandingStats(landingMetrics, publicServers);
 
   useEffect(() => {
     let active = true;
-    fetch("/api/health/servers", { cache: "no-store" })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Falha ao carregar servidores")))
-      .then((data: { servers?: PublicServer[] }) => {
-        if (active) setPublicServers(data.servers ?? []);
-      })
-      .catch(() => undefined);
-    return () => { active = false; };
+
+    const loadServers = async () => {
+      try {
+        const response = await fetch("/api/health/servers", { cache: "no-store" });
+        if (!response.ok) throw new Error("Falha ao carregar servidores");
+        const data = await response.json() as { servers?: PublicServer[] };
+        if (!active) return;
+
+        const servers = data.servers ?? [];
+        setPublicServers(servers);
+        setLandingMetrics((current) => ({
+          ...current,
+          botsCreated: servers.length,
+          updatedAt: current.updatedAt ?? new Date().toISOString()
+        }));
+      } catch {
+        // Mantém a última leitura válida na landing pública.
+      }
+    };
+
+    void loadServers();
+    const interval = window.setInterval(() => { void loadServers(); }, LANDING_SERVERS_REFRESH_MS);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    function applyStatus(snapshot: PublicStatusSnapshot) {
+      if (!active) return;
+      setLandingMetrics((current) => ({
+        ...current,
+        responseTimeMs: getLandingResponseTime(snapshot),
+        updatedAt: snapshot.generatedAt ?? new Date().toISOString(),
+        uptimePercent: getLandingUptime(snapshot)
+      }));
+    }
+
+    const loadStatus = async () => {
+      try {
+        const response = await fetch("/api/public/status", { cache: "no-store" });
+        if (!response.ok) throw new Error("Falha ao carregar status");
+        applyStatus(await response.json() as PublicStatusSnapshot);
+      } catch {
+        // Mantém a última leitura válida na landing pública.
+      }
+    };
+
+    void loadStatus();
+
+    if (typeof EventSource === "undefined") {
+      const interval = window.setInterval(() => { void loadStatus(); }, 5_000);
+      return () => {
+        active = false;
+        window.clearInterval(interval);
+      };
+    }
+
+    const source = new EventSource("/api/public/status/events");
+    source.addEventListener("status-update", (event) => {
+      try {
+        applyStatus(JSON.parse(event.data) as PublicStatusSnapshot);
+      } catch {
+        // Ignora eventos inválidos sem quebrar a landing pública.
+      }
+    });
+    source.onerror = () => {
+      void loadStatus();
+    };
+
+    return () => {
+      active = false;
+      source.close();
+    };
   }, []);
 
   function handleStart() {
@@ -266,7 +353,7 @@ export function Login({
         </div>
 
         <Reveal delay={0.5} className="w-full max-w-3xl justify-self-center lg:max-w-none">
-          <TerminalMockup />
+          <TerminalMockup metrics={landingMetrics} />
         </Reveal>
       </section>
 
@@ -470,7 +557,7 @@ function SectionHeading({ badge, subtitle, title }: { badge?: string; subtitle: 
   );
 }
 
-function TerminalMockup() {
+function TerminalMockup({ metrics }: { metrics: LandingMetrics }) {
   const terminalRef = useRef<HTMLDivElement | null>(null);
   const reducedMotion = useReducedMotion();
   const [sequenceIndex, setSequenceIndex] = useState(0);
@@ -520,6 +607,11 @@ function TerminalMockup() {
   }, [sequence.command, sequence.response.length]);
 
   const visibleResponse = sequence.response.slice(0, visibleResponseCount);
+  const terminalMetrics = [
+    { label: "Gateway", value: formatMilliseconds(metrics.responseTimeMs, "ao vivo"), tone: "text-[#3DDC84]" },
+    { label: "Uptime", value: formatPercent(metrics.uptimePercent, "ao vivo"), tone: "text-[#FFEA70]" },
+    { label: "Bots", value: metrics.botsCreated === null ? "ao vivo" : metrics.botsCreated.toLocaleString("pt-BR"), tone: "text-white" }
+  ];
 
   function handleTerminalPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
     if (reducedMotion || event.pointerType !== "mouse") return;
@@ -689,7 +781,23 @@ function SolutionCard({ index, onStart, solution }: { index: number; onStart: ()
   );
 }
 
-function StatCounter({ delay = 0, label, prefix = "", suffix = "", value }: { delay?: number; label: string; prefix?: string; suffix?: string; value: number }) {
+function StatCounter({
+  decimals = 0,
+  delay = 0,
+  displayOverride,
+  label,
+  prefix = "",
+  suffix = "",
+  value
+}: {
+  decimals?: number;
+  delay?: number;
+  displayOverride?: string;
+  label: string;
+  prefix?: string;
+  suffix?: string;
+  value: number;
+}) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(false);
   const [displayValue, setDisplayValue] = useState(0);
@@ -722,12 +830,13 @@ function StatCounter({ delay = 0, label, prefix = "", suffix = "", value }: { de
     let start = 0;
     let animation = 0;
     let delayTimer = 0;
+    const precision = 10 ** decimals;
 
     const tick = (now: number) => {
       if (!start) start = now;
       const progress = Math.min((now - start) / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplayValue(Math.round(value * eased));
+      setDisplayValue(Math.round(value * eased * precision) / precision);
       if (progress < 1) {
         animation = requestAnimationFrame(tick);
       }
@@ -741,14 +850,84 @@ function StatCounter({ delay = 0, label, prefix = "", suffix = "", value }: { de
       window.clearTimeout(delayTimer);
       cancelAnimationFrame(animation);
     };
-  }, [delay, reducedMotion, value, visible]);
+  }, [decimals, delay, reducedMotion, value, visible]);
+
+  const formattedValue = displayOverride ?? `${prefix}${formatStatNumber(displayValue, decimals)}${suffix}`;
 
   return (
     <div ref={ref} className="text-center">
-      <p className="text-4xl font-black tracking-tight text-[#FFD500] drop-shadow-[0_0_12px_rgba(255,213,0,0.45)] sm:text-5xl">{prefix}{displayValue}{suffix}</p>
+      <p className="text-4xl font-black tracking-tight text-[#FFD500] drop-shadow-[0_0_12px_rgba(255,213,0,0.45)] sm:text-5xl">{formattedValue}</p>
       <p className="mt-2 text-sm text-[#B3B3B3]">{label}</p>
     </div>
   );
+}
+
+function buildLandingStats(metrics: LandingMetrics, servers: PublicServer[]) {
+  const hasBotCount = metrics.botsCreated !== null || servers.length > 0;
+  const botsCreated = metrics.botsCreated ?? servers.length;
+  const responseTime = metrics.responseTimeMs;
+  const uptime = metrics.uptimePercent;
+
+  return [
+    { displayOverride: hasBotCount ? undefined : "ao vivo", label: "Bots Criados", prefix: "+", value: botsCreated },
+    {
+      decimals: uptime !== null && uptime % 1 !== 0 ? 1 : 0,
+      displayOverride: uptime === null ? "ao vivo" : undefined,
+      label: "Uptime",
+      suffix: "%",
+      value: uptime ?? 0
+    },
+    {
+      displayOverride: responseTime === null ? "ao vivo" : undefined,
+      label: "Tempo de Resposta",
+      suffix: "ms",
+      value: responseTime ?? 0
+    },
+    { label: "Suporte", suffix: "/7", value: 24 }
+  ];
+}
+
+function getLandingServices(snapshot: PublicStatusSnapshot) {
+  return snapshot.categories?.flatMap((category) => category.services ?? []) ?? [];
+}
+
+function getLandingResponseTime(snapshot: PublicStatusSnapshot) {
+  const services = getLandingServices(snapshot);
+  const botService = services.find((service) => service.id === "discord-bot");
+  if (typeof botService?.responseTimeMs === "number") return Math.max(0, Math.round(botService.responseTimeMs));
+
+  const samples = services
+    .map((service) => service.responseTimeMs)
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+
+  if (!samples.length) return null;
+  return Math.max(0, Math.round(samples.reduce((total, value) => total + value, 0) / samples.length));
+}
+
+function getLandingUptime(snapshot: PublicStatusSnapshot) {
+  const samples = getLandingServices(snapshot)
+    .filter((service) => service.currentStatus !== "unknown")
+    .map((service) => service.uptimePercentage)
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+
+  if (!samples.length) return null;
+  const average = samples.reduce((total, value) => total + value, 0) / samples.length;
+  return Math.round(average * 10) / 10;
+}
+
+function formatStatNumber(value: number, decimals: number) {
+  return value.toLocaleString("pt-BR", {
+    maximumFractionDigits: decimals,
+    minimumFractionDigits: decimals
+  });
+}
+
+function formatMilliseconds(value: number | null, fallback: string) {
+  return value === null ? fallback : `${value.toLocaleString("pt-BR")}ms`;
+}
+
+function formatPercent(value: number | null, fallback: string) {
+  return value === null ? fallback : `${formatStatNumber(value, value % 1 === 0 ? 0 : 1)}%`;
 }
 
 function PublicServerMarquee({ servers }: { servers: PublicServer[] }) {
