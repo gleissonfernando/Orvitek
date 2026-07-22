@@ -151,7 +151,7 @@ async function deleteExistingWebhook(guild: Guild, webhookId: string | null) {
 
 async function deliverZtkEvent(guild: Guild, payload: ZtkWebhookEventReceivedEvent, context: BotContext) {
   const eventChannelId = channelIdForEvent(payload);
-  if (eventChannelId) {
+  if (eventChannelId && eventChannelId !== rankingPanelChannelForEvent(payload)) {
     await sendToChannel(guild, eventChannelId, createEventPanel(payload)).catch((error) => {
       console.warn("[ztk-webhook] falha ao enviar log FiveM:", error instanceof Error ? error.message : error);
     });
@@ -263,30 +263,28 @@ async function upsertZtkRankingMessages(guild: Guild, payload: ZtkWebhookEventRe
   const updates: Array<{
     channelId: string | null | undefined;
     kind: "online" | "participation" | "ranking" | "recruitment";
+    markers: string[];
     messageId: string | null | undefined;
     panel: ReturnType<typeof renderComponentsV2Panel>;
   }> = [
     {
       channelId: payload.clan.rankingChannelId,
       kind: "ranking",
+      markers: [`RANKING ${payload.clan.clanName.toUpperCase()}`, "TOP 10 DOMINAÇÕES"],
       messageId: payload.clan.rankingMessageId,
       panel: createRankingPanel(payload)
     },
     {
-      channelId: payload.clan.rankingChannelId,
-      kind: "participation",
-      messageId: payload.clan.participationRankingMessageId,
-      panel: createParticipationRankingPanel(payload)
-    },
-    {
       channelId: payload.clan.recruitmentChannelId ?? payload.clan.rankingChannelId,
       kind: "recruitment",
+      markers: ["Sistema de Recrutamento", `RECRUTAMENTO — ${payload.clan.clanName.toUpperCase()}`],
       messageId: payload.clan.recruitmentRankingMessageId,
       panel: createRecruitmentRankingPanel(payload)
     },
     {
       channelId: payload.clan.onlineChannelId ?? payload.clan.rankingChannelId,
       kind: "online",
+      markers: [`Online ${payload.clan.clanName}`, "ONLINE — TODOS"],
       messageId: payload.clan.onlineRankingMessageId,
       panel: createOnlineRankingPanel(payload)
     }
@@ -294,7 +292,7 @@ async function upsertZtkRankingMessages(guild: Guild, payload: ZtkWebhookEventRe
 
   for (const update of updates) {
     if (!update.channelId) continue;
-    const messageId = await upsertChannelMessage(guild, update.channelId, update.messageId ?? null, update.panel);
+    const messageId = await upsertChannelMessage(guild, update.channelId, update.messageId ?? null, update.panel, update.markers);
     if (messageId && messageId !== update.messageId) {
       await context.api.updateZtkRankingMessageState(guild.id, payload.clan.id, {
         channelId: update.channelId,
@@ -313,7 +311,7 @@ async function sendToChannel(guild: Guild, channelId: string, payload: ReturnTyp
   await channel.send(payload);
 }
 
-async function upsertChannelMessage(guild: Guild, channelId: string, messageId: string | null, payload: ReturnType<typeof renderComponentsV2Panel>) {
+async function upsertChannelMessage(guild: Guild, channelId: string, messageId: string | null, payload: ReturnType<typeof renderComponentsV2Panel>, markers: string[]) {
   const channel = await guild.channels.fetch(channelId).catch(() => null);
   if (!channel?.isSendable()) return null;
 
@@ -325,15 +323,65 @@ async function upsertChannelMessage(guild: Guild, channelId: string, messageId: 
     }
   }
 
+  if ("messages" in channel) {
+    const existing = await findExistingRankingMessage(channel, markers);
+    if (existing) {
+      await existing.edit(payload);
+      return existing.id;
+    }
+  }
+
   const sent = await channel.send(payload);
   return sent.id;
 }
 
 function channelIdForEvent(payload: ZtkWebhookEventReceivedEvent) {
+  if (payload.event.eventType === "recruitment") return payload.clan.recruitmentChannelId ?? null;
+  if (payload.event.eventType === "domination") return payload.clan.dominationChannelId ?? null;
+  if (payload.event.eventType === "player_disconnected") return payload.clan.onlineChannelId ?? null;
+  return null;
+}
+
+function rankingPanelChannelForEvent(payload: ZtkWebhookEventReceivedEvent) {
   if (payload.event.eventType === "recruitment") return payload.clan.recruitmentChannelId ?? payload.clan.rankingChannelId ?? null;
-  if (payload.event.eventType === "domination") return payload.clan.dominationChannelId ?? payload.clan.rankingChannelId ?? null;
+  if (payload.event.eventType === "domination") return payload.clan.rankingChannelId ?? null;
   if (payload.event.eventType === "player_disconnected") return payload.clan.onlineChannelId ?? payload.clan.rankingChannelId ?? null;
   return null;
+}
+
+async function findExistingRankingMessage(channel: { messages: { fetch: (options: { limit: number }) => Promise<{ find: (predicate: (message: Message) => boolean) => Message | undefined }> } }, markers: string[]) {
+  if (!markers.length) return null;
+  const messages = await channel.messages.fetch({ limit: 50 }).catch(() => null);
+  return messages?.find((message) => message.author.id === message.client.user?.id && messageContainsMarkers(message, markers)) ?? null;
+}
+
+function messageContainsMarkers(message: Message, markers: string[]) {
+  const text = normalizeSearch([
+    message.content,
+    collectComponentText(message.components.map((component) => component.toJSON()))
+  ].filter(Boolean).join("\n"));
+  return markers.every((marker) => text.includes(normalizeSearch(marker)));
+}
+
+function collectComponentText(value: unknown): string {
+  const chunks: string[] = [];
+  const visit = (item: unknown) => {
+    if (typeof item === "string" || typeof item === "number") {
+      chunks.push(String(item));
+      return;
+    }
+    if (Array.isArray(item)) {
+      item.forEach(visit);
+      return;
+    }
+    if (!item || typeof item !== "object") return;
+    for (const [key, nested] of Object.entries(item)) {
+      if (["content", "label", "title", "description", "text"].includes(key)) visit(nested);
+      else if (typeof nested === "object") visit(nested);
+    }
+  };
+  visit(value);
+  return chunks.join("\n");
 }
 
 function gangRankingBlocks(title: string, values: NonNullable<ZtkWebhookEventReceivedEvent["dominationRankings"]>["gangs"]) {
