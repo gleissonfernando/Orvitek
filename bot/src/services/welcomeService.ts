@@ -2,7 +2,7 @@ import { MessageFlags, type GuildMember, type PartialGuildMember } from "discord
 import { env } from "../config/env";
 import type { BotContext, PanelImageSettings } from "../types";
 import { getCachedGuildSettings } from "./guildSettingsCache";
-import { buildV2Container, renderPanelBlocks } from "./panelVisualRenderer";
+import { buildV2Container, renderPanelBlocks, resolvePanelImageUrl } from "./panelVisualRenderer";
 
 type MemberPanelMode = "welcome" | "leave";
 
@@ -106,7 +106,9 @@ export function createMemberPanelPayload(
   input: MemberPanelInput
 ) {
   const panelImage = input.panelImage?.imageEnabled ? input.panelImage : null;
-  const imageUrl = resolveImageUrl(panelImage?.imageUrl || input.imageUrl);
+  const imageUrl = panelImage ? resolvePanelImageUrl(panelImage.imageUrl, panelImage) : resolveImageUrl(input.imageUrl);
+  const imageIsVideo = isVideoPanelMedia(panelImage, imageUrl);
+  const posterUrl = imageIsVideo ? resolvePanelImageUrl(panelImage?.mediaPosterUrl ?? panelImage?.mediaThumbnailUrl ?? null) : null;
   const imagePosition = imageUrl ? panelImage?.imagePosition ?? "top" : "none";
   const title = renderTemplate(input.title, variables);
   const description = renderTemplate(input.description, variables);
@@ -150,7 +152,9 @@ export function createMemberPanelPayload(
     components.push(mediaGalleryComponent(imageUrl, input.mode));
   }
 
-  if (!blockComponents.length && imageUrl && ["thumbnail", "side"].includes(imagePosition) && contentBlocks.length) {
+  const accessoryImageUrl = imageIsVideo ? posterUrl : imageUrl;
+
+  if (!blockComponents.length && accessoryImageUrl && ["thumbnail", "side"].includes(imagePosition) && contentBlocks.length) {
     const sectionBlocks = contentBlocks.splice(0, 3);
     components.push({
       type: 9,
@@ -158,7 +162,7 @@ export function createMemberPanelPayload(
       accessory: {
         type: 11,
         media: {
-          url: imageUrl
+          url: accessoryImageUrl
         },
         description: `${input.mode} image`
       }
@@ -166,6 +170,10 @@ export function createMemberPanelPayload(
   }
 
   components.push(...contentBlocks.map(textDisplayComponent));
+
+  if (!blockComponents.length && imageUrl && ["thumbnail", "side"].includes(imagePosition) && !accessoryImageUrl) {
+    components.push(mediaGalleryComponent(imageUrl, input.mode));
+  }
 
   if (!blockComponents.length && imageUrl && ["below_title", "middle", "bottom", "before_buttons", "below_text", "above_buttons"].includes(imagePosition)) {
     components.push(mediaGalleryComponent(imageUrl, input.mode));
@@ -182,7 +190,7 @@ export function createMemberPanelPayload(
     components: [buildV2Container({
       accentColor: parseColor(input.color),
       components,
-      footer: { image: imagePosition === "footer" ? imageUrl : null, text: footerText || "NexTech" }
+      footer: { image: imagePosition === "footer" ? (imageIsVideo ? posterUrl : imageUrl) : null, text: footerText || "NexTech" }
     })],
     flags: MessageFlags.IsComponentsV2 as const
   };
@@ -249,6 +257,15 @@ function resolveImageUrl(value: string | null) {
   const backendOrigin = env.BACKEND_API_URL ? new URL(env.BACKEND_API_URL).origin : "";
   return backendOrigin ? `${backendOrigin}${value.startsWith("/") ? value : `/${value}`}` : null;
 }
+
+function isVideoPanelMedia(panelImage: PanelImageSettings | null, imageUrl: string | null) {
+  if (!imageUrl) return false;
+  if (panelImage?.imageMimeType?.startsWith("video/")) return true;
+  const extension = panelImage?.imageExtension?.trim().toLowerCase();
+  return Boolean(extension && VIDEO_EXTENSIONS.has(extension)) || /\.(3gp|3g2|asf|avi|f4v|flv|m4v|mkv|mov|mp4|mpeg|mpg|mts|mxf|ogv|rmvb|ts|vob|webm|wmv)(?:$|[?#])/i.test(imageUrl);
+}
+
+const VIDEO_EXTENSIONS = new Set(["3gp", "3g2", "asf", "avi", "f4v", "flv", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "mts", "mxf", "ogv", "rmvb", "ts", "vob", "webm", "wmv"]);
 
 async function resolveTextChannel(member: GuildMember | PartialGuildMember, channelId: string) {
   const channel = member.guild.channels.cache.get(channelId)

@@ -1121,7 +1121,7 @@ function panelPayload(settings: PolicePromotionSettings, guild: Guild, panelImag
       value: promotion.id
     })));
   const components: any[] = [];
-  const bannerUrl = panelImage?.imageEnabled && panelImage.imageUrl ? resolvePanelImageUrl(panelImage.imageUrl) : null;
+  const bannerUrl = panelImage?.imageEnabled && panelImage.imageUrl ? resolvePanelImageUrl(panelImage.imageUrl, panelImage) : null;
   if (bannerUrl && ["banner", "top"].includes(panelImage?.imagePosition ?? "none")) {
     components.push({ type: 12, items: [{ media: { url: bannerUrl }, description: "Sistema de Promoções" }] });
   }
@@ -1142,7 +1142,7 @@ function panelPayload(settings: PolicePromotionSettings, guild: Guild, panelImag
 }
 
 function topPanelMediaComponents(panelImage: PanelVisualConfig | null, description: string) {
-  const bannerUrl = panelImage?.imageEnabled && panelImage.imageUrl ? resolvePanelImageUrl(panelImage.imageUrl) : null;
+  const bannerUrl = panelImage?.imageEnabled && panelImage.imageUrl ? resolvePanelImageUrl(panelImage.imageUrl, panelImage) : null;
   return bannerUrl ? [{ type: 12, items: [{ media: { url: bannerUrl }, description }] }] : [];
 }
 

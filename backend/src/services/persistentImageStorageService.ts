@@ -376,7 +376,7 @@ function publicPosterUrl(id: string) {
 function parsePersistentImageId(value: string) {
   const normalized = value.trim();
   if (!normalized) return null;
-  const match = normalized.match(/\/api\/persistent-images\/([a-f0-9-]{36})(?:[?#].*)?$/i);
+  const match = normalized.match(/\/api\/persistent-images\/([a-f0-9-]{36})(?:\/[^/?#]+)?(?:[?#].*)?$/i);
   return match?.[1] ?? null;
 }
 

@@ -879,8 +879,12 @@ export type ManualRegistrationSettings = {
   panelImage: {
     blocks?: import("./panelVisualRenderer").PanelBlock[];
     imageEnabled: boolean;
+    imageExtension?: string | null;
+    imageMimeType?: string | null;
     imagePosition: import("./panelVisualRenderer").PanelVisualPosition;
     imageUrl: string;
+    mediaPosterUrl?: string | null;
+    mediaThumbnailUrl?: string | null;
     useGlobalDefault?: boolean;
   } | null;
   rejectionMessage: string;

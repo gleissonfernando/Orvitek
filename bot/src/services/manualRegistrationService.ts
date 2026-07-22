@@ -26,7 +26,7 @@ import type { BotContext } from "../types";
 import { showModalAndResetSelect } from "../utils/selectMenuReset";
 import type { ManualRegistrationSettings, ManualRegistrationSubmission } from "./apiClient";
 import { ensureFivemGoalChannelForUser } from "./fivemGoalService";
-import { buildV2Container, renderPanelBlocks } from "./panelVisualRenderer";
+import { buildV2Container, renderPanelBlocks, resolvePanelImageUrl } from "./panelVisualRenderer";
 import { replaceSystemEmojis, systemComponentEmoji, systemEmojiText } from "./systemEmojiService";
 
 const PREFIX = "manual_registration";
@@ -576,7 +576,9 @@ async function canReview(interaction: ButtonInteraction | ModalSubmitInteraction
 }
 
 function createPanelPayload(settings: ManualRegistrationSettings) {
-  const imageUrl = resolveImageUrl(settings.panelImage?.imageUrl ?? null);
+  const imageUrl = settings.panelImage ? resolvePanelImageUrl(settings.panelImage.imageUrl, settings.panelImage) : null;
+  const imageIsVideo = isVideoPanelMedia(settings.panelImage, imageUrl);
+  const posterUrl = imageIsVideo ? resolvePanelImageUrl(settings.panelImage?.mediaPosterUrl ?? settings.panelImage?.mediaThumbnailUrl ?? null) : null;
   const imagePosition = imageUrl ? settings.panelImage?.imagePosition ?? settings.bannerPosition : "none";
   const thumbnailUrl = resolveImageUrl(settings.thumbnailUrl ?? null);
   const availableSets = settings.setRoles.filter((item) => item.enabled && item.requestable).length;
@@ -593,7 +595,7 @@ function createPanelPayload(settings: ManualRegistrationSettings) {
       introText
     ].join("\n\n")
   };
-  const sideImageUrl = imageUrl && ["thumbnail", "side"].includes(imagePosition) ? imageUrl : thumbnailUrl;
+  const sideImageUrl = imageUrl && ["thumbnail", "side"].includes(imagePosition) ? (imageIsVideo ? posterUrl : imageUrl) : thumbnailUrl;
   components.push(sideImageUrl ? {
     type: 9,
     components: [{
@@ -602,6 +604,7 @@ function createPanelPayload(settings: ManualRegistrationSettings) {
     }],
     accessory: { type: 11, media: { url: sideImageUrl } }
   } : heading);
+  if (!blockComponents.length && imageUrl && ["thumbnail", "side"].includes(imagePosition) && !sideImageUrl) components.push(mediaGallery(imageUrl));
   if (!blockComponents.length && imageUrl && ["below_title", "below_text"].includes(imagePosition)) components.push(mediaGallery(imageUrl));
   components.push({ type: 14, divider: false, spacing: 1 });
   if (!blockComponents.length && imageUrl && imagePosition === "middle") components.push(mediaGallery(imageUrl));
@@ -652,7 +655,7 @@ function registrationFieldSummary(settings: ManualRegistrationSettings) {
 
 function createReviewPayload(settings: ManualRegistrationSettings, submission: ManualRegistrationSubmission) {
   const statusText = submission.status === "approved" ? "Aprovado" : submission.status === "rejected" ? submission.rejectionReason?.startsWith("Cancelado") ? "Cancelado" : "Recusado" : "Pendente";
-  const imageUrl = resolveImageUrl(settings.panelImage?.imageUrl ?? null);
+  const imageUrl = settings.panelImage ? resolvePanelImageUrl(settings.panelImage.imageUrl, settings.panelImage) : null;
   const content: Array<Record<string, unknown>> = [
     { type: 10, content: replaceSystemEmojis(`# ${settings.emoji ?? systemEmojiText("prancheta_caneta")} Pedido de Set`) },
     { type: 10, content: `Usuário: <@${submission.userId}>\nID: ${submission.userId}\nSet solicitado: ${submission.requestedRoleId ? `<@&${submission.requestedRoleId}>` : "Padrão"}\nData: <t:${Math.floor(new Date(submission.createdAt ?? Date.now()).getTime() / 1000)}:F>\nStatus: **${statusText}**` },
@@ -709,6 +712,15 @@ function resolveImageUrl(value: string | null) {
   const backendOrigin = env.BACKEND_API_URL ? new URL(env.BACKEND_API_URL).origin : "";
   return backendOrigin ? `${backendOrigin}${value.startsWith("/") ? value : `/${value}`}` : null;
 }
+
+function isVideoPanelMedia(panelImage: ManualRegistrationSettings["panelImage"], imageUrl: string | null) {
+  if (!imageUrl) return false;
+  if (panelImage?.imageMimeType?.startsWith("video/")) return true;
+  const extension = panelImage?.imageExtension?.trim().toLowerCase();
+  return Boolean(extension && VIDEO_EXTENSIONS.has(extension)) || /\.(3gp|3g2|asf|avi|f4v|flv|m4v|mkv|mov|mp4|mpeg|mpg|mts|mxf|ogv|rmvb|ts|vob|webm|wmv)(?:$|[?#])/i.test(imageUrl);
+}
+
+const VIDEO_EXTENSIONS = new Set(["3gp", "3g2", "asf", "avi", "f4v", "flv", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "mts", "mxf", "ogv", "rmvb", "ts", "vob", "webm", "wmv"]);
 
 function parseColor(value: string) {
   return Number.parseInt(value.replace("#", ""), 16) || 0x7c3aed;

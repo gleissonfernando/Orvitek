@@ -30,7 +30,19 @@ persistentImagesRouter.get("/:imageId/poster", async (req, res, next) => {
   }
 });
 
+persistentImagesRouter.get("/:imageId/:fileName", async (req, res, next) => {
+  return sendPersistentMedia(req, res, next);
+});
+
 persistentImagesRouter.get("/:imageId", async (req, res, next) => {
+  return sendPersistentMedia(req, res, next);
+});
+
+async function sendPersistentMedia(
+  req: Parameters<Parameters<typeof persistentImagesRouter.get>[1]>[0],
+  res: Parameters<Parameters<typeof persistentImagesRouter.get>[1]>[1],
+  next: Parameters<Parameters<typeof persistentImagesRouter.get>[1]>[2]
+) {
   try {
     const imageId = imageIdSchema.parse(req.params.imageId);
     const image = await getPersistentImage(imageId);
@@ -75,7 +87,7 @@ persistentImagesRouter.get("/:imageId", async (req, res, next) => {
   } catch (error) {
     return next(error);
   }
-});
+}
 
 function parseRangeHeader(value: string | undefined, size: number) {
   if (!value) return null;

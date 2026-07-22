@@ -226,11 +226,15 @@ export type PanelImageSettings = {
   customWidth: number | null;
   guildId: string;
   imageEnabled: boolean;
+  imageExtension?: string | null;
+  imageMimeType?: string | null;
   imagePosition: import("./services/panelVisualRenderer").PanelVisualPosition;
   useGlobalDefault?: boolean;
   imageSize: "small" | "medium" | "large" | "full_banner" | "custom";
   imageUrl: string;
   layoutMode: "embed" | "components_v2";
+  mediaPosterUrl?: string | null;
+  mediaThumbnailUrl?: string | null;
   panelId: string;
   updatedAt: string | null;
 };

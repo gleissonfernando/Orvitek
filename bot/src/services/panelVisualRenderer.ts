@@ -7,8 +7,12 @@ const MAX_V2_COMPONENTS = 40;
 export type PanelVisualConfig = {
   blocks?: PanelBlock[] | null;
   imageEnabled?: boolean;
+  imageExtension?: string | null;
+  imageMimeType?: string | null;
   imagePosition?: PanelVisualPosition;
   imageUrl?: string | null;
+  mediaPosterUrl?: string | null;
+  mediaThumbnailUrl?: string | null;
 };
 
 export type PanelBlock =
@@ -46,10 +50,13 @@ export function renderComponentsV2Panel(input: {
   moduleId?: string;
   title: string;
 }) {
-  const requestedImageUrl = input.image?.imageEnabled ? resolvePanelImageUrl(input.image.imageUrl ?? null) : null;
-  const requestedPosition = requestedImageUrl ? normalizePosition(input.image?.imagePosition) : "none";
-  const imageUrl = requestedPosition === "footer" ? null : requestedImageUrl;
-  const footerImage = input.footerImage ?? (requestedPosition === "footer" ? requestedImageUrl : null);
+  const requestedMediaUrl = input.image?.imageEnabled ? resolvePanelImageUrl(input.image.imageUrl ?? null, input.image) : null;
+  const requestedPosition = requestedMediaUrl ? normalizePosition(input.image?.imagePosition) : "none";
+  const isVideo = Boolean(requestedMediaUrl && isVideoMedia(input.image, requestedMediaUrl));
+  const posterUrl = isVideo ? resolvePanelImageUrl(input.image?.mediaPosterUrl ?? input.image?.mediaThumbnailUrl ?? null) : null;
+  const videoFooterPosition = isVideo && requestedPosition === "footer";
+  const imageUrl = requestedPosition === "footer" && !videoFooterPosition ? null : requestedMediaUrl;
+  const footerImage = input.footerImage ?? (requestedPosition === "footer" ? (isVideo ? posterUrl : requestedMediaUrl) : null);
   const blockComponents = renderPanelBlocks([
     ...(input.image?.blocks ?? []),
     ...(input.extraImages ?? []).flatMap((image) => image?.blocks ?? [])
@@ -64,6 +71,9 @@ export function renderComponentsV2Panel(input: {
   const fields = input.fields ?? [];
   const components: unknown[] = [];
   const media = imageUrl ? mediaBlock(imageUrl, input.title) : null;
+  const thumbnailUrl = isVideo ? posterUrl : imageUrl;
+  const useThumbnailLayout = Boolean(media && thumbnailUrl && ["thumbnail", "side"].includes(position));
+  const effectivePosition = videoFooterPosition ? "bottom" : position;
   const titleText = `# ${input.title}\n${input.description}`;
   const pushMedia = () => {
     if (media) components.push(media);
@@ -71,22 +81,23 @@ export function renderComponentsV2Panel(input: {
   };
 
   if (blockComponents.length) components.push(...blockComponents);
-  if (!blockComponents.length && (media || extraMedia.length) && ["top", "banner"].includes(position)) pushMedia();
-  if (media && ["thumbnail", "side"].includes(position)) {
-    components.push({ type: 9, components: [{ type: 10, content: titleText }], accessory: { type: 11, media: { url: imageUrl }, description: input.title } });
+  if (!blockComponents.length && (media || extraMedia.length) && ["top", "banner"].includes(effectivePosition)) pushMedia();
+  if (useThumbnailLayout) {
+    components.push({ type: 9, components: [{ type: 10, content: titleText }], accessory: { type: 11, media: { url: thumbnailUrl }, description: input.title } });
     components.push(...extraMedia);
   } else {
     components.push({ type: 10, content: titleText });
   }
-  if (!blockComponents.length && (media || extraMedia.length) && ["below_title", "below_text"].includes(position)) pushMedia();
+  if (!blockComponents.length && (media || extraMedia.length) && ["thumbnail", "side"].includes(effectivePosition) && !useThumbnailLayout) pushMedia();
+  if (!blockComponents.length && (media || extraMedia.length) && ["below_title", "below_text"].includes(effectivePosition)) pushMedia();
 
   const split = Math.ceil(fields.length / 2);
   fields.slice(0, split).forEach((content) => components.push({ type: 10, content }));
-  if (!blockComponents.length && (media || extraMedia.length) && position === "middle") pushMedia();
+  if (!blockComponents.length && (media || extraMedia.length) && effectivePosition === "middle") pushMedia();
   fields.slice(split).forEach((content) => components.push({ type: 10, content }));
-  if (!blockComponents.length && (media || extraMedia.length) && ["before_buttons", "above_buttons"].includes(position)) pushMedia();
+  if (!blockComponents.length && (media || extraMedia.length) && ["before_buttons", "above_buttons"].includes(effectivePosition)) pushMedia();
   components.push(...actions);
-  if (!blockComponents.length && (media || extraMedia.length) && position === "bottom") pushMedia();
+  if (!blockComponents.length && (media || extraMedia.length) && effectivePosition === "bottom") pushMedia();
 
   const footer = mergeFooter(input.footer, footerImage);
   return {
@@ -157,11 +168,11 @@ export function createV2Footer(footer: ComponentsV2FooterConfig) {
   };
 }
 
-export function resolvePanelImageUrl(value: string | null) {
+export function resolvePanelImageUrl(value: string | null, media?: Pick<PanelVisualConfig, "imageExtension" | "imageMimeType"> | null) {
   if (!value) return null;
-  if (/^https?:\/\//i.test(value)) return value;
+  if (/^https?:\/\//i.test(value)) return withPersistentMediaExtension(value, media);
   const origin = env.BACKEND_API_URL ? new URL(env.BACKEND_API_URL).origin : "";
-  return origin ? `${origin}${value.startsWith("/") ? value : `/${value}`}` : null;
+  return origin ? withPersistentMediaExtension(`${origin}${value.startsWith("/") ? value : `/${value}`}`, media) : null;
 }
 
 function mediaBlock(url: string, description: string) { return { type: 12, items: [{ media: { url }, description }] }; }
@@ -206,7 +217,8 @@ function renderSectionAccessory(accessory: Extract<PanelBlock, { type: "section"
   if (!accessory) return null;
   if (accessory.kind === "thumbnail") {
     const url = resolvePanelImageUrl(accessory.url);
-    return url ? { type: 11, media: { url }, description: accessory.description || "Thumbnail" } : null;
+    if (!url || isVideoUrl(url)) return null;
+    return { type: 11, media: { url }, description: accessory.description || "Thumbnail" };
   }
   return renderButtonComponent(accessory);
 }
@@ -232,6 +244,47 @@ function mergeFooter(footer: ComponentsV2FooterConfig, image: string | null): Co
   if (footer) return { text: footer, image };
   return image ? { ...DEFAULT_PANEL_FOOTER, image } : DEFAULT_PANEL_FOOTER;
 }
+
+function withPersistentMediaExtension(value: string, media?: Pick<PanelVisualConfig, "imageExtension" | "imageMimeType"> | null) {
+  const extension = mediaExtension(media);
+  if (!extension) return value;
+
+  try {
+    const url = new URL(value);
+    const match = url.pathname.match(/^(\/api\/persistent-images\/[a-f0-9-]{36})(?:\/[^/]+)?$/i);
+    if (!match) return value;
+    url.pathname = `${match[1]}/media.${extension}`;
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
+
+function mediaExtension(media?: Pick<PanelVisualConfig, "imageExtension" | "imageMimeType"> | null) {
+  const extension = media?.imageExtension?.trim().toLowerCase();
+  if (extension && /^[a-z0-9]{1,12}$/.test(extension)) return extension;
+  const mimeType = media?.imageMimeType?.trim().toLowerCase();
+  if (mimeType === "video/mp4") return "mp4";
+  if (mimeType === "video/webm") return "webm";
+  if (mimeType === "video/ogg") return "ogv";
+  if (mimeType === "image/gif") return "gif";
+  if (mimeType === "image/jpeg") return "jpg";
+  if (mimeType === "image/png") return "png";
+  if (mimeType === "image/webp") return "webp";
+  return null;
+}
+
+function isVideoMedia(media: PanelVisualConfig | null | undefined, url: string) {
+  if (media?.imageMimeType?.startsWith("video/")) return true;
+  const extension = media?.imageExtension?.trim().toLowerCase();
+  return Boolean(extension && VIDEO_EXTENSIONS.has(extension)) || isVideoUrl(url);
+}
+
+function isVideoUrl(url: string) {
+  return /\.(3gp|3g2|asf|avi|f4v|flv|m4v|mkv|mov|mp4|mpeg|mpg|mts|mxf|ogv|rmvb|ts|vob|webm|wmv)(?:$|[?#])/i.test(url);
+}
+
+const VIDEO_EXTENSIONS = new Set(["3gp", "3g2", "asf", "avi", "f4v", "flv", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "mts", "mxf", "ogv", "rmvb", "ts", "vob", "webm", "wmv"]);
 
 function appendFooterComponents(components: unknown[], footer: ComponentsV2FooterConfig) {
   const footerComponent = createV2Footer(footer);
