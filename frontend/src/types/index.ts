@@ -3365,6 +3365,7 @@ export type ZtkWebhookLog = {
   eventType: ZtkWebhookEventType;
   guildId: string;
   hash: string;
+  initialRole?: string | null;
   location: string | null;
   messageId?: string | null;
   normalizedGangName?: string | null;

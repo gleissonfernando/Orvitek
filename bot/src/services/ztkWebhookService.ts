@@ -187,8 +187,8 @@ function createEventPanel(payload: ZtkWebhookEventReceivedEvent) {
   const event = payload.event;
   const fields = event.eventType === "recruitment"
     ? [
-        `## 👥 Novo membro\n**Jogador:** ${event.playerName ?? "Não identificado"}\n**ID:** ${event.playerId ?? "Não informado"}\n**Recrutou:** ${event.recruiterName ?? "Não informado"}`,
-        `**Clã:** ${payload.clan.clanName}\n**Horário:** ${formatDateTime(event.eventTimestamp)}`
+        `## 👥 Novo membro\n**Jogador:** ${event.playerName ?? "Não identificado"}\n**ID:** ${event.playerId ?? "Não informado"}\n**Convidado por:** ${event.recruiterName ?? "Não informado"}\n**ID do convidador:** ${event.recruiterId ?? "Não informado"}`,
+        `**Gang:** ${event.clanName ?? payload.clan.clanName}\n**Cargo inicial:** ${event.initialRole ?? "Não informado"}\n**Horário:** ${formatDateTime(event.eventTimestamp)}`
       ]
     : event.eventType === "domination"
       ? [

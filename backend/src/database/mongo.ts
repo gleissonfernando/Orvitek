@@ -3394,6 +3394,7 @@ export type MongoZtkWebhookLog = {
   eventType: MongoZtkWebhookEventType;
   guildId: string;
   hash: string;
+  initialRole?: string | null;
   playerId: string | null;
   playerName: string | null;
   messageId?: string | null;

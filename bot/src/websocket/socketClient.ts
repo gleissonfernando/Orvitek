@@ -103,12 +103,14 @@ export type ZtkWebhookLogEvent = {
   eventTimestamp: string;
   eventType: "domination" | "player_connected" | "player_disconnected" | "recruitment" | "unknown";
   id: string;
+  initialRole?: string | null;
   location?: string | null;
   onlineSeconds?: number | null;
   participantCount?: number | null;
   participants?: Array<{ id: string | null; name: string; normalizedName: string }>;
   playerId?: string | null;
   playerName?: string | null;
+  recruiterId?: string | null;
   recruiterName?: string | null;
   rivalGangs?: Array<{ name: string; normalizedName: string; players: number }>;
   totalPlayersInZone?: number | null;

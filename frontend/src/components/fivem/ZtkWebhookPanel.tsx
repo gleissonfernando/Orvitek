@@ -1175,6 +1175,7 @@ function recruitmentPeriodValue(item: ZtkWebhookDashboard["recruitmentRankings"]
 function exportRecruitments(format: "csv" | "json" | "xls", logs: ZtkWebhookDashboard["logs"]) {
   const rows = logs.map((log) => ({
     canal: log.channelId ?? "",
+    cargoInicial: log.initialRole ?? "",
     data: formatDate(log.eventTimestamp),
     hora: formatTime(log.eventTimestamp),
     recrutado: log.playerName ?? "",
@@ -1187,7 +1188,7 @@ function exportRecruitments(format: "csv" | "json" | "xls", logs: ZtkWebhookDash
     return;
   }
   const delimiter = format === "xls" ? "\t" : ",";
-  const header = ["recrutador", "recrutado", "data", "hora", "canal", "webhook"];
+  const header = ["recrutador", "recrutado", "cargoInicial", "data", "hora", "canal", "webhook"];
   const body = rows.map((row) => header.map((key) => csvCell(String(row[key as keyof typeof row] ?? ""), delimiter)).join(delimiter)).join("\n");
   downloadText(filename, format === "xls" ? "application/vnd.ms-excel" : "text/csv", `${header.join(delimiter)}\n${body}`);
 }
