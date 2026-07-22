@@ -10,6 +10,7 @@ import { Login } from "./pages/Login";
 import { NexTechProductPage } from "./pages/NexTechProductPage";
 import { PaymentReturnPage } from "./pages/PaymentReturn";
 import { PixPaymentPage } from "./pages/PixPayment";
+import { PublicStatusPage } from "./pages/PublicStatusPage";
 import { PublicPlansPage } from "./pages/Plans";
 import { useAuth } from "./hooks/useAuth";
 import { appUrl, dashboardSlugFromPath, dashboardUrl, isDashboardRoutePath } from "./lib/urls";
@@ -29,6 +30,7 @@ export function App() {
   const publicLandingPath = path === "/";
   const docsPath = path === "/docs" || path.startsWith("/docs/");
   const plansPath = path === "/planos" || path.startsWith("/planos/");
+  const statusPath = path === "/status";
   const botRegistrationPath = path === "/cadastrar-bot" || path.startsWith("/cadastrar-bot/");
   const paymentReturnStatus = paymentReturnStatusFromPath(path);
   const pixPaymentOrderId = pixPaymentOrderIdFromPath(path);
@@ -54,17 +56,17 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (rouletteToken || productRoute || docsPath || plansPath || paymentReturnStatus || pixPaymentOrderId || botRegistrationPath) {
+    if (rouletteToken || productRoute || docsPath || plansPath || statusPath || paymentReturnStatus || pixPaymentOrderId || botRegistrationPath) {
       return;
     }
 
     if (auth?.access.verified && !protectedPanelPath && !publicLandingPath) {
       window.location.replace(dashboardUrl(auth.user.dashboardBotSlug));
     }
-  }, [auth, botRegistrationPath, docsPath, paymentReturnStatus, pixPaymentOrderId, plansPath, productRoute, protectedPanelPath, publicLandingPath, rouletteToken]);
+  }, [auth, botRegistrationPath, docsPath, paymentReturnStatus, pixPaymentOrderId, plansPath, productRoute, protectedPanelPath, publicLandingPath, rouletteToken, statusPath]);
 
   useEffect(() => {
-    if (rouletteToken || productRoute || docsPath || plansPath || paymentReturnStatus || pixPaymentOrderId || botRegistrationPath) {
+    if (rouletteToken || productRoute || docsPath || plansPath || statusPath || paymentReturnStatus || pixPaymentOrderId || botRegistrationPath) {
       return;
     }
 
@@ -73,7 +75,7 @@ export function App() {
     }
 
     loginDiscord();
-  }, [accessDeniedError, auth, protectedPanelPath, botRegistrationPath, docsPath, error, loading, loginDiscord, paymentReturnStatus, pixPaymentOrderId, plansPath, productRoute, routeError, rouletteToken]);
+  }, [accessDeniedError, auth, protectedPanelPath, botRegistrationPath, docsPath, error, loading, loginDiscord, paymentReturnStatus, pixPaymentOrderId, plansPath, productRoute, routeError, rouletteToken, statusPath]);
 
   if (docsPath) {
     return <DocsPage />;
@@ -81,6 +83,10 @@ export function App() {
 
   if (plansPath) {
     return <PublicPlansPage />;
+  }
+
+  if (statusPath) {
+    return <PublicStatusPage />;
   }
 
   if (paymentReturnStatus) {
