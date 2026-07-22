@@ -114,6 +114,17 @@ const evaluationQuestionnaireDrafts = new Map<string, EvaluationQuestionnaireDra
 const evaluationDrafts = new Map<string, EvaluationDraft>();
 let serviceStarted = false;
 
+function promotionPanelInstructions(guild: Guild) {
+  return [
+    `## ${icon("interrogacao", guild)} Modo explicativo`,
+    `1. Selecione a promoção desejada no menu abaixo.`,
+    `2. Responda todas as perguntas solicitadas pelo sistema.`,
+    `3. Um ticket privado será criado para a avaliação.`,
+    `4. Aguarde um instrutor assumir e finalizar a avaliação.`,
+    `5. Se for aprovado, a equipe aplicará os cargos configurados.`
+  ].join("\n");
+}
+
 export const policePromotionsCommand: BotCommand = {
   data: new SlashCommandBuilder()
     .setName("promocoes")
@@ -1114,7 +1125,7 @@ function panelPayload(settings: PolicePromotionSettings, guild: Guild, panelImag
   if (bannerUrl && ["banner", "top"].includes(panelImage?.imagePosition ?? "none")) {
     components.push({ type: 12, items: [{ media: { url: bannerUrl }, description: "Sistema de Promoções" }] });
   }
-  components.push({ type: 10, content: [`# ${icon("prancheta_acertos", guild)} Sistema de Promoções`, "Solicite sua avaliação de promoção pelo seletor abaixo.", "", promotions.map((item) => `• ${icon("prancheta", guild)} **${escapeMarkdown(item.name)}** → ${escapeMarkdown(item.receivedRankName)}`).join("\n") || "Nenhuma promoção ativa configurada."].join("\n") });
+  components.push({ type: 10, content: [`# ${icon("prancheta_acertos", guild)} Sistema de Promoções`, "Solicite sua avaliação de promoção pelo seletor abaixo.", "", promotionPanelInstructions(guild), "", `## ${icon("prancheta", guild)} Promoções disponíveis`, promotions.map((item) => `• ${icon("prancheta", guild)} **${escapeMarkdown(item.name)}** → ${escapeMarkdown(item.receivedRankName)}`).join("\n") || "Nenhuma promoção ativa configurada."].join("\n") });
   if (bannerUrl && !["banner", "top"].includes(panelImage?.imagePosition ?? "none")) {
     components.push({ type: 12, items: [{ media: { url: bannerUrl }, description: "Sistema de Promoções" }] });
   }

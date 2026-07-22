@@ -83,6 +83,17 @@ export type CreatePolicePromotionRequestInput = {
 
 type ActorInput = { actorId?: string | null; actorName?: string | null };
 
+function promotionPanelInstructions() {
+  return [
+    `## ${fixedSystemEmojiText("interrogacao")} Modo explicativo`,
+    "1. Selecione a promoção desejada no menu abaixo.",
+    "2. Responda todas as perguntas solicitadas pelo sistema.",
+    "3. Um ticket privado será criado para a avaliação.",
+    "4. Aguarde um instrutor assumir e finalizar a avaliação.",
+    "5. Se for aprovado, a equipe aplicará os cargos configurados."
+  ].join("\n");
+}
+
 export async function getPolicePromotionDashboard(botId: string, guildId: string): Promise<PolicePromotionDashboardDto> {
   const [settings, requests, logs] = await Promise.all([
     getPolicePromotionSettings(botId, guildId),
@@ -554,6 +565,9 @@ function buildPolicePromotionPanelPayload(settings: PolicePromotionSettingsDto, 
       `# ${fixedSystemEmojiText("prancheta_acertos")} Sistema de Promoções`,
       "Solicite sua avaliação de promoção pelo seletor abaixo.",
       "",
+      promotionPanelInstructions(),
+      "",
+      `## ${fixedSystemEmojiText("prancheta")} Promoções disponíveis`,
       promotions.map((item) => `• ${fixedSystemEmojiText("prancheta")} **${escapeMarkdown(item.name)}** -> ${escapeMarkdown(item.receivedRankName)}`).join("\n") || "Nenhuma promoção ativa configurada."
     ].join("\n")
   });
