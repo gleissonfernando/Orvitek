@@ -900,7 +900,7 @@ async function buildRecruitmentRankings(
     totalRecruitments: number;
     weeklyRecruitments: number;
   }>([
-    { $match: { botId, clanId, eventType: "recruitment", guildId, recruiterName: { $type: "string", $ne: "" } } },
+    { $match: { botId, clanId, eventType: "recruitment", guildId, playerName: { $not: ZTK_INVALID_RECRUITMENT_NAME_PATTERN, $type: "string" }, recruiterName: { $not: ZTK_INVALID_RECRUITMENT_NAME_PATTERN, $type: "string" } } },
     { $sort: { eventTimestamp: -1, _id: -1 } },
     {
       $group: {
@@ -953,7 +953,7 @@ async function buildRecruitmentRankings(
     total: number;
     weekTotal: number;
   }>([
-    { $match: { botId, clanId, eventType: "recruitment", guildId } },
+    { $match: { botId, clanId, eventType: "recruitment", guildId, playerName: { $not: ZTK_INVALID_RECRUITMENT_NAME_PATTERN, $type: "string" }, recruiterName: { $not: ZTK_INVALID_RECRUITMENT_NAME_PATTERN, $type: "string" } } },
     { $sort: { eventTimestamp: -1, _id: -1 } },
     {
       $group: {
@@ -968,7 +968,7 @@ async function buildRecruitmentRankings(
     }
   ]).toArray();
   const dailySeries = await collection.aggregate<{ date: string; total: number }>([
-    { $match: { botId, clanId, eventType: "recruitment", eventTimestamp: { $gte: seriesStart }, guildId } },
+    { $match: { botId, clanId, eventType: "recruitment", eventTimestamp: { $gte: seriesStart }, guildId, playerName: { $not: ZTK_INVALID_RECRUITMENT_NAME_PATTERN, $type: "string" }, recruiterName: { $not: ZTK_INVALID_RECRUITMENT_NAME_PATTERN, $type: "string" } } },
     {
       $group: {
         _id: { $dateToString: { date: "$eventTimestamp", format: "%Y-%m-%d", timezone: "America/Sao_Paulo" } },
@@ -1013,8 +1013,8 @@ function parseZtkPayload(rawPayload: unknown, rawBody: string, fallbackClanName:
   const gangSection = readSection(rawText, ["gang", "clã", "clan", "família", "familia"]);
   const zoneSection = readSection(rawText, ["zona dominada", "território dominado", "territorio dominado", "local dominado", "local"]);
   const participantCountSection = readSection(rawText, ["participantes da gang", "participantes"]);
-  const recruitedSection = readSection(rawText, ["novo membro", "membro recrutado", "recrutado"]);
-  const recruiterSection = readSection(rawText, ["recrutador", "quem recrutou", "recrutou"]);
+  const recruitedSection = readSection(rawText, ["novo membro", "membro recrutado", "recrutado", "promovido", "membro promovido"]);
+  const recruiterSection = readSection(rawText, ["recrutador", "quem recrutou", "recrutou", "promovido por", "promotor", "responsavel", "responsável"]);
   const totalPlayersSection = readSection(rawText, ["total de jogadores na zona", "jogadores na zona", "total na zona"]);
   const rivalGangSection = readSection(rawText, ["outras gangs presentes", "gangs presentes", "outras facções presentes", "outras faccoes presentes"]);
   const participantSection = readSection(rawText, ["membros participantes", "participantes da dominação", "participantes da dominacao"]);
@@ -1035,16 +1035,26 @@ function parseZtkPayload(rawPayload: unknown, rawBody: string, fallbackClanName:
     ?? (dateOnlyValue && timeOnlyValue ? `${dateOnlyValue} ${timeOnlyValue}` : null)
     ?? timestampSection[0]
     ?? regex(rawText, /(?:data|hor[aá]rio|timestamp)[:\s]+([0-9/:\-\sTZ.]+)/i);
-  const playerName = readStringDeep(rawPayload, ["player", "playerName", "jogador", "responsavel", "responsável", "member", "nome", "author", "autor", "dominator"])
+  const playerName = firstValidRecruitmentName(
+    eventType,
+    readStringDeep(rawPayload, ["recruited", "recruitedName", "recrutado", "promovido", "novoMembro"]),
+    readField(fields, ["promovido", "membro promovido", "novo membro", "membro recrutado", "recrutado"]),
+    recruitedSection[0],
+    readValueAfterLabel(rawText, ["promovido", "membro promovido", "novo membro", "membro recrutado", "recrutado"])
+  ) ?? readStringDeep(rawPayload, ["player", "playerName", "jogador", "responsavel", "responsável", "member", "nome", "author", "autor", "dominator"])
     ?? readField(fields, ["jogador", "player", "responsavel", "responsável", "membro", "novo membro", "nome", "autor", "dominator"])
     ?? recruitedSection[0]
     ?? regex(rawText, /(?:jogador|respons[aá]vel|novo membro|membro|player|nome)[:\s*]+([^\n|]+)/i);
   const playerId = readStringDeep(rawPayload, ["playerId", "id", "source", "userId", "passport", "passaporte"])
     ?? readField(fields, ["id", "player id", "id do jogador", "source", "passaporte", "passport"])
     ?? regex(rawText, /\b(?:id|source|passaporte|passport)[:\s#]+([0-9A-Za-z_-]+)/i);
-  const recruiterName = readStringDeep(rawPayload, ["recruiter", "recrutador", "quemRecrutou", "recrutou", "recruitedBy"])
-    ?? readField(fields, ["quem recrutou", "recrutador", "recrutou", "recruited by", "responsavel recrutamento"])
-    ?? recruiterSection[0]
+  const recruiterName = firstValidRecruitmentName(
+    eventType,
+    readStringDeep(rawPayload, ["recruiter", "recrutador", "quemRecrutou", "recrutou", "recruitedBy", "promotedBy", "promovidoPor"]),
+    readField(fields, ["promovido por", "quem recrutou", "recrutador", "recrutou", "recruited by", "responsavel recrutamento", "responsável recrutamento", "promotor"]),
+    recruiterSection[0],
+    readValueAfterLabel(rawText, ["promovido por", "quem recrutou", "recrutador", "recrutou", "recruited by", "responsavel recrutamento", "responsável recrutamento", "promotor"])
+  ) ?? recruiterSection[0]
     ?? regex(rawText, /(?:quem recrutou|recrutador|recrutou)[:\s*]+([^\n|]+)/i);
   const recruiterId = readStringDeep(rawPayload, ["recruiterId", "recrutadorId"])
     ?? readField(fields, ["id recrutador", "recruiter id", "id de quem recrutou"]);
@@ -1067,7 +1077,12 @@ function parseZtkPayload(rawPayload: unknown, rawBody: string, fallbackClanName:
   const totalPlayersInZone = parseFirstNumber(readField(fields, ["total de jogadores na zona", "total na zona"]) ?? totalPlayersSection[0] ?? "");
   const rivalGangs = parseRivalGangs(rivalGangSection.length ? rivalGangSection : splitFieldLines(readField(fields, ["outras gangs presentes", "gangs presentes"]) ?? ""));
   const participants = parseParticipants(participantSection.length ? participantSection : splitFieldLines(readField(fields, ["membros participantes", "participantes"]) ?? ""));
-  const cleanedPlayerName = clean(playerName, 100) || null;
+  const cleanedPlayerName = eventType === "recruitment"
+    ? sanitizeZtkRecruitmentName(playerName)
+    : clean(playerName, 100) || null;
+  const cleanedRecruiterName = eventType === "recruitment"
+    ? sanitizeZtkRecruitmentName(recruiterName)
+    : clean(recruiterName, 100) || null;
   const cleanedPlayerId = clean(playerId, 80) || null;
   const rankingParticipants = participants.length || eventType !== "domination" || !cleanedPlayerName
     ? participants
@@ -1093,7 +1108,7 @@ function parseZtkPayload(rawPayload: unknown, rawBody: string, fallbackClanName:
     playerName: cleanedPlayerName,
     rawText: rawText.slice(0, 6000),
     recruiterId: clean(recruiterId, 80) || null,
-    recruiterName: clean(recruiterName, 100) || null,
+    recruiterName: cleanedRecruiterName,
     rivalGangs,
     totalPlayersInZone,
     webhookId: clean(webhookId, 80) || null,
@@ -1176,6 +1191,34 @@ function isValidZtkParticipantName(value: string) {
   return /[a-zA-ZÀ-ÿ0-9]/.test(cleaned);
 }
 
+function firstValidRecruitmentName(eventType: MongoZtkWebhookEventType, ...values: Array<string | null | undefined>) {
+  if (eventType !== "recruitment") return null;
+  for (const value of values) {
+    const cleaned = sanitizeZtkRecruitmentName(value);
+    if (cleaned) return cleaned;
+  }
+  return null;
+}
+
+function sanitizeZtkRecruitmentName(value: unknown) {
+  const cleaned = clean(stripBullet(String(value ?? ""))
+    .replace(/^[👤📅🕒✅❌⭐]+\s*/u, "")
+    .replace(/^\*+|\*+$/g, "")
+    .replace(/^#+\s*/, "")
+    .replace(/^(?:promovido|recrutador|recrutado|quem recrutou|novo membro)\s*:\s*/i, ""), 100);
+  if (!isValidZtkRecruitmentName(cleaned)) return null;
+  return cleaned;
+}
+
+function isValidZtkRecruitmentName(value: string) {
+  const cleaned = clean(value, 160);
+  if (!cleaned || cleaned.length < 2) return false;
+  if (ZTK_INVALID_RECRUITMENT_NAME_PATTERN.test(cleaned)) return false;
+  const normalized = normalizeKey(cleaned.replace(/:$/, ""));
+  if (ZTK_SECTION_LABELS.has(normalized)) return false;
+  return /[a-zA-ZÀ-ÿ]/.test(cleaned);
+}
+
 function splitFieldLines(value: string) {
   return value.split(/\n|•/g).map(stripBullet).filter(Boolean);
 }
@@ -1215,12 +1258,43 @@ function readSection(rawText: string, labels: string[]) {
   return values.filter(Boolean);
 }
 
+function readValueAfterLabel(rawText: string, labels: string[]) {
+  const normalizedLabels = new Set(labels.map(normalizeKey));
+  const lines = rawText.split(/\r?\n/g).map((line) => line.trim()).filter(Boolean);
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    const [rawLabel, ...sameLineValue] = line.split(":");
+    const lineLabel = normalizeKey(rawLabel ?? "");
+    const labelOnly = normalizeKey(stripBullet(line).replace(/:$/, ""));
+    const isLabel = line.includes(":")
+      ? normalizedLabels.has(lineLabel)
+      : normalizedLabels.has(labelOnly);
+    if (!isLabel) continue;
+    const inline = stripBullet(sameLineValue.join(":"));
+    if (inline && sanitizeZtkRecruitmentName(inline)) return inline;
+    for (const nextLine of lines.slice(index + 1, index + 5)) {
+      const candidate = stripBullet(nextLine);
+      if (!candidate || isKnownZtkSectionLabel(candidate) || isProbablyDate(candidate) || !sanitizeZtkRecruitmentName(candidate)) continue;
+      return candidate;
+    }
+  }
+  return null;
+}
+
+function isProbablyDate(value: string) {
+  return /^\d{1,2}\/\d{1,2}\/\d{2,4}(?:[,\s]+(?:[àa]s\s*)?\d{1,2}:\d{2}(?::\d{2})?)?$/i.test(value.trim())
+    || /^\d{4}-\d{2}-\d{2}/.test(value.trim());
+}
+
 function isKnownZtkSectionLabel(value: string) {
-  const normalized = normalizeKey(stripBullet(value).replace(/:$/, ""));
-  return ZTK_SECTION_LABELS.has(normalized);
+  const stripped = stripBullet(value).replace(/:$/, "");
+  const normalized = normalizeKey(stripped);
+  const colonLabel = normalizeKey(stripped.split(":")[0] ?? "");
+  return ZTK_SECTION_LABELS.has(normalized) || ZTK_SECTION_LABELS.has(colonLabel);
 }
 
 const ZTK_SECTION_LABELS = new Set([
+  "cargo",
   "clan",
   "clã",
   "data",
@@ -1242,6 +1316,7 @@ const ZTK_SECTION_LABELS = new Set([
   "local dominado",
   "membro recrutado",
   "membros participantes",
+  "novo cargo",
   "novo membro",
   "outras faccoes presentes",
   "outras facções presentes",
@@ -1250,6 +1325,9 @@ const ZTK_SECTION_LABELS = new Set([
   "participantes da dominacao",
   "participantes da dominação",
   "participantes da gang",
+  "promotor",
+  "promovido",
+  "promovido por",
   "quem recrutou",
   "recrutado",
   "recrutador",
@@ -1268,6 +1346,7 @@ const ZTK_SECTION_LABELS = new Set([
 ].map(normalizeKey));
 
 const ZTK_INVALID_PARTICIPANT_PATTERN = /(?:https?:\/\/|discord(?:app)?\.com|cdn\.discordapp\.com|media\.discordapp\.net|domina[cç][aã]o\s+(?:conclu[ií]da|realizada)|ranking|top\s*10|nextech|webhook|hor[aá]rio|[úu]ltima\s+domina[cç][aã]o|cl[aã]\s*:|^rich$|^image$|^thumbnail$|^footer$|^author$|^\d+$)/i;
+const ZTK_INVALID_RECRUITMENT_NAME_PATTERN = /(?:https?:\/\/|discord(?:app)?\.com|cdn\.discordapp\.com|media\.discordapp\.net|recrutamento|ranking|top\s*10|nextech|webhook|hor[aá]rio|data|cargo|promovido\s*:|recrutador\s*:|recrutado\s*:|^promovido$|^promovido por$|^saiu$|^rich$|^image$|^thumbnail$|^footer$|^author$|^\d+$|\d{1,2}\/\d{1,2}\/\d{2,4})/i;
 
 function toClanDto(value: MongoZtkWebhookClan): ZtkClanDto {
   return {
