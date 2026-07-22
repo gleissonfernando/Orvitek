@@ -3863,6 +3863,91 @@ export type MongoNexTechWebhookLog = {
   createdAt: Date;
 };
 
+export type MongoSubscriptionPresenceButton = {
+  enabled: boolean;
+  emoji: string | null;
+  label: string;
+  order: number;
+  style: "primary" | "secondary" | "success" | "danger" | "link";
+  type: "store" | "docs" | "support" | "website" | "custom";
+  url: string | null;
+};
+
+export type MongoSubscriptionPresencePhotoMode = "avatar" | "company" | "product";
+
+export type MongoSubscriptionPresenceSettings = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  enabled: boolean;
+  channelId: string | null;
+  messageEnabled: boolean;
+  pingBuyer: boolean;
+  pingRoles: boolean;
+  title: string;
+  messageTemplate: string;
+  footerText: string | null;
+  companyName: string;
+  companyAvatarUrl: string | null;
+  companyWebsiteUrl: string | null;
+  companyDocsUrl: string | null;
+  companySupportUrl: string | null;
+  storeUrl: string | null;
+  photoMode: MongoSubscriptionPresencePhotoMode;
+  panelColor: string;
+  buttons: MongoSubscriptionPresenceButton[];
+  createdAt: Date;
+  updatedAt: Date;
+  updatedBy: string | null;
+};
+
+export type MongoSubscriptionPresencePlan = {
+  color: string | null;
+  emoji: string | null;
+  enabled: boolean;
+  id: string;
+  name: string;
+  order: number;
+  roleId: string | null;
+};
+
+export type MongoSubscriptionPresenceProduct = {
+  _id: string;
+  botId: string;
+  guildId: string;
+  active: boolean;
+  category: string;
+  color: string;
+  emoji: string | null;
+  iconUrl: string | null;
+  matchNames: string[];
+  name: string;
+  order: number;
+  plans: MongoSubscriptionPresencePlan[];
+  createdAt: Date;
+  updatedAt: Date;
+  updatedBy: string | null;
+};
+
+export type MongoSubscriptionPresenceLog = {
+  _id: string;
+  amountCents: number;
+  botId: string;
+  buyerId: string;
+  buyerName: string | null;
+  channelId: string | null;
+  currency: "BRL" | "USD" | "EUR";
+  error: string | null;
+  gateway: string | null;
+  guildId: string;
+  messageId: string | null;
+  planName: string;
+  productName: string;
+  saleId: string;
+  status: "pending" | "sent" | "skipped" | "failed";
+  createdAt: Date;
+};
+
 export type MongoMissionToolsFeatureId =
   | "mission"
   | "clear"
@@ -5012,6 +5097,9 @@ export async function getMongoCollections() {
     nexTechCustomers: db.collection<MongoNexTechCustomer>("nexTech_customers"),
     nexTechSubscriptions: db.collection<MongoNexTechSubscription>("nexTech_subscriptions"),
     nexTechWebhookLogs: db.collection<MongoNexTechWebhookLog>("nexTech_webhook_logs"),
+    subscriptionPresenceSettings: db.collection<MongoSubscriptionPresenceSettings>("subscription_presence_settings"),
+    subscriptionPresenceProducts: db.collection<MongoSubscriptionPresenceProduct>("subscription_presence_products"),
+    subscriptionPresenceLogs: db.collection<MongoSubscriptionPresenceLog>("subscription_presence_logs"),
     salesTicketSettings: db.collection<MongoSalesTicketSettings>("salesTicketSettings"),
     salesTicketTypes: db.collection<MongoSalesTicketType>("salesTicketTypes"),
     salesTickets: db.collection<MongoSalesTicket>("salesTickets"),
@@ -5300,6 +5388,7 @@ async function createMongoIndexes(db: Db) {
     ensureEmojiCloneIndexes(db),
     ensureNexTechInviteIndexes(db),
     ensureNexTechSalesIndexes(db),
+    ensureSubscriptionPresenceIndexes(db),
     ensureSalesTicketIndexes(db),
     ensurePriceTableIndexes(db),
     ensureManualPaymentIndexes(db),
@@ -5947,6 +6036,16 @@ async function ensureNexTechSalesIndexes(db: Db) {
     db.collection<MongoNexTechSubscription>("nexTech_subscriptions").createIndex({ ownerUserId: 1, storeId: 1, customerId: 1, status: 1 }),
     db.collection<MongoNexTechSubscription>("nexTech_subscriptions").createIndex({ ownerUserId: 1, storeId: 1, productPlanType: 1, nextHostingDueAt: 1, status: 1 }),
     db.collection<MongoNexTechWebhookLog>("nexTech_webhook_logs").createIndex({ ownerUserId: 1, storeId: 1, createdAt: -1 })
+  ]);
+}
+
+async function ensureSubscriptionPresenceIndexes(db: Db) {
+  await Promise.all([
+    db.collection<MongoSubscriptionPresenceSettings>("subscription_presence_settings").createIndex({ botId: 1, guildId: 1 }, { unique: true }),
+    db.collection<MongoSubscriptionPresenceProduct>("subscription_presence_products").createIndex({ botId: 1, guildId: 1, order: 1, updatedAt: -1 }),
+    db.collection<MongoSubscriptionPresenceProduct>("subscription_presence_products").createIndex({ botId: 1, guildId: 1, active: 1, category: 1 }),
+    db.collection<MongoSubscriptionPresenceLog>("subscription_presence_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
+    db.collection<MongoSubscriptionPresenceLog>("subscription_presence_logs").createIndex({ botId: 1, guildId: 1, saleId: 1 }, { unique: true })
   ]);
 }
 

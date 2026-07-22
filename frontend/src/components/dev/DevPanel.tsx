@@ -43,12 +43,13 @@ import {
     UserCheck,
     Users
 } from "lucide-react";
-import { useEffect, useMemo, useState, useCallback, memo } from "react";
+import { useEffect, useMemo, useState, useCallback, memo, type Dispatch, type SetStateAction } from "react";
 import {
     createDevBot,
     createNexTechProduct,
     createNexTechSale,
     createSalesTicketType,
+    createSubscriptionPresenceProduct,
     cleanupLegacyDatabaseMaintenance,
     createNexTechSalesPlan,
     deleteDevBot,
@@ -57,6 +58,7 @@ import {
     deleteNexTechPaymentProvider,
     deleteNexTechSalesPlan,
     deleteSalesTicketType,
+    deleteSubscriptionPresenceProduct,
     duplicateSalesTicketType,
     getBotGuildConfig,
     getDatabaseMaintenanceModules,
@@ -66,6 +68,7 @@ import {
     getGuildLiveOptions,
     getNexTechSalesDashboard,
     getSalesTicketDashboard,
+    getSubscriptionPresenceDashboard,
     getSystemEmojiDashboard,
     publishSalesTicketPanel,
     resetDatabaseMaintenanceModule,
@@ -76,6 +79,7 @@ import {
     saveNexTechPaymentProvider,
     saveNexTechSalesSettings,
     saveSalesTicketSettings,
+    saveSubscriptionPresenceSettings,
     searchDatabaseMaintenanceUsers,
     startAllDevBots,
     stopAllDevBots,
@@ -89,6 +93,7 @@ import {
     updateNexTechSaleStatus,
     updateNexTechSalesPlan,
     updateSalesTicketType,
+    updateSubscriptionPresenceProduct,
     saveSystemEmoji,
     uploadNexTechProductBanner
 } from "../../lib/api";
@@ -125,6 +130,11 @@ import type {
     SalesTicketType,
     SaveSalesTicketSettingsPayload,
     SaveSalesTicketTypePayload,
+    SaveSubscriptionPresenceProductPayload,
+    SaveSubscriptionPresenceSettingsPayload,
+    SubscriptionPresenceButton,
+    SubscriptionPresenceDashboard,
+    SubscriptionPresenceProduct,
     SystemEmojiConfig,
     SystemEmojiDashboard
 } from "../../types";
@@ -142,6 +152,7 @@ const fallbackModules: DevModuleDefinition[] = [
   { id: "giveaway", label: "Sistema de Sorteio" },
   { id: "payment-gateway", label: "Pagamento Automático" },
   { id: "nex-tech-sales", label: "Sistema de Vendas" },
+  { id: "subscription-presence", label: "Sistema de Presença" },
   { id: "nextech-invites", label: "Sistema de Convites NextTech" },
   { id: "manual-payments", label: "Pagamento Manual" },
   { id: "network", label: "Rede Social dos Membros" },
@@ -1354,7 +1365,9 @@ export function DevPanel({
             onToggleManualPayments={(checked) => void handleToggleModule(selectedBot, "manual-payments", checked)}
             onTogglePaymentGateway={(checked) => void handleToggleModule(selectedBot, "payment-gateway", checked)}
             onToggleSales={(checked) => void handleToggleModule(selectedBot, "nex-tech-sales", checked)}
+            onToggleSubscriptionPresence={(checked) => void handleToggleModule(selectedBot, "subscription-presence", checked)}
             paymentGatewayEnabled={selectedBot.enabledModules.includes("payment-gateway")}
+            subscriptionPresenceEnabled={selectedBot.enabledModules.includes("subscription-presence")}
           />
         ) : (
           <Card className="border-[#FFD500]/20 bg-[linear-gradient(135deg,rgba(24,24,27,0.90),rgba(9,9,11,0.96))] shadow-[0_0_42px_rgba(255,213,0,0.08)]">
@@ -3817,7 +3830,9 @@ function NexTechSalesWorkspace({
   onToggleManualPayments,
   onTogglePaymentGateway,
   onToggleSales,
-  paymentGatewayEnabled
+  onToggleSubscriptionPresence,
+  paymentGatewayEnabled,
+  subscriptionPresenceEnabled
 }: {
   bot: DevBot;
   enabled: boolean;
@@ -3826,7 +3841,9 @@ function NexTechSalesWorkspace({
   onToggleManualPayments: (checked: boolean) => void;
   onTogglePaymentGateway: (checked: boolean) => void;
   onToggleSales: (checked: boolean) => void;
+  onToggleSubscriptionPresence: (checked: boolean) => void;
   paymentGatewayEnabled: boolean;
+  subscriptionPresenceEnabled: boolean;
 }) {
   const guildOptions = useMemo(() => buildBotGuildOptions(bot, guilds), [bot, guilds]);
   const [guildId, setGuildId] = useState(bot.mainGuildId || guildOptions[0]?.id || "");
@@ -4223,6 +4240,10 @@ function NexTechSalesWorkspace({
                 <CreditCard className="h-4 w-4" />
                 {manualPaymentsEnabled ? "Desativar manual" : "Liberar manual"}
               </Button>
+              <Button className="w-full sm:w-auto" onClick={() => onToggleSubscriptionPresence(!subscriptionPresenceEnabled)} variant={subscriptionPresenceEnabled ? "outline" : "default"}>
+                <Sparkles className="h-4 w-4" />
+                {subscriptionPresenceEnabled ? "Desativar presença" : "Liberar presença"}
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -4264,6 +4285,13 @@ function NexTechSalesWorkspace({
           {message}
         </div>
       ) : null}
+
+      <SubscriptionPresencePanel
+        bot={bot}
+        enabled={subscriptionPresenceEnabled}
+        guildId={guildId}
+        onToggle={onToggleSubscriptionPresence}
+      />
 
       {!enabled ? (
         <Card className="border-amber-400/25 bg-amber-500/[0.08] hover:translate-y-0">
@@ -4761,6 +4789,580 @@ function NexTechSalesWorkspace({
       )}
     </div>
   );
+}
+
+const defaultSubscriptionPresenceButtons: SubscriptionPresenceButton[] = [
+  { enabled: true, emoji: ":dinheiro:", label: "Loja", order: 1, style: "link" as const, type: "store" as const, url: "" },
+  { enabled: true, emoji: ":folha:", label: "Documentacao", order: 2, style: "link" as const, type: "docs" as const, url: "" },
+  { enabled: true, emoji: ":chat:", label: "Suporte", order: 3, style: "link" as const, type: "support" as const, url: "" },
+  { enabled: true, emoji: ":globo:", label: "Website", order: 4, style: "link" as const, type: "website" as const, url: "" }
+];
+
+const defaultSubscriptionPresenceProductForm: SaveSubscriptionPresenceProductPayload = {
+  active: true,
+  category: "Produto digital",
+  color: "#FFD500",
+  emoji: ":estrela:",
+  iconUrl: "",
+  matchNames: [],
+  name: "",
+  order: 0,
+  plans: [
+    { color: "#FFD500", emoji: ":calendario:", enabled: true, id: "mensal", name: "Mensal", order: 1, roleId: null },
+    { color: "#FFD500", emoji: ":caixa:", enabled: true, id: "trimestral", name: "Trimestral", order: 2, roleId: null },
+    { color: "#FFD500", emoji: ":trofeu:", enabled: true, id: "semestral", name: "Semestral", order: 3, roleId: null },
+    { color: "#FFD500", emoji: ":coroa:", enabled: true, id: "anual", name: "Anual", order: 4, roleId: null },
+    { color: "#FFD500", emoji: ":diamante:", enabled: true, id: "vitalicio", name: "Vitalicio", order: 5, roleId: null }
+  ]
+};
+
+function SubscriptionPresencePanel({
+  bot,
+  enabled,
+  guildId,
+  onToggle
+}: {
+  bot: DevBot;
+  enabled: boolean;
+  guildId: string;
+  onToggle: (checked: boolean) => void;
+}) {
+  const [dashboard, setDashboard] = useState<SubscriptionPresenceDashboard | null>(null);
+  const [settingsForm, setSettingsForm] = useState<SaveSubscriptionPresenceSettingsPayload>({
+    buttons: defaultSubscriptionPresenceButtons,
+    companyName: "NextTech",
+    enabled: true,
+    messageEnabled: true,
+    messageTemplate: "Obrigado por confiar em {empresa}. Desejamos uma excelente experiencia com {produto}.",
+    panelColor: "#FFD500",
+    photoMode: "avatar",
+    pingBuyer: true,
+    pingRoles: false,
+    title: "NOVA AQUISICAO"
+  });
+  const [productForm, setProductForm] = useState<SaveSubscriptionPresenceProductPayload>(defaultSubscriptionPresenceProductForm);
+  const [matchNamesText, setMatchNamesText] = useState("");
+  const [plansText, setPlansText] = useState(plansToText(defaultSubscriptionPresenceProductForm.plans ?? []));
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const refreshPresence = useCallback(async () => {
+    if (!guildId || !enabled) return;
+    const data = await getSubscriptionPresenceDashboard(bot.id, guildId);
+    setDashboard(data);
+    setSettingsForm(presenceSettingsToForm(data.settings));
+  }, [bot.id, enabled, guildId]);
+
+  useEffect(() => {
+    if (!guildId || !enabled) {
+      setDashboard(null);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setMessage(null);
+    getSubscriptionPresenceDashboard(bot.id, guildId)
+      .then((data) => {
+        if (cancelled) return;
+        setDashboard(data);
+        setSettingsForm(presenceSettingsToForm(data.settings));
+      })
+      .catch((error) => {
+        if (!cancelled) setMessage(readRequestMessage(error) ?? "Não foi possível carregar o Sistema de Presença.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bot.id, enabled, guildId]);
+
+  async function handleSavePresenceSettings() {
+    if (!guildId) return;
+    setSaving("presence-settings");
+    setMessage(null);
+    try {
+      const settings = await saveSubscriptionPresenceSettings(bot.id, guildId, sanitizePresenceSettingsForm(settingsForm));
+      setDashboard((current) => current ? { ...current, settings } : current);
+      setSettingsForm(presenceSettingsToForm(settings));
+      setMessage("Sistema de Presença salvo.");
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Não foi possível salvar o Sistema de Presença.");
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function handleSavePresenceProduct() {
+    if (!guildId || !productForm.name?.trim()) {
+      setMessage("Informe o nome do produto.");
+      return;
+    }
+
+    setSaving("presence-product");
+    setMessage(null);
+    try {
+      const payload = sanitizePresenceProductForm(productForm, matchNamesText, plansText);
+      if (editingProductId) {
+        await updateSubscriptionPresenceProduct(bot.id, guildId, editingProductId, payload);
+      } else {
+        await createSubscriptionPresenceProduct(bot.id, guildId, payload);
+      }
+      resetPresenceProductForm();
+      await refreshPresence();
+      setMessage("Produto de presença salvo.");
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Não foi possível salvar o produto de presença.");
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function handleDeletePresenceProduct(product: SubscriptionPresenceProduct) {
+    if (!guildId || !window.confirm(`Remover ${product.name} do Sistema de Presença?`)) return;
+    setSaving(product.id);
+    setMessage(null);
+    try {
+      await deleteSubscriptionPresenceProduct(bot.id, guildId, product.id);
+      if (editingProductId === product.id) resetPresenceProductForm();
+      await refreshPresence();
+      setMessage("Produto removido.");
+    } catch (error) {
+      setMessage(readRequestMessage(error) ?? "Não foi possível remover o produto.");
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  function editPresenceProduct(product: SubscriptionPresenceProduct) {
+    setEditingProductId(product.id);
+    setProductForm(presenceProductToForm(product));
+    setMatchNamesText(product.matchNames.join(", "));
+    setPlansText(plansToText(product.plans));
+  }
+
+  function resetPresenceProductForm() {
+    setEditingProductId(null);
+    setProductForm(defaultSubscriptionPresenceProductForm);
+    setMatchNamesText("");
+    setPlansText(plansToText(defaultSubscriptionPresenceProductForm.plans ?? []));
+  }
+
+  const logs = dashboard?.logs ?? [];
+  const products = dashboard?.products ?? [];
+
+  return (
+    <Card className="border-[#FFD500]/20 bg-[linear-gradient(135deg,rgba(20,20,24,0.92),rgba(7,7,10,0.96))] shadow-[0_0_44px_rgba(255,213,0,0.08)] hover:translate-y-0">
+      <CardHeader className="p-5 sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <CardTitle className="flex items-center gap-2 text-white">
+              <Sparkles className="h-5 w-5 text-[#FFEA70]" />
+              Sistema de Presença
+            </CardTitle>
+            <CardDescription className="mt-2 font-medium text-zinc-300">
+              Publica automaticamente painéis premium em Components V2 quando compras, assinaturas ou pagamentos manuais forem aprovados.
+            </CardDescription>
+          </div>
+          <Button onClick={() => onToggle(!enabled)} variant={enabled ? "outline" : "default"}>
+            <Power className="h-4 w-4" />
+            {enabled ? "Desativar módulo" : "Liberar módulo"}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5 p-5 pt-0 sm:p-6 sm:pt-0">
+        {message ? (
+          <div className="rounded-lg border border-[#FFEA70]/25 bg-[#FFD500]/10 px-4 py-3 text-sm font-semibold text-white">
+            {message}
+          </div>
+        ) : null}
+
+        {!enabled ? (
+          <div className="rounded-lg border border-amber-400/25 bg-amber-500/[0.08] p-4">
+            <p className="text-sm font-bold text-white">Módulo bloqueado neste bot</p>
+            <p className="mt-1 text-sm font-medium text-zinc-300">Libere o Sistema de Presença para configurar canal, produtos, planos e mensagens automáticas.</p>
+          </div>
+        ) : loading ? (
+          <div className="flex min-h-32 items-center justify-center rounded-lg border border-zinc-800 bg-black/30">
+            <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+              <div className="space-y-3 rounded-lg border border-zinc-800/80 bg-zinc-950/70 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-white">Configuração do painel</p>
+                    <p className="mt-1 text-xs font-medium text-zinc-500">Variáveis: {"{usuario} {nome} {produto} {plano} {valor} {data} {hora} {empresa} {avatar}"}</p>
+                  </div>
+                  <label className="flex items-center gap-3 text-sm font-semibold text-white">
+                    <Switch checked={Boolean(settingsForm.enabled)} onCheckedChange={(checked) => setSettingsForm((current) => ({ ...current, enabled: checked }))} />
+                    Sistema ligado
+                  </label>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <DevInput inputMode="numeric" label="Canal de presença" onChange={(value) => setSettingsForm((current) => ({ ...current, channelId: value.replace(/\D/g, "") || null }))} value={settingsForm.channelId ?? ""} />
+                  <DevInput label="Título" onChange={(value) => setSettingsForm((current) => ({ ...current, title: value }))} value={settingsForm.title ?? ""} />
+                  <DevInput label="Empresa" onChange={(value) => setSettingsForm((current) => ({ ...current, companyName: value }))} value={settingsForm.companyName ?? ""} />
+                  <DevInput label="Cor" onChange={(value) => setSettingsForm((current) => ({ ...current, panelColor: value }))} value={settingsForm.panelColor ?? "#FFD500"} />
+                  <DevInput label="Avatar da empresa" onChange={(value) => setSettingsForm((current) => ({ ...current, companyAvatarUrl: value }))} value={settingsForm.companyAvatarUrl ?? ""} />
+                  <DevInput label="Loja" onChange={(value) => setSettingsForm((current) => ({ ...current, storeUrl: value }))} value={settingsForm.storeUrl ?? ""} />
+                  <DevInput label="Documentação" onChange={(value) => setSettingsForm((current) => ({ ...current, companyDocsUrl: value }))} value={settingsForm.companyDocsUrl ?? ""} />
+                  <DevInput label="Suporte" onChange={(value) => setSettingsForm((current) => ({ ...current, companySupportUrl: value }))} value={settingsForm.companySupportUrl ?? ""} />
+                  <DevInput label="Website" onChange={(value) => setSettingsForm((current) => ({ ...current, companyWebsiteUrl: value }))} value={settingsForm.companyWebsiteUrl ?? ""} />
+                  <label className="block space-y-2">
+                    <span className="text-sm font-semibold text-white">Foto do painel</span>
+                    <select
+                      className="social-input h-12 border-[#FFD500]/20 bg-black/55 font-medium text-white focus:border-[#FFEA70]/70"
+                      onChange={(event) => setSettingsForm((current) => ({ ...current, photoMode: event.target.value as "avatar" | "company" | "product" }))}
+                      value={settingsForm.photoMode ?? "avatar"}
+                    >
+                      <option value="avatar">Avatar do comprador</option>
+                      <option value="company">Avatar da empresa</option>
+                      <option value="product">Logo do produto</option>
+                    </select>
+                  </label>
+                </div>
+                <label className="block space-y-2">
+                  <span className="text-sm font-semibold text-white">Mensagem automática</span>
+                  <textarea
+                    className="min-h-28 w-full resize-y rounded-lg border border-[#FFD500]/20 bg-black/55 px-3 py-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 focus:border-[#FFEA70]/70"
+                    onChange={(event) => setSettingsForm((current) => ({ ...current, messageTemplate: event.target.value }))}
+                    value={settingsForm.messageTemplate ?? ""}
+                  />
+                </label>
+                <DevInput label="Footer" onChange={(value) => setSettingsForm((current) => ({ ...current, footerText: value }))} value={settingsForm.footerText ?? ""} />
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <label className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-black/30 p-3 text-sm font-semibold text-white">
+                    <Switch checked={Boolean(settingsForm.messageEnabled)} onCheckedChange={(checked) => setSettingsForm((current) => ({ ...current, messageEnabled: checked }))} />
+                    Mensagem
+                  </label>
+                  <label className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-black/30 p-3 text-sm font-semibold text-white">
+                    <Switch checked={Boolean(settingsForm.pingBuyer)} onCheckedChange={(checked) => setSettingsForm((current) => ({ ...current, pingBuyer: checked }))} />
+                    Ping comprador
+                  </label>
+                  <label className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-black/30 p-3 text-sm font-semibold text-white">
+                    <Switch checked={Boolean(settingsForm.pingRoles)} onCheckedChange={(checked) => setSettingsForm((current) => ({ ...current, pingRoles: checked }))} />
+                    Ping cargos
+                  </label>
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {(settingsForm.buttons ?? defaultSubscriptionPresenceButtons).slice(0, 4).map((button, index) => (
+                    <div className="rounded-lg border border-zinc-800 bg-black/30 p-3" key={`${button.type}-${index}`}>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-xs font-bold uppercase text-zinc-500">Botão {index + 1}</p>
+                        <Switch checked={button.enabled} onCheckedChange={(checked) => updatePresenceButton(setSettingsForm, index, { enabled: checked })} />
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <DevInput label="Label" onChange={(value) => updatePresenceButton(setSettingsForm, index, { label: value })} value={button.label} />
+                        <DevInput label="Emoji personalizado" onChange={(value) => updatePresenceButton(setSettingsForm, index, { emoji: value })} value={button.emoji ?? ""} />
+                        <DevInput label="URL" onChange={(value) => updatePresenceButton(setSettingsForm, index, { url: value })} value={button.url ?? ""} />
+                        <label className="block space-y-2">
+                          <span className="text-sm font-semibold text-white">Tipo</span>
+                          <select
+                            className="social-input h-12 border-[#FFD500]/20 bg-black/55 font-medium text-white focus:border-[#FFEA70]/70"
+                            onChange={(event) => updatePresenceButton(setSettingsForm, index, { type: event.target.value as SubscriptionPresenceButton["type"] })}
+                            value={button.type}
+                          >
+                            <option value="store">Loja</option>
+                            <option value="docs">Documentação</option>
+                            <option value="support">Suporte</option>
+                            <option value="website">Website</option>
+                            <option value="custom">Customizado</option>
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <Button disabled={saving === "presence-settings"} onClick={() => void handleSavePresenceSettings()}>
+                  {saving === "presence-settings" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings className="h-4 w-4" />}
+                  Salvar presença
+                </Button>
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-zinc-800/80 bg-zinc-950/70 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-white">Produtos e planos</p>
+                    <p className="mt-1 text-xs font-medium text-zinc-500">Cada produto pode mapear nomes vindos de vendas, checkout ou pagamento manual.</p>
+                  </div>
+                  {editingProductId ? <Button onClick={resetPresenceProductForm} size="sm" variant="outline">Novo</Button> : null}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <DevInput label="Produto" onChange={(value) => setProductForm((current) => ({ ...current, name: value }))} value={productForm.name ?? ""} />
+                  <DevInput label="Categoria" onChange={(value) => setProductForm((current) => ({ ...current, category: value }))} value={productForm.category ?? ""} />
+                  <DevInput label="Emoji personalizado" onChange={(value) => setProductForm((current) => ({ ...current, emoji: value }))} value={productForm.emoji ?? ""} />
+                  <DevInput label="Cor" onChange={(value) => setProductForm((current) => ({ ...current, color: value }))} value={productForm.color ?? "#FFD500"} />
+                  <DevInput label="Ícone/Logo" onChange={(value) => setProductForm((current) => ({ ...current, iconUrl: value }))} value={productForm.iconUrl ?? ""} />
+                  <DevInput inputMode="numeric" label="Ordem" onChange={(value) => setProductForm((current) => ({ ...current, order: Number(value.replace(/\D/g, "")) || 0 }))} value={String(productForm.order ?? 0)} />
+                </div>
+                <label className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-black/30 p-3 text-sm font-semibold text-white">
+                  <Switch checked={productForm.active !== false} onCheckedChange={(checked) => setProductForm((current) => ({ ...current, active: checked }))} />
+                  Produto ativo
+                </label>
+                <label className="block space-y-2">
+                  <span className="text-sm font-semibold text-white">Nomes equivalentes</span>
+                  <textarea
+                    className="min-h-20 w-full resize-y rounded-lg border border-[#FFD500]/20 bg-black/55 px-3 py-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 focus:border-[#FFEA70]/70"
+                    onChange={(event) => setMatchNamesText(event.target.value)}
+                    placeholder="Next Premium, Premium, Plano Premium"
+                    value={matchNamesText}
+                  />
+                </label>
+                <label className="block space-y-2">
+                  <span className="text-sm font-semibold text-white">Planos</span>
+                  <textarea
+                    className="min-h-32 w-full resize-y rounded-lg border border-[#FFD500]/20 bg-black/55 px-3 py-3 text-sm font-medium text-white outline-none transition placeholder:text-zinc-600 focus:border-[#FFEA70]/70"
+                    onChange={(event) => setPlansText(event.target.value)}
+                    placeholder="Mensal | :calendario: | 123456789012345678"
+                    value={plansText}
+                  />
+                  <span className="text-xs font-medium text-zinc-500">Uma linha por plano: Nome | emoji personalizado | cargo opcional.</span>
+                </label>
+                <Button disabled={saving === "presence-product"} onClick={() => void handleSavePresenceProduct()}>
+                  {saving === "presence-product" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  {editingProductId ? "Atualizar produto" : "Cadastrar produto"}
+                </Button>
+                <div className="grid gap-2">
+                  {products.map((product) => (
+                    <div className="rounded-lg border border-zinc-800 bg-black/35 p-3" key={product.id}>
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-white">{product.emoji ? `${product.emoji} ` : ""}{product.name}</p>
+                          <p className="text-xs font-medium text-zinc-500">{product.category} · {product.plans.length} plano(s) · {product.active ? "ativo" : "desativado"}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button onClick={() => editPresenceProduct(product)} size="sm" variant="outline"><Settings className="h-4 w-4" />Editar</Button>
+                          <Button disabled={saving === product.id} onClick={() => void handleDeletePresenceProduct(product)} size="sm" variant="destructive"><Trash2 className="h-4 w-4" />Remover</Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {!products.length ? (
+                    <div className="flex min-h-16 items-center justify-center rounded-lg border border-dashed border-zinc-800 text-sm font-medium text-zinc-500">
+                      Nenhum produto de presença configurado.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-zinc-800/80 bg-black/30 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-white">Histórico de presença</p>
+                  <p className="mt-1 text-xs font-medium text-zinc-500">Deduplicação por venda/pedido, status de envio e erro exato quando houver falha.</p>
+                </div>
+                <Badge variant="muted">{logs.length} registro(s)</Badge>
+              </div>
+              <div className="mt-3 grid gap-2">
+                {logs.slice(0, 8).map((log) => (
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-3" key={log.id}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-white">{log.productName} · {log.planName ?? "Plano não informado"}</p>
+                        <p className="mt-1 text-xs font-medium text-zinc-500">
+                          {log.buyerName || log.buyerId} · {formatMoney(log.amountCents, log.currency)} · {formatDate(log.createdAt)}
+                        </p>
+                        {log.error ? <p className="mt-1 text-xs font-semibold text-red-300">{log.error}</p> : null}
+                      </div>
+                      <Badge variant={log.status === "sent" ? "success" : log.status === "failed" ? "danger" : "muted"}>
+                        {log.status === "sent" ? "Enviado" : log.status === "failed" ? "Falhou" : log.status === "pending" ? "Pendente" : "Ignorado"}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+                {!logs.length ? (
+                  <div className="flex min-h-16 items-center justify-center rounded-lg border border-dashed border-zinc-800 text-sm font-medium text-zinc-500">
+                    Nenhuma presença enviada ainda.
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function presenceSettingsToForm(settings: SubscriptionPresenceDashboard["settings"]): SaveSubscriptionPresenceSettingsPayload {
+  return {
+    buttons: settings.buttons.length ? settings.buttons : defaultSubscriptionPresenceButtons,
+    channelId: settings.channelId,
+    companyAvatarUrl: settings.companyAvatarUrl ?? "",
+    companyDocsUrl: settings.companyDocsUrl ?? "",
+    companyName: settings.companyName,
+    companySupportUrl: settings.companySupportUrl ?? "",
+    companyWebsiteUrl: settings.companyWebsiteUrl ?? "",
+    enabled: settings.enabled,
+    footerText: settings.footerText ?? "",
+    messageEnabled: settings.messageEnabled,
+    messageTemplate: settings.messageTemplate,
+    panelColor: settings.panelColor,
+    photoMode: settings.photoMode,
+    pingBuyer: settings.pingBuyer,
+    pingRoles: settings.pingRoles,
+    storeUrl: settings.storeUrl ?? "",
+    title: settings.title
+  };
+}
+
+function presenceProductToForm(product: SubscriptionPresenceProduct): SaveSubscriptionPresenceProductPayload {
+  return {
+    active: product.active,
+    category: product.category,
+    color: product.color,
+    emoji: product.emoji ?? "",
+    iconUrl: product.iconUrl ?? "",
+    matchNames: product.matchNames,
+    name: product.name,
+    order: product.order,
+    plans: product.plans
+  };
+}
+
+function sanitizePresenceSettingsForm(input: SaveSubscriptionPresenceSettingsPayload): SaveSubscriptionPresenceSettingsPayload {
+  return {
+    ...input,
+    buttons: (input.buttons ?? defaultSubscriptionPresenceButtons)
+      .slice(0, 4)
+      .map((button, index) => ({
+        enabled: button.enabled !== false,
+        emoji: trimNullable(button.emoji),
+        label: button.label?.trim() || `Botão ${index + 1}`,
+        order: index + 1,
+        style: "link",
+        type: button.type ?? "custom",
+        url: trimNullable(button.url)
+      })),
+    channelId: onlyDigitsOrNull(input.channelId),
+    companyAvatarUrl: trimNullable(input.companyAvatarUrl),
+    companyDocsUrl: trimNullable(input.companyDocsUrl),
+    companyName: input.companyName?.trim() || "NextTech",
+    companySupportUrl: trimNullable(input.companySupportUrl),
+    companyWebsiteUrl: trimNullable(input.companyWebsiteUrl),
+    footerText: trimNullable(input.footerText),
+    messageTemplate: input.messageTemplate?.trim() || "Obrigado por confiar em {empresa}. Desejamos uma excelente experiencia com {produto}.",
+    panelColor: normalizeHexColor(input.panelColor, "#FFD500"),
+    photoMode: input.photoMode ?? "avatar",
+    storeUrl: trimNullable(input.storeUrl),
+    title: input.title?.trim() || "NOVA AQUISICAO"
+  };
+}
+
+function sanitizePresenceProductForm(
+  input: SaveSubscriptionPresenceProductPayload,
+  matchNamesText: string,
+  plansText: string
+): SaveSubscriptionPresenceProductPayload {
+  const name = input.name.trim();
+  const aliases = splitCommaList(matchNamesText || (input.matchNames ?? []).join(", "));
+
+  return {
+    active: input.active !== false,
+    category: input.category?.trim() || "Produto digital",
+    color: normalizeHexColor(input.color, "#FFD500"),
+    emoji: trimNullable(input.emoji),
+    iconUrl: trimNullable(input.iconUrl),
+    matchNames: [...new Set([name, ...aliases].filter(Boolean))].slice(0, 20),
+    name,
+    order: Number(input.order ?? 0) || 0,
+    plans: parsePresencePlans(plansText)
+  };
+}
+
+function updatePresenceButton(
+  setSettingsForm: Dispatch<SetStateAction<SaveSubscriptionPresenceSettingsPayload>>,
+  index: number,
+  patch: Partial<SubscriptionPresenceButton>
+) {
+  setSettingsForm((current) => {
+    const buttons = [...(current.buttons ?? defaultSubscriptionPresenceButtons)];
+    const fallback = defaultSubscriptionPresenceButtons[index] ?? defaultSubscriptionPresenceButtons[0]!;
+    const currentButton: SubscriptionPresenceButton = buttons[index] ?? fallback;
+    buttons[index] = {
+      enabled: patch.enabled ?? currentButton.enabled ?? true,
+      emoji: patch.emoji !== undefined ? patch.emoji : currentButton.emoji ?? null,
+      label: patch.label ?? currentButton.label ?? `Botão ${index + 1}`,
+      order: index + 1,
+      style: patch.style ?? currentButton.style ?? "link",
+      type: patch.type ?? currentButton.type ?? "custom",
+      url: patch.url !== undefined ? patch.url : currentButton.url ?? null
+    };
+    return { ...current, buttons };
+  });
+}
+
+function plansToText(plans: SaveSubscriptionPresenceProductPayload["plans"] = []) {
+  return plans.map((plan) => [
+    plan.name ?? "",
+    plan.emoji ?? "",
+    "roleId" in plan ? plan.roleId ?? "" : ""
+  ].join(" | ")).join("\n");
+}
+
+function parsePresencePlans(value: string): SaveSubscriptionPresenceProductPayload["plans"] {
+  const lines = value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 20);
+
+  const parsed = lines.map((line, index) => {
+    const [namePart, emojiPart, rolePart] = line.split("|").map((part) => part.trim());
+    const name = namePart || `Plano ${index + 1}`;
+    return {
+      color: "#FFD500",
+      emoji: trimNullable(emojiPart),
+      enabled: true,
+      id: slugForPresence(name) || `plano-${index + 1}`,
+      name,
+      order: index + 1,
+      roleId: onlyDigitsOrNull(rolePart)
+    };
+  });
+
+  return parsed.length ? parsed : defaultSubscriptionPresenceProductForm.plans;
+}
+
+function splitCommaList(value: string) {
+  return value
+    .split(/[,;\n]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function trimNullable(value: string | null | undefined) {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  return trimmed || null;
+}
+
+function onlyDigitsOrNull(value: string | null | undefined) {
+  const digits = typeof value === "string" ? value.replace(/\D/g, "") : "";
+  return digits || null;
+}
+
+function normalizeHexColor(value: string | null | undefined, fallback: string) {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  return /^#[0-9a-f]{6}$/i.test(trimmed) ? trimmed : fallback;
+}
+
+function slugForPresence(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
 }
 
 function SalesTicketsWorkspace({ bot, enabled, guildId }: { bot: DevBot; enabled: boolean; guildId: string }) {

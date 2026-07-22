@@ -341,7 +341,7 @@ async function startRuntimeModuleServices(client: Client<true>, context: BotCont
   startRuntimeService("fivem-orders", isBotModuleEnabled("fivem-orders") || isBotModuleEnabled("fivem-drugs") || isBotModuleEnabled("fivem-washing"), () => startFivemOrderService(client, context));
   startRuntimeService("manual-payments", isBotModuleEnabled("manual-payments"), () => startManualPaymentService(client, context));
   startRuntimeService("price-tables", isBotModuleEnabled("price-tables"), () => startPriceTableService(client, context));
-  startRuntimeService("nex-tech-sales", isBotModuleEnabled("nex-tech-sales"), () => startNexTechSalesDeliveryService(client, context));
+  startRuntimeService("nex-tech-sales", isBotModuleEnabled("nex-tech-sales") || isBotModuleEnabled("subscription-presence"), () => startNexTechSalesDeliveryService(client, context));
   startRuntimeService("sales-tickets", isBotModuleEnabled("nex-tech-sales"), () => startSalesTicketService(client, context));
   startRuntimeService("emoji-cloner", isBotModuleEnabled("emoji-cloner"), () => startApplicationEmojiAutoSync(client, context));
   startRuntimeService("rh-admin", isBotModuleEnabled("rh-admin"), () => startRhAdminService(client, context));

@@ -137,6 +137,8 @@ import type {
   SaveNexTechSalesSettingsPayload,
   SaveSalesTicketSettingsPayload,
   SaveSalesTicketTypePayload,
+  SaveSubscriptionPresenceProductPayload,
+  SaveSubscriptionPresenceSettingsPayload,
   SaveOpenDutySettingsPayload,
   SavePanelImageSettingsPayload,
   SavePriceTablePayload,
@@ -162,6 +164,9 @@ import type {
   SocialNotification,
   SocialNotificationsPage,
   SocialPanel,
+  SubscriptionPresenceDashboard,
+  SubscriptionPresenceProduct,
+  SubscriptionPresenceSettings,
   SystemEmojiDashboard,
   Ticket,
   KickClipChannelPreview,
@@ -2340,6 +2345,48 @@ export async function saveNexTechSalesSettings(botId: string, guildId: string, p
     payload
   );
   return data.settings;
+}
+
+export async function getSubscriptionPresenceDashboard(botId: string, guildId: string) {
+  const { data } = await api.get<SubscriptionPresenceDashboard>(
+    `/subscription-presence/${encodeURIComponent(guildId)}`,
+    { params: botParams(botId) }
+  );
+  return data;
+}
+
+export async function saveSubscriptionPresenceSettings(botId: string, guildId: string, payload: SaveSubscriptionPresenceSettingsPayload) {
+  const { data } = await api.put<{ settings: SubscriptionPresenceSettings }>(
+    `/subscription-presence/${encodeURIComponent(guildId)}/settings`,
+    payload,
+    { params: botParams(botId) }
+  );
+  return data.settings;
+}
+
+export async function createSubscriptionPresenceProduct(botId: string, guildId: string, payload: SaveSubscriptionPresenceProductPayload) {
+  const { data } = await api.post<{ product: SubscriptionPresenceProduct }>(
+    `/subscription-presence/${encodeURIComponent(guildId)}/products`,
+    payload,
+    { params: botParams(botId) }
+  );
+  return data.product;
+}
+
+export async function updateSubscriptionPresenceProduct(botId: string, guildId: string, productId: string, payload: SaveSubscriptionPresenceProductPayload) {
+  const { data } = await api.patch<{ product: SubscriptionPresenceProduct }>(
+    `/subscription-presence/${encodeURIComponent(guildId)}/products/${encodeURIComponent(productId)}`,
+    payload,
+    { params: botParams(botId) }
+  );
+  return data.product;
+}
+
+export async function deleteSubscriptionPresenceProduct(botId: string, guildId: string, productId: string) {
+  await api.delete(
+    `/subscription-presence/${encodeURIComponent(guildId)}/products/${encodeURIComponent(productId)}`,
+    { params: botParams(botId) }
+  );
 }
 
 export async function getSalesTicketDashboard(botId: string, guildId: string) {

@@ -3132,6 +3132,92 @@ export type NexTechSalesDashboard = {
   };
 };
 
+export type SubscriptionPresenceButton = {
+  enabled: boolean;
+  emoji: string | null;
+  label: string;
+  order: number;
+  style: "primary" | "secondary" | "success" | "danger" | "link";
+  type: "store" | "docs" | "support" | "website" | "custom";
+  url: string | null;
+};
+
+export type SubscriptionPresencePlan = {
+  color: string | null;
+  enabled: boolean;
+  emoji: string | null;
+  id: string;
+  name: string;
+  order: number;
+  roleId: string | null;
+};
+
+export type SubscriptionPresenceSettings = {
+  id: string;
+  botId: string;
+  buttons: SubscriptionPresenceButton[];
+  channelId: string | null;
+  companyAvatarUrl: string | null;
+  companyDocsUrl: string | null;
+  companyName: string;
+  companySupportUrl: string | null;
+  companyWebsiteUrl: string | null;
+  createdAt: string;
+  enabled: boolean;
+  footerText: string | null;
+  guildId: string;
+  messageEnabled: boolean;
+  messageTemplate: string;
+  panelColor: string;
+  photoMode: "avatar" | "company" | "product";
+  pingBuyer: boolean;
+  pingRoles: boolean;
+  storeUrl: string | null;
+  title: string;
+  updatedAt: string;
+};
+
+export type SubscriptionPresenceProduct = {
+  active: boolean;
+  botId: string;
+  category: string;
+  color: string;
+  createdAt: string;
+  emoji: string | null;
+  guildId: string;
+  iconUrl: string | null;
+  id: string;
+  matchNames: string[];
+  name: string;
+  order: number;
+  plans: SubscriptionPresencePlan[];
+  updatedAt: string;
+};
+
+export type SubscriptionPresenceLog = {
+  id: string;
+  amountCents: number;
+  botId: string;
+  buyerId: string;
+  buyerName: string | null;
+  createdAt: string;
+  currency: "BRL" | "USD" | "EUR";
+  error: string | null;
+  gateway: string | null;
+  guildId: string;
+  messageId: string | null;
+  planName: string | null;
+  productName: string;
+  saleId: string;
+  status: "pending" | "sent" | "skipped" | "failed";
+};
+
+export type SubscriptionPresenceDashboard = {
+  logs: SubscriptionPresenceLog[];
+  products: SubscriptionPresenceProduct[];
+  settings: SubscriptionPresenceSettings;
+};
+
 export type SalesTicketSettings = {
   id: string;
   botId: string;
@@ -3607,6 +3693,39 @@ export type SaveNexTechSalesSettingsPayload = Partial<Pick<
   | "termsUrl"
   | "thumbnailUrl"
 >>;
+
+export type SaveSubscriptionPresenceSettingsPayload = Partial<Pick<
+  SubscriptionPresenceSettings,
+  | "buttons"
+  | "channelId"
+  | "companyAvatarUrl"
+  | "companyDocsUrl"
+  | "companyName"
+  | "companySupportUrl"
+  | "companyWebsiteUrl"
+  | "enabled"
+  | "footerText"
+  | "messageEnabled"
+  | "messageTemplate"
+  | "panelColor"
+  | "photoMode"
+  | "pingBuyer"
+  | "pingRoles"
+  | "storeUrl"
+  | "title"
+>>;
+
+export type SaveSubscriptionPresenceProductPayload = {
+  active?: boolean;
+  category?: string | null;
+  color?: string | null;
+  emoji?: string | null;
+  iconUrl?: string | null;
+  matchNames?: string[];
+  name: string;
+  order?: number;
+  plans?: Array<Partial<SubscriptionPresencePlan> & { name: string }>;
+};
 
 export type SaveNexTechPaymentProviderPayload = {
   clientId?: string | null;

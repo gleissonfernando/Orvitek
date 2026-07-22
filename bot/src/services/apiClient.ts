@@ -55,6 +55,72 @@ export type NexTechInviteRuntime = {
   invite: NexTechInviteRuntimeInvite | null;
 };
 
+export type SubscriptionPresenceButton = {
+  enabled: boolean;
+  emoji: string | null;
+  label: string;
+  order: number;
+  style: "primary" | "secondary" | "success" | "danger" | "link";
+  type: "store" | "docs" | "support" | "website" | "custom";
+  url: string | null;
+};
+
+export type SubscriptionPresenceSettings = {
+  botId: string;
+  buttons: SubscriptionPresenceButton[];
+  channelId: string | null;
+  companyAvatarUrl: string | null;
+  companyDocsUrl: string | null;
+  companyName: string;
+  companySupportUrl: string | null;
+  companyWebsiteUrl: string | null;
+  enabled: boolean;
+  footerText: string | null;
+  guildId: string;
+  messageEnabled: boolean;
+  messageTemplate: string;
+  panelColor: string;
+  photoMode: "avatar" | "company" | "product";
+  pingBuyer: boolean;
+  pingRoles: boolean;
+  storeUrl: string | null;
+  title: string;
+};
+
+export type SubscriptionPresencePlan = {
+  color: string | null;
+  emoji: string | null;
+  enabled: boolean;
+  id: string;
+  name: string;
+  order: number;
+  roleId: string | null;
+};
+
+export type SubscriptionPresenceProduct = {
+  active: boolean;
+  botId: string;
+  category: string;
+  color: string;
+  emoji: string | null;
+  guildId: string;
+  iconUrl: string | null;
+  id: string;
+  matchNames: string[];
+  name: string;
+  order: number;
+  plans: SubscriptionPresencePlan[];
+};
+
+export type SubscriptionPresencePublication = {
+  logId: string | null;
+  product: SubscriptionPresenceProduct | null;
+  selectedPlan: SubscriptionPresencePlan | null;
+  settings: SubscriptionPresenceSettings;
+  shouldSend: boolean;
+  skipReason: string | null;
+};
+
 export type TicketRecord = {
   id: string;
   botId: string | null;
@@ -2990,6 +3056,32 @@ export class ApiClient {
     status: "delivered" | "partial" | "failed";
   }) {
     const { data } = await this.http.post(`/bot/guilds/${guildId}/nex-tech-sales/delivery-result`, input);
+    return data;
+  }
+
+  async createSubscriptionPresencePublication(guildId: string, input: {
+    amountCents: number;
+    buyerId: string;
+    buyerName?: string | null;
+    currency: "BRL" | "USD" | "EUR";
+    gateway?: string | null;
+    planName: string;
+    productName?: string | null;
+    productPlanType?: string | null;
+    saleId: string;
+  }) {
+    const { data } = await this.http.post<SubscriptionPresencePublication>(`/subscription-presence/bot/${encodeURIComponent(guildId)}/publications`, input);
+    return data;
+  }
+
+  async completeSubscriptionPresencePublication(guildId: string, logId: string, input: {
+    channelId?: string | null;
+    error?: string | null;
+    messageId?: string | null;
+    saleId: string;
+    status: "sent" | "failed" | "skipped";
+  }) {
+    const { data } = await this.http.patch(`/subscription-presence/bot/${encodeURIComponent(guildId)}/publications/${encodeURIComponent(logId)}`, input);
     return data;
   }
 

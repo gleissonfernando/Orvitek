@@ -6,7 +6,7 @@ import type {
   MongoManualPaymentSettings
 } from "../database/mongo";
 import { getMongoCollections } from "../database/mongo";
-import { emitRealtime } from "../realtime/events";
+import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoom } from "../realtime/events";
 import { createLog } from "./logService";
 import { savePersistentImage } from "./persistentImageStorageService";
 
@@ -272,6 +272,9 @@ export async function updateManualPaymentOrder(guildId: string, botId: string | 
   await manualPaymentOrders.updateOne({ _id: current._id }, { $set: patch });
   const updated = (await manualPaymentOrders.findOne({ _id: current._id })) ?? current;
   await writeOrderLog(updated, input.action ?? "order_updated", current.status, updated.status, input.staffId ?? null, input.reason ?? null, input.channelId ?? updated.paymentChannelId ?? updated.serviceChannelId);
+  if (updated.status === "APPROVED" && current.status !== "APPROVED") {
+    emitManualPaymentApproved(settings, updated);
+  }
   return toOrderDto(updated);
 }
 
@@ -301,6 +304,31 @@ function toOrderDto(order: MongoManualPaymentOrder): ManualPaymentOrderDto {
     paidAt: order.paidAt?.toISOString() ?? null,
     updatedAt: order.updatedAt.toISOString()
   };
+}
+
+function emitManualPaymentApproved(settings: MongoManualPaymentSettings, order: MongoManualPaymentOrder) {
+  const service = settings.services.find((item) => item.id === order.serviceId);
+  const payload = {
+    amountCents: Math.round(order.amount * 100),
+    botId: settings.botId,
+    buyerId: order.userId,
+    buyerName: order.username,
+    currency: "BRL" as const,
+    customerRoleId: null,
+    guildId: settings.guildId,
+    logChannelId: null,
+    planName: service?.serviceType || "Manual",
+    productName: order.serviceName,
+    productPlanType: "manual",
+    purchasedRoleId: null,
+    saleChannelId: null,
+    saleId: `manual-payment:${order._id}`
+  };
+
+  emitRealtime("nex-tech-sales:sale_paid", payload);
+  if (settings.botId) {
+    emitRealtimeToRoom(devBotRealtimeRoom(settings.botId), "nex-tech-sales:sale_paid", payload);
+  }
 }
 
 function normalizeSettingsInput(input: SaveManualPaymentSettingsInput) {
