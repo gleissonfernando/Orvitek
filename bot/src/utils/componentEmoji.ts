@@ -24,8 +24,10 @@ export function resolveComponentEmoji(guild: Guild | null | undefined, value: st
     return normalized;
   }
 
-  if (/^[a-zA-Z0-9_]{2,32}$/.test(normalized)) {
-    const emoji = guild?.emojis.cache.find((item) => item.name === normalized);
+  const namedEmoji = normalized.match(/^:([a-zA-Z0-9_]{2,32}):$/)?.[1] ?? normalized;
+
+  if (/^[a-zA-Z0-9_]{2,32}$/.test(namedEmoji)) {
+    const emoji = guild?.emojis.cache.find((item) => item.name === namedEmoji);
     return emoji ? `<${emoji.animated ? "a" : ""}:${emoji.name}:${emoji.id}>` : fallback;
   }
 

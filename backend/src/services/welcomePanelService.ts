@@ -1,4 +1,5 @@
 import { env } from "../config/env";
+import { normalizeFixedSystemEmojiText } from "../config/systemEmojis";
 import { saveMemberPanelAsset } from "./memberPanelAssetStorageService";
 import {
   DEFAULT_LEAVE_CHANNEL_LABEL,
@@ -360,10 +361,16 @@ function normalizePanelSections(sections: GuildSettingsDto["welcomeSections"], v
     .slice(0, 6)
     .map((section) => ({
       description: renderTemplate(section.description, variables),
-      emoji: section.emoji?.trim() ?? "",
+      emoji: normalizePanelEmoji(section.emoji),
       title: renderTemplate(section.title, variables)
     }))
     .filter((section) => section.title || section.description);
+}
+
+function normalizePanelEmoji(value: string | null | undefined) {
+  const normalized = value?.trim() ?? "";
+  if (!normalized) return "";
+  return normalizeFixedSystemEmojiText(/^:/.test(normalized) || /^<a?:/i.test(normalized) ? normalized : `:${normalized}:`);
 }
 
 function parseColor(value: string) {

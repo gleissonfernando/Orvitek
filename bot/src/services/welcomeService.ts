@@ -1,5 +1,6 @@
 import { MessageFlags, type GuildMember, type PartialGuildMember } from "discord.js";
 import { env } from "../config/env";
+import { normalizeFixedSystemEmojiText } from "../config/systemEmojis";
 import type { BotContext, MemberPanelSection, PanelImageSettings } from "../types";
 import { ensureGuildEmojiCache, resolveComponentEmoji } from "../utils/componentEmoji";
 import { getCachedGuildSettings } from "./guildSettingsCache";
@@ -294,10 +295,18 @@ function normalizePanelSections(
     .slice(0, 8)
     .map((section) => ({
       description: renderTemplate(section.description, variables),
-      emoji: section.emoji ? resolveComponentEmoji(member.guild, section.emoji, "") : "",
+      emoji: section.emoji ? resolvePanelEmoji(member.guild, section.emoji) : "",
       title: renderTemplate(section.title, variables)
     }))
     .filter((section) => section.title || section.description);
+}
+
+function resolvePanelEmoji(memberGuild: GuildMember["guild"], value: string) {
+  const normalized = value.trim();
+  if (!normalized) return "";
+
+  const fixed = normalizeFixedSystemEmojiText(/^:/.test(normalized) || /^<a?:/i.test(normalized) ? normalized : `:${normalized}:`);
+  return resolveComponentEmoji(memberGuild, fixed, "");
 }
 
 function resolveImageUrl(value: string | null) {
