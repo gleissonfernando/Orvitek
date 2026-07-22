@@ -1,6 +1,13 @@
 import type { NextFunction, Request, Response } from "express";
+import { ZodError } from "zod";
 
 export function errorHandler(error: unknown, _req: Request, res: Response, _next: NextFunction) {
+  if (error instanceof ZodError) {
+    return res.status(400).json({
+      message: formatZodError(error)
+    });
+  }
+
   const rawMessage = error instanceof Error ? error.message : "Erro inesperado.";
   const message = isPayloadTooLarge(error) ? "Arquivo muito grande. O limite configurado para upload de mídia do painel foi excedido." : publicErrorMessage(rawMessage);
   const uploadErrorCode = (error as { code?: unknown })?.code;
@@ -18,6 +25,17 @@ export function errorHandler(error: unknown, _req: Request, res: Response, _next
   res.status(statusCode).json({
     message
   });
+}
+
+function formatZodError(error: ZodError) {
+  const first = error.issues[0];
+
+  if (!first) {
+    return "Dados inválidos.";
+  }
+
+  const field = first.path.length ? first.path.join(".") : "payload";
+  return `Dados inválidos em ${field}: ${first.message}`;
 }
 
 function publicErrorMessage(message: string) {

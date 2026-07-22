@@ -1,9 +1,21 @@
 import session from "express-session";
 import { env } from "../config/env";
+import { MongoSessionStore } from "../database/mongoSessionStore";
 import { getRedisClient } from "../database/redis";
 import { RedisSessionStore } from "../database/redisSessionStore";
 
 const redis = env.REDIS_SESSION_ENABLED ? getRedisClient() : null;
+const persistentStore = redis
+  ? new RedisSessionStore(redis)
+  : env.MONGODB_URI
+    ? new MongoSessionStore()
+    : undefined;
+
+if (persistentStore) {
+  console.log(`[session] usando ${redis ? "Redis" : "MongoDB"} como store de sessão.`);
+} else {
+  console.warn("[session] usando MemoryStore. Configure MONGODB_URI ou REDIS_URL para persistir sessões.");
+}
 
 export const sessionMiddleware = session({
   name: "discord_dashboard.sid",
@@ -11,7 +23,7 @@ export const sessionMiddleware = session({
   proxy: env.NODE_ENV === "production",
   resave: false,
   saveUninitialized: false,
-  store: redis ? new RedisSessionStore(redis) : undefined,
+  store: persistentStore,
   cookie: {
     httpOnly: true,
     maxAge: env.SESSION_TTL_SECONDS * 1000,
