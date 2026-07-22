@@ -3531,6 +3531,30 @@ export type MongoManualPaymentOrder = {
   username: string | null;
 };
 
+export type MongoManualPaymentReceiptAttachment = {
+  contentType: string | null;
+  extension: string;
+  name: string;
+  proxyUrl: string | null;
+  size: number;
+  url: string;
+};
+
+export type MongoManualPaymentReceipt = {
+  _id: string;
+  attachments: MongoManualPaymentReceiptAttachment[];
+  botId: string;
+  channelId: string;
+  customerId: string;
+  customerUsername: string | null;
+  guildId: string;
+  messageId: string;
+  orderId: string;
+  paymentId: string;
+  status: "under_review";
+  submittedAt: Date;
+};
+
 export type MongoManualPaymentOrderLog = {
   _id: string;
   action: string;
@@ -5111,6 +5135,7 @@ export async function getMongoCollections() {
     priceTableLogs: db.collection<MongoPriceTableLog>("price_table_logs"),
     manualPaymentSettings: db.collection<MongoManualPaymentSettings>("manual_payment_settings"),
     manualPaymentOrders: db.collection<MongoManualPaymentOrder>("manual_payment_orders"),
+    manualPaymentReceipts: db.collection<MongoManualPaymentReceipt>("manual_payment_receipts"),
     manualPaymentOrderLogs: db.collection<MongoManualPaymentOrderLog>("manual_payment_order_logs"),
     missionToolsSettings: db.collection<MongoMissionToolsSettings>("mission_tools_settings"),
     missionToolsUsers: db.collection<MongoMissionToolsUserPanel>("mission_tools_users"),
@@ -6084,6 +6109,8 @@ async function ensureManualPaymentIndexes(db: Db) {
     db.collection<MongoManualPaymentOrder>("manual_payment_orders").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
     db.collection<MongoManualPaymentOrder>("manual_payment_orders").createIndex({ botId: 1, guildId: 1, userId: 1, createdAt: -1 }),
     db.collection<MongoManualPaymentOrder>("manual_payment_orders").createIndex({ botId: 1, guildId: 1, status: 1, updatedAt: -1 }),
+    db.collection<MongoManualPaymentReceipt>("manual_payment_receipts").createIndex({ botId: 1, guildId: 1, messageId: 1 }, { unique: true }),
+    db.collection<MongoManualPaymentReceipt>("manual_payment_receipts").createIndex({ botId: 1, guildId: 1, orderId: 1, submittedAt: -1 }),
     db.collection<MongoManualPaymentOrderLog>("manual_payment_order_logs").createIndex({ botId: 1, guildId: 1, createdAt: -1 }),
     db.collection<MongoManualPaymentOrderLog>("manual_payment_order_logs").createIndex({ botId: 1, orderId: 1, createdAt: -1 })
   ]);

@@ -11,6 +11,7 @@ import {
   getManualPaymentRuntime,
   getManualPaymentsDashboard,
   MANUAL_PAYMENTS_MODULE_ID,
+  registerManualPaymentReceipt,
   requestManualPaymentPanelPublish,
   saveManualPaymentSettings,
   updateManualPaymentOrder,
@@ -85,6 +86,21 @@ const orderPatchSchema = z.object({
   staffId: snowflake.nullable().optional(),
   staffMessageId: optionalSnowflake,
   status: z.enum(["PENDING_PAYMENT", "WAITING_STAFF_APPROVAL", "APPROVED", "REJECTED", "IN_PROGRESS", "WAITING_CUSTOMER", "DELIVERED", "FINISHED", "CANCELLED_BY_CUSTOMER", "CANCELLED_BY_STAFF"]).optional()
+});
+const receiptAttachmentSchema = z.object({
+  contentType: z.string().max(120).nullable().optional(),
+  extension: z.string().min(1).max(16),
+  name: z.string().min(1).max(180),
+  proxyUrl: z.string().url().max(2048).nullable().optional(),
+  size: z.coerce.number().int().min(1).max(25 * 1024 * 1024),
+  url: z.string().url().max(2048)
+});
+const receiptSchema = z.object({
+  attachments: z.array(receiptAttachmentSchema).min(1).max(10),
+  channelId: snowflake,
+  customerId: snowflake,
+  customerUsername: z.string().max(100).nullable().optional(),
+  messageId: snowflake
 });
 
 manualPaymentsRouter.get("/:guildId", async (req, res, next) => {
@@ -204,6 +220,20 @@ manualPaymentsRouter.patch("/bot/:guildId/orders/:orderId", requireBot, async (r
   }
 });
 
+manualPaymentsRouter.post("/bot/:guildId/orders/:orderId/receipt", requireBot, async (req, res, next) => {
+  try {
+    const guildId = snowflake.parse(req.params.guildId);
+    const orderId = z.string().min(1).max(120).parse(req.params.orderId);
+    const botId = await resolveRequestBotId(req);
+    await assertRuntime(botId, guildId);
+    const result = await registerManualPaymentReceipt(guildId, botId, orderId, sanitizeReceipt(receiptSchema.parse(req.body ?? {})));
+    if (!result) return res.status(404).json({ message: "Pedido não encontrado." });
+    return res.status(result.duplicate ? 200 : 201).json(result);
+  } catch (error) {
+    return next(error);
+  }
+});
+
 async function canRead(req: Request, guildId: string, botId: string | null) {
   if (!botId) return canReadDashboardGuild(req.res?.locals.dashboardAuth.user, guildId);
   return canReadDevBotModule(req.res?.locals.dashboardAuth.user, botId, guildId, MANUAL_PAYMENTS_MODULE_ID);
@@ -251,15 +281,24 @@ function sanitizeSettings(input: z.infer<typeof settingsSchema>) {
 }
 
 function sanitizePatch(input: z.infer<typeof orderPatchSchema>) {
+  const output: Record<string, unknown> = { ...input };
+  for (const key of ["channelId", "paymentChannelId", "paymentMessageId", "proofMessageId", "proofUrl", "reason", "serviceChannelId", "staffMessageId"] as const) {
+    if (key in input) {
+      output[key] = input[key] || null;
+    }
+  }
+  return output as z.infer<typeof orderPatchSchema>;
+}
+
+function sanitizeReceipt(input: z.infer<typeof receiptSchema>) {
   return {
     ...input,
-    channelId: input.channelId || null,
-    paymentChannelId: input.paymentChannelId || null,
-    paymentMessageId: input.paymentMessageId || null,
-    proofMessageId: input.proofMessageId || null,
-    proofUrl: input.proofUrl || null,
-    reason: input.reason || null,
-    serviceChannelId: input.serviceChannelId || null,
-    staffMessageId: input.staffMessageId || null
+    attachments: input.attachments.map((attachment) => ({
+      ...attachment,
+      contentType: attachment.contentType || null,
+      extension: attachment.extension.trim().toLowerCase(),
+      name: attachment.name.trim(),
+      proxyUrl: attachment.proxyUrl || null
+    }))
   };
 }

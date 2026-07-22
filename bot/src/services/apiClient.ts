@@ -2251,6 +2251,30 @@ export type ManualPaymentOrder = {
   username: string | null;
 };
 
+export type ManualPaymentReceiptAttachment = {
+  contentType: string | null;
+  extension: string;
+  name: string;
+  proxyUrl: string | null;
+  size: number;
+  url: string;
+};
+
+export type ManualPaymentReceipt = {
+  id: string;
+  attachments: ManualPaymentReceiptAttachment[];
+  botId: string;
+  channelId: string;
+  customerId: string;
+  customerUsername: string | null;
+  guildId: string;
+  messageId: string;
+  orderId: string;
+  paymentId: string;
+  status: "under_review";
+  submittedAt: string;
+};
+
 export type BotGuildRuntimeConfig = {
   id: string;
   botId: string;
@@ -3287,6 +3311,20 @@ export class ApiClient {
   }>) {
     const { data } = await this.http.patch<{ order: ManualPaymentOrder }>(`/manual-payments/bot/${guildId}/orders/${orderId}`, input);
     return data.order;
+  }
+
+  async registerManualPaymentReceipt(guildId: string, orderId: string, input: {
+    attachments: ManualPaymentReceiptAttachment[];
+    channelId: string;
+    customerId: string;
+    customerUsername?: string | null;
+    messageId: string;
+  }) {
+    const { data } = await this.http.post<{ duplicate: boolean; order: ManualPaymentOrder; receipt: ManualPaymentReceipt }>(
+      `/manual-payments/bot/${guildId}/orders/${orderId}/receipt`,
+      input
+    );
+    return data;
   }
 
   async getFivemFinanceRuntime(guildId: string) {

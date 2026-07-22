@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import type {
   MongoManualPaymentOrder,
   MongoManualPaymentOrderStatus,
+  MongoManualPaymentReceipt,
+  MongoManualPaymentReceiptAttachment,
   MongoManualPaymentService,
   MongoManualPaymentSettings
 } from "../database/mongo";
@@ -48,6 +50,14 @@ export type UpdateManualPaymentOrderInput = Partial<{
   staffMessageId: string | null;
   status: MongoManualPaymentOrderStatus;
 }>;
+
+export type RegisterManualPaymentReceiptInput = {
+  attachments: MongoManualPaymentReceiptAttachment[];
+  channelId: string;
+  customerId: string;
+  customerUsername?: string | null;
+  messageId: string;
+};
 
 export async function getManualPaymentsDashboard(guildId: string, botId: string | null) {
   const settings = await ensureManualPaymentSettings(guildId, botId);
@@ -278,6 +288,121 @@ export async function updateManualPaymentOrder(guildId: string, botId: string | 
   return toOrderDto(updated);
 }
 
+export async function registerManualPaymentReceipt(guildId: string, botId: string | null, orderId: string, input: RegisterManualPaymentReceiptInput) {
+  const settings = await ensureManualPaymentSettings(guildId, botId);
+  const { manualPaymentOrders, manualPaymentReceipts } = await getMongoCollections();
+  const current = await manualPaymentOrders.findOne({ _id: orderId, botId: settings.botId, guildId });
+  if (!current) return null;
+
+  if (current.paymentChannelId !== input.channelId || current.userId !== input.customerId) {
+    throw Object.assign(new Error("Comprovante não pertence a este pedido."), { statusCode: 403 });
+  }
+
+  const existingReceipt = await manualPaymentReceipts.findOne({ botId: settings.botId, guildId, messageId: input.messageId });
+  if (existingReceipt) {
+    return {
+      duplicate: true,
+      order: toOrderDto(current),
+      receipt: toReceiptDto(existingReceipt)
+    };
+  }
+
+  if (current.proofMessageId && current.status === "WAITING_STAFF_APPROVAL") {
+    throw Object.assign(new Error("Um comprovante já foi recebido e está em análise."), { statusCode: 409 });
+  }
+
+  if (!["PENDING_PAYMENT", "REJECTED", "WAITING_STAFF_APPROVAL"].includes(current.status)) {
+    throw Object.assign(new Error(`Status ${current.status} não aceita novo comprovante.`), { statusCode: 409 });
+  }
+
+  const now = new Date();
+  const attachments = input.attachments.slice(0, 10).map((attachment) => ({
+    contentType: normalizeNullable(attachment.contentType),
+    extension: attachment.extension.trim().toLowerCase(),
+    name: attachment.name.trim().slice(0, 180) || "comprovante",
+    proxyUrl: normalizeNullable(attachment.proxyUrl),
+    size: Math.max(0, Math.trunc(attachment.size)),
+    url: attachment.url.trim()
+  }));
+  const receipt: MongoManualPaymentReceipt = {
+    _id: randomUUID(),
+    attachments,
+    botId: settings.botId,
+    channelId: input.channelId,
+    customerId: input.customerId,
+    customerUsername: normalizeNullable(input.customerUsername),
+    guildId,
+    messageId: input.messageId,
+    orderId: current._id,
+    paymentId: current._id,
+    status: "under_review",
+    submittedAt: now
+  };
+
+  const updateResult = await manualPaymentOrders.updateOne(
+    {
+      _id: current._id,
+      botId: settings.botId,
+      guildId,
+      $or: [
+        { proofMessageId: null },
+        { status: "REJECTED" }
+      ],
+      status: { $in: ["PENDING_PAYMENT", "REJECTED", "WAITING_STAFF_APPROVAL"] }
+    },
+    {
+      $set: {
+        paidAt: current.paidAt ?? now,
+        proofMessageId: input.messageId,
+        proofUrl: attachments[0]?.url ?? null,
+        status: "WAITING_STAFF_APPROVAL",
+        updatedAt: now
+      }
+    }
+  );
+
+  if (!updateResult.modifiedCount) {
+    throw Object.assign(new Error("Este pedido já possui comprovante em análise."), { statusCode: 409 });
+  }
+
+  await manualPaymentReceipts.insertOne(receipt).catch(async (error: unknown) => {
+    if (isDuplicateMongoKey(error)) {
+      const duplicate = await manualPaymentReceipts.findOne({ botId: settings.botId, guildId, messageId: input.messageId });
+      if (duplicate) {
+        return;
+      }
+    }
+    throw error;
+  });
+
+  const updated = (await manualPaymentOrders.findOne({ _id: current._id })) ?? current;
+  await writeOrderLog(updated, "proof_uploaded", current.status, updated.status, null, null, input.channelId);
+  await createLog({
+    botId: settings.botId,
+    guildId,
+    message: "[MANUAL_PAYMENT_RECEIPT_RECEIVED]",
+    metadata: {
+      attachmentCount: attachments.length,
+      channelId: input.channelId,
+      contentTypes: attachments.map((attachment) => attachment.contentType).filter(Boolean),
+      customerId: input.customerId,
+      guildId,
+      messageId: input.messageId,
+      orderId: current._id,
+      paymentId: current._id,
+      sizes: attachments.map((attachment) => attachment.size),
+      submittedAt: now.toISOString()
+    },
+    type: "manual_payment.receipt_received"
+  }).catch(() => null);
+
+  return {
+    duplicate: false,
+    order: toOrderDto(updated),
+    receipt: toReceiptDto(receipt)
+  };
+}
+
 export async function getManualPaymentOrder(guildId: string, botId: string | null, orderId: string) {
   const settings = await ensureManualPaymentSettings(guildId, botId);
   const { manualPaymentOrders } = await getMongoCollections();
@@ -304,6 +429,18 @@ function toOrderDto(order: MongoManualPaymentOrder): ManualPaymentOrderDto {
     paidAt: order.paidAt?.toISOString() ?? null,
     updatedAt: order.updatedAt.toISOString()
   };
+}
+
+function toReceiptDto(receipt: MongoManualPaymentReceipt) {
+  return {
+    ...receipt,
+    id: receipt._id,
+    submittedAt: receipt.submittedAt.toISOString()
+  };
+}
+
+function isDuplicateMongoKey(error: unknown) {
+  return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === 11000);
 }
 
 function emitManualPaymentApproved(settings: MongoManualPaymentSettings, order: MongoManualPaymentOrder) {

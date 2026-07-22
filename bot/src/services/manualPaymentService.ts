@@ -18,10 +18,16 @@ import {
   type ModalSubmitInteraction
 } from "discord.js";
 import type { BotContext } from "../types";
-import type { ManualPaymentOrder, ManualPaymentOrderStatus, ManualPaymentService, ManualPaymentSettings } from "./apiClient";
+import type { ManualPaymentOrder, ManualPaymentOrderStatus, ManualPaymentReceiptAttachment, ManualPaymentService, ManualPaymentSettings } from "./apiClient";
 import { renderComponentsV2Panel } from "./panelVisualRenderer";
 
 const PREFIX = "manual_pay";
+const MAX_RECEIPT_SIZE = 10 * 1024 * 1024;
+const RECEIPT_WARNING_COOLDOWN_MS = 20_000;
+const receiptProcessingLocks = new Set<string>();
+const receiptWarningCooldown = new Map<string, number>();
+const allowedReceiptMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf"]);
+const allowedReceiptExtensions = new Set(["png", "jpg", "jpeg", "webp", "gif", "pdf"]);
 
 export function startManualPaymentService(client: Client<true>, context: BotContext) {
   context.socket.onManualPaymentPanelPublish((payload) => {
@@ -56,40 +62,108 @@ export async function handleManualPaymentInteraction(interaction: Interaction, c
 }
 
 export async function handleManualPaymentMessage(message: Message, context: BotContext) {
-  if (!message.guild || message.author.bot || !message.attachments.size) return false;
-  const runtime = await context.api.getManualPaymentRuntime(message.guild.id).catch(() => null);
-  if (!runtime) return false;
-  const order = runtime.orders.find((item) => item.paymentChannelId === message.channelId && ["PENDING_PAYMENT", "REJECTED", "WAITING_STAFF_APPROVAL"].includes(item.status));
-  if (!order) return false;
-  await enforcePaymentChannelPrivacy(message.guild, runtime.settings, order);
-  if (order.userId !== message.author.id) {
-    await message.reply("Somente quem solicitou este pagamento pode enviar o comprovante neste canal.").catch(() => null);
+  if (!message.guild || message.author.bot || message.webhookId) return false;
+  if (!message.content.trim() && message.attachments.size === 0) return false;
+
+  try {
+    const runtime = await context.api.getManualPaymentRuntime(message.guild.id).catch(() => null);
+    if (!runtime) return false;
+    const order = runtime.orders.find((item) => item.paymentChannelId === message.channelId && ["PENDING_PAYMENT", "REJECTED", "WAITING_STAFF_APPROVAL"].includes(item.status));
+    if (!order) return false;
+
+    await enforcePaymentChannelPrivacy(message.guild, runtime.settings, order);
+
+    if (order.userId !== message.author.id) {
+      logReceiptRejected("wrong_user", message, order);
+      return true;
+    }
+
+    if (order.proofMessageId && order.status === "WAITING_STAFF_APPROVAL") {
+      await sendReceiptWarning(message, "already_submitted", "⚠️ Um comprovante já foi recebido e está sendo analisado.\n\nAguarde a equipe finalizar a conferência antes de enviar outro arquivo.");
+      logReceiptRejected("invalid_status", message, order);
+      return true;
+    }
+
+    if (message.attachments.size === 0) return true;
+
+    const permissionError = validateReceiptChannelPermissions(message);
+    if (permissionError) {
+      console.warn(`[manual-payments] ${permissionError} guild=${message.guild.id} channel=${message.channelId} order=${order.id}`);
+    }
+
+    const lockKey = `${message.guild.id}:${order.id}:${message.id}`;
+    if (receiptProcessingLocks.has(lockKey)) {
+      logReceiptRejected("duplicate", message, order);
+      return true;
+    }
+    receiptProcessingLocks.add(lockKey);
+
+    try {
+      const attachments = [...message.attachments.values()];
+      const validAttachments = attachments.filter(isValidReceiptAttachment);
+      if (!validAttachments.length) {
+        await sendReceiptWarning(message, "invalid_type", "❌ Formato de comprovante não aceito\n\nEnvie uma foto, captura de tela ou documento PDF.\n\nFormatos permitidos:\nPNG, JPG, JPEG, WEBP, GIF ou PDF.");
+        logReceiptRejected("invalid_type", message, order, attachments);
+        return true;
+      }
+
+      const filesWithinLimit = validAttachments.filter((attachment) => attachment.size <= MAX_RECEIPT_SIZE);
+      if (!filesWithinLimit.length) {
+        await sendReceiptWarning(message, "too_large", "❌ O arquivo enviado ultrapassa o tamanho máximo permitido.\n\nEnvie uma imagem ou PDF com até 10 MB.");
+        logReceiptRejected("too_large", message, order, validAttachments);
+        return true;
+      }
+
+      console.log("[MANUAL_PAYMENT_RECEIPT_RECEIVED]", {
+        attachmentCount: filesWithinLimit.length,
+        channelId: message.channelId,
+        contentTypes: filesWithinLimit.map((attachment) => attachment.contentType ?? null),
+        customerId: message.author.id,
+        guildId: message.guild.id,
+        messageId: message.id,
+        orderId: order.id,
+        paymentId: order.id,
+        sizes: filesWithinLimit.map((attachment) => attachment.size),
+        submittedAt: new Date().toISOString()
+      });
+
+      const result = await context.api.registerManualPaymentReceipt(message.guild.id, order.id, {
+        attachments: filesWithinLimit.map(toReceiptAttachment),
+        channelId: message.channelId,
+        customerId: message.author.id,
+        customerUsername: message.author.username,
+        messageId: message.id
+      });
+
+      if (result.duplicate) {
+        logReceiptRejected("duplicate", message, order, filesWithinLimit);
+        return true;
+      }
+
+      await message.react("✅").catch(() => null);
+      await message.reply(createReceiptReceivedPanel(result.order, message.createdAt)).catch(() => null);
+      await refreshPaymentPanel(message.guild, context, runtime.settings, result.order);
+      await sendStaffApprovalLog(message.guild, context, runtime.settings, result.order, filesWithinLimit);
+      return true;
+    } finally {
+      receiptProcessingLocks.delete(lockKey);
+    }
+  } catch (error) {
+    console.error("[manual-payments] erro ao processar comprovante manual:", {
+      channelId: message.channelId,
+      error: error instanceof Error ? error.message : String(error),
+      guildId: message.guild?.id ?? null,
+      messageId: message.id
+    });
+    await sendReceiptWarning(message, "processing_error", "Não foi possível processar o comprovante agora. Tente novamente em instantes ou aguarde a equipe.").catch(() => null);
     return true;
   }
-  const attachment = message.attachments.find(isValidProofAttachment);
-  if (!attachment) {
-    await message.reply("Não consegui reconhecer esse arquivo como comprovante. Envie uma imagem ou PDF como anexo neste canal.").catch(() => null);
-    return true;
-  }
-  const updated = await context.api.updateManualPaymentOrder(message.guild.id, order.id, {
-    action: "proof_uploaded",
-    channelId: message.channelId,
-    proofMessageId: message.id,
-    proofUrl: attachment.url,
-    status: "WAITING_STAFF_APPROVAL"
-  });
-  await message.react("✅").catch(() => null);
-  await message.reply("Comprovante capturado. A equipe já pode validar o pagamento.").catch(() => null);
-  await refreshPaymentPanel(message.guild, context, runtime.settings, updated);
-  await sendStaffApprovalLog(message.guild, context, runtime.settings, updated);
-  return true;
 }
 
-function isValidProofAttachment(item: Attachment) {
+function isValidReceiptAttachment(item: Attachment) {
   const contentType = item.contentType?.split(";")[0]?.toLowerCase() ?? "";
-  if (contentType.startsWith("image/") || contentType === "application/pdf") return true;
-  if (item.width || item.height) return true;
-  return hasProofFileExtension(item.name ?? "") || hasProofFileExtension(getUrlPathname(item.url));
+  const extension = receiptAttachmentExtension(item);
+  return Boolean((contentType && allowedReceiptMimeTypes.has(contentType)) || allowedReceiptExtensions.has(extension));
 }
 
 function getUrlPathname(value: string) {
@@ -100,8 +174,63 @@ function getUrlPathname(value: string) {
   }
 }
 
-function hasProofFileExtension(value: string) {
-  return /\.(png|jpe?g|webp|gif|pdf|heic|heif|bmp)$/i.test(value);
+function receiptAttachmentExtension(item: Attachment) {
+  const fromName = getExtension(item.name ?? "");
+  if (fromName) return fromName;
+  return getExtension(getUrlPathname(item.url));
+}
+
+function getExtension(value: string) {
+  return value.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") ?? "";
+}
+
+function toReceiptAttachment(attachment: Attachment): ManualPaymentReceiptAttachment {
+  return {
+    contentType: attachment.contentType?.split(";")[0]?.toLowerCase() ?? null,
+    extension: receiptAttachmentExtension(attachment),
+    name: attachment.name ?? "comprovante",
+    proxyUrl: attachment.proxyURL ?? null,
+    size: attachment.size,
+    url: attachment.url
+  };
+}
+
+async function sendReceiptWarning(message: Message, reason: string, content: string) {
+  const key = `${message.channelId}:${message.author.id}:${reason}`;
+  const now = Date.now();
+  const last = receiptWarningCooldown.get(key) ?? 0;
+  if (now - last < RECEIPT_WARNING_COOLDOWN_MS) return;
+  receiptWarningCooldown.set(key, now);
+  await message.reply(content).catch(() => null);
+}
+
+function logReceiptRejected(reason: string, message: Message, order: ManualPaymentOrder, attachments: Attachment[] = [...message.attachments.values()]) {
+  console.log("[MANUAL_PAYMENT_RECEIPT_REJECTED]", {
+    attachmentCount: attachments.length,
+    channelId: message.channelId,
+    contentTypes: attachments.map((attachment) => attachment.contentType ?? null),
+    customerId: message.author.id,
+    guildId: message.guild?.id ?? null,
+    messageId: message.id,
+    orderId: order.id,
+    reason,
+    sizes: attachments.map((attachment) => attachment.size)
+  });
+}
+
+function validateReceiptChannelPermissions(message: Message) {
+  if (!message.guild || !("permissionsFor" in message.channel)) return null;
+  const me = message.guild.members.me;
+  if (!me) return "Bot não encontrado no cache do servidor para validar permissões.";
+  const permissions = message.channel.permissionsFor(me);
+  const missing = [
+    [PermissionFlagsBits.ViewChannel, "ViewChannel"],
+    [PermissionFlagsBits.SendMessages, "SendMessages"],
+    [PermissionFlagsBits.ReadMessageHistory, "ReadMessageHistory"],
+    [PermissionFlagsBits.AttachFiles, "AttachFiles"],
+    [PermissionFlagsBits.EmbedLinks, "EmbedLinks"]
+  ].filter(([permission]) => !permissions?.has(permission as bigint)).map(([, label]) => label);
+  return missing.length ? `Bot sem permissões no canal de pagamento: ${missing.join(", ")}.` : null;
 }
 
 async function publishManualPaymentPanel(guild: Guild, context: BotContext, fallbackChannelId?: string | null) {
@@ -234,7 +363,7 @@ async function reconcileOpenPaymentChannelPrivacy(client: Client<true>, context:
 
 function createPaymentPanel(settings: ManualPaymentSettings, order: ManualPaymentOrder, service?: ManualPaymentService | null) {
   const visual = paymentStatusVisual(order);
-  const canAct = ["PENDING_PAYMENT", "REJECTED", "WAITING_STAFF_APPROVAL"].includes(order.status);
+  const canAct = ["PENDING_PAYMENT", "REJECTED"].includes(order.status) || (order.status === "WAITING_STAFF_APPROVAL" && !order.proofMessageId);
   const pixKey = settings.pixKey?.trim() || null;
   const explicitPixCopyCode = getExplicitPixCopyCode(settings);
   const shouldShowPixCopyCode = Boolean(explicitPixCopyCode && !isSamePixValue(explicitPixCopyCode, pixKey));
@@ -253,7 +382,7 @@ function createPaymentPanel(settings: ManualPaymentSettings, order: ManualPaymen
       new ButtonBuilder().setCustomId(`${PREFIX}:cancel_customer:${order.id}`).setEmoji("🔴").setLabel("Cancelar Pedido").setStyle(ButtonStyle.Danger).setDisabled(!canAct)
     )
   ];
-  const paymentInstructions = service?.customText?.trim() || settings.paymentInstructions?.trim() || "Faça o pagamento utilizando os dados abaixo e envie o comprovante neste canal.";
+  const paymentInstructions = service?.customText?.trim() || settings.paymentInstructions?.trim() || "Após realizar o pagamento, envie neste canal uma foto, captura de tela ou arquivo PDF do comprovante.\n\nFormatos aceitos: PNG, JPG, JPEG, WEBP, GIF ou PDF.";
   const qrSection = settings.pixQrCodeUrl
     ? "## 📱 QR Code disponível\nEscaneie utilizando o aplicativo do seu banco."
     : null;
@@ -271,7 +400,7 @@ function createPaymentPanel(settings: ManualPaymentSettings, order: ManualPaymen
       `## 📦 Informações do Pedido\n🆔 Pedido: **${formatOrderNumber(order)}**\n👤 Cliente: <@${order.userId}>\n🛒 Produto: **${limitText(order.serviceName, 120)}**\n🏷️ Categoria: **${category}**\n💰 Valor: **${money(order.amount)}**\n📅 Criado em: ${formatDate(order.createdAt)}\n⏳ Status: **${visual.label}**`,
       createPaymentDataSection(settings, order, pixKey, shouldShowPixCopyCode ? explicitPixCopyCode : null),
       ...(qrSection ? [qrSection] : []),
-      `## 📋 Instruções\n1️⃣ Faça o pagamento utilizando a chave Pix.\n\n2️⃣ Após realizar o pagamento, clique em **Já fiz o pagamento**.\n\n3️⃣ Envie o comprovante neste canal.\n\n4️⃣ Aguarde a conferência da equipe.\n\n⚠️ A aprovação é manual.\n\n${limitText(paymentInstructions, 900)}`,
+      `## 📋 Instruções\n1️⃣ Faça o pagamento utilizando a chave Pix.\n\n2️⃣ Após realizar o pagamento, clique em **Já fiz o pagamento**.\n\n3️⃣ Envie neste canal uma foto, captura de tela ou arquivo PDF do comprovante.\n\n4️⃣ Aguarde a conferência da equipe.\n\n**Formatos aceitos:** PNG, JPG, JPEG, WEBP, GIF ou PDF.\n\n⚠️ A aprovação é manual.\n\n${limitText(paymentInstructions, 900)}`,
       "## 🔔 Avisos\n• Não altere o valor.\n\n• Não feche este ticket.\n\n• Caso o pagamento não seja identificado, o pedido permanecerá pendente.\n\n• Após aprovado, o sistema atualizará automaticamente o status.",
       `## 🧾 Registro do Pedido\n${proofSection}`
     ],
@@ -359,28 +488,67 @@ async function customerCancel(interaction: ButtonInteraction, context: BotContex
   setTimeout(() => void interaction.guild?.channels.cache.get(order.paymentChannelId ?? "")?.delete("Compra cancelada pelo cliente").catch(() => null), 2000).unref();
 }
 
-async function sendStaffApprovalLog(guild: Guild, context: BotContext, settings: ManualPaymentSettings, order: ManualPaymentOrder) {
+function createReceiptReceivedPanel(order: ManualPaymentOrder, submittedAt: Date) {
+  return renderComponentsV2Panel({
+    accentColor: 0x22c55e,
+    description: "Recebemos o seu comprovante de pagamento com sucesso.\n\nSeu pagamento foi encaminhado para análise da nossa equipe. Aguarde a conferência antes de realizar um novo envio.",
+    fields: [
+      `## ✅ Comprovante recebido\nStatus: **Em análise**\nPedido: **${formatOrderNumber(order)}**\nEnviado em: ${formatDateTime(submittedAt.toISOString())}`
+    ],
+    footer: { text: "NexTech • Conferência manual de pagamento" },
+    moduleId: "manual-payments",
+    title: "✅ Comprovante recebido"
+  });
+}
+
+async function sendStaffApprovalLog(guild: Guild, context: BotContext, settings: ManualPaymentSettings, order: ManualPaymentOrder, attachments?: Attachment[]) {
   if (!settings.logChannelId) return null;
   const channel = await guild.channels.fetch(settings.logChannelId).catch(() => null);
   if (!channel?.isSendable()) return null;
+  const visualAttachment = attachments?.find((attachment) => attachment.contentType?.toLowerCase().startsWith("image/")) ?? null;
+  const pdfAttachments = attachments?.filter((attachment) => {
+    const extension = receiptAttachmentExtension(attachment);
+    const contentType = attachment.contentType?.split(";")[0]?.toLowerCase() ?? "";
+    return extension === "pdf" || contentType === "application/pdf";
+  }) ?? [];
+  const proofLinks = (attachments?.length ? attachments : []).map((attachment, index) => {
+    const label = receiptAttachmentExtension(attachment).toUpperCase() || `ARQUIVO ${index + 1}`;
+    return `• [${limitText(attachment.name ?? `comprovante-${index + 1}`, 80)}](${attachment.url}) (${label}, ${formatBytes(attachment.size)})`;
+  });
   const payload = renderComponentsV2Panel({
     accentColor: 0xf59e0b,
     actions: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`${PREFIX}:approve:${order.id}`).setLabel("Aprovar pagamento").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId(`${PREFIX}:reject:${order.id}`).setLabel("Recusar pagamento").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(`${PREFIX}:approve:${order.id}`).setEmoji("✅").setLabel("Aprovar pagamento").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`${PREFIX}:reject:${order.id}`).setEmoji("❌").setLabel("Recusar pagamento").setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId(`${PREFIX}:new_proof:${order.id}`).setLabel("Solicitar novo comprovante").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setLabel("Abrir canal").setStyle(ButtonStyle.Link).setURL(order.paymentChannelId ? `https://discord.com/channels/${guild.id}/${order.paymentChannelId}` : `https://discord.com/channels/${guild.id}`)
+        new ButtonBuilder().setEmoji("🔍").setLabel("Abrir pedido").setStyle(ButtonStyle.Link).setURL(order.paymentChannelId ? `https://discord.com/channels/${guild.id}/${order.paymentChannelId}` : `https://discord.com/channels/${guild.id}`)
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
+        ...pdfAttachments.slice(0, 4).map((attachment, index) => new ButtonBuilder().setLabel(`Abrir PDF ${index + 1}`).setStyle(ButtonStyle.Link).setURL(attachment.url)),
         new ButtonBuilder().setCustomId(`${PREFIX}:cancel_staff:${order.id}`).setLabel("Cancelar pedido").setStyle(ButtonStyle.Danger)
       )
     ],
-    description: `Pedido #${String(order.orderNumber).padStart(3, "0")} aguardando aprovacao manual.`,
-    fields: [`Cliente: <@${order.userId}>\nServico: **${order.serviceName}**\nValor: **${money(order.amount)}**\nStatus: ${statusLabel(order.status)}\nCanal: ${order.paymentChannelId ? `<#${order.paymentChannelId}>` : "não informado"}`, order.proofUrl ? `Comprovante: ${order.proofUrl}` : "Sem comprovante."],
-    image: order.proofUrl ? { imageEnabled: true, imagePosition: "bottom", imageUrl: order.proofUrl } : null,
+    description: "Um novo comprovante foi recebido e precisa de conferência manual.",
+    fields: [
+      [
+        "## 🧾 Novo comprovante recebido",
+        `Cliente: <@${order.userId}>`,
+        `ID do cliente: \`${order.userId}\``,
+        `Pedido: **${formatOrderNumber(order)}**`,
+        `Produto: **${limitText(order.serviceName, 120)}**`,
+        `Valor: **${money(order.amount)}**`,
+        "Método: **Pix manual**",
+        `Status: **${statusLabel(order.status)}**`,
+        `Data do envio: ${formatDate(order.updatedAt)}`,
+        `Horário do envio: ${formatTime(order.updatedAt)}`,
+        `Canal do pedido: ${order.paymentChannelId ? `<#${order.paymentChannelId}>` : "não informado"}`
+      ].join("\n"),
+      proofLinks.length ? `## 📎 Arquivos recebidos\n${proofLinks.join("\n")}` : order.proofUrl ? `## 📎 Arquivo recebido\n[abrir comprovante](${order.proofUrl})` : "## 📎 Arquivo recebido\nSem comprovante anexado."
+    ],
+    image: visualAttachment?.url ? { imageEnabled: true, imagePosition: "bottom", imageUrl: visualAttachment.url } : null,
     moduleId: "manual-payments",
-    title: "Aprovação de pagamento"
+    title: "🧾 Novo comprovante recebido"
   });
   const message = await channel.send(payload);
   await context.api.updateManualPaymentOrder(guild.id, order.id, { action: "staff_log_sent", staffMessageId: message.id });
@@ -499,7 +667,7 @@ async function requestNewProof(interaction: ButtonInteraction, context: BotConte
   await interaction.deferReply({ ephemeral: true });
   const runtime = await context.api.getManualPaymentRuntime(interaction.guild.id);
   if (!(await hasAnyRole(interaction.guild, interaction.user.id, runtime.settings.rejectRoleIds))) return interaction.editReply("Você não pode solicitar comprovante.");
-  const order = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: "new_proof_requested", channelId: interaction.channelId, staffId: interaction.user.id, status: "PENDING_PAYMENT" });
+  const order = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: "new_proof_requested", channelId: interaction.channelId, proofMessageId: null, proofUrl: null, staffId: interaction.user.id, status: "PENDING_PAYMENT" });
   const channel = order.paymentChannelId ? interaction.guild.channels.cache.get(order.paymentChannelId) : null;
   if (channel?.isSendable()) await channel.send(`<@${order.userId}> envie um novo comprovante neste canal.`).catch(() => null);
   await refreshPaymentPanel(interaction.guild, context, runtime.settings, order);
@@ -643,6 +811,23 @@ function formatDate(value: string | null | undefined) {
 function formatDateTime(value: string | null | undefined) {
   if (!value) return "Não informado";
   return new Date(value).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" });
+}
+
+function formatTime(value: string | null | undefined) {
+  if (!value) return "Não informado";
+  return new Date(value).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
+}
+
+function formatBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let size = value;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
 function paymentMethodLabel(order: ManualPaymentOrder) {

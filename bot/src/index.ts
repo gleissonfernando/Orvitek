@@ -31,6 +31,7 @@ const needsMessageEvents = needsLegacyMessageModeration
   || selfBotModuleEnabled
   || managedRuntimeBot
   || needsMusic
+  || isBotModuleEnabled("manual-payments")
   || isBotModuleEnabled("temporary-voice")
   || needsMessageLogs;
 
