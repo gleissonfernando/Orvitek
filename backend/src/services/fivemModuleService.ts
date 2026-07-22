@@ -81,6 +81,13 @@ export const BUILTIN_FIVEM_MODULES: FivemModuleDefinition[] = [
   },
   {
     builtIn: true,
+    description: "Verificação inteligente por CAPTCHA integrada ao fluxo FiveM, isolada por bot, servidor e configuração.",
+    id: "fivem-captcha",
+    permissions: "Admin FiveM, Segurança",
+    title: "Sistema CAPTCHA FiveM"
+  },
+  {
+    builtIn: true,
     description: "Painel de hierarquia policial atualizado automaticamente pelos cargos do Discord.",
     id: "fivem-hierarchy",
     permissions: "Admin Polícia, Liderança",

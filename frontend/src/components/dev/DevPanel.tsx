@@ -260,6 +260,7 @@ type BotMenuId =
   | "fivem-goals"
   | "faction-chest"
   | "ztk-webhook"
+  | "fivem-captcha"
   | "fivem-hierarchy"
   | "fivem-actions"
   | "police"
@@ -649,6 +650,14 @@ const botMenuItems: BotMenuItem[] = [
         description: "Webhooks FiveM por clã, ranking automático e premiações",
         icon: Trophy,
         moduleIds: ["ztk-webhook"]
+      },
+      {
+        group: "fivem",
+        id: "fivem-captcha",
+        label: "CAPTCHA FiveM",
+        description: "Verificação inteligente integrada ao ecossistema FiveM",
+        icon: ShieldCheck,
+        moduleIds: ["fivem-captcha"]
       },
       {
         group: "fivem",

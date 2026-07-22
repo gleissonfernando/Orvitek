@@ -728,6 +728,13 @@ const moduleCatalog: ModuleDefinition[] = [
     view: "ztk-webhook"
   },
   {
+    id: "fivem-captcha",
+    title: "CAPTCHA FiveM",
+    description: "Verificação inteligente integrada ao FiveM, isolada por bot, servidor e configuração.",
+    icon: ShieldCheck,
+    view: "fivem-captcha"
+  },
+  {
     id: "verification",
     title: "Usuários",
     description: "Define quais usuários podem entrar e configurar este painel.",
@@ -823,6 +830,7 @@ const viewModuleIds: Partial<Record<ViewId, string>> = {
   "fivem-custom": "fivem-orders",
   "fivem-finance": "fivem-finance",
   "fivem-goals": "fivem-goals",
+  "fivem-captcha": "fivem-captcha",
   "ztk-webhook": "ztk-webhook",
   "manual-registration": "manual-registration",
   "voice-recorder": "voice-recorder",
@@ -1894,6 +1902,16 @@ export function Dashboard({ auth, initialBotSlug = null, onLogout }: DashboardPr
             fivemModules={fivemModules}
             guild={selectedGuild}
             mode="goals"
+          />
+        ) : null}
+        {activeView === "fivem-captcha" ? (
+          <FivemView
+            botId={activeBotId}
+            canManage={canManageModule(selectedBot, "fivem-captcha", canManageDashboard)}
+            enabledModules={enabledModules}
+            fivemModules={fivemModules}
+            guild={selectedGuild}
+            mode="general"
           />
         ) : null}
         {activeView === "ztk-webhook" ? (
@@ -4339,6 +4357,7 @@ function fivemUserModules(enabledModules: string[], fivemModules: FivemModuleDef
     { builtIn: true, description: "Pedidos, produção, entrega, logs e financeiro de munições.", id: "fivem-ammo", permissions: "Admin FiveM", title: "Municoes" },
     { builtIn: true, description: "Fluxo financeiro, caixa e lancamentos RP.", id: "fivem-finance", permissions: "Admin FiveM", title: "Financeiro" },
     { builtIn: true, description: "Metas por membro com fotos e registros via Components V2.", id: "fivem-goals", permissions: "Admin FiveM", title: "Metas" },
+    { builtIn: true, description: "Verificação inteligente por CAPTCHA integrada ao fluxo FiveM.", id: "fivem-captcha", permissions: "Admin FiveM", title: "CAPTCHA FiveM" },
     { builtIn: true, description: "Paineis oficiais V2 sincronizados por cargos.", id: "fivem-hierarchy", permissions: "Admin Polícia", title: "Paineis de Hierarquia V2" },
     { builtIn: true, description: "Ações profissionais da FAC com painel, participantes e relatórios separados.", id: "fivem-actions", permissions: "Admin FiveM", title: "Ações FAC" },
     { builtIn: true, description: "Solicitacoes e aprovação de ausências para oficiais.", id: "police-absences", permissions: "Admin Polícia", title: "Ausência Policial" },
@@ -4381,6 +4400,7 @@ function fivemIconForModule(moduleId: string) {
     "fivem-finance": Activity,
     "fivem-washing": CircleDollarSign,
     "fivem-goals": ListChecks,
+    "fivem-captcha": ShieldCheck,
     "fivem-actions": Activity,
     "fivem-drugs": Boxes,
     "fivem-hierarchy": Users,
@@ -4484,6 +4504,7 @@ function canManageModule(bot: DashboardBot | null, moduleId: string, fallback: b
       "fivem-ammo",
       "fivem-finance",
       "fivem-goals",
+      "fivem-captcha",
       "fivem-hierarchy",
       "fivem-actions",
       "police-absences",
@@ -10865,6 +10886,7 @@ function visualPanelIdForView(view: ViewId) {
     "entry-leave": "welcome",
     "fivem-absence": "fivem-absence",
     "fivem": "fivem-general",
+    "fivem-captcha": "fivem-captcha",
     "fivem-washing": "fivem-washing",
     "manual-registration": "manual-registration",
     "server-cloner": "server-cloner"
@@ -10904,6 +10926,10 @@ function dashboardViewFromPath(path: string): ViewId {
     return "ztk-webhook";
   }
 
+  if (path === "/dashboard/fivem-captcha" || /^\/[a-z0-9]+(?:-[a-z0-9]+)*\/dashboard\/fivem-captcha(?:\/|$)/i.test(path)) {
+    return "fivem-captcha";
+  }
+
   return "overview";
 }
 
@@ -10913,6 +10939,7 @@ function dashboardPathForView(slug: string, view: ViewId) {
   if (view === "police-time-clock") return `${base}/relogio-de-ponto`;
   if (view === "fivem-hierarchy") return `${base}/hierarquia`;
   if (view === "ztk-webhook") return `${base}/ztk-webhook`;
+  if (view === "fivem-captcha") return `${base}/fivem-captcha`;
   return base;
 }
 
