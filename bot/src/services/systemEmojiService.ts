@@ -128,15 +128,16 @@ export async function cacheGuildSystemEmojis(guild: Guild, context?: BotContext 
   guildEmojiCaches.set(guild.id, cache);
 
   if (context) {
+    const extraEmojiNames = [...new Set(cache.extras.map(validationEmojiName).filter((item): item is string => Boolean(item)))].slice(0, 250);
     await context.api.reportSystemEmojiValidation({
-      extraEmojiNames: cache.extras,
+      extraEmojiNames,
       guildId: guild.id,
       emojis: [...entries.values()].map((item) => ({
         animated: item.animated,
         emojiId: item.emojiId,
         found: item.found,
         key: item.key,
-        name: item.name,
+        name: validationEmojiName(item.name) ?? item.key,
         sourceGuildId: item.found ? guild.id : null
       }))
     }).catch((error) => {
@@ -251,6 +252,11 @@ function cachedEmoji(key: SystemEmojiKey, name: string, fallback: string, emoji:
 
 function systemEmojiNames(definition: SystemEmojiDefinition) {
   return [definition.name, ...(definition.aliases ?? [])];
+}
+
+function validationEmojiName(value: string | null | undefined) {
+  const normalized = (value ?? "").replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 32);
+  return normalized.length >= 2 ? normalized : null;
 }
 
 function runtimeEmoji(key: SystemEmojiKey): RuntimeEmoji {
