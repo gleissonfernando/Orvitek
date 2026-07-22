@@ -406,8 +406,8 @@ function Header({ entering, onNavigate, onStart }: { entering: boolean; onNaviga
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
         <button className="flex items-center gap-2 text-left" onClick={() => onNavigate("inicio")} type="button">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#FFD500]/30 bg-[#FFD500]/10 text-[#FFD500] shadow-[0_0_22px_rgba(255,213,0,0.18)]">
-            <Bot className="h-5 w-5" />
+          <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-[#FFD500]/30 bg-[#050505] shadow-[0_0_22px_rgba(255,213,0,0.18)]">
+            <img alt="NexTech" className="h-full w-full object-cover object-center" src="/brand/nextech.png" />
           </span>
           <span className="text-xl font-black text-[#FFD500] drop-shadow-[0_0_18px_rgba(255,213,0,0.28)]">Nex Tech</span>
         </button>
