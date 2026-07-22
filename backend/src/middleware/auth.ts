@@ -27,6 +27,7 @@ export async function requireAuthenticated(req: Request, res: Response, next: Ne
     }
 
     req.session.user = auth.user;
+    req.session.oauth2VerifiedAt ??= new Date().toISOString();
     if (auth.verified) {
       req.session.verified = true;
     }
@@ -74,6 +75,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     req.session.user = freshAuth.user;
     req.session.verified = freshAuth.verified;
+    req.session.oauth2VerifiedAt ??= new Date().toISOString();
     res.locals.dashboardAuth = freshAuth;
     return next();
   } catch (error) {

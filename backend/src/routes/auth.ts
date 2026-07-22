@@ -195,6 +195,17 @@ function destroySession(req: Request) {
   });
 }
 
+function clearSessionAuthState(req: Request, res: Parameters<Parameters<typeof authRouter.get>[1]>[1]) {
+  clearAuthCookies(res);
+  req.session.user = undefined;
+  req.session.verified = false;
+  req.session.oauth2VerifiedAt = undefined;
+  req.session.oauthState = undefined;
+  req.session.discordAccessToken = undefined;
+  req.session.discordRefreshToken = undefined;
+  req.session.accessValidatedAt = undefined;
+}
+
 function readAccessBotSlug(req: Request) {
   const body = req.body as { botSlug?: unknown } | undefined;
   const value = typeof req.query.botSlug === "string"
@@ -262,6 +273,7 @@ authRouter.get("/discord/dev", async (req, res, next) => {
   }
 
   try {
+    clearSessionAuthState(req, res);
     const state = await createOAuthState(req, {
       type: "dev",
       returnTo: "/dev"
@@ -288,6 +300,7 @@ authRouter.get("/discord/dashboard", async (req, res, next) => {
   }
 
   try {
+    clearSessionAuthState(req, res);
     const state = await createOAuthState(req, {
       type: "dashboard",
       returnTo: "/dashboard"
@@ -314,6 +327,7 @@ authRouter.get("/discord/customer", async (req, res, next) => {
   }
 
   try {
+    clearSessionAuthState(req, res);
     const requestedReturnTo = typeof req.query.returnTo === "string" ? req.query.returnTo : "/planos";
     const returnTo = isAllowedReturnTo(requestedReturnTo) ? requestedReturnTo : "/planos";
     const state = await createOAuthState(req, {
@@ -342,6 +356,7 @@ authRouter.get("/discord/bot/:slug", async (req, res, next) => {
   }
 
   try {
+    clearSessionAuthState(req, res);
     const slug = req.params.slug.trim().toLowerCase();
 
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
@@ -409,7 +424,7 @@ authRouter.get("/discord/callback", async (req, res, next) => {
 
     if (!code || !state || !verifiedState) {
       console.warn("[auth] callback recusado: state ausente ou inválido.");
-      clearAuthCookies(res);
+      clearSessionAuthState(req, res);
       await saveSession(req).catch(() => undefined);
       return res.redirect(errorRedirectUrl("callback"));
     }
@@ -460,6 +475,7 @@ authRouter.get("/discord/callback", async (req, res, next) => {
 
       req.session.user = customerUser;
       req.session.verified = false;
+      req.session.oauth2VerifiedAt = new Date().toISOString();
       req.session.oauthState = undefined;
       req.session.discordAccessToken = tokens.access_token;
       req.session.discordRefreshToken = undefined;
@@ -474,7 +490,7 @@ authRouter.get("/discord/callback", async (req, res, next) => {
     if (verifiedState.type === "bot") {
       if (!verifiedState.botId || !verifiedState.botSlug) {
         console.warn(`[auth] oauth bot negado: state sem botId/botSlug para discordId=${discordUser.id}.`);
-        clearAuthCookies(res);
+        clearSessionAuthState(req, res);
         await saveSession(req).catch(() => undefined);
         return res.redirect(errorRedirectUrl("callback"));
       }
@@ -483,7 +499,7 @@ authRouter.get("/discord/callback", async (req, res, next) => {
 
       if (!bot || bot.slug !== verifiedState.botSlug) {
         console.warn(`[auth] oauth bot negado: bot inexistente ou slug divergente botId=${verifiedState.botId} slug=${verifiedState.botSlug}.`);
-        clearAuthCookies(res);
+        clearSessionAuthState(req, res);
         await saveSession(req).catch(() => undefined);
         return res.redirect(errorRedirectUrl("permission"));
       }
@@ -504,24 +520,14 @@ authRouter.get("/discord/callback", async (req, res, next) => {
 
     if (verifiedState.type === "dev" && !(await canAccessDevDashboard(discordUser.id))) {
       console.warn(`[auth] oauth dev negado: discordId=${discordUser.id}.`);
-      clearAuthCookies(res);
-      req.session.user = undefined;
-      req.session.verified = false;
-      req.session.discordAccessToken = undefined;
-      req.session.discordRefreshToken = undefined;
-      req.session.oauthState = undefined;
+      clearSessionAuthState(req, res);
       await saveSession(req).catch(() => undefined);
       return res.redirect(errorRedirectUrl("permission"));
     }
 
     if (!validation.allowed) {
       console.warn(`[auth] oauth: acesso negado para ${discordUser.id}: ${validation.rejectionReasons.join(" | ") || "sem motivo detalhado"}`);
-      clearAuthCookies(res);
-      req.session.user = undefined;
-      req.session.verified = false;
-      req.session.discordAccessToken = undefined;
-      req.session.discordRefreshToken = undefined;
-      req.session.oauthState = undefined;
+      clearSessionAuthState(req, res);
       await saveSession(req).catch(() => undefined);
       return res.redirect(errorRedirectUrl("permission"));
     }
@@ -560,6 +566,7 @@ authRouter.get("/discord/callback", async (req, res, next) => {
 
     req.session.user = validatedUser;
     req.session.verified = false;
+    req.session.oauth2VerifiedAt = new Date().toISOString();
     req.session.oauthState = undefined;
     req.session.discordAccessToken = tokens.access_token;
     req.session.discordRefreshToken = undefined;
@@ -574,6 +581,7 @@ authRouter.get("/discord/callback", async (req, res, next) => {
     clearAuthCookies(res);
     if (req.session) {
       req.session.oauthState = undefined;
+      req.session.oauth2VerifiedAt = undefined;
       await saveSession(req).catch(() => undefined);
     }
 
@@ -614,6 +622,7 @@ authRouter.get("/me", async (req, res, next) => {
     }
 
     req.session.user = currentAuth.user;
+    req.session.oauth2VerifiedAt ??= new Date().toISOString();
     if (currentAuth.verified) {
       req.session.verified = true;
     } else {
@@ -646,6 +655,7 @@ authRouter.post("/refresh", async (req, res, next) => {
     clearAuthCookies(res);
     req.session.user = undefined;
     req.session.verified = false;
+    req.session.oauth2VerifiedAt = undefined;
     req.session.discordAccessToken = undefined;
     req.session.discordRefreshToken = undefined;
     await saveSession(req);
@@ -666,6 +676,7 @@ authRouter.get("/access-check", requireAuthenticated, async (req, res, next) => 
     const validation = await withAuthTimeout("dashboard_access_check", evaluateDashboardAccess(currentAuth.user, accessValidationOptions(req)));
 
     req.session.user = currentAuth.user;
+    req.session.oauth2VerifiedAt ??= new Date().toISOString();
     if (currentAuth.verified) {
       req.session.verified = true;
     }
@@ -690,6 +701,7 @@ authRouter.post("/verify", requireAuthenticated, async (req, res, next) => {
       const deniedAuth = issueAuthCookies(res, createDeniedAccessUser(refreshedUser), false);
       req.session.user = deniedAuth.user;
       req.session.verified = false;
+      req.session.oauth2VerifiedAt ??= new Date().toISOString();
       req.session.accessValidatedAt = Date.now();
       await saveSession(req);
 
@@ -726,6 +738,7 @@ authRouter.post("/verify", requireAuthenticated, async (req, res, next) => {
 
     req.session.user = verifiedAuth.user;
     req.session.verified = verifiedAuth.verified;
+    req.session.oauth2VerifiedAt ??= new Date().toISOString();
     req.session.accessValidatedAt = Date.now();
     await saveSession(req);
 

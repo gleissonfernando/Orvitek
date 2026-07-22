@@ -16,6 +16,7 @@ const VERIFICATION_COOKIE = "dashboard.verification_session";
 
 type DashboardTokenPayload = JwtPayload & {
   type: "access" | "refresh";
+  oauth2?: boolean;
   user: AuthSessionUser;
   verified: boolean;
 };
@@ -89,9 +90,18 @@ export function resolveAuthFromRequest(req: Request, res: Response) {
     }
   }
 
-  if (req.session.user) {
+  if (req.session.user && req.session.oauth2VerifiedAt) {
     const verified = req.session.verified === true;
     return issueAuthCookies(res, req.session.user, verified);
+  }
+
+  if (req.session.user) {
+    req.session.user = undefined;
+    req.session.verified = false;
+    req.session.discordAccessToken = undefined;
+    req.session.discordRefreshToken = undefined;
+    req.session.oauth2VerifiedAt = undefined;
+    clearAuthCookies(res);
   }
 
   return null;
@@ -125,8 +135,12 @@ export function isValidDashboardVerificationToken(token: unknown, discordId: str
 }
 
 export function refreshAuthFromRequest(req: Request, res: Response) {
-  void req;
   clearAuthCookies(res);
+  req.session.user = undefined;
+  req.session.verified = false;
+  req.session.discordAccessToken = undefined;
+  req.session.discordRefreshToken = undefined;
+  req.session.oauth2VerifiedAt = undefined;
   return null;
 }
 
@@ -134,6 +148,7 @@ function signToken(type: "access" | "refresh", user: AuthSessionUser, verified: 
   return jwt.sign(
     {
       type,
+      oauth2: true,
       user: normalizeAuthUser(user),
       verified
     },
@@ -157,7 +172,7 @@ function buildAuthFromToken(token: string): DashboardAuth {
 function verifyToken(token: string, expectedType: "access" | "refresh") {
   const payload = jwt.verify(token, env.JWT_SECRET) as DashboardTokenPayload;
 
-  if (payload.type !== expectedType || !payload.user) {
+  if (payload.type !== expectedType || payload.oauth2 !== true || !payload.user) {
     throw new Error("Token inválido.");
   }
 

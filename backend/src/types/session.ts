@@ -24,6 +24,7 @@ declare module "express-session" {
   interface SessionData {
     user?: AuthSessionUser;
     verified?: boolean;
+    oauth2VerifiedAt?: string;
     accessValidatedAt?: number;
     oauthState?: {
       botId?: string;
