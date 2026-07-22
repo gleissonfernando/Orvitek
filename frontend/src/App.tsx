@@ -10,9 +10,9 @@ import { Login } from "./pages/Login";
 import { NexTechProductPage } from "./pages/NexTechProductPage";
 import { PaymentReturnPage } from "./pages/PaymentReturn";
 import { PixPaymentPage } from "./pages/PixPayment";
-import { PublicStatusPage } from "./pages/PublicStatusPage";
 import { PublicPlansPage } from "./pages/Plans";
 import { useAuth } from "./hooks/useAuth";
+import { EXTERNAL_STATUS_URL } from "./lib/publicStatus";
 import { appUrl, dashboardSlugFromPath, dashboardUrl, isDashboardRoutePath } from "./lib/urls";
 
 export function App() {
@@ -86,7 +86,7 @@ export function App() {
   }
 
   if (statusPath) {
-    return <PublicStatusPage />;
+    return <ExternalStatusRedirect />;
   }
 
   if (paymentReturnStatus) {
@@ -306,7 +306,15 @@ function devViewFromPath(path: string): "bots" | "connected" | "bot-menu" | "clo
   return "bots";
 }
 
-function LoadingScreen() {
+function ExternalStatusRedirect() {
+  useEffect(() => {
+    window.location.replace(EXTERNAL_STATUS_URL);
+  }, []);
+
+  return <LoadingScreen subtitle="Abrindo página externa" title="Redirecionando para o status" />;
+}
+
+function LoadingScreen({ subtitle = "Sincronizando sessão Discord", title = "Carregando painel" }: { subtitle?: string; title?: string }) {
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050505] px-4">
       <div className="absolute inset-0 bg-[#050505]" />
@@ -317,8 +325,8 @@ function LoadingScreen() {
         transition={{ duration: 0.45, ease: "easeOut" }}
       >
         <Loader2 className="h-8 w-8 animate-spin text-[#FFD500]" />
-        <p className="mt-4 text-sm font-medium text-white">Carregando painel</p>
-        <p className="mt-1 text-xs text-zinc-500">Sincronizando sessão Discord</p>
+        <p className="mt-4 text-sm font-medium text-white">{title}</p>
+        <p className="mt-1 text-xs text-zinc-500">{subtitle}</p>
       </motion.div>
     </main>
   );
