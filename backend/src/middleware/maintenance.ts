@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { isBotRequest } from "./auth";
 import { isMaintenanceActive, maintenanceBlockResponse } from "../services/maintenanceService";
 
 const ASSET_EXTENSIONS = new Set([
@@ -21,6 +22,10 @@ const ASSET_EXTENSIONS = new Set([
 export async function maintenanceMiddleware(req: Request, res: Response, next: NextFunction) {
   try {
     if (isMaintenanceBypass(req)) {
+      return next();
+    }
+
+    if (isMaintenanceInternalBotBypass(req)) {
       return next();
     }
 
@@ -106,6 +111,25 @@ function requestCameFromDevPanel(req: Request) {
 
 function isDevPanelApiBypassPath(path: string) {
   return path === "/api/dashboard/me" || path.startsWith("/api/logs");
+}
+
+function isMaintenanceInternalBotBypass(req: Request) {
+  if (!isBotRequest(req)) {
+    return false;
+  }
+
+  const path = req.path;
+  const method = req.method.toUpperCase();
+
+  if (
+    path === "/api/bot/runtime/modules"
+    || path === "/api/bot/runtime/status"
+    || path.startsWith("/api/bot/system-emojis")
+  ) {
+    return true;
+  }
+
+  return method === "GET" && /^\/api\/settings\/\d{5,32}$/.test(path);
 }
 
 function maintenanceHtml() {
