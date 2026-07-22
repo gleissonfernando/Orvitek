@@ -15,7 +15,8 @@ import { getMaintenanceState } from "../services/maintenanceService";
 import { recordNexTechSaleDeliveryResult } from "../services/nexTechSalesService";
 import {
   getNexTechInviteRuntime,
-  recordNexTechInviteBlocked
+  recordNexTechInviteBlocked,
+  updateNexTechInvitePanelState
 } from "../services/nexTechInviteService";
 import {
   claimSalesTicket,
@@ -86,6 +87,10 @@ const nexTechInviteBlockedSchema = z.object({
   messageId: z.string().regex(/^\d{5,32}$/).nullable().optional(),
   userId: z.string().regex(/^\d{5,32}$/).nullable().optional(),
   userName: z.string().max(120).nullable().optional()
+});
+const nexTechInvitePanelStateSchema = z.object({
+  inviteId: z.string().min(1).max(120),
+  messageId: z.string().regex(/^\d{5,32}$/).nullable().optional()
 });
 const salesTicketCreateSchema = z.object({
   typeId: z.string().min(1).max(120),
@@ -186,6 +191,20 @@ botDevApiRouter.post("/guilds/:guildId/nextech-invites/blocked", async (req, res
         userName: input.userName ?? null
       })
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+botDevApiRouter.put("/guilds/:guildId/nextech-invites/panel-state", async (req, res, next) => {
+  try {
+    const botId = await resolveRequestBotId(req);
+    const guildId = guildIdSchema.parse(req.params.guildId);
+    const input = nexTechInvitePanelStateSchema.parse(req.body ?? {});
+    const invite = await updateNexTechInvitePanelState(botId, guildId, input.inviteId, input.messageId ?? null);
+    if (!invite) return res.status(404).json({ message: "Convite oficial não encontrado." });
+
+    return res.json({ invite });
   } catch (error) {
     return next(error);
   }

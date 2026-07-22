@@ -37,6 +37,7 @@ import { vehicleAbandonmentPanelCommand } from "../services/vehicleAbandonmentSe
 import { qruCommand, rankCommand, rankingCommandQru } from "../services/policeQruService";
 import { policePromotionHistoryAliasCommand, policePromotionHistoryCommand, policePromotionsCommand } from "../services/policePromotionService";
 import { recrutamentoCommand } from "../services/ztkWebhookService";
+import { nexTechInviteCommand } from "../services/nexTechInviteService";
 import type { BotCommand } from "../types";
 
 export function createCommandCollection() {
@@ -96,6 +97,7 @@ export function createCommandCollection() {
     policePromotionHistoryAliasCommand,
     policePromotionsCommand,
     recrutamentoCommand,
+    nexTechInviteCommand,
     rankCommand,
     rankingCommandQru
   ].forEach((command) => {

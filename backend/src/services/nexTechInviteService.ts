@@ -304,6 +304,27 @@ export async function recordNexTechInviteBlocked(botId: string | null, guildId: 
   return logDto(log);
 }
 
+export async function updateNexTechInvitePanelState(botId: string | null, guildId: string, inviteId: string, panelMessageId: string | null) {
+  const collections = await getMongoCollections();
+  const filter = {
+    ...inviteScopeFilter({ botId, guildId }),
+    _id: inviteId
+  };
+  const updated = await collections.nexTechInvites.findOneAndUpdate(
+    filter,
+    {
+      $set: {
+        panelMessageId,
+        updatedAt: new Date()
+      }
+    },
+    { returnDocument: "after" }
+  );
+
+  if (updated) await emitDashboardUpdated(updated);
+  return updated ? inviteDto(updated) : null;
+}
+
 async function expireDueInvites() {
   const collections = await getMongoCollections();
   await collections.nexTechInvites.updateMany(

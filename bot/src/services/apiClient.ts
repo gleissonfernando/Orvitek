@@ -27,6 +27,7 @@ export type ZtkWebhookRecruitmentDashboard = { clans: ZtkWebhookClanRuntime[]; s
 
 export type NexTechInviteRuntimeInvite = {
   alertChannelId?: string | null;
+  bannerUrl?: string | null;
   blockUnknownInvites: boolean;
   botId?: string | null;
   code: string;
@@ -37,8 +38,17 @@ export type NexTechInviteRuntimeInvite = {
   logChannelId?: string | null;
   name: string;
   panelChannelId?: string | null;
+  panelColor?: string | null;
+  panelMessageId?: string | null;
+  panelTitle?: string | null;
   statsChannelId?: string | null;
   status: "active" | "paused" | "expired" | "cancelled";
+  description?: string | null;
+  imageUrl?: string | null;
+  videoUrl?: string | null;
+  footerText?: string | null;
+  buttonEmoji?: string | null;
+  buttonLabel?: string | null;
 };
 
 export type NexTechInviteRuntime = {
@@ -2993,6 +3003,11 @@ export class ApiClient {
   }) {
     const { data } = await this.http.post(`/bot/guilds/${guildId}/nextech-invites/blocked`, input);
     return data;
+  }
+
+  async updateNexTechInvitePanelState(guildId: string, input: { inviteId: string; messageId: string | null }) {
+    const { data } = await this.http.put<{ invite: NexTechInviteRuntimeInvite }>(`/bot/guilds/${guildId}/nextech-invites/panel-state`, input);
+    return data.invite;
   }
 
   async getSalesTicketRuntime(guildId: string) {

@@ -1,14 +1,117 @@
-import { EmbedBuilder, PermissionFlagsBits, type Message } from "discord.js";
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ChannelType,
+  EmbedBuilder,
+  MessageFlags,
+  PermissionFlagsBits,
+  SlashCommandBuilder,
+  type ChatInputCommandInteraction,
+  type Message,
+  type TextChannel
+} from "discord.js";
 import { isBotModuleEnabled } from "../config/env";
 import type { NexTechInviteRuntimeInvite } from "./apiClient";
-import type { BotContext } from "../types";
+import type { BotCommand, BotContext } from "../types";
 import { deleteMessageWithAudit } from "./deletedMessageLogService";
+import { renderComponentsV2Panel } from "./panelVisualRenderer";
 import { isRuntimeModuleAuthorized } from "./runtimeModuleGuard";
 
 const MODULE_ID = "nextech-invites";
 const DISCORD_INVITE_PATTERN = /(?:discord\.gg\/|discord(?:app)?\.com\/invite\/)([a-z0-9-]+)/gi;
 const runtimeCache = new Map<string, { expiresAt: number; invite: NexTechInviteRuntimeInvite | null }>();
 const RUNTIME_TTL_MS = 5_000;
+
+export const nexTechInviteCommand: BotCommand = {
+  data: new SlashCommandBuilder()
+    .setName("nexttech-convites")
+    .setDescription("Gerencia o painel público de Convites NextTech.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addSubcommand((subcommand) => subcommand
+      .setName("publicar")
+      .setDescription("Publica ou atualiza o painel do convite oficial.")
+      .addChannelOption((option) => option
+        .setName("canal")
+        .setDescription("Canal onde o painel será publicado.")
+        .addChannelTypes(ChannelType.GuildText)
+        .setRequired(false))),
+  moduleId: MODULE_ID,
+  async execute(interaction, context) {
+    await publishNexTechInvitePanel(interaction, context);
+  }
+};
+
+async function publishNexTechInvitePanel(interaction: ChatInputCommandInteraction, context: BotContext) {
+  if (!interaction.guild) {
+    await interaction.reply({ content: "Use este comando dentro de um servidor.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  if (!(await isRuntimeModuleAuthorized(context, interaction.guild.id, MODULE_ID))) {
+    await interaction.reply({ content: "O Sistema de Convites NextTech não está liberado para este servidor.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const invite = await context.api.getNexTechInviteRuntime(interaction.guild.id)
+    .then((runtime) => runtime.invite)
+    .catch((error) => {
+      console.warn("[nextech-invites] falha ao buscar painel para publicação:", errorMessage(error));
+      return null;
+    });
+
+  if (!invite || invite.status !== "active" || !invite.inviteUrl) {
+    await interaction.editReply("Cadastre um convite oficial ativo na Dashboard antes de publicar o painel.");
+    return;
+  }
+
+  const optionChannel = interaction.options.getChannel("canal", false, [ChannelType.GuildText]);
+  const channelId = optionChannel?.id ?? invite.panelChannelId ?? interaction.channelId;
+  const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
+
+  if (!channel?.isTextBased() || !channel.isSendable() || !("messages" in channel)) {
+    await interaction.editReply("Não foi possível acessar o canal do painel. Verifique o canal configurado e as permissões do bot.");
+    return;
+  }
+
+  const textChannel = channel as TextChannel;
+  const payload = buildInvitePanelPayload(interaction.guild, invite);
+  let panelMessage = invite.panelMessageId
+    ? await textChannel.messages.fetch(invite.panelMessageId).catch(() => null)
+    : null;
+
+  panelMessage = panelMessage
+    ? await panelMessage.edit(payload)
+    : await textChannel.send(payload);
+
+  await context.api.updateNexTechInvitePanelState(interaction.guild.id, {
+    inviteId: invite.id,
+    messageId: panelMessage.id
+  }).catch((error) => {
+    console.warn("[nextech-invites] falha ao salvar mensagem do painel:", errorMessage(error));
+  });
+  clearNexTechInviteRuntimeCache(interaction.guild.id);
+
+  await context.api.postLog({
+    action: "publish_panel",
+    botId: invite.botId ?? null,
+    channelId: textChannel.id,
+    guildId: interaction.guild.id,
+    module: "Sistema de Convites NextTech",
+    status: "success",
+    type: "nextech_invites.panel_published",
+    userId: interaction.user.id,
+    message: `Painel de convite oficial publicado em #${textChannel.name}.`,
+    metadata: {
+      inviteId: invite.id,
+      messageId: panelMessage.id
+    }
+  }).catch(() => null);
+
+  await interaction.editReply(`Painel de convite oficial publicado em <#${textChannel.id}>.`);
+}
 
 export async function handleNexTechInviteMessage(message: Message, context: BotContext) {
   if (!isBotModuleEnabled(MODULE_ID) || !message.guild || message.author.bot || message.webhookId) {
@@ -125,6 +228,42 @@ function officialInviteCodes(invite: NexTechInviteRuntimeInvite) {
   return codes;
 }
 
+function buildInvitePanelPayload(guild: NonNullable<Message["guild"]>, invite: NexTechInviteRuntimeInvite) {
+  const button = new ButtonBuilder()
+    .setLabel((invite.buttonLabel || "Entrar no Servidor").slice(0, 80))
+    .setStyle(ButtonStyle.Link)
+    .setURL(invite.inviteUrl ?? `https://discord.gg/${invite.code}`);
+
+  if (invite.buttonEmoji) {
+    try {
+      button.setEmoji(invite.buttonEmoji);
+    } catch {
+      // Emoji personalizado inválido não deve impedir a publicação do painel.
+    }
+  }
+
+  const actions = [new ActionRowBuilder<ButtonBuilder>().addComponents(button)];
+  const videoField = invite.videoUrl ? [`**Vídeo:** ${invite.videoUrl}`] : [];
+
+  return renderComponentsV2Panel({
+    accentColor: parsePanelColor(invite.panelColor),
+    actions,
+    description: invite.description || "Entre utilizando nosso convite oficial.\nClique abaixo para entrar.",
+    fields: videoField,
+    footer: invite.footerText || "NextTech",
+    guild,
+    image: invite.imageUrl || invite.bannerUrl
+      ? {
+          imageEnabled: true,
+          imagePosition: "banner",
+          imageUrl: invite.imageUrl ?? invite.bannerUrl ?? null
+        }
+      : null,
+    moduleId: MODULE_ID,
+    title: invite.panelTitle || "NEXTTECH"
+  });
+}
+
 function extractInviteCodeFromUrl(value: string | null | undefined) {
   if (!value) return null;
   DISCORD_INVITE_PATTERN.lastIndex = 0;
@@ -134,6 +273,11 @@ function extractInviteCodeFromUrl(value: string | null | undefined) {
 function normalizeInviteCode(value: string | null | undefined) {
   const code = value?.trim().replace(/[^\w-]/g, "").toLowerCase() ?? "";
   return code || null;
+}
+
+function parsePanelColor(value: string | null | undefined) {
+  if (!value || !/^#[0-9a-f]{6}$/i.test(value)) return 0xffd500;
+  return Number.parseInt(value.slice(1), 16);
 }
 
 async function notifyAuthor(message: Message) {
