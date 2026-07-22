@@ -27,7 +27,7 @@ import {
   type TextBasedChannel,
   type UserSelectMenuInteraction
 } from "discord.js";
-import { isBotModuleEnabled } from "../config/env";
+import { env, isBotModuleEnabled } from "../config/env";
 import type { BotCommand, BotContext } from "../types";
 import { ensureGuildEmojiCache } from "../utils/componentEmoji";
 import type { RhAdminAbsence, RhAdminAdornment, RhAdminSettings } from "./apiClient";
@@ -420,7 +420,7 @@ function mainPanel(settings: RhAdminSettings, guild: Guild | null | undefined = 
     fields: [
       "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n## 📌 Antes de continuar\nLeia atentamente as informações abaixo antes de enviar sua solicitação.",
       "──────────────────────────────\n## 📅 Solicitação de Ausência\nRegistre um afastamento temporário das atividades da corporação.\n\n**Informações obrigatórias**\n• Data de início: `DD/MM`\n• Data de retorno: `DD/MM/AAAA`\n• Motivo da ausência",
-      `──────────────────────────────\n## 🎖️ Solicitação de Adorno\n${settings.adornmentDescription}\n\n**Requisitos**\n• Envie a numeração in-game.\n• Informe um link direto da imagem.\n• A imagem deve estar pública e acessível.\n• O pedido será analisado pelo RH.`,
+      `──────────────────────────────\n## 🎖️ Solicitação de Adorno\n${settings.adornmentDescription}\n\n**Requisitos**\n• Envie a numeração in-game.\n• Informe um link público da imagem.\n• A imagem deve estar pública e acessível.\n• O pedido será analisado pelo RH.`,
       "──────────────────────────────\n**Ações disponíveis**\nUse os botões abaixo para iniciar sua solicitação."
     ],
     image: panelBannerUrl ? { imageEnabled: true, imagePosition: "banner", imageUrl: panelBannerUrl } : null,
@@ -524,6 +524,7 @@ function absenceReviewPanel(absence: RhAdminAbsence, settings: RhAdminSettings, 
 }
 
 function adornmentPanel(adornment: RhAdminAdornment, settings: RhAdminSettings) {
+  const renderableImageUrl = renderableAdornmentImageUrl(adornment.imageUrl);
   return renderComponentsV2Panel({
     accentColor: parseColor(settings.color),
     description: `**Link da imagem:**\n${adornment.imageUrl}`,
@@ -532,7 +533,7 @@ function adornmentPanel(adornment: RhAdminAdornment, settings: RhAdminSettings) 
       `Numeração in-game do adorno: \`${adornment.number}\`\nObservação: ${adornment.observation || "Sem observação"}\nData da solicitação: ${new Date(adornment.createdAt).toLocaleString("pt-BR")}`,
       "North Police Department • RH Administrativo"
     ],
-    image: { imageEnabled: true, imagePosition: "top", imageUrl: adornment.imageUrl },
+    image: renderableImageUrl ? { imageEnabled: true, imagePosition: "top", imageUrl: renderableImageUrl } : null,
     moduleId: MODULE_ID,
     title: "Nova Solicitação de Adorno"
   });
@@ -648,9 +649,21 @@ function isValidImageUrl(value: string, allowAnyUrl: boolean) {
   try {
     const url = new URL(value);
     if (!/^https?:$/.test(url.protocol)) return false;
-    return allowAnyUrl || /\.(png|jpe?g|webp|gif)(?:$|\?)/i.test(url.pathname);
+    void allowAnyUrl;
+    return true;
   } catch {
     return false;
+  }
+}
+
+function renderableAdornmentImageUrl(value: string) {
+  try {
+    const url = new URL(value.trim());
+    if (!/^https?:$/.test(url.protocol)) return null;
+    const proxyBaseUrl = `${env.BACKEND_API_URL.replace(/\/+$/, "")}/rh-admin/image-proxy`;
+    return `${proxyBaseUrl}?url=${encodeURIComponent(url.href)}`;
+  } catch {
+    return null;
   }
 }
 
