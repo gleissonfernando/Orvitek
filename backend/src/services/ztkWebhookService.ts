@@ -779,6 +779,14 @@ async function buildDominationRankings(
   }>([
     { $match: { botId, clanId, eventType: "domination", guildId, participants: { $type: "array" } } },
     { $unwind: "$participants" },
+    {
+      $match: {
+        "participants.name": {
+          $not: ZTK_INVALID_PARTICIPANT_PATTERN,
+          $type: "string"
+        }
+      }
+    },
     { $sort: { eventTimestamp: -1, _id: -1 } },
     {
       $group: {
@@ -856,7 +864,8 @@ async function buildDominationRankings(
     participants: participants.map((item) => ({
       ...item,
       firstDominatedAt: item.firstDominatedAt?.toISOString?.() ?? null,
-      lastDominatedAt: item.lastDominatedAt?.toISOString?.() ?? null
+      lastDominatedAt: item.lastDominatedAt?.toISOString?.() ?? null,
+      playerName: sanitizeZtkParticipantName(item.playerName)
     })),
     stats
   };
@@ -1140,15 +1149,31 @@ function parseRivalGangs(lines: string[]) {
 function parseParticipants(lines: string[]) {
   return lines
     .map((line) => {
-      const cleaned = stripBullet(line);
-      if (!cleaned) return null;
+      const cleaned = sanitizeZtkParticipantName(line);
+      if (!isValidZtkParticipantName(cleaned)) return null;
       const idMatch = /(?:id|passaporte|passport)[:#\s-]*([0-9A-Za-z_-]+)/i.exec(cleaned) ?? /\(([0-9A-Za-z_-]{2,})\)/.exec(cleaned);
-      const name = clean(cleaned
+      const name = sanitizeZtkParticipantName(cleaned
         .replace(/(?:id|passaporte|passport)[:#\s-]*[0-9A-Za-z_-]+/ig, "")
-        .replace(/\([0-9A-Za-z_-]{2,}\)/g, ""), 100);
-      return name ? { id: idMatch?.[1] ?? null, name, normalizedName: normalizeEntity(name) } : null;
+        .replace(/\([0-9A-Za-z_-]{2,}\)/g, ""));
+      return isValidZtkParticipantName(name) ? { id: idMatch?.[1] ?? null, name, normalizedName: normalizeEntity(name) } : null;
     })
     .filter((item): item is { id: string | null; name: string; normalizedName: string } => Boolean(item));
+}
+
+function sanitizeZtkParticipantName(value: string) {
+  return clean(stripBullet(value)
+    .replace(/^[🥇🥈🥉🏅🏆🎯🔥]+\s*/u, "")
+    .replace(/^#?\d+(?:[º°.)-])?\s+/, "")
+    .replace(/\(\s*\)$/g, ""), 100);
+}
+
+function isValidZtkParticipantName(value: string) {
+  const cleaned = clean(value, 160);
+  if (!cleaned || cleaned.length < 2) return false;
+  if (ZTK_INVALID_PARTICIPANT_PATTERN.test(cleaned)) return false;
+  const normalized = normalizeKey(cleaned.replace(/^#+\s*/, "").replace(/:$/, ""));
+  if (ZTK_SECTION_LABELS.has(normalized)) return false;
+  return /[a-zA-ZÀ-ÿ0-9]/.test(cleaned);
 }
 
 function splitFieldLines(value: string) {
@@ -1201,6 +1226,10 @@ const ZTK_SECTION_LABELS = new Set([
   "data",
   "data e horario",
   "data e horário",
+  "dominacao concluida",
+  "dominacao realizada",
+  "dominação concluída",
+  "dominação realizada",
   "familia",
   "família",
   "gang",
@@ -1227,10 +1256,18 @@ const ZTK_SECTION_LABELS = new Set([
   "recrutou",
   "territorio dominado",
   "território dominado",
+  "top 10 dominacoes",
+  "top 10 dominações",
+  "top 10 dominacoes por membro",
+  "top 10 dominações por membro",
   "total de jogadores na zona",
   "total na zona",
+  "ultima dominacao",
+  "última dominação",
   "zona dominada"
 ].map(normalizeKey));
+
+const ZTK_INVALID_PARTICIPANT_PATTERN = /(?:https?:\/\/|discord(?:app)?\.com|cdn\.discordapp\.com|media\.discordapp\.net|domina[cç][aã]o\s+(?:conclu[ií]da|realizada)|ranking|top\s*10|nextech|webhook|hor[aá]rio|[úu]ltima\s+domina[cç][aã]o|cl[aã]\s*:|^rich$|^image$|^thumbnail$|^footer$|^author$|^\d+$)/i;
 
 function toClanDto(value: MongoZtkWebhookClan): ZtkClanDto {
   return {
