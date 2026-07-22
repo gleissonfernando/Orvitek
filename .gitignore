@@ -20,6 +20,7 @@ dev-logs
 logs
 .release-history/
 .reference/
+.codex-screenshots/
 my-mercadopago-app/
 .DS_Store
 npm-debug.log*

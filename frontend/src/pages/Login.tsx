@@ -54,7 +54,7 @@ const reveal = {
 
 type TerminalResponseLine = {
   text: string;
-  tone?: "status";
+  tone?: "status" | "muted";
 };
 
 type TerminalSequence = {
@@ -78,18 +78,31 @@ const terminalSequences: [TerminalSequence, ...TerminalSequence[]] = [
     ]
   },
   {
-    command: "$ POST /api/v1/bots/create",
+    command: "$ POST /api/v1/panels/sync",
     response: [
       { text: "{" },
-      { text: '  "name": "Nex Tech Manager",' },
-      { text: '  "modules": ["moderation", "logs", "tickets"]' },
+      { text: '  "server": "NextTech",' },
+      { text: '  "modules": ["tickets", "payments", "welcome"]' },
+      { text: '  "mode": "components-v2"' },
       { text: "}" },
-      { text: "201 Created", tone: "status" },
-      { text: 'bot_id: "orv_94A7"' },
+      { text: "200 Synced", tone: "status" },
+      { text: 'cache: "updated"' },
       { text: 'status: "online"' },
-      { text: 'dashboard_link: "/dashboard/nex-tech-manager"' }
+      { text: 'deploy: "ready"' }
     ]
   }
+];
+
+const terminalMetrics = [
+  { label: "Gateway", value: "42ms", tone: "text-[#3DDC84]" },
+  { label: "Uptime", value: "99.9%", tone: "text-[#FFEA70]" },
+  { label: "Shard", value: "01", tone: "text-white" }
+];
+
+const terminalRuntimeRows = [
+  { label: "Dashboard", value: "operacional", width: "w-[94%]" },
+  { label: "Bot Discord", value: "online", width: "w-[82%]" },
+  { label: "Componentes V2", value: "sincronizado", width: "w-[88%]" }
 ];
 
 const TYPEWRITER_DELAY_MS = 28;
@@ -200,21 +213,21 @@ export function Login({
   }
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#0A0A0A] text-white">
+    <main className="min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-[#0A0A0A] text-white">
       <div className="fixed inset-0 -z-10 bg-[#0A0A0A]" />
       <div className="fixed inset-0 -z-10 bg-[linear-gradient(rgba(255,213,0,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,213,0,0.035)_1px,transparent_1px)] bg-[size:44px_44px]" />
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(255,213,0,0.16),transparent_32rem)]" />
 
       <Header entering={verifying} onStart={handleStart} onNavigate={scrollTo} />
 
-      <section id="inicio" className="relative mx-auto grid min-h-screen w-full max-w-7xl items-center gap-10 px-4 pb-16 pt-32 text-center sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(25rem,0.95fr)] lg:px-8 lg:text-left">
-        <div className="flex min-w-0 flex-col items-center lg:items-start">
-          <Reveal delay={0.1} className="inline-flex items-center rounded-full border border-[#FFD500]/25 bg-[#FFD500]/10 px-4 py-2 text-sm font-medium text-[#FFEA70] shadow-[0_0_24px_rgba(255,213,0,0.16)]">
+      <section id="inicio" className="relative mx-auto grid min-h-screen w-full max-w-[100vw] items-center gap-10 overflow-hidden px-4 pb-16 pt-32 text-center sm:max-w-7xl sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(25rem,0.95fr)] lg:px-8 lg:text-left">
+        <div className="flex w-full min-w-0 max-w-[21rem] flex-col items-center justify-self-center lg:max-w-none lg:items-start">
+          <Reveal delay={0.1} className="inline-flex w-full max-w-[20rem] items-center justify-center rounded-full border border-[#FFD500]/25 bg-[#FFD500]/10 px-4 py-2 text-center text-xs font-medium leading-5 text-[#FFEA70] shadow-[0_0_24px_rgba(255,213,0,0.16)] sm:w-auto sm:max-w-full sm:text-sm">
             A plataforma #1 de automação para Discord
           </Reveal>
 
-          <Reveal delay={0.2} className="mt-8 max-w-5xl">
-            <h1 className="text-5xl font-black leading-tight text-white sm:text-6xl lg:text-7xl">
+          <Reveal delay={0.2} className="mt-8 w-full max-w-[21rem] sm:max-w-5xl">
+            <h1 className="max-w-full text-3xl font-black leading-tight text-white sm:text-6xl lg:text-7xl">
               Automatize seu servidor{" "}
               <span className="inline-block text-[#FFD500] drop-shadow-[0_0_28px_rgba(255,213,0,0.45)]">
                 do seu jeito
@@ -222,7 +235,7 @@ export function Login({
             </h1>
           </Reveal>
 
-          <Reveal delay={0.3} className="max-w-5xl">
+          <Reveal delay={0.3} className="w-full max-w-[21rem] sm:max-w-5xl">
             <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-[#B3B3B3] sm:text-lg lg:mx-0">
               {verificationPending
                 ? "Confirme a segunda etapa de autenticação para liberar a dashboard deste usuário."
@@ -525,13 +538,16 @@ function TerminalMockup() {
 
   return (
     <div
-      className="transform-gpu overflow-hidden rounded-lg border border-[#FFD500]/25 bg-[#0b0b0b] text-left shadow-[0_28px_90px_rgba(0,0,0,0.7),0_0_40px_8px_rgba(255,213,0,0.15)] transition-transform duration-200 ease-out"
+      className="relative transform-gpu overflow-hidden rounded-lg border border-[#FFD500]/25 bg-[#070707] text-left shadow-[0_28px_90px_rgba(0,0,0,0.7),0_0_40px_8px_rgba(255,213,0,0.15)] transition-transform duration-200 ease-out"
       onPointerCancel={resetTerminalTilt}
       onPointerLeave={resetTerminalTilt}
       onPointerMove={handleTerminalPointerMove}
       ref={terminalRef}
     >
-      <div className="flex items-center gap-3 border-b border-[#FFD500]/15 bg-[#141414] px-4 py-3">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(255,213,0,0.14),transparent_18rem),linear-gradient(135deg,rgba(255,213,0,0.08),transparent_38%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:100%_44px] opacity-35" />
+
+      <div className="relative flex items-center gap-3 border-b border-[#FFD500]/15 bg-[#111111]/95 px-4 py-3">
         <div className="flex shrink-0 items-center gap-2">
           <span className="h-3 w-3 rounded-full bg-[#FFD900]" />
           <span className="h-3 w-3 rounded-full bg-[#4B4B4B]" />
@@ -542,13 +558,57 @@ function TerminalMockup() {
           <span className="truncate">nex-tech-cli ~ nextech.discloud.app</span>
         </div>
       </div>
-      <div aria-label="Demonstração animada do terminal Nex Tech" aria-live="off" className="min-h-[21rem] p-5 font-mono text-sm leading-7">
-        <TerminalCommandLine command={typedCommand} typing={typing} />
-        {visibleResponse.map((line, index) => (
-          <TerminalResponseItem key={`${sequenceIndex}-${line.text}-${index}`} line={line} />
-        ))}
+
+      <div className="relative grid gap-0 lg:grid-cols-[minmax(0,1fr)_16rem]">
+        <div aria-label="Demonstração animada do terminal Nex Tech" aria-live="off" className="min-h-[23rem] p-5 font-mono text-sm leading-7">
+          <div className="mb-5 flex flex-wrap gap-2 font-sans text-[11px] font-bold uppercase tracking-[0.08em] text-zinc-400">
+            <span className="rounded-md border border-[#FFD500]/20 bg-[#FFD500]/10 px-2.5 py-1 text-[#FFEA70]">auth</span>
+            <span className="rounded-md border border-zinc-800 bg-black/40 px-2.5 py-1">dashboard</span>
+            <span className="rounded-md border border-zinc-800 bg-black/40 px-2.5 py-1">discord api</span>
+          </div>
+          <TerminalCommandLine command={typedCommand} typing={typing} />
+          {visibleResponse.map((line, index) => (
+            <TerminalResponseItem key={`${sequenceIndex}-${line.text}-${index}`} line={line} />
+          ))}
+          <div className="mt-5 grid gap-2 font-sans text-xs text-zinc-400 sm:grid-cols-3">
+            {terminalMetrics.map((metric) => (
+              <div className="rounded-md border border-zinc-900 bg-black/35 px-3 py-2" key={metric.label}>
+                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-500">{metric.label}</p>
+                <p className={`mt-1 text-base font-black ${metric.tone}`}>{metric.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="border-t border-[#FFD500]/15 bg-black/25 p-5 lg:border-l lg:border-t-0">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#FFD500]">Runtime</p>
+            <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 text-[11px] font-bold text-emerald-300">live</span>
+          </div>
+          <div className="mt-5 space-y-4">
+            {terminalRuntimeRows.map((row) => (
+              <div key={row.label}>
+                <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+                  <span className="font-semibold text-white">{row.label}</span>
+                  <span className="text-zinc-500">{row.value}</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-zinc-900">
+                  <span className={`block h-full rounded-full bg-[#3DDC84] shadow-[0_0_16px_rgba(61,220,132,0.36)] ${row.width}`} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 rounded-md border border-[#FFD500]/15 bg-[#FFD500]/5 p-3">
+            <div className="flex items-center gap-2 text-xs font-semibold text-white">
+              <Check className="h-4 w-4 text-[#3DDC84]" />
+              Atualizacao segura
+            </div>
+            <p className="mt-2 text-xs leading-5 text-zinc-400">Painel validado, cache limpo e rotas prontas para uso.</p>
+          </div>
+        </div>
       </div>
-      <div className="flex items-center justify-between border-t border-[#FFD500]/15 px-4 py-3 text-xs text-zinc-400">
+
+      <div className="relative flex items-center justify-between border-t border-[#FFD500]/15 bg-[#0d0d0d]/90 px-4 py-3 text-xs text-zinc-400">
         <span>request_id: nex-tech-live-demo</span>
         <span className="flex items-center gap-2 text-[#3DDC84]">
           <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[#3DDC84]" />
