@@ -71,14 +71,14 @@ export function PixPaymentPage({ orderId }: PixPaymentPageProps) {
             <ArrowLeft className="h-4 w-4" />
             Voltar aos planos
           </a>
-          <span className="rounded-full border border-[#FFD500]/25 bg-[#FFD500]/10 px-3 py-1 text-xs font-semibold text-[#FFEA70]">Pix Mercado Pago</span>
+          <span className="rounded-full border border-[#FFD500]/25 bg-[#FFD500]/10 px-3 py-1 text-xs font-semibold text-[#FFEA70]">Pix {providerLabel(order?.provider)}</span>
         </header>
 
         <section className="grid gap-6 py-12 lg:grid-cols-[1fr_1.05fr]">
           <div>
             <p className="text-sm font-semibold text-[#FFEA70]">{plan?.name ?? "Plano Nex Tech"}</p>
             <h1 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl">Finalize seu pagamento via Pix</h1>
-            <p className="mt-4 max-w-xl text-sm leading-6 text-zinc-400">Use o QR Code ou copie o código Pix. A liberação acontece automaticamente assim que o Mercado Pago confirmar o pagamento.</p>
+            <p className="mt-4 max-w-xl text-sm leading-6 text-zinc-400">Use o QR Code ou copie o código Pix. A liberação acontece automaticamente assim que {providerLabel(order?.provider)} confirmar o pagamento.</p>
 
             <div className="mt-8 grid gap-3 rounded-xl border border-[#FFD500]/15 bg-black/50 p-5 text-sm">
               <PaymentLine label="Pedido" value={order?.id ?? orderId} />
@@ -97,7 +97,7 @@ export function PixPaymentPage({ orderId }: PixPaymentPageProps) {
               </span>
               <div>
                 <h2 className="text-lg font-bold">QR Code Pix</h2>
-                <p className="text-xs text-zinc-500">Pagamento processado pelo Mercado Pago</p>
+                <p className="text-xs text-zinc-500">Pagamento processado por {providerLabel(order?.provider)}</p>
               </div>
             </div>
 
@@ -139,7 +139,13 @@ function PaymentLine({ label, value }: { label: string; value: string }) {
 
 function normalizeQrImage(value?: string | null) {
   if (!value) return null;
+  if (/^https?:\/\//i.test(value)) return value;
   return value.startsWith("data:image/") ? value : `data:image/png;base64,${value}`;
+}
+
+function providerLabel(provider?: PaymentOrder["provider"] | null) {
+  if (provider === "pagbank") return "PagBank";
+  return "Mercado Pago";
 }
 
 function isFinalStatus(status: PaymentOrder["status"]) {

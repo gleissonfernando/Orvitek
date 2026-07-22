@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CreditCard, Plug, Save, Trash2 } from "lucide-react";
+import { CreditCard, Plug, QrCode, Save, Trash2 } from "lucide-react";
 import {
   deletePaymentGatewayProvider,
   getPaymentGatewayDashboard,
@@ -37,6 +37,11 @@ const defaultForm: SaveNexTechPaymentProviderPayload = {
   webhookUrl: ""
 };
 
+const gatewayOptions = [
+  { description: "Checkout com Pix e cartão pelo Mercado Pago.", label: "Mercado Pago", provider: "mercadopago" as const },
+  { description: "Checkout e Pix pela API oficial do PagBank.", label: "PagBank", provider: "pagbank" as const }
+];
+
 export function PaymentGatewayPanel({ botId, canManage, guild }: Props) {
   const [dashboard, setDashboard] = useState<NexTechSalesDashboard | null>(null);
   const [form, setForm] = useState<SaveNexTechPaymentProviderPayload>(defaultForm);
@@ -45,17 +50,22 @@ export function PaymentGatewayPanel({ botId, canManage, guild }: Props) {
   const [message, setMessage] = useState<string | null>(null);
 
   const providers = useMemo(
-    () => dashboard?.settings.paymentProviders.filter((provider) => provider.provider === "mercadopago") ?? [],
+    () => dashboard?.settings.paymentProviders.filter((provider) => provider.provider === "mercadopago" || provider.provider === "pagbank") ?? [],
     [dashboard]
   );
-  const selectedProvider = providers.find((provider) => provider.id === form.id) ?? providers[0] ?? null;
+  const selectedProvider = providers.find((provider) => provider.id === form.id)
+    ?? providers.find((provider) => provider.provider === form.provider)
+    ?? providers[0]
+    ?? null;
 
   useEffect(() => {
     if (!botId || !guild) return;
     setLoading(true);
     getPaymentGatewayDashboard(guild.id, botId)
       .then((data) => {
-        const provider = data.settings.paymentProviders.find((item) => item.provider === "mercadopago") ?? null;
+        const provider = data.settings.paymentProviders.find((item) => item.enabled && (item.provider === "mercadopago" || item.provider === "pagbank"))
+          ?? data.settings.paymentProviders.find((item) => item.provider === "mercadopago" || item.provider === "pagbank")
+          ?? null;
         setDashboard(data);
         setForm(provider ? providerToForm(provider) : defaultForm);
       })
@@ -70,8 +80,8 @@ export function PaymentGatewayPanel({ botId, canManage, guild }: Props) {
     try {
       const settings = await savePaymentGatewayProvider(guild.id, botId, form);
       setDashboard((current) => current ? { ...current, settings } : current);
-      const provider = settings.paymentProviders.find((item) => item.provider === "mercadopago" && item.label === form.label)
-        ?? settings.paymentProviders.find((item) => item.provider === "mercadopago")
+      const provider = settings.paymentProviders.find((item) => item.provider === form.provider && item.label === form.label)
+        ?? settings.paymentProviders.find((item) => item.provider === form.provider)
         ?? null;
       setForm(provider ? providerToForm(provider) : defaultForm);
       setMessage("Pagamento automático salvo.");
@@ -88,9 +98,9 @@ export function PaymentGatewayPanel({ botId, canManage, guild }: Props) {
     setMessage(null);
     try {
       const result = await testPaymentGatewayProvider(guild.id, botId, form);
-      setMessage(`Mercado Pago online: ${result.account.email ?? result.account.name ?? result.account.id ?? "conta validada"}.`);
+      setMessage(`${providerLabel(form.provider)} online: ${result.account.email ?? result.account.name ?? result.account.id ?? "conta validada"}.`);
     } catch (error) {
-      setMessage(readError(error, "Não foi possível testar o Mercado Pago."));
+      setMessage(readError(error, `Não foi possível testar ${providerLabel(form.provider)}.`));
     } finally {
       setSaving(false);
     }
@@ -120,8 +130,8 @@ export function PaymentGatewayPanel({ botId, canManage, guild }: Props) {
     <div className="space-y-5">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-yellow-300" /> Pagamento Automático</CardTitle>
-          <CardDescription>Mercado Pago do dono do bot. Cria checkout automático e confirma pagamentos por webhook, separado do Pagamento Manual.</CardDescription>
+          <CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-yellow-300" /> Gateway de Pagamentos</CardTitle>
+          <CardDescription>Escolha um gateway ativo por vez. Ao ativar Mercado Pago, o PagBank é desativado; ao ativar PagBank, o Mercado Pago é desativado.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           {message ? <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm font-semibold text-yellow-100">{message}</div> : null}
@@ -144,6 +154,34 @@ export function PaymentGatewayPanel({ botId, canManage, guild }: Props) {
           ) : null}
 
           <div className="grid gap-3 md:grid-cols-2">
+            {gatewayOptions.map((option) => {
+              const active = form.provider === option.provider;
+              return (
+                <button
+                  className={`rounded-lg border p-4 text-left transition ${active ? "border-yellow-400 bg-yellow-500/10 text-white" : "border-zinc-800 bg-black/20 text-zinc-300 hover:border-zinc-600"}`}
+                  disabled={!canManage || loading}
+                  key={option.provider}
+                  onClick={() => {
+                    const savedProvider = providers.find((provider) => provider.provider === option.provider) ?? null;
+                    setForm(savedProvider ? providerToForm(savedProvider) : {
+                      ...defaultForm,
+                      label: option.label,
+                      provider: option.provider
+                    });
+                  }}
+                  type="button"
+                >
+                  <span className="flex items-center gap-2 font-bold">
+                    {option.provider === "pagbank" ? <QrCode className="h-4 w-4 text-yellow-300" /> : <CreditCard className="h-4 w-4 text-yellow-300" />}
+                    {option.label}
+                  </span>
+                  <span className="mt-2 block text-xs text-zinc-500">{option.description}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
             <Field disabled={!canManage || loading} label="Nome da configuração" value={form.label} onChange={(value) => setForm((current) => ({ ...current, label: value }))} />
             <label className="grid gap-2 text-sm font-semibold text-zinc-300">
               Ambiente
@@ -158,7 +196,7 @@ export function PaymentGatewayPanel({ botId, canManage, guild }: Props) {
               </select>
             </label>
             <Field disabled={!canManage || loading} label="Public Key" value={form.publicKey ?? ""} onChange={(value) => setForm((current) => ({ ...current, publicKey: value }))} />
-            <Field disabled={!canManage || loading} label={selectedProvider?.secretConfigured ? "Access Token novo (opcional)" : "Access Token"} type="password" value={form.secret ?? ""} onChange={(value) => setForm((current) => ({ ...current, secret: value }))} />
+            <Field disabled={!canManage || loading} label={selectedProvider?.secretConfigured ? `${secretLabel(form.provider)} novo (opcional)` : secretLabel(form.provider)} type="password" value={form.secret ?? ""} onChange={(value) => setForm((current) => ({ ...current, secret: value }))} />
             <Field disabled={!canManage || loading} label="Client ID" value={form.clientId ?? ""} onChange={(value) => setForm((current) => ({ ...current, clientId: value }))} />
             <Field disabled={!canManage || loading} label="Client Secret" type="password" value={form.clientSecret ?? ""} onChange={(value) => setForm((current) => ({ ...current, clientSecret: value }))} />
             <Field disabled={!canManage || loading} label="Webhook URL" value={form.webhookUrl ?? ""} onChange={(value) => setForm((current) => ({ ...current, webhookUrl: value }))} />
@@ -181,8 +219,8 @@ export function PaymentGatewayPanel({ botId, canManage, guild }: Props) {
           </label>
 
           <div className="flex flex-wrap gap-2">
-            <Button disabled={!canManage || saving || loading} onClick={save}><Save className="mr-2 h-4 w-4" /> Salvar automático</Button>
-            <Button disabled={!canManage || saving || loading} onClick={test} variant="outline"><Plug className="mr-2 h-4 w-4" /> Testar Mercado Pago</Button>
+            <Button disabled={!canManage || saving || loading} onClick={save}><Save className="mr-2 h-4 w-4" /> Salvar gateway</Button>
+            <Button disabled={!canManage || saving || loading} onClick={test} variant="outline"><Plug className="mr-2 h-4 w-4" /> Testar {providerLabel(form.provider)}</Button>
             {form.id ? (
               <Button disabled={!canManage || saving || loading} onClick={() => remove(String(form.id))} variant="outline"><Trash2 className="mr-2 h-4 w-4" /> Remover</Button>
             ) : null}
@@ -202,12 +240,20 @@ function providerToForm(provider: NexTechSalesPaymentProvider): SaveNexTechPayme
     id: provider.id,
     instructions: provider.instructions ?? "",
     label: provider.label,
-    provider: "mercadopago",
+    provider: provider.provider,
     publicKey: provider.publicKey ?? "",
     secret: "",
     webhookSecret: "",
     webhookUrl: provider.webhookUrl ?? ""
   };
+}
+
+function providerLabel(provider: SaveNexTechPaymentProviderPayload["provider"]) {
+  return provider === "pagbank" ? "PagBank" : "Mercado Pago";
+}
+
+function secretLabel(provider: SaveNexTechPaymentProviderPayload["provider"]) {
+  return provider === "pagbank" ? "Token PagBank" : "Access Token";
 }
 
 function Field({ disabled, label, onChange, type = "text", value }: {

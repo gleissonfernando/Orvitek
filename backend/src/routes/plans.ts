@@ -102,6 +102,7 @@ const paymentSettingsSchema = z.object({
   failureRedirectUrl: z.string().url().max(2048).nullable().optional().or(z.literal("")),
   pendingRedirectUrl: z.string().url().max(2048).nullable().optional().or(z.literal("")),
   plansPublicUrl: z.string().url().max(2048).nullable().optional().or(z.literal("")),
+  provider: z.enum(["mercadopago", "pagbank"]).optional(),
   publicKey: z.string().max(512).nullable().optional().or(z.literal("")),
   secret: z.string().max(2048).nullable().optional().or(z.literal("")),
   successRedirectUrl: z.string().url().max(2048).nullable().optional().or(z.literal("")),

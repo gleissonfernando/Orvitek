@@ -23,6 +23,22 @@ export type MercadoPagoRuntimeConfig = {
   webhookUrl: string;
 };
 
+export type PagBankRuntimeConfig = {
+  baseUrl: string;
+  credentialsConfigured: boolean;
+  enabled: boolean;
+  errors: string[];
+  environment: "sandbox" | "production";
+  publicKey: string | null;
+  publicKeyFingerprint: string | null;
+  status: "disabled" | "misconfigured" | "operational";
+  timeoutMs: number;
+  token: string | null;
+  webhookConfigured: boolean;
+  webhookToken: string | null;
+  webhookUrl: string;
+};
+
 export function getMercadoPagoRuntimeConfig(): MercadoPagoRuntimeConfig {
   const environment = env.MERCADOPAGO_ENV;
   const accessToken = clean(environment === "test" ? env.MERCADOPAGO_TEST_ACCESS_TOKEN : env.MERCADOPAGO_PROD_ACCESS_TOKEN);
@@ -72,6 +88,78 @@ export function getMercadoPagoHealth() {
     webhookConfigured: config.webhookConfigured,
     status: config.status
   };
+}
+
+export function getPagBankRuntimeConfig(): PagBankRuntimeConfig {
+  const token = clean(env.PAGBANK_TOKEN);
+  const publicKey = clean(env.PAGBANK_PUBLIC_KEY);
+  const webhookToken = clean(env.PAGBANK_WEBHOOK_TOKEN);
+  const baseUrl = env.PAGBANK_BASE_URL || "https://sandbox.api.pagseguro.com";
+  const environment = /sandbox/i.test(baseUrl) ? "sandbox" : "production";
+  const errors: string[] = [];
+
+  if (!token) errors.push("PAGBANK_TOKEN ausente.");
+  if (environment === "production" && !env.PAYMENTS_ALLOW_LIVE_CHARGES) {
+    errors.push("PAYMENTS_ALLOW_LIVE_CHARGES precisa estar true para criar cobrancas PagBank em produção.");
+  }
+
+  const enabled = env.PAYMENTS_ENABLED;
+  const credentialsConfigured = Boolean(token);
+  const webhookConfigured = Boolean(webhookToken || env.PAGBANK_WEBHOOK_URL);
+
+  return {
+    baseUrl,
+    credentialsConfigured,
+    enabled,
+    environment,
+    errors,
+    publicKey,
+    publicKeyFingerprint: publicKey ? fingerprint(publicKey) : null,
+    status: !enabled ? "disabled" : errors.length ? "misconfigured" : "operational",
+    timeoutMs: env.PAGBANK_TIMEOUT,
+    token,
+    webhookConfigured,
+    webhookToken,
+    webhookUrl: env.PAGBANK_WEBHOOK_URL
+  };
+}
+
+export function getPagBankHealth() {
+  const config = getPagBankRuntimeConfig();
+  return {
+    provider: "pagbank" as const,
+    enabled: config.enabled,
+    environment: config.environment,
+    credentialsConfigured: config.credentialsConfigured,
+    webhookConfigured: config.webhookConfigured,
+    status: config.status
+  };
+}
+
+export function getPaymentGatewayHealth() {
+  return {
+    activeProvider: env.PAYMENT_PROVIDER,
+    mercadoPago: getMercadoPagoHealth(),
+    pagBank: getPagBankHealth()
+  };
+}
+
+export function requirePagBankOperational(options: { allowDisabled?: boolean; requireWebhook?: boolean } = {}) {
+  const config = getPagBankRuntimeConfig();
+
+  if (!options.allowDisabled && !config.enabled) {
+    throw paymentConfigError("PagBank está desativado no servidor.", 503);
+  }
+
+  if (!config.token || !config.credentialsConfigured || (options.requireWebhook && !config.webhookConfigured)) {
+    throw paymentConfigError("PagBank indisponível por credenciais ausentes ou inválidas.", 503);
+  }
+
+  if (!options.allowDisabled && config.environment === "production" && !env.PAYMENTS_ALLOW_LIVE_CHARGES) {
+    throw paymentConfigError("Cobrancas PagBank de produção bloqueadas por PAYMENTS_ALLOW_LIVE_CHARGES.", 503);
+  }
+
+  return config;
 }
 
 export function requireMercadoPagoOperational(options: { allowDisabled?: boolean; requireWebhook?: boolean } = {}) {

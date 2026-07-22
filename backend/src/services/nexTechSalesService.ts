@@ -17,6 +17,7 @@ import type {
 import { getMongoCollections } from "../database/mongo";
 import { env } from "../config/env";
 import { createMercadoPagoPreference as createMercadoPagoCheckoutPreference } from "./mercadoPagoService";
+import { createPagBankCheckout } from "./pagBankService";
 import { devBotRealtimeRoom, emitRealtime, emitRealtimeToRoom } from "../realtime/events";
 import { decryptSecret, encryptSecret } from "./secretCryptoService";
 import { detectSupportedImageMimeType } from "./persistentImageStorageService";
@@ -443,8 +444,8 @@ export async function saveNexTechPaymentProvider(botId: string, guildId: string,
   const existing = current.paymentProviders.find((provider) => provider.id === input.id);
   const accessToken = input.secret?.trim() || (existing?.secretEncrypted ? decryptSecret(existing.secretEncrypted) : "");
 
-  if (input.provider === "mercadopago" && input.enabled && !accessToken) {
-    throw createNexTechSalesError("Access Token do Mercado Pago é obrigatório para ativar este pagamento.", 400);
+  if ((input.provider === "mercadopago" || input.provider === "pagbank") && input.enabled && !accessToken) {
+    throw createNexTechSalesError(`${input.provider === "pagbank" ? "Token do PagBank" : "Access Token do Mercado Pago"} é obrigatório para ativar este pagamento.`, 400);
   }
 
   const nextProvider: MongoNexTechSalesPaymentProvider = {
@@ -471,9 +472,10 @@ export async function saveNexTechPaymentProvider(botId: string, guildId: string,
     instructions: normalizeNullable(input.instructions),
     updatedAt: now
   };
-  const paymentProviders = existing
+  const paymentProviders = (existing
     ? current.paymentProviders.map((provider) => provider.id === existing.id ? nextProvider : provider)
-    : [nextProvider, ...current.paymentProviders];
+    : [nextProvider, ...current.paymentProviders])
+    .map((provider) => input.enabled && provider.id !== nextProvider.id ? { ...provider, enabled: false } : provider);
 
   const { nexTechSalesSettings } = await getMongoCollections();
   await nexTechSalesSettings.updateOne(
@@ -514,11 +516,8 @@ export async function testNexTechPaymentProvider(botId: string, guildId: string,
   const existing = current.paymentProviders.find((provider) => provider.id === input.id);
   const accessToken = input.secret?.trim() || (existing?.secretEncrypted ? decryptSecret(existing.secretEncrypted) : "");
 
-  if (input.provider !== "mercadopago") {
-    throw createNexTechSalesError("Teste disponível apenas para Mercado Pago.", 400);
-  }
   if (!accessToken) {
-    throw createNexTechSalesError("Informe ou salve o Access Token antes de testar.", 400);
+    throw createNexTechSalesError(`Informe ou salve o ${input.provider === "pagbank" ? "Token PagBank" : "Access Token"} antes de testar.`, 400);
   }
 
   const now = new Date();
@@ -526,7 +525,9 @@ export async function testNexTechPaymentProvider(botId: string, guildId: string,
   const environment = input.environment ?? existing?.environment ?? "production";
   let test: MercadoPagoConnectionTestDto;
   try {
-    test = await testMercadoPagoAccessToken(accessToken, environment);
+    test = input.provider === "pagbank"
+      ? await testPagBankAccessToken(accessToken, environment)
+      : await testMercadoPagoAccessToken(accessToken, environment);
   } catch (error) {
     if (existing) {
       const paymentProviders = current.paymentProviders.map((provider) => provider.id === existing.id ? {
@@ -1113,6 +1114,15 @@ export async function processNexTechPaymentWebhook(storeId: string, gatewayId: s
     }
   }
 
+  if (provider.provider === "pagbank") {
+    saleId = readPagBankExternalReference(input.payload) ?? saleId;
+    paymentStatus = readPagBankStatus(input.payload);
+
+    if (saleId && paymentStatus) {
+      processed = await applyPagBankPaymentStatus(settings, saleId, paymentStatus);
+    }
+  }
+
   if (processed || saleId || paymentStatus) {
     await nexTechWebhookLogs.updateOne(
       {
@@ -1406,6 +1416,10 @@ async function buildProviderCheckout(
     return createMercadoPagoProductPreference(provider, settings, context);
   }
 
+  if (provider.provider === "pagbank") {
+    return createPagBankProductCheckout(provider, settings, context);
+  }
+
   if (provider.provider !== "custom" || !provider.publicKey) {
     return {
       checkoutUrl: null,
@@ -1490,6 +1504,50 @@ async function createMercadoPagoProductPreference(
   };
 }
 
+async function createPagBankProductCheckout(
+  provider: MongoNexTechSalesPaymentProvider,
+  settings: MongoNexTechSalesSettings,
+  context: {
+    amountCents: number;
+    currency: "BRL" | "USD" | "EUR";
+    payerEmail: string | null;
+    planName: string;
+    productName: string;
+    saleId: string;
+    successUrl: string;
+  }
+) {
+  const token = decryptProviderSecret(provider, "Token do PagBank não configurado.");
+  const notificationUrl = provider.webhookUrl || buildMercadoPagoNotificationUrl(settings.storeId, provider.gatewayId);
+  const checkout = await createPagBankCheckout({
+    baseUrl: provider.environment === "sandbox" ? "https://sandbox.api.pagseguro.com" : "https://api.pagseguro.com",
+    publicKey: provider.publicKey,
+    timeoutMs: 30000,
+    token,
+    webhookToken: provider.webhookSecretEncrypted ? decryptSecret(provider.webhookSecretEncrypted) : null,
+    webhookUrl: notificationUrl
+  }, {
+    amountInCents: context.amountCents,
+    currencyId: context.currency,
+    description: context.planName,
+    externalReference: context.saleId,
+    idempotencyKey: context.saleId,
+    itemId: context.saleId,
+    itemTitle: context.productName,
+    notificationUrl,
+    payerEmail: context.payerEmail,
+    returnUrl: settings.publicUrl || context.successUrl,
+    successUrl: context.successUrl
+  }).catch((error) => {
+    throw createNexTechSalesError(error instanceof Error ? error.message : "PagBank recusou a criacao do checkout.", (error as { statusCode?: number })?.statusCode ?? 502);
+  });
+
+  return {
+    checkoutUrl: checkout.checkoutUrl,
+    externalReference: checkout.preferenceId
+  };
+}
+
 function mercadoPagoCheckoutPayerEmail(inputEmail: string | null | undefined, buyerId: string, saleId: string) {
   const email = normalizeNullable(inputEmail);
 
@@ -1555,6 +1613,32 @@ async function testMercadoPagoAccessToken(accessToken: string, environment: "san
   };
 }
 
+async function testPagBankAccessToken(accessToken: string, environment: "sandbox" | "production"): Promise<MercadoPagoConnectionTestDto> {
+  const baseUrl = environment === "sandbox" ? "https://sandbox.api.pagseguro.com" : "https://api.pagseguro.com";
+  const response = await fetch(`${baseUrl}/orders?limit=1`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`
+    }
+  });
+  const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
+
+  if (!response.ok) {
+    throw createNexTechSalesError(readMercadoPagoError(payload) ?? "Não foi possível validar o token PagBank.", response.status >= 400 && response.status < 500 ? 400 : 502);
+  }
+
+  return {
+    account: {
+      country: "BR",
+      email: null,
+      id: null,
+      name: "PagBank"
+    },
+    environment,
+    methods: ["pix", "credit_card"],
+    status: "online"
+  };
+}
+
 async function fetchMercadoPagoJson(url: string, accessToken: string, fallbackMessage: string) {
   const response = await fetch(url, {
     headers: {
@@ -1589,6 +1673,85 @@ async function getMercadoPagoPayment(provider: MongoNexTechSalesPaymentProvider,
 
 async function applyMercadoPagoPaymentStatus(settings: MongoNexTechSalesSettings, saleId: string, paymentStatus: string) {
   const nextStatus = mercadoPagoStatusToSaleStatus(paymentStatus);
+
+  if (!nextStatus) {
+    return false;
+  }
+
+  const { nexTechSales, nexTechSubscriptions } = await getMongoCollections();
+  const current = await nexTechSales.findOne({
+    _id: saleId,
+    ownerUserId: settings.ownerUserId,
+    storeId: settings.storeId
+  });
+
+  if (!current) {
+    return false;
+  }
+
+  const now = new Date();
+  const paidAt = nextStatus === "paid" ? current.paidAt ?? now : current.paidAt;
+  await nexTechSales.updateOne(
+    {
+      _id: saleId,
+      ownerUserId: settings.ownerUserId,
+      storeId: settings.storeId
+    },
+    {
+      $set: {
+        paidAt,
+        status: nextStatus,
+        updatedAt: now,
+        updatedBy: null
+      }
+    }
+  );
+  const updatedSale = {
+    ...current,
+    paidAt,
+    status: nextStatus,
+    updatedAt: now,
+    updatedBy: null
+  };
+
+  if (nextStatus === "paid" && current.planId) {
+    await nexTechSubscriptions.updateOne(
+      {
+        saleId,
+        ownerUserId: settings.ownerUserId,
+        storeId: settings.storeId
+      },
+      {
+        $set: {
+          status: "active",
+          updatedAt: now
+        },
+        $setOnInsert: {
+          _id: randomUUID(),
+          botId: settings.botId,
+          createdAt: now,
+          customerId: current.customerId,
+          expiresAt: null,
+          guildId: settings.guildId,
+          ownerUserId: settings.ownerUserId,
+          planId: current.planId,
+          saleId,
+          startsAt: paidAt ?? now,
+          storeId: settings.storeId
+        }
+      },
+      { upsert: true }
+    );
+  }
+  if (nextStatus === "paid") {
+    await activateNexTechSaleBenefits(settings, updatedSale, now);
+  }
+
+  return true;
+}
+
+async function applyPagBankPaymentStatus(settings: MongoNexTechSalesSettings, saleId: string, paymentStatus: string) {
+  const nextStatus = pagBankStatusToSaleStatus(paymentStatus);
 
   if (!nextStatus) {
     return false;
@@ -2107,6 +2270,62 @@ function mercadoPagoStatusToSaleStatus(status: string): MongoNexTechSaleStatus |
     default:
       return null;
   }
+}
+
+function pagBankStatusToSaleStatus(status: string): MongoNexTechSaleStatus | null {
+  switch (status.trim().toUpperCase()) {
+    case "PAID":
+      return "paid";
+    case "CANCELED":
+    case "CANCELLED":
+    case "DECLINED":
+      return "cancelled";
+    case "REFUNDED":
+      return "refunded";
+    case "WAITING":
+    case "PENDING":
+    case "AUTHORIZED":
+    case "IN_ANALYSIS":
+      return "pending";
+    default:
+      return null;
+  }
+}
+
+function readPagBankExternalReference(payload: unknown) {
+  const record = asRecord(payload);
+  return readStringField(record, "reference_id")
+    ?? readNestedStringField(record, ["order", "reference_id"])
+    ?? readStringField(record, "external_reference")
+    ?? readStringField(firstRecordField(record, "orders"), "reference_id");
+}
+
+function readPagBankStatus(payload: unknown) {
+  const record = asRecord(payload);
+  return readStringField(firstRecordField(record, "charges"), "status")
+    ?? readNestedStringField(record, ["charge", "status"])
+    ?? readStringField(record, "status")
+    ?? readNestedStringField(record, ["order", "status"]);
+}
+
+function firstRecordField(payload: Record<string, unknown> | null, key: string) {
+  const value = payload?.[key];
+  if (!Array.isArray(value)) return null;
+  const first = value[0];
+  return first && typeof first === "object" && !Array.isArray(first) ? first as Record<string, unknown> : null;
+}
+
+function readNestedStringField(payload: Record<string, unknown> | null, path: string[]) {
+  let current: unknown = payload;
+  for (const key of path) {
+    if (!current || typeof current !== "object" || Array.isArray(current)) return null;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return typeof current === "string" && current.trim() ? current.trim() : null;
+}
+
+function asRecord(payload: unknown) {
+  return payload && typeof payload === "object" && !Array.isArray(payload) ? payload as Record<string, unknown> : null;
 }
 
 function decryptProviderSecret(provider: MongoNexTechSalesPaymentProvider, message: string) {

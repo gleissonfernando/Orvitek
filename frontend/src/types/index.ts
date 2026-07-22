@@ -2926,7 +2926,7 @@ export type DevModuleDefinition = {
   label: string;
 };
 
-export type NexTechPaymentProviderType = "mercadopago";
+export type NexTechPaymentProviderType = "mercadopago" | "pagbank";
 export type NexTechSaleStatus = "pending" | "paid" | "cancelled" | "refunded";
 
 export type NexTechSalesPaymentProvider = {
@@ -4436,7 +4436,7 @@ export type CreateDevBotPayload = {
 };
 
 export type PlanBillingCycle = "monthly" | "quarterly" | "semiannual" | "annual" | "lifetime" | "custom";
-export type PaymentProvider = "disabled" | "mercadopago";
+export type PaymentProvider = "disabled" | "mercadopago" | "pagbank";
 export type PlanSubscriptionStatus = "pending" | "active" | "suspended" | "cancelled" | "expired";
 export type PlanWorkspaceStatus = "active" | "suspended" | "cancelled";
 export type PaymentOrderStatus = "interest_registered" | "created" | "checkout_pending" | "pending" | "processing" | "in_process" | "approved" | "paid" | "cancelled" | "expired" | "rejected" | "failed" | "refunded" | "chargeback" | "charged_back" | "in_review" | "error";
@@ -4674,6 +4674,7 @@ export type SavePaymentSettingsPayload = {
   failureRedirectUrl?: string | null;
   pendingRedirectUrl?: string | null;
   plansPublicUrl?: string | null;
+  provider?: PaymentProvider;
   publicKey?: string | null;
   secret?: string | null;
   successRedirectUrl?: string | null;

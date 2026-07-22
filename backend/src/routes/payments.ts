@@ -10,6 +10,7 @@ import {
   getPublicPaymentOrderStatus,
   listAdminPaymentOrders,
   listMyPaymentOrders,
+  processPagBankWebhook,
   processMercadoPagoWebhook,
   reconcilePaymentOrder,
   retryPublicPaymentOrder,
@@ -109,8 +110,10 @@ paymentsRouter.get("/me", requireAuthenticated, async (_req, res, next) => {
 
 paymentsRouter.post("/mercadopago/webhook", handleMercadoPagoWebhook);
 paymentsRouter.post("/mercado-pago/webhook", handleMercadoPagoWebhook);
+paymentsRouter.post("/pagbank/webhook", handlePagBankWebhook);
 paymentWebhooksRouter.post("/mercadopago", handleMercadoPagoWebhook);
 paymentWebhooksRouter.post("/mercado-pago", handleMercadoPagoWebhook);
+paymentWebhooksRouter.post("/pagbank", handlePagBankWebhook);
 
 paymentAdminRouter.use(requireAuth, requireAdminAccess);
 
@@ -150,6 +153,25 @@ async function handleMercadoPagoWebhook(req: Request, res: Response, next: NextF
       requestId: req.get("x-request-id") ?? null,
       resourceType: readQuery(req.query.type),
       signature: req.get("x-signature") ?? null
+    });
+
+    return res.status(result.processed || result.duplicate ? 200 : 202).json({
+      duplicate: result.duplicate,
+      processed: result.processed
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function handlePagBankWebhook(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await processPagBankWebhook({
+      body: req.body,
+      eventId: readQuery(req.query.event_id) ?? readQuery(req.query.id),
+      requestId: req.get("x-request-id") ?? null,
+      signature: req.get("x-signature") ?? req.get("x-pagbank-signature") ?? null,
+      webhookToken: req.get("x-webhook-token") ?? req.get("x-pagbank-token") ?? readQuery(req.query.token)
     });
 
     return res.status(result.processed || result.duplicate ? 200 : 202).json({

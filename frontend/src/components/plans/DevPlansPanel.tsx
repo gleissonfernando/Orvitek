@@ -113,7 +113,7 @@ export function DevPlansPanel() {
   const [planForm, setPlanForm] = useState<PlanFormState>(emptyPlanForm);
   const [featureForm, setFeatureForm] = useState<FeatureFormState>(emptyFeatureForm);
   const [activation, setActivation] = useState({ planId: "", userId: "", workspaceName: "" });
-  const [paymentForm, setPaymentForm] = useState({
+  const [paymentForm, setPaymentForm] = useState<PaymentFormState>({
     approvedRedirectUrl: "",
     botDashboardBaseUrl: "",
     botRegistrationUrl: "",
@@ -121,6 +121,7 @@ export function DevPlansPanel() {
     failureRedirectUrl: "",
     pendingRedirectUrl: "",
     plansPublicUrl: "",
+    provider: "mercadopago" as const,
     successRedirectUrl: "",
     supportDiscordUrl: ""
   });
@@ -141,6 +142,7 @@ export function DevPlansPanel() {
         failureRedirectUrl: next.paymentSettings.failureRedirectUrl ?? "",
         pendingRedirectUrl: next.paymentSettings.pendingRedirectUrl ?? "",
         plansPublicUrl: next.paymentSettings.plansPublicUrl ?? "",
+        provider: next.paymentSettings.provider === "pagbank" ? "pagbank" : "mercadopago",
         successRedirectUrl: next.paymentSettings.successRedirectUrl ?? "",
         supportDiscordUrl: next.paymentSettings.supportDiscordUrl ?? ""
       });
@@ -224,6 +226,7 @@ export function DevPlansPanel() {
       failureRedirectUrl: paymentForm.failureRedirectUrl || null,
       pendingRedirectUrl: paymentForm.pendingRedirectUrl || null,
       plansPublicUrl: paymentForm.plansPublicUrl || null,
+      provider: paymentForm.provider,
       successRedirectUrl: paymentForm.successRedirectUrl || null,
       supportDiscordUrl: paymentForm.supportDiscordUrl || null
     }), "Configuração de pagamento atualizada.");
@@ -556,6 +559,7 @@ type PaymentFormState = {
   failureRedirectUrl: string;
   pendingRedirectUrl: string;
   plansPublicUrl: string;
+  provider: "mercadopago" | "pagbank";
   successRedirectUrl: string;
   supportDiscordUrl: string;
 };
@@ -565,13 +569,24 @@ function PaymentSettingsForm({ busy, form, onChange, onSubmit, settings }: { bus
     <Card>
       <CardHeader>
         <CardTitle>Configuração de pagamentos</CardTitle>
-        <CardDescription>Ativacao e provider são definidos somente pelas variaveis de ambiente.</CardDescription>
+        <CardDescription>Selecione um gateway ativo por vez. As credenciais continuam protegidas nas variaveis de ambiente.</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="grid max-w-2xl gap-3" onSubmit={onSubmit}>
           <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-3 text-sm text-zinc-300">
-            Pagamentos {settings.enabled ? "ativos" : "desativados"} via {settings.provider}. Credenciais Mercado Pago: public key {settings.publicKey ? "detectada" : "ausente"}, access token {settings.secretConfigured ? "detectado" : "ausente"}, webhook secret {settings.webhookSecretConfigured ? "detectado" : "ausente"}.
+            Pagamentos {settings.enabled ? "ativos" : "desativados"} via {gatewayLabel(settings.provider)}. Credenciais: public key {settings.publicKey ? "detectada" : "ausente"}, token {settings.secretConfigured ? "detectado" : "ausente"}, webhook {settings.webhookSecretConfigured ? "configurado" : "pendente"}.
           </div>
+          <label className="grid gap-1 text-sm">
+            <span className="text-zinc-300">Gateway ativo</span>
+            <select
+              className="h-11 rounded-lg border border-zinc-800 bg-black px-3 text-white outline-none focus:border-[#FFD500]/50"
+              onChange={(event) => onChange({ ...form, provider: event.target.value as PaymentFormState["provider"] })}
+              value={form.provider}
+            >
+              <option value="mercadopago">Mercado Pago</option>
+              <option value="pagbank">PagBank</option>
+            </select>
+          </label>
           <div className="grid gap-3 sm:grid-cols-2">
             <TextField label="URL após pagamento" value={form.successRedirectUrl} onChange={(successRedirectUrl) => onChange({ ...form, successRedirectUrl })} />
             <TextField label="URL pagamento aprovado" value={form.approvedRedirectUrl} onChange={(approvedRedirectUrl) => onChange({ ...form, approvedRedirectUrl })} />
@@ -591,6 +606,12 @@ function PaymentSettingsForm({ busy, form, onChange, onSubmit, settings }: { bus
       </CardContent>
     </Card>
   );
+}
+
+function gatewayLabel(provider: DevPlansDashboard["paymentSettings"]["provider"]) {
+  if (provider === "pagbank") return "PagBank";
+  if (provider === "mercadopago") return "Mercado Pago";
+  return "desativado";
 }
 
 function FlagGrid({ form, onChange }: { form: PlanFormState; onChange: (form: PlanFormState) => void }) {

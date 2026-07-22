@@ -89,6 +89,16 @@ function applyMercadoPagoEnvAliases() {
   applyEnvAlias("MERCADOPAGO_BINARY_MODE", "MERCADO_PAGO_BINARY_MODE");
 }
 
+function applyPagBankEnvAliases() {
+  applyEnvAlias("PAGBANK_TOKEN", "PAGSEGURO_TOKEN");
+  applyEnvAlias("PAGBANK_PUBLIC_KEY", "PAGSEGURO_PUBLIC_KEY");
+  applyEnvAlias("PAGBANK_CLIENT_ID", "PAGSEGURO_CLIENT_ID");
+  applyEnvAlias("PAGBANK_CLIENT_SECRET", "PAGSEGURO_CLIENT_SECRET");
+  applyEnvAlias("PAGBANK_WEBHOOK_TOKEN", "PAGSEGURO_WEBHOOK_TOKEN");
+  applyEnvAlias("PAGBANK_WEBHOOK_URL", "PAGSEGURO_WEBHOOK_URL");
+  applyEnvAlias("PAGBANK_BASE_URL", "PAGSEGURO_BASE_URL");
+}
+
 function normalizeUrl(value: string) {
   return value.replace(/\/+$/, "");
 }
@@ -188,6 +198,7 @@ function isLocalUrl(value: string) {
 
 applyPackedEnv();
 applyMercadoPagoEnvAliases();
+applyPagBankEnvAliases();
 
 const configuredSiteOrigin =
   cleanEnvValue(process.env.SITE_ORIGIN)
@@ -244,7 +255,7 @@ const envSchema = z
     JWT_REFRESH_TTL_SECONDS: z.coerce.number().default(60 * 60 * 24 * 7),
     BOT_API_TOKEN: internalBotToken(),
     PAYMENTS_ENABLED: envBoolean(false),
-    PAYMENT_PROVIDER: z.enum(["disabled", "mercadopago"]).default("disabled"),
+    PAYMENT_PROVIDER: z.enum(["disabled", "mercadopago", "pagbank"]).default("disabled"),
     MERCADOPAGO_ENV: z.enum(["test", "production"]).default("production"),
     MERCADOPAGO_ENABLED: envBoolean(false),
     MERCADOPAGO_PROD_ACCESS_TOKEN: z.string().optional().default(""),
@@ -265,6 +276,16 @@ const envSchema = z
     MERCADOPAGO_CHECKOUT_EXPIRATION_MINUTES: z.coerce.number().int().min(5).max(1440).default(30),
     MERCADOPAGO_MAX_INSTALLMENTS: z.coerce.number().int().min(1).max(24).optional(),
     MERCADOPAGO_BINARY_MODE: envBoolean(false),
+    PAGBANK_TOKEN: z.string().optional().default(""),
+    PAGBANK_PUBLIC_KEY: z.string().optional().default(""),
+    PAGBANK_CLIENT_ID: z.string().optional().default(""),
+    PAGBANK_CLIENT_SECRET: z.string().optional().default(""),
+    PAGBANK_WEBHOOK_TOKEN: z.string().optional().default(""),
+    PAGBANK_WEBHOOK_URL: envOptionalUrl("PAGBANK_WEBHOOK_URL"),
+    PAGBANK_BASE_URL: envUrl("PAGBANK_BASE_URL", "https://sandbox.api.pagseguro.com"),
+    PAGBANK_TIMEOUT: z.coerce.number().int().min(1000).max(120000).default(30000),
+    PIX_EXPIRATION_MINUTES: z.coerce.number().int().min(5).max(1440).default(30),
+    PIX_DESCRIPTION: z.string().optional().default("Pagamento do Plano"),
     PAYMENTS_ALLOW_LIVE_CHARGES: envBoolean(false),
     PLAN_TOKEN_ENCRYPTION_KEY: z.string().optional().default(""),
     PLAN_TOKEN_FINGERPRINT_KEY: z.string().optional().default(""),
@@ -368,6 +389,7 @@ const envSchema = z
       MERCADOPAGO_PENDING_URL: value.MERCADOPAGO_PENDING_URL || (oauthFrontendUrl ? `${oauthFrontendUrl}/pagamento/pendente` : ""),
       MERCADOPAGO_FAILURE_URL: value.MERCADOPAGO_FAILURE_URL || (oauthFrontendUrl ? `${oauthFrontendUrl}/pagamento/falha` : ""),
       MERCADOPAGO_WEBHOOK_URL: value.MERCADOPAGO_WEBHOOK_URL || (oauthFrontendUrl ? `${oauthFrontendUrl}/api/payments/mercadopago/webhook` : ""),
+      PAGBANK_WEBHOOK_URL: value.PAGBANK_WEBHOOK_URL || (oauthFrontendUrl ? `${oauthFrontendUrl}/api/payments/pagbank/webhook` : ""),
       TRANSCRIPT_BASE_URL: normalizedTranscriptBaseUrl || oauthFrontendUrl,
       TRANSCRIPT_PORT: value.TRANSCRIPT_PORT ?? value.PORT,
       DISCORD_REDIRECT_URI: effectiveDiscordRedirect,

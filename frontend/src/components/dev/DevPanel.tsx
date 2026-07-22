@@ -4398,6 +4398,7 @@ function NexTechSalesWorkspace({
                     value={providerForm.provider}
                   >
                     <option value="mercadopago">Mercado Pago</option>
+                    <option value="pagbank">PagBank</option>
                   </select>
                   <select
                     className="h-11 rounded-lg border border-zinc-800 bg-black/40 px-3 text-sm font-semibold text-white outline-none"
