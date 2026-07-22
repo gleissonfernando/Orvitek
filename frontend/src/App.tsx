@@ -166,6 +166,10 @@ function readAuthError() {
     return "Você não possui acesso a esta dashboard. Verifique se o plano está em dia ou entre em contato com o suporte.";
   }
 
+  if (reason === "nobot") {
+    return "Você não possui nenhum bot cadastrado na plataforma. Cadastre um bot para utilizar o Dashboard.";
+  }
+
   if (reason === "callback") {
     return "A resposta do Discord expirou ou não corresponde a sua sessão. Tente autenticar novamente.";
   }

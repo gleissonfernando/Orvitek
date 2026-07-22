@@ -17,6 +17,18 @@ export type MongoUser = {
   permissionLevel?: "admin" | "moderator" | "premium" | "basic" | "viewer";
   lastAccessSyncAt?: Date | null;
   selectedGuildId?: string | null;
+  authSessionVersion?: number;
+  activeSessionId?: string | null;
+  activeSessionScope?: "dashboard" | "customer" | null;
+  activeSessionBotId?: string | null;
+  activeSessionCreatedAt?: Date | null;
+  activeSessionLastAccessAt?: Date | null;
+  activeSessionExpiresAt?: Date | null;
+  activeSessionIp?: string | null;
+  activeSessionUserAgent?: string | null;
+  activeSessionStatus?: "active" | "invalidated" | "logged_out" | null;
+  activeSessionInvalidatedAt?: Date | null;
+  activeSessionInvalidationReason?: string | null;
   lastLoginAt: Date | null;
   createdAt: Date;
   updatedAt: Date;

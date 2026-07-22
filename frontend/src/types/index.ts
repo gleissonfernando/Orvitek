@@ -44,6 +44,9 @@ export type AuthUser = {
   accessLevel: SessionAccessLevel;
   authorized: boolean;
   lastLoginAt: string;
+  sessionId?: string | null;
+  sessionVersion?: number;
+  sessionScope?: "dashboard" | "customer";
 };
 
 export type GuildAccessCheck = {

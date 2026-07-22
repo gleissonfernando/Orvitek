@@ -35,7 +35,7 @@ export type DashboardAuth = {
 export function issueAuthCookies(res: Response, user: AuthSessionUser, verified: boolean) {
   const accessToken = signToken("access", user, verified, env.JWT_ACCESS_TTL_SECONDS);
 
-  setAuthCookie(res, ACCESS_COOKIE, accessToken, env.JWT_ACCESS_TTL_SECONDS);
+  setAuthCookie(res, ACCESS_COOKIE, accessToken);
   res.clearCookie(REFRESH_COOKIE, cookieOptions());
   clearVerificationCookie(res);
 
@@ -202,6 +202,15 @@ function normalizeAuthUser(user: AuthSessionUser): AuthSessionUser {
     avatarUrl: normalizeAvatarUrl(user),
     dashboardBotId: user.dashboardBotId ?? null,
     dashboardBotSlug: user.dashboardBotSlug ?? null,
+    sessionId: user.sessionId ?? null,
+    sessionVersion: typeof user.sessionVersion === "number" ? user.sessionVersion : 0,
+    sessionScope: user.sessionScope ?? "dashboard",
+    sessionBotId: user.sessionBotId ?? null,
+    sessionCreatedAt: user.sessionCreatedAt ?? null,
+    sessionLastAccessAt: user.sessionLastAccessAt ?? null,
+    sessionExpiresAt: user.sessionExpiresAt ?? null,
+    sessionIp: user.sessionIp ?? null,
+    sessionUserAgent: user.sessionUserAgent ?? null,
     guilds,
     selectedGuildId,
     accessLevel,
@@ -226,9 +235,9 @@ function normalizeAvatarUrl(user: AuthSessionUser) {
   return getDiscordAvatarUrl(user.discordId, user.avatar);
 }
 
-function setAuthCookie(res: Response, name: string, value: string, maxAgeSeconds: number) {
+function setAuthCookie(res: Response, name: string, value: string) {
   res.cookie(name, value, {
-    ...cookieOptions(maxAgeSeconds)
+    ...cookieOptions()
   });
 }
 
@@ -249,20 +258,13 @@ function signVerificationToken(user: AuthSessionUser) {
   );
 }
 
-function cookieOptions(maxAgeSeconds?: number) {
-  const options = {
+function cookieOptions() {
+  return {
     httpOnly: true,
-    sameSite: "lax" as const,
+    sameSite: "strict" as const,
     secure: env.NODE_ENV === "production",
     path: "/"
   };
-
-  return typeof maxAgeSeconds === "number"
-    ? {
-        ...options,
-        maxAge: maxAgeSeconds * 1000
-      }
-    : options;
 }
 
 function readCookie(req: Request, name: string) {

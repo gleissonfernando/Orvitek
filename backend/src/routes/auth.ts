@@ -12,7 +12,7 @@ import {
   getDiscordOAuthDiagnostics
 } from "../services/discordOAuthService";
 import { toDashboardGuilds } from "../services/guildService";
-import { ACCESS_DENIED_MESSAGE, SUPPORT_DISCORD_URL, requireAuthenticated } from "../middleware/auth";
+import { ACCESS_DENIED_MESSAGE, SUPPORT_DISCORD_URL, requireAuthenticated, validateResolvedDashboardAuth } from "../middleware/auth";
 import {
   applyDashboardAccessValidation,
   createDeniedAccessUser,
@@ -26,7 +26,7 @@ import {
   resolveAuthFromRequest
 } from "../services/tokenService";
 import { getBotStatus, refreshBotGuildsFromDiscord } from "../services/statsService";
-import { clearStoredDiscordTokens, saveDiscordUser } from "../services/userService";
+import { clearStoredDiscordTokens, invalidateDashboardSession, rotateDashboardSession, saveDiscordUser } from "../services/userService";
 import type { AuthSessionUser } from "../types/session";
 import { getDevBot, getDevBotBySlug, listAccessibleDashboardBots } from "../services/devBotService";
 import { canAccessDevDashboard } from "../services/devPermissionService";
@@ -50,6 +50,11 @@ function appRedirectUrl(path: string) {
 
 function cleanAppRedirectUrl(path: string) {
   return appRedirectUrl(stripAuthTemporaryParams(path));
+}
+
+function requestIp(req: Request) {
+  const forwarded = req.get("x-forwarded-for")?.split(",")[0]?.trim();
+  return forwarded || req.ip || null;
 }
 
 function errorRedirectUrl(reason: string) {
@@ -324,7 +329,10 @@ authRouter.get("/discord/dev", async (req, res, next) => {
   try {
     const returnTo = readReturnTo(req, "/dev");
     const currentAuth = resolveAuthFromRequest(req, res);
-    if (currentAuth?.verified) {
+    const activeAuth = currentAuth?.verified
+      ? await validateResolvedDashboardAuth(req, res, currentAuth, { requireDashboardScope: true })
+      : null;
+    if (activeAuth?.verified) {
       console.info(`[auth] login Discord ignorado: sessão existente; type=dev redirect=${returnTo}.`);
       return res.redirect(cleanAppRedirectUrl(returnTo));
     }
@@ -358,7 +366,10 @@ authRouter.get("/discord/dashboard", async (req, res, next) => {
   try {
     const returnTo = readReturnTo(req, "/dashboard");
     const currentAuth = resolveAuthFromRequest(req, res);
-    if (currentAuth?.verified) {
+    const activeAuth = currentAuth?.verified
+      ? await validateResolvedDashboardAuth(req, res, currentAuth, { requireDashboardScope: true })
+      : null;
+    if (activeAuth?.verified) {
       console.info(`[auth] login Discord ignorado: sessão existente; type=dashboard redirect=${returnTo}.`);
       return res.redirect(cleanAppRedirectUrl(returnTo));
     }
@@ -393,7 +404,10 @@ authRouter.get("/discord/customer", async (req, res, next) => {
     const requestedReturnTo = typeof req.query.returnTo === "string" ? req.query.returnTo : "/planos";
     const returnTo = normalizeReturnTo(requestedReturnTo, "/planos");
     const currentAuth = resolveAuthFromRequest(req, res);
-    if (currentAuth?.verified) {
+    const activeAuth = currentAuth?.verified
+      ? await validateResolvedDashboardAuth(req, res, currentAuth)
+      : null;
+    if (activeAuth?.verified) {
       console.info(`[auth] login Discord ignorado: sessão existente; type=customer redirect=${returnTo}.`);
       return res.redirect(cleanAppRedirectUrl(returnTo));
     }
@@ -443,7 +457,10 @@ authRouter.get("/discord/bot/:slug", async (req, res, next) => {
 
     const returnTo = readReturnTo(req, `/${bot.slug}/dashboard`, bot.slug);
     const currentAuth = resolveAuthFromRequest(req, res);
-    if (currentAuth?.verified) {
+    const activeAuth = currentAuth?.verified
+      ? await validateResolvedDashboardAuth(req, res, currentAuth, { requireDashboardScope: true })
+      : null;
+    if (activeAuth?.verified) {
       console.info(`[auth] login Discord ignorado: sessão existente; type=bot slug=${bot.slug} redirect=${returnTo}.`);
       return res.redirect(cleanAppRedirectUrl(returnTo));
     }
@@ -558,8 +575,27 @@ authRouter.get("/discord/callback", async (req, res, next) => {
           : baseUser.selectedGuildId,
         lastLoginAt: user.lastLoginAt?.toISOString?.() ?? baseUser.lastLoginAt
       };
+      const sessionId = randomUUID();
+      const sessionCreatedAt = new Date().toISOString();
+      const sessionState = await withAuthTimeout("customer_session_rotate", rotateDashboardSession(discordUser.id, {
+        ip: requestIp(req),
+        scope: "customer",
+        sessionId,
+        userAgent: req.get("user-agent") ?? null
+      }));
 
-      req.session.user = customerUser;
+      req.session.user = {
+        ...customerUser,
+        sessionId,
+        sessionVersion: sessionState.sessionVersion,
+        sessionScope: "customer",
+        sessionBotId: null,
+        sessionCreatedAt,
+        sessionLastAccessAt: sessionCreatedAt,
+        sessionExpiresAt: sessionState.expiresAt.toISOString(),
+        sessionIp: requestIp(req),
+        sessionUserAgent: req.get("user-agent") ?? null
+      };
       req.session.verified = false;
       req.session.oauth2VerifiedAt = new Date().toISOString();
       req.session.oauthState = undefined;
@@ -612,10 +648,10 @@ authRouter.get("/discord/callback", async (req, res, next) => {
     }
 
     if (!validation.allowed) {
-      console.warn(`[auth] oauth: acesso negado para ${discordUser.id}: ${validation.rejectionReasons.join(" | ") || "sem motivo detalhado"}`);
+      console.warn(`[auth] oauth: acesso negado para ${discordUser.id}: ${validation.rejectionReasons.join(" | ") || "sem bot cadastrado/liberado"}`);
       clearSessionAuthState(req, res);
       await saveSession(req).catch(() => undefined);
-      return res.redirect(errorRedirectUrl("permission"));
+      return res.redirect(errorRedirectUrl("nobot"));
     }
 
     const user = await withAuthTimeout("dashboard_user_save", saveDiscordUser(discordUser, tokens));
@@ -634,12 +670,33 @@ authRouter.get("/discord/callback", async (req, res, next) => {
     const defaultDashboardBotSlug = verifiedState.type === "dashboard"
       ? await withAuthTimeout("dashboard_default_bot_lookup", resolveDashboardBotSlugForRedirect(validatedUserBase, validatedUserBase.dashboardBotSlug))
       : validatedUserBase.dashboardBotSlug;
-    const validatedUser = defaultDashboardBotSlug === validatedUserBase.dashboardBotSlug
+    const validatedUserWithoutSession = defaultDashboardBotSlug === validatedUserBase.dashboardBotSlug
       ? validatedUserBase
       : {
           ...validatedUserBase,
           dashboardBotSlug: defaultDashboardBotSlug
         };
+    const sessionId = randomUUID();
+    const sessionCreatedAt = new Date().toISOString();
+    const sessionState = await withAuthTimeout("dashboard_session_rotate", rotateDashboardSession(discordUser.id, {
+      botId: validatedUserWithoutSession.dashboardBotId ?? verifiedState.botId ?? null,
+      ip: requestIp(req),
+      scope: "dashboard",
+      sessionId,
+      userAgent: req.get("user-agent") ?? null
+    }));
+    const validatedUser = {
+      ...validatedUserWithoutSession,
+      sessionId,
+      sessionVersion: sessionState.sessionVersion,
+      sessionScope: "dashboard" as const,
+      sessionBotId: validatedUserWithoutSession.dashboardBotId ?? verifiedState.botId ?? null,
+      sessionCreatedAt,
+      sessionLastAccessAt: sessionCreatedAt,
+      sessionExpiresAt: sessionState.expiresAt.toISOString(),
+      sessionIp: requestIp(req),
+      sessionUserAgent: req.get("user-agent") ?? null
+    };
 
     if (verifiedState.type === "dev") {
       redirectTo = "/dev";
@@ -691,8 +748,17 @@ authRouter.get("/me", async (req, res, next) => {
       });
     }
 
-    const refreshedUser = await withAuthTimeout("auth_user_guild_refresh", refreshAuthUserGuilds(req, auth.user));
-    let currentAuth = refreshedUser === auth.user ? auth : issueAuthCookies(res, refreshedUser, auth.verified);
+    const activeAuth = await validateResolvedDashboardAuth(req, res, auth);
+
+    if (!activeAuth) {
+      console.info(`[auth] /me sessão expirada: discordId=${auth.user.discordId}.`);
+      return res.status(401).json({
+        message: "Sessão expirada. Faça login novamente pelo Discord."
+      });
+    }
+
+    const refreshedUser = await withAuthTimeout("auth_user_guild_refresh", refreshAuthUserGuilds(req, activeAuth.user));
+    let currentAuth = refreshedUser === activeAuth.user ? activeAuth : issueAuthCookies(res, refreshedUser, activeAuth.verified);
     let validation: Awaited<ReturnType<typeof evaluateDashboardAccess>> | null = null;
 
     if (!currentAuth.verified) {
@@ -888,14 +954,18 @@ async function resolvePostAuthRedirectTo(
 authRouter.post("/logout", async (req, res, next) => {
   try {
     const discordId = req.session.user?.discordId;
+    const sessionId = req.session.user?.sessionId ?? null;
     clearAuthCookies(res);
     if (discordId) {
-      await clearStoredDiscordTokens(discordId);
+      await Promise.all([
+        clearStoredDiscordTokens(discordId),
+        invalidateDashboardSession(discordId, sessionId, "logout")
+      ]);
     }
     await destroySession(req);
     res.clearCookie("discord_dashboard.sid", {
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: "strict",
       secure: env.NODE_ENV === "production",
       path: "/"
     });

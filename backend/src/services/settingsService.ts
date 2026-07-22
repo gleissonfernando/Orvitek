@@ -8,6 +8,7 @@ import {
 } from "./dashboardPermissionService";
 import { resolveMemberPanelAssetUrl } from "./memberPanelAssetStorageService";
 import { getPanelImageSettings, type PanelImageSettingsDto } from "./panelImageSettingsService";
+import { invalidateAllActiveDashboardSessions, invalidateDashboardSessionsForDiscordIds } from "./userService";
 
 export type GuildSettingsDto = {
   botId: string | null;
@@ -725,6 +726,14 @@ export async function updateGuildSettings(
 
     if ("dashboardUserPermissions" in input) {
       await syncDashboardUserPermissionsAcrossGuild(guildId, normalizedBotId, next.dashboardUserPermissions);
+      await invalidateDashboardSessionsForDiscordIds(
+        [...Object.keys(current.dashboardUserPermissions), ...Object.keys(next.dashboardUserPermissions)],
+        "dashboard_user_permissions_changed"
+      );
+    }
+
+    if ("dashboardRolePermissions" in input) {
+      await invalidateAllActiveDashboardSessions("dashboard_role_permissions_changed");
     }
   } catch (error) {
     console.error("[mongo] não foi possível persistir settings:", error);

@@ -18,6 +18,15 @@ export type AuthSessionUser = {
   accessLevel: SessionAccessLevel;
   authorized: boolean;
   lastLoginAt: string;
+  sessionId?: string | null;
+  sessionVersion?: number;
+  sessionScope?: "dashboard" | "customer";
+  sessionBotId?: string | null;
+  sessionCreatedAt?: string | null;
+  sessionLastAccessAt?: string | null;
+  sessionExpiresAt?: string | null;
+  sessionIp?: string | null;
+  sessionUserAgent?: string | null;
 };
 
 declare module "express-session" {
@@ -37,6 +46,7 @@ declare module "express-session" {
     };
     discordAccessToken?: string;
     discordRefreshToken?: string;
+    dashboardSessionTouchedAt?: number;
     giveawayOAuth?: {
       codeVerifier?: string;
       platform: "twitch" | "kick";

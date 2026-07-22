@@ -28,6 +28,7 @@ import { getImageAntiSpamSettings } from "./imageAntiSpamService";
 import { saveSelfBotProtectionSettings } from "./selfBotProtectionService";
 import { getSelfBotProtectionSettings, type SelfBotProtectionModuleId } from "./selfBotProtectionService";
 import { createLog } from "./logService";
+import { invalidateDashboardSessionsForDiscordIds } from "./userService";
 import { getStoredDiscordTokens, updateStoredDiscordTokens } from "./userService";
 import { isCustomFivemModuleId } from "./fivemModuleService";
 import { canAccessDevDashboard } from "./devPermissionService";
@@ -485,6 +486,16 @@ export async function listDevBots() {
   const guildIdsByBot = groupGuildIdsByBot(configs);
 
   return bots.map((bot) => toDevBotDto(bot, allBotGuildIds(bot, guildIdsByBot.get(bot._id))));
+}
+
+async function invalidateOwnerSessionsForBot(bot: Pick<MongoDevBot, "createdBy" | "ownerId"> | null | undefined, reason: string) {
+  if (!bot) {
+    return;
+  }
+
+  await invalidateDashboardSessionsForDiscordIds([bot.ownerId, bot.createdBy], reason).catch((error) => {
+    console.warn("[auth] não foi possível invalidar sessões vinculadas ao bot:", error instanceof Error ? error.message : error);
+  });
 }
 
 export async function listAccessibleDevBots(user: AuthSessionUser, options: AccessibleDevBotsOptions = {}) {
@@ -1084,6 +1095,9 @@ export async function updateDevBot(botId: string, input: UpdateDevBotInput) {
     return null;
   }
 
+  await invalidateDashboardSessionsForDiscordIds([current.ownerId, current.createdBy, updated.ownerId, updated.createdBy], "dev_bot_updated").catch((error) => {
+    console.warn("[auth] não foi possível invalidar sessão após atualização do bot:", error instanceof Error ? error.message : error);
+  });
   emitRealtime("dev:bot_updated", toDashboardBotDto(toDevBotDto(updated)));
   return toDevBotDto(updated);
 }
@@ -1102,6 +1116,7 @@ export async function deleteDevBot(botId: string) {
   ]);
 
   const dto = toDevBotDto(bot);
+  await invalidateOwnerSessionsForBot(bot, "dev_bot_deleted");
   emitRealtime("dev:bot_deleted", toDashboardBotDto(dto));
   return dto;
 }
@@ -1409,6 +1424,7 @@ export async function setDevBotDesiredOnline(botId: string, desiredOnline: boole
     { returnDocument: "after" }
   );
   if (!updated) return null;
+  await invalidateOwnerSessionsForBot(updated, desiredOnline ? "dev_bot_started" : "dev_bot_stopped");
   const dto = toDevBotDto(updated);
   emitRealtime("dev:bot_updated", toDashboardBotDto(dto));
   return dto;
@@ -1470,7 +1486,9 @@ export async function markDevBotsOfflineAfterBackendRestart() {
     status: "online"
   }, {
     projection: {
-      _id: 1
+      _id: 1,
+      createdBy: 1,
+      ownerId: 1
     }
   }).toArray();
 
@@ -1500,6 +1518,12 @@ export async function markDevBotsOfflineAfterBackendRestart() {
       emitRealtime("dev:bot_updated", toDashboardBotDto(updatedBot));
     }
   }));
+  await invalidateDashboardSessionsForDiscordIds(
+    previouslyOnline.flatMap((bot) => [bot.ownerId, bot.createdBy]),
+    "backend_restarted"
+  ).catch((error) => {
+    console.warn("[auth] não foi possível invalidar sessões após reinício do backend:", error instanceof Error ? error.message : error);
+  });
 
   return previouslyOnline.length;
 }

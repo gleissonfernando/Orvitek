@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { checkSiteAccess, clearTabVerification, getSession, logout as logoutRequest, verifyAccess } from "../lib/api";
+import { createDashboardSocket } from "../lib/socket";
 import { appUrl, dashboardSlugFromPath, dashboardUrl, isDashboardRoutePath } from "../lib/urls";
 import type { AccessValidationResult, AuthResponse } from "../types";
 
@@ -151,6 +152,38 @@ export function useAuth() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!auth?.user.discordId) {
+      return;
+    }
+
+    const socket = createDashboardSocket();
+    const onSessionInvalidated = (payload: { all?: unknown; discordIds?: unknown; reason?: unknown; sessionId?: unknown }) => {
+      const discordIds = Array.isArray(payload.discordIds) ? payload.discordIds : [];
+      const currentSessionId = auth.user.sessionId ?? null;
+      const matchesAll = payload.all === true;
+      const matchesUser = discordIds.includes(auth.user.discordId);
+      const matchesSession = typeof payload.sessionId === "string" && currentSessionId === payload.sessionId;
+
+      if (!matchesAll && !matchesUser && !matchesSession) {
+        return;
+      }
+
+      clearTabVerification();
+      setAuth(null);
+      setAccessValidation(null);
+      setCheckingAccess(false);
+      setStatus("Acesso negado.");
+      setError("Sua sessão expirou porque o bot ou suas permissões foram atualizados. Entre novamente pelo Discord.");
+    };
+
+    socket.on("auth:session_invalidated", onSessionInvalidated);
+    return () => {
+      socket.off("auth:session_invalidated", onSessionInvalidated);
+      socket.disconnect();
+    };
+  }, [auth?.user.discordId, auth?.user.sessionId]);
 
   return {
     auth,

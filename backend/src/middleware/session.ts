@@ -28,8 +28,7 @@ export const sessionMiddleware = session({
   store: persistentStore,
   cookie: {
     httpOnly: true,
-    maxAge: env.SESSION_TTL_SECONDS * 1000,
-    sameSite: "lax",
+    sameSite: "strict",
     secure: env.NODE_ENV === "production"
   }
 });

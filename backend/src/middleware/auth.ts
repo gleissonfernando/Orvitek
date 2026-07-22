@@ -6,11 +6,14 @@ import { applyDashboardAccessValidation, createDeniedAccessUser, evaluateDashboa
 import { dashboardPermissionsForLevel } from "../services/dashboardPermissionService";
 import { getBotStatus, refreshBotGuildsFromDiscord } from "../services/statsService";
 import { clearAuthCookies, issueAuthCookies, resolveAuthFromRequest, type DashboardAuth } from "../services/tokenService";
+import { getUserDashboardSessionState, touchDashboardSession } from "../services/userService";
 
 const VERIFIED_ACCESS_RECHECK_MS = 3 * 1000;
 export const ACCESS_DENIED_MESSAGE = "Você não possui acesso a esta dashboard. Verifique se o plano está em dia ou entre em contato com o suporte.";
+export const NO_BOT_ACCESS_MESSAGE = "Você não possui nenhum bot cadastrado na plataforma. Cadastre um bot para utilizar o Dashboard.";
 export const SUPPORT_DISCORD_URL = "https://discord.gg/KAGgfuTcDS";
 const AUTH_MIDDLEWARE_TIMEOUT_MS = 12_000;
+const SESSION_TOUCH_INTERVAL_MS = 15_000;
 
 export function isBotRequest(req: Request) {
   const token = req.header("bot-token") ?? req.header("x-bot-token");
@@ -26,12 +29,18 @@ export async function requireAuthenticated(req: Request, res: Response, next: Ne
       return res.status(401).json({ message: "Sessão não autenticada." });
     }
 
-    req.session.user = auth.user;
+    const activeAuth = await validateResolvedDashboardAuth(req, res, auth);
+
+    if (!activeAuth) {
+      return res.status(401).json({ message: "Sessão expirada. Faça login novamente pelo Discord." });
+    }
+
+    req.session.user = activeAuth.user;
     req.session.oauth2VerifiedAt ??= new Date().toISOString();
-    if (auth.verified) {
+    if (activeAuth.verified) {
       req.session.verified = true;
     }
-    res.locals.dashboardAuth = auth;
+    res.locals.dashboardAuth = activeAuth;
     return next();
   } catch (error) {
     return next(error);
@@ -51,22 +60,34 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return res.status(401).json({ message: "Sessão não autenticada." });
     }
 
-    const freshAuth = await ensureVerifiedRoleAccess(req, res, auth);
+    const activeAuth = await validateResolvedDashboardAuth(req, res, auth, { requireDashboardScope: true });
 
-    if (!freshAuth) {
+    if (!activeAuth) {
       await recordAccessAttempt(req, {
         userId: auth.user.discordId,
         username: auth.user.username,
         result: "denied",
-        reason: ACCESS_DENIED_MESSAGE
+        reason: "Sessão expirada ou invalidada."
       });
-      return res.status(403).json({ message: ACCESS_DENIED_MESSAGE, supportUrl: SUPPORT_DISCORD_URL });
+      return res.status(401).json({ message: "Sessão expirada. Faça login novamente pelo Discord." });
+    }
+
+    const freshAuth = await ensureVerifiedRoleAccess(req, res, activeAuth);
+
+    if (!freshAuth) {
+      await recordAccessAttempt(req, {
+        userId: activeAuth.user.discordId,
+        username: activeAuth.user.username,
+        result: "denied",
+        reason: NO_BOT_ACCESS_MESSAGE
+      });
+      return res.status(403).json({ message: NO_BOT_ACCESS_MESSAGE, supportUrl: SUPPORT_DISCORD_URL });
     }
 
     if (!freshAuth.verified) {
       await recordAccessAttempt(req, {
-        userId: auth.user.discordId,
-        username: auth.user.username,
+        userId: activeAuth.user.discordId,
+        username: activeAuth.user.username,
         result: "denied",
         reason: "Verificação obrigatória para acessar o painel."
       });
@@ -113,6 +134,66 @@ async function ensureBotGuildsLoaded() {
   if (getBotStatus().botGuilds.length === 0) {
     await refreshBotGuildsFromDiscord();
   }
+}
+
+export async function validateResolvedDashboardAuth(
+  req: Request,
+  res: Response,
+  auth: DashboardAuth,
+  options: { requireDashboardScope?: boolean } = {}
+) {
+  const sessionId = auth.user.sessionId;
+  const sessionVersion = auth.user.sessionVersion;
+
+  if (!sessionId || typeof sessionVersion !== "number") {
+    console.warn(`[auth] sessão rejeitada sem sessionId/version: discordId=${auth.user.discordId}.`);
+    clearDashboardSession(req, res);
+    return null;
+  }
+
+  const state = await withAuthMiddlewareTimeout("dashboard_session_state", getUserDashboardSessionState(auth.user.discordId));
+
+  if (
+    !state ||
+    state.activeSessionStatus !== "active" ||
+    state.activeSessionId !== sessionId ||
+    (state.activeSessionExpiresAt instanceof Date && state.activeSessionExpiresAt.getTime() <= Date.now()) ||
+    state.authSessionVersion !== sessionVersion ||
+    (options.requireDashboardScope && state.activeSessionScope !== "dashboard")
+  ) {
+    console.warn(`[auth] sessão invalidada: discordId=${auth.user.discordId} sessionId=${sessionId}.`);
+    clearDashboardSession(req, res);
+    return null;
+  }
+
+  const now = Date.now();
+  if (now - (req.session.dashboardSessionTouchedAt ?? 0) > SESSION_TOUCH_INTERVAL_MS) {
+    req.session.dashboardSessionTouchedAt = now;
+    void touchDashboardSession(auth.user.discordId, sessionId).catch((error) => {
+      console.warn("[auth] não foi possível atualizar lastAccess da sessão:", error instanceof Error ? error.message : error);
+    });
+  }
+
+  const nextUser = {
+    ...auth.user,
+    sessionLastAccessAt: new Date(now).toISOString()
+  };
+  const freshAuth = issueAuthCookies(res, nextUser, auth.verified);
+  req.session.user = freshAuth.user;
+  req.session.verified = freshAuth.verified;
+
+  return freshAuth;
+}
+
+function clearDashboardSession(req: Request, res: Response) {
+  clearAuthCookies(res);
+  req.session.user = undefined;
+  req.session.verified = false;
+  req.session.oauth2VerifiedAt = undefined;
+  req.session.discordAccessToken = undefined;
+  req.session.discordRefreshToken = undefined;
+  req.session.accessValidatedAt = undefined;
+  req.session.dashboardSessionTouchedAt = undefined;
 }
 
 async function ensureVerifiedRoleAccess(req: Request, res: Response, auth: DashboardAuth) {
