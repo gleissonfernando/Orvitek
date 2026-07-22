@@ -2248,7 +2248,6 @@ function BotModuleWorkspace({
   onToggle: (moduleId: string, checked: boolean) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [moduleSectionPages, setModuleSectionPages] = useState<Record<string, number>>({});
   const categories = useMemo(() => moduleDashboardCategories(modules), [modules]);
   const categoryItems = useMemo(() => (
     flattenBotMenuItems(categories).filter((item) => modulesForMenu(item, modules, true).length > 0)
@@ -2302,6 +2301,9 @@ function BotModuleWorkspace({
   }, modules, true);
   const activeSecurityCount = securityModules.filter((module) => enabledSet.has(module.id)).length;
   const moduleSections = useMemo(() => moduleDashboardSections(filteredModules, categories), [categories, filteredModules]);
+  const modulePageItems = useMemo(() => moduleSections.flatMap((section) => (
+    section.modules.map((module) => ({ categoryLabel: section.label, module }))
+  )), [moduleSections]);
   const categoryGroups = useMemo(() => groupedBotMenuCategories(categoryItems, modules, enabledModules), [categoryItems, enabledModules, modules]);
   const activeGroupId = useMemo(() => activeBotMenuGroupId(activeMenuId, categoryItems), [activeMenuId, categoryItems]);
 
@@ -2312,10 +2314,6 @@ function BotModuleWorkspace({
   useEffect(() => {
     setExpandedGroupIds(readBotMenuGroupExpansion(bot.id, defaultExpandedGroups));
   }, [bot.id, defaultExpandedGroups.join("|")]);
-
-  useEffect(() => {
-    setModuleSectionPages({});
-  }, [activeMenuId, normalizedQuery]);
 
   function toggleFavorite(moduleId: string) {
     setFavoriteIds((current) => {
@@ -2336,17 +2334,6 @@ function BotModuleWorkspace({
 
       writeBotMenuGroupExpansion(bot.id, next);
       return next;
-    });
-  }
-
-  function changeModuleSectionPage(sectionId: string, direction: -1 | 1, totalPages: number) {
-    setModuleSectionPages((current) => {
-      const currentPage = Math.min(current[sectionId] ?? 0, Math.max(totalPages - 1, 0));
-      const nextPage = Math.min(Math.max(currentPage + direction, 0), Math.max(totalPages - 1, 0));
-      return {
-        ...current,
-        [sectionId]: nextPage
-      };
     });
   }
 
@@ -2542,68 +2529,15 @@ function BotModuleWorkspace({
             ) : null}
 
             {(activeMenuId === "database-maintenance" || activeMenuId === "system-emojis") && !normalizedQuery ? null : filteredModules.length ? (
-              <div className="space-y-7">
-                {moduleSections.map((section) => {
-                  const totalPages = Math.ceil(section.modules.length / MODULE_SECTION_PAGE_SIZE);
-                  const currentPage = Math.min(moduleSectionPages[section.id] ?? 0, Math.max(totalPages - 1, 0));
-                  const pageStart = currentPage * MODULE_SECTION_PAGE_SIZE;
-                  const pageModules = section.modules.slice(pageStart, pageStart + MODULE_SECTION_PAGE_SIZE);
-                  const activeCount = section.modules.filter((module) => enabledSet.has(canonicalDevModuleId(module.id))).length;
-
-                  return (
-                    <section className="scroll-mt-6 space-y-3" id={`bot-menu-section-${section.id}`} key={section.id}>
-                      <div className="flex flex-col gap-2 border-b border-zinc-800/80 pb-3 sm:flex-row sm:items-end sm:justify-between">
-                        <div className="min-w-0">
-                          <h4 className="truncate text-sm font-bold uppercase tracking-[0.14em] text-[#FFEA70]" title={section.label}>{section.label}</h4>
-                          {section.description ? <p className="mt-1 line-clamp-1 text-xs font-medium text-zinc-500" title={section.description}>{section.description}</p> : null}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="muted">{activeCount}/{section.modules.length} ativos</Badge>
-                          {totalPages > 1 ? (
-                            <div className="flex items-center gap-1">
-                              <button
-                                aria-label={`Página anterior de ${section.label}`}
-                                className="flex h-7 w-7 items-center justify-center rounded-md border border-zinc-800 bg-black/25 text-zinc-400 transition hover:border-[#FFEA70]/40 hover:text-[#FFEA70] disabled:cursor-not-allowed disabled:opacity-40"
-                                disabled={currentPage === 0}
-                                onClick={() => changeModuleSectionPage(section.id, -1, totalPages)}
-                                type="button"
-                              >
-                                <ChevronLeft className="h-4 w-4" />
-                              </button>
-                              <span className="rounded-md border border-zinc-800 bg-black/25 px-2 py-1 text-[0.68rem] font-bold text-zinc-400">
-                                Página {currentPage + 1} de {totalPages}
-                              </span>
-                              <button
-                                aria-label={`Próxima página de ${section.label}`}
-                                className="flex h-7 w-7 items-center justify-center rounded-md border border-zinc-800 bg-black/25 text-zinc-400 transition hover:border-[#FFEA70]/40 hover:text-[#FFEA70] disabled:cursor-not-allowed disabled:opacity-40"
-                                disabled={currentPage >= totalPages - 1}
-                                onClick={() => changeModuleSectionPage(section.id, 1, totalPages)}
-                                type="button"
-                              >
-                                <ChevronRight className="h-4 w-4" />
-                              </button>
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                      <div className="grid auto-rows-fr gap-4 md:grid-cols-2 2xl:grid-cols-3">
-                        {pageModules.map((module, index) => (
-                          <ModuleDashboardCard
-                            enabled={enabledSet.has(canonicalDevModuleId(module.id))}
-                            favorite={favoriteSet.has(module.id)}
-                            index={pageStart + index}
-                            key={module.id}
-                            module={module}
-                            onToggle={onToggle}
-                            onToggleFavorite={toggleFavorite}
-                            status={bot.status}
-                          />
-                        ))}
-                      </div>
-                    </section>
-                  );
-                })}
-              </div>
+              <ModuleCardPager
+                enabledSet={enabledSet}
+                favoriteSet={favoriteSet}
+                items={modulePageItems}
+                onToggle={onToggle}
+                onToggleFavorite={toggleFavorite}
+                resetKey={`${activeMenuId}-${normalizedQuery}`}
+                status={bot.status}
+              />
             ) : (
               <EmptyBotMenuCategory label={normalizedQuery ? "Busca" : activeMenuId === "favorites" ? "Favoritos" : activeCategory?.label ?? "Categoria"} />
             )}
@@ -3439,7 +3373,104 @@ function BotMenuCategoryButton({
   );
 }
 
+function ModuleCardPager({
+  enabledSet,
+  favoriteSet,
+  items,
+  onToggle,
+  onToggleFavorite,
+  resetKey,
+  status
+}: {
+  enabledSet: Set<string>;
+  favoriteSet: Set<string>;
+  items: Array<{ categoryLabel: string; module: DevModuleDefinition }>;
+  onToggle: (moduleId: string, checked: boolean) => void;
+  onToggleFavorite: (moduleId: string) => void;
+  resetKey: string;
+  status: DevBotStatus;
+}) {
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(items.length / MODULE_CARD_PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageStart = safePage * MODULE_CARD_PAGE_SIZE;
+  const pageItems = items.slice(pageStart, pageStart + MODULE_CARD_PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(0);
+  }, [resetKey]);
+
+  return (
+    <div className="space-y-4">
+      {pageCount > 1 ? <ModuleCardPagerControls onChange={setPage} page={safePage} pageCount={pageCount} /> : null}
+      <div className="grid auto-rows-fr gap-4 md:grid-cols-2 2xl:grid-cols-3">
+        {pageItems.map((item, index) => (
+          <ModuleDashboardCard
+            categoryLabel={item.categoryLabel}
+            enabled={enabledSet.has(canonicalDevModuleId(item.module.id))}
+            favorite={favoriteSet.has(item.module.id)}
+            index={pageStart + index}
+            key={item.module.id}
+            module={item.module}
+            onToggle={onToggle}
+            onToggleFavorite={onToggleFavorite}
+            status={status}
+          />
+        ))}
+      </div>
+      {pageCount > 1 ? <ModuleCardPagerControls onChange={setPage} page={safePage} pageCount={pageCount} /> : null}
+    </div>
+  );
+}
+
+function ModuleCardPagerControls({
+  onChange,
+  page,
+  pageCount
+}: {
+  onChange: (page: number) => void;
+  page: number;
+  pageCount: number;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-1.5 rounded-lg border border-zinc-800/80 bg-black/25 p-2">
+      <button
+        aria-label="Página anterior"
+        className="flex h-8 w-8 items-center justify-center rounded-md border border-zinc-800 bg-black/25 text-zinc-400 transition hover:border-[#FFEA70]/40 hover:text-[#FFEA70] disabled:cursor-not-allowed disabled:opacity-40"
+        disabled={page === 0}
+        onClick={() => onChange(Math.max(page - 1, 0))}
+        type="button"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+      {Array.from({ length: pageCount }, (_, index) => (
+        <button
+          aria-current={page === index ? "page" : undefined}
+          className={page === index
+            ? "flex h-8 min-w-8 items-center justify-center rounded-md border border-[#FFD500] bg-[#FFD500] px-2 text-xs font-black text-black"
+            : "flex h-8 min-w-8 items-center justify-center rounded-md border border-zinc-800 bg-black/25 px-2 text-xs font-bold text-zinc-400 transition hover:border-[#FFEA70]/40 hover:text-[#FFEA70]"}
+          key={index}
+          onClick={() => onChange(index)}
+          type="button"
+        >
+          {index + 1}
+        </button>
+      ))}
+      <button
+        aria-label="Próxima página"
+        className="flex h-8 w-8 items-center justify-center rounded-md border border-zinc-800 bg-black/25 text-zinc-400 transition hover:border-[#FFEA70]/40 hover:text-[#FFEA70] disabled:cursor-not-allowed disabled:opacity-40"
+        disabled={page >= pageCount - 1}
+        onClick={() => onChange(Math.min(page + 1, pageCount - 1))}
+        type="button"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
 function ModuleDashboardCard({
+  categoryLabel,
   enabled,
   favorite,
   index,
@@ -3448,6 +3479,7 @@ function ModuleDashboardCard({
   onToggleFavorite,
   status
 }: {
+  categoryLabel?: string;
   enabled: boolean;
   favorite: boolean;
   index: number;
@@ -3485,6 +3517,7 @@ function ModuleDashboardCard({
             <Icon className="h-5 w-5" />
           </div>
           <div className="min-w-0">
+            {categoryLabel ? <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-600">{categoryLabel}</p> : null}
             <h3 className="break-words text-sm font-bold leading-5 text-white" title={module.label}>{module.label}</h3>
             <p className="mt-1 line-clamp-2 text-xs font-medium leading-5 text-zinc-500" title={moduleDescription(module.id)}>{moduleDescription(module.id)}</p>
           </div>
@@ -5863,7 +5896,7 @@ type BotMenuCategoryGroup = {
   total: number;
 };
 
-const MODULE_SECTION_PAGE_SIZE = 10;
+const MODULE_CARD_PAGE_SIZE = 10;
 
 function groupedBotMenuCategories(categories: BotMenuItem[], modules: DevModuleDefinition[], enabledModules: string[]): BotMenuCategoryGroup[] {
   const enabledSet = new Set(normalizeDevModuleIds(enabledModules));
