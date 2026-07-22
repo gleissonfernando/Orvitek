@@ -30,6 +30,7 @@ const moduleIdSchema = z.enum([
   "temporary-voice",
   "tag-verification",
   "bio-url-verification",
+  "fivem-captcha",
   "first-lady",
   "music"
 ]);
