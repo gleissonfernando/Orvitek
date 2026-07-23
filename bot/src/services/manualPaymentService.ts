@@ -25,6 +25,9 @@ import { renderComponentsV2Panel } from "./panelVisualRenderer";
 const PREFIX = "manual_pay";
 const MAX_RECEIPT_SIZE = env.MANUAL_PAYMENT_MAX_RECEIPT_MB * 1024 * 1024;
 const RECEIPT_WARNING_COOLDOWN_MS = 20_000;
+const FINAL_PAYMENT_STATUSES = new Set<ManualPaymentOrderStatus>(["CANCELLED_BY_CUSTOMER", "CANCELLED_BY_STAFF", "FINISHED"]);
+const APPROVED_PAYMENT_STATUSES = new Set<ManualPaymentOrderStatus>(["APPROVED", "IN_PROGRESS", "WAITING_CUSTOMER", "DELIVERED"]);
+const NEW_PROOF_REQUEST_REASON = "Novo comprovante solicitado pela equipe.";
 const receiptProcessingLocks = new Set<string>();
 const receiptWarningCooldown = new Map<string, number>();
 const receiptImageMimeTypesByFormat: Record<string, string[]> = {
@@ -465,23 +468,37 @@ async function reconcileOpenPaymentChannelPrivacy(client: Client<true>, context:
 
 function createPaymentPanel(settings: ManualPaymentSettings, order: ManualPaymentOrder, service?: ManualPaymentService | null) {
   const visual = paymentStatusVisual(order);
-  const canAct = ["PENDING_PAYMENT", "REJECTED"].includes(order.status) || (order.status === "WAITING_STAFF_APPROVAL" && !order.proofMessageId);
+  const isFinal = FINAL_PAYMENT_STATUSES.has(order.status);
+  const hasProof = Boolean(order.proofUrl || order.proofMessageId);
+  const canAct = !isFinal && (["PENDING_PAYMENT", "REJECTED"].includes(order.status) || (order.status === "WAITING_STAFF_APPROVAL" && !order.proofMessageId));
+  const canReviewProof = !isFinal && order.status === "WAITING_STAFF_APPROVAL" && hasProof;
+  const canRequestNewProof = !isFinal && hasProof && ["WAITING_STAFF_APPROVAL", "REJECTED"].includes(order.status);
+  const canFinish = !isFinal && APPROVED_PAYMENT_STATUSES.has(order.status);
   const pixKey = settings.pixKey?.trim() || null;
   const explicitPixCopyCode = getExplicitPixCopyCode(settings);
   const shouldShowPixCopyCode = Boolean(explicitPixCopyCode && !isSamePixValue(explicitPixCopyCode, pixKey));
   const category = serviceCategoryLabel(service);
   const paymentActionButtons = [
-    new ButtonBuilder().setCustomId(`${PREFIX}:copy_key:${order.id}`).setEmoji("🔵").setLabel("Copiar Chave Pix").setStyle(ButtonStyle.Primary).setDisabled(!pixKey),
+    new ButtonBuilder().setCustomId(`${PREFIX}:copy_key:${order.id}`).setEmoji("🔵").setLabel("Copiar Chave Pix").setStyle(ButtonStyle.Primary).setDisabled(isFinal || !pixKey),
     ...(shouldShowPixCopyCode
-      ? [new ButtonBuilder().setCustomId(`${PREFIX}:copy_code:${order.id}`).setEmoji("🟣").setLabel("Copiar Código Pix").setStyle(ButtonStyle.Secondary)]
+      ? [new ButtonBuilder().setCustomId(`${PREFIX}:copy_code:${order.id}`).setEmoji("🟣").setLabel("Copiar Código Pix").setStyle(ButtonStyle.Secondary).setDisabled(isFinal)]
       : []),
     new ButtonBuilder().setCustomId(`${PREFIX}:paid:${order.id}`).setEmoji("🟢").setLabel("Já fiz o pagamento").setStyle(ButtonStyle.Success).setDisabled(!canAct)
   ];
   const actions = [
     new ActionRowBuilder<ButtonBuilder>().addComponents(paymentActionButtons),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${PREFIX}:refresh_payment:${order.id}`).setEmoji("🟠").setLabel("Atualizar Status").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`${PREFIX}:refresh_payment:${order.id}`).setEmoji("🟠").setLabel("Atualizar Status").setStyle(ButtonStyle.Secondary).setDisabled(isFinal),
       new ButtonBuilder().setCustomId(`${PREFIX}:cancel_customer:${order.id}`).setEmoji("🔴").setLabel("Cancelar Pedido").setStyle(ButtonStyle.Danger).setDisabled(!canAct)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${PREFIX}:approve:${order.id}`).setEmoji("✅").setLabel("Confirmar Pagamento").setStyle(ButtonStyle.Success).setDisabled(!canReviewProof),
+      new ButtonBuilder().setCustomId(`${PREFIX}:reject:${order.id}`).setEmoji("❌").setLabel("Recusar Pagamento").setStyle(ButtonStyle.Danger).setDisabled(!canReviewProof),
+      new ButtonBuilder().setCustomId(`${PREFIX}:new_proof:${order.id}`).setEmoji("🔄").setLabel("Solicitar Novo Comprovante").setStyle(ButtonStyle.Secondary).setDisabled(!canRequestNewProof)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${PREFIX}:cancel_staff:${order.id}`).setEmoji("🚫").setLabel("Cancelar Compra").setStyle(ButtonStyle.Danger).setDisabled(isFinal),
+      new ButtonBuilder().setCustomId(`${PREFIX}:finish:${order.id}`).setEmoji("✅").setLabel("Finalizar Atendimento").setStyle(ButtonStyle.Success).setDisabled(!canFinish)
     )
   ];
   const paymentInstructions = service?.customText?.trim() || settings.paymentInstructions?.trim() || "Envie uma foto ou imagem do comprovante de pagamento.\n\nFormatos aceitos: PNG, JPG, JPEG ou WEBP.";
@@ -504,6 +521,7 @@ function createPaymentPanel(settings: ManualPaymentSettings, order: ManualPaymen
       ...(qrSection ? [qrSection] : []),
       `## 📋 Instruções\n1️⃣ Faça o pagamento utilizando a chave Pix.\n\n2️⃣ Após realizar o pagamento, clique em **Já fiz o pagamento**.\n\n3️⃣ Envie uma foto ou imagem do comprovante de pagamento neste canal.\n\n4️⃣ Aguarde a conferência da equipe.\n\n**Formatos aceitos:** PNG, JPG, JPEG ou WEBP.\n\n⚠️ A aprovação é manual.\n\n${limitText(paymentInstructions, 900)}`,
       "## 🔔 Avisos\n• Não altere o valor.\n\n• Não feche este ticket.\n\n• Caso o pagamento não seja identificado, o pedido permanecerá pendente.\n\n• Após aprovado, o sistema atualizará automaticamente o status.",
+      "## 🛠️ Painel da Equipe\nUse **Confirmar Pagamento**, **Recusar Pagamento**, **Solicitar Novo Comprovante**, **Cancelar Compra** ou **Finalizar Atendimento** conforme o status atual do pedido.",
       `## 🧾 Registro do Pedido\n${proofSection}`
     ],
     footer: { text: "NexTech • Sistema de Pagamentos\nPedido protegido • Atendimento Manual" },
@@ -587,7 +605,7 @@ async function customerCancel(interaction: ButtonInteraction, context: BotContex
   const order = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: "cancelled_by_customer", channelId: interaction.channelId, status: "CANCELLED_BY_CUSTOMER" });
   await refreshPaymentPanel(interaction.guild, context, runtime.settings, order);
   await interaction.editReply("Compra cancelada.");
-  setTimeout(() => void interaction.guild?.channels.cache.get(order.paymentChannelId ?? "")?.delete("Compra cancelada pelo cliente").catch(() => null), 2000).unref();
+  closeOrderChannelWithCountdown(interaction.guild, context, order, "Compra cancelada pelo cliente", interaction.user.id);
 }
 
 function createReceiptReceivedPanel(settings: ManualPaymentSettings, order: ManualPaymentOrder, submittedAt: Date) {
@@ -621,15 +639,18 @@ async function sendStaffApprovalLog(guild: Guild, context: BotContext, settings:
     accentColor: 0xf59e0b,
     actions: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`${PREFIX}:approve:${order.id}`).setEmoji("✅").setLabel("Aprovar").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId(`${PREFIX}:reject:${order.id}`).setEmoji("❌").setLabel("Recusar").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(`${PREFIX}:approve:${order.id}`).setEmoji("✅").setLabel("Confirmar Pagamento").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`${PREFIX}:reject:${order.id}`).setEmoji("❌").setLabel("Recusar Pagamento").setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setEmoji("🔍").setLabel("Abrir Pedido").setStyle(ButtonStyle.Link).setURL(order.paymentChannelId ? `https://discord.com/channels/${guild.id}/${order.paymentChannelId}` : `https://discord.com/channels/${guild.id}`)
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        ...pdfAttachments.slice(0, 3).map((attachment, index) => new ButtonBuilder().setLabel(`Abrir PDF ${index + 1}`).setStyle(ButtonStyle.Link).setURL(attachment.url)),
-        new ButtonBuilder().setCustomId(`${PREFIX}:new_proof:${order.id}`).setLabel("Solicitar novo comprovante").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`${PREFIX}:cancel_staff:${order.id}`).setLabel("Cancelar pedido").setStyle(ButtonStyle.Danger)
-      )
+        new ButtonBuilder().setCustomId(`${PREFIX}:new_proof:${order.id}`).setEmoji("🔄").setLabel("Solicitar Novo Comprovante").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`${PREFIX}:cancel_staff:${order.id}`).setEmoji("🚫").setLabel("Cancelar Compra").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(`${PREFIX}:finish:${order.id}`).setEmoji("✅").setLabel("Finalizar Atendimento").setStyle(ButtonStyle.Success).setDisabled(true)
+      ),
+      ...(pdfAttachments.length
+        ? [new ActionRowBuilder<ButtonBuilder>().addComponents(pdfAttachments.slice(0, 5).map((attachment, index) => new ButtonBuilder().setLabel(`Abrir PDF ${index + 1}`).setStyle(ButtonStyle.Link).setURL(attachment.url)))]
+        : [])
     ],
     description: "Um novo comprovante foi recebido e precisa de conferência manual.",
     fields: [
@@ -668,14 +689,15 @@ async function approvePayment(interaction: ButtonInteraction, context: BotContex
   if (!(await hasAnyRole(interaction.guild, interaction.user.id, runtime.settings.approveRoleIds))) return interaction.editReply("Você não pode aprovar pagamentos.");
   const current = await context.api.getManualPaymentOrder(interaction.guild.id, orderId);
   if (!current?.proofUrl) return interaction.editReply("Não e possível aprovar sem comprovante.");
-  const approved = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: "payment_approved", channelId: interaction.channelId, staffId: interaction.user.id, status: "APPROVED" });
+  if (current.status !== "WAITING_STAFF_APPROVAL") return interaction.editReply(`Este pedido está com status ${statusLabel(current.status)}.`);
+  const approved = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: "payment_confirmed", channelId: interaction.channelId, staffId: interaction.user.id, status: "APPROVED" });
   await refreshPaymentPanel(interaction.guild, context, runtime.settings, approved);
-  const serviceChannel = await createServiceChannel(interaction.guild, runtime.settings, approved, interaction.user.id);
-  const updated = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: "service_channel_created", serviceChannelId: serviceChannel.id, staffId: interaction.user.id, status: "IN_PROGRESS" });
-  await serviceChannel.send(createServicePanel(runtime.settings, updated));
   await notifyCustomer(interaction.guild, approved.userId, buildApprovalMessage(runtime.settings, approved)).catch(() => null);
-  if (approved.paymentChannelId) setTimeout(() => void interaction.guild?.channels.cache.get(approved.paymentChannelId ?? "")?.delete("Pagamento aprovado").catch(() => null), 3000).unref();
-  await interaction.editReply(`Pagamento aprovado. Atendimento criado: <#${serviceChannel.id}>.`);
+  const channel = approved.paymentChannelId ? await interaction.guild.channels.fetch(approved.paymentChannelId).catch(() => null) : null;
+  if (channel?.isSendable()) {
+    await channel.send(`<@${approved.userId}> pagamento confirmado. O ticket permanecerá aberto para atendimento e entrega do serviço.`).catch(() => null);
+  }
+  await interaction.editReply("Pagamento confirmado. O ticket permanecerá aberto para atendimento.");
 }
 
 async function createServiceChannel(guild: Guild, settings: ManualPaymentSettings, order: ManualPaymentOrder, staffId: string) {
@@ -738,8 +760,9 @@ async function finishOrder(interaction: ButtonInteraction, context: BotContext) 
   const runtime = await context.api.getManualPaymentRuntime(interaction.guild.id);
   if (!(await hasAnyRole(interaction.guild, interaction.user.id, runtime.settings.finalizeRoleIds))) return interaction.editReply("Você não pode finalizar este pedido.");
   const order = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: "order_finished", channelId: interaction.channelId, staffId: interaction.user.id, status: "FINISHED" });
-  await interaction.editReply("Pedido finalizado. Este canal será fechado.");
-  if (order.serviceChannelId) setTimeout(() => void interaction.guild?.channels.cache.get(order.serviceChannelId ?? "")?.delete("Pedido finalizado").catch(() => null), 5000).unref();
+  await refreshPaymentPanel(interaction.guild, context, runtime.settings, order);
+  await interaction.editReply("Atendimento finalizado. O ticket será encerrado em 5 segundos.");
+  closeOrderChannelWithCountdown(interaction.guild, context, order, "Atendimento finalizado", interaction.user.id);
 }
 
 async function showReasonModal(interaction: ButtonInteraction, kind: "reject" | "cancel_staff") {
@@ -768,6 +791,13 @@ async function submitReason(interaction: ModalSubmitInteraction, context: BotCon
   }
   await refreshPaymentPanel(interaction.guild, context, runtime.settings, order);
   await interaction.editReply(kind === "reject" ? "Pagamento recusado." : "Pedido cancelado.");
+  if (kind === "cancel_staff") {
+    const channel = order.paymentChannelId ? await interaction.guild.channels.fetch(order.paymentChannelId).catch(() => null) : null;
+    if (channel?.isSendable()) {
+      await channel.send(`<@${order.userId}> sua compra foi cancelada. Motivo: **${limitText(reason, 500)}**`).catch(() => null);
+    }
+    closeOrderChannelWithCountdown(interaction.guild, context, order, "Compra cancelada pela equipe", interaction.user.id);
+  }
 }
 
 async function requestNewProof(interaction: ButtonInteraction, context: BotContext) {
@@ -776,11 +806,48 @@ async function requestNewProof(interaction: ButtonInteraction, context: BotConte
   await interaction.deferReply({ ephemeral: true });
   const runtime = await context.api.getManualPaymentRuntime(interaction.guild.id);
   if (!(await hasAnyRole(interaction.guild, interaction.user.id, runtime.settings.rejectRoleIds))) return interaction.editReply("Você não pode solicitar comprovante.");
-  const order = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: "new_proof_requested", channelId: interaction.channelId, proofMessageId: null, proofUrl: null, staffId: interaction.user.id, status: "PENDING_PAYMENT" });
+  const order = await context.api.updateManualPaymentOrder(interaction.guild.id, orderId, { action: "new_proof_requested", channelId: interaction.channelId, proofMessageId: null, proofUrl: null, reason: NEW_PROOF_REQUEST_REASON, staffId: interaction.user.id, status: "REJECTED" });
   const channel = order.paymentChannelId ? interaction.guild.channels.cache.get(order.paymentChannelId) : null;
-  if (channel?.isSendable()) await channel.send(`<@${order.userId}> envie um novo comprovante neste canal.`).catch(() => null);
+  if (channel?.isSendable()) await channel.send(`<@${order.userId}> o comprovante enviado precisa ser substituído. Envie uma nova foto ou imagem do comprovante neste canal.`).catch(() => null);
   await refreshPaymentPanel(interaction.guild, context, runtime.settings, order);
   await interaction.editReply("Novo comprovante solicitado.");
+}
+
+function closeOrderChannelWithCountdown(guild: Guild, context: BotContext, order: ManualPaymentOrder, reason: string, staffId: string | null) {
+  void closeOrderChannelWithCountdownTask(guild, context, order, reason, staffId).catch((error) => {
+    console.warn("[manual-payments] falha ao encerrar canal do pedido:", error instanceof Error ? error.message : error);
+  });
+}
+
+async function closeOrderChannelWithCountdownTask(guild: Guild, context: BotContext, order: ManualPaymentOrder, reason: string, staffId: string | null) {
+  const channelId = order.paymentChannelId ?? order.serviceChannelId;
+  if (!channelId) return;
+  const channel = await guild.channels.fetch(channelId).catch(() => null);
+  if (!channel || !("delete" in channel)) return;
+
+  if (channel.isSendable()) {
+    const countdownMessage = await channel.send("Este ticket será encerrado automaticamente em 5 segundos.").catch(() => null);
+    for (let seconds = 4; seconds >= 1; seconds -= 1) {
+      await delay(1000);
+      await countdownMessage?.edit(`Este ticket será encerrado automaticamente em ${seconds} segundo${seconds === 1 ? "" : "s"}.`).catch(() => null);
+    }
+    await delay(1000);
+  } else {
+    await delay(5000);
+  }
+
+  await context.api.updateManualPaymentOrder(guild.id, order.id, {
+    action: "ticket_channel_auto_deleted",
+    channelId,
+    staffId
+  }).catch(() => null);
+  await channel.delete(reason).catch((error) => {
+    console.warn(`[manual-payments] falha ao deletar canal ${channelId}:`, error instanceof Error ? error.message : error);
+  });
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function refreshPaymentPanel(guild: Guild, context: BotContext, settings: ManualPaymentSettings, order: ManualPaymentOrder) {
@@ -836,34 +903,48 @@ function limitButtonLabel(value: string) {
 }
 
 function paymentStatusVisual(order: ManualPaymentOrder) {
-  if (["APPROVED", "IN_PROGRESS", "WAITING_CUSTOMER", "DELIVERED", "FINISHED"].includes(order.status)) {
+  if (order.status === "FINISHED") {
     return {
       color: 0x22c55e,
-      description: "Pagamento confirmado!\n\nSeu pedido foi liberado e será iniciado.",
-      label: "🟢 Pagamento aprovado"
+      description: "O atendimento foi finalizado pela equipe.",
+      label: "✅ Atendimento Finalizado"
+    };
+  }
+  if (APPROVED_PAYMENT_STATUSES.has(order.status)) {
+    return {
+      color: 0x22c55e,
+      description: "Pagamento confirmado!\n\nO ticket continuará aberto para atendimento, ativação ou entrega do serviço.",
+      label: "🟢 Pagamento Confirmado"
     };
   }
   if (order.status === "WAITING_STAFF_APPROVAL") {
     return {
-      color: 0x3b82f6,
+      color: 0xf59e0b,
       description: order.proofUrl
         ? "Seu comprovante foi enviado.\n\nNossa equipe irá analisar em breve."
         : "Recebemos sua confirmação.\n\nEnvie o comprovante neste canal para nossa equipe analisar.",
-      label: order.proofUrl ? "🔵 Comprovante enviado" : "🔵 Aguardando comprovante"
+      label: order.proofUrl ? "🟡 Comprovante Enviado" : "🟡 Aguardando comprovante"
     };
   }
   if (order.status === "REJECTED") {
+    if (order.rejectionReason === NEW_PROOF_REQUEST_REASON) {
+      return {
+        color: 0xf97316,
+        description: "A equipe solicitou um novo comprovante.\n\nEnvie uma nova foto ou imagem neste canal.",
+        label: "🟠 Aguardando Novo Comprovante"
+      };
+    }
     return {
       color: 0xef4444,
-      description: "Não foi possível validar o pagamento.\n\nEntre em contato com nossa equipe.",
-      label: "🔴 Pagamento recusado"
+      description: "Não foi possível validar o pagamento.\n\nEnvie outro comprovante ou converse com a equipe neste ticket.",
+      label: "🔴 Pagamento Recusado"
     };
   }
   if (["CANCELLED_BY_CUSTOMER", "CANCELLED_BY_STAFF"].includes(order.status)) {
     return {
       color: 0xef4444,
       description: "Este pedido foi cancelado.",
-      label: "🔴 Pedido cancelado"
+      label: "❌ Compra Cancelada"
     };
   }
   return {
@@ -962,16 +1043,16 @@ function limitText(value: string, limit: number) {
 
 function statusLabel(status: ManualPaymentOrderStatus) {
   return ({
-    APPROVED: "Pagamento aprovado",
-    CANCELLED_BY_CUSTOMER: "Cancelado pelo cliente",
-    CANCELLED_BY_STAFF: "Cancelado pelo staff",
+    APPROVED: "Pagamento confirmado",
+    CANCELLED_BY_CUSTOMER: "Compra cancelada pelo cliente",
+    CANCELLED_BY_STAFF: "Compra cancelada pela equipe",
     DELIVERED: "Servico entregue",
-    FINISHED: "Finalizado",
+    FINISHED: "Atendimento finalizado",
     IN_PROGRESS: "Em produção",
     PENDING_PAYMENT: "Aguardando pagamento",
-    REJECTED: "Pagamento recusado",
+    REJECTED: "Aguardando novo comprovante",
     WAITING_CUSTOMER: "Aguardando cliente",
-    WAITING_STAFF_APPROVAL: "Aguardando aprovação do staff"
+    WAITING_STAFF_APPROVAL: "Comprovante enviado"
   } as const)[status];
 }
 

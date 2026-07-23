@@ -259,8 +259,9 @@ export async function updateManualPaymentOrder(guildId: string, botId: string | 
   if (input.status === "APPROVED" && !current.proofUrl && !input.proofUrl) {
     throw Object.assign(new Error("Não e possível aprovar sem comprovante."), { statusCode: 400 });
   }
-  if (input.status === "FINISHED" && current.status !== "DELIVERED") {
-    throw Object.assign(new Error("Marque como entregue antes de finalizar."), { statusCode: 400 });
+  const finishableStatuses: MongoManualPaymentOrderStatus[] = ["APPROVED", "IN_PROGRESS", "WAITING_CUSTOMER", "DELIVERED"];
+  if (input.status === "FINISHED" && !finishableStatuses.includes(current.status)) {
+    throw Object.assign(new Error("Confirme o pagamento antes de finalizar o atendimento."), { statusCode: 400 });
   }
 
   const nextStatus = input.status ?? current.status;
@@ -377,6 +378,8 @@ export async function registerManualPaymentReceipt(guildId: string, botId: strin
         paidAt: current.paidAt ?? now,
         proofMessageId: input.messageId,
         proofUrl,
+        rejectedBy: null,
+        rejectionReason: null,
         status: "WAITING_STAFF_APPROVAL",
         updatedAt: now
       }
