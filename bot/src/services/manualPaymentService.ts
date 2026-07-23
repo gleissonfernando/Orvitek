@@ -393,8 +393,16 @@ async function startPurchase(interaction: ButtonInteraction, context: BotContext
   const runtime = await context.api.getManualPaymentRuntime(interaction.guild.id);
   const service = runtime.settings.services.find((item) => item.id === serviceId && item.active);
   if (!runtime.settings.enabled || !service) return interaction.editReply("Servico indisponível.");
-  const order = await context.api.createManualPaymentOrder(interaction.guild.id, { serviceId, userId: interaction.user.id, username: interaction.user.username });
-  if (order.paymentChannelId) return interaction.editReply(`Você já tem um canal para este pedido: <#${order.paymentChannelId}>.`);
+  let order = await context.api.createManualPaymentOrder(interaction.guild.id, { serviceId, userId: interaction.user.id, username: interaction.user.username });
+  if (order.paymentChannelId) {
+    const existingChannel = await interaction.guild.channels.fetch(order.paymentChannelId).catch(() => null);
+    if (existingChannel) return interaction.editReply(`Você já tem um canal para este pedido: <#${order.paymentChannelId}>.`);
+    order = await context.api.updateManualPaymentOrder(interaction.guild.id, order.id, {
+      action: "stale_payment_channel_removed",
+      paymentChannelId: null,
+      paymentMessageId: null
+    });
+  }
   const channel = await createPaymentChannel(interaction.guild, runtime.settings, order, interaction.user.id);
   const updated = await context.api.updateManualPaymentOrder(interaction.guild.id, order.id, { action: "payment_channel_created", paymentChannelId: channel.id });
   const message = await channel.send(createPaymentPanel(runtime.settings, updated, service));
