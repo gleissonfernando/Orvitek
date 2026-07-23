@@ -482,58 +482,70 @@ function createPaymentPanel(settings: ManualPaymentSettings, order: ManualPaymen
   const canReviewProof = !isFinal && order.status === "WAITING_STAFF_APPROVAL" && hasProof;
   const canRequestNewProof = !isFinal && hasProof && ["WAITING_STAFF_APPROVAL", "REJECTED"].includes(order.status);
   const canFinish = !isFinal && APPROVED_PAYMENT_STATUSES.has(order.status);
+  const shouldShowPaymentStep = !isFinal && !APPROVED_PAYMENT_STATUSES.has(order.status) && order.status !== "WAITING_STAFF_APPROVAL";
   const pixKey = settings.pixKey?.trim() || null;
   const explicitPixCopyCode = getExplicitPixCopyCode(settings);
   const shouldShowPixCopyCode = Boolean(explicitPixCopyCode && !isSamePixValue(explicitPixCopyCode, pixKey));
   const category = serviceCategoryLabel(service);
-  const paymentActionButtons = [
-    new ButtonBuilder().setCustomId(`${PREFIX}:copy_key:${order.id}`).setEmoji("🔵").setLabel("Copiar Chave Pix").setStyle(ButtonStyle.Primary).setDisabled(isFinal || !pixKey),
-    ...(shouldShowPixCopyCode
-      ? [new ButtonBuilder().setCustomId(`${PREFIX}:copy_code:${order.id}`).setEmoji("🟣").setLabel("Copiar Código Pix").setStyle(ButtonStyle.Secondary).setDisabled(isFinal)]
-      : []),
-    new ButtonBuilder().setCustomId(`${PREFIX}:paid:${order.id}`).setEmoji("🟢").setLabel("Já fiz o pagamento").setStyle(ButtonStyle.Success).setDisabled(!canAct)
-  ];
-  const actions = [
-    new ActionRowBuilder<ButtonBuilder>().addComponents(paymentActionButtons),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${PREFIX}:refresh_payment:${order.id}`).setEmoji("🟠").setLabel("Atualizar Status").setStyle(ButtonStyle.Secondary).setDisabled(isFinal),
-      new ButtonBuilder().setCustomId(`${PREFIX}:cancel_customer:${order.id}`).setEmoji("🔴").setLabel("Cancelar Pedido").setStyle(ButtonStyle.Danger).setDisabled(!canAct)
-    ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
+  const actions: ActionRowBuilder<ButtonBuilder>[] = [];
+  if (shouldShowPaymentStep) {
+    const paymentActionButtons = [
+      new ButtonBuilder().setCustomId(`${PREFIX}:copy_key:${order.id}`).setEmoji("🔵").setLabel("Copiar Chave Pix").setStyle(ButtonStyle.Primary).setDisabled(!pixKey),
+      ...(shouldShowPixCopyCode
+        ? [new ButtonBuilder().setCustomId(`${PREFIX}:copy_code:${order.id}`).setEmoji("🟣").setLabel("Copiar Código Pix").setStyle(ButtonStyle.Secondary)]
+        : []),
+      new ButtonBuilder().setCustomId(`${PREFIX}:paid:${order.id}`).setEmoji("🟢").setLabel("Já fiz o pagamento").setStyle(ButtonStyle.Success).setDisabled(!canAct)
+    ];
+    actions.push(
+      new ActionRowBuilder<ButtonBuilder>().addComponents(paymentActionButtons),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`${PREFIX}:refresh_payment:${order.id}`).setEmoji("🟠").setLabel("Atualizar Status").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`${PREFIX}:cancel_customer:${order.id}`).setEmoji("🔴").setLabel("Cancelar Pedido").setStyle(ButtonStyle.Danger).setDisabled(!canAct)
+      )
+    );
+  }
+  if (canReviewProof) {
+    actions.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`${PREFIX}:approve:${order.id}`).setEmoji("✅").setLabel("Confirmar Pagamento").setStyle(ButtonStyle.Success).setDisabled(!canReviewProof),
       new ButtonBuilder().setCustomId(`${PREFIX}:reject:${order.id}`).setEmoji("❌").setLabel("Recusar Pagamento").setStyle(ButtonStyle.Danger).setDisabled(!canReviewProof),
       new ButtonBuilder().setCustomId(`${PREFIX}:new_proof:${order.id}`).setEmoji("🔄").setLabel("Solicitar Novo Comprovante").setStyle(ButtonStyle.Secondary).setDisabled(!canRequestNewProof)
-    ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${PREFIX}:cancel_staff:${order.id}`).setEmoji("🚫").setLabel("Cancelar Compra").setStyle(ButtonStyle.Danger).setDisabled(isFinal),
+    ));
+  } else if (canRequestNewProof) {
+    actions.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${PREFIX}:new_proof:${order.id}`).setEmoji("🔄").setLabel("Solicitar Novo Comprovante").setStyle(ButtonStyle.Secondary)
+    ));
+  }
+  if (!isFinal && (hasProof || canFinish)) {
+    actions.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${PREFIX}:cancel_staff:${order.id}`).setEmoji("🚫").setLabel("Cancelar Compra").setStyle(ButtonStyle.Danger),
       new ButtonBuilder().setCustomId(`${PREFIX}:finish:${order.id}`).setEmoji("✅").setLabel("Finalizar Atendimento").setStyle(ButtonStyle.Success).setDisabled(!canFinish)
-    )
-  ];
+    ));
+  }
   const paymentInstructions = service?.customText?.trim() || settings.paymentInstructions?.trim() || "Envie uma foto ou imagem do comprovante de pagamento.\n\nFormatos aceitos: PNG, JPG, JPEG ou WEBP.";
   const qrSection = settings.pixQrCodeUrl
-    ? "## 📱 QR Code disponível\nEscaneie utilizando o aplicativo do seu banco."
+    ? "## 📱 QR Code\nEscaneie pelo app do banco ou use os botões abaixo."
     : null;
   const proofSection = [
-    order.proofUrl ? `📎 Comprovante: [abrir arquivo](${order.proofUrl})` : "📎 Comprovante: aguardando envio neste canal.",
+    order.proofUrl ? `Comprovante: [abrir arquivo](${order.proofUrl})` : "Comprovante: aguardando envio.",
     order.approvedAt ? `✅ Aprovado em: ${formatDateTime(order.approvedAt)}` : null,
     order.approvedBy ? `👤 Responsável: <@${order.approvedBy}>` : null,
     order.rejectionReason ? `📝 Motivo: ${limitText(order.rejectionReason, 500)}` : null
   ].filter(Boolean).join("\n");
+  const fields = [
+    `## 📦 Pedido\n**${formatOrderNumber(order)}** • <@${order.userId}>\n**${limitText(order.serviceName, 120)}**\n${category} • **${money(order.amount)}**\nStatus: **${visual.label}**`,
+    ...(shouldShowPaymentStep ? [createPaymentDataSection(settings, order, pixKey, shouldShowPixCopyCode ? explicitPixCopyCode : null)] : []),
+    ...(shouldShowPaymentStep && qrSection ? [qrSection] : []),
+    ...(shouldShowPaymentStep ? [`## 📋 Próximo passo\n1. Faça o Pix.\n2. Clique em **Já fiz o pagamento**.\n3. Envie a imagem do comprovante neste canal.\n\nFormatos: **PNG, JPG, JPEG ou WEBP**.\n\n${limitText(paymentInstructions, 350)}`] : []),
+    `## 🧾 Comprovante\n${proofSection}`,
+    ...(canReviewProof || canFinish || canRequestNewProof ? ["## 🛠️ Equipe\nAções disponíveis nos botões abaixo conforme o status do pedido."] : [])
+  ];
   return renderComponentsV2Panel({
     accentColor: visual.color,
     actions,
-    description: `Seu pedido foi criado com sucesso!\n\nFinalize o pagamento para que nossa equipe possa iniciar o processamento.\n\n**${visual.label}**\n${visual.description}`,
-    fields: [
-      `## 📦 Informações do Pedido\n🆔 Pedido: **${formatOrderNumber(order)}**\n👤 Cliente: <@${order.userId}>\n🛒 Produto: **${limitText(order.serviceName, 120)}**\n🏷️ Categoria: **${category}**\n💰 Valor: **${money(order.amount)}**\n📅 Criado em: ${formatDate(order.createdAt)}\n⏳ Status: **${visual.label}**`,
-      createPaymentDataSection(settings, order, pixKey, shouldShowPixCopyCode ? explicitPixCopyCode : null),
-      ...(qrSection ? [qrSection] : []),
-      `## 📋 Instruções\n1️⃣ Faça o pagamento utilizando a chave Pix.\n\n2️⃣ Após realizar o pagamento, clique em **Já fiz o pagamento**.\n\n3️⃣ Envie uma foto ou imagem do comprovante de pagamento neste canal.\n\n4️⃣ Aguarde a conferência da equipe.\n\n**Formatos aceitos:** PNG, JPG, JPEG ou WEBP.\n\n⚠️ A aprovação é manual.\n\n${limitText(paymentInstructions, 900)}`,
-      "## 🔔 Avisos\n• Não altere o valor.\n\n• Não feche este ticket.\n\n• Caso o pagamento não seja identificado, o pedido permanecerá pendente.\n\n• Após aprovado, o sistema atualizará automaticamente o status.",
-      "## 🛠️ Painel da Equipe\nUse **Confirmar Pagamento**, **Recusar Pagamento**, **Solicitar Novo Comprovante**, **Cancelar Compra** ou **Finalizar Atendimento** conforme o status atual do pedido.",
-      `## 🧾 Registro do Pedido\n${proofSection}`
-    ],
-    footer: { text: "NexTech • Sistema de Pagamentos\nPedido protegido • Atendimento Manual" },
-    image: settings.pixQrCodeUrl ? { imageEnabled: true, imagePosition: "bottom", imageUrl: settings.pixQrCodeUrl } : null,
+    description: `**${visual.label}**\n${visual.description}`,
+    fields,
+    footer: { text: `NexTech • ${formatDateTime(order.updatedAt)}` },
+    image: shouldShowPaymentStep && settings.pixQrCodeUrl ? { imageEnabled: true, imagePosition: "bottom", imageUrl: settings.pixQrCodeUrl } : null,
     moduleId: "manual-payments",
     title: "💳 Pagamento Manual"
   });
@@ -964,18 +976,12 @@ function paymentStatusVisual(order: ManualPaymentOrder) {
 
 function createPaymentDataSection(settings: ManualPaymentSettings, order: ManualPaymentOrder, pixKey: string | null, pixCopyCode: string | null) {
   return [
-    "## 💸 Dados para Pagamento",
-    `🏦 Método: **${paymentMethodLabel(order)}**`,
-    "",
-    "👤 Recebedor:",
-    `**${settings.receiverName?.trim() || "Não informado"}**`,
-    "",
-    "🏛 Banco:",
-    `**${settings.receiverBank?.trim() || "Não informado"}**`,
-    "",
-    "🔑 Chave Pix:",
-    `\`${pixKey ?? "Não configurada"}\``,
-    ...(pixCopyCode ? ["", "🧾 Código Pix Copia e Cola:", `\`${pixCopyCode}\``] : [])
+    "## 💸 Pagamento",
+    `Método: **${paymentMethodLabel(order)}**`,
+    `Recebedor: **${settings.receiverName?.trim() || "Não informado"}**`,
+    `Banco: **${settings.receiverBank?.trim() || "Não informado"}**`,
+    pixKey ? "Chave Pix: use o botão **Copiar Chave Pix**." : "Chave Pix: **não configurada**.",
+    ...(pixCopyCode ? ["Código Pix: use o botão **Copiar Código Pix**."] : [])
   ].join("\n");
 }
 
