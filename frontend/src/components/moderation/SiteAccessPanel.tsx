@@ -4,6 +4,7 @@ import { checkSiteAccess, getGuildMemberOptions, patchGuildSettings } from "../.
 import { dashboardUrl } from "../../lib/urls";
 import type { AccessValidationResult, DashboardAccessLevel, DashboardGuild, GuildMemberOption, GuildSettings } from "../../types";
 import { Badge } from "../ui/badge";
+import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Switch } from "../ui/switch";
@@ -344,10 +345,10 @@ export function SiteAccessPanel({
                   }}
                   type="button"
                 >
-                  <img
-                    alt=""
-                    className="h-9 w-9 shrink-0 rounded-full border border-zinc-800 bg-zinc-950 object-cover"
-                    src={member.avatarUrl ?? "/uploads/welcome/default.gif?v=3"}
+                  <Avatar
+                    className="h-9 w-9 shrink-0 rounded-full border border-zinc-800 bg-zinc-950 text-xs"
+                    fallback={member.displayName || member.username || member.id}
+                    src={member.avatarUrl}
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-zinc-100">{member.displayName}</span>
@@ -379,17 +380,11 @@ export function SiteAccessPanel({
                         onClick={() => setSelectedUserId(userId)}
                         type="button"
                       >
-                        {member?.avatarUrl ? (
-                          <img
-                            alt=""
-                            className="h-9 w-9 shrink-0 rounded-full border border-zinc-800 bg-zinc-950 object-cover"
-                            src={member.avatarUrl}
-                          />
-                        ) : (
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-zinc-800 bg-zinc-950 text-xs font-bold text-zinc-400">
-                            ID
-                          </span>
-                        )}
+                        <Avatar
+                          className="h-9 w-9 shrink-0 rounded-full border border-zinc-800 bg-zinc-950 text-xs"
+                          fallback={member?.displayName ?? userId}
+                          src={member?.avatarUrl}
+                        />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-semibold">{member?.displayName ?? userId}</span>
                           <span className="block truncate text-xs text-zinc-500">{levelLabel(userPermissions[userId] ?? "basic")}</span>
@@ -402,13 +397,11 @@ export function SiteAccessPanel({
                 {activeUserId ? (
                   <div className="rounded-lg border border-zinc-900 bg-black px-3 py-3">
                     <div className="flex flex-wrap items-center gap-3">
-                      {activeUser?.avatarUrl ? (
-                        <img
-                          alt=""
-                          className="h-12 w-12 shrink-0 rounded-full border border-zinc-800 bg-zinc-950 object-cover"
-                          src={activeUser.avatarUrl}
-                        />
-                      ) : null}
+                      <Avatar
+                        className="h-12 w-12 shrink-0 rounded-full border border-zinc-800 bg-zinc-950 text-sm"
+                        fallback={activeUser?.displayName ?? activeUserId}
+                        src={activeUser?.avatarUrl}
+                      />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-zinc-100">{activeUser?.displayName ?? activeUserId}</p>
                         <p className="mt-1 truncate text-xs text-zinc-500">

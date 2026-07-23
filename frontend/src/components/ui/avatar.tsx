@@ -8,6 +8,7 @@ type AvatarProps = React.HTMLAttributes<HTMLDivElement> & {
 
 export function Avatar({ src, fallback, className, ...props }: AvatarProps) {
   const [failed, setFailed] = React.useState(false);
+  const [currentSrc, setCurrentSrc] = React.useState(src ?? null);
   const initials = fallback
     .trim()
     .split(/\s+/)
@@ -18,7 +19,19 @@ export function Avatar({ src, fallback, className, ...props }: AvatarProps) {
 
   React.useEffect(() => {
     setFailed(false);
+    setCurrentSrc(src ?? null);
   }, [src]);
+
+  function handleImageError() {
+    const retrySrc = currentSrc ? discordWebpFallback(currentSrc) : null;
+
+    if (retrySrc && retrySrc !== currentSrc) {
+      setCurrentSrc(retrySrc);
+      return;
+    }
+
+    setFailed(true);
+  }
 
   return (
     <div
@@ -28,11 +41,27 @@ export function Avatar({ src, fallback, className, ...props }: AvatarProps) {
       )}
       {...props}
     >
-      {src && !failed ? (
-        <img src={src} alt="" className="h-full w-full object-cover" onError={() => setFailed(true)} />
+      {currentSrc && !failed ? (
+        <img src={currentSrc} alt="" className="h-full w-full object-cover" onError={handleImageError} />
       ) : (
         initials || "DC"
       )}
     </div>
   );
+}
+
+function discordWebpFallback(src: string) {
+  try {
+    const url = new URL(src);
+    const isDiscordCdn = url.hostname === "cdn.discordapp.com" || url.hostname.endsWith(".discordapp.com");
+
+    if (!isDiscordCdn || !/\.(?:gif|jpe?g|png)$/i.test(url.pathname)) {
+      return null;
+    }
+
+    url.pathname = url.pathname.replace(/\.(?:gif|jpe?g|png)$/i, ".webp");
+    return url.toString();
+  } catch {
+    return null;
+  }
 }
