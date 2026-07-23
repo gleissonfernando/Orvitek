@@ -3472,6 +3472,8 @@ export type MongoManualPaymentSettings = {
   logViewRoleIds: string[];
   maxPaymentMinutes: number;
   paymentCategoryId: string | null;
+  approvalMessage: string;
+  customerReceiptMessage: string;
   paymentInstructions: string;
   pixCopyPasteCode: string | null;
   pixKey: string | null;
@@ -3480,6 +3482,7 @@ export type MongoManualPaymentSettings = {
   receiverBank: string | null;
   receiverName: string | null;
   rejectRoleIds: string[];
+  rejectionMessage: string;
   salePanelChannelId: string | null;
   salePanelDescription: string;
   salePanelMessageId: string | null;

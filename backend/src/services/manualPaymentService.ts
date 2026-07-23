@@ -109,7 +109,9 @@ export async function ensureManualPaymentSettings(guildId: string, botId: string
     logViewRoleIds: [],
     maxPaymentMinutes: 60,
     paymentCategoryId: null,
-    paymentInstructions: "Envie o pagamento via Pix e anexe o comprovante neste canal. A aprovação e feita manualmente pela equipe.",
+    approvalMessage: "Seu pagamento foi aprovado. Seu pedido foi liberado para atendimento.",
+    customerReceiptMessage: "Recebemos o seu comprovante de pagamento com sucesso. Seu pagamento foi encaminhado para análise da nossa equipe.",
+    paymentInstructions: "Envie o pagamento via Pix e anexe uma foto do comprovante neste canal. A aprovação e feita manualmente pela equipe.",
     pixCopyPasteCode: null,
     pixKey: null,
     pixKeyType: "random",
@@ -117,6 +119,7 @@ export async function ensureManualPaymentSettings(guildId: string, botId: string
     receiverBank: null,
     receiverName: null,
     rejectRoleIds: [],
+    rejectionMessage: "Seu pagamento foi recusado. Motivo: {reason}",
     salePanelChannelId: null,
     salePanelDescription: "Escolha um serviço abaixo para iniciar a compra com pagamento manual.",
     salePanelMessageId: null,
@@ -141,6 +144,7 @@ export async function saveManualPaymentSettings(guildId: string, botId: string |
   );
   const settings = await manualPaymentSettings.findOne({ _id: current._id });
   await writeAudit(settings ?? current, actorId, "settings_updated", "Configuração de pagamentos manuais atualizada.");
+  emitManualPaymentsUpdated((settings ?? current).botId, guildId);
   return toSettingsDto(settings ?? current);
 }
 
@@ -155,6 +159,7 @@ export async function updateManualPaymentPanelState(guildId: string, botId: stri
   const settings = await ensureManualPaymentSettings(guildId, botId);
   const { manualPaymentSettings } = await getMongoCollections();
   await manualPaymentSettings.updateOne({ _id: settings._id }, { $set: { salePanelMessageId: messageId, updatedAt: new Date() } });
+  emitManualPaymentsUpdated(settings.botId, guildId);
   return toSettingsDto((await manualPaymentSettings.findOne({ _id: settings._id })) ?? settings);
 }
 
@@ -184,6 +189,7 @@ export async function uploadManualPaymentQrCode(input: {
   );
   const settings = (await manualPaymentSettings.findOne({ _id: current._id })) ?? current;
   await writeAudit(settings, input.actorId, "qr_code_uploaded", "QR Code Pix enviado para armazenamento persistente.");
+  emitManualPaymentsUpdated(settings.botId, input.guildId);
   return toSettingsDto(settings);
 }
 
@@ -235,6 +241,7 @@ export async function createManualPaymentOrder(guildId: string, botId: string | 
 
   await manualPaymentOrders.insertOne(order);
   await writeOrderLog(order, "order_created", null, "PENDING_PAYMENT", input.userId, null, null);
+  emitManualPaymentsUpdated(settings.botId, guildId);
   return toOrderDto(order);
 }
 
@@ -285,6 +292,7 @@ export async function updateManualPaymentOrder(guildId: string, botId: string | 
   if (updated.status === "APPROVED" && current.status !== "APPROVED") {
     emitManualPaymentApproved(settings, updated);
   }
+  emitManualPaymentsUpdated(settings.botId, guildId);
   return toOrderDto(updated);
 }
 
@@ -324,9 +332,17 @@ export async function registerManualPaymentReceipt(guildId: string, botId: strin
     size: Math.max(0, Math.trunc(attachment.size)),
     url: attachment.url.trim()
   }));
+  const imageAttachment = attachments.find(isReceiptImageAttachment) ?? null;
+  const persistedProofUrl = await persistManualPaymentReceiptImage(settings, current, imageAttachment);
+  const proofUrl = persistedProofUrl ?? attachments[0]?.url ?? null;
+  const storedAttachments = persistedProofUrl
+    ? attachments.map((attachment) => imageAttachment && attachment.url === imageAttachment.url
+      ? { ...attachment, proxyUrl: attachment.url, url: persistedProofUrl }
+      : attachment)
+    : attachments;
   const receipt: MongoManualPaymentReceipt = {
     _id: randomUUID(),
-    attachments,
+    attachments: storedAttachments,
     botId: settings.botId,
     channelId: input.channelId,
     customerId: input.customerId,
@@ -354,7 +370,7 @@ export async function registerManualPaymentReceipt(guildId: string, botId: strin
       $set: {
         paidAt: current.paidAt ?? now,
         proofMessageId: input.messageId,
-        proofUrl: attachments[0]?.url ?? null,
+        proofUrl,
         status: "WAITING_STAFF_APPROVAL",
         updatedAt: now
       }
@@ -384,17 +400,19 @@ export async function registerManualPaymentReceipt(guildId: string, botId: strin
     metadata: {
       attachmentCount: attachments.length,
       channelId: input.channelId,
-      contentTypes: attachments.map((attachment) => attachment.contentType).filter(Boolean),
+      contentTypes: storedAttachments.map((attachment) => attachment.contentType).filter(Boolean),
       customerId: input.customerId,
       guildId,
       messageId: input.messageId,
       orderId: current._id,
       paymentId: current._id,
-      sizes: attachments.map((attachment) => attachment.size),
+      proofPersisted: Boolean(persistedProofUrl),
+      sizes: storedAttachments.map((attachment) => attachment.size),
       submittedAt: now.toISOString()
     },
     type: "manual_payment.receipt_received"
   }).catch(() => null);
+  emitManualPaymentsUpdated(settings.botId, guildId);
 
   return {
     duplicate: false,
@@ -413,8 +431,11 @@ export async function getManualPaymentOrder(guildId: string, botId: string | nul
 function toSettingsDto(settings: MongoManualPaymentSettings): ManualPaymentSettingsDto {
   return {
     ...settings,
+    approvalMessage: settings.approvalMessage ?? "Seu pagamento foi aprovado. Seu pedido foi liberado para atendimento.",
+    customerReceiptMessage: settings.customerReceiptMessage ?? "Recebemos o seu comprovante de pagamento com sucesso. Seu pagamento foi encaminhado para análise da nossa equipe.",
     id: settings._id,
     pixCopyPasteCode: settings.pixCopyPasteCode ?? null,
+    rejectionMessage: settings.rejectionMessage ?? "Seu pagamento foi recusado. Motivo: {reason}",
     updatedAt: settings.updatedAt.toISOString()
   };
 }
@@ -468,10 +489,18 @@ function emitManualPaymentApproved(settings: MongoManualPaymentSettings, order: 
   }
 }
 
+function emitManualPaymentsUpdated(botId: string, guildId: string) {
+  const payload = { botId, guildId };
+  emitRealtime("manual-payments:updated", payload);
+  if (botId) emitRealtimeToRoom(devBotRealtimeRoom(botId), "manual-payments:updated", payload);
+}
+
 function normalizeSettingsInput(input: SaveManualPaymentSettingsInput) {
   return {
     ...input,
+    approvalMessage: input.approvalMessage?.trim(),
     bannerUrl: normalizeNullable(input.bannerUrl),
+    customerReceiptMessage: input.customerReceiptMessage?.trim(),
     logChannelId: normalizeNullable(input.logChannelId),
     paymentCategoryId: normalizeNullable(input.paymentCategoryId),
     attendanceCategoryId: normalizeNullable(input.attendanceCategoryId),
@@ -480,10 +509,71 @@ function normalizeSettingsInput(input: SaveManualPaymentSettingsInput) {
     pixQrCodeUrl: normalizeNullable(input.pixQrCodeUrl),
     receiverBank: normalizeNullable(input.receiverBank),
     receiverName: normalizeNullable(input.receiverName),
+    rejectionMessage: input.rejectionMessage?.trim(),
     salePanelChannelId: normalizeNullable(input.salePanelChannelId),
     supportPanelChannelId: normalizeNullable(input.supportPanelChannelId),
     services: input.services?.map(normalizeService).sort((a, b) => a.order - b.order)
   };
+}
+
+async function persistManualPaymentReceiptImage(
+  settings: MongoManualPaymentSettings,
+  order: MongoManualPaymentOrder,
+  image: MongoManualPaymentReceiptAttachment | null
+) {
+  if (!image) return null;
+  const url = image.url.trim();
+  if (!isTrustedReceiptAttachmentUrl(url)) {
+    throw Object.assign(new Error("URL do comprovante não pertence ao CDN do Discord."), { statusCode: 400 });
+  }
+  const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) {
+    throw Object.assign(new Error("Não foi possível salvar o comprovante enviado. Tente enviar a imagem novamente."), { statusCode: 502 });
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const mimeType = image.contentType || response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() || mimeTypeFromReceiptExtension(image.extension);
+  const stored = await savePersistentImage({
+    actorId: order.userId,
+    botId: settings.botId,
+    buffer,
+    guildId: settings.guildId,
+    imageType: `receipt-${order._id}`,
+    metadata: {
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      sourceMessageId: order.proofMessageId,
+      sourceUrl: url
+    },
+    mimeType,
+    moduleId: MANUAL_PAYMENTS_MODULE_ID,
+    originalName: image.name,
+    previousUrl: order.proofUrl
+  });
+  return stored.publicUrl;
+}
+
+function isReceiptImageAttachment(attachment: MongoManualPaymentReceiptAttachment) {
+  const contentType = attachment.contentType?.split(";")[0]?.toLowerCase() ?? "";
+  const extension = attachment.extension.trim().toLowerCase();
+  return ["image/png", "image/jpeg", "image/jpg", "image/pjpeg", "image/webp"].includes(contentType) || ["png", "jpg", "jpeg", "webp"].includes(extension);
+}
+
+function mimeTypeFromReceiptExtension(extension: string) {
+  const normalized = extension.trim().toLowerCase();
+  if (normalized === "png") return "image/png";
+  if (normalized === "jpg" || normalized === "jpeg") return "image/jpeg";
+  if (normalized === "webp") return "image/webp";
+  return "application/octet-stream";
+}
+
+function isTrustedReceiptAttachmentUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && ["cdn.discordapp.com", "media.discordapp.net", "discord.com"].includes(url.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
 }
 
 function normalizeService(service: MongoManualPaymentService, index: number): MongoManualPaymentService {

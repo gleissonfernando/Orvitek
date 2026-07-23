@@ -25,6 +25,8 @@ function settingsWithRoles(): ManualPaymentSettings {
     logViewRoleIds: ["viewer-staff"],
     maxPaymentMinutes: 60,
     paymentCategoryId: null,
+    approvalMessage: "aprovado",
+    customerReceiptMessage: "recebido",
     paymentInstructions: "",
     pixCopyPasteCode: null,
     pixKey: null,
@@ -33,6 +35,7 @@ function settingsWithRoles(): ManualPaymentSettings {
     receiverBank: null,
     receiverName: null,
     rejectRoleIds: ["reject-admin"],
+    rejectionMessage: "recusado",
     salePanelChannelId: null,
     salePanelDescription: "",
     salePanelMessageId: null,
@@ -85,14 +88,13 @@ test("canal temporario de pagamento libera somente comprador, bot, dono e cargos
   assert.ok(botAllow.includes(PermissionFlagsBits.EmbedLinks));
 });
 
-test("comprovante manual aceita imagens e pdf por MIME ou extensão", () => {
+test("comprovante manual aceita imagens principais e pdf opcional por MIME ou extensão", () => {
   const cases = [
     { contentType: "image/png", name: "print.png", url: "https://cdn.test/print.png" },
     { contentType: "image/jpeg", name: "foto.jpg", url: "https://cdn.test/foto.jpg" },
     { contentType: "image/jpg", name: "celular.jpg", url: "https://cdn.test/celular.jpg" },
     { contentType: null, name: "captura.jpeg", url: "https://cdn.test/captura.jpeg?ex=1" },
     { contentType: null, name: "arquivo", url: "https://cdn.test/upload.webp?token=abc" },
-    { contentType: "image/gif; charset=binary", name: "animado.gif", url: "https://cdn.test/animado.gif" },
     { contentType: "application/pdf", name: "comprovante.pdf", url: "https://cdn.test/comprovante.pdf" }
   ];
 
@@ -103,6 +105,7 @@ test("comprovante manual aceita imagens e pdf por MIME ou extensão", () => {
 
 test("comprovante manual rejeita tipo inválido e detecta imagens por extensão", () => {
   assert.equal(isValidReceiptAttachment({ contentType: "application/zip", name: "arquivo.zip", url: "https://cdn.test/arquivo.zip" }), false);
+  assert.equal(isValidReceiptAttachment({ contentType: "image/gif; charset=binary", name: "animado.gif", url: "https://cdn.test/animado.gif" }), false);
   assert.equal(isValidReceiptAttachment({ contentType: null, name: "sem-extensao", url: "https://cdn.test/file" }), false);
   assert.equal(isReceiptImageAttachment({ contentType: null, name: "screenshot", url: "https://cdn.test/screenshot.PNG?x=1" }), true);
   assert.equal(isReceiptImageAttachment({ contentType: "application/pdf", name: "comprovante.pdf", url: "https://cdn.test/comprovante.pdf" }), false);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, RefreshCw, Save, Send, Trash2, Upload } from "lucide-react";
 import { API_URL, getGuildLiveOptions, getManualPaymentsDashboard, publishManualPaymentPanel, saveManualPaymentSettings, uploadManualPaymentQrCode } from "../../lib/api";
+import { createDashboardSocket } from "../../lib/socket";
 import type {
   DashboardGuild,
   GuildCategoryOption,
@@ -26,8 +27,11 @@ const defaultDraft: SaveManualPaymentSettingsPayload = {
   enabled: false,
   finalizeRoleIds: [],
   maxPaymentMinutes: 60,
-  paymentInstructions: "Envie o comprovante no canal de pagamento e aguarde a aprovação da equipe.",
+  approvalMessage: "Seu pagamento foi aprovado. Seu pedido foi liberado para atendimento.",
+  customerReceiptMessage: "Recebemos o seu comprovante de pagamento com sucesso. Seu pagamento foi encaminhado para análise da nossa equipe.",
+  paymentInstructions: "Envie uma foto ou imagem do comprovante de pagamento.",
   pixKeyType: "random",
+  rejectionMessage: "Seu pagamento foi recusado. Motivo: {reason}",
   services: []
 };
 
@@ -82,6 +86,24 @@ export function ManualPaymentsPanel({ botId, canManage, guild }: Props) {
       .catch((error) => setMessage(readError(error, "Não foi possível carregar o pagamento manual.")))
       .finally(() => setLoading(false));
   }, [botId, guild]);
+
+  useEffect(() => {
+    if (!botId || !guild) return;
+    const socket = createDashboardSocket();
+    const refresh = (payload: { botId?: string | null; guildId: string }) => {
+      if (payload.guildId !== guild.id || (payload.botId ?? null) !== (botId ?? null)) return;
+      void getManualPaymentsDashboard(botId, guild.id).then((data) => {
+        setSettings(data.settings);
+        setDraft(toPayload(data.settings));
+        setOrders(data.orders);
+      }).catch(() => null);
+    };
+    socket.on("manual-payments:updated", refresh);
+    return () => {
+      socket.off("manual-payments:updated", refresh);
+      socket.disconnect();
+    };
+  }, [botId, guild?.id]);
 
   function patch(patchValue: SaveManualPaymentSettingsPayload) {
     setDraft((current) => ({ ...current, ...patchValue }));
@@ -199,13 +221,13 @@ export function ManualPaymentsPanel({ botId, canManage, guild }: Props) {
               <ChannelSelect channels={channels} disabled={!canManage} label="Canal do painel de vendas" onChange={(value) => patch({ salePanelChannelId: value })} value={draft.salePanelChannelId ?? null} />
               <CategorySelect categories={categories} disabled={!canManage} label="Categoria dos tickets de compra" onChange={(value) => patch({ paymentCategoryId: value })} value={draft.paymentCategoryId ?? null} />
               <CategorySelect categories={categories} disabled={!canManage} label="Categoria dos projetos/atendimentos" onChange={(value) => patch({ attendanceCategoryId: value })} value={draft.attendanceCategoryId ?? null} />
-              <ChannelSelect channels={channels} disabled={!canManage} label="Canal de logs" onChange={(value) => patch({ logChannelId: value })} value={draft.logChannelId ?? null} />
+              <ChannelSelect channels={channels} disabled={!canManage} label="Canal de recebimento dos comprovantes" onChange={(value) => patch({ logChannelId: value })} value={draft.logChannelId ?? null} />
               <ChannelSelect channels={channels} disabled={!canManage} label="Canal de suporte" onChange={(value) => patch({ supportPanelChannelId: value })} value={draft.supportPanelChannelId ?? null} />
               <RoleMultiSelect disabled={!canManage} label="Cargos da equipe" onChange={(values) => patch({ logViewRoleIds: values })} roles={roles} values={draft.logViewRoleIds ?? []} />
-              <RoleMultiSelect disabled={!canManage} label="Cargos aprovadores" onChange={(values) => patch({ approveRoleIds: values })} roles={roles} values={draft.approveRoleIds ?? []} />
-              <RoleMultiSelect disabled={!canManage} label="Cargos que recusam" onChange={(values) => patch({ rejectRoleIds: values })} roles={roles} values={draft.rejectRoleIds ?? []} />
+              <RoleMultiSelect disabled={!canManage} label="Cargo autorizado para aprovar pagamentos" onChange={(values) => patch({ approveRoleIds: values })} roles={roles} values={draft.approveRoleIds ?? []} />
+              <RoleMultiSelect disabled={!canManage} label="Cargo autorizado para recusar pagamentos" onChange={(values) => patch({ rejectRoleIds: values })} roles={roles} values={draft.rejectRoleIds ?? []} />
               <RoleMultiSelect disabled={!canManage} label="Cargos finalizadores" onChange={(values) => patch({ finalizeRoleIds: values })} roles={roles} values={draft.finalizeRoleIds ?? []} />
-              <Field disabled={!canManage} label="Tempo limite em minutos" onChange={(value) => patch({ maxPaymentMinutes: Number(value) || 1 })} type="number" value={String(draft.maxPaymentMinutes ?? 60)} />
+              <Field disabled={!canManage} label="Tempo máximo para análise" onChange={(value) => patch({ maxPaymentMinutes: Number(value) || 1 })} type="number" value={String(draft.maxPaymentMinutes ?? 60)} />
               <Field disabled={!canManage} label="Banner do painel" onChange={(value) => patch({ bannerUrl: value || null })} value={draft.bannerUrl ?? ""} />
               <Field disabled={!canManage} label="Cor dos embeds" onChange={(value) => patch({ color: value })} type="color" value={draft.color ?? "#22c55e"} />
             </div>
@@ -223,7 +245,18 @@ export function ManualPaymentsPanel({ botId, canManage, guild }: Props) {
               <Field disabled={!canManage} label="Título do painel" onChange={(value) => patch({ salePanelTitle: value })} value={draft.salePanelTitle ?? ""} />
               <Field disabled={!canManage} label="Descrição do painel" onChange={(value) => patch({ salePanelDescription: value })} value={draft.salePanelDescription ?? ""} />
             </div>
-            <Textarea disabled={!canManage} label="Instrucoes de pagamento" onChange={(value) => patch({ paymentInstructions: value })} value={draft.paymentInstructions ?? ""} />
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold text-white">Pagamentos Manuais</h3>
+                <p className="mt-1 text-xs text-zinc-500">Mensagens usadas no atendimento, análise e retorno ao cliente.</p>
+              </div>
+              <div className="space-y-3">
+                <Textarea disabled={!canManage} label="Mensagem automática enviada ao cliente" onChange={(value) => patch({ customerReceiptMessage: value })} value={draft.customerReceiptMessage ?? ""} />
+                <Textarea disabled={!canManage} label="Mensagem em caso de aprovação" onChange={(value) => patch({ approvalMessage: value })} value={draft.approvalMessage ?? ""} />
+                <Textarea disabled={!canManage} label="Mensagem em caso de recusa" onChange={(value) => patch({ rejectionMessage: value })} value={draft.rejectionMessage ?? ""} />
+              </div>
+            </div>
+            <Textarea disabled={!canManage} label="Instruções de pagamento" onChange={(value) => patch({ paymentInstructions: value })} value={draft.paymentInstructions ?? ""} />
 
             <div className="flex flex-wrap gap-3">
               <Button disabled={!canManage || saving} onClick={() => void save()} type="button"><Save className="mr-2 h-4 w-4" />Salvar</Button>

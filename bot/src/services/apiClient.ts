@@ -2151,6 +2151,8 @@ export type ManualPaymentSettings = {
   logViewRoleIds: string[];
   maxPaymentMinutes: number;
   paymentCategoryId: string | null;
+  approvalMessage: string;
+  customerReceiptMessage: string;
   paymentInstructions: string;
   pixCopyPasteCode: string | null;
   pixKey: string | null;
@@ -2159,6 +2161,7 @@ export type ManualPaymentSettings = {
   receiverBank: string | null;
   receiverName: string | null;
   rejectRoleIds: string[];
+  rejectionMessage: string;
   salePanelChannelId: string | null;
   salePanelDescription: string;
   salePanelMessageId: string | null;
