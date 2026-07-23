@@ -3,7 +3,7 @@ import { currentRuntimeBotId, env, isBotModuleEnabled } from "../config/env";
 import type { BotCommand, BotContext } from "../types";
 import type { ZtkWebhookClanRuntime, ZtkWebhookRecruitmentDashboard } from "./apiClient";
 import type { ZtkWebhookEventReceivedEvent, ZtkWebhookManageEvent, ZtkWebhookPlayerStatEvent, ZtkWebhookRewardUpdatedEvent } from "../websocket/socketClient";
-import { renderComponentsV2Panel } from "./panelVisualRenderer";
+import { renderComponentsV2Panel, renderPanelFromBlocks } from "./panelVisualRenderer";
 
 const ZTK_RANKING_LIMIT = 10;
 let ztkRecruitmentStartupSyncStarted = false;
@@ -279,26 +279,12 @@ function createEventPanel(payload: ZtkWebhookEventReceivedEvent) {
 
 function createRankingPanel(payload: ZtkWebhookEventReceivedEvent) {
   const participantRanking = payload.dominationRankings?.participants ?? [];
-  return renderComponentsV2Panel({
-    accentColor: 0xffd500,
-    description: `Top 10 semanal de membros com mais dominações para o clã **${payload.clan.clanName}**. Reinicia toda segunda-feira.`,
-    fields: participantRankingBlocks("🔥 TOP 10 DOMINAÇÕES", participantRanking),
-    footer: { text: "NexTech • ZTK Webhook" },
-    moduleId: "ztk-webhook",
-    title: `🏆 RANKING ${payload.clan.clanName.toUpperCase()}`
-  });
+  return renderCompactDominationRankingPanel(participantRanking);
 }
 
 function createParticipationRankingPanel(payload: ZtkWebhookEventReceivedEvent) {
   const participantRanking = payload.dominationRankings?.participants ?? [];
-  return renderComponentsV2Panel({
-    accentColor: 0xffd500,
-    description: `Top 10 semanal de membros com mais dominações registradas para o clã **${payload.clan.clanName}**. Reinicia toda segunda-feira.`,
-    fields: participantRankingBlocks("🎯 TOP 10 DOMINAÇÕES POR MEMBRO", participantRanking),
-    footer: { text: "NexTech • ZTK Webhook" },
-    moduleId: "ztk-webhook",
-    title: `🎯 Top Dominações • ${payload.clan.clanName}`
-  });
+  return renderCompactDominationRankingPanel(participantRanking);
 }
 
 function createOnlineRankingPanel(payload: ZtkWebhookEventReceivedEvent) {
@@ -330,12 +316,12 @@ async function upsertZtkRankingMessages(guild: Guild, payload: ZtkWebhookEventRe
     kind: "online" | "participation" | "ranking" | "recruitment";
     markers: string[];
     messageId: string | null | undefined;
-    panel: ReturnType<typeof renderComponentsV2Panel>;
+    panel: ReturnType<typeof renderComponentsV2Panel> | ReturnType<typeof renderPanelFromBlocks>;
   }> = [
     {
       channelId: payload.clan.rankingChannelId,
       kind: "ranking",
-      markers: [`RANKING ${payload.clan.clanName.toUpperCase()}`, "TOP 10 DOMINAÇÕES"],
+      markers: ["TOP 10", "DOMINAÇÕES"],
       messageId: payload.clan.rankingMessageId,
       panel: createRankingPanel(payload)
     },
@@ -370,13 +356,13 @@ async function upsertZtkRankingMessages(guild: Guild, payload: ZtkWebhookEventRe
   }
 }
 
-async function sendToChannel(guild: Guild, channelId: string, payload: ReturnType<typeof renderComponentsV2Panel>) {
+async function sendToChannel(guild: Guild, channelId: string, payload: ReturnType<typeof renderComponentsV2Panel> | ReturnType<typeof renderPanelFromBlocks>) {
   const channel = await guild.channels.fetch(channelId).catch(() => null);
   if (!channel?.isSendable()) return;
   await channel.send(payload);
 }
 
-async function upsertChannelMessage(guild: Guild, channelId: string, messageId: string | null, payload: ReturnType<typeof renderComponentsV2Panel>, markers: string[]) {
+async function upsertChannelMessage(guild: Guild, channelId: string, messageId: string | null, payload: ReturnType<typeof renderComponentsV2Panel> | ReturnType<typeof renderPanelFromBlocks>, markers: string[]) {
   const channel = await guild.channels.fetch(channelId).catch(() => null);
   if (!channel?.isSendable()) return null;
 
@@ -457,14 +443,30 @@ function gangRankingBlocks(title: string, values: NonNullable<ZtkWebhookEventRec
   }).join("\n\n")}`];
 }
 
-function participantRankingBlocks(title: string, values: NonNullable<ZtkWebhookEventReceivedEvent["dominationRankings"]>["participants"]) {
-  if (!values.length) return [`## ${title}\nSem registros.`];
-  return [`## ${title}\n${values.slice(0, ZTK_RANKING_LIMIT).map((item, index) => {
-    const last = item.lastDominatedAt
-      ? `\nÚltima dominação: ${item.lastZone ?? "Local não informado"}\nHorário: ${formatDateTime(item.lastDominatedAt)}`
-      : "";
-    return `${medal(index + 1)} **#${index + 1} ${item.playerName}**\n${item.weeklyDominations} dominações${item.gangName ? `\nClã: ${item.gangName}` : ""}${last}`;
-  }).join("\n\n")}`];
+function renderCompactDominationRankingPanel(values: NonNullable<ZtkWebhookEventReceivedEvent["dominationRankings"]>["participants"]) {
+  return renderPanelFromBlocks({
+    accentColor: 0xffd500,
+    blocks: [{
+      content: compactDominationRankingText(values),
+      id: "ztk-domination-ranking",
+      order: 1,
+      type: "text"
+    }],
+    footer: { enabled: false }
+  });
+}
+
+function compactDominationRankingText(values: NonNullable<ZtkWebhookEventReceivedEvent["dominationRankings"]>["participants"]) {
+  if (!values.length) return "**🏆 TOP 10 — Dominações**\nSem registros.";
+  const rows = values.slice(0, ZTK_RANKING_LIMIT).map((item, index) => {
+    const playerId = item.playerId ? ` (ID: ${oneLine(item.playerId)})` : " (ID: não informado)";
+    return `**#${index + 1} — ${oneLine(item.playerName)} — ${item.weeklyDominations} dominações${playerId}**`;
+  });
+  return `**🏆 TOP 10 — Dominações**\n${rows.join("\n")}`;
+}
+
+function oneLine(value: string) {
+  return value.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "Não informado";
 }
 
 function recruitmentRankingBlocks(values: NonNullable<ZtkWebhookEventReceivedEvent["recruitmentRankings"]>["recruiters"]) {
